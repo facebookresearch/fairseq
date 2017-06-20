@@ -51,9 +51,11 @@ def main():
     if torch.cuda.is_available():
         model.cuda()
 
+    # Nesterov accelerated gradient
     optimizer = NAG(model.parameters(), args.lr, momentum=args.momentum,
                     weight_decay=args.weight_decay)
 
+    # Decay the LR by 0.1 every time the validation loss plateaus
     lr_scheduler = ReduceLROnPlateau(optimizer, patience=0)
 
     # Load the latest checkpoint if one is available
@@ -75,6 +77,8 @@ def main():
 
 
 def train(epoch, model, dataset, optimizer):
+    """Train the model for one epoch"""
+
     model.train()
     itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size)
     loss_meter = AverageMeter()
@@ -105,6 +109,8 @@ def train(epoch, model, dataset, optimizer):
 
 
 def validate(epoch, model, dataset):
+    """Evaluate the model on the validation set and return the average loss"""
+
     model.eval()
     itr = dataset.dataloader('valid', epoch=epoch, batch_size=args.batch_size)
     loss_meter = AverageMeter()
@@ -154,6 +160,7 @@ def load_checkpoint(model, optimizer, lr_scheduler):
 
 
 def prepare_sample(sample, volatile=False):
+    """Wrap input tensors in Variable class"""
     r = {}
     for key in ['input_tokens', 'input_positions', 'target', 'src_tokens', 'src_positions']:
         tensor = sample[key]

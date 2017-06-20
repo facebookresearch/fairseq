@@ -7,6 +7,8 @@ from dictionary import Dictionary
 
 
 def load(path):
+    """Loads the train, valid, and test sets from the specified folder"""
+
     files = os.listdir(path)
 
     def find_languages(files):
