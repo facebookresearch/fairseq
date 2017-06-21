@@ -46,8 +46,10 @@ class LanguageDatasets(object):
         dataset = self.splits[split]
         if split == 'train':
             sampler = ShuffledBucketSampler(dataset.src, dataset.dst, batch_size)
+            batch_sampler = None
         else:
-            sampler = SortedBucketSampler(dataset.src)
+            sampler = None
+            batch_sampler = list(batch_by_size(dataset.src, batch_size))
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -55,7 +57,8 @@ class LanguageDatasets(object):
             num_workers=num_workers,
             pin_memory=torch.cuda.is_available(),
             collate_fn=PaddingCollater(self.src_dict.index('<pad>')),
-            sampler=sampler)
+            sampler=sampler,
+            batch_sampler=batch_sampler)
 
 
 class PaddingCollater(object):
@@ -118,18 +121,28 @@ class LanguagePairDataset(object):
         return len(self.src)
 
 
-class SortedBucketSampler(object):
-    """Samples from the IndexedDataset sorted by size"""
-    def __init__(self, src):
-        assert isinstance(src, IndexedDataset)
-        self.src = src
+def batch_by_size(dataset, batch_size):
+    assert isinstance(dataset, IndexedDataset)
+    sizes = dataset.sizes
+    indices = np.argsort(sizes, kind='mergesort')
 
-    def __iter__(self):
-        indices = np.argsort(self.src.sizes, kind='mergesort')
-        return iter(indices.ravel())
+    batch = []
 
-    def __len__(self):
-        return len(self.src)
+    def yield_batch(next_idx):
+        if len(batch) == 0:
+            return False
+        if len(batch) == batch_size:
+            return True
+        return sizes[batch[0]] != sizes[next_idx]
+
+    for idx in indices:
+        if yield_batch(idx):
+            yield batch
+            batch = []
+        batch.append(idx)
+
+    if len(batch) > 0:
+        yield batch
 
 
 class ShuffledBucketSampler(object):

@@ -46,7 +46,7 @@ def main():
     print(args)
 
     dataset = data.load(args.data)
-    model = models.__dict__[args.arch](args, dataset)
+    model = models.__dict__[args.arch](dataset, args.dropout)
 
     if torch.cuda.is_available():
         model.cuda()
@@ -84,9 +84,7 @@ def train(epoch, model, dataset, optimizer):
     loss_meter = AverageMeter()
 
     def step(sample):
-        sample = prepare_sample(sample)
-
-        loss = model(**sample)
+        loss = model(**prepare_sample(sample))
 
         optimizer.zero_grad()
         loss.backward()
@@ -115,9 +113,8 @@ def validate(epoch, model, dataset):
     itr = dataset.dataloader('valid', epoch=epoch, batch_size=args.batch_size)
     loss_meter = AverageMeter()
 
-    def step(sample):
-        sample = prepare_sample(sample, volatile=True)
-        loss = model(**sample)
+    def step(_sample):
+        loss = model(**prepare_sample(sample, volatile=True))
         return loss.data[0] / math.log(2)
 
     t = tqdm(itr, leave=False)
@@ -161,7 +158,7 @@ def load_checkpoint(model, optimizer, lr_scheduler):
 
 def prepare_sample(sample, volatile=False):
     """Wrap input tensors in Variable class"""
-    r = {}
+    r = {'ntokens': sample['ntokens']}
     for key in ['input_tokens', 'input_positions', 'target', 'src_tokens', 'src_positions']:
         tensor = sample[key]
         if torch.cuda.is_available():

@@ -13,12 +13,13 @@ class FConvModel(nn.Module):
         self.register_buffer('mask', torch.ones(len(datasets.dst_dict)))
         self.mask[datasets.dst_dict.index('pad')] = 0
 
-    def forward(self, src_tokens, src_positions, input_tokens, input_positions, target):
+    def forward(self, src_tokens, src_positions, input_tokens, input_positions, target, ntokens):
         encoder_out = self.encoder(src_tokens, src_positions)
         decoder_out = self.decoder(input_tokens, input_positions, encoder_out)
         decoder_out = decoder_out.view(-1, decoder_out.size(-1))
         target = target.view(-1)
-        return F.cross_entropy(decoder_out, target, self.mask)
+        loss = F.cross_entropy(decoder_out, target, self.mask, size_average=False)
+        return loss / ntokens
 
 
 class Encoder(nn.Module):
@@ -130,7 +131,7 @@ class Decoder(nn.Module):
             self.attention.append(AttentionLayer(out_channels, embed_dim))
             in_channels = out_channels
         self.fc2 = Linear(in_channels, embed_dim)
-        self.fc3 = Linear(embed_dim, num_embeddings, dropout=dropout)
+        self.fc3 = Linear(embed_dim, num_embeddings)
 
     def forward(self, tokens, positions, encoder_out):
         # embed tokens and positions
@@ -203,20 +204,20 @@ class GradMultiply(torch.autograd.Function):
         return grad * ctx.scale, None
 
 
-def fconv_iwslt_de_en(args, dataset):
+def fconv_iwslt_de_en(dataset, dropout):
     padding_idx = dataset.dst_dict.index('<pad>')
 
     encoder = Encoder(
         len(dataset.src_dict),
         embed_dim=256,
         convolutions=((256, 3),) * 4,
-        dropout=args.dropout,
+        dropout=dropout,
         padding_idx=padding_idx,
         num_attention_layers=3)
     decoder = Decoder(
         len(dataset.dst_dict),
         embed_dim=256,
         convolutions=((256, 3),) * 3,
-        dropout=args.dropout,
+        dropout=dropout,
         padding_idx=padding_idx)
     return FConvModel(dataset, encoder, decoder)
