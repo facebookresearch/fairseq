@@ -67,7 +67,7 @@ class Encoder(nn.Module):
         # project back to size of embedding
         x = self.fc2(x)
 
-        # scale gradients
+        # scale gradients (this only affects backward, not forward)
         x = grad_multiply(x, 1.0 / (2.0 * self.num_attention_layers))
 
         # add output to input embedding for attention
@@ -163,6 +163,13 @@ class Decoder(nn.Module):
         x = self.fc3(x)
 
         return x
+
+    def context_size(self):
+        """Maximum number of input elements each output element depends on"""
+        context = 1
+        for conv in self.convolutions:
+            context += conv.kernel_size[0] - 1
+        return context
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

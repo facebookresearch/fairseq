@@ -8,8 +8,9 @@ from tqdm import tqdm
 
 import models
 import data
+import generate
 from nag import NAG
-from average_meter import AverageMeter
+from average_meter import AverageMeter, TimeMeter
 
 
 parser = argparse.ArgumentParser(description='Convolutional Sequence to Sequence Training')
@@ -61,6 +62,7 @@ def main():
     # Load the latest checkpoint if one is available
     epoch = load_checkpoint(model, optimizer, lr_scheduler)
 
+    # Train until the learning rate gets too small
     while optimizer.param_groups[0]['lr'] > args.min_lr:
         # train for one epoch
         train(epoch, model, dataset, optimizer)
@@ -75,6 +77,10 @@ def main():
         # save checkpoint
         save_checkpoint(epoch, model, optimizer, lr_scheduler)
 
+    # Generate on test set and compute BLEU score
+    scorer = generate.generate(model, dataset)
+    print('| Test with beam=20: BLEU4 = {:2.2f}', scorer.score)
+
 
 def train(epoch, model, dataset, optimizer):
     """Train the model for one epoch"""
@@ -82,6 +88,7 @@ def train(epoch, model, dataset, optimizer):
     model.train()
     itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size)
     loss_meter = AverageMeter()
+    wps_meter = TimeMeter()
 
     def step(sample):
         loss = model(**prepare_sample(sample))
@@ -97,13 +104,17 @@ def train(epoch, model, dataset, optimizer):
     t.set_description('epoch {}'.format(epoch))
     for sample in t:
         loss = step(sample)
+
         loss_meter.update(loss, sample['ntokens'])
+        wps_meter.update(sample['ntokens'])
+
         t.set_postfix(loss='{:.2f} ({:.2f})'.format(loss, loss_meter.avg),
+                      wps='{:5d}'.format(round(wps_meter.avg)),
                       lr=optimizer.param_groups[0]['lr'])
 
-    t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:2.2f} | lr {:0.6f}'
+    t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
             .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
-                    optimizer.param_groups[0]['lr']))
+                    round(wps_meter.avg), optimizer.param_groups[0]['lr']))
 
 
 def validate(epoch, model, dataset):
@@ -124,7 +135,7 @@ def validate(epoch, model, dataset):
         loss_meter.update(loss, sample['ntokens'])
         t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
 
-    t.write('| epoch {:03d} | val loss {:2.2f} | val ppl {:2.2f}'
+    t.write('| epoch {:03d} | val loss {:2.2f} | val ppl {:3.2f}'
             .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg)))
 
     return loss_meter.avg
@@ -152,7 +163,7 @@ def load_checkpoint(model, optimizer, lr_scheduler):
     lr_scheduler.best = state['best_loss']
     epoch = state['epoch']
 
-    print(' | loaded checkpoint {} (epoch {})'.format(filename, epoch))
+    print('| loaded checkpoint {} (epoch {})'.format(filename, epoch))
     return epoch
 
 
