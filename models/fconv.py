@@ -109,8 +109,9 @@ class AttentionLayer(nn.Module):
 
 class Decoder(nn.Module):
     """Convolutional decoder"""
-    def __init__(self, num_embeddings=24638, embed_dim=512, max_position=1024,
-                 convolutions=((512, 3),) * 20, dropout=0.1, padding_idx=1):
+    def __init__(self, num_embeddings=24638, embed_dim=512, out_embed_dim=256,
+                 max_position=1024, convolutions=((512, 3),) * 20,
+                 dropout=0.1, padding_idx=1):
         super(Decoder, self).__init__()
         self.dropout = dropout
         in_channels = convolutions[0][0]
@@ -130,8 +131,8 @@ class Decoder(nn.Module):
                        dropout=dropout))
             self.attention.append(AttentionLayer(out_channels, embed_dim))
             in_channels = out_channels
-        self.fc2 = Linear(in_channels, embed_dim)
-        self.fc3 = Linear(embed_dim, num_embeddings)
+        self.fc2 = Linear(in_channels, out_embed_dim)
+        self.fc3 = Linear(out_embed_dim, num_embeddings)
 
     def forward(self, tokens, positions, encoder_out):
         # embed tokens and positions
@@ -189,7 +190,7 @@ def Linear(in_features, out_features, dropout=0):
 def Conv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
     """Weight-normalized Conv1d layer"""
     m = nn.Conv1d(in_channels, out_channels, kernel_size, **kwargs)
-    std = math.sqrt((4 - dropout) / (m.kernel_size[0] * in_channels))
+    std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
     m.weight.data.normal_(mean=0, std=std)
     return nn.utils.weight_norm(m)
 
@@ -225,6 +226,25 @@ def fconv_iwslt_de_en(dataset, dropout):
         len(dataset.dst_dict),
         embed_dim=256,
         convolutions=((256, 3),) * 3,
+        dropout=dropout,
+        padding_idx=padding_idx)
+    return FConvModel(dataset, encoder, decoder)
+
+
+def fconv_wmt_en_ro(dataset, dropout):
+    padding_idx = dataset.dst_dict.index('<pad>')
+
+    encoder = Encoder(
+        len(dataset.src_dict),
+        embed_dim=512,
+        convolutions=((512, 3),) * 20,
+        dropout=dropout,
+        padding_idx=padding_idx,
+        num_attention_layers=3)
+    decoder = Decoder(
+        len(dataset.dst_dict),
+        embed_dim=512,
+        convolutions=((512, 3),) * 20,
         dropout=dropout,
         padding_idx=padding_idx)
     return FConvModel(dataset, encoder, decoder)
