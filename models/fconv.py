@@ -11,7 +11,7 @@ class FConvModel(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.register_buffer('mask', torch.ones(len(datasets.dst_dict)))
-        self.mask[datasets.dst_dict.index('pad')] = 0
+        self.mask[datasets.dst_dict.index('<pad>')] = 0
 
     def forward(self, src_tokens, src_positions, input_tokens, input_positions, target, ntokens):
         encoder_out = self.encoder(src_tokens, src_positions)

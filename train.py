@@ -33,10 +33,8 @@ parser.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
                     help='clip threshold of gradients')
 parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                     help='weight decay')
-parser.add_argument('--dropout', default=0.2, type=float, metavar='D',
+parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                     help='dropout probability')
-parser.add_argument('--embed-dim', '-d', metavar='DIM', default=256, type=int,
-                    help='embedding dimension')
 parser.add_argument('--save-dir', metavar='DIR', default='.',
                     help='path to save checkpoints')
 
