@@ -2,6 +2,7 @@ import os
 import torch
 import torch.utils.data
 import numpy as np
+import random
 from indexed_dataset import IndexedDataset
 from dictionary import Dictionary
 
@@ -42,22 +43,18 @@ class LanguageDatasets(object):
         self.dst_dict = dst_dict
         self.splits = {}
 
-    def dataloader(self, split, epoch, batch_size=1, num_workers=0):
+    def dataloader(self, split, epoch, batch_size=1, num_workers=0, max_len=None):
         dataset = self.splits[split]
         if split == 'train':
-            sampler = ShuffledBucketSampler(dataset.src, dataset.dst, batch_size)
-            batch_sampler = None
+            batch_sampler = ShuffledBucketSampler(dataset.src, dataset.dst, batch_size, max_len)
         else:
-            sampler = None
             batch_sampler = list(batch_by_size(dataset.src, batch_size))
 
         return torch.utils.data.DataLoader(
             dataset,
-            batch_size=batch_size,
             num_workers=num_workers,
             pin_memory=torch.cuda.is_available(),
             collate_fn=PaddingCollater(self.src_dict.index('<pad>')),
-            sampler=sampler,
             batch_sampler=batch_sampler)
 
 
@@ -147,31 +144,54 @@ def batch_by_size(dataset, batch_size):
 
 class ShuffledBucketSampler(object):
     """Samples from the IndexedDataset shuffled and grouped by size"""
-    def __init__(self, src, dst, batch_size=1):
+    def __init__(self, src, dst, batch_size=1, max_len=None):
         assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
         self.src = src
         self.dst = dst
         self.batch_size = batch_size
-        self.size = (len(self.src) // batch_size) * batch_size
+        if max_len is None:
+            max_len = float('Inf')
+        self.max_len = max_len
+        self.batches = None
 
     def __iter__(self):
-        indices = np.random.permutation(len(self.src))
+        if self.batches is None:
+            batches = self.shuffled_batches()
+        else:
+            batches = self.batches
+            self.batches = None
+        return iter(batches)
 
-        # cut of extra samples to make divisible by batch_size
-        extra = len(indices) % self.batch_size
-        indices = indices[:-extra]
+    def shuffled_batches(self):
+        indices = np.random.permutation(len(self.src))
 
         # sort by sizes
         indices = indices[np.argsort(self.src.sizes[indices], kind='mergesort')]
         indices = indices[np.argsort(self.dst.sizes[indices], kind='mergesort')]
 
-        # group by batch
-        indices = indices.reshape((-1, self.batch_size))
+        def make_batches():
+            batch = []
+            seq_len = 0
 
-        # shuffle batches
-        indices = indices[np.random.permutation(len(indices))]
+            for idx in indices:
+                sample_len = max(self.src.sizes[idx], self.dst.sizes[idx])
+                if len(batch) > 0 and (len(batch) == self.batch_size
+                                       or seq_len + sample_len > self.max_len):
+                    yield batch
+                    batch = []
+                    seq_len = 0
 
-        return iter(indices.ravel())
+                batch.append(idx)
+                seq_len += sample_len
+
+            if len(batch) > 0:
+                yield batch
+
+        batches = list(make_batches())
+        random.shuffle(batches)
+        return batches
 
     def __len__(self):
-        return self.size
+        if self.batches is None:
+            self.batches = self.shuffled_batches()
+        return len(self.batches)

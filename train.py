@@ -23,6 +23,8 @@ parser.add_argument('-j', '--workers', default=16, type=int, metavar='N',
                     help='number of data loading workers (default: 16)')
 parser.add_argument('--batch-size', '-b', default=32, type=int, metavar='N',
                     help='batch size')
+parser.add_argument('--max-len', default=None, type=int, metavar='N',
+                    help='maximum sequence length in batch')
 parser.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
                     help='initial learning rate')
 parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
@@ -45,6 +47,12 @@ def main():
     print(args)
 
     dataset = data.load(args.data)
+    print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
+    print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
+    for split in ['train', 'valid', 'test']:
+        print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
+
+    print('| model {}'.format(args.arch))
     model = models.__dict__[args.arch](dataset, args.dropout)
 
     if torch.cuda.is_available():
@@ -83,8 +91,10 @@ def main():
 def train(epoch, model, dataset, optimizer):
     """Train the model for one epoch"""
 
+    print('| epoch')
     model.train()
-    itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size)
+    itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size,
+                             max_len=args.max_len)
     loss_meter = AverageMeter()
     wps_meter = TimeMeter()
 
