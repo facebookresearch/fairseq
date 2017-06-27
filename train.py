@@ -85,13 +85,12 @@ def main():
 
     # Generate on test set and compute BLEU score
     scorer = generate.generate(model, dataset)
-    print('| Test with beam=20: BLEU4 = {:2.2f}', scorer.score)
+    print('| Test with beam=20: BLEU4 = {:2.2f}'.format(scorer.score()))
 
 
 def train(epoch, model, dataset, optimizer):
     """Train the model for one epoch"""
 
-    print('| epoch')
     model.train()
     itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size,
                              max_len=args.max_len)
@@ -109,7 +108,7 @@ def train(epoch, model, dataset, optimizer):
         return loss.data[0] / math.log(2)
 
     t = tqdm(itr, leave=False)
-    t.set_description('epoch {}'.format(epoch))
+    t.set_description('| epoch {}'.format(epoch))
     for sample in t:
         loss = step(sample)
 
@@ -137,7 +136,7 @@ def validate(epoch, model, dataset):
         return loss.data[0] / math.log(2)
 
     t = tqdm(itr, leave=False)
-    t.set_description('val {}'.format(epoch))
+    t.set_description('| val {}'.format(epoch))
     for sample in t:
         loss = step(sample)
         loss_meter.update(loss, sample['ntokens'])
