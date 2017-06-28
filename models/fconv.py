@@ -39,7 +39,7 @@ class Encoder(nn.Module):
         self.convolutions = nn.ModuleList()
         for (out_channels, kernel_size) in convolutions:
             pad = (kernel_size - 1) // 2
-            self.projections.append(Linear(in_channels, out_channels)
+            self.projections.append(Projection(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
                 Conv1d(in_channels, out_channels * 2, kernel_size, padding=pad,
@@ -56,13 +56,19 @@ class Encoder(nn.Module):
         # project to size of convolution
         x = self.fc1(x)
 
+        # B x T x C -> B x C x T
+        x = x.transpose(1, 2)
+
         # temporal convolutions
         for proj, conv in zip(self.projections, self.convolutions):
             residual = x if proj is None else self.proj(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-            x = conv(x.transpose(1, 2)).transpose(2, 1)
-            x = F.glu(x)
+            x = conv(x)
+            x = F.glu(x, dim=1)
             x = (x + residual) * math.sqrt(0.5)
+
+        # B x C x T -> B x T x C
+        x = x.transpose(2, 1)
 
         # project back to size of embedding
         x = self.fc2(x)
@@ -89,7 +95,7 @@ class AttentionLayer(nn.Module):
 
         # attention
         x = (self.in_projection(x) + target_embedding) * math.sqrt(0.5)
-        x = torch.bmm(x, encoder_out[0].transpose(1, 2))
+        x = torch.bmm(x, encoder_out[0])
 
         # softmax over last dim
         sz = x.size()
@@ -143,6 +149,10 @@ class Decoder(nn.Module):
         # project to size of convolution
         x = self.fc1(x)
 
+        # transpose only once to speed up attention layers
+        encoder_a, encoder_b = encoder_out
+        encoder_a = encoder_a.transpose(1, 2).contiguous()
+
         # temporal convolutions
         for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
             residual = x if proj is None else self.proj(x)
@@ -153,7 +163,7 @@ class Decoder(nn.Module):
             x = F.glu(x)
 
             # attention
-            x = attention(x, target_embedding, encoder_out)
+            x = attention(x, target_embedding, (encoder_a, encoder_b))
 
             # residual
             x = (x + residual) * math.sqrt(0.5)
@@ -180,8 +190,16 @@ def Embedding(num_embeddings, embedding_dim, padding_idx):
 
 
 def Linear(in_features, out_features, dropout=0):
-    """Weight-normalized Linear layer"""
+    """Weight-normalized Linear layer (input: N x T x C)"""
     m = nn.Linear(in_features, out_features)
+    m.weight.data.normal_(mean=0, std=math.sqrt((1 - dropout) / in_features))
+    m.bias.data.zero_()
+    return nn.utils.weight_norm(m)
+
+
+def Projection(in_features, out_features, dropout=0):
+    """Weight-normalized Linear via 1x1 convolution (input: N x C x T)"""
+    m = nn.Conv1d(in_features, out_features, kernel_size=1)
     m.weight.data.normal_(mean=0, std=math.sqrt((1 - dropout) / in_features))
     m.bias.data.zero_()
     return nn.utils.weight_norm(m)
