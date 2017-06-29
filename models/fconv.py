@@ -6,11 +6,12 @@ import torch.nn.functional as F
 
 
 class FConvModel(nn.Module):
-    def __init__(self, datasets, encoder, decoder):
+    def __init__(self, encoder, decoder, padding_idx=1):
         super(FConvModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
-        self.pad_idx = datasets.dst_dict.index('<pad>')
+        self.encoder.num_attention_layers = sum([layer is not None for layer in decoder.attention])
+        self.padding_idx = padding_idx
 
     def forward(self, src_tokens, src_positions, input_tokens, input_positions, target, ntokens):
         encoder_out = self.encoder(src_tokens, src_positions)
@@ -18,18 +19,17 @@ class FConvModel(nn.Module):
         decoder_out = decoder_out.view(-1, decoder_out.size(-1))
         target = target.view(-1)
         loss = F.cross_entropy(decoder_out, target, size_average=False,
-                               ignore_index=self.pad_idx)
+                               ignore_index=self.padding_idx)
         return loss / ntokens
 
 
 class Encoder(nn.Module):
     """Convolutional encoder"""
     def __init__(self, num_embeddings, embed_dim=512, max_position=1024,
-                 convolutions=((512, 3),) * 20, dropout=0.1, padding_idx=1,
-                 num_attention_layers=1):
+                 convolutions=((512, 3),) * 20, dropout=0.1, padding_idx=1):
         super(Encoder, self).__init__()
         self.dropout = dropout
-        self.num_attention_layers = num_attention_layers
+        self.num_attention_layers = None
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
         self.embed_positions = Embedding(max_position, embed_dim, padding_idx)
 
@@ -239,15 +239,14 @@ def fconv_iwslt_de_en(dataset, dropout):
         embed_dim=256,
         convolutions=((256, 3),) * 4,
         dropout=dropout,
-        padding_idx=padding_idx,
-        num_attention_layers=3)
+        padding_idx=padding_idx)
     decoder = Decoder(
         len(dataset.dst_dict),
         embed_dim=256,
         convolutions=((256, 3),) * 3,
         dropout=dropout,
         padding_idx=padding_idx)
-    return FConvModel(dataset, encoder, decoder)
+    return FConvModel(encoder, decoder, padding_idx)
 
 
 def fconv_wmt_en_ro(dataset, dropout):
@@ -258,12 +257,11 @@ def fconv_wmt_en_ro(dataset, dropout):
         embed_dim=512,
         convolutions=((512, 3),) * 20,
         dropout=dropout,
-        padding_idx=padding_idx,
-        num_attention_layers=3)
+        padding_idx=padding_idx)
     decoder = Decoder(
         len(dataset.dst_dict),
         embed_dim=512,
         convolutions=((512, 3),) * 20,
         dropout=dropout,
         padding_idx=padding_idx)
-    return FConvModel(dataset, encoder, decoder)
+    return FConvModel(encoder, decoder, padding_idx)
