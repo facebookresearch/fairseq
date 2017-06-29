@@ -23,8 +23,8 @@ parser.add_argument('-j', '--workers', default=16, type=int, metavar='N',
                     help='number of data loading workers (default: 16)')
 parser.add_argument('--batch-size', '-b', default=32, type=int, metavar='N',
                     help='batch size')
-parser.add_argument('--max-len', default=None, type=int, metavar='N',
-                    help='maximum sequence length in batch')
+parser.add_argument('--max-tokens', default=None, type=int, metavar='N',
+                    help='maximum number of tokens in a batch')
 parser.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
                     help='initial learning rate')
 parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
@@ -93,7 +93,7 @@ def train(epoch, model, dataset, optimizer):
 
     model.train()
     itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size,
-                             max_len=args.max_len)
+                             max_tokens=args.max_tokens)
     loss_meter = AverageMeter()
     wps_meter = TimeMeter()
 

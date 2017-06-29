@@ -43,12 +43,12 @@ class LanguageDatasets(object):
         self.dst_dict = dst_dict
         self.splits = {}
 
-    def dataloader(self, split, epoch, batch_size=1, num_workers=0, max_len=None):
+    def dataloader(self, split, epoch, batch_size=1, num_workers=0, max_tokens=None):
         dataset = self.splits[split]
         if split == 'train':
-            batch_sampler = ShuffledBucketSampler(dataset.src, dataset.dst, batch_size, max_len)
+            batch_sampler = ShuffledBucketSampler(dataset.src, dataset.dst, batch_size, max_tokens)
         else:
-            batch_sampler = list(batch_by_size(dataset.src, batch_size))
+            batch_sampler = list(batch_by_size(dataset.src, batch_size, max_tokens))
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -118,7 +118,7 @@ class LanguagePairDataset(object):
         return len(self.src)
 
 
-def batch_by_size(dataset, batch_size):
+def batch_by_size(dataset, batch_size, max_tokens=None):
     assert isinstance(dataset, IndexedDataset)
     sizes = dataset.sizes
     indices = np.argsort(sizes, kind='mergesort')
@@ -130,7 +130,11 @@ def batch_by_size(dataset, batch_size):
             return False
         if len(batch) == batch_size:
             return True
-        return sizes[batch[0]] != sizes[next_idx]
+        if sizes[batch[0]] != sizes[next_idx]:
+            return True
+        if max_tokens is not None and len(batch) * sizes[next_idx] > max_tokens:
+            return True
+        return False
 
     for idx in indices:
         if yield_batch(idx):
@@ -144,14 +148,14 @@ def batch_by_size(dataset, batch_size):
 
 class ShuffledBucketSampler(object):
     """Samples from the IndexedDataset shuffled and grouped by size"""
-    def __init__(self, src, dst, batch_size=1, max_len=None):
+    def __init__(self, src, dst, batch_size=1, max_tokens=None):
         assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
         self.src = src
         self.dst = dst
         self.batch_size = batch_size
-        if max_len is None:
-            max_len = float('Inf')
-        self.max_len = max_len
+        if max_tokens is None:
+            max_tokens = float('Inf')
+        self.max_tokens = max_tokens
         self.batches = None
 
     def __iter__(self):
@@ -176,7 +180,7 @@ class ShuffledBucketSampler(object):
             for idx in indices:
                 sample_len = max(self.src.sizes[idx], self.dst.sizes[idx])
                 if len(batch) > 0 and (len(batch) == self.batch_size
-                                       or seq_len + sample_len > self.max_len):
+                                       or seq_len + sample_len > self.max_tokens):
                     yield batch
                     batch = []
                     seq_len = 0
