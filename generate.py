@@ -149,9 +149,6 @@ def generate(model, dataset):
 
     return scorer
 
-    print(scorer.score())
-    print(scorer.precision())
-
 
 def main():
     import models
