@@ -4,7 +4,7 @@ import torch
 import math
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from tqdm import tqdm
+from progress_bar import progress_bar
 
 import models
 import data
@@ -43,12 +43,17 @@ parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                     help='dropout probability')
 parser.add_argument('--save-dir', metavar='DIR', default='.',
                     help='path to save checkpoints')
+parser.add_argument('--no-progress-bar', action='store_true',
+                    help='disable progress bar')
 
 
 def main():
     global args
     args = parser.parse_args()
     print(args)
+
+    if args.no_progress_bar:
+        progress_bar.enabled = False
 
     dataset = data.load(args.data, args.source_lang, args.target_lang)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
@@ -111,21 +116,25 @@ def train(epoch, model, dataset, optimizer):
 
         return loss.data[0] / math.log(2)
 
-    t = tqdm(itr, leave=False)
-    t.set_description('| epoch {}'.format(epoch))
-    for sample in t:
-        loss = step(sample)
+    desc = '| epoch {}'.format(epoch)
+    with progress_bar(itr, desc, leave=False) as t:
+        for i, sample in enumerate(t):
+            loss = step(sample)
 
-        loss_meter.update(loss, sample['ntokens'])
-        wps_meter.update(sample['ntokens'])
+            loss_meter.update(loss, sample['ntokens'])
+            wps_meter.update(sample['ntokens'])
 
-        t.set_postfix(loss='{:.2f} ({:.2f})'.format(loss, loss_meter.avg),
-                      wps='{:5d}'.format(round(wps_meter.avg)),
-                      lr=optimizer.param_groups[0]['lr'])
+            t.set_postfix(loss='{:.2f} ({:.2f})'.format(loss, loss_meter.avg),
+                          wps='{:5d}'.format(round(wps_meter.avg)),
+                          lr=optimizer.param_groups[0]['lr'])
 
-    t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
-            .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
-                    round(wps_meter.avg), optimizer.param_groups[0]['lr']))
+            if i == 0:
+                # ignore the first mini-batch in words-per-second calculation
+                wps_meter.reset()
+
+        t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
+                .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
+                        round(wps_meter.avg), optimizer.param_groups[0]['lr']))
 
 
 def validate(epoch, model, dataset):
@@ -139,15 +148,15 @@ def validate(epoch, model, dataset):
         loss = model(**prepare_sample(sample, volatile=True))
         return loss.data[0] / math.log(2)
 
-    t = tqdm(itr, leave=False)
-    t.set_description('| val {}'.format(epoch))
-    for sample in t:
-        loss = step(sample)
-        loss_meter.update(loss, sample['ntokens'])
-        t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
+    desc = '| val {}'.format(epoch)
+    with progress_bar(itr, desc, leave=False) as t:
+        for sample in t:
+            loss = step(sample)
+            loss_meter.update(loss, sample['ntokens'])
+            t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
 
-    t.write('| epoch {:03d} | val loss {:2.2f} | val ppl {:3.2f}'
-            .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg)))
+        t.write('| epoch {:03d} | val loss {:2.2f} | val ppl {:3.2f}'
+                .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg)))
 
     return loss_meter.avg
 

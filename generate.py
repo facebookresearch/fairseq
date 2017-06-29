@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from tqdm import tqdm
+from progress_bar import progress_bar
 from torch.autograd import Variable
 
 import bleu
@@ -137,7 +137,7 @@ def generate(model, dataset):
     translator.cuda()
 
     scorer = bleu.Scorer(pad, eos)
-    with tqdm(itr, smoothing=0, leave=False) as t:
+    with progress_bar(itr, smoothing=0, leave=False) as t:
         for sample in t:
             hypotheses = translator.generate(sample['src_tokens'], sample['src_positions'])
 
