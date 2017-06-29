@@ -19,6 +19,10 @@ parser.add_argument('data', metavar='DIR',
 parser.add_argument('--arch', '-a', default='fconv_iwslt_de_en', metavar='ARCH',
                     choices=models.__all__,
                     help='model architecture ({})'.format(', '.join(models.__all__)))
+parser.add_argument('--source-lang', '-s', default=None, metavar='SRC',
+                    help='source language')
+parser.add_argument('--target-lang', '-t', default=None, metavar='TARGET',
+                    help='target language')
 parser.add_argument('-j', '--workers', default=16, type=int, metavar='N',
                     help='number of data loading workers (default: 16)')
 parser.add_argument('--batch-size', '-b', default=32, type=int, metavar='N',
@@ -46,7 +50,7 @@ def main():
     args = parser.parse_args()
     print(args)
 
-    dataset = data.load(args.data)
+    dataset = data.load(args.data, args.source_lang, args.target_lang)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
     for split in ['train', 'valid', 'test']:

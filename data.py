@@ -7,21 +7,34 @@ from indexed_dataset import IndexedDataset
 from dictionary import Dictionary
 
 
-def load(path):
+def load(path, src=None, dst=None):
     """Loads the train, valid, and test sets from the specified folder"""
 
-    files = os.listdir(path)
-
-    def find_languages(files):
+    def find_language_pair(files):
         for filename in files:
             parts = filename.split('.')
             if parts[0] == 'train' and parts[-1] == 'idx':
                 return parts[1].split('-')
 
+    def train_file_exists(src, dst):
+        filename = 'train.{0}-{1}.{0}.idx'.format(src, dst)
+        return os.path.exists(os.path.join(path, filename))
+
     def fmt_path(fmt, *args):
         return os.path.join(path, fmt.format(*args))
 
-    src, dst = find_languages(files)
+    if src is None and dst is None:
+        # find language pair automatically
+        src, dst = find_language_pair(os.listdir(path))
+        langcode = '{}-{}'.format(src, dst)
+    elif train_file_exists(src, dst):
+        # check for src-dst langcode
+        langcode = '{}-{}'.format(src, dst)
+    elif train_file_exists(dst, src):
+        # check for dst-src langcode
+        langcode = '{}-{}'.format(dst, src)
+    else:
+        raise ValueError('training file not found for {}-{}'.format(src, dst))
 
     src_dict = Dictionary.load(fmt_path('dict.{}.txt', src))
     dst_dict = Dictionary.load(fmt_path('dict.{}.txt', dst))
@@ -29,8 +42,8 @@ def load(path):
 
     for split in ['train', 'valid', 'test']:
         dataset.splits[split] = LanguagePairDataset(
-            IndexedDataset(fmt_path('{0}.{1}-{2}.{1}', split, src, dst)),
-            IndexedDataset(fmt_path('{0}.{1}-{2}.{2}', split, src, dst)))
+            IndexedDataset(fmt_path('{}.{}.{}', split, langcode, src)),
+            IndexedDataset(fmt_path('{}.{}.{}', split, langcode, dst)))
 
     return dataset
 
