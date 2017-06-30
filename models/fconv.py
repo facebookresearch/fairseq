@@ -61,7 +61,7 @@ class Encoder(nn.Module):
 
         # temporal convolutions
         for proj, conv in zip(self.projections, self.convolutions):
-            residual = x if proj is None else self.proj(x)
+            residual = x if proj is None else proj(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x)
             x = F.glu(x, dim=1)
@@ -160,7 +160,7 @@ class Decoder(nn.Module):
 
         # temporal convolutions
         for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
-            residual = x if proj is None else self.proj(x)
+            residual = x if proj is None else proj(x)
 
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x.transpose(1, 2)).transpose(2, 1)
