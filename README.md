@@ -19,7 +19,7 @@ To train IWSLT de-en:
 
 ```
 DATADIR=/mnt/vol/gfsai-flash-east/ai-group/users/sgross/fairseq/iwslt14_de-en/
-python train.py $DATADIR --lr 0.25 --clip-norm 0.1 --dropout 0.2
+python train.py $DATADIR -a fconv_iwslt_de_en --lr 0.25 --clip-norm 0.1 --dropout 0.2
 ```
 
 To train WMT'16 en-ro:
