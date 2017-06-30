@@ -16,19 +16,23 @@ from average_meter import AverageMeter, TimeMeter
 parser = argparse.ArgumentParser(description='Convolutional Sequence to Sequence Training')
 parser.add_argument('data', metavar='DIR',
                     help='path to data directory')
-parser.add_argument('--arch', '-a', default='fconv_iwslt_de_en', metavar='ARCH',
+parser.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
                     choices=models.__all__,
                     help='model architecture ({})'.format(', '.join(models.__all__)))
-parser.add_argument('--source-lang', '-s', default=None, metavar='SRC',
+
+# dataset and data loading
+parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                     help='source language')
-parser.add_argument('--target-lang', '-t', default=None, metavar='TARGET',
+parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                     help='target language')
-parser.add_argument('-j', '--workers', default=16, type=int, metavar='N',
-                    help='number of data loading workers (default: 16)')
 parser.add_argument('--batch-size', '-b', default=32, type=int, metavar='N',
                     help='batch size')
 parser.add_argument('--max-tokens', default=None, type=int, metavar='N',
                     help='maximum number of tokens in a batch')
+parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
+                    help='number of data loading workers (default: 1)')
+
+# optimization
 parser.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
                     help='initial learning rate')
 parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
@@ -41,10 +45,24 @@ parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='
                     help='weight decay')
 parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                     help='dropout probability')
+
+# checkpointing and utilities
 parser.add_argument('--save-dir', metavar='DIR', default='.',
                     help='path to save checkpoints')
 parser.add_argument('--no-progress-bar', action='store_true',
                     help='disable progress bar')
+
+# model configuration
+parser.add_argument('--encoder-embed-dim', default=512, type=int, metavar='N',
+                    help='encoder embedding dimension')
+parser.add_argument('--encoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
+                    help='encoder layers [(dim, kernel_size), ...]')
+parser.add_argument('--decoder-embed-dim', default=512, type=int, metavar='N',
+                    help='decoder embedding dimension')
+parser.add_argument('--decoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
+                    help='decoder layers [(dim, kernel_size), ...]')
+parser.add_argument('--decoder-attention', default='True', type=str, metavar='EXPR',
+                    help='decoder attention [True, ...]')
 
 
 def main():
@@ -62,7 +80,15 @@ def main():
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
     print('| model {}'.format(args.arch))
-    model = models.__dict__[args.arch](dataset, args.dropout)
+    if args.arch == 'fconv':
+        encoder_layers = eval(args.encoder_layers)
+        decoder_layers = eval(args.decoder_layers)
+        decoder_attention = eval(args.decoder_attention)
+        model = models.fconv(
+            dataset, args.dropout, args.encoder_embed_dim, encoder_layers,
+            args.decoder_embed_dim, decoder_layers, decoder_attention)
+    else:
+        model = models.__dict__[args.arch](dataset, args.dropout)
 
     if torch.cuda.is_available():
         model.cuda()
@@ -102,12 +128,13 @@ def train(epoch, model, dataset, optimizer):
 
     model.train()
     itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size,
+                             num_workers=args.workers,
                              max_tokens=args.max_tokens)
     loss_meter = AverageMeter()
     wps_meter = TimeMeter()
 
     def step(sample):
-        loss = model(**prepare_sample(sample))
+        loss = model(*prepare_sample(sample))
 
         optimizer.zero_grad()
         loss.backward()
@@ -145,7 +172,7 @@ def validate(epoch, model, dataset):
     loss_meter = AverageMeter()
 
     def step(_sample):
-        loss = model(**prepare_sample(sample, volatile=True))
+        loss = model(*prepare_sample(sample, volatile=True))
         return loss.data[0] / math.log(2)
 
     desc = '| val {}'.format(epoch)
@@ -189,12 +216,13 @@ def load_checkpoint(model, optimizer, lr_scheduler):
 
 def prepare_sample(sample, volatile=False):
     """Wrap input tensors in Variable class"""
-    r = {'ntokens': sample['ntokens']}
-    for key in ['input_tokens', 'input_positions', 'target', 'src_tokens', 'src_positions']:
+    r = []
+    for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions', 'target']:
         tensor = sample[key]
         if torch.cuda.is_available():
-            tensor = tensor.cuda()
-        r[key] = Variable(tensor, volatile=volatile)
+            tensor = tensor.cuda(async=True)
+        r.append(Variable(tensor, volatile=volatile))
+    r.append(sample['ntokens'])
     return r
 
 

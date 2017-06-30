@@ -115,12 +115,16 @@ class AttentionLayer(nn.Module):
 
 class Decoder(nn.Module):
     """Convolutional decoder"""
-    def __init__(self, num_embeddings=24638, embed_dim=512, out_embed_dim=256,
+    def __init__(self, num_embeddings, embed_dim=512, out_embed_dim=256,
                  max_position=1024, convolutions=((512, 3),) * 20,
-                 dropout=0.1, padding_idx=1):
+                 attention=True, dropout=0.1, padding_idx=1):
         super(Decoder, self).__init__()
         self.dropout = dropout
+
         in_channels = convolutions[0][0]
+        if isinstance(attention, bool):
+            # expand True into [True, True, ...] and do the same with False
+            attention = [attention] * len(convolutions)
 
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
         self.embed_positions = Embedding(max_position, embed_dim, padding_idx)
@@ -128,14 +132,15 @@ class Decoder(nn.Module):
         self.projections = nn.ModuleList()
         self.convolutions = nn.ModuleList()
         self.attention = nn.ModuleList()
-        for (out_channels, kernel_size) in convolutions:
+        for i, (out_channels, kernel_size) in enumerate(convolutions):
             pad = kernel_size - 1
             self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
                 Conv1d(in_channels, out_channels * 2, kernel_size, padding=pad,
                        dropout=dropout))
-            self.attention.append(AttentionLayer(out_channels, embed_dim))
+            self.attention.append(AttentionLayer(out_channels, embed_dim)
+                                  if attention[i] else None)
             in_channels = out_channels
         self.fc2 = Linear(in_channels, out_embed_dim)
         self.fc3 = Linear(out_embed_dim, num_embeddings)
@@ -163,7 +168,8 @@ class Decoder(nn.Module):
             x = F.glu(x)
 
             # attention
-            x = attention(x, target_embedding, (encoder_a, encoder_b))
+            if attention is not None:
+                x = attention(x, target_embedding, (encoder_a, encoder_b))
 
             # residual
             x = (x + residual) * math.sqrt(0.5)
@@ -232,36 +238,46 @@ class GradMultiply(torch.autograd.Function):
 
 
 def fconv_iwslt_de_en(dataset, dropout):
-    padding_idx = dataset.dst_dict.index('<pad>')
-
-    encoder = Encoder(
-        len(dataset.src_dict),
-        embed_dim=256,
-        convolutions=((256, 3),) * 4,
-        dropout=dropout,
-        padding_idx=padding_idx)
-    decoder = Decoder(
-        len(dataset.dst_dict),
-        embed_dim=256,
-        convolutions=((256, 3),) * 3,
-        dropout=dropout,
-        padding_idx=padding_idx)
-    return FConvModel(encoder, decoder, padding_idx)
+    encoder_convs = [(256, 3)] * 4
+    decoder_convs = [(256, 3)] * 3
+    return fconv(dataset, dropout, 256, encoder_convs, 256, decoder_convs)
 
 
 def fconv_wmt_en_ro(dataset, dropout):
+    convs = [(512, 3)] * 20
+    return fconv(dataset, dropout, 512, convs, 512, convs)
+
+
+def fconv_wmt_en_de(dataset, dropout):
+    convs = [(512, 3)] * 10  # first 10 layers have 512 units
+    convs += [(768, 3)] * 3  # next 3 layers have 768 units
+    convs += [(2048, 1)] * 2  # final 2 layers are 1x1
+    return fconv(dataset, dropout, 512, convs, 512, convs)
+
+
+def fconv_wmt_en_fr(dataset, dropout):
+    convs = [(512, 3)] * 5  # first 5 layers have 512 units
+    convs += [(768, 3)] * 4  # next 4 layers have 768 units
+    convs += [(1024, 3)] * 3  # next 4 layers have 1024 units
+    convs += [(2048, 1)] * 2  # final 2 layers are 1x1
+    return fconv(dataset, dropout, 512, convs, 512, convs)
+
+
+def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
+          decoder_embed_dim, decoder_convolutions, attention=True):
     padding_idx = dataset.dst_dict.index('<pad>')
 
     encoder = Encoder(
         len(dataset.src_dict),
-        embed_dim=512,
-        convolutions=((512, 3),) * 20,
+        embed_dim=encoder_embed_dim,
+        convolutions=encoder_convolutions,
         dropout=dropout,
         padding_idx=padding_idx)
     decoder = Decoder(
         len(dataset.dst_dict),
-        embed_dim=512,
-        convolutions=((512, 3),) * 20,
+        embed_dim=decoder_embed_dim,
+        convolutions=decoder_convolutions,
+        attention=attention,
         dropout=dropout,
         padding_idx=padding_idx)
     return FConvModel(encoder, decoder, padding_idx)
