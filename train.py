@@ -53,6 +53,8 @@ parser.add_argument('--save-dir', metavar='DIR', default='.',
                     help='path to save checkpoints')
 parser.add_argument('--no-progress-bar', action='store_true',
                     help='disable progress bar')
+parser.add_argument('--seed', default=1, type=int, metavar='N',
+                    help='pseudo random number generator seed')
 
 # model configuration
 parser.add_argument('--encoder-embed-dim', default=512, type=int, metavar='N',
@@ -74,6 +76,8 @@ def main():
 
     if args.no_progress_bar:
         progress_bar.enabled = False
+
+    torch.manual_seed(args.seed)
 
     dataset = data.load(args.data, args.source_lang, args.target_lang)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
@@ -118,13 +122,13 @@ def main():
         # evaluate on validate set
         val_loss = validate(epoch, model, dataset)
 
+        epoch += 1
+
         # update the learning rate
         if args.force_anneal > 0:
-            lr_scheduler.step(epoch + 1)
+            lr_scheduler.step(epoch)
         else:
-            lr_scheduler.step(val_loss, epoch + 1)
-
-        epoch += 1
+            lr_scheduler.step(val_loss, epoch)
 
         # save checkpoint
         save_checkpoint(epoch, model, optimizer, lr_scheduler)
@@ -138,9 +142,11 @@ def train(epoch, model, dataset, optimizer):
     """Train the model for one epoch"""
 
     model.train()
-    itr = dataset.dataloader('train', epoch=epoch, batch_size=args.batch_size,
+    itr = dataset.dataloader('train',
+                             batch_size=args.batch_size,
                              num_workers=args.workers,
-                             max_tokens=args.max_tokens)
+                             max_tokens=args.max_tokens,
+                             seed=(args.seed, epoch))
     loss_meter = AverageMeter()
     wps_meter = TimeMeter()
 
@@ -179,7 +185,7 @@ def validate(epoch, model, dataset):
     """Evaluate the model on the validation set and return the average loss"""
 
     model.eval()
-    itr = dataset.dataloader('valid', epoch=epoch, batch_size=args.batch_size)
+    itr = dataset.dataloader('valid', batch_size=args.batch_size)
     loss_meter = AverageMeter()
 
     def step(_sample):

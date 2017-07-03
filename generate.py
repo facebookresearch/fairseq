@@ -132,7 +132,7 @@ def generate(model, dataset):
     pad = dataset.dst_dict.index('<pad>')
     eos = dataset.dst_dict.index('</s>')
 
-    itr = dataset.dataloader('test', 0, batch_size=1)
+    itr = dataset.dataloader('test', batch_size=1)
     translator = SequenceGenerator(model, dataset.dst_dict, beam_size=20, maxlen=200)
     translator.cuda()
 
