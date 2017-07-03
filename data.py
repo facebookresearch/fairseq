@@ -183,8 +183,8 @@ class ShuffledBucketSampler(object):
         indices = np.random.permutation(len(self.src))
 
         # sort by sizes
-        indices = indices[np.argsort(self.src.sizes[indices], kind='mergesort')]
         indices = indices[np.argsort(self.dst.sizes[indices], kind='mergesort')]
+        indices = indices[np.argsort(self.src.sizes[indices], kind='mergesort')]
 
         def make_batches():
             batch = []
