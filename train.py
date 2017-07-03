@@ -3,7 +3,7 @@ import os
 import torch
 import math
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 from progress_bar import progress_bar
 
 import models
@@ -35,8 +35,10 @@ parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
 # optimization
 parser.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
                     help='initial learning rate')
-parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
+parser.add_argument('--min-lr', metavar='LR', default=1e-4, type=float,
                     help='minimum learning rate')
+parser.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
+                    help='force annealing at specified epoch')
 parser.add_argument('--momentum', default=0.99, type=float, metavar='M',
                     help='momentum factor')
 parser.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
@@ -98,7 +100,12 @@ def main():
                     weight_decay=args.weight_decay)
 
     # Decay the LR by 0.1 every time the validation loss plateaus
-    lr_scheduler = ReduceLROnPlateau(optimizer, patience=0)
+    if args.force_anneal > 0:
+        anneal = lambda e: 1 if e < args.force_anneal else 0.1 ** (e + 1 - args.force_anneal)
+        lr_scheduler = LambdaLR(optimizer, anneal)
+        lr_scheduler.best = None
+    else:
+        lr_scheduler = ReduceLROnPlateau(optimizer, patience=0)
 
     # Load the latest checkpoint if one is available
     epoch = load_checkpoint(model, optimizer, lr_scheduler)
@@ -112,7 +119,11 @@ def main():
         val_loss = validate(epoch, model, dataset)
 
         # update the learning rate
-        lr_scheduler.step(val_loss, epoch)
+        if args.force_anneal > 0:
+            lr_scheduler.step(epoch + 1)
+        else:
+            lr_scheduler.step(val_loss, epoch + 1)
+
         epoch += 1
 
         # save checkpoint
