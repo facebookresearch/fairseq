@@ -164,7 +164,8 @@ class Decoder(nn.Module):
 
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x.transpose(1, 2)).transpose(2, 1)
-            x = x[:, :-conv.padding[0], :]  # remove future timestamps
+            if conv.padding[0] > 0:
+                x = x[:, :-conv.padding[0], :]  # remove future timestamps
             x = F.glu(x)
 
             # attention
