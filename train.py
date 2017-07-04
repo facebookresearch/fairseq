@@ -51,6 +51,8 @@ parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
 # checkpointing and utilities
 parser.add_argument('--save-dir', metavar='DIR', default='.',
                     help='path to save checkpoints')
+parser.add_argument('--load-file', default='checkpoint_last.pt',
+                    help='filename to load checkpoint')
 parser.add_argument('--no-progress-bar', action='store_true',
                     help='disable progress bar')
 
@@ -206,12 +208,19 @@ def save_checkpoint(epoch, model, optimizer, lr_scheduler):
         'optimizer': optimizer.state_dict(),
         'best_loss': lr_scheduler.best,
     }
-    filename = os.path.join(args.save_dir, 'checkpoint.pt')
+    filename = os.path.join(args.save_dir, f'checkpoint{epoch}.pt')
     torch.save(state_dict, filename)
 
+    if not hasattr(save_checkpoint, 'best') or lr_scheduler.best <= save_checkpoint.best:
+        save_checkpoint.best = lr_scheduler.best
+        best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
+        torch.save(state_dict, best_filename)
+
+    last_filename = os.path.join(args.save_dir, 'checkpoint_last.pt')
+    torch.save(state_dict, last_filename)
 
 def load_checkpoint(model, optimizer, lr_scheduler):
-    filename = os.path.join(args.save_dir, 'checkpoint.pt')
+    filename = os.path.join(args.save_dir, args.load_file)
     if not os.path.exists(filename):
         return 0
 
