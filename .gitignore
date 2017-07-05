@@ -26,7 +26,7 @@ wheels/
 *.egg
 
 # Checkpoints
-checkpoint*.pt
+checkpoints
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

@@ -49,10 +49,10 @@ parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                     help='dropout probability')
 
 # checkpointing and utilities
-parser.add_argument('--save-dir', metavar='DIR', default='.',
+parser.add_argument('--save-dir', metavar='DIR', default='checkpoints',
                     help='path to save checkpoints')
-parser.add_argument('--load-file', default='checkpoint_last.pt',
-                    help='filename to load checkpoint')
+parser.add_argument('--save-file', default='checkpoint_last.pt',
+                    help='filename in save-dir from which to load checkpoint')
 parser.add_argument('--no-progress-bar', action='store_true',
                     help='disable progress bar')
 
@@ -76,6 +76,9 @@ def main():
 
     if args.no_progress_bar:
         progress_bar.enabled = False
+
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
 
     dataset = data.load(args.data, args.source_lang, args.target_lang)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
@@ -129,7 +132,7 @@ def main():
         epoch += 1
 
         # save checkpoint
-        save_checkpoint(epoch, model, optimizer, lr_scheduler)
+        save_checkpoint(epoch, model, optimizer, lr_scheduler, val_loss)
 
     # Generate on test set and compute BLEU score
     scorer = generate.generate(model, dataset)
@@ -201,7 +204,7 @@ def validate(epoch, model, dataset):
     return loss_meter.avg
 
 
-def save_checkpoint(epoch, model, optimizer, lr_scheduler):
+def save_checkpoint(epoch, model, optimizer, lr_scheduler, val_loss):
     state_dict = {
         'epoch': epoch,
         'model': model.state_dict(),
@@ -211,8 +214,8 @@ def save_checkpoint(epoch, model, optimizer, lr_scheduler):
     filename = os.path.join(args.save_dir, f'checkpoint{epoch}.pt')
     torch.save(state_dict, filename)
 
-    if not hasattr(save_checkpoint, 'best') or lr_scheduler.best <= save_checkpoint.best:
-        save_checkpoint.best = lr_scheduler.best
+    if not hasattr(save_checkpoint, 'best') or val_loss <= save_checkpoint.best:
+        save_checkpoint.best = val_loss
         best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
         torch.save(state_dict, best_filename)
 
@@ -220,7 +223,7 @@ def save_checkpoint(epoch, model, optimizer, lr_scheduler):
     torch.save(state_dict, last_filename)
 
 def load_checkpoint(model, optimizer, lr_scheduler):
-    filename = os.path.join(args.save_dir, args.load_file)
+    filename = os.path.join(args.save_dir, args.save_file)
     if not os.path.exists(filename):
         return 0
 
