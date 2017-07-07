@@ -53,10 +53,8 @@ parser.add_argument('--save-dir', metavar='DIR', default='checkpoints',
                     help='path to save checkpoints')
 parser.add_argument('--restore-file', default='checkpoint_last.pt',
                     help='filename in save-dir from which to load checkpoint')
-parser.add_argument('--batch-save-interval', type=int, default=-1,
+parser.add_argument('--save-interval', type=int, default=-1,
                     help='checkpoint every this many batches')
-parser.add_argument('--num-save-attempts', type=int, default=3,
-                    help='how many times to attempt saving')
 parser.add_argument('--no-progress-bar', action='store_true',
                     help='disable progress bar')
 
@@ -165,6 +163,8 @@ def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
 
         return loss.data[0] / math.log(2)
 
+    train.dataset_batch_count = 0
+
     desc = '| epoch {}'.format(epoch)
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in enumerate(t):
@@ -183,14 +183,13 @@ def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
                 # ignore the first mini-batch in words-per-second calculation
                 wps_meter.reset()
             train.dataset_batch_count += 1
-            if train.dataset_batch_count % args.batch_save_interval == 0:
+            if train.dataset_batch_count % args.save_interval == 0:
                 save_checkpoint(epoch, i + 1, model, optimizer, lr_scheduler)
 
 
         t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
                 .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
                         round(wps_meter.avg), optimizer.param_groups[0]['lr']))
-train.dataset_batch_count = 0
 
 
 def validate(epoch, model, dataset):
@@ -223,29 +222,29 @@ def torch_persistent_save(*args, **kwargs):
         try:
             return torch.save(*args, **kwargs)
         except:
-            if i == args.num_save_attempts:
+            if i == 3:
                 raise
             else:
                 i += 1
 
 
-def save_checkpoint(epoch, batch_offset, model, optimizer, lr_scheduler, checkpoint_loss=None):
+def save_checkpoint(epoch, batch_offset, model, optimizer, lr_scheduler, val_loss=None):
     state_dict = {
         'epoch': epoch,
         'batch_offset': batch_offset,
         'model': model.state_dict(),
         'optimizer': optimizer.state_dict(),
         'best_loss': lr_scheduler.best,
-        'checkpoint_loss': checkpoint_loss,
+        'val_loss': val_loss,
     }
 
     if batch_offset == 0:
         epoch_filename = os.path.join(args.save_dir, f'checkpoint{epoch}.pt')
         torch_persistent_save(state_dict, epoch_filename)
 
-        assert checkpoint_loss is not None
-        if not hasattr(save_checkpoint, 'best') or checkpoint_loss < save_checkpoint.best:
-            save_checkpoint.best = checkpoint_loss
+        assert val_loss is not None
+        if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
+            save_checkpoint.best = val_loss
             best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
             torch_persistent_save(state_dict, best_filename)
 
