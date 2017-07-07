@@ -34,7 +34,7 @@ class Encoder(nn.Module):
         self.embed_positions = Embedding(max_position, embed_dim, padding_idx)
 
         in_channels = convolutions[0][0]
-        self.fc1 = Linear(embed_dim, in_channels)
+        self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
         self.projections = nn.ModuleList()
         self.convolutions = nn.ModuleList()
         for (out_channels, kernel_size) in convolutions:
@@ -143,7 +143,7 @@ class Decoder(nn.Module):
                                   if attention[i] else None)
             in_channels = out_channels
         self.fc2 = Linear(in_channels, out_embed_dim)
-        self.fc3 = Linear(out_embed_dim, num_embeddings)
+        self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
     def forward(self, tokens, positions, encoder_out):
         # embed tokens and positions

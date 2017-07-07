@@ -1,8 +1,8 @@
+import contextlib
 import os
 import torch
 import torch.utils.data
 import numpy as np
-import random
 from indexed_dataset import IndexedDataset
 from dictionary import Dictionary
 
@@ -56,12 +56,14 @@ class LanguageDatasets(object):
         self.dst_dict = dst_dict
         self.splits = {}
 
-    def dataloader(self, split, epoch, batch_size=1, num_workers=0, max_tokens=None):
+    def dataloader(self, split, batch_size=1, num_workers=0, max_tokens=None, seed=None):
         dataset = self.splits[split]
         if split == 'train':
-            batch_sampler = ShuffledBucketSampler(dataset.src, dataset.dst, batch_size, max_tokens)
+            with numpy_seed(seed):
+                batch_sampler = shuffled_batches_by_size(
+                    dataset.src, dataset.dst, batch_size, max_tokens)
         else:
-            batch_sampler = list(batch_by_size(dataset.src, batch_size, max_tokens))
+            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens))
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -131,8 +133,12 @@ class LanguagePairDataset(object):
         return len(self.src)
 
 
-def batch_by_size(dataset, batch_size, max_tokens=None):
+def batches_by_size(dataset, batch_size, max_tokens=None):
+    """Returns batches of indices sorted by size. Sequences of different lengths
+    are not allowed in the same batch."""
     assert isinstance(dataset, IndexedDataset)
+    if max_tokens is None:
+        max_tokens = float('Inf')
     sizes = dataset.sizes
     indices = np.argsort(sizes, kind='mergesort')
 
@@ -145,7 +151,7 @@ def batch_by_size(dataset, batch_size, max_tokens=None):
             return True
         if sizes[batch[0]] != sizes[next_idx]:
             return True
-        if max_tokens is not None and len(batch) * sizes[next_idx] > max_tokens:
+        if len(batch) * sizes[next_idx] > max_tokens:
             return True
         return False
 
@@ -159,56 +165,52 @@ def batch_by_size(dataset, batch_size, max_tokens=None):
         yield batch
 
 
-class ShuffledBucketSampler(object):
-    """Samples from the IndexedDataset shuffled and grouped by size"""
-    def __init__(self, src, dst, batch_size=1, max_tokens=None):
-        assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
-        self.src = src
-        self.dst = dst
-        self.batch_size = batch_size
-        if max_tokens is None:
-            max_tokens = float('Inf')
-        self.max_tokens = max_tokens
-        self.batches = None
+def shuffled_batches_by_size(src, dst, batch_size=1, max_tokens=None):
+    """Returns batches of indices, bucketed by size and then shuffled. Batches
+    may contain sequences of different lengths."""
+    assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
+    if max_tokens is None:
+        max_tokens = float('Inf')
 
-    def __iter__(self):
-        if self.batches is None:
-            batches = self.shuffled_batches()
-        else:
-            batches = self.batches
-            self.batches = None
-        return iter(batches)
+    indices = np.random.permutation(len(src))
 
-    def shuffled_batches(self):
-        indices = np.random.permutation(len(self.src))
+    # sort by sizes
+    indices = indices[np.argsort(dst.sizes[indices], kind='mergesort')]
+    indices = indices[np.argsort(src.sizes[indices], kind='mergesort')]
 
-        # sort by sizes
-        indices = indices[np.argsort(self.dst.sizes[indices], kind='mergesort')]
-        indices = indices[np.argsort(self.src.sizes[indices], kind='mergesort')]
+    def make_batches():
+        batch = []
+        seq_len = 0
 
-        def make_batches():
-            batch = []
-            seq_len = 0
-
-            for idx in indices:
-                sample_len = max(self.src.sizes[idx], self.dst.sizes[idx])
-                if len(batch) > 0 and (len(batch) == self.batch_size
-                                       or seq_len + sample_len > self.max_tokens):
-                    yield batch
-                    batch = []
-                    seq_len = 0
-
-                batch.append(idx)
-                seq_len += sample_len
-
-            if len(batch) > 0:
+        for idx in indices:
+            sample_len = max(src.sizes[idx], dst.sizes[idx])
+            if len(batch) > 0 and (len(batch) == batch_size
+                                   or seq_len + sample_len > max_tokens):
                 yield batch
+                batch = []
+                seq_len = 0
 
-        batches = list(make_batches())
-        random.shuffle(batches)
-        return batches
+            batch.append(idx)
+            seq_len += sample_len
 
-    def __len__(self):
-        if self.batches is None:
-            self.batches = self.shuffled_batches()
-        return len(self.batches)
+        if len(batch) > 0:
+            yield batch
+
+    batches = list(make_batches())
+    np.random.shuffle(batches)
+    return batches
+
+
+@contextlib.contextmanager
+def numpy_seed(seed):
+    """Context manager which seeds the NumPy PRNG with the specified seed and
+    restores the state afterward"""
+    if seed is None:
+        yield
+        return
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
