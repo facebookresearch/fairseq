@@ -16,6 +16,14 @@ class Dictionary(object):
         """Returns the index of the specified symbol"""
         return self.indices[sym]
 
+    def pad(self):
+        """Helper to get index of pad symbol"""
+        return self.index('<pad>')
+
+    def eos(self):
+        """Helper to get index of end-of-sentence symbol"""
+        return self.index('</s>')
+
     @staticmethod
     def load(f):
         """Loads the dictionary from a text file with the format:

@@ -69,7 +69,7 @@ class LanguageDatasets(object):
             dataset,
             num_workers=num_workers,
             pin_memory=torch.cuda.is_available(),
-            collate_fn=PaddingCollater(self.src_dict.index('<pad>')),
+            collate_fn=PaddingCollater(self.src_dict.pad()),
             batch_sampler=batch_sampler)
 
 
@@ -84,6 +84,7 @@ class PaddingCollater(object):
         ntokens = sum(len(s['target']) for s in samples)
 
         return {
+            'id': torch.LongTensor([s['id'].item() for s in samples]),
             'input_tokens': merge('input_tokens', pad_begin=True),
             'input_positions': merge('input_positions', pad_begin=True),
             'target': merge('target', pad_begin=True),
@@ -118,6 +119,7 @@ class LanguagePairDataset(object):
         input[1:].copy_(target[:-1])
 
         return {
+            'id': i,
             'input_tokens': input,
             'input_positions': self.make_positions(input),
             'target': target,

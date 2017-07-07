@@ -266,7 +266,7 @@ def fconv_wmt_en_fr(dataset, dropout):
 
 def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
           decoder_embed_dim, decoder_convolutions, attention=True):
-    padding_idx = dataset.dst_dict.index('<pad>')
+    padding_idx = dataset.dst_dict.pad()
 
     encoder = Encoder(
         len(dataset.src_dict),

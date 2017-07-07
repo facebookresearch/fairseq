@@ -6,10 +6,12 @@ from torch.autograd import Variable
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 from progress_bar import progress_bar
 
-import models
+import bleu
 import data
 import generate
+import models
 from nag import NAG
+import utils
 from average_meter import AverageMeter, TimeMeter
 
 
@@ -92,16 +94,7 @@ def main():
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
     print('| model {}'.format(args.arch))
-    if args.arch == 'fconv':
-        encoder_layers = eval(args.encoder_layers)
-        decoder_layers = eval(args.decoder_layers)
-        decoder_attention = eval(args.decoder_attention)
-        model = models.fconv(
-            dataset, args.dropout, args.encoder_embed_dim, encoder_layers,
-            args.decoder_embed_dim, decoder_layers, decoder_attention)
-    else:
-        model = models.__dict__[args.arch](dataset, args.dropout)
-
+    model = utils.build_model(args, dataset)
     if torch.cuda.is_available():
         model.cuda()
 
@@ -118,7 +111,8 @@ def main():
         lr_scheduler = ReduceLROnPlateau(optimizer, patience=0)
 
     # Load the latest checkpoint if one is available
-    epoch, batch_offset = load_checkpoint(model, optimizer, lr_scheduler)
+    epoch, batch_offset = utils.load_checkpoint(
+        os.path.join(args.save_dir, args.restore_file), model, optimizer, lr_scheduler)
 
     # Train until the learning rate gets too small
     val_loss = None
@@ -139,11 +133,12 @@ def main():
             lr_scheduler.step(val_loss, epoch)
 
         # save checkpoint
-        save_checkpoint(epoch, batch_offset, model, optimizer, lr_scheduler, val_loss)
+        utils.save_checkpoint(args.save_dir, epoch, batch_offset, model, optimizer, lr_scheduler, val_loss)
 
     # Generate on test set and compute BLEU score
-    scorer = generate.generate(model, dataset)
-    print('| Test with beam=20: BLEU4 = {:2.2f}'.format(scorer.score()))
+    for beam in [1, 5, 10, 20]:
+        scorer = score_test(epoch, model, dataset, beam)
+        print('| Test with beam={}: BLEU4 = {:2.2f}'.format(beam, scorer.score()))
 
 
 def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
@@ -159,7 +154,9 @@ def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
     wps_meter = TimeMeter()
 
     def step(sample):
-        loss = model(*prepare_sample(sample))
+        s = utils.prepare_sample(sample)
+        loss = model(s['src_tokens'], s['src_positions'], s['input_tokens'] ,
+                     s['input_positions'] , s['target'] , s['ntokens'])
 
         optimizer.zero_grad()
         loss.backward()
@@ -186,7 +183,7 @@ def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
                 # ignore the first mini-batch in words-per-second calculation
                 wps_meter.reset()
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
-                save_checkpoint(epoch, i + 1, model, optimizer, lr_scheduler)
+                utils.save_checkpoint(args.save_dir, epoch, i + 1, model, optimizer, lr_scheduler)
 
         t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
                 .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
@@ -200,8 +197,10 @@ def validate(epoch, model, dataset):
     itr = dataset.dataloader('valid', batch_size=args.batch_size)
     loss_meter = AverageMeter()
 
-    def step(_sample):
-        loss = model(*prepare_sample(sample, volatile=True))
+    def step(sample):
+        s = utils.prepare_sample(sample, volatile=True)
+        loss = model(s['src_tokens'], s['src_positions'], s['input_tokens'] ,
+                     s['input_positions'] , s['target'] , s['ntokens'])
         return loss.data[0] / math.log(2)
 
     desc = '| val {}'.format(epoch)
@@ -217,68 +216,16 @@ def validate(epoch, model, dataset):
     return loss_meter.avg
 
 
-def torch_persistent_save(*args, **kwargs):
-    i = 1
-    while True:
-        try:
-            return torch.save(*args, **kwargs)
-        except:
-            if i == 3:
-                raise
-            else:
-                i += 1
+def score_test(epoch, model, dataset, beam):
+    translator = generate.SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
+    if torch.cuda.is_available():
+        translator.cuda()
 
-
-def save_checkpoint(epoch, batch_offset, model, optimizer, lr_scheduler, val_loss=None):
-    state_dict = {
-        'epoch': epoch,
-        'batch_offset': batch_offset,
-        'model': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-        'best_loss': lr_scheduler.best,
-        'val_loss': val_loss,
-    }
-
-    if batch_offset == 0:
-        epoch_filename = os.path.join(args.save_dir, f'checkpoint{epoch}.pt')
-        torch_persistent_save(state_dict, epoch_filename)
-
-        assert val_loss is not None
-        if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
-            save_checkpoint.best = val_loss
-            best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
-            torch_persistent_save(state_dict, best_filename)
-
-    last_filename = os.path.join(args.save_dir, 'checkpoint_last.pt')
-    torch_persistent_save(state_dict, last_filename)
-
-
-def load_checkpoint(model, optimizer, lr_scheduler):
-    filename = os.path.join(args.save_dir, args.restore_file)
-    if not os.path.exists(filename):
-        return 0, 0
-
-    state = torch.load(filename)
-    model.load_state_dict(state['model'])
-    optimizer.load_state_dict(state['optimizer'])
-    lr_scheduler.best = state['best_loss']
-    epoch = state['epoch']
-    batch_offset = state['batch_offset']
-
-    print('| loaded checkpoint {} (epoch {})'.format(filename, epoch))
-    return epoch, batch_offset
-
-
-def prepare_sample(sample, volatile=False):
-    """Wrap input tensors in Variable class"""
-    r = []
-    for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions', 'target']:
-        tensor = sample[key]
-        if torch.cuda.is_available():
-            tensor = tensor.cuda(async=True)
-        r.append(Variable(tensor, volatile=volatile))
-    r.append(sample['ntokens'])
-    return r
+    scorer = bleu.Scorer(translator.pad, translator.eos)
+    itr = dataset.dataloader('test', batch_size=args.batch_size)
+    for id, src, ref, hypos in generate.generate_batched_itr(translator, itr):
+        scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
+    return scorer
 
 
 if __name__ == '__main__':
