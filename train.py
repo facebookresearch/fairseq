@@ -168,8 +168,6 @@ def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
 
         return loss.data[0] / math.log(2)
 
-    train.dataset_batch_count = 0
-
     desc = '| epoch {}'.format(epoch)
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in enumerate(t):
@@ -187,10 +185,8 @@ def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
             if i == 0:
                 # ignore the first mini-batch in words-per-second calculation
                 wps_meter.reset()
-            train.dataset_batch_count += 1
-            if train.dataset_batch_count % args.save_interval == 0:
+            if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
                 save_checkpoint(epoch, i + 1, model, optimizer, lr_scheduler)
-
 
         t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
                 .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
