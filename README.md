@@ -3,15 +3,38 @@ FAIR Sequence-to-Sequence (PyTorch)
 
 ## Setup
 
-Build PyTorch from https://github.com/colesbury/pytorch/tree/fairseq-py:
+Build PyTorch from source:
 
 ```
-git clone https://github.com/colesbury/pytorch.git -b fairseq-py
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+sh Miniconda3-latest-Linux-x86_64.sh
+
+# install to ~/local/miniconda3
+
+mkdir -p ~/src
+CUDNN_VERSION=6.0  # or CUDNN_VERSION=5.1
+cp -r ~myleott/src/cudnn-8.0-linux-x64-v$CUDNN_VERSION ~/src/
+
+mkdir -p ~/local/miniconda3/etc/conda/activate.d
+echo "export CMAKE_PREFIX_PATH=~/local/miniconda3" >> ~/local/miniconda3/etc/conda/activate.d/set_env.sh
+echo "export LD_LIBRARY_PATH=~/src/cudnn-8.0-linux-x64-v$CUDNN_VERSION/cuda/lib64:~/local/miniconda3/lib:$LD_LIBRARY_PATH" >> ~/local/miniconda3/etc/conda/activate.d/set_env.sh
+echo "export CUDNN_INCLUDE_DIR=~/src/cudnn-8.0-linux-x64-v$CUDNN_VERSION/cuda/include" >> ~/local/miniconda3/etc/conda/activate.d/set_env.sh
+echo "export CUDNN_LIB_DIR=~/src/cudnn-8.0-linux-x64-v$CUDNN_VERSION/cuda/lib64" >> ~/local/miniconda3/etc/conda/activate.d/set_env.sh
+
+. ~/local/miniconda3/bin/activate
+conda install gcc mkl numpy
+conda install magma-cuda80 -c soumith
+pip install cmake --proxy=http://fwdproxy:8080/
+
+# make sure you've configured proxy settings for git:
+# https://our.intern.facebook.com/intern/wiki/Development_Environment/Internet_Proxy/#Git
+
+cd ~/src
+git clone https://github.com/pytorch/pytorch.git
 cd pytorch
-python setup.py build develop
+pip install -r requirements.txt --proxy=http://fwdproxy:8080/
+python setup.py install
 ```
-
-See instructions at https://github.com/pytorch/pytorch#from-source
 
 ## Training examples
 
