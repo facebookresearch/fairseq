@@ -56,7 +56,7 @@ def save_checkpoint(save_dir, epoch, batch_offset, model, optimizer, lr_schedule
 
 def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None):
     if not os.path.exists(filename):
-        return 0, 0
+        return 1, 0
 
     state = torch.load(filename)
     model.load_state_dict(state['model'])
@@ -64,7 +64,7 @@ def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None):
         optimizer.load_state_dict(state['optimizer'])
     if lr_scheduler:
         lr_scheduler.best = state['best_loss']
-    epoch = state['epoch']
+    epoch = state['epoch'] + 1
     batch_offset = state['batch_offset']
 
     print('| loaded checkpoint {} (epoch {})'.format(filename, epoch))
@@ -72,11 +72,16 @@ def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None):
 
 
 def prepare_sample(sample, volatile=False, use_cuda=True):
-    """Wrap input tensors in Variable class"""
-    r = {'id': sample['id'], 'ntokens': sample['ntokens']}
+    '''Wrap input tensors in Variable class'''
+    r = {
+        'id': sample['id'],
+        'ntokens': sample['ntokens'],
+        'net_input': {},
+    }
+    # prepare input to network
     for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions', 'target']:
         tensor = sample[key]
         if use_cuda and torch.cuda.is_available():
             tensor = tensor.cuda(async=True)
-        r[key] = Variable(tensor, volatile=volatile)
+        r['net_input'][key] = Variable(tensor, volatile=volatile)
     return r

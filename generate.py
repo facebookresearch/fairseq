@@ -149,15 +149,16 @@ def generate_batched_itr(translator, data_itr, max_len_a=0, max_len_b=200,
 
     for sample in data_itr:
         s = utils.prepare_sample(sample, volatile=True, use_cuda=use_cuda)
-        srclen = s['src_tokens'].size(1)
+        input = s['net_input']
+        srclen = input['src_tokens'].size(1)
         hypos = translator.generate(
-            s['src_tokens'], s['src_positions'],
+            input['src_tokens'], input['src_positions'],
             maxlen=(max_len_a*srclen + max_len_b)
         )
         for i, id in enumerate(s['id']):
-            src = s['src_tokens'].data[i, :]
+            src = input['src_tokens'].data[i, :]
             # remove padding from ref, which appears at the beginning
-            ref = lstrip_pad(s['target'].data[i, :])
+            ref = lstrip_pad(input['target'].data[i, :])
             yield id, src, ref, hypos[i]
 
 

@@ -13,14 +13,14 @@ class FConvModel(nn.Module):
         self.encoder.num_attention_layers = sum([layer is not None for layer in decoder.attention])
         self.padding_idx = padding_idx
 
-    def forward(self, src_tokens, src_positions, input_tokens, input_positions, target, ntokens):
+    def forward(self, src_tokens, src_positions, input_tokens, input_positions, target):
         encoder_out = self.encoder(src_tokens, src_positions)
         decoder_out = self.decoder(input_tokens, input_positions, encoder_out)
         decoder_out = decoder_out.view(-1, decoder_out.size(-1))
         target = target.view(-1)
         loss = F.cross_entropy(decoder_out, target, size_average=False,
                                ignore_index=self.padding_idx)
-        return loss / ntokens
+        return loss
 
 
 class Encoder(nn.Module):

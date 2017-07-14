@@ -2,17 +2,15 @@ import argparse
 import os
 import torch
 import math
-from torch.autograd import Variable
-from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 from progress_bar import progress_bar
 
 import bleu
 import data
 import generate
 import models
-from nag import NAG
 import utils
 from average_meter import AverageMeter, TimeMeter
+from multiprocessing_trainer import MultiprocessingTrainer
 
 
 parser = argparse.ArgumentParser(description='Convolutional Sequence to Sequence Training')
@@ -93,58 +91,51 @@ def main():
     for split in ['train', 'valid', 'test']:
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
-    print('| model {}'.format(args.arch))
+    if not torch.cuda.is_available():
+        raise NotImplementedError('Training on CPU is not supported')
+    num_gpus = torch.cuda.device_count()
+    args.batch_size *= num_gpus
+    if args.max_tokens is not None:
+        args.max_tokens *= num_gpus
+    print(f'| using {num_gpus} GPUs (effective batch size = {args.batch_size})')
+
+    print(f'| model {args.arch}')
     model = utils.build_model(args, dataset)
     if torch.cuda.is_available():
         model.cuda()
 
-    # Nesterov accelerated gradient
-    optimizer = NAG(model.parameters(), args.lr, momentum=args.momentum,
-                    weight_decay=args.weight_decay)
-
-    # Decay the LR by 0.1 every time the validation loss plateaus
-    if args.force_anneal > 0:
-        anneal = lambda e: 1 if e < args.force_anneal else 0.1 ** (e + 1 - args.force_anneal)
-        lr_scheduler = LambdaLR(optimizer, anneal)
-        lr_scheduler.best = None
-    else:
-        lr_scheduler = ReduceLROnPlateau(optimizer, patience=0)
+    # Start multiprocessing
+    trainer = MultiprocessingTrainer(args, model)
 
     # Load the latest checkpoint if one is available
-    epoch, batch_offset = utils.load_checkpoint(
-        os.path.join(args.save_dir, args.restore_file), model, optimizer, lr_scheduler)
+    epoch, batch_offset = trainer.load_checkpoint(
+        os.path.join(args.save_dir, args.restore_file))
 
     # Train until the learning rate gets too small
     val_loss = None
-    while optimizer.param_groups[0]['lr'] > args.min_lr:
+    lr = trainer.get_lr()
+    while lr > args.min_lr:
         # train for one epoch
-        train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler)
+        train(epoch, batch_offset, trainer, dataset)
 
         # evaluate on validate set
-        val_loss = validate(epoch, model, dataset)
+        val_loss, lr = validate(epoch, trainer, dataset)
+
+        # save checkpoint
+        trainer.save_checkpoint(args.save_dir, epoch, 0, val_loss)
 
         epoch += 1
         batch_offset = 0
 
-        # update the learning rate
-        if args.force_anneal > 0:
-            lr_scheduler.step(epoch)
-        else:
-            lr_scheduler.step(val_loss, epoch)
-
-        # save checkpoint
-        utils.save_checkpoint(args.save_dir, epoch, batch_offset, model, optimizer, lr_scheduler, val_loss)
-
     # Generate on test set and compute BLEU score
     for beam in [1, 5, 10, 20]:
-        scorer = score_test(epoch, model, dataset, beam)
+        scorer = score_test(epoch, trainer.get_model(), dataset, beam)
         print('| Test with beam={}: BLEU4 = {:2.2f}'.format(beam, scorer.score()))
 
 
-def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
+def train(epoch, batch_offset, trainer, dataset):
     """Train the model for one epoch"""
 
-    model.train()
     itr = dataset.dataloader('train',
                              batch_size=args.batch_size,
                              num_workers=args.workers,
@@ -153,67 +144,51 @@ def train(epoch, batch_offset, model, dataset, optimizer, lr_scheduler):
     loss_meter = AverageMeter()
     wps_meter = TimeMeter()
 
-    def step(sample):
-        s = utils.prepare_sample(sample)
-        loss = model(s['src_tokens'], s['src_positions'], s['input_tokens'] ,
-                     s['input_positions'] , s['target'] , s['ntokens'])
-
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip_norm)
-        optimizer.step()
-
-        return loss.data[0] / math.log(2)
-
-    desc = '| epoch {}'.format(epoch)
+    desc = f'| epoch {epoch}'
+    lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in enumerate(t):
             if i < batch_offset:
                 continue
-            loss = step(sample)
+            loss = trainer.train_step(sample)
 
             loss_meter.update(loss, sample['ntokens'])
             wps_meter.update(sample['ntokens'])
 
             t.set_postfix(loss='{:.2f} ({:.2f})'.format(loss, loss_meter.avg),
                           wps='{:5d}'.format(round(wps_meter.avg)),
-                          lr=optimizer.param_groups[0]['lr'])
+                          lr=lr)
 
             if i == 0:
                 # ignore the first mini-batch in words-per-second calculation
                 wps_meter.reset()
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
-                utils.save_checkpoint(args.save_dir, epoch, i + 1, model, optimizer, lr_scheduler)
+                trainer.save_checkpoint(args.save_dir, epoch, i + 1)
 
         t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
                 .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
-                        round(wps_meter.avg), optimizer.param_groups[0]['lr']))
+                        round(wps_meter.avg), lr))
 
 
-def validate(epoch, model, dataset):
+def validate(epoch, trainer, dataset):
     """Evaluate the model on the validation set and return the average loss"""
 
-    model.eval()
     itr = dataset.dataloader('valid', batch_size=args.batch_size)
     loss_meter = AverageMeter()
-
-    def step(sample):
-        s = utils.prepare_sample(sample, volatile=True)
-        loss = model(s['src_tokens'], s['src_positions'], s['input_tokens'] ,
-                     s['input_positions'] , s['target'] , s['ntokens'])
-        return loss.data[0] / math.log(2)
 
     desc = '| val {}'.format(epoch)
     with progress_bar(itr, desc, leave=False) as t:
         for sample in t:
-            loss = step(sample)
+            loss = trainer.valid_step(sample)
             loss_meter.update(loss, sample['ntokens'])
             t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
 
+        val_loss = loss_meter.avg
         t.write('| epoch {:03d} | val loss {:2.2f} | val ppl {:3.2f}'
-                .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg)))
+                .format(epoch, val_loss, math.pow(2, val_loss)))
 
-    return loss_meter.avg
+    # update and return the learning rate
+    return val_loss, trainer.lr_step(val_loss)
 
 
 def score_test(epoch, model, dataset, beam):
@@ -221,7 +196,7 @@ def score_test(epoch, model, dataset, beam):
     if torch.cuda.is_available():
         translator.cuda()
 
-    scorer = bleu.Scorer(translator.pad, translator.eos)
+    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
     itr = dataset.dataloader('test', batch_size=args.batch_size)
     for id, src, ref, hypos in generate.generate_batched_itr(translator, itr):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
