@@ -250,22 +250,26 @@ def fconv_wmt_en_ro(dataset, dropout):
 
 
 def fconv_wmt_en_de(dataset, dropout):
-    convs = [(512, 3)] * 10  # first 10 layers have 512 units
-    convs += [(768, 3)] * 3  # next 3 layers have 768 units
+    convs = [(512, 3)] * 9  # first 10 layers have 512 units
+    convs += [(1024, 3)] * 4  # next 3 layers have 768 units
     convs += [(2048, 1)] * 2  # final 2 layers are 1x1
-    return fconv(dataset, dropout, 512, convs, 512, convs)
+    return fconv(dataset, dropout, 768, convs, 768, convs,
+                 decoder_out_embed_dim=256)
 
 
 def fconv_wmt_en_fr(dataset, dropout):
-    convs = [(512, 3)] * 5  # first 5 layers have 512 units
+    convs = [(512, 3)] * 6  # first 5 layers have 512 units
     convs += [(768, 3)] * 4  # next 4 layers have 768 units
     convs += [(1024, 3)] * 3  # next 4 layers have 1024 units
-    convs += [(2048, 1)] * 2  # final 2 layers are 1x1
-    return fconv(dataset, dropout, 512, convs, 512, convs)
+    convs += [(2048, 1)] * 1  # final 2 layers are 1x1
+    convs += [(4096, 1)] * 1  # final 2 layers are 1x1
+    return fconv(dataset, dropout, 768, convs, 768, convs,
+                 decoder_out_embed_dim=512)
 
 
 def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
-          decoder_embed_dim, decoder_convolutions, attention=True):
+          decoder_embed_dim, decoder_convolutions, attention=True,
+          decoder_out_embed_dim=256):
     padding_idx = dataset.dst_dict.pad()
 
     encoder = Encoder(
@@ -278,6 +282,7 @@ def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
         len(dataset.dst_dict),
         embed_dim=decoder_embed_dim,
         convolutions=decoder_convolutions,
+        out_embed_dim=decoder_out_embed_dim,
         attention=attention,
         dropout=dropout,
         padding_idx=padding_idx)

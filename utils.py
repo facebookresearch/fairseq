@@ -12,7 +12,8 @@ def build_model(args, dataset):
         decoder_attention = eval(args.decoder_attention)
         model = models.fconv(
             dataset, args.dropout, args.encoder_embed_dim, encoder_layers,
-            args.decoder_embed_dim, decoder_layers, decoder_attention)
+            args.decoder_embed_dim, decoder_layers, decoder_attention,
+            decoder_out_embed_dim=args.decoder_out_embed_dim)
     else:
         model = models.__dict__[args.arch](dataset, args.dropout)
     return model

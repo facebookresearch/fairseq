@@ -25,9 +25,7 @@ parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                     help='source language')
 parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                     help='target language')
-parser.add_argument('--batch-size', '-b', default=32, type=int, metavar='N',
-                    help='batch size')
-parser.add_argument('--max-tokens', default=None, type=int, metavar='N',
+parser.add_argument('--max-tokens', default=6000, type=int, metavar='N',
                     help='maximum number of tokens in a batch')
 parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
                     help='number of data loading workers (default: 1)')
@@ -71,7 +69,8 @@ parser.add_argument('--decoder-layers', default='[(512, 3)] * 20', type=str, met
                     help='decoder layers [(dim, kernel_size), ...]')
 parser.add_argument('--decoder-attention', default='True', type=str, metavar='EXPR',
                     help='decoder attention [True, ...]')
-
+parser.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
+                    help='decoder output embedding dimension')
 
 def main():
     global args
@@ -94,10 +93,8 @@ def main():
     if not torch.cuda.is_available():
         raise NotImplementedError('Training on CPU is not supported')
     num_gpus = torch.cuda.device_count()
-    args.batch_size *= num_gpus
-    if args.max_tokens is not None:
-        args.max_tokens *= num_gpus
-    print(f'| using {num_gpus} GPUs (effective batch size = {args.batch_size})')
+    args.max_tokens *= num_gpus
+    print(f'| using {num_gpus} GPUs (with max tokens = {args.max_tokens})')
 
     print(f'| model {args.arch}')
     model = utils.build_model(args, dataset)
@@ -137,7 +134,6 @@ def train(epoch, batch_offset, trainer, dataset):
     """Train the model for one epoch"""
 
     itr = dataset.dataloader('train',
-                             batch_size=args.batch_size,
                              num_workers=args.workers,
                              max_tokens=args.max_tokens,
                              seed=(args.seed, epoch))
@@ -173,7 +169,7 @@ def train(epoch, batch_offset, trainer, dataset):
 def validate(epoch, trainer, dataset):
     """Evaluate the model on the validation set and return the average loss"""
 
-    itr = dataset.dataloader('valid', batch_size=args.batch_size)
+    itr = dataset.dataloader('valid', batch_size=None, max_tokens=args.max_tokens)
     loss_meter = AverageMeter()
 
     desc = '| val {}'.format(epoch)
@@ -197,7 +193,7 @@ def score_test(epoch, model, dataset, beam):
         translator.cuda()
 
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
-    itr = dataset.dataloader('test', batch_size=args.batch_size)
+    itr = dataset.dataloader('test', batch_size=4)
     for id, src, ref, hypos in generate.generate_batched_itr(translator, itr):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer

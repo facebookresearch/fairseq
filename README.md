@@ -38,11 +38,61 @@ python setup.py install
 
 ## Training examples
 
+To prepare data and dictionary for IWSLT de-en:
+
+```
+TEXTROOT=/mnt/vol/gfsai-flash-east/ai-group/users/edunov/data/neuralmt/iwslt14_mixer_text/
+python preprocess.py --source-lang de --target-lang en \
+--trainpref $TEXTROOT/train --validpref $TEXTROOT/valid \
+--testpref $TEXTROOT/test --thresholdtgt 3 --thresholdsrc 3 \
+--destdir /data/users/$USER/iwslt_de_en
+```
+
 To train IWSLT de-en:
 
 ```
-DATADIR=/mnt/vol/gfsai-flash-east/ai-group/users/sgross/fairseq/iwslt14_de-en/
-python train.py $DATADIR -a fconv_iwslt_de_en --lr 0.25 --clip-norm 0.1 --dropout 0.2
+DATADIR=/data/users/$USER/iwslt_de_en
+THC_CACHING_ALLOCATOR=1 OMP_NUM_THREADS=1 /usr/local/bin/fry_gpulock 1 -- \
+    python train.py $DATADIR -a fconv_iwslt_de_en --lr 0.25 --clip-norm 0.1 \
+    --dropout 0.2 --max-tokens 10000
+```
+
+To prepare data and dictionary for WMT'14 en-fr:
+
+```
+TEXTROOT=/mnt/vol/gfsai-oregon/ai-group/datasets/text/wmt14/en-fr/175/ratio1.5/bpej40k/clean/
+python preprocess.py --source-lang en --target-lang fr \
+--trainpref $TEXTROOT/train --validpref $TEXTROOT/valid \
+--testpref $TEXTROOT/newstest2014 --thresholdtgt 0 --thresholdsrc 0 \
+--destdir /data/users/$USER/wmt14_en_fr
+```
+
+To train WMT'14 en-fr:
+
+```
+DATADIR=/data/users/$USER/wmt14_en_fr
+THC_CACHING_ALLOCATOR=1 OMP_NUM_THREADS=1 /usr/local/bin/fry_gpulock 1 -- \
+    python train.py $DATADIR -a fconv_wmt_en_fr --lr 0.25 --clip-norm 0.1 \
+    --dropout 0.2 --max-tokens 10000
+```
+
+To prepare data and dictionary for WMT'14 en-de:
+
+```
+TEXTROOT=/data/users/michaelauli/data/wmt14/en-de/stanford/bpej40k/
+python preprocess.py --source-lang en --target-lang de \
+--trainpref $TEXTROOT/train-split --validpref $TEXTROOT/valid-split \
+--testpref $TEXTROOT/newstest2014 --thresholdtgt 0 --thresholdsrc 0 \
+--destdir /data/users/$USER/wmt14_en_de
+```
+
+To train WMT'14 en-de:
+
+```
+DATADIR=/data/users/$USER/wmt14_en_de
+THC_CACHING_ALLOCATOR=1 OMP_NUM_THREADS=1 /usr/local/bin/fry_gpulock 1 -- \
+    python train.py $DATADIR -a fconv_wmt_en_de --lr 0.25 --clip-norm 0.1 \
+    --dropout 0.2 --max-tokens 10000
 ```
 
 To train WMT'16 en-ro:
