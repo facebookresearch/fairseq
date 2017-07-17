@@ -141,7 +141,9 @@ def train(epoch, batch_offset, trainer, dataset):
                              max_tokens=args.max_tokens,
                              seed=(args.seed, epoch))
     loss_meter = AverageMeter()
-    wps_meter = TimeMeter()
+    spb_meter = AverageMeter()  # sentences per batch
+    wpb_meter = AverageMeter()  # words per batch
+    wps_meter = TimeMeter()     # words per second
 
     desc = f'| epoch {epoch}'
     lr = trainer.get_lr()
@@ -152,9 +154,13 @@ def train(epoch, batch_offset, trainer, dataset):
             loss = trainer.train_step(sample)
 
             loss_meter.update(loss, sample['ntokens'])
+            spb_meter.update(sample['src_tokens'].size(0))
+            wpb_meter.update(sample['ntokens'])
             wps_meter.update(sample['ntokens'])
 
             t.set_postfix(loss='{:.2f} ({:.2f})'.format(loss, loss_meter.avg),
+                          spb='{:5d}'.format(round(spb_meter.avg)),
+                          wpb='{:5d}'.format(round(wpb_meter.avg)),
                           wps='{:5d}'.format(round(wps_meter.avg)),
                           lr=lr)
 
