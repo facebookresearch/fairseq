@@ -254,15 +254,15 @@ def fconv_wmt_en_de(dataset, dropout):
     convs += [(1024, 3)] * 4  # next 3 layers have 768 units
     convs += [(2048, 1)] * 2  # final 2 layers are 1x1
     return fconv(dataset, dropout, 768, convs, 768, convs,
-                 decoder_out_embed_dim=256)
+                 decoder_out_embed_dim=512)
 
 
 def fconv_wmt_en_fr(dataset, dropout):
     convs = [(512, 3)] * 6  # first 5 layers have 512 units
     convs += [(768, 3)] * 4  # next 4 layers have 768 units
     convs += [(1024, 3)] * 3  # next 4 layers have 1024 units
-    convs += [(2048, 1)] * 1  # final 2 layers are 1x1
-    convs += [(4096, 1)] * 1  # final 2 layers are 1x1
+    convs += [(2048, 1)] * 1  # next 1 layer is 1x1
+    convs += [(4096, 1)] * 1  # final 1 layer is 1x1
     return fconv(dataset, dropout, 768, convs, 768, convs,
                  decoder_out_embed_dim=512)
 

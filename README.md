@@ -70,10 +70,10 @@ python preprocess.py --source-lang en --target-lang fr \
 To train WMT'14 en-fr:
 
 ```
-DATADIR=/data/users/$USER/wmt14_en_fr
+DATADIR=/mnt/vol/gfsai-flash-east/ai-group/users/edunov/data/neuralmt/wmt14_en_fr/
 THC_CACHING_ALLOCATOR=1 OMP_NUM_THREADS=1 /usr/local/bin/fry_gpulock 1 -- \
     python train.py $DATADIR -a fconv_wmt_en_fr --lr 0.25 --clip-norm 0.1 \
-    --dropout 0.2 --max-tokens 10000
+    --dropout 0.2 --max-tokens 1000
 ```
 
 To prepare data and dictionary for WMT'14 en-de:
@@ -89,10 +89,10 @@ python preprocess.py --source-lang en --target-lang de \
 To train WMT'14 en-de:
 
 ```
-DATADIR=/data/users/$USER/wmt14_en_de
+DATADIR=/mnt/vol/gfsai-flash-east/ai-group/users/edunov/data/neuralmt/wmt14_en_de/
 THC_CACHING_ALLOCATOR=1 OMP_NUM_THREADS=1 /usr/local/bin/fry_gpulock 1 -- \
     python train.py $DATADIR -a fconv_wmt_en_de --lr 0.25 --clip-norm 0.1 \
-    --dropout 0.2 --max-tokens 10000
+    --dropout 0.2 --max-tokens 1500
 ```
 
 To train WMT'16 en-ro:
