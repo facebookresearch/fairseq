@@ -129,6 +129,9 @@ def main():
         scorer = score_test(epoch, trainer.get_model(), dataset, beam)
         print('| Test with beam={}: BLEU4 = {:2.2f}'.format(beam, scorer.score()))
 
+    # Stop multiprocessing
+    trainer.stop()
+
 
 def train(epoch, batch_offset, trainer, dataset):
     """Train the model for one epoch"""

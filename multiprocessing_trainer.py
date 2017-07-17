@@ -75,6 +75,13 @@ class MultiprocessingTrainer(object):
         # scatter net inputs across GPUs
         return nn.parallel.scatter(sample['net_input'], self.device_ids)
 
+    def stop(self):
+        '''Stop multiprocessing.'''
+        # send poison pill to each replica
+        for rank in range(self.num_replicas):
+            self.input_pipes[rank].send((None, None))
+        for proc in self.procs:
+            proc.join()
 
     def get_model(self):
         '''Get one of the model replicas.'''
@@ -261,6 +268,8 @@ class MultiprocessingTrainer(object):
             # - put the return value in the return Pipe
             while True:
                 action, kwargs = input_pipe.recv()
+                if action is None:  # poison pill
+                    break
                 action_fn = getattr(self, action)
                 return_pipe.send(action_fn(rank, device_id, **kwargs))
 
