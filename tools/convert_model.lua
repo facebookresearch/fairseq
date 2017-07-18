@@ -42,13 +42,19 @@ function encoder_state(encoder)
   push_state(encoder_dict, 'embed_positions', luts[2])
 
   fcs = encoder:findModules('nn.Linear')
-  assert(#fcs == 2)
-  push_state(encoder_dict, 'fc1', fcs[1])
-  push_state(encoder_dict, 'fc2', fcs[2])
+  assert(#fcs >= 2)
+  local nInputPlane = fcs[1].weight:size(1)
+  push_state(encoder_dict, 'fc1', table.remove(fcs, 1))
+  push_state(encoder_dict, 'fc2', table.remove(fcs, #fcs))
 
   for i, module in ipairs(encoder:findModules('nn.TemporalConvolutionTBC')) do
     push_state(encoder_dict, 'convolutions.' .. tostring(i - 1), module)
+    if nInputPlane ~= module.weight:size(3) / 2 then
+      push_state(encoder_dict, 'projections.' .. tostring(i - 1), table.remove(fcs, 1))
+    end
+    nInputPlane = module.weight:size(3) / 2
   end
+  assert(#fcs == 0)
 end
 
 function decoder_state(decoder)
@@ -57,23 +63,26 @@ function decoder_state(decoder)
   push_state(decoder_dict, 'embed_positions', luts[2])
 
   fcs = decoder:findModules('nn.Linear')
-  push_state(decoder_dict, 'fc1', fcs[1])
+  local nInputPlane = fcs[1].weight:size(1)
+  push_state(decoder_dict, 'fc1', table.remove(fcs, 1))
   push_state(decoder_dict, 'fc2', fcs[#fcs - 1])
   push_state(decoder_dict, 'fc3', fcs[#fcs])
 
-  table.remove(fcs, 1)
   table.remove(fcs, #fcs)
   table.remove(fcs, #fcs)
-
-  for i = 1, #fcs, 2 do
-    local prefix = 'attention.' .. tostring((i - 1) / 2)
-    push_state(decoder_dict, prefix .. '.in_projection', fcs[i])
-    push_state(decoder_dict, prefix .. '.out_projection', fcs[i + 1])
-  end
 
   for i, module in ipairs(decoder:findModules('nn.TemporalConvolutionTBC')) do
+    if nInputPlane ~= module.weight:size(3) / 2 then
+      push_state(decoder_dict, 'projections.' .. tostring(i - 1), table.remove(fcs, 1))
+    end
+    nInputPlane = module.weight:size(3) / 2
+
+    local prefix = 'attention.' .. tostring(i - 1)
+    push_state(decoder_dict, prefix .. '.in_projection', table.remove(fcs, 1))
+    push_state(decoder_dict, prefix .. '.out_projection', table.remove(fcs, 1))
     push_state(decoder_dict, 'convolutions.' .. tostring(i - 1), module)
   end
+  assert(#fcs == 0)
 end
 
 
