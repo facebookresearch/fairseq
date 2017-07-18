@@ -55,6 +55,8 @@ parser.add_argument('--save-interval', type=int, default=-1,
                     help='checkpoint every this many batches')
 parser.add_argument('--no-progress-bar', action='store_true',
                     help='disable progress bar')
+parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
+                    help='log progress every N updates (when progress bar is disabled)')
 parser.add_argument('--seed', default=1, type=int, metavar='N',
                     help='pseudo random number generator seed')
 
@@ -79,6 +81,7 @@ def main():
 
     if args.no_progress_bar:
         progress_bar.enabled = False
+        progress_bar.print_interval = args.log_interval
 
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)

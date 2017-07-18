@@ -7,19 +7,20 @@ from tqdm import tqdm
 
 class progress_bar(tqdm):
     enabled = sys.stderr.isatty()
+    print_interval = 1000
 
     def __new__(cls, *args, **kwargs):
         if cls.enabled:
             return tqdm(*args, **kwargs)
         else:
-            return simple_progress_bar(*args, **kwargs)
+            return simple_progress_bar(cls.print_interval, *args, **kwargs)
 
 
 class simple_progress_bar(tqdm):
-    print_interval = 1000
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, print_interval, *args, **kwargs):
         super(simple_progress_bar, self).__init__(*args, **kwargs)
+        self.print_interval = print_interval
 
     def __iter__(self):
         size = len(self.iterable)
@@ -28,12 +29,14 @@ class simple_progress_bar(tqdm):
             if i > 0 and i % self.print_interval == 0:
                 msg = '{} {:5d} / {:d} {}\n'.format(self.desc, i, size, self.postfix)
                 sys.stdout.write(msg)
+                sys.stdout.flush()
 
     @classmethod
     def write(cls, s, file=None, end="\n"):
         fp = file if file is not None else sys.stdout
         fp.write(s)
         fp.write(end)
+        fp.flush()
 
     @staticmethod
     def status_printer(file):
