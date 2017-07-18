@@ -51,7 +51,7 @@ class MultiprocessingTrainer(object):
             recv_input_pipe, send_input_pipe = self.mp.Pipe(duplex=False)
             recv_return_pipe, send_return_pipe = self.mp.Pipe(duplex=False)
             proc = self.mp.Process(
-                target=self._main_process_loop,
+                target=self._main_process_loop_safe,
                 args=(rank, id, recv_input_pipe, send_return_pipe))
             proc.start()
             self.input_pipes.append(send_input_pipe)
@@ -239,9 +239,22 @@ class MultiprocessingTrainer(object):
             'return pipe must be consumed before calling another function'
         self.input_pipes[rank].send((action, kwargs))
         def result_generator():
-            yield self.return_pipes[rank].recv()
+            msg = self.return_pipes[rank].recv()
+            if isinstance(msg, Exception):
+                raise msg
+            yield msg
         return Future(result_generator())
 
+
+    def _main_process_loop_safe(self, rank, device_id, input_pipe, return_pipe):
+        '''Wraps main process loop in each child Process and sends back exception to the
+        parent in case of failures (typically OOMs)'''
+        try:
+            self._main_process_loop(rank, device_id, input_pipe, return_pipe)
+        except Exception as e:
+            # Trigger failure in parent process
+            return_pipe.send(e)
+            raise e
 
     def _main_process_loop(self, rank, device_id, input_pipe, return_pipe):
         '''Main loop run in each Process that reads inputs from an input Pipe,
