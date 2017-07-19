@@ -73,7 +73,10 @@ class MultiprocessingTrainer(object):
         sample = utils.prepare_sample(sample, use_cuda=False, volatile=volatile)
 
         # scatter net inputs across GPUs
-        return nn.parallel.scatter(sample['net_input'], self.device_ids)
+        net_inputs = nn.parallel.scatter(sample['net_input'], self.device_ids)
+
+        # pad with None
+        return list(net_inputs) + [None]*(self.num_replicas - len(net_inputs))
 
     def stop(self):
         '''Stop multiprocessing.'''
