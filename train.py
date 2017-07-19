@@ -33,7 +33,7 @@ parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
 # optimization
 parser.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
                     help='initial learning rate')
-parser.add_argument('--min-lr', metavar='LR', default=1e-4, type=float,
+parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
                     help='minimum learning rate')
 parser.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
                     help='force annealing at specified epoch')
@@ -196,10 +196,11 @@ def validate(epoch, trainer, dataset):
                 .format(epoch, val_loss, math.pow(2, val_loss)))
 
     # update and return the learning rate
-    return val_loss, trainer.lr_step(val_loss)
+    return val_loss, trainer.lr_step(val_loss, epoch)
 
 
 def score_test(epoch, model, dataset, beam):
+    """Evaluate the model on the test set and print the BLEU score"""
     translator = generate.SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
     if torch.cuda.is_available():
         translator.cuda()
