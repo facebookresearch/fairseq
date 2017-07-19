@@ -101,8 +101,6 @@ def main():
 
     print(f'| model {args.arch}')
     model = utils.build_model(args, dataset)
-    if torch.cuda.is_available():
-        model.cuda()
 
     # Start multiprocessing
     trainer = MultiprocessingTrainer(args, model)

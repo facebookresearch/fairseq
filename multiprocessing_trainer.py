@@ -24,7 +24,7 @@ class MultiprocessingTrainer(object):
     '''
 
     def __init__(self, args, model, device_ids=None,
-                 multiprocessing_method='forkserver'):
+                 multiprocessing_method='spawn'):
         super(MultiprocessingTrainer, self).__init__()
         self.args = args
 
@@ -37,12 +37,12 @@ class MultiprocessingTrainer(object):
         self.num_replicas = len(device_ids)
         self.nccl_uid = nccl.get_unique_id()
 
-        self._start_multiprocessing(multiprocessing_method)
-        self._replicate_model(model)
+        self._start_multiprocessing(multiprocessing_method, model)
 
-    def _start_multiprocessing(self, method):
+    def _start_multiprocessing(self, method, model):
         '''Create a Process for each GPU that reads input from a Pipe, performs
         some computation, and returns its output to another Pipe.'''
+        model = model.share_memory()
         self.mp = multiprocessing.get_context(method)
         self.input_pipes = []
         self.return_pipes = []
@@ -52,20 +52,11 @@ class MultiprocessingTrainer(object):
             recv_return_pipe, send_return_pipe = self.mp.Pipe(duplex=False)
             proc = self.mp.Process(
                 target=self._main_process_loop_safe,
-                args=(rank, id, recv_input_pipe, send_return_pipe))
+                args=(rank, id, model, recv_input_pipe, send_return_pipe))
             proc.start()
             self.input_pipes.append(send_input_pipe)
             self.return_pipes.append(recv_return_pipe)
             self.procs.append(proc)
-
-    def _replicate_model(self, model):
-        '''Create a copy of the model on each GPU/Process.'''
-        if not all(p.is_cuda for p in model.parameters()):
-            model = model.cuda(self.device_ids[0])
-        self.models = nn.parallel.replicate(model, self.device_ids)
-        self.models[0] = model
-        for rank in range(self.num_replicas):
-            self.input_pipes[rank].send(self.models[rank])
 
     def _scatter_sample(self, sample, volatile=False):
         '''Split and distribute a sample across GPUs.'''
@@ -89,7 +80,10 @@ class MultiprocessingTrainer(object):
     def get_model(self):
         '''Get one of the model replicas.'''
         # just return the first model, since all replicas are the same
-        return self.models[0]
+        return self._call_async(0, '_async_get_model').gen()
+
+    def _async_get_model(self, rank, device_id):
+        return self.model
 
 
     def save_checkpoint(self, save_dir, epoch, batch_offset, val_loss=None):
@@ -244,30 +238,31 @@ class MultiprocessingTrainer(object):
         def result_generator():
             msg = self.return_pipes[rank].recv()
             if isinstance(msg, Exception):
+                self.stop()
                 raise msg
             yield msg
         return Future(result_generator())
 
 
-    def _main_process_loop_safe(self, rank, device_id, input_pipe, return_pipe):
+    def _main_process_loop_safe(self, rank, device_id, model, input_pipe, return_pipe):
         '''Wraps main process loop in each child Process and sends back exception to the
         parent in case of failures (typically OOMs)'''
         try:
-            self._main_process_loop(rank, device_id, input_pipe, return_pipe)
+            self._main_process_loop(rank, device_id, model, input_pipe, return_pipe)
         except Exception as e:
             # Trigger failure in parent process
             return_pipe.send(e)
             raise e
 
-    def _main_process_loop(self, rank, device_id, input_pipe, return_pipe):
+    def _main_process_loop(self, rank, device_id, model, input_pipe, return_pipe):
         '''Main loop run in each Process that reads inputs from an input Pipe,
         performs some computation, and returns the output to another Pipe.'''
         with torch.cuda.device(device_id):
             # initialize NCCL
             nccl.initialize(self.num_replicas, self.nccl_uid, device_id)
 
-            # get replicated model
-            self.model = input_pipe.recv()
+            # copy model to current device
+            self.model = model.cuda()
 
             # initialize optimizer
             self.optimizer = NAG(self.model.parameters(), lr=self.args.lr,
