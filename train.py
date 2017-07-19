@@ -97,9 +97,9 @@ def main():
         raise NotImplementedError('Training on CPU is not supported')
     num_gpus = torch.cuda.device_count()
     args.max_tokens *= num_gpus
-    print(f'| using {num_gpus} GPUs (with max tokens = {args.max_tokens})')
+    print('| using {} GPUs (with max tokens = {})'.format(num_gpus, args.max_tokens))
 
-    print(f'| model {args.arch}')
+    print('| model {}'.format(args.arch))
     model = utils.build_model(args, dataset)
 
     # Start multiprocessing
@@ -146,7 +146,7 @@ def train(epoch, batch_offset, trainer, dataset):
     wpb_meter = AverageMeter()  # words per batch
     wps_meter = TimeMeter()     # words per second
 
-    desc = f'| epoch {epoch}'
+    desc = '| epoch {}'.format(epoch)
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in enumerate(t):

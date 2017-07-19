@@ -42,7 +42,7 @@ def save_checkpoint(save_dir, epoch, batch_offset, model, optimizer, lr_schedule
     }
 
     if batch_offset == 0:
-        epoch_filename = os.path.join(save_dir, f'checkpoint{epoch}.pt')
+        epoch_filename = os.path.join(save_dir, 'checkpoint{}.pt'.format(epoch))
         torch_persistent_save(state_dict, epoch_filename)
 
         assert val_loss is not None
