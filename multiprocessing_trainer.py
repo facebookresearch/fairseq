@@ -2,6 +2,9 @@
 Train a network on multiple GPUs using multiprocessing.
 '''
 import math
+import os
+import signal
+import threading
 import torch
 from torch import multiprocessing, nn
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
@@ -40,28 +43,43 @@ class MultiprocessingTrainer(object):
         self._start_multiprocessing(multiprocessing_method, model)
 
     def _start_multiprocessing(self, method, model):
-        '''Create a Process for each GPU that reads input from a Pipe, performs
-        some computation, and returns its output to another Pipe.'''
+        '''
+        Create a Process for each GPU that reads input from a Pipe, performs
+        some computation, and returns its output to another Pipe. We also start
+        an error handling thread to catch exceptions in the children.
+        '''
         model = model.share_memory()
-        self.mp = multiprocessing.get_context(method)
-        self.input_pipes = []
-        self.return_pipes = []
-        self.procs = []
-        toclose = []
+        mp = multiprocessing.get_context(method)
+
+        # create a thread to listen for errors in the child processes
+        self.error_queue = mp.SimpleQueue()
+        error_thread = threading.Thread(target=self._error_listener)
+        error_thread.daemon = True
+        error_thread.start()
+
+        # create child processes
+        input_pipes = []
+        return_pipes = []
+        procs = []
         for rank, id in enumerate(self.device_ids):
-            recv_input_pipe, send_input_pipe = self.mp.Pipe(duplex=False)
-            recv_return_pipe, send_return_pipe = self.mp.Pipe(duplex=False)
-            proc = self.mp.Process(
+            recv_input_pipe, send_input_pipe = mp.Pipe(duplex=False)
+            recv_return_pipe, send_return_pipe = mp.Pipe(duplex=False)
+            proc = mp.Process(
                 target=self._main_process_loop_safe,
                 args=(rank, id, model, recv_input_pipe, send_return_pipe))
+            proc.daemon = True
             proc.start()
-            toclose.extend([recv_input_pipe, send_return_pipe])
-            self.input_pipes.append(send_input_pipe)
-            self.return_pipes.append(recv_return_pipe)
-            self.procs.append(proc)
+            input_pipes.append(send_input_pipe)
+            return_pipes.append(recv_return_pipe)
+            procs.append(proc)
+        self.input_pipes = input_pipes
+        self.return_pipes = return_pipes
+        self.procs = procs
 
-        for pipe in toclose:
-            pipe.close()
+        # create signal handler that executes in the main process/thread and
+        # handles errors from child processes
+        signal.signal(signal.SIGUSR1, self._signal_handler)
+
 
     def _scatter_sample(self, sample, volatile=False):
         '''Split and distribute a sample across GPUs.'''
@@ -73,13 +91,18 @@ class MultiprocessingTrainer(object):
                for i, device_id in zip(range(0, len(sample)), self.device_ids)]
         return res + [None]*(self.num_replicas - len(sample))
 
-    def stop(self):
+    def stop(self, interrupt_children=False):
         '''Stop multiprocessing.'''
-        # send poison pill to each replica
         for rank in range(self.num_replicas):
-            self.input_pipes[rank].send((None, None))
-        for proc in self.procs:
-            proc.join()
+            self.input_pipes[rank].close()
+            self.return_pipes[rank].close()
+            if interrupt_children:
+                # send KeyboardInterrupt to children
+                os.kill(self.procs[rank].pid, signal.SIGINT)
+            else:
+                self.procs[rank].join()
+        self.error_queue.put((None, None))  # poison pill
+
 
     def get_model(self):
         '''Get one of the model replicas.'''
@@ -243,11 +266,7 @@ class MultiprocessingTrainer(object):
             'return pipe must be consumed before calling another function'
         self.input_pipes[rank].send((action, kwargs))
         def result_generator():
-            msg = self.return_pipes[rank].recv()
-            if isinstance(msg, Exception):
-                self.stop()
-                raise msg
-            yield msg
+            yield self.return_pipes[rank].recv()
         return Future(result_generator())
 
 
@@ -256,10 +275,21 @@ class MultiprocessingTrainer(object):
         parent in case of failures (typically OOMs)'''
         try:
             self._main_process_loop(rank, device_id, model, input_pipe, return_pipe)
+        except EOFError:
+            # input pipe was closed, do nothing
+            pass
+        except KeyboardInterrupt:
+            # killed by parent, do nothing
+            pass
         except Exception as e:
-            # Trigger failure in parent process
-            return_pipe.send(e)
-            raise e
+            # propagate exception from child to parent process, keeping original
+            # traceback
+            import traceback
+            self.error_queue.put((rank, traceback.format_exc()))
+        finally:
+            # cleanup pipes
+            input_pipe.close()
+            return_pipe.close()
 
     def _main_process_loop(self, rank, device_id, model, input_pipe, return_pipe):
         '''Main loop run in each Process that reads inputs from an input Pipe,
@@ -286,8 +316,6 @@ class MultiprocessingTrainer(object):
             # - put the return value in the return Pipe
             while True:
                 action, kwargs = input_pipe.recv()
-                if action is None:  # poison pill
-                    break
                 action_fn = getattr(self, action)
                 return_pipe.send(action_fn(rank, device_id, **kwargs))
 
@@ -304,6 +332,26 @@ class MultiprocessingTrainer(object):
             # decay the LR by 0.1 every time the validation loss plateaus
             lr_scheduler = ReduceLROnPlateau(self.optimizer, patience=0)
         return lr_scheduler
+
+    def _error_listener(self):
+        '''A thread that listens for errors in the child processes. Errors are
+        handled in a separate signal handler in the main thread.'''
+        (rank, original_trace) = self.error_queue.get()
+        if rank is None:  # poison pill, return
+            return
+
+        # requeue error and switch to main thread for handling the error
+        self.error_queue.put((rank, original_trace))
+        os.kill(os.getpid(), signal.SIGUSR1)
+
+    def _signal_handler(self, signal, frame):
+        '''Signal handler that executes in the main process/thread and handles
+        errors from child processes.'''
+        self.stop(interrupt_children=True)
+        (rank, original_trace) = self.error_queue.get()
+        msg = "\n\n-- Tracebacks above this line can probably be ignored --\n\n"
+        msg += original_trace
+        raise Exception(msg)
 
 
 class Future(object):
