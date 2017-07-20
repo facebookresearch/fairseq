@@ -43,6 +43,9 @@ class IndexedDataset(object):
             self.dim_offsets = read_longs(f, self.size + 1)
             self.data_offsets = read_longs(f, self.size + 1)
             self.sizes = read_longs(f, self.s)
+        self.read_data(path)
+
+    def read_data(self, path):
         self.data_file = open(path + '.bin', 'rb', buffering=0)
 
     def __del__(self):
@@ -63,8 +66,8 @@ class IndexedDataset(object):
 class IndexedInMemoryDataset(IndexedDataset):
     """Loader for TorchNet IndexedDataset, keeps all the data in memory"""
 
-    def __init__(self, path):
-        super().__init__(path)
+    def read_data(self, path):
+        self.data_file = open(path + '.bin', 'rb')
         self.buffer = np.empty(self.data_offsets[-1], dtype=self.dtype)
         self.data_file.readinto(self.buffer)
         self.data_file.close()
