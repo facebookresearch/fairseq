@@ -47,6 +47,7 @@ class MultiprocessingTrainer(object):
         self.input_pipes = []
         self.return_pipes = []
         self.procs = []
+        toclose = []
         for rank, id in enumerate(self.device_ids):
             recv_input_pipe, send_input_pipe = self.mp.Pipe(duplex=False)
             recv_return_pipe, send_return_pipe = self.mp.Pipe(duplex=False)
@@ -54,20 +55,23 @@ class MultiprocessingTrainer(object):
                 target=self._main_process_loop_safe,
                 args=(rank, id, model, recv_input_pipe, send_return_pipe))
             proc.start()
+            toclose.extend([recv_input_pipe, send_return_pipe])
             self.input_pipes.append(send_input_pipe)
             self.return_pipes.append(recv_return_pipe)
             self.procs.append(proc)
 
+        for pipe in toclose:
+            pipe.close()
+
     def _scatter_sample(self, sample, volatile=False):
         '''Split and distribute a sample across GPUs.'''
         # prepare input on CPU and let scatter move it to GPU
-        sample = utils.prepare_sample(sample, use_cuda=False, volatile=volatile)
-
-        # scatter net inputs across GPUs
-        net_inputs = nn.parallel.scatter(sample['net_input'], self.device_ids)
-
-        # pad with None
-        return list(net_inputs) + [None]*(self.num_replicas - len(net_inputs))
+        # returned list may be smaller than the number of available devices
+        res = [utils.prepare_sample(sample[i],
+                                    volatile=volatile,
+                                    cuda_device=device_id)
+               for i, device_id in zip(range(0, len(sample)), self.device_ids)]
+        return res + [None]*(self.num_replicas - len(sample))
 
     def stop(self):
         '''Stop multiprocessing.'''
@@ -117,16 +121,18 @@ class MultiprocessingTrainer(object):
         gradient steps in each Process.'''
         # scatter sample across GPUs
         net_inputs = self._scatter_sample(sample)
+        ntokens = sum(s['ntokens'] if s else 0 for s in sample)
 
         # forward pass, backward pass and gradient step
         losses = [
-            self._call_async(rank, '_async_train_step', net_input=input,
-                             grad_denom=sample['ntokens'])
+            self._call_async(rank, '_async_train_step',
+                             net_input=input['net_input'] if input else None,
+                             grad_denom=ntokens)
             for rank, input in enumerate(net_inputs)
         ]
 
         # accumulate and normalize loss
-        loss = sum(Future.gen_list(losses)) / sample['ntokens']
+        loss = sum(Future.gen_list(losses)) / ntokens
 
         return loss / math.log(2)
 
@@ -186,12 +192,13 @@ class MultiprocessingTrainer(object):
         # forward pass
         net_inputs = self._scatter_sample(sample, volatile=True)
         losses = [
-            self._call_async(rank, '_async_valid_step', net_input=input)
+            self._call_async(rank, '_async_valid_step',
+                             net_input=input['net_input'] if input else None)
             for rank, input in enumerate(net_inputs)
         ]
 
         # accumulate and normalize loss
-        loss = sum(Future.gen_list(losses)) / sample['ntokens']
+        loss = sum(Future.gen_list(losses)) / sum(s['ntokens'] if s else 0 for s in sample)
 
         return loss / math.log(2)
 

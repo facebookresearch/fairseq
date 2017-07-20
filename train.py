@@ -96,8 +96,8 @@ def main():
     if not torch.cuda.is_available():
         raise NotImplementedError('Training on CPU is not supported')
     num_gpus = torch.cuda.device_count()
-    args.max_tokens *= num_gpus
-    print('| using {} GPUs (with max tokens = {})'.format(num_gpus, args.max_tokens))
+
+    print('| using {} GPUs (with max tokens per GPU = {})'.format(num_gpus, args.max_tokens))
 
     print('| model {}'.format(args.arch))
     model = utils.build_model(args, dataset)
@@ -114,10 +114,10 @@ def main():
     lr = trainer.get_lr()
     while lr > args.min_lr:
         # train for one epoch
-        train(epoch, batch_offset, trainer, dataset)
+        train(epoch, batch_offset, trainer, dataset, num_gpus)
 
         # evaluate on validate set
-        val_loss, lr = validate(epoch, trainer, dataset)
+        val_loss, lr = validate(epoch, trainer, dataset, num_gpus)
 
         # save checkpoint
         trainer.save_checkpoint(args.save_dir, epoch, 0, val_loss)
@@ -127,14 +127,14 @@ def main():
 
     # Generate on test set and compute BLEU score
     for beam in [1, 5, 10, 20]:
-        scorer = score_test(epoch, trainer.get_model(), dataset, beam)
+        scorer = score_test(epoch, trainer.get_model(), dataset, beam, 0 if num_gpus > 0 else None)
         print('| Test with beam={}: BLEU4 = {:2.2f}'.format(beam, scorer.score()))
 
     # Stop multiprocessing
     trainer.stop()
 
 
-def train(epoch, batch_offset, trainer, dataset):
+def train(epoch, batch_offset, trainer, dataset, num_gpus):
     """Train the model for one epoch"""
 
     itr = dataset.dataloader('train',
@@ -149,15 +149,15 @@ def train(epoch, batch_offset, trainer, dataset):
     desc = '| epoch {}'.format(epoch)
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
-        for i, sample in enumerate(t):
-            if i < batch_offset:
-                continue
+        for i, sample in skip_group_enumerator(t, num_gpus, batch_offset):
             loss = trainer.train_step(sample)
 
-            loss_meter.update(loss, sample['ntokens'])
-            spb_meter.update(sample['src_tokens'].size(0))
-            wpb_meter.update(sample['ntokens'])
-            wps_meter.update(sample['ntokens'])
+            ntokens = sum(s['ntokens'] for s in sample)
+            src_size = sum(s['src_tokens'].size(0) for s in sample)
+            loss_meter.update(loss, ntokens)
+            spb_meter.update(src_size)
+            wpb_meter.update(ntokens)
+            wps_meter.update(ntokens)
 
             t.set_postfix(loss='{:.2f} ({:.2f})'.format(loss, loss_meter.avg),
                           spb='{:5d}'.format(round(spb_meter.avg)),
@@ -176,7 +176,22 @@ def train(epoch, batch_offset, trainer, dataset):
                         round(wps_meter.avg), lr))
 
 
-def validate(epoch, trainer, dataset):
+def skip_group_enumerator(it, ngpus, offset=0):
+    res = []
+    idx = 0
+    for i, sample in enumerate(it):
+        if i < offset:
+            continue
+        res.append(sample)
+        if len(res) >= ngpus:
+            yield (i, res)
+            res = []
+            idx = i + 1
+    if len(res) > 0:
+        yield (idx, res)
+
+
+def validate(epoch, trainer, dataset, ngpus):
     """Evaluate the model on the validation set and return the average loss"""
 
     itr = dataset.dataloader('valid', batch_size=None, max_tokens=args.max_tokens)
@@ -184,9 +199,10 @@ def validate(epoch, trainer, dataset):
 
     desc = '| val {}'.format(epoch)
     with progress_bar(itr, desc, leave=False) as t:
-        for sample in t:
+        for _, sample in skip_group_enumerator(t, ngpus):
+            ntokens = sum(s['ntokens'] for s in sample)
             loss = trainer.valid_step(sample)
-            loss_meter.update(loss, sample['ntokens'])
+            loss_meter.update(loss, ntokens)
             t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
 
         val_loss = loss_meter.avg
@@ -197,7 +213,7 @@ def validate(epoch, trainer, dataset):
     return val_loss, trainer.lr_step(val_loss, epoch)
 
 
-def score_test(epoch, model, dataset, beam):
+def score_test(epoch, model, dataset, beam, cuda_device=None):
     """Evaluate the model on the test set and print the BLEU score"""
     translator = generate.SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
     if torch.cuda.is_available():
@@ -205,7 +221,7 @@ def score_test(epoch, model, dataset, beam):
 
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
     itr = dataset.dataloader('test', batch_size=4)
-    for id, src, ref, hypos in generate.generate_batched_itr(translator, itr):
+    for id, src, ref, hypos in generate.generate_batched_itr(translator, itr, cuda_device=cuda_device):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer
 

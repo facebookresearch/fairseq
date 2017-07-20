@@ -199,7 +199,7 @@ def shuffled_batches_by_size(src, dst, batch_size=1, max_tokens=None):
             if len(batch) > 0 and (len(batch) + 1) * sample_len > max_tokens:
                 yield batch
                 batch = []
-                sample_len = 0
+                sample_len = max(src.sizes[idx], dst.sizes[idx])
 
             batch.append(idx)
 

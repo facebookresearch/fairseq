@@ -66,6 +66,8 @@ parser.add_argument('--decoder-attention', default='True', type=str, metavar='EX
                     help='decoder attention [True, ...]')
 parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                     help='dropout probability')
+parser.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
+                    help='decoder output embedding dimension')
 
 
 def main():
@@ -111,7 +113,7 @@ def main():
         wps_meter = TimeMeter()
         translations = generate_batched_itr(
             translator, t, max_len_a=args.max_len_a, max_len_b=args.max_len_b,
-            use_cuda=use_cuda)
+            cuda_device=0 if use_cuda else None)
         for id, src, ref, hypos in translations:
             wps_meter.update(src.size(0))
             scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
@@ -141,14 +143,14 @@ def expand_encoder_out(encoder_out, beam_size):
 
 
 def generate_batched_itr(translator, data_itr, max_len_a=0, max_len_b=200,
-                         use_cuda=True):
+                         cuda_device=None):
     '''Iterate over a batched dataset and yield individual translations.'''
 
     def lstrip_pad(tensor):
         return tensor[tensor.eq(translator.pad).sum():]
 
     for sample in data_itr:
-        s = utils.prepare_sample(sample, volatile=True, use_cuda=use_cuda)
+        s = utils.prepare_sample(sample, volatile=True, cuda_device=cuda_device)
         input = s['net_input']
         srclen = input['src_tokens'].size(1)
         hypos = translator.generate(

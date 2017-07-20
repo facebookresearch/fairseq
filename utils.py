@@ -72,7 +72,7 @@ def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None):
     return epoch, batch_offset
 
 
-def prepare_sample(sample, volatile=False, use_cuda=True):
+def prepare_sample(sample, volatile=False, cuda_device=None):
     '''Wrap input tensors in Variable class'''
     r = {
         'id': sample['id'],
@@ -82,7 +82,7 @@ def prepare_sample(sample, volatile=False, use_cuda=True):
     # prepare input to network
     for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions', 'target']:
         tensor = sample[key]
-        if use_cuda and torch.cuda.is_available():
-            tensor = tensor.cuda(async=True)
+        if cuda_device is not None and torch.cuda.is_available():
+            tensor = tensor.cuda(async=True, device=cuda_device)
         r['net_input'][key] = Variable(tensor, volatile=volatile)
     return r
