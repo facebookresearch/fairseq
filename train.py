@@ -1,4 +1,5 @@
 import argparse
+import collections
 import os
 import torch
 import math
@@ -142,7 +143,7 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
                              max_tokens=args.max_tokens,
                              seed=(args.seed, epoch))
     loss_meter = AverageMeter()
-    spb_meter = AverageMeter()  # sentences per batch
+    bsz_meter = AverageMeter()  # sentences per batch
     wpb_meter = AverageMeter()  # words per batch
     wps_meter = TimeMeter()     # words per second
 
@@ -155,15 +156,17 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
             ntokens = sum(s['ntokens'] for s in sample)
             src_size = sum(s['src_tokens'].size(0) for s in sample)
             loss_meter.update(loss, ntokens)
-            spb_meter.update(src_size)
+            bsz_meter.update(src_size)
             wpb_meter.update(ntokens)
             wps_meter.update(ntokens)
 
-            t.set_postfix(loss='{:.2f} ({:.2f})'.format(loss, loss_meter.avg),
-                          spb='{:5d}'.format(round(spb_meter.avg)),
-                          wpb='{:5d}'.format(round(wpb_meter.avg)),
-                          wps='{:5d}'.format(round(wps_meter.avg)),
-                          lr=lr)
+            t.set_postfix(collections.OrderedDict([
+                ('loss', '{:.2f} ({:.2f})'.format(loss, loss_meter.avg)),
+                ('wps', '{:5d}'.format(round(wps_meter.avg))),
+                ('wpb', '{:5d}'.format(round(wpb_meter.avg))),
+                ('bsz', '{:5d}'.format(round(bsz_meter.avg))),
+                ('lr', lr),
+            ]))
 
             if i == 0:
                 # ignore the first mini-batch in words-per-second calculation
@@ -171,9 +174,15 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
                 trainer.save_checkpoint(args.save_dir, epoch, i + 1)
 
-        t.write('| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f} | words/s {:6d} | lr {:0.6f}'
-                .format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
-                        round(wps_meter.avg), lr))
+        fmt = '| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f}'
+        fmt += ' | s/checkpoint {:7d} | words/s {:6d} | words/batch {:6d}'
+        fmt += ' | bsz {:5d} | lr {:0.6f}'
+        t.write(fmt.format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
+                           round(wps_meter.elapsed_time),
+                           round(wps_meter.avg),
+                           round(wpb_meter.avg),
+                           round(bsz_meter.avg),
+                           lr))
 
 
 def skip_group_enumerator(it, ngpus, offset=0):

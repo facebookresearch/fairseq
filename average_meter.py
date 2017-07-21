@@ -35,3 +35,7 @@ class TimeMeter(object):
     def avg(self):
         delta = time.time() - self.start
         return self.n / delta
+
+    @property
+    def elapsed_time(self):
+        return time.time() - self.start
