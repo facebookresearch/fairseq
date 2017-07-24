@@ -10,7 +10,7 @@ import data
 import generate
 import models
 import utils
-from average_meter import AverageMeter, TimeMeter
+from meters import AverageMeter, TimeMeter
 from multiprocessing_trainer import MultiprocessingTrainer
 
 

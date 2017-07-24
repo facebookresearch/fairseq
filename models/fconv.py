@@ -1,8 +1,10 @@
+import contextlib
+import math
 import torch
 import torch.nn as nn
-import math
-import torch.utils.serialization
 import torch.nn.functional as F
+
+from modules import BeamableMM, LinearizedConvolution
 
 
 class FConvModel(nn.Module):
@@ -12,6 +14,7 @@ class FConvModel(nn.Module):
         self.decoder = decoder
         self.encoder.num_attention_layers = sum([layer is not None for layer in decoder.attention])
         self.padding_idx = padding_idx
+        self._is_generation_fast = False
 
     def forward(self, src_tokens, src_positions, input_tokens, input_positions, target):
         encoder_out = self.encoder(src_tokens, src_positions)
@@ -21,6 +24,41 @@ class FConvModel(nn.Module):
         loss = F.cross_entropy(decoder_out, target, size_average=False,
                                ignore_index=self.padding_idx)
         return loss
+
+    def make_generation_fast(self, beam_size, use_beamable_mm=False):
+        """Optimize model for faster generation.
+
+        Optimizations include:
+        - remove WeightNorm
+        - (optionally) use BeamableMM in attention layers
+
+        The optimized model should not be used again for training.
+
+        Note: this can be combined with incremental inference in the Decoder for
+        even faster generation.
+        """
+        if self._is_generation_fast:
+            return  # only apply once
+        self._is_generation_fast = True
+
+        # remove weight norm from all modules in the network
+        def remove_weight_norm(m):
+            try:
+                nn.utils.remove_weight_norm(m)
+            except ValueError:  # this module didn't have weight norm
+                return
+        self.apply(remove_weight_norm)
+
+        # use BeamableMM in attention layers
+        if use_beamable_mm:
+            self.decoder._use_beamable_mm(beam_size)
+
+        # this model should no longer be used for training
+        self.eval()
+        def train(mode):
+            if mode:
+                raise RuntimeError('cannot train after make_generation_fast')
+        self.train = train
 
 
 class Encoder(nn.Module):
@@ -83,26 +121,28 @@ class Encoder(nn.Module):
 
 
 class AttentionLayer(nn.Module):
-    def __init__(self, conv_channels, embed_dim):
+    def __init__(self, conv_channels, embed_dim, bmm=None):
         super(AttentionLayer, self).__init__()
         # projects from output of convolution to embedding dimension
         self.in_projection = Linear(conv_channels, embed_dim)
         # projects from embedding dimension to convolution size
         self.out_projection = Linear(embed_dim, conv_channels)
 
+        self.bmm = bmm if bmm is not None else torch.bmm
+
     def forward(self, x, target_embedding, encoder_out):
         residual = x
 
         # attention
         x = (self.in_projection(x) + target_embedding) * math.sqrt(0.5)
-        x = torch.bmm(x, encoder_out[0])
+        x = self.bmm(x, encoder_out[0])
 
         # softmax over last dim
         sz = x.size()
         x = F.softmax(x.view(sz[0] * sz[1], sz[2]))
         x = x.view(sz)
 
-        x = torch.bmm(x, encoder_out[1])
+        x = self.bmm(x, encoder_out[1])
 
         # scale attention output
         s = encoder_out[1].size(1)
@@ -144,6 +184,8 @@ class Decoder(nn.Module):
             in_channels = out_channels
         self.fc2 = Linear(in_channels, out_embed_dim)
         self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
+
+        self._is_inference_incremental = False
 
     def forward(self, tokens, positions, encoder_out):
         # embed tokens and positions
@@ -188,6 +230,149 @@ class Decoder(nn.Module):
         for conv in self.convolutions:
             context += conv.kernel_size[0] - 1
         return context
+
+    def incremental_inference(self):
+        """Context manager for incremental inference.
+
+        This provides an optimized forward pass for incremental inference
+        (i.e., it predicts one time step at a time). If the input order changes
+        between time steps, call model.decoder.reorder_incremental_state to
+        update the relevant buffers. To generate a fresh sequence, first call
+        model.decoder.clear_incremental_state.
+
+        Usage:
+        ```
+        with model.decoder.incremental_inference():
+            for step in range(maxlen):
+                out = model.decoder(tokens[:, :step], positions[:, :step],
+                                    encoder_out)
+                probs = F.log_softmax(out[:, -1, :])
+        ```
+        """
+        class IncrementalInference(object):
+            def __init__(self, decoder):
+                self.decoder = decoder
+            def __enter__(self):
+                self.decoder._start_incremental_inference()
+            def __exit__(self, *args):
+                self.decoder._stop_incremental_inference()
+        return IncrementalInference(self)
+
+    def _start_incremental_inference(self):
+        assert not self._is_inference_incremental, \
+            'already performing incremental inference'
+        self._is_inference_incremental = True
+
+        # save original forward, convolutions and projections
+        self._orig_forward = self.forward
+        self._orig_conv = self.convolutions
+        self._orig_proj = self.projections
+
+        # linearize convolutions
+        self.convolutions = nn.ModuleList([
+            LinearizedConvolution(conv) for conv in self.convolutions
+        ])
+        self.projections = nn.ModuleList([
+            LinearizedConvolution(proj) if proj is not None else None
+            for proj in self.projections
+        ])
+
+        # switch to incremental forward
+        self.forward = self._incremental_forward
+
+        # start a fresh sequence
+        self.clear_incremental_state()
+
+    def _stop_incremental_inference(self):
+        # revert to original forward, convolutions and projections
+        self.forward = self._orig_forward
+        self.convolutions = self._orig_conv
+        self.projections = self._orig_proj
+
+        self._is_inference_incremental = False
+
+    def _incremental_forward(self, tokens, positions, encoder_out):
+        assert self._is_inference_incremental
+
+        # setup initial state
+        if self.prev_state is None:
+            # transpose encoder output once to speed up attention layers
+            encoder_a, encoder_b = encoder_out
+            encoder_a = encoder_a.transpose(1, 2).contiguous()
+            self.prev_state = {
+                'encoder_out': (encoder_a, encoder_b),
+            }
+
+        # load previous state
+        encoder_a, encoder_b = self.prev_state['encoder_out']
+
+        # keep only the last token for incremental forward pass
+        tokens = tokens[:, -1:]
+        positions = positions[:, -1:]
+
+        # embed tokens and positions
+        x = self.embed_tokens(tokens) + self.embed_positions(positions)
+        target_embedding = x
+
+        # project to size of convolution
+        x = self.fc1(x)
+
+        # temporal convolutions
+        for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
+            residual = x if proj is None else proj(x)
+            x = conv(x)
+            x = F.glu(x)
+
+            # attention
+            if attention is not None:
+                x = attention(x, target_embedding, (encoder_a, encoder_b))
+
+            # residual
+            x = (x + residual) * math.sqrt(0.5)
+
+        # project back to size of vocabulary
+        x = self.fc2(x)
+        x = self.fc3(x)
+
+        return x
+
+    def clear_incremental_state(self):
+        """Clear all state used for incremental generation.
+
+        **For incremental inference only**
+
+        This should be called before generating a fresh sequence.
+        """
+        if self._is_inference_incremental:
+            self.prev_state = None
+            for conv in self.convolutions:
+                conv.clear_buffer()
+            for proj in self.projections:
+                if proj is not None:
+                    conv.clear_buffer()
+
+    def reorder_incremental_state(self, new_order):
+        """Reorder buffered internal state (for incremental generation).
+
+        **For incremental inference only**
+
+        This should be called when the order of the input has changed from the
+        previous time step. A typical example of why this is needed is beam
+        search, where the input order changes between time steps based on the
+        choice of beams.
+        """
+        if self._is_inference_incremental:
+            for conv in self.convolutions:
+                conv.reorder_buffer(new_order)
+            for proj in self.projections:
+                if proj is not None:
+                    conv.reorder_buffer(new_order)
+
+    def _use_beamable_mm(self, beam_size):
+        """Replace torch.bmm with BeamableMM in attention layers."""
+        beamable_mm = BeamableMM(beam_size)
+        for attn in self.attention:
+            attn.bmm = beamable_mm
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
