@@ -136,7 +136,7 @@ class MultiprocessingTrainer(object):
 
     def _async_load_checkpoint(self, rank, device_id, filename):
         return utils.load_checkpoint(filename, self.model, self.optimizer,
-                                     self.lr_scheduler)
+                                     self.lr_scheduler, cuda_device=device_id)
 
 
     def train_step(self, sample):

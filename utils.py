@@ -1,6 +1,7 @@
 import os
 import torch
 from torch.autograd import Variable
+from torch.serialization import default_restore_location
 
 import models
 
@@ -55,11 +56,15 @@ def save_checkpoint(save_dir, epoch, batch_offset, model, optimizer, lr_schedule
     torch_persistent_save(state_dict, last_filename)
 
 
-def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None):
+def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None, cuda_device=None):
     if not os.path.exists(filename):
         return 1, 0
+    if cuda_device is None:
+        state = torch.load(filename)
+    else:
+        state = torch.load(filename, map_location=lambda s,l:
+            default_restore_location(s, 'cuda:{}'.format(cuda_device)))
 
-    state = torch.load(filename)
     model.load_state_dict(state['model'])
     if optimizer:
         optimizer.load_state_dict(state['optimizer'])
