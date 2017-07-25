@@ -14,9 +14,11 @@ def build_model(args, dataset):
         model = models.fconv(
             dataset, args.dropout, args.encoder_embed_dim, encoder_layers,
             args.decoder_embed_dim, decoder_layers, decoder_attention,
-            decoder_out_embed_dim=args.decoder_out_embed_dim)
+            decoder_out_embed_dim=args.decoder_out_embed_dim,
+            label_smoothing=args.label_smoothing)
     else:
-        model = models.__dict__[args.arch](dataset, args.dropout)
+        model = models.__dict__[args.arch](dataset, args.dropout,
+                                           label_smoothing=args.label_smoothing)
     return model
 
 

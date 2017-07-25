@@ -74,6 +74,8 @@ parser.add_argument('--decoder-attention', default='True', type=str, metavar='EX
                     help='decoder attention [True, ...]')
 parser.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
                     help='decoder output embedding dimension')
+parser.add_argument('--label-smoothing', default=0, type=float, metavar='D',
+                    help='epsilon for label smoothing, 0 means no label smoothing')
 
 def main():
     global args
