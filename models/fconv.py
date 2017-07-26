@@ -9,13 +9,13 @@ from modules import BeamableMM, LinearizedConvolution
 
 
 class FConvModel(nn.Module):
-    def __init__(self, encoder, decoder, padding_idx=1, eps=0.):
+    def __init__(self, encoder, decoder, padding_idx=1, label_smoothing=0.):
         super(FConvModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.encoder.num_attention_layers = sum([layer is not None for layer in decoder.attention])
         self.padding_idx = padding_idx
-        self.eps = eps
+        self.label_smoothing = label_smoothing
         self._is_generation_fast = False
 
     def forward(self, src_tokens, src_positions, input_tokens, input_positions, target):
@@ -24,10 +24,10 @@ class FConvModel(nn.Module):
         decoder_out = decoder_out.view(-1, decoder_out.size(-1))
         target = target.view(-1)
 
-        if self.eps > 0:
+        if self.label_smoothing > 0:
             decoder_out = F.log_softmax(decoder_out)
             return label_smoothed_cross_entropy(decoder_out, target,
-                                                eps=self.eps,
+                                                eps=self.label_smoothing,
                                                 padding_idx=self.padding_idx)
 
         loss = F.cross_entropy(decoder_out, target, size_average=False,
@@ -482,4 +482,4 @@ def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
         attention=attention,
         dropout=dropout,
         padding_idx=padding_idx)
-    return FConvModel(encoder, decoder, padding_idx, eps=label_smoothing)
+    return FConvModel(encoder, decoder, padding_idx, label_smoothing=label_smoothing)
