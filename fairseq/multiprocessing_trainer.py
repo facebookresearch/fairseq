@@ -126,9 +126,10 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         ]
 
         # accumulate and normalize loss
-        loss = sum(Future.gen_list(losses)) / ntokens
+        losses, gradnorm = Future.gen_tuple_list(losses)
+        loss = sum(losses) / ntokens
 
-        return loss / math.log(2)
+        return loss / math.log(2), gradnorm[0]
 
     def _async_train_step(self, rank, device_id, net_input, grad_denom):
         self.model.train()
@@ -152,12 +153,15 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # normalize and clip grads
         self.flat_grads.div_(grad_denom)
+
+        gradnorm = self.flat_grads.norm()
+
         self._clip_grads_(self.flat_grads, self.args.clip_norm)
 
         # take an optimization step
         self.optimizer.step()
 
-        return loss
+        return loss, gradnorm
 
     def _flatten_grads_(self, model):
         num_params = sum(p.data.numel() for p in model.parameters())

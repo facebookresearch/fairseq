@@ -149,3 +149,8 @@ class Future(object):
     @staticmethod
     def gen_list(gens):
         return [g.gen() for g in gens]
+
+    @staticmethod
+    def gen_tuple_list(gens):
+        list = [g.gen() for g in gens]
+        return zip(*list)
