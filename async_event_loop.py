@@ -150,6 +150,12 @@ class Future(object):
     def gen_list(gens):
         return [g.gen() for g in gens]
 
+    @staticmethod
+    def gen_tuple_list(gens):
+        list = [g.gen() for g in gens]
+        return zip(*list)
+
+
 
 def multiprocessing_pdb():
     """A Pdb wrapper that works in a multiprocessing environment.
