@@ -109,6 +109,7 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
     wpb_meter = AverageMeter()  # words per batch
     wps_meter = TimeMeter()     # words per second
     clip_meter = AverageMeter()  # how many updates clipped
+    gnorm_meter = AverageMeter()  # norm
 
     desc = '| epoch {}'.format(epoch)
     lr = trainer.get_lr()
@@ -123,6 +124,7 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
             wpb_meter.update(ntokens)
             wps_meter.update(ntokens)
             clip_meter.update(1 if gradnorm > args.clip_norm else 0)
+            gnorm_meter.update(gradnorm)
 
             t.set_postfix(collections.OrderedDict([
                 ('loss', '{:.2f} ({:.2f})'.format(loss, loss_meter.avg)),
@@ -131,6 +133,7 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
                 ('bsz', '{:5d}'.format(round(bsz_meter.avg))),
                 ('lr', lr),
                 ('clip', '{:.2f}'.format(clip_meter.avg)),
+                ('gnorm', '{:.4f}'.format(gnorm_meter.avg)),
             ]))
 
             if i == 0:
@@ -141,13 +144,14 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
 
         fmt = '| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f}'
         fmt += ' | s/checkpoint {:7d} | words/s {:6d} | words/batch {:6d}'
-        fmt += ' | bsz {:5d} | lr {:0.6f} | clip {:1.2f}'
+        fmt += ' | bsz {:5d} | lr {:0.6f} | clip {:1.2f} | gnorm {:.4f}'
         t.write(fmt.format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
                            round(wps_meter.elapsed_time),
                            round(wps_meter.avg),
                            round(wpb_meter.avg),
                            round(bsz_meter.avg),
-                           lr, clip_meter.avg))
+                           lr, clip_meter.avg,
+                           gnorm_meter.avg))
 
 
 def skip_group_enumerator(it, ngpus, offset=0):
