@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from modules import label_smoothed_cross_entropy
 from modules import BeamableMM, LinearizedConvolution
 
+
 class FConvModel(nn.Module):
     def __init__(self, encoder, decoder, padding_idx=1, eps=0.):
         super(FConvModel, self).__init__()
@@ -185,8 +186,8 @@ class Decoder(nn.Module):
             self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
-                Conv1d(in_channels, out_channels * 2, kernel_size, padding=pad,
-                       dropout=dropout))
+                LinearizedConv1d(in_channels, out_channels * 2, kernel_size,
+                                 padding=pad, dropout=dropout))
             self.attention.append(AttentionLayer(out_channels, embed_dim)
                                   if attention[i] else None)
             in_channels = out_channels
@@ -213,9 +214,8 @@ class Decoder(nn.Module):
             residual = x if proj is None else proj(x)
 
             x = F.dropout(x, p=self.dropout, training=self.training)
-            x = conv(x.transpose(1, 2)).transpose(2, 1)
-            if conv.padding[0] > 0:
-                x = x[:, :-conv.padding[0], :]  # remove future timestamps
+            x = conv(x)
+            x = conv.remove_future_timesteps(x)
             x = F.glu(x)
 
             # attention
@@ -276,15 +276,6 @@ class Decoder(nn.Module):
         self._orig_conv = self.convolutions
         self._orig_proj = self.projections
 
-        # linearize convolutions
-        self.convolutions = nn.ModuleList([
-            LinearizedConvolution(conv) for conv in self.convolutions
-        ])
-        self.projections = nn.ModuleList([
-            LinearizedConvolution(proj) if proj is not None else None
-            for proj in self.projections
-        ])
-
         # switch to incremental forward
         self.forward = self._incremental_forward
 
@@ -328,7 +319,7 @@ class Decoder(nn.Module):
         # temporal convolutions
         for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
             residual = x if proj is None else proj(x)
-            x = conv(x)
+            x = conv.incremental_forward(x)
             x = F.glu(x)
 
             # attention
@@ -408,6 +399,15 @@ def Projection(in_features, out_features, dropout=0):
 def Conv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
     """Weight-normalized Conv1d layer"""
     m = nn.Conv1d(in_channels, out_channels, kernel_size, **kwargs)
+    std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
+    m.weight.data.normal_(mean=0, std=std)
+    m.bias.data.zero_()
+    return nn.utils.weight_norm(m)
+
+
+def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
+    """Weight-normalized Conv1d layer optimized for decoding"""
+    m = LinearizedConvolution(in_channels, out_channels, kernel_size, **kwargs)
     std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
     m.weight.data.normal_(mean=0, std=std)
     m.bias.data.zero_()
