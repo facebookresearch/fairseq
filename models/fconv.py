@@ -34,7 +34,7 @@ class FConvModel(nn.Module):
                                ignore_index=self.padding_idx)
         return loss
 
-    def make_generation_fast(self, beam_size, use_beamable_mm=False):
+    def make_generation_fast_(self, beam_size, use_beamable_mm=False):
         """Optimize model for faster generation.
 
         Optimizations include:

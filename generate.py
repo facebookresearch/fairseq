@@ -98,7 +98,7 @@ def main():
     epoch, _batch_offset = utils.load_checkpoint(args.path, model)
 
     # optimize model for generation
-    model.make_generation_fast(args.beam, args.beamable_mm)
+    model.make_generation_fast_(args.beam, args.beamable_mm)
 
     def display_hypotheses(id, src, ref, hypos):
         print('S-{}\t{}'.format(id, to_sentence(dataset.src_dict, src)))
