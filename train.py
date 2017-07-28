@@ -38,6 +38,8 @@ parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
                     help='minimum learning rate')
 parser.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
                     help='force annealing at specified epoch')
+parser.add_argument('--lrshrink', default=0.1, type=float, metavar='LS',
+                    help='learning rate shrink factor for annealing, lr_new = (lr * lrshrink)')
 parser.add_argument('--momentum', default=0.99, type=float, metavar='M',
                     help='momentum factor')
 parser.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
