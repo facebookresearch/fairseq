@@ -69,7 +69,7 @@ class MultiprocessingTrainer(AsyncEventLoop):
                 if e < self.args.force_anneal:
                     return 1
                 else:
-                    return 0.1 ** (e + 1 - self.args.force_anneal)
+                    return self.args.lrshrink ** (e + 1 - self.args.force_anneal)
             lr_scheduler = LambdaLR(self.optimizer, anneal)
             lr_scheduler.best = None
         else:
