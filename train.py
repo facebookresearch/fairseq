@@ -8,76 +8,31 @@ from progress_bar import progress_bar
 import bleu
 import data
 import generate
-import models
+import options
 import utils
 from meters import AverageMeter, TimeMeter
 from multiprocessing_trainer import MultiprocessingTrainer
 
 
-parser = argparse.ArgumentParser(description='Convolutional Sequence to Sequence Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to data directory')
-parser.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
-                    choices=models.__all__,
-                    help='model architecture ({})'.format(', '.join(models.__all__)))
+parser = options.get_parser('Trainer')
 
-# dataset and data loading
-parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
-                    help='source language')
-parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
-                    help='target language')
-parser.add_argument('--max-tokens', default=6000, type=int, metavar='N',
-                    help='maximum number of tokens in a batch')
-parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
-                    help='number of data loading workers (default: 1)')
+dataset_args = options.add_dataset_args(parser)
+dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
+                          help='maximum number of tokens in a batch')
+dataset_args.add_argument('--train-subset', default='train', metavar='SPLIT',
+                          choices=['train', 'valid', 'test'],
+                          help='data subset to use for training (train, valid, test)')
+dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
+                          choices=['train', 'valid', 'test'],
+                          help='data subset to use for validation (train, valid, test)')
+dataset_args.add_argument('--test-subset', default='test', metavar='SPLIT',
+                          choices=['train', 'valid', 'test'],
+                          help='data subset to use for testing (train, valid, test)')
 
-# optimization
-parser.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
-                    help='initial learning rate')
-parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
-                    help='minimum learning rate')
-parser.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
-                    help='force annealing at specified epoch')
-parser.add_argument('--lrshrink', default=0.1, type=float, metavar='LS',
-                    help='learning rate shrink factor for annealing, lr_new = (lr * lrshrink)')
-parser.add_argument('--momentum', default=0.99, type=float, metavar='M',
-                    help='momentum factor')
-parser.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
-                    help='clip threshold of gradients')
-parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
-                    help='weight decay')
-parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
-                    help='dropout probability')
+options.add_optimization_args(parser)
+options.add_checkpoint_args(parser)
+options.add_model_args(parser)
 
-# checkpointing and utilities
-parser.add_argument('--save-dir', metavar='DIR', default='checkpoints',
-                    help='path to save checkpoints')
-parser.add_argument('--restore-file', default='checkpoint_last.pt',
-                    help='filename in save-dir from which to load checkpoint')
-parser.add_argument('--save-interval', type=int, default=-1,
-                    help='checkpoint every this many batches')
-parser.add_argument('--no-progress-bar', action='store_true',
-                    help='disable progress bar')
-parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
-                    help='log progress every N updates (when progress bar is disabled)')
-parser.add_argument('--seed', default=1, type=int, metavar='N',
-                    help='pseudo random number generator seed')
-
-# model configuration
-parser.add_argument('--encoder-embed-dim', default=512, type=int, metavar='N',
-                    help='encoder embedding dimension')
-parser.add_argument('--encoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
-                    help='encoder layers [(dim, kernel_size), ...]')
-parser.add_argument('--decoder-embed-dim', default=512, type=int, metavar='N',
-                    help='decoder embedding dimension')
-parser.add_argument('--decoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
-                    help='decoder layers [(dim, kernel_size), ...]')
-parser.add_argument('--decoder-attention', default='True', type=str, metavar='EXPR',
-                    help='decoder attention [True, ...]')
-parser.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
-                    help='decoder output embedding dimension')
-parser.add_argument('--label-smoothing', default=0, type=float, metavar='D',
-                    help='epsilon for label smoothing, 0 means no label smoothing')
 
 def main():
     global args
@@ -142,10 +97,8 @@ def main():
 def train(epoch, batch_offset, trainer, dataset, num_gpus):
     """Train the model for one epoch"""
 
-    itr = dataset.dataloader('train',
-                             num_workers=args.workers,
-                             max_tokens=args.max_tokens,
-                             seed=(args.seed, epoch))
+    itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
+                             max_tokens=args.max_tokens, seed=(args.seed, epoch))
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()  # sentences per batch
     wpb_meter = AverageMeter()  # words per batch
@@ -207,7 +160,7 @@ def skip_group_enumerator(it, ngpus, offset=0):
 def validate(epoch, trainer, dataset, ngpus):
     """Evaluate the model on the validation set and return the average loss"""
 
-    itr = dataset.dataloader('valid', batch_size=None, max_tokens=args.max_tokens)
+    itr = dataset.dataloader(args.valid_subset, batch_size=None, max_tokens=args.max_tokens)
     loss_meter = AverageMeter()
 
     desc = '| val {}'.format(epoch)
@@ -233,7 +186,7 @@ def score_test(epoch, model, dataset, beam, cuda_device=None):
         translator.cuda()
 
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
-    itr = dataset.dataloader('test', batch_size=4)
+    itr = dataset.dataloader(args.test_subset, batch_size=4)
     for id, src, ref, hypos in generate.generate_batched_itr(translator, itr, cuda_device=cuda_device):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer

@@ -9,69 +9,24 @@ from torch.autograd import Variable
 import bleu
 import data
 import models
+import options
 import utils
 from meters import StopwatchMeter, TimeMeter
 
 
-parser = argparse.ArgumentParser(description='Convolutional Sequence to Sequence Generation')
-parser.add_argument('data', metavar='DIR',
-                    help='path to data directory')
-parser.add_argument('--path', metavar='FILE', default='./checkpoint_best.pt',
+parser = options.get_parser('Generation')
+parser.add_argument('--path', metavar='FILE', required=True, default='./checkpoint_best.pt',
                     help='path to model file')
 
-# dataset and data loading
-parser.add_argument('--subset', default='test', metavar='SPLIT',
-                    choices=['train', 'valid', 'test'],
-                    help='data subset to generate (train, valid, test)')
-parser.add_argument('--batch-size', default=32, type=int, metavar='N',
-                    help='batch size')
+dataset_args = options.add_dataset_args(parser)
+dataset_args.add_argument('--batch-size', default=32, type=int, metavar='N',
+                          help='batch size')
+dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
+                          choices=['train', 'valid', 'test'],
+                          help='data subset to generate (train, valid, test)')
 
-# generation configuration
-parser.add_argument('--beam', default=5, type=int, metavar='N',
-                    help='beam size')
-parser.add_argument('--nbest', default=1, type=int, metavar='N',
-                    help='number of hypotheses to output')
-parser.add_argument('--max-len-a', default=0, type=int, metavar='N',
-                    help=('generate sequence of maximum length ax + b, '
-                          'where x is the source length'))
-parser.add_argument('--max-len-b', default=200, type=int, metavar='N',
-                    help=('generate sequence of maximum length ax + b, '
-                          'where x is the source length'))
-parser.add_argument('--no-early-stop', action='store_true',
-                    help=('continue searching even after finalizing k=beam '
-                          'hypotheses; this is more correct, but increases '
-                          'generation time by 50%%'))
-parser.add_argument('--unnormalized', action='store_true',
-                    help='compare unnormalized hypothesis scores')
-
-# misc
-parser.add_argument('--cpu', action='store_true', help='generate on CPU')
-parser.add_argument('--beamable-mm', action='store_true',
-                    help='use BeamableMM in attention layers')
-parser.add_argument('--no-progress-bar', action='store_true',
-                    help='disable progress bar')
-
-# model configuration
-# TODO infer this from model file
-parser.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
-                    choices=models.__all__,
-                    help='model architecture ({})'.format(', '.join(models.__all__)))
-parser.add_argument('--encoder-embed-dim', default=512, type=int, metavar='N',
-                    help='encoder embedding dimension')
-parser.add_argument('--encoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
-                    help='encoder layers [(dim, kernel_size), ...]')
-parser.add_argument('--decoder-embed-dim', default=512, type=int, metavar='N',
-                    help='decoder embedding dimension')
-parser.add_argument('--decoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
-                    help='decoder layers [(dim, kernel_size), ...]')
-parser.add_argument('--decoder-attention', default='True', type=str, metavar='EXPR',
-                    help='decoder attention [True, ...]')
-parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
-                    help='dropout probability')
-parser.add_argument('--label-smoothing', default=0, type=float, metavar='D',
-                    help='epsilon for label smoothing, 0 means no label smoothing')
-parser.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
-                    help='decoder output embedding dimension')
+options.add_generation_args(parser)
+options.add_model_args(parser)
 
 
 def main():
@@ -83,10 +38,10 @@ def main():
         progress_bar.enabled = False
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-    dataset = data.load(args.data)
+    dataset = data.load(args.data, args.source_lang, args.target_lang)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-    print('| {} {} {} examples'.format(args.data, args.subset, len(dataset.splits[args.subset])))
+    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
 
     # TODO infer architecture from model file
     print('| model {}'.format(args.arch))
@@ -115,7 +70,7 @@ def main():
 
     # Generate and compute BLEU score
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
-    itr = dataset.dataloader(args.subset, batch_size=args.batch_size)
+    itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size)
     num_sentences = 0
     with progress_bar(itr, smoothing=0, leave=False) as t:
         wps_meter = TimeMeter()
@@ -131,7 +86,7 @@ def main():
             num_sentences += 1
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(
         num_sentences, gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
-    print('| Generate {} with beam={}: BLEU4 = {:2.2f}'.format(args.subset, args.beam, scorer.score()))
+    print('| Generate {} with beam={}: BLEU4 = {:2.2f}'.format(args.gen_subset, args.beam, scorer.score()))
 
 
 def to_sentence(dict, tokens):
