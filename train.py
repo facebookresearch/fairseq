@@ -1,4 +1,3 @@
-import argparse
 import collections
 import os
 import torch
@@ -71,8 +70,9 @@ def main():
 
     # Train until the learning rate gets too small
     val_loss = None
+    max_epoch = args.max_epoch or math.inf
     lr = trainer.get_lr()
-    while lr > args.min_lr:
+    while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
         train(epoch, batch_offset, trainer, dataset, num_gpus)
 

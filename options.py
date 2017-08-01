@@ -35,6 +35,8 @@ def add_optimization_args(parser):
                        help='minimum learning rate')
     group.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
                        help='force annealing at specified epoch')
+    group.add_argument('--max-epoch', '--me', default=0, type=int, metavar='N',
+                       help='force stop training at specified epoch')
     group.add_argument('--lrshrink', default=0.1, type=float, metavar='LS',
                        help='learning rate shrink factor for annealing, lr_new = (lr * lrshrink)')
     group.add_argument('--momentum', default=0.99, type=float, metavar='M',
