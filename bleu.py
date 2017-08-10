@@ -29,7 +29,7 @@ class BleuStat(ctypes.Structure):
 
 
 class Scorer(object):
-    def __init__(self, pad=2, eos=3):
+    def __init__(self, pad, eos):
         self.stat = BleuStat()
         self.pad = pad
         self.eos = eos

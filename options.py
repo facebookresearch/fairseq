@@ -45,10 +45,6 @@ def add_optimization_args(parser):
                        help='clip threshold of gradients')
     group.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                        help='weight decay')
-    group.add_argument('--dropout', default=0.1, type=float, metavar='D',
-                       help='dropout probability')
-    group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
-                       help='epsilon for label smoothing, 0 means no label smoothing')
     return group
 
 
@@ -75,6 +71,8 @@ def add_generation_args(parser):
     group.add_argument('--max-len-b', default=200, type=int, metavar='N',
                        help=('generate sequence of maximum length ax + b, '
                              'where x is the source length'))
+    group.add_argument('--remove-bpe', action='store_true',
+                       help='remove BPE tokens before scoring')
     group.add_argument('--no-early-stop', action='store_true',
                        help=('continue searching even after finalizing k=beam '
                              'hypotheses; this is more correct, but increases '
@@ -104,4 +102,8 @@ def add_model_args(parser):
                        help='decoder attention [True, ...]')
     group.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
                        help='decoder output embedding dimension')
+    group.add_argument('--dropout', default=0.1, type=float, metavar='D',
+                       help='dropout probability')
+    group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
+                       help='epsilon for label smoothing, 0 means no label smoothing')
     return group

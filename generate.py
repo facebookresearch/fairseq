@@ -52,14 +52,30 @@ def main():
     # Load the model from the latest checkpoint
     epoch, _batch_offset = utils.load_checkpoint(args.path, model)
 
-    # optimize model for generation
+    # Optimize model for generation
     model.make_generation_fast_(args.beam, args.beamable_mm)
 
+    bpe_symbol = '@@ ' if args.remove_bpe else None
+    non_bpe_dict = {}
+    def maybe_remove_bpe_and_reindex(tokens):
+        """Helper for removing BPE symbols from a tensor of indices.
+
+        If BPE removal is enabled, the returned tensor is reindexed
+        using a new dictionary that is created on-the-fly."""
+        if not args.remove_bpe:
+            return tokens
+        assert (tokens == dataset.dst_dict.pad()).sum() == 0
+        return torch.IntTensor([
+            non_bpe_dict.setdefault(w, len(non_bpe_dict))
+            for w in to_sentence(dataset.dst_dict, tokens, bpe_symbol).split(' ')
+        ])
+
     def display_hypotheses(id, src, ref, hypos):
-        print('S-{}\t{}'.format(id, to_sentence(dataset.src_dict, src)))
-        print('T-{}\t{}'.format(id, to_sentence(dataset.dst_dict, ref)))
+        print('S-{}\t{}'.format(id, to_sentence(dataset.src_dict, src, bpe_symbol)))
+        print('T-{}\t{}'.format(id, to_sentence(dataset.dst_dict, ref, bpe_symbol)))
         for hypo in hypos:
-            print('H-{}\t{}\t{}'.format(id, hypo['score'], to_sentence(dataset.dst_dict, hypo['tokens'])))
+            print('H-{}\t{}\t{}'.format(
+                id, hypo['score'], to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)))
 
     # Initialize generator
     translator = SequenceGenerator(model, dataset.dst_dict, beam_size=args.beam,
@@ -69,7 +85,9 @@ def main():
         translator.cuda()
 
     # Generate and compute BLEU score
-    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
+    scorer = bleu.Scorer(
+        dataset.dst_dict.pad() if not args.remove_bpe else -1,
+        dataset.dst_dict.eos() if not args.remove_bpe else -1)
     itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size)
     num_sentences = 0
     with progress_bar(itr, smoothing=0, leave=False) as t:
@@ -79,22 +97,29 @@ def main():
             translator, t, max_len_a=args.max_len_a, max_len_b=args.max_len_b,
             cuda_device=0 if use_cuda else None, timer=gen_timer)
         for id, src, ref, hypos in translations:
-            wps_meter.update(src.size(0))
-            scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
-            t.set_postfix(wps='{:5d}'.format(round(wps_meter.avg)))
+            ref = ref.int().cpu()
+            top_hypo = hypos[0]['tokens'].int().cpu()
+            scorer.add(maybe_remove_bpe_and_reindex(ref), maybe_remove_bpe_and_reindex(top_hypo))
             display_hypotheses(id, src, ref, hypos[:min(len(hypos), args.nbest)])
+
+            wps_meter.update(src.size(0))
+            t.set_postfix(wps='{:5d}'.format(round(wps_meter.avg)))
             num_sentences += 1
+
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(
         num_sentences, gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
     print('| Generate {} with beam={}: BLEU4 = {:2.2f}'.format(args.gen_subset, args.beam, scorer.score()))
 
 
-def to_sentence(dict, tokens):
+def to_sentence(dict, tokens, bpe_symbol=None):
     if torch.is_tensor(tokens) and tokens.dim() == 2:
         sentences = [to_sentence(dict, token) for token in tokens]
         return '\n'.join(sentences)
     eos = dict.eos()
-    return ' '.join([dict[i] for i in tokens if i != eos])
+    sent = ' '.join([dict[i] for i in tokens if i != eos])
+    if bpe_symbol is not None:
+        sent = sent.replace(bpe_symbol, '')
+    return sent
 
 
 def expand_encoder_out(encoder_out, beam_size):
