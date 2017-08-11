@@ -3,7 +3,7 @@ import torch
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-import models
+from fairseq import models
 
 
 def build_model(args, dataset):

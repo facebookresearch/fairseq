@@ -6,7 +6,7 @@ import torch
 try:
     import libbleu
 except ImportError as e:
-    sys.stderr.write('ERROR: missing libbleu.so. run `python setup.py develop`\n')
+    sys.stderr.write('ERROR: missing libbleu.so. run `python setup.py install`\n')
     raise e
 
 
@@ -15,16 +15,16 @@ C = ctypes.cdll.LoadLibrary(libbleu.__file__)
 
 class BleuStat(ctypes.Structure):
     _fields_ = [
-        ("reflen", ctypes.c_size_t),
-        ("predlen", ctypes.c_size_t),
-        ("match1", ctypes.c_size_t),
-        ("count1", ctypes.c_size_t),
-        ("match2", ctypes.c_size_t),
-        ("count2", ctypes.c_size_t),
-        ("match3", ctypes.c_size_t),
-        ("count3", ctypes.c_size_t),
-        ("match4", ctypes.c_size_t),
-        ("count4", ctypes.c_size_t),
+        ('reflen', ctypes.c_size_t),
+        ('predlen', ctypes.c_size_t),
+        ('match1', ctypes.c_size_t),
+        ('count1', ctypes.c_size_t),
+        ('match2', ctypes.c_size_t),
+        ('count2', ctypes.c_size_t),
+        ('match3', ctypes.c_size_t),
+        ('count3', ctypes.c_size_t),
+        ('match4', ctypes.c_size_t),
+        ('count4', ctypes.c_size_t),
     ]
 
 

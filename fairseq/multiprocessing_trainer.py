@@ -3,16 +3,14 @@ Train a network on multiple GPUs using multiprocessing.
 """
 import math
 import torch
-from torch import nn
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
-from async_event_loop import AsyncEventLoop, Future
-from nag import NAG
-import nccl
-import utils
+from fairseq import nccl, utils
+from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
+from fairseq.nag import NAG
 
 
-class MultiprocessingTrainer(AsyncEventLoop):
+class MultiprocessingTrainer(MultiprocessingEventLoop):
     """Main class for multi-GPU training.
 
     Each GPU has a full copy of the model and is assigned to its own Python

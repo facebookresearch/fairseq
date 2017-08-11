@@ -1,1 +1,1 @@
-from .sequence_generator import SequenceGenerator
+from .multiprocessing_pdb import pdb

@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-import utils
+from fairseq import utils
 
 
 class SequenceGenerator(object):

@@ -1,6 +1,6 @@
 import argparse
 
-import models
+from fairseq import models
 
 
 def get_parser(desc):

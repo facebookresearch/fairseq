@@ -1,12 +1,9 @@
 import torch
-from progress_bar import progress_bar
 
-import bleu
-import data
-from fairseq import SequenceGenerator
-import options
-import utils
-from meters import StopwatchMeter, TimeMeter
+from fairseq import bleu, data, options, utils
+from fairseq.meters import StopwatchMeter, TimeMeter
+from fairseq.progress_bar import progress_bar
+from fairseq.sequence_generator import SequenceGenerator
 
 
 def main():
