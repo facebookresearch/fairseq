@@ -1,167 +1,14 @@
-import argparse
-import itertools
-import numpy as np
 import torch
 import torch.nn.functional as F
-from progress_bar import progress_bar
 from torch.autograd import Variable
 
-import bleu
-import data
-import models
-import options
 import utils
-from meters import StopwatchMeter, TimeMeter
-
-
-parser = options.get_parser('Generation')
-parser.add_argument('--path', metavar='FILE', required=True, default='./checkpoint_best.pt',
-                    help='path to model file')
-
-dataset_args = options.add_dataset_args(parser)
-dataset_args.add_argument('--batch-size', default=32, type=int, metavar='N',
-                          help='batch size')
-dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
-                          choices=['train', 'valid', 'test'],
-                          help='data subset to generate (train, valid, test)')
-
-options.add_generation_args(parser)
-options.add_model_args(parser)
-
-
-def main():
-    global args
-    args = parser.parse_args()
-    print(args)
-
-    if args.no_progress_bar:
-        progress_bar.enabled = False
-    use_cuda = torch.cuda.is_available() and not args.cpu
-
-    dataset = data.load(args.data, args.source_lang, args.target_lang)
-    print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
-    print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
-
-    # TODO infer architecture from model file
-    print('| model {}'.format(args.arch))
-    model = utils.build_model(args, dataset)
-    if use_cuda:
-        model.cuda()
-
-    # Load the model from the latest checkpoint
-    epoch, _batch_offset = utils.load_checkpoint(args.path, model)
-
-    # Optimize model for generation
-    model.make_generation_fast_(args.beam, args.beamable_mm)
-
-    bpe_symbol = '@@ ' if args.remove_bpe else None
-    non_bpe_dict = {}
-    def maybe_remove_bpe_and_reindex(tokens):
-        """Helper for removing BPE symbols from a tensor of indices.
-
-        If BPE removal is enabled, the returned tensor is reindexed
-        using a new dictionary that is created on-the-fly."""
-        if not args.remove_bpe:
-            return tokens
-        assert (tokens == dataset.dst_dict.pad()).sum() == 0
-        return torch.IntTensor([
-            non_bpe_dict.setdefault(w, len(non_bpe_dict))
-            for w in to_sentence(dataset.dst_dict, tokens, bpe_symbol).split(' ')
-        ])
-
-    def display_hypotheses(id, src, ref, hypos):
-        print('S-{}\t{}'.format(id, to_sentence(dataset.src_dict, src, bpe_symbol)))
-        print('T-{}\t{}'.format(id, to_sentence(dataset.dst_dict, ref, bpe_symbol)))
-        for hypo in hypos:
-            print('H-{}\t{}\t{}'.format(
-                id, hypo['score'], to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)))
-
-    # Initialize generator
-    translator = SequenceGenerator(model, dataset.dst_dict, beam_size=args.beam,
-                                   stop_early=(not args.no_early_stop),
-                                   normalize_scores=(not args.unnormalized))
-    if use_cuda:
-        translator.cuda()
-
-    # Generate and compute BLEU score
-    scorer = bleu.Scorer(
-        dataset.dst_dict.pad() if not args.remove_bpe else -1,
-        dataset.dst_dict.eos() if not args.remove_bpe else -1)
-    itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size)
-    num_sentences = 0
-    with progress_bar(itr, smoothing=0, leave=False) as t:
-        wps_meter = TimeMeter()
-        gen_timer = StopwatchMeter()
-        translations = generate_batched_itr(
-            translator, t, max_len_a=args.max_len_a, max_len_b=args.max_len_b,
-            cuda_device=0 if use_cuda else None, timer=gen_timer)
-        for id, src, ref, hypos in translations:
-            ref = ref.int().cpu()
-            top_hypo = hypos[0]['tokens'].int().cpu()
-            scorer.add(maybe_remove_bpe_and_reindex(ref), maybe_remove_bpe_and_reindex(top_hypo))
-            display_hypotheses(id, src, ref, hypos[:min(len(hypos), args.nbest)])
-
-            wps_meter.update(src.size(0))
-            t.set_postfix(wps='{:5d}'.format(round(wps_meter.avg)))
-            num_sentences += 1
-
-    print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(
-        num_sentences, gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
-    print('| Generate {} with beam={}: BLEU4 = {:2.2f}'.format(args.gen_subset, args.beam, scorer.score()))
-
-
-def to_sentence(dict, tokens, bpe_symbol=None):
-    if torch.is_tensor(tokens) and tokens.dim() == 2:
-        sentences = [to_sentence(dict, token) for token in tokens]
-        return '\n'.join(sentences)
-    eos = dict.eos()
-    sent = ' '.join([dict[i] for i in tokens if i != eos])
-    if bpe_symbol is not None:
-        sent = sent.replace(bpe_symbol, '')
-    return sent
-
-
-def expand_encoder_out(encoder_out, beam_size):
-    res = []
-    for tensor in encoder_out:
-        res.append(
-            # repeat beam_size times along second dimension
-            tensor.repeat(1, beam_size, *[1 for i in range(tensor.dim()-2)]) \
-                # then collapse into [bsz*beam, ...original dims...]
-                .view(-1, *tensor.size()[1:])
-        )
-    return tuple(res)
-
-
-def generate_batched_itr(translator, data_itr, max_len_a=0, max_len_b=200,
-                         cuda_device=None, timer=None):
-    '''Iterate over a batched dataset and yield individual translations.'''
-
-    def lstrip_pad(tensor):
-        return tensor[tensor.eq(translator.pad).sum():]
-
-    for sample in data_itr:
-        s = utils.prepare_sample(sample, volatile=True, cuda_device=cuda_device)
-        input = s['net_input']
-        srclen = input['src_tokens'].size(1)
-        if timer is not None:
-            timer.start()
-        hypos = translator.generate(input['src_tokens'], input['src_positions'],
-                                    maxlen=(max_len_a*srclen + max_len_b))
-        if timer is not None:
-            timer.stop(s['ntokens'])
-        for i, id in enumerate(s['id']):
-            src = input['src_tokens'].data[i, :]
-            # remove padding from ref, which appears at the beginning
-            ref = lstrip_pad(input['target'].data[i, :])
-            yield id, src, ref, hypos[i]
 
 
 class SequenceGenerator(object):
     def __init__(self, model, dst_dict, beam_size=1, minlen=1, maxlen=200,
                  stop_early=True, normalize_scores=True):
-        '''Generates translations of a given source sentence.
+        """Generates translations of a given source sentence.
 
         Args:
             min/maxlen: The length of the generated output will be bounded by
@@ -170,7 +17,7 @@ class SequenceGenerator(object):
                 hypotheses, even though longer hypotheses might have better
                 normalized scores.
             normalize_scores: Normalize scores by the length of the output.
-        '''
+        """
         self.model = model
         self.dict = dst_dict
         self.pad = dst_dict.pad()
@@ -184,7 +31,38 @@ class SequenceGenerator(object):
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
 
+    def generate_batched_itr(self, data_itr, maxlen_a=0, maxlen_b=200,
+                             cuda_device=None, timer=None):
+        """Iterate over a batched dataset and yield individual translations.
+
+        Args:
+            maxlen_a/b: generate sequences of maximum length ax + b,
+                where x is the source sentence length.
+            cuda_device: GPU on which to do generation.
+            timer: StopwatchMeter for timing generations.
+        """
+
+        def lstrip_pad(tensor):
+            return tensor[tensor.eq(self.pad).sum():]
+
+        for sample in data_itr:
+            s = utils.prepare_sample(sample, volatile=True, cuda_device=cuda_device)
+            input = s['net_input']
+            srclen = input['src_tokens'].size(1)
+            if timer is not None:
+                timer.start()
+            hypos = self.generate(input['src_tokens'], input['src_positions'],
+                                  maxlen=(maxlen_a*srclen + maxlen_b))
+            if timer is not None:
+                timer.stop(s['ntokens'])
+            for i, id in enumerate(s['id']):
+                src = input['src_tokens'].data[i, :]
+                # remove padding from ref, which appears at the beginning
+                ref = lstrip_pad(input['target'].data[i, :])
+                yield id, src, ref, hypos[i]
+
     def generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
+        """Generate a batch of translations."""
         with self.model.decoder.incremental_inference():
             return self._generate(src_tokens, src_positions, beam_size, maxlen)
 
@@ -201,7 +79,7 @@ class SequenceGenerator(object):
 
         # compute the encoder output once and expand to beam size
         encoder_out = model.encoder(src_tokens, src_positions)
-        encoder_out = expand_encoder_out(encoder_out, beam_size)
+        encoder_out = self._expand_encoder_out(encoder_out, beam_size)
 
         # initialize buffers
         scores = encoder_out[0].data.new(bsz * beam_size).fill_(0)
@@ -404,6 +282,17 @@ class SequenceGenerator(object):
         self.model.cuda()
         self.positions = self.positions.cuda()
         return self
+
+    def _expand_encoder_out(self, encoder_out, beam_size):
+        res = []
+        for tensor in encoder_out:
+            res.append(
+                # repeat beam_size times along second dimension
+                tensor.repeat(1, beam_size, *[1 for i in range(tensor.dim()-2)]) \
+                    # then collapse into [bsz*beam, ...original dims...]
+                    .view(-1, *tensor.size()[1:])
+            )
+        return tuple(res)
 
 
 if __name__ == '__main__':
