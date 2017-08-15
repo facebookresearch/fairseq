@@ -1,7 +1,7 @@
 import numpy as np
 import struct
 import torch
-
+import os
 
 def read_longs(f, n):
     a = np.empty(n, dtype=np.int64)
@@ -64,6 +64,10 @@ class IndexedDataset(object):
 
     def __len__(self):
         return self.size
+
+    @staticmethod
+    def exists(path):
+        return os.path.exists(path + '.idx')
 
 
 class IndexedInMemoryDataset(IndexedDataset):

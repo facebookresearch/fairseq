@@ -81,7 +81,7 @@ To prepare data and dictionary for WMT'14 en-de:
 ```
 TEXTROOT=/data/users/michaelauli/data/wmt14/en-de/stanford/bpej40k/
 python preprocess.py --source-lang en --target-lang de \
---trainpref $TEXTROOT/train-split --validpref $TEXTROOT/valid-split \
+--trainpref $TEXTROOT/train-split --validpref $TEXTROOT/valid-split,$TEXTROOT/../newstest2013 \
 --testpref $TEXTROOT/newstest2014 --thresholdtgt 0 --thresholdsrc 0 \
 --destdir /data/users/$USER/wmt14_en_de
 ```

@@ -10,8 +10,10 @@ def main():
     parser.add_argument('-s', '--source-lang', default=None, metavar='SRC', help='source language')
     parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET', help='target language')
     parser.add_argument('--trainpref', metavar='FP', default='train', help='target language')
-    parser.add_argument('--validpref', metavar='FP', default='valid', help='valid language')
-    parser.add_argument('--testpref', metavar='FP', default='test', help='test language')
+    parser.add_argument('--validpref', metavar='FP', default='valid',
+                    help='comma separated, valid language prefixes')
+    parser.add_argument('--testpref', metavar='FP', default='test',
+                    help='comma separated, test language prefixes')
     parser.add_argument('--destdir', metavar='DIR', default='data-bin', help='destination dir')
     parser.add_argument('--ncandidates', metavar='N', default=1000, help='number of candidates per a source word')
     parser.add_argument('--thresholdtgt', metavar='N', default=0, type=int, help='map words appearing less than threshold times to unknown')
@@ -49,10 +51,14 @@ def main():
 
     make_dataset(args.trainpref, 'train', args.source_lang)
     make_dataset(args.trainpref, 'train', args.target_lang)
-    make_dataset(args.validpref, 'valid', args.source_lang)
-    make_dataset(args.validpref, 'valid', args.target_lang)
-    make_dataset(args.testpref, 'test', args.source_lang)
-    make_dataset(args.testpref, 'test', args.target_lang)
+    for k,validpref in enumerate(args.validpref.split(',')):
+        outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
+        make_dataset(validpref, outprefix, args.source_lang)
+        make_dataset(validpref, outprefix, args.target_lang)
+    for k,testpref in enumerate(args.testpref.split(',')):
+        outprefix = 'test{}'.format(k) if k > 0 else 'test'
+        make_dataset(testpref, outprefix, args.source_lang)
+        make_dataset(testpref, outprefix, args.target_lang)
 
 
 if __name__ == '__main__':
