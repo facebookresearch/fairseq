@@ -2,39 +2,32 @@ import collections
 import os
 import torch
 import math
-from progress_bar import progress_bar
 
-import bleu
-import data
-import generate
-import options
-import utils
-from meters import AverageMeter, TimeMeter
-from multiprocessing_trainer import MultiprocessingTrainer
-
-
-parser = options.get_parser('Trainer')
-
-dataset_args = options.add_dataset_args(parser)
-dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
-                          help='maximum number of tokens in a batch')
-dataset_args.add_argument('--train-subset', default='train', metavar='SPLIT',
-                          choices=['train', 'valid', 'test'],
-                          help='data subset to use for training (train, valid, test)')
-dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
-                          choices=['train', 'valid', 'test'],
-                          help='data subset to use for validation (train, valid, test)')
-dataset_args.add_argument('--test-subset', default='test', metavar='SPLIT',
-                          choices=['train', 'valid', 'test'],
-                          help='data subset to use for testing (train, valid, test)')
-
-options.add_optimization_args(parser)
-options.add_checkpoint_args(parser)
-options.add_model_args(parser)
+from fairseq import bleu, data, options, utils
+from fairseq.meters import AverageMeter, TimeMeter
+from fairseq.multiprocessing_trainer import MultiprocessingTrainer
+from fairseq.progress_bar import progress_bar
+from fairseq.sequence_generator import SequenceGenerator
 
 
 def main():
     global args
+    parser = options.get_parser('Trainer')
+    dataset_args = options.add_dataset_args(parser)
+    dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
+                              help='maximum number of tokens in a batch')
+    dataset_args.add_argument('--train-subset', default='train', metavar='SPLIT',
+                              choices=['train', 'valid', 'test'],
+                              help='data subset to use for training (train, valid, test)')
+    dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
+                              choices=['train', 'valid', 'test'],
+                              help='data subset to use for validation (train, valid, test)')
+    dataset_args.add_argument('--test-subset', default='test', metavar='SPLIT',
+                              choices=['train', 'valid', 'test'],
+                              help='data subset to use for testing (train, valid, test)')
+    options.add_optimization_args(parser)
+    options.add_checkpoint_args(parser)
+    options.add_model_args(parser)
     args = parser.parse_args()
     print(args)
 
@@ -181,13 +174,13 @@ def validate(epoch, trainer, dataset, ngpus):
 
 def score_test(epoch, model, dataset, beam, cuda_device=None):
     """Evaluate the model on the test set and print the BLEU score"""
-    translator = generate.SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
+    translator = SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
     if torch.cuda.is_available():
         translator.cuda()
 
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
     itr = dataset.dataloader(args.test_subset, batch_size=4)
-    for id, src, ref, hypos in generate.generate_batched_itr(translator, itr, cuda_device=cuda_device):
+    for _, _, ref, hypos in translator.generate_batched_itr(itr, cuda_device=cuda_device):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer
 

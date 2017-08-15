@@ -1,13 +1,13 @@
-import torch
-import torch.utils.data
-import struct
 import numpy as np
+import struct
+import torch
 
 
 def read_longs(f, n):
     a = np.empty(n, dtype=np.int64)
     f.readinto(a)
     return a
+
 
 def write_longs(f, a):
     f.write(np.array(a, dtype=np.int64))
@@ -23,10 +23,12 @@ dtypes = {
     7: np.double,
 }
 
+
 def code(dtype):
     for k in dtypes.keys():
         if dtypes[k] == dtype:
             return k
+
 
 class IndexedDataset(object):
     """Loader for TorchNet IndexedDataset"""
@@ -63,6 +65,7 @@ class IndexedDataset(object):
     def __len__(self):
         return self.size
 
+
 class IndexedInMemoryDataset(IndexedDataset):
     """Loader for TorchNet IndexedDataset, keeps all the data in memory"""
 
@@ -97,7 +100,7 @@ class IndexedDatasetBuilder(object):
     }
 
     def __init__(self, out_file, dtype = np.int32):
-        self.out_file = open(out_file, "wb")
+        self.out_file = open(out_file, 'wb')
         self.dtype = dtype
         self.data_offsets = [0]
         self.dim_offsets = [0]
@@ -114,7 +117,7 @@ class IndexedDatasetBuilder(object):
 
     def finalize(self, index_file):
         self.out_file.close()
-        index = open(index_file, "wb")
+        index = open(index_file, 'wb')
         index.write(b'TNTIDX\x00\x00')
         index.write(struct.pack('<Q', 1))
         index.write(struct.pack('<QQ', code(self.dtype),
@@ -125,5 +128,3 @@ class IndexedDatasetBuilder(object):
         write_longs(index, self.data_offsets)
         write_longs(index, self.sizes)
         index.close()
-
-

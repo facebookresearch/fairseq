@@ -1,7 +1,7 @@
-'''
+"""
 A modified version of torch.cuda.nccl.all_reduce for launching kernels on each
 GPU separately.
-'''
+"""
 import ctypes
 import warnings
 import torch.cuda
@@ -88,7 +88,7 @@ class NcclComm(ctypes.c_void_p):
 
 class NcclUniqueId(ctypes.Structure):
     _fields_ = [
-        ("internal", ctypes.c_uint8 * 128)
+        ('internal', ctypes.c_uint8 * 128)
     ]
 
 

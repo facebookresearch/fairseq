@@ -1,5 +1,6 @@
-import torch
 import math
+import torch
+
 
 class Dictionary(object):
     """A mapping from symbols to consecutive integers"""
@@ -8,7 +9,7 @@ class Dictionary(object):
         self.symbols = []
         self.count = []
         self.indices = {}
-        self.add_symbol("<Lua heritage>")
+        self.add_symbol('<Lua heritage>')
         self.pad_index = self.add_symbol(pad)
         self.eos_index = self.add_symbol(eos)
         self.unk_index = self.add_symbol(unk)
@@ -82,7 +83,7 @@ class Dictionary(object):
 
         d = Dictionary()
         for line in f.readlines():
-            idx = line.rfind(" ")
+            idx = line.rfind(' ')
             word = line[:idx]
             count = int(line[idx+1:])
             d.indices[word] = len(d.symbols)
@@ -97,6 +98,4 @@ class Dictionary(object):
                 return self.save(fd, threshold)
         for i, t in enumerate(zip(self.symbols, self.count)):
             if i >= self.nspecial and t[1] >= threshold:
-                print("{} {}".format(t[0], t[1]), file=f)
-
-
+                print('{} {}'.format(t[0], t[1]), file=f)

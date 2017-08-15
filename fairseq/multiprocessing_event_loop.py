@@ -4,7 +4,7 @@ import threading
 from torch import multiprocessing
 
 
-class AsyncEventLoop(object):
+class MultiprocessingEventLoop(object):
     """Start a multiprocessing event loop."""
 
     def __init__(self, device_ids=None, multiprocessing_method='spawn'):
@@ -149,22 +149,3 @@ class Future(object):
     @staticmethod
     def gen_list(gens):
         return [g.gen() for g in gens]
-
-
-def multiprocessing_pdb():
-    """A Pdb wrapper that works in a multiprocessing environment.
-
-    Usage: `from async_event_loop import pdb; pdb.set_trace()`
-    """
-    import pdb
-    import sys
-    class MultiprocessingPdb(pdb.Pdb):
-        def interaction(self, *args, **kwargs):
-            orig_stdin = sys.stdin
-            try:
-                sys.stdin = open('/dev/stdin')
-                pdb.Pdb.interaction(self, *args, **kwargs)
-            finally:
-                sys.stdin = orig_stdin
-    return MultiprocessingPdb()
-pdb = multiprocessing_pdb()

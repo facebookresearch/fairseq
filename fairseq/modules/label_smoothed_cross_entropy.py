@@ -1,6 +1,7 @@
 import torch
 from torch.autograd.variable import Variable
 
+
 class LabelSmoothedCrossEntropy(torch.autograd.Function):
 
     @staticmethod

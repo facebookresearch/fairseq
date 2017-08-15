@@ -1,10 +1,11 @@
 import contextlib
+import numpy as np
 import os
 import torch
 import torch.utils.data
-import numpy as np
-from indexed_dataset import IndexedDataset, IndexedInMemoryDataset
-from dictionary import Dictionary
+
+from fairseq.dictionary import Dictionary
+from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset
 
 
 def load(path, src=None, dst=None):

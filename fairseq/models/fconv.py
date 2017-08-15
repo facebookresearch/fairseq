@@ -1,11 +1,10 @@
-import contextlib
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules import label_smoothed_cross_entropy
-from modules import BeamableMM, LinearizedConvolution
+from fairseq.modules import label_smoothed_cross_entropy
+from fairseq.modules import BeamableMM, LinearizedConvolution
 
 
 class FConvModel(nn.Module):
