@@ -11,6 +11,7 @@ from fairseq.sequence_generator import SequenceGenerator
 
 
 def main():
+    global args
     parser = options.get_parser('Trainer')
     dataset_args = options.add_dataset_args(parser)
     dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
@@ -179,7 +180,7 @@ def score_test(epoch, model, dataset, beam, cuda_device=None):
 
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
     itr = dataset.dataloader(args.test_subset, batch_size=4)
-    for id, src, ref, hypos in generate.generate_batched_itr(translator, itr, cuda_device=cuda_device):
+    for _, _, ref, hypos in translator.generate_batched_itr(itr, cuda_device=cuda_device):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer
 

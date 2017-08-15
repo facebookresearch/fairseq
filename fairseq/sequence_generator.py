@@ -293,7 +293,3 @@ class SequenceGenerator(object):
                     .view(-1, *tensor.size()[1:])
             )
         return tuple(res)
-
-
-if __name__ == '__main__':
-    main()
