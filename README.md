@@ -99,5 +99,5 @@ To train WMT'16 en-ro:
 
 ```
 DATADIR=/mnt/vol/gfsai-flash-east/ai-group/users/sgross/fairseq/wmt16_en2ro/
-python train.py $DATADIR -a fconv_wmt_en_ro --lr 0.25 --clip-norm 0.1 --dropout 0.1 -b 64 --max-len 1600
+python train.py $DATADIR -a fconv_wmt_en_ro --lr 0.25 --clip-norm 0.1 --dropout 0.1 --max-tokens 1600
 ```
