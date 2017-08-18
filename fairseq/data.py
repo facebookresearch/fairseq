@@ -1,10 +1,12 @@
 import contextlib
+import itertools
+import numpy as np
 import os
 import torch
 import torch.utils.data
-import numpy as np
-from indexed_dataset import IndexedDataset, IndexedInMemoryDataset
-from dictionary import Dictionary
+
+from fairseq.dictionary import Dictionary
+from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset
 
 
 def load(path, src=None, dst=None):
@@ -41,11 +43,19 @@ def load(path, src=None, dst=None):
     dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
 
     for split in ['train', 'valid', 'test']:
-        dataset.splits[split] = LanguagePairDataset(
-            IndexedInMemoryDataset(fmt_path('{}.{}.{}', split, langcode, src)),
-            IndexedInMemoryDataset(fmt_path('{}.{}.{}', split, langcode, dst)),
-            padding_value=src_dict.pad(),
-            eos=src_dict.eos())
+        for k in itertools.count():
+            prefix = "{}{}".format(split, k if k > 0 else '')
+            src_path = fmt_path('{}.{}.{}', prefix, langcode, src)
+
+            if not IndexedInMemoryDataset.exists(src_path):
+                break
+
+            dataset.splits[prefix] = LanguagePairDataset(
+                IndexedInMemoryDataset(src_path),
+                IndexedInMemoryDataset(fmt_path('{}.{}.{}', prefix, langcode, dst)),
+                padding_value=src_dict.pad(),
+                eos=src_dict.eos())
+
 
     return dataset
 
@@ -60,11 +70,11 @@ class LanguageDatasets(object):
 
     def dataloader(self, split, batch_size=1, num_workers=0, max_tokens=None, seed=None):
         dataset = self.splits[split]
-        if split == 'train':
+        if split.startswith('train'):
             with numpy_seed(seed):
                 batch_sampler = shuffled_batches_by_size(
                     dataset.src, dataset.dst, batch_size, max_tokens)
-        elif split == 'valid':
+        elif split.startswith('valid'):
             batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst))
         else:
             batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens))

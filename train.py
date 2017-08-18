@@ -1,86 +1,38 @@
-import argparse
 import collections
+import functools
 import os
 import torch
 import math
-from progress_bar import progress_bar
 
-import bleu
-import data
-import generate
-import models
-import utils
-from meters import AverageMeter, TimeMeter
-from multiprocessing_trainer import MultiprocessingTrainer
+from fairseq import bleu, data, options, utils
+from fairseq.meters import AverageMeter, TimeMeter
+from fairseq.multiprocessing_trainer import MultiprocessingTrainer
+from fairseq.progress_bar import progress_bar
+from fairseq.sequence_generator import SequenceGenerator
 
-
-parser = argparse.ArgumentParser(description='Convolutional Sequence to Sequence Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to data directory')
-parser.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
-                    choices=models.__all__,
-                    help='model architecture ({})'.format(', '.join(models.__all__)))
-
-# dataset and data loading
-parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
-                    help='source language')
-parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
-                    help='target language')
-parser.add_argument('--max-tokens', default=6000, type=int, metavar='N',
-                    help='maximum number of tokens in a batch')
-parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
-                    help='number of data loading workers (default: 1)')
-
-# optimization
-parser.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
-                    help='initial learning rate')
-parser.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
-                    help='minimum learning rate')
-parser.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
-                    help='force annealing at specified epoch')
-parser.add_argument('--lrshrink', default=0.1, type=float, metavar='LS',
-                    help='learning rate shrink factor for annealing, lr_new = (lr * lrshrink)')
-parser.add_argument('--momentum', default=0.99, type=float, metavar='M',
-                    help='momentum factor')
-parser.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
-                    help='clip threshold of gradients')
-parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
-                    help='weight decay')
-parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
-                    help='dropout probability')
-
-# checkpointing and utilities
-parser.add_argument('--save-dir', metavar='DIR', default='checkpoints',
-                    help='path to save checkpoints')
-parser.add_argument('--restore-file', default='checkpoint_last.pt',
-                    help='filename in save-dir from which to load checkpoint')
-parser.add_argument('--save-interval', type=int, default=-1,
-                    help='checkpoint every this many batches')
-parser.add_argument('--no-progress-bar', action='store_true',
-                    help='disable progress bar')
-parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
-                    help='log progress every N updates (when progress bar is disabled)')
-parser.add_argument('--seed', default=1, type=int, metavar='N',
-                    help='pseudo random number generator seed')
-
-# model configuration
-parser.add_argument('--encoder-embed-dim', default=512, type=int, metavar='N',
-                    help='encoder embedding dimension')
-parser.add_argument('--encoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
-                    help='encoder layers [(dim, kernel_size), ...]')
-parser.add_argument('--decoder-embed-dim', default=512, type=int, metavar='N',
-                    help='decoder embedding dimension')
-parser.add_argument('--decoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
-                    help='decoder layers [(dim, kernel_size), ...]')
-parser.add_argument('--decoder-attention', default='True', type=str, metavar='EXPR',
-                    help='decoder attention [True, ...]')
-parser.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
-                    help='decoder output embedding dimension')
-parser.add_argument('--label-smoothing', default=0, type=float, metavar='D',
-                    help='epsilon for label smoothing, 0 means no label smoothing')
 
 def main():
     global args
+    parser = options.get_parser('Trainer')
+
+    dataset_args = options.add_dataset_args(parser)
+    dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
+                          help='maximum number of tokens in a batch')
+    dataset_args.add_argument('--train-subset', default='train', metavar='SPLIT',
+                          choices=['train', 'valid', 'test'],
+                          help='data subset to use for training (train, valid, test)')
+    dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
+                          help='comma separated list ofdata subsets '
+                               ' to use for validation (train, valid, valid1,test, test1)')
+    dataset_args.add_argument('--test-subset', default='test', metavar='SPLIT',
+                          help='comma separated list ofdata subset '
+                               'to use for testing (train, valid, test)')
+
+    options.add_optimization_args(parser)
+    options.add_checkpoint_args(parser)
+    options.add_model_args(parser)
+
+
     args = parser.parse_args()
     print(args)
 
@@ -95,7 +47,7 @@ def main():
     dataset = data.load(args.data, args.source_lang, args.target_lang)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-    for split in ['train', 'valid', 'test']:
+    for split in dataset.splits:
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
     if not torch.cuda.is_available():
@@ -116,24 +68,32 @@ def main():
 
     # Train until the learning rate gets too small
     val_loss = None
+    max_epoch = args.max_epoch or math.inf
     lr = trainer.get_lr()
-    while lr > args.min_lr:
+    while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
         train(epoch, batch_offset, trainer, dataset, num_gpus)
 
         # evaluate on validate set
-        val_loss, lr = validate(epoch, trainer, dataset, num_gpus)
-
-        # save checkpoint
-        trainer.save_checkpoint(args.save_dir, epoch, 0, val_loss)
+        for k, (val_loss, _) in \
+                enumerate(for_each(args.valid_subset,
+                         functools.partial(validate, epoch,
+                                           trainer, dataset, num_gpus))):
+            if k == 0:
+                # save checkpoint
+                trainer.save_checkpoint(args.save_dir, epoch, 0, val_loss)
+                # only use first validation loss to update the learning schedule
+                lr = trainer.lr_step(val_loss, epoch)
 
         epoch += 1
         batch_offset = 0
 
     # Generate on test set and compute BLEU score
     for beam in [1, 5, 10, 20]:
-        scorer = score_test(epoch, trainer.get_model(), dataset, beam, 0 if num_gpus > 0 else None)
-        print('| Test with beam={}: BLEU4 = {:2.2f}'.format(beam, scorer.score()))
+        for scorer, subset in for_each(args.test_subset,
+                               functools.partial(score_test, trainer.get_model(),
+                                                 dataset, beam, 0 if num_gpus > 0 else None)):
+            print('| Test on {} with beam={}: BLEU4 = {:2.2f}'.format(subset, beam, scorer.score()))
 
     # Stop multiprocessing
     trainer.stop()
@@ -142,10 +102,8 @@ def main():
 def train(epoch, batch_offset, trainer, dataset, num_gpus):
     """Train the model for one epoch"""
 
-    itr = dataset.dataloader('train',
-                             num_workers=args.workers,
-                             max_tokens=args.max_tokens,
-                             seed=(args.seed, epoch))
+    itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
+                             max_tokens=args.max_tokens, seed=(args.seed, epoch))
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()  # sentences per batch
     wpb_meter = AverageMeter()  # words per batch
@@ -204,13 +162,13 @@ def skip_group_enumerator(it, ngpus, offset=0):
         yield (idx, res)
 
 
-def validate(epoch, trainer, dataset, ngpus):
+def validate(epoch, trainer, dataset, ngpus, subset):
     """Evaluate the model on the validation set and return the average loss"""
 
-    itr = dataset.dataloader('valid', batch_size=None, max_tokens=args.max_tokens)
+    itr = dataset.dataloader(subset, batch_size=None, max_tokens=args.max_tokens)
     loss_meter = AverageMeter()
 
-    desc = '| val {}'.format(epoch)
+    desc = '| val on {}, {}'.format(subset, epoch)
     with progress_bar(itr, desc, leave=False) as t:
         for _, sample in skip_group_enumerator(t, ngpus):
             ntokens = sum(s['ntokens'] for s in sample)
@@ -219,25 +177,30 @@ def validate(epoch, trainer, dataset, ngpus):
             t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
 
         val_loss = loss_meter.avg
-        t.write('| epoch {:03d} | val loss {:2.2f} | val ppl {:3.2f}'
-                .format(epoch, val_loss, math.pow(2, val_loss)))
+        t.write('| epoch {:03d} | val on {}, loss {:2.2f} | val ppl {:3.2f}'
+                .format(epoch, subset, val_loss, math.pow(2, val_loss)))
 
     # update and return the learning rate
-    return val_loss, trainer.lr_step(val_loss, epoch)
+    return val_loss
 
 
-def score_test(epoch, model, dataset, beam, cuda_device=None):
+def score_test(model, dataset, beam, cuda_device, subset):
     """Evaluate the model on the test set and print the BLEU score"""
-    translator = generate.SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
+
+    translator = SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
     if torch.cuda.is_available():
         translator.cuda()
 
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
-    itr = dataset.dataloader('test', batch_size=4)
-    for id, src, ref, hypos in generate.generate_batched_itr(translator, itr, cuda_device=cuda_device):
+    itr = dataset.dataloader(subset, batch_size=4)
+    for _, _, ref, hypos in translator.generate_batched_itr(itr, cuda_device=cuda_device):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer
 
+
+def for_each(subset, func):
+    for s in subset.split(','):
+        yield func(s), s
 
 if __name__ == '__main__':
     main()

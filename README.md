@@ -81,7 +81,7 @@ To prepare data and dictionary for WMT'14 en-de:
 ```
 TEXTROOT=/data/users/michaelauli/data/wmt14/en-de/stanford/bpej40k/
 python preprocess.py --source-lang en --target-lang de \
---trainpref $TEXTROOT/train-split --validpref $TEXTROOT/valid-split \
+--trainpref $TEXTROOT/train-split --validpref $TEXTROOT/valid-split,$TEXTROOT/../newstest2013 \
 --testpref $TEXTROOT/newstest2014 --thresholdtgt 0 --thresholdsrc 0 \
 --destdir /data/users/$USER/wmt14_en_de
 ```
@@ -99,5 +99,5 @@ To train WMT'16 en-ro:
 
 ```
 DATADIR=/mnt/vol/gfsai-flash-east/ai-group/users/sgross/fairseq/wmt16_en2ro/
-python train.py $DATADIR -a fconv_wmt_en_ro --lr 0.25 --clip-norm 0.1 --dropout 0.1 -b 64 --max-len 1600
+python train.py $DATADIR -a fconv_wmt_en_ro --lr 0.25 --clip-norm 0.1 --dropout 0.1 --max-tokens 1600
 ```

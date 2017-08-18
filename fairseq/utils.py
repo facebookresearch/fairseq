@@ -3,7 +3,7 @@ import torch
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-import models
+from fairseq import models
 
 
 def build_model(args, dataset):
@@ -80,7 +80,7 @@ def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None, cuda_dev
 
 
 def prepare_sample(sample, volatile=False, cuda_device=None):
-    '''Wrap input tensors in Variable class'''
+    """Wrap input tensors in Variable class."""
     r = {
         'id': sample['id'],
         'ntokens': sample['ntokens'],

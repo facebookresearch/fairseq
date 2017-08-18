@@ -1,11 +1,10 @@
-import contextlib
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules import label_smoothed_cross_entropy
-from modules import BeamableMM, LinearizedConvolution
+from fairseq.modules import label_smoothed_cross_entropy
+from fairseq.modules import BeamableMM, LinearizedConvolution
 
 
 class FConvModel(nn.Module):
@@ -34,7 +33,7 @@ class FConvModel(nn.Module):
                                ignore_index=self.padding_idx)
         return loss
 
-    def make_generation_fast(self, beam_size, use_beamable_mm=False):
+    def make_generation_fast_(self, beam_size, use_beamable_mm=False):
         """Optimize model for faster generation.
 
         Optimizations include:
