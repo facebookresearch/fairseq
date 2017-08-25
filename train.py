@@ -103,7 +103,8 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
     """Train the model for one epoch"""
 
     itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
-                             max_tokens=args.max_tokens, seed=(args.seed, epoch))
+                             max_tokens=args.max_tokens, seed=args.seed, epoch=epoch,
+                             sample_without_replacement=args.sample_without_replacement)
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()  # sentences per batch
     wpb_meter = AverageMeter()  # words per batch

@@ -6,6 +6,7 @@ import torch
 import torch.utils.data
 
 from fairseq.dictionary import Dictionary
+import math
 from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset
 
 
@@ -68,12 +69,16 @@ class LanguageDatasets(object):
         self.dst_dict = dst_dict
         self.splits = {}
 
-    def dataloader(self, split, batch_size=1, num_workers=0, max_tokens=None, seed=None):
+    def dataloader(self, split, batch_size=1, num_workers=0,
+                   max_tokens=None, seed=None, epoch=1,
+                   sample_without_replacement=0):
         dataset = self.splits[split]
         if split.startswith('train'):
             with numpy_seed(seed):
                 batch_sampler = shuffled_batches_by_size(
-                    dataset.src, dataset.dst, batch_size, max_tokens)
+                    dataset.src, dataset.dst,
+                    max_tokens=max_tokens, epoch=epoch,
+                    sample=sample_without_replacement)
         elif split.startswith('valid'):
             batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst))
         else:
@@ -187,7 +192,7 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None):
         yield batch
 
 
-def shuffled_batches_by_size(src, dst, batch_size=1, max_tokens=None):
+def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0):
     """Returns batches of indices, bucketed by size and then shuffled. Batches
     may contain sequences of different lengths."""
     assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
@@ -217,7 +222,28 @@ def shuffled_batches_by_size(src, dst, batch_size=1, max_tokens=None):
             yield batch
 
     batches = list(make_batches())
+
     np.random.shuffle(batches)
+
+    if sample:
+        offset = (epoch - 1) * sample
+        while offset > len(batches):
+            np.random.shuffle(batches)
+            offset -= len(batches)
+
+        result = batches[offset:(offset + sample)]
+        while len(result) < sample:
+            np.random.shuffle(batches)
+            result += batches[:(sample - len(result))]
+
+        assert len(result) == sample, \
+            "batch length is not correct {}".format(len(result))
+
+        batches = result
+    else:
+        for i in range(epoch - 1):
+            np.random.shuffle(batches)
+
     return batches
 
 
