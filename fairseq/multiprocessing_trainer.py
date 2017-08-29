@@ -242,4 +242,9 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         res = [utils.prepare_sample(sample[i], volatile=volatile,
                                     cuda_device=device_id)
                for i, device_id in zip(range(len(sample)), self.device_ids)]
+
+        for d in self.device_ids:
+            with torch.cuda.device(d):
+                torch.cuda.synchronize()
+
         return res + [None]*(self.num_replicas - len(sample))
