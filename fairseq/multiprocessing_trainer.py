@@ -114,15 +114,15 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def train_step(self, sample):
         """Do forward, backward and gradient step in parallel."""
         # scatter sample across GPUs
-        net_inputs = self._scatter_sample(sample)
+        net_inputs, data_events = self._scatter_sample(sample)
         ntokens = sum(s['ntokens'] if s else 0 for s in sample)
 
         # forward pass, backward pass and gradient step
         losses = [
             self.call_async(rank, '_async_train_step',
                             net_input=input['net_input'] if input else None,
-                            grad_denom=ntokens)
-            for rank, input in enumerate(net_inputs)
+                            grad_denom=ntokens, data_event=event)
+            for rank, (input, event) in enumerate(zip(net_inputs, data_events))
         ]
 
         # accumulate and normalize loss
@@ -131,7 +131,8 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         return loss / math.log(2), gradnorm[0]
 
-    def _async_train_step(self, rank, device_id, net_input, grad_denom):
+    def _async_train_step(self, rank, device_id, net_input, grad_denom, data_event):
+        data_event.wait()
         self.model.train()
 
         # zero grads even if net_input is None, since we will all-reduce them
@@ -188,11 +189,11 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def valid_step(self, sample):
         """Do forward pass in parallel."""
         # forward pass
-        net_inputs = self._scatter_sample(sample, volatile=True)
+        net_inputs, data_events = self._scatter_sample(sample, volatile=True)
         losses = [
             self.call_async(rank, '_async_valid_step',
-                            net_input=input['net_input'] if input else None)
-            for rank, input in enumerate(net_inputs)
+                            net_input=input['net_input'] if input else None, data_event=event)
+            for rank, (input, event) in enumerate(zip(net_inputs, data_events))
         ]
 
         # accumulate and normalize loss
@@ -201,9 +202,11 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         return loss / math.log(2)
 
-    def _async_valid_step(self, rank, device_id, net_input):
+    def _async_valid_step(self, rank, device_id, net_input, data_event):
         if net_input is None:
             return 0
+        data_event.wait()
+
         self.model.eval()
         loss = self.model(**net_input)
         return loss.data[0]
@@ -245,8 +248,11 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # Synchronize GPU devices after data is sent to prevent
         # race conditions. 
+        events = []
         for d in self.device_ids:
             with torch.cuda.device(d):
-                torch.cuda.synchronize()
+                event = torch.cuda.Event(interprocess=True)
+                event.record()
+                events.append(event)
 
-        return res + [None]*(self.num_replicas - len(sample))
+        return res + [None]*(self.num_replicas - len(sample)), events
