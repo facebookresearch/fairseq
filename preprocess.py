@@ -15,7 +15,6 @@ def main():
     parser.add_argument('--testpref', metavar='FP', default='test',
                     help='comma separated, test language prefixes')
     parser.add_argument('--destdir', metavar='DIR', default='data-bin', help='destination dir')
-    parser.add_argument('--ncandidates', metavar='N', default=1000, help='number of candidates per a source word')
     parser.add_argument('--thresholdtgt', metavar='N', default=0, type=int, help='map words appearing less than threshold times to unknown')
     parser.add_argument('--thresholdsrc', metavar='N', default=0, type=int, help='map words appearing less than threshold times to unknown')
     parser.add_argument('--nwordstgt', metavar='N', default=-1, type=int, help='number of target words to retain')
@@ -36,6 +35,8 @@ def main():
 
     def make_dataset(input_prefix, output_prefix, lang):
         dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(lang)))
+        print("| [{}] Dictionary: {} types".format(lang, len(dict)- 1))
+
         ds = indexed_dataset.IndexedDatasetBuilder('{}/{}.{}-{}.{}.bin'.format(
             args.destdir, output_prefix, args.source_lang,
             args.target_lang, lang))
@@ -43,7 +44,11 @@ def main():
         def consumer(tensor):
             ds.add_item(tensor)
 
-        Tokenizer.binarize('{}.{}'.format(input_prefix, lang), dict, consumer)
+        input_file = '{}.{}'.format(input_prefix, lang)
+        res = Tokenizer.binarize(input_file, dict, consumer)
+        print("| [{}] {}: {} sents, {} tokens, {:.3}% replaced by {}".format(
+            lang, input_file, res['nseq'], res['ntok'],
+            100 * res['nunk'] / res['ntok'], dict.unk_word))
         ds.finalize('{}/{}.{}-{}.{}.idx'.format(
             args.destdir, output_prefix,
             args.source_lang, args.target_lang, lang))
@@ -59,7 +64,7 @@ def main():
         outprefix = 'test{}'.format(k) if k > 0 else 'test'
         make_dataset(testpref, outprefix, args.source_lang)
         make_dataset(testpref, outprefix, args.target_lang)
-
+    print("| Wrote preprocessed data to {}".format(args.destdir))
 
 if __name__ == '__main__':
     main()

@@ -53,4 +53,4 @@ class Tokenizer:
                 ids[nwords] = dict.eos_index
                 consumer(ids)
                 ntok = ntok + len(ids)
-        return { 'nsek' : nseq, 'nunk' : nunk, 'ntok' : ntok, 'replaced' : len(replaced) }
+        return { 'nseq' : nseq, 'nunk' : nunk, 'ntok' : ntok, 'replaced' : len(replaced) }
