@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
@@ -7,7 +8,7 @@ from fairseq import utils
 
 class SequenceGenerator(object):
     def __init__(self, model, dst_dict, beam_size=1, minlen=1, maxlen=200,
-                 stop_early=True, normalize_scores=True):
+                 stop_early=True, normalize_scores=True, len_penalty=1):
         """Generates translations of a given source sentence.
 
         Args:
@@ -30,6 +31,7 @@ class SequenceGenerator(object):
         self.decoder_context = model.decoder.context_size()
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
+        self.len_penalty = len_penalty
 
     def generate_batched_itr(self, data_itr, maxlen_a=0, maxlen_b=200,
                              cuda_device=None, timer=None):
@@ -144,7 +146,7 @@ class SequenceGenerator(object):
                     for each hypothesis
             """
             assert bbsz_idx.numel() == scores.numel()
-            norm_scores = scores/(step+1) if self.normalize_scores else scores
+            norm_scores = scores/math.pow(step+1, self.len_penalty) if self.normalize_scores else scores
             sents_seen = set()
             for idx, score in zip(bbsz_idx.cpu(), norm_scores.cpu()):
                 sent = idx // beam_size

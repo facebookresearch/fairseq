@@ -86,6 +86,8 @@ def add_generation_args(parser):
     group.add_argument('--cpu', action='store_true', help='generate on CPU')
     group.add_argument('--beamable-mm', action='store_true',
                        help='use BeamableMM in attention layers')
+    group.add_argument('--lenpen', default=1, type=float,
+                       help='length penalty: <1.0 favors shorter, >1.0 favors longer sentences')
     return group
 
 

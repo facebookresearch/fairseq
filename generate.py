@@ -14,7 +14,6 @@ def main():
     dataset_args.add_argument('--batch-size', default=32, type=int, metavar='N',
                               help='batch size')
     dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
-                              choices=['train', 'valid', 'test'],
                               help='data subset to generate (train, valid, test)')
     options.add_generation_args(parser)
     options.add_model_args(parser)
@@ -45,7 +44,8 @@ def main():
     # Initialize generator
     translator = SequenceGenerator(model, dataset.dst_dict, beam_size=args.beam,
                                    stop_early=(not args.no_early_stop),
-                                   normalize_scores=(not args.unnormalized))
+                                   normalize_scores=(not args.unnormalized),
+                                   len_penalty=args.lenpen)
     if use_cuda:
         translator.cuda()
 
