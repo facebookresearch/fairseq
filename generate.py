@@ -66,7 +66,7 @@ def main():
 
     def display_hypotheses(id, src, ref, hypos):
         print('S-{}\t{}'.format(id, to_sentence(dataset.src_dict, src, bpe_symbol)))
-        print('T-{}\t{}'.format(id, to_sentence(dataset.dst_dict, ref, bpe_symbol)))
+        print('T-{}\t{}'.format(id, to_sentence(dataset.dst_dict, ref, bpe_symbol, ref_unk=True)))
         for hypo in hypos:
             print('H-{}\t{}\t{}'.format(
                 id, hypo['score'], to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)))
@@ -85,8 +85,9 @@ def main():
             cuda_device=0 if use_cuda else None, timer=gen_timer)
         for id, src, ref, hypos in translations:
             ref = ref.int().cpu()
+            rref = ref.clone().apply_(lambda x: x if x != dataset.dst_dict.unk() else -x)
             top_hypo = hypos[0]['tokens'].int().cpu()
-            scorer.add(maybe_remove_bpe_and_reindex(ref), maybe_remove_bpe_and_reindex(top_hypo))
+            scorer.add(maybe_remove_bpe_and_reindex(rref), maybe_remove_bpe_and_reindex(top_hypo))
             display_hypotheses(id, src, ref, hypos[:min(len(hypos), args.nbest)])
 
             wps_meter.update(src.size(0))
@@ -95,15 +96,20 @@ def main():
 
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(
         num_sentences, gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
-    print('| Generate {} with beam={}: BLEU4 = {:2.2f}'.format(args.gen_subset, args.beam, scorer.score()))
+    print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
 
 
-def to_sentence(dict, tokens, bpe_symbol=None):
+def to_token(dict, i, runk):
+    return runk if i == dict.unk() else dict[i]
+
+def to_sentence(dict, tokens, bpe_symbol=None, ref_unk=False):
     if torch.is_tensor(tokens) and tokens.dim() == 2:
         sentences = [to_sentence(dict, token) for token in tokens]
         return '\n'.join(sentences)
     eos = dict.eos()
-    sent = ' '.join([dict[i] for i in tokens if i != eos])
+    unk = dict[dict.unk()]
+    runk = '<{}>'.format(unk) if ref_unk else unk
+    sent = ' '.join([to_token(dict, i, runk) for i in tokens if i != eos])
     if bpe_symbol is not None:
         sent = sent.replace(bpe_symbol, '')
     return sent

@@ -79,3 +79,10 @@ class Scorer(object):
     def brevity(self):
         r = self.stat.reflen / self.stat.predlen
         return min(1, math.exp(1 - r))
+
+    def result_string(self):
+        fmt = 'BLEU4 = {:2.2f}, {:2.1f}/{:2.1f}/{:2.1f}/{:2.1f} '
+        fmt += '(BP={:.3f}, syslen={}, reflen={})'
+        bleup = [p * 100 for p in self.precision()]
+        return fmt.format(self.score(), bleup[0], bleup[1], bleup[2], bleup[3],
+                          self.brevity(), self.stat.predlen, self.stat.reflen)

@@ -66,6 +66,10 @@ class Dictionary(object):
         """Helper to get index of end-of-sentence symbol"""
         return self.eos_index
 
+    def unk(self):
+        """Helper to get index of unk symbol"""
+        return self.unk_index
+
     @staticmethod
     def load(f):
         """Loads the dictionary from a text file with the format:
