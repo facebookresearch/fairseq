@@ -54,3 +54,15 @@ class Tokenizer:
                 consumer(ids)
                 ntok = ntok + len(ids)
         return { 'nseq' : nseq, 'nunk' : nunk, 'ntok' : ntok, 'replaced' : len(replaced) }
+
+    @staticmethod
+    def tokenize(line, dict, tokenize=tokenize_line):
+        words = tokenize(line)
+        nwords = len(words)
+        ids = torch.IntTensor(nwords + 1)
+        for i in range(0, len(words)):
+            ids[i] = dict.add_symbol(words[i])
+        ids[nwords] = dict.eos_index
+        return ids
+
+

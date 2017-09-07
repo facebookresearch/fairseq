@@ -60,6 +60,11 @@ def add_checkpoint_args(parser):
                        help='filename in save-dir from which to load checkpoint')
     group.add_argument('--save-interval', type=int, default=-1,
                        help='checkpoint every this many batches')
+    group.add_argument('--nosave', action='store_true',
+                       help='don\'t save models and checkpoints')
+    group.add_argument('--no-epoch-checkpoints', action='store_true',
+                       help='only store last and best checkpoints')
+
     return group
 
 

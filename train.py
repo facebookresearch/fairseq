@@ -80,8 +80,9 @@ def main():
                          functools.partial(validate, epoch,
                                            trainer, dataset, num_gpus))):
             if k == 0:
-                # save checkpoint
-                trainer.save_checkpoint(args.save_dir, epoch, 0, val_loss)
+                if not args.nosave:
+                    # save checkpoint
+                    trainer.save_checkpoint(args.save_dir, epoch, 0, args.no_epoch_checkpoints, val_loss)
                 # only use first validation loss to update the learning schedule
                 lr = trainer.lr_step(val_loss, epoch)
 
@@ -93,7 +94,7 @@ def main():
         for scorer, subset in for_each(args.test_subset,
                                functools.partial(score_test, trainer.get_model(),
                                                  dataset, beam, 0 if num_gpus > 0 else None)):
-            print('| Test on {} with beam={}: BLEU4 = {:2.2f}'.format(subset, beam, scorer.score()))
+            print('| Test on {} with beam={}: {}'.format(subset, beam, scorer.result_string()))
 
     # Stop multiprocessing
     trainer.stop()

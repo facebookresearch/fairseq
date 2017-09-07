@@ -34,7 +34,7 @@ def torch_persistent_save(*args, **kwargs):
                 i += 1
 
 
-def save_checkpoint(save_dir, epoch, batch_offset, model, optimizer, lr_scheduler, val_loss=None):
+def save_checkpoint(save_dir, epoch, batch_offset, model, optimizer, lr_scheduler, no_epoch_checkpoints, val_loss=None):
     state_dict = {
         'epoch': epoch,
         'batch_offset': batch_offset,
@@ -45,8 +45,9 @@ def save_checkpoint(save_dir, epoch, batch_offset, model, optimizer, lr_schedule
     }
 
     if batch_offset == 0:
-        epoch_filename = os.path.join(save_dir, 'checkpoint{}.pt'.format(epoch))
-        torch_persistent_save(state_dict, epoch_filename)
+        if not no_epoch_checkpoints:
+            epoch_filename = os.path.join(save_dir, 'checkpoint{}.pt'.format(epoch))
+            torch_persistent_save(state_dict, epoch_filename)
 
         assert val_loss is not None
         if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:

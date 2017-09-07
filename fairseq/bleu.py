@@ -61,9 +61,10 @@ class Scorer(object):
             ctypes.c_int(self.pad),
             ctypes.c_int(self.eos))
 
-    def score(self):
-        psum = sum(math.log(p) if p > 0 else float('-Inf') for p in self.precision())
-        return self.brevity() * math.exp(psum / 4) * 100
+    def score(self, order=4):
+        psum = sum(math.log(p) if p > 0 else float('-Inf')
+                   for p in self.precision()[:order])
+        return self.brevity() * math.exp(psum / order) * 100
 
     def precision(self):
         def ratio(a, b):
@@ -80,9 +81,13 @@ class Scorer(object):
         r = self.stat.reflen / self.stat.predlen
         return min(1, math.exp(1 - r))
 
-    def result_string(self):
-        fmt = 'BLEU4 = {:2.2f}, {:2.1f}/{:2.1f}/{:2.1f}/{:2.1f} '
-        fmt += '(BP={:.3f}, syslen={}, reflen={})'
-        bleup = [p * 100 for p in self.precision()]
-        return fmt.format(self.score(), bleup[0], bleup[1], bleup[2], bleup[3],
-                          self.brevity(), self.stat.predlen, self.stat.reflen)
+    def result_string(self, order=4):
+        assert order <= 4, "BLEU scores for order > 4 aren't supported"
+        fmt = 'BLEU{} = {:2.2f}, {:2.1f}'
+        for i in range(1, order):
+            fmt += '/{:2.1f}'
+        fmt += ' (BP={:.3f}, ratio={:.3f}, syslen={}, reflen={})'
+        bleup = [p * 100 for p in self.precision()[:order]]
+        return fmt.format(order, self.score(order=order), *bleup,
+                          self.brevity(), self.stat.reflen/self.stat.predlen,
+                          self.stat.predlen, self.stat.reflen)
