@@ -257,7 +257,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                for i, device_id in zip(range(len(sample)), self.device_ids)]
 
         # Synchronize GPU devices after data is sent to prevent
-        # race conditions. 
+        # race conditions.
         events = []
         for d in self.device_ids:
             with torch.cuda.device(d):
