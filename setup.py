@@ -1,4 +1,5 @@
-from setuptools import setup, Extension
+from setuptools import setup, find_packages, Extension
+from setuptools.command.build_py import build_py
 import sys
 from torch.utils.ffi import create_extension
 
@@ -18,36 +19,45 @@ with open('requirements.txt') as f:
 bleu = Extension(
     'fairseq.libbleu',
     sources=[
-        'fairseq/clib/libbleu.cpp',
-        'fairseq/clib/module.cpp',
+        'fairseq/clib/libbleu/libbleu.cpp',
+        'fairseq/clib/libbleu/module.cpp',
     ],
     extra_compile_args=['-std=c++11'],
 )
 
 conv_tbc = create_extension(
-    'clib.temporal_convolution_tbc',
-    headers=['clib/temporal_convolution_tbc.h'],
-    sources=['clib/temporal_convolution_tbc.cpp'],
+    'fairseq.temporal_convolution_tbc',
+    relative_to='fairseq',
+    headers=['fairseq/clib/temporal_convolution_tbc/temporal_convolution_tbc.h'],
+    sources=['fairseq/clib/temporal_convolution_tbc/temporal_convolution_tbc.cpp'],
     define_macros=[('WITH_CUDA', None)],
-    relative_to=__file__,
     with_cuda=True,
     extra_compile_args=['-std=c++11'],
 )
 
 
-def main():
-    setup(
-        name='fairseq',
-        version='0.1.0',
-        description='Facebook AI Research Sequence-to-Sequence Toolkit',
-        long_description=readme,
-        license=license,
-        install_requires=reqs.strip().split('\n'),
-        packages=['fairseq'],
-        ext_modules=[bleu],
-    )
-    conv_tbc.build()
+class build_py_hook(build_py):
+    def run(self):
+        conv_tbc.build()
+        build_py.run(self)
 
 
-if __name__ == '__main__':
-    main()
+setup(
+    name='fairseq',
+    version='0.1.0',
+    description='Facebook AI Research Sequence-to-Sequence Toolkit',
+    long_description=readme,
+    license=license,
+    install_requires=reqs.strip().split('\n'),
+    packages=find_packages(),
+    ext_modules=[bleu],
+
+    # build and install PyTorch extensions
+    package_data={
+        'fairseq': ['temporal_convolution_tbc/*.so'],
+    },
+    include_package_data=True,
+    cmdclass={
+        'build_py': build_py_hook,
+    },
+)

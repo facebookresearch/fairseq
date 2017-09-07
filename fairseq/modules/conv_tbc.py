@@ -1,7 +1,13 @@
 import torch
 from torch.autograd import Variable, Function
-from clib import temporal_convolution_tbc
 from torch.nn.modules.utils import _single
+
+try:
+    from fairseq import temporal_convolution_tbc
+except ImportError as e:
+    import sys
+    sys.stderr.write('ERROR: missing temporal_convolution_tbc, run `python setup.py install`\n')
+    raise e
 
 
 class ConvTBCFunction(Function):
