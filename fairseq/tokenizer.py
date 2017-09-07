@@ -64,12 +64,15 @@ class Tokenizer:
         return { 'nseq' : nseq, 'nunk' : nunk, 'ntok' : ntok, 'replaced' : len(replaced) }
 
     @staticmethod
-    def tokenize(line, dict, tokenize=tokenize_line):
+    def tokenize(line, dict, tokenize=tokenize_line, add_if_not_exist=True):
         words = tokenize(line)
         nwords = len(words)
         ids = torch.IntTensor(nwords + 1)
         for i in range(0, len(words)):
-            ids[i] = dict.add_symbol(words[i])
+            if add_if_not_exist:
+                ids[i] = dict.add_symbol(words[i])
+            else:
+                ids[i] = dict.index(words[i])
         ids[nwords] = dict.eos_index
         return ids
 
