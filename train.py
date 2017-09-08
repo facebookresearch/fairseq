@@ -40,7 +40,6 @@ def main():
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
 
-
     args = parser.parse_args()
     print(args)
 
@@ -80,13 +79,11 @@ def main():
     lr = trainer.get_lr()
     while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
-        train(epoch, batch_offset, trainer, dataset, num_gpus)
+        train(args, epoch, batch_offset, trainer, dataset, num_gpus)
 
         # evaluate on validate set
-        for k, (val_loss, _) in \
-                enumerate(for_each(args.valid_subset,
-                         functools.partial(validate, epoch,
-                                           trainer, dataset, num_gpus))):
+        for k, subset in enumerate(args.valid_subset.split(',')):
+            val_loss = validate(args, epoch, trainer, dataset, subset, num_gpus)
             if k == 0:
                 if not args.nosave:
                     # save checkpoint
@@ -99,32 +96,32 @@ def main():
 
     # Generate on test set and compute BLEU score
     for beam in [1, 5, 10, 20]:
-        for scorer, subset in for_each(args.test_subset,
-                               functools.partial(score_test, trainer.get_model(),
-                                                 dataset, beam, 0 if num_gpus > 0 else None)):
+        for subset in args.test_subset.split(','):
+            scorer = score_test(args, trainer.get_model(), dataset, subset, beam,
+                                cuda_device=(0 if num_gpus > 0 else None))
             print('| Test on {} with beam={}: {}'.format(subset, beam, scorer.result_string()))
 
     # Stop multiprocessing
     trainer.stop()
 
 
-def train(epoch, batch_offset, trainer, dataset, num_gpus):
-    """Train the model for one epoch"""
+def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
+    """Train the model for one epoch."""
 
     itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
                              max_tokens=args.max_tokens, seed=args.seed, epoch=epoch,
                              sample_without_replacement=args.sample_without_replacement)
     loss_meter = AverageMeter()
-    bsz_meter = AverageMeter()  # sentences per batch
-    wpb_meter = AverageMeter()  # words per batch
-    wps_meter = TimeMeter()     # words per second
-    clip_meter = AverageMeter()  # how many updates clipped
-    gnorm_meter = AverageMeter()  # norm
+    bsz_meter = AverageMeter()    # sentences per batch
+    wpb_meter = AverageMeter()    # words per batch
+    wps_meter = TimeMeter()       # words per second
+    clip_meter = AverageMeter()   # % of updates clipped
+    gnorm_meter = AverageMeter()  # gradient norm
 
-    desc = '| epoch {}'.format(epoch)
+    desc = '| epoch {:03d}'.format(epoch)
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
-        for i, sample in skip_group_enumerator(t, num_gpus, batch_offset):
+        for i, sample in data.skip_group_enumerator(t, num_gpus, batch_offset):
             loss, gradnorm = trainer.train_step(sample)
 
             ntokens = sum(s['ntokens'] for s in sample)
@@ -142,7 +139,7 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
                 ('wpb', '{:5d}'.format(round(wpb_meter.avg))),
                 ('bsz', '{:5d}'.format(round(bsz_meter.avg))),
                 ('lr', lr),
-                ('clip', '{:.2f}'.format(clip_meter.avg)),
+                ('clip', '{:3.0f}%'.format(clip_meter.avg * 100)),
                 ('gnorm', '{:.4f}'.format(gnorm_meter.avg)),
             ]))
 
@@ -152,57 +149,42 @@ def train(epoch, batch_offset, trainer, dataset, num_gpus):
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
                 trainer.save_checkpoint(args.save_dir, epoch, i + 1)
 
-        fmt = '| epoch {:03d} | train loss {:2.2f} | train ppl {:3.2f}'
+        fmt = desc + ' | train loss {:2.2f} | train ppl {:3.2f}'
         fmt += ' | s/checkpoint {:7d} | words/s {:6d} | words/batch {:6d}'
-        fmt += ' | bsz {:5d} | lr {:0.6f} | clip {:1.2f} | gnorm {:.4f}'
-        t.write(fmt.format(epoch, loss_meter.avg, math.pow(2, loss_meter.avg),
+        fmt += ' | bsz {:5d} | lr {:0.6f} | clip {:3.0f}% | gnorm {:.4f}'
+        t.write(fmt.format(loss_meter.avg, math.pow(2, loss_meter.avg),
                            round(wps_meter.elapsed_time),
                            round(wps_meter.avg),
                            round(wpb_meter.avg),
                            round(bsz_meter.avg),
-                           lr, clip_meter.avg,
+                           lr, clip_meter.avg * 100,
                            gnorm_meter.avg))
 
 
-def skip_group_enumerator(it, ngpus, offset=0):
-    res = []
-    idx = 0
-    for i, sample in enumerate(it):
-        if i < offset:
-            continue
-        res.append(sample)
-        if len(res) >= ngpus:
-            yield (i, res)
-            res = []
-            idx = i + 1
-    if len(res) > 0:
-        yield (idx, res)
-
-
-def validate(epoch, trainer, dataset, ngpus, subset):
-    """Evaluate the model on the validation set and return the average loss"""
+def validate(args, epoch, trainer, dataset, subset, ngpus):
+    """Evaluate the model on the validation set and return the average loss."""
 
     itr = dataset.dataloader(subset, batch_size=None, max_tokens=args.max_tokens)
     loss_meter = AverageMeter()
 
-    desc = '| val on {}, {}'.format(subset, epoch)
+    desc = '| epoch {:03d} | valid on {} subset'.format(epoch, subset)
     with progress_bar(itr, desc, leave=False) as t:
-        for _, sample in skip_group_enumerator(t, ngpus):
+        for _, sample in data.skip_group_enumerator(t, ngpus):
             ntokens = sum(s['ntokens'] for s in sample)
             loss = trainer.valid_step(sample)
             loss_meter.update(loss, ntokens)
             t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
 
         val_loss = loss_meter.avg
-        t.write('| epoch {:03d} | val on {}, loss {:2.2f} | val ppl {:3.2f}'
-                .format(epoch, subset, val_loss, math.pow(2, val_loss)))
+        t.write(desc + ' | valid loss {:2.2f} | valid ppl {:3.2f}'
+                .format(val_loss, math.pow(2, val_loss)))
 
     # update and return the learning rate
     return val_loss
 
 
-def score_test(model, dataset, beam, cuda_device, subset):
-    """Evaluate the model on the test set and print the BLEU score"""
+def score_test(args, model, dataset, subset, beam, cuda_device):
+    """Evaluate the model on the test set and return the BLEU scorer."""
 
     translator = SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
     if torch.cuda.is_available():
@@ -214,10 +196,6 @@ def score_test(model, dataset, beam, cuda_device, subset):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer
 
-
-def for_each(subset, func):
-    for s in subset.split(','):
-        yield func(s), s
 
 if __name__ == '__main__':
     main()

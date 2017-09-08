@@ -6,8 +6,8 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-from .label_smoothed_cross_entropy import label_smoothed_cross_entropy
 from .beamable_mm import *
+from .label_smoothed_cross_entropy import label_smoothed_cross_entropy
 from .linearized_convolution import *
 
 __all__ = [

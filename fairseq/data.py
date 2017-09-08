@@ -65,7 +65,6 @@ def load(path, src=None, dst=None):
                 padding_value=src_dict.pad(),
                 eos=src_dict.eos())
 
-
     return dataset
 
 
@@ -98,6 +97,21 @@ class LanguageDatasets(object):
             pin_memory=torch.cuda.is_available(),
             collate_fn=PaddingCollater(self.src_dict.pad()),
             batch_sampler=batch_sampler)
+
+
+def skip_group_enumerator(it, ngpus, offset=0):
+    res = []
+    idx = 0
+    for i, sample in enumerate(it):
+        if i < offset:
+            continue
+        res.append(sample)
+        if len(res) >= ngpus:
+            yield (i, res)
+            res = []
+            idx = i + 1
+    if len(res) > 0:
+        yield (idx, res)
 
 
 class PaddingCollater(object):

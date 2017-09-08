@@ -1,8 +1,17 @@
+# Copyright (c) 2017-present, Facebook, Inc.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the LICENSE file in
+# the root directory of this source tree. An additional grant of patent rights
+# can be found in the PATENTS file in the same directory.
+#
+
 import argparse
 import os
 import sys
 
 from fairseq import bleu, dictionary, tokenizer
+
 
 def main():
     parser = argparse.ArgumentParser(description='Command-line script for BLEU scoring.')
@@ -43,7 +52,6 @@ def main():
     else:
         with open(args.sys, 'r') as f:
             score(f)
-
 
 
 if __name__ == '__main__':

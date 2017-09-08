@@ -72,7 +72,6 @@ def add_checkpoint_args(parser):
                        help='don\'t save models and checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
                        help='only store last and best checkpoints')
-
     return group
 
 

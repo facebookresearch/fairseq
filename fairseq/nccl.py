@@ -10,6 +10,7 @@
 A modified version of torch.cuda.nccl.all_reduce for launching kernels on each
 GPU separately.
 """
+
 import ctypes
 import warnings
 import torch.cuda

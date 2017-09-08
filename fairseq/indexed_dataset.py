@@ -7,9 +7,10 @@
 #
 
 import numpy as np
+import os
 import struct
 import torch
-import os
+
 
 def read_longs(f, n):
     a = np.empty(n, dtype=np.int64)

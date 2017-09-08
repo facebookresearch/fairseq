@@ -75,5 +75,3 @@ class Tokenizer:
                 ids[i] = dict.index(words[i])
         ids[nwords] = dict.eos_index
         return ids
-
-

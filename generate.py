@@ -30,11 +30,8 @@ def main():
                               help='data subset to generate (train, valid, test)')
     options.add_generation_args(parser)
     options.add_model_args(parser)
+
     args = parser.parse_args()
-
-    # Progress bar should always be off as we print output to stdout
-    args.no_progress_bar = True
-
     print(args)
 
     if args.no_progress_bar:

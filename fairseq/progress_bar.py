@@ -9,6 +9,7 @@
 """
 Progress bar wrapper around tqdm which handles non-tty outputs
 """
+
 import sys
 
 from tqdm import tqdm
