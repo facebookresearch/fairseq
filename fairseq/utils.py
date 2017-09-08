@@ -84,7 +84,8 @@ def load_checkpoint(filename, model, optimizer=None, lr_scheduler=None, cuda_dev
     epoch = state['epoch'] + 1
     batch_offset = state['batch_offset']
 
-    print('| loaded checkpoint {} (epoch {})'.format(filename, epoch))
+    gpu_str = ' on GPU #{}'.format(cuda_device) if cuda_device is not None else ''
+    print('| loaded checkpoint {} (epoch {}){}'.format(filename, epoch, gpu_str))
     return epoch, batch_offset
 
 

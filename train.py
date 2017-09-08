@@ -122,7 +122,7 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in data.skip_group_enumerator(t, num_gpus, batch_offset):
-            loss, gradnorm = trainer.train_step(sample)
+            loss, grad_norm = trainer.train_step(sample)
 
             ntokens = sum(s['ntokens'] for s in sample)
             src_size = sum(s['src_tokens'].size(0) for s in sample)
@@ -130,8 +130,8 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
             bsz_meter.update(src_size)
             wpb_meter.update(ntokens)
             wps_meter.update(ntokens)
-            clip_meter.update(1 if gradnorm > args.clip_norm else 0)
-            gnorm_meter.update(gradnorm)
+            clip_meter.update(1 if grad_norm > args.clip_norm else 0)
+            gnorm_meter.update(grad_norm)
 
             t.set_postfix(collections.OrderedDict([
                 ('loss', '{:.2f} ({:.2f})'.format(loss, loss_meter.avg)),

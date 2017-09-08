@@ -137,10 +137,10 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         ]
 
         # accumulate and normalize loss
-        losses, gradnorm = Future.gen_tuple_list(losses)
+        losses, grad_norms = Future.gen_tuple_list(losses)
         loss = sum(losses) / ntokens
 
-        return loss / math.log(2), gradnorm[0]
+        return loss / math.log(2), grad_norms[0]
 
     def _async_train_step(self, rank, device_id, net_input, grad_denom, data_event):
         data_event.wait()
@@ -165,15 +165,12 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # normalize and clip grads
         self.flat_grads.div_(grad_denom)
-
-        gradnorm = self.flat_grads.norm()
-
-        self._clip_grads_(self.flat_grads, self.args.clip_norm)
+        grad_norm = self._clip_grads_(self.flat_grads, self.args.clip_norm)
 
         # take an optimization step
         self.optimizer.step()
 
-        return loss, gradnorm
+        return loss, grad_norm
 
     def _flatten_grads_(self, model):
         num_params = sum(p.data.numel() for p in model.parameters())
@@ -189,12 +186,11 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         return flat_grads
 
     def _clip_grads_(self, flat_grads, clipv):
-        if clipv > 0:
-            norm = flat_grads.norm()
-            if norm > clipv:
-                coef = max(norm, 1e-6) / clipv
-                flat_grads.div_(coef)
-        return flat_grads
+        norm = flat_grads.norm()
+        if clipv > 0 and norm > clipv:
+            coef = max(norm, 1e-6) / clipv
+            flat_grads.div_(coef)
+        return norm
 
 
     def valid_step(self, sample):
@@ -234,8 +230,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def lr_step(self, val_loss=None, epoch=None):
         """Adjust the learning rate depending on the validation loss."""
         lr = Future.gen_list([
-            self.call_async(rank, '_async_lr_step', val_loss=val_loss,
-                             epoch=epoch)
+            self.call_async(rank, '_async_lr_step', val_loss=val_loss, epoch=epoch)
             for rank in range(self.num_replicas)
         ])
         return lr[0]
