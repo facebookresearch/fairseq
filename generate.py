@@ -6,9 +6,9 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+import sys
 import torch
 from torch.autograd import Variable
-import sys
 
 from fairseq import bleu, data, options, utils, tokenizer
 from fairseq.meters import StopwatchMeter, TimeMeter
@@ -65,12 +65,20 @@ def main():
     if use_cuda:
         translator.cuda()
 
-    if args.interactive:
-        def display_hypotheses_interactive(input, src, hypo, score):
-            print('S\t{}'.format(to_sentence(dataset.src_dict, src)))
-            print('O\t{}'.format(input.strip()))
-            print('H\t{}\t{}'.format(score, to_sentence(dataset.dst_dict, hypo)))
+    bpe_symbol = '@@ ' if args.remove_bpe else None
+    def display_hypotheses(id, src, orig, ref, hypos):
+        id_str = '' if id is None else '-{}'.format(id)
+        print('S{}\t{}'.format(id_str, to_sentence(dataset.src_dict, src, bpe_symbol)))
+        if orig is not None:
+            print('O{}\t{}'.format(id_str, orig.strip()))
+        if ref is not None:
+            print('T{}\t{}'.format(id_str, to_sentence(dataset.dst_dict, ref, bpe_symbol, ref_unk=True)))
+        for hypo in hypos:
+            print('H{}\t{}\t{}'.format(
+                id_str, hypo['score'], to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)))
+            print('A{}\t{}'.format(id_str, ' '.join(map(str, hypo['alignment']))))
 
+    if args.interactive:
         print('> ', end='', flush=True)
         for line in sys.stdin:
             tokens = tokenizer.Tokenizer.tokenize(line, dataset.src_dict, add_if_not_exist=False).long()
@@ -81,12 +89,10 @@ def main():
                 tokens = tokens.cuda()
             translations = translator.generate(Variable(tokens.view(1, -1)), Variable(positions.view(1, -1)))
             hypos = translations[0]
-            top_hypo = hypos[0]['tokens'].int().cpu()
-            display_hypotheses_interactive(line, tokens, top_hypo, hypos[0]['score'])
+            display_hypotheses(None, tokens, line, None, hypos[:min(len(hypos), args.nbest)])
             print('> ', end='', flush=True)
 
     else:
-        bpe_symbol = '@@ ' if args.remove_bpe else None
         non_bpe_dict = {}
         def maybe_remove_bpe_and_reindex(tokens):
             """Helper for removing BPE symbols from a tensor of indices.
@@ -105,18 +111,8 @@ def main():
         scorer = bleu.Scorer(
             dataset.dst_dict.pad() if not args.remove_bpe else -1,
             dataset.dst_dict.eos() if not args.remove_bpe else -1)
-
-
         itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size)
         num_sentences = 0
-
-        def display_hypotheses(id, src, ref, hypos):
-            print('S-{}\t{}'.format(id, to_sentence(dataset.src_dict, src, bpe_symbol)))
-            print('T-{}\t{}'.format(id, to_sentence(dataset.dst_dict, ref, bpe_symbol, ref_unk=True)))
-            for hypo in hypos:
-                print('H-{}\t{}\t{}'.format(
-                    id, hypo['score'], to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)))
-
         with progress_bar(itr, smoothing=0, leave=False) as t:
             wps_meter = TimeMeter()
             gen_timer = StopwatchMeter()
@@ -128,7 +124,7 @@ def main():
                 rref = ref.clone().apply_(lambda x: x if x != dataset.dst_dict.unk() else -x)
                 top_hypo = hypos[0]['tokens'].int().cpu()
                 scorer.add(maybe_remove_bpe_and_reindex(rref), maybe_remove_bpe_and_reindex(top_hypo))
-                display_hypotheses(id, src, ref, hypos[:min(len(hypos), args.nbest)])
+                display_hypotheses(id, src, None, ref, hypos[:min(len(hypos), args.nbest)])
 
                 wps_meter.update(src.size(0))
                 t.set_postfix(wps='{:5d}'.format(round(wps_meter.avg)))

@@ -94,8 +94,10 @@ class SequenceGenerator(object):
         # initialize buffers
         scores = encoder_out[0].data.new(bsz * beam_size).fill_(0)
         tokens = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(self.pad)
+        tokens_buf = tokens.clone()
         tokens[:, 0] = self.eos
-        tokens_buf = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(self.pad)
+        align = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(-1)
+        align_buf = align.clone()
 
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
@@ -162,7 +164,12 @@ class SequenceGenerator(object):
                 def get_hypo():
                     hypo = tokens[idx, 1:step+2].clone()
                     hypo[step] = self.eos
-                    return {'tokens': hypo, 'score': score}
+                    alignment = align[idx, 1:step+2].clone()
+                    return {
+                        'tokens': hypo,
+                        'score': score,
+                        'alignment': alignment,
+                    }
                 if len(finalized[sent]) < beam_size:
                     finalized[sent].append(get_hypo())
                 elif score > worst_finalized[sent]['score']:
@@ -191,7 +198,7 @@ class SequenceGenerator(object):
             if reorder_state is not None:
                 model.decoder.reorder_incremental_state(reorder_state)
 
-            probs = self.decode(tokens[:, :step+1], encoder_out)
+            probs, avg_attn_scores = self.decode(tokens[:, :step+1], encoder_out)
             if step == 0:
                 # at the first step all hypotheses are equally likely, so use
                 # only the first beam
@@ -199,6 +206,10 @@ class SequenceGenerator(object):
             else:
                 # make probs contain cumulative scores for each hypothesis
                 probs.add_(scores.view(-1, 1))
+
+            # record alignment to source tokens, based on attention
+            _ignore_scores = buffer('_ignore_scores', type_of=scores)
+            avg_attn_scores.topk(1, out=(_ignore_scores, align[:, step+1].unsqueeze(1)))
 
             # take the best 2 x beam_size predictions. We'll choose the first
             # beam_size of these which don't predict eos to continue with.
@@ -260,10 +271,17 @@ class SequenceGenerator(object):
             cand_indices.gather(1, active_hypos,
                                 out=tokens_buf.view(bsz, beam_size, -1)[:, :, step+1])
 
+            # copy attention/alignment for active hypotheses
+            torch.index_select(align[:, :step+2], dim=0, index=active_bbsz_idx,
+                               out=align_buf[:, :step+2])
+
             # swap buffers
             old_tokens = tokens
             tokens = tokens_buf
             tokens_buf = old_tokens
+            old_align = align
+            align = align_buf
+            align_buf = old_align
 
             # reorder incremental state in decoder
             reorder_state = active_bbsz_idx
@@ -284,9 +302,9 @@ class SequenceGenerator(object):
         tokens = Variable(tokens, volatile=True)
         positions = Variable(positions, volatile=True)
 
-        decoder_out = self.model.decoder(tokens, positions, encoder_out)
+        decoder_out, avg_attn_scores = self.model.decoder(tokens, positions, encoder_out)
         probs = F.log_softmax(decoder_out[:, -1, :]).data
-        return probs
+        return probs, avg_attn_scores[:, -1, :].data
 
     def cuda(self):
         self.model.cuda()

@@ -157,6 +157,7 @@ class AttentionLayer(nn.Module):
         sz = x.size()
         x = F.softmax(x.view(sz[0] * sz[1], sz[2]))
         x = x.view(sz)
+        attn_scores = x
 
         x = self.bmm(x, encoder_out[1])
 
@@ -166,7 +167,7 @@ class AttentionLayer(nn.Module):
 
         # project back
         x = (self.out_projection(x) + residual) * math.sqrt(0.5)
-        return x
+        return x, attn_scores
 
 
 class Decoder(nn.Module):
@@ -227,7 +228,7 @@ class Decoder(nn.Module):
 
             # attention
             if attention is not None:
-                x = attention(x, target_embedding, (encoder_a, encoder_b))
+                x, _ = attention(x, target_embedding, (encoder_a, encoder_b))
 
             # residual
             x = (x + residual) * math.sqrt(0.5)
@@ -324,6 +325,8 @@ class Decoder(nn.Module):
         x = self.fc1(x)
 
         # temporal convolutions
+        avg_attn_scores = None
+        num_attn_layers = len(self.attention)
         for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
             residual = x if proj is None else proj(x)
             x = conv.incremental_forward(x)
@@ -331,7 +334,12 @@ class Decoder(nn.Module):
 
             # attention
             if attention is not None:
-                x = attention(x, target_embedding, (encoder_a, encoder_b))
+                x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b))
+                attn_scores = attn_scores / num_attn_layers
+                if avg_attn_scores is None:
+                    avg_attn_scores = attn_scores
+                else:
+                    avg_attn_scores += attn_scores
 
             # residual
             x = (x + residual) * math.sqrt(0.5)
@@ -340,7 +348,7 @@ class Decoder(nn.Module):
         x = self.fc2(x)
         x = self.fc3(x)
 
-        return x
+        return x, avg_attn_scores
 
     def clear_incremental_state(self):
         """Clear all state used for incremental generation.
