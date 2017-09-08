@@ -14,12 +14,12 @@ import torch
 import torch.utils.data
 
 from fairseq.dictionary import Dictionary
-import math
 from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset
 
 
-def load(path, src=None, dst=None):
-    """Loads the train, valid, and test sets from the specified folder"""
+def load_with_check(path, src=None, dst=None):
+    """Loads the train, valid, and test sets from the specified folder
+    and check that training files exist."""
 
     def find_language_pair(files):
         for filename in files:
@@ -31,21 +31,29 @@ def load(path, src=None, dst=None):
         filename = 'train.{0}-{1}.{0}.idx'.format(src, dst)
         return os.path.exists(os.path.join(path, filename))
 
-    def fmt_path(fmt, *args):
-        return os.path.join(path, fmt.format(*args))
-
     if src is None and dst is None:
         # find language pair automatically
         src, dst = find_language_pair(os.listdir(path))
-        langcode = '{}-{}'.format(src, dst)
     elif train_file_exists(src, dst):
         # check for src-dst langcode
-        langcode = '{}-{}'.format(src, dst)
+        pass
     elif train_file_exists(dst, src):
         # check for dst-src langcode
-        langcode = '{}-{}'.format(dst, src)
+        src, dst = dst, src
     else:
         raise ValueError('training file not found for {}-{}'.format(src, dst))
+
+    dataset = load(path, src, dst)
+    return dataset
+
+
+def load(path, src, dst):
+    """Loads the train, valid, and test sets from the specified folder."""
+
+    langcode = '{}-{}'.format(src, dst)
+
+    def fmt_path(fmt, *args):
+        return os.path.join(path, fmt.format(*args))
 
     src_dict = Dictionary.load(fmt_path('dict.{}.txt', src))
     dst_dict = Dictionary.load(fmt_path('dict.{}.txt', dst))
@@ -62,8 +70,9 @@ def load(path, src=None, dst=None):
             dataset.splits[prefix] = LanguagePairDataset(
                 IndexedInMemoryDataset(src_path),
                 IndexedInMemoryDataset(fmt_path('{}.{}.{}', prefix, langcode, dst)),
-                padding_value=src_dict.pad(),
-                eos=src_dict.eos())
+                padding_value=dataset.src_dict.pad(),
+                eos=dataset.src_dict.eos(),
+            )
 
     return dataset
 

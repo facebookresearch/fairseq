@@ -51,7 +51,7 @@ def main():
         os.makedirs(args.save_dir)
     torch.manual_seed(args.seed)
 
-    dataset = data.load(args.data, args.source_lang, args.target_lang)
+    dataset = data.load_with_check(args.data, args.source_lang, args.target_lang)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
     for split in dataset.splits:
