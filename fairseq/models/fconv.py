@@ -279,10 +279,9 @@ class Decoder(nn.Module):
             'already performing incremental inference'
         self._is_inference_incremental = True
 
-        # save original forward, convolutions and projections
+        # save original forward and convolution layers
         self._orig_forward = self.forward
         self._orig_conv = self.convolutions
-        self._orig_proj = self.projections
 
         # switch to incremental forward
         self.forward = self._incremental_forward
@@ -291,10 +290,9 @@ class Decoder(nn.Module):
         self.clear_incremental_state()
 
     def _stop_incremental_inference(self):
-        # revert to original forward, convolutions and projections
+        # restore original forward and convolution layers
         self.forward = self._orig_forward
         self.convolutions = self._orig_conv
-        self.projections = self._orig_proj
 
         self._is_inference_incremental = False
 
@@ -361,9 +359,6 @@ class Decoder(nn.Module):
             self.prev_state = None
             for conv in self.convolutions:
                 conv.clear_buffer()
-            for proj in self.projections:
-                if proj is not None:
-                    conv.clear_buffer()
 
     def reorder_incremental_state(self, new_order):
         """Reorder buffered internal state (for incremental generation).
@@ -371,16 +366,12 @@ class Decoder(nn.Module):
         **For incremental inference only**
 
         This should be called when the order of the input has changed from the
-        previous time step. A typical example of why this is needed is beam
-        search, where the input order changes between time steps based on the
-        choice of beams.
+        previous time step. A typical use case is beam search, where the input
+        order changes between time steps based on the choice of beams.
         """
         if self._is_inference_incremental:
             for conv in self.convolutions:
                 conv.reorder_buffer(new_order)
-            for proj in self.projections:
-                if proj is not None:
-                    conv.reorder_buffer(new_order)
 
     def _use_beamable_mm(self, beam_size):
         """Replace torch.bmm with BeamableMM in attention layers."""
