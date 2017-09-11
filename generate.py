@@ -47,7 +47,7 @@ def main():
         print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
 
     # Optimize model for generation
-    model.make_generation_fast_(args.beam, args.beamable_mm)
+    model.make_generation_fast_(args.beam, not args.no_beamable_mm)
 
     # Initialize generator
     translator = SequenceGenerator(model, dataset.dst_dict, beam_size=args.beam,
