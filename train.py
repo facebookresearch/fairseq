@@ -20,9 +20,7 @@ from fairseq.sequence_generator import SequenceGenerator
 
 
 def main():
-    global args
     parser = options.get_parser('Trainer')
-
     dataset_args = options.add_dataset_args(parser)
     dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
                           help='maximum number of tokens in a batch')
@@ -35,7 +33,6 @@ def main():
     dataset_args.add_argument('--test-subset', default='test', metavar='SPLIT',
                           help='comma separated list ofdata subset '
                                'to use for testing (train, valid, test)')
-
     options.add_optimization_args(parser)
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
@@ -51,7 +48,12 @@ def main():
         os.makedirs(args.save_dir)
     torch.manual_seed(args.seed)
 
+    # Load dataset
     dataset = data.load_with_check(args.data, args.source_lang, args.target_lang)
+    if args.source_lang is None or args.target_lang is None:
+        # record inferred languages in args, so that it's saved in checkpoints
+        args.source_lang, args.target_lang = dataset.src, dataset.dst
+
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
     for split in dataset.splits:
@@ -63,6 +65,7 @@ def main():
 
     print('| using {} GPUs (with max tokens per GPU = {})'.format(num_gpus, args.max_tokens))
 
+    # Build model
     print('| model {}'.format(args.arch))
     model = utils.build_model(args, dataset)
 
@@ -70,8 +73,7 @@ def main():
     trainer = MultiprocessingTrainer(args, model)
 
     # Load the latest checkpoint if one is available
-    epoch, batch_offset = trainer.load_checkpoint(
-        os.path.join(args.save_dir, args.restore_file))
+    epoch, batch_offset = trainer.load_checkpoint(os.path.join(args.save_dir, args.restore_file))
 
     # Train until the learning rate gets too small
     val_loss = None
@@ -87,7 +89,7 @@ def main():
             if k == 0:
                 if not args.nosave:
                     # save checkpoint
-                    trainer.save_checkpoint(args.save_dir, epoch, 0, args.no_epoch_checkpoints, val_loss)
+                    trainer.save_checkpoint(args, epoch, 0, val_loss)
                 # only use first validation loss to update the learning schedule
                 lr = trainer.lr_step(val_loss, epoch)
 
@@ -147,7 +149,7 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
                 # ignore the first mini-batch in words-per-second calculation
                 wps_meter.reset()
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
-                trainer.save_checkpoint(args.save_dir, epoch, i + 1)
+                trainer.save_checkpoint(args, epoch, i + 1)
 
         fmt = desc + ' | train loss {:2.2f} | train ppl {:3.2f}'
         fmt += ' | s/checkpoint {:7d} | words/s {:6d} | words/batch {:6d}'

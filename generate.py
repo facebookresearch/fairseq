@@ -29,7 +29,6 @@ def main():
     dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
                               help='data subset to generate (train, valid, test)')
     options.add_generation_args(parser)
-    options.add_model_args(parser)
 
     args = parser.parse_args()
     print(args)
@@ -38,21 +37,14 @@ def main():
         progress_bar.enabled = False
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-    dataset = data.load(args.data, args.source_lang, args.target_lang)
+    # Load model and dataset
+    print('| loading model from {}'.format(args.path))
+    model, dataset = utils.load_checkpoint_for_inference(args.path, args.data)
+
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-
     if not args.interactive:
         print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
-
-    # TODO infer architecture from model file
-    print('| model {}'.format(args.arch))
-    model = utils.build_model(args, dataset)
-    if use_cuda:
-        model.cuda()
-
-    # Load the model from the latest checkpoint
-    epoch, _batch_offset = utils.load_checkpoint(args.path, model)
 
     # Optimize model for generation
     model.make_generation_fast_(args.beam, args.beamable_mm)
@@ -137,6 +129,7 @@ def main():
 
 def to_token(dict, i, runk):
     return runk if i == dict.unk() else dict[i]
+
 
 def to_sentence(dict, tokens, bpe_symbol=None, ref_unk=False):
     if torch.is_tensor(tokens) and tokens.dim() == 2:
