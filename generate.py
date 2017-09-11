@@ -102,7 +102,8 @@ def main():
         # Generate and compute BLEU score
         scorer = bleu.Scorer(
             dataset.dst_dict.pad() if not args.remove_bpe else -1,
-            dataset.dst_dict.eos() if not args.remove_bpe else -1)
+            dataset.dst_dict.eos() if not args.remove_bpe else -1,
+            dataset.dst_dict.unk())
         itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size)
         num_sentences = 0
         with progress_bar(itr, smoothing=0, leave=False) as t:
@@ -113,9 +114,8 @@ def main():
                 cuda_device=0 if use_cuda else None, timer=gen_timer)
             for id, src, ref, hypos in translations:
                 ref = ref.int().cpu()
-                rref = ref.clone().apply_(lambda x: x if x != dataset.dst_dict.unk() else -x)
                 top_hypo = hypos[0]['tokens'].int().cpu()
-                scorer.add(maybe_remove_bpe_and_reindex(rref), maybe_remove_bpe_and_reindex(top_hypo))
+                scorer.add(maybe_remove_bpe_and_reindex(ref), maybe_remove_bpe_and_reindex(top_hypo))
                 display_hypotheses(id, src, None, ref, hypos[:min(len(hypos), args.nbest)])
 
                 wps_meter.update(src.size(0))

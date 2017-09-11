@@ -192,7 +192,7 @@ def score_test(args, model, dataset, subset, beam, cuda_device):
     if torch.cuda.is_available():
         translator.cuda()
 
-    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos())
+    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     itr = dataset.dataloader(subset, batch_size=4)
     for _, _, ref, hypos in translator.generate_batched_itr(itr, cuda_device=cuda_device):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())

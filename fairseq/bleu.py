@@ -37,10 +37,11 @@ class BleuStat(ctypes.Structure):
 
 
 class Scorer(object):
-    def __init__(self, pad, eos):
+    def __init__(self, pad, eos, unk):
         self.stat = BleuStat()
         self.pad = pad
         self.eos = eos
+        self.unk = unk
         self.reset()
 
     def reset(self, one_init=False):
@@ -57,13 +58,16 @@ class Scorer(object):
             raise TypeError('pred must be a torch.IntTensor(got {})'
                             .format(type(pred)))
 
-        ref = ref.contiguous().view(-1)
+        rref = ref.clone()
+        rref.apply_(lambda x: x if x != self.unk else -x)
+
+        rref = rref.contiguous().view(-1)
         pred = pred.contiguous().view(-1)
 
         C.bleu_add(
             ctypes.byref(self.stat),
-            ctypes.c_size_t(ref.size(0)),
-            ctypes.c_void_p(ref.data_ptr()),
+            ctypes.c_size_t(rref.size(0)),
+            ctypes.c_void_p(rref.data_ptr()),
             ctypes.c_size_t(pred.size(0)),
             ctypes.c_void_p(pred.data_ptr()),
             ctypes.c_int(self.pad),
