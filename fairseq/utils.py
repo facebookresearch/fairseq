@@ -91,24 +91,28 @@ def load_checkpoint(filename, model, optimizer, lr_scheduler, cuda_device=None):
     return epoch, batch_offset
 
 
-def load_checkpoint_for_inference(model, data_path):
-    if not os.path.exists(model):
-        raise IOError('Checkpoint file not found: ' + model)
-
-    # load model architecture and weights
-    state = torch.load(model, map_location=lambda s,l: default_restore_location(s, 'cpu'))
-    args = state['args']
+def load_ensemble_for_inference(models, data_path):
+    # load model architectures and weights
+    states = []
+    for model in models:
+        if not os.path.exists(model):
+            raise IOError('Model file not found: ' + model)
+        states.append(
+            torch.load(model, map_location=lambda s,l: default_restore_location(s, 'cpu'))
+        )
 
     # load dataset
+    args = states[0]['args']
     dataset = data.load(data_path, args.source_lang, args.target_lang)
 
-    # build model using arguments from checkpoint
-    model = build_model(args, dataset)
+    # build models
+    models = []
+    for state in states:
+        model = build_model(args, dataset)
+        model.load_state_dict(state['model'])
+        models.append(model)
 
-    # load model parameters
-    model.load_state_dict(state['model'])
-
-    return model, dataset
+    return models, dataset
 
 
 def prepare_sample(sample, volatile=False, cuda_device=None):

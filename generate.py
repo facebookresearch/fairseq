@@ -18,12 +18,11 @@ from fairseq.sequence_generator import SequenceGenerator
 
 def main():
     parser = options.get_parser('Generation')
-    parser.add_argument('--path', metavar='FILE', required=True, default='./checkpoint_best.pt',
-                        help='path to model file')
+    parser.add_argument('--path', metavar='FILE', required=True, action='append',
+                        help='path(s) to model file(s)')
     dataset_args = options.add_dataset_args(parser)
     dataset_args.add_argument('-i', '--interactive', action='store_true',
                               help='generate translations in interactive mode')
-
     dataset_args.add_argument('--batch-size', default=32, type=int, metavar='N',
                               help='batch size')
     dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
@@ -38,8 +37,8 @@ def main():
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load model and dataset
-    print('| loading model from {}'.format(args.path))
-    model, dataset = utils.load_checkpoint_for_inference(args.path, args.data)
+    print('| loading model(s) from {}'.format(', '.join(args.path)))
+    models, dataset = utils.load_ensemble_for_inference(args.path, args.data)
 
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
@@ -47,10 +46,11 @@ def main():
         print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
 
     # Optimize model for generation
-    model.make_generation_fast_(args.beam, not args.no_beamable_mm)
+    for model in models:
+        model.make_generation_fast_(args.beam, not args.no_beamable_mm)
 
     # Initialize generator
-    translator = SequenceGenerator(model, dataset.dst_dict, beam_size=args.beam,
+    translator = SequenceGenerator(models, dataset.dst_dict, beam_size=args.beam,
                                    stop_early=(not args.no_early_stop),
                                    normalize_scores=(not args.unnormalized),
                                    len_penalty=args.lenpen)

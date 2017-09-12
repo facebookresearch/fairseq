@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+from contextlib import ExitStack
 import math
 import torch
 import torch.nn.functional as F
@@ -15,7 +16,7 @@ from fairseq import utils
 
 
 class SequenceGenerator(object):
-    def __init__(self, model, dst_dict, beam_size=1, minlen=1, maxlen=200,
+    def __init__(self, models, dst_dict, beam_size=1, minlen=1, maxlen=200,
                  stop_early=True, normalize_scores=True, len_penalty=1):
         """Generates translations of a given source sentence.
 
@@ -27,7 +28,7 @@ class SequenceGenerator(object):
                 normalized scores.
             normalize_scores: Normalize scores by the length of the output.
         """
-        self.model = model
+        self.models = models
         self.dict = dst_dict
         self.pad = dst_dict.pad()
         self.eos = dst_dict.eos()
@@ -36,10 +37,16 @@ class SequenceGenerator(object):
         self.minlen = minlen
         self.maxlen = maxlen
         self.positions = torch.LongTensor(range(self.pad + 1, self.pad + maxlen + 2))
-        self.decoder_context = model.decoder.context_size()
+        self.decoder_context = models[0].decoder.context_size()
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
+
+    def cuda(self):
+        for model in self.models:
+            model.cuda()
+        self.positions = self.positions.cuda()
+        return self
 
     def generate_batched_itr(self, data_itr, maxlen_a=0, maxlen_b=200,
                              cuda_device=None, timer=None):
@@ -73,26 +80,28 @@ class SequenceGenerator(object):
 
     def generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
         """Generate a batch of translations."""
-        with self.model.decoder.incremental_inference():
+        with ExitStack() as stack:
+            for model in self.models:
+                stack.enter_context(model.decoder.incremental_inference())
             return self._generate(src_tokens, src_positions, beam_size, maxlen)
 
     def _generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
-        model = self.model
-        model.eval()
-
-        # start a fresh sequence
-        model.decoder.clear_incremental_state()
-
         bsz = src_tokens.size(0)
         beam_size = beam_size if beam_size is not None else self.beam_size
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
 
-        # compute the encoder output once and expand to beam size
-        encoder_out = model.encoder(src_tokens, src_positions)
-        encoder_out = self._expand_encoder_out(encoder_out, beam_size)
+        encoder_outs = []
+        for model in self.models:
+            model.eval()
+            model.decoder.clear_incremental_state()  # start a fresh sequence
+
+            # compute the encoder output and expand to beam size
+            encoder_out = model.encoder(src_tokens, src_positions)
+            encoder_out = self._expand_encoder_out(encoder_out, beam_size)
+            encoder_outs.append(encoder_out)
 
         # initialize buffers
-        scores = encoder_out[0].data.new(bsz * beam_size).fill_(0)
+        scores = encoder_outs[0][0].data.new(bsz * beam_size).fill_(0)
         tokens = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(self.pad)
         tokens_buf = tokens.clone()
         tokens[:, 0] = self.eos
@@ -194,11 +203,12 @@ class SequenceGenerator(object):
 
         reorder_state = None
         for step in range(maxlen + 1):  # one extra step for EOS marker
-            # reorder decoder's internal state based on the prev choice of beams
+            # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
-                model.decoder.reorder_incremental_state(reorder_state)
+                for model in self.models:
+                    model.decoder.reorder_incremental_state(reorder_state)
 
-            probs, avg_attn_scores = self.decode(tokens[:, :step+1], encoder_out)
+            probs, avg_attn_scores = self._decode(tokens[:, :step+1], encoder_outs)
             if step == 0:
                 # at the first step all hypotheses are equally likely, so use
                 # only the first beam
@@ -292,7 +302,7 @@ class SequenceGenerator(object):
 
         return finalized
 
-    def decode(self, tokens, encoder_out):
+    def _decode(self, tokens, encoder_outs):
         length = tokens.size(1)
 
         # repeat the first length positions to fill batch
@@ -302,14 +312,23 @@ class SequenceGenerator(object):
         tokens = Variable(tokens, volatile=True)
         positions = Variable(positions, volatile=True)
 
-        decoder_out, avg_attn_scores = self.model.decoder(tokens, positions, encoder_out)
-        probs = F.log_softmax(decoder_out[:, -1, :]).data
-        return probs, avg_attn_scores[:, -1, :].data
+        avg_probs = None
+        avg_attn = None
+        for model, encoder_out in zip(self.models, encoder_outs):
+            decoder_out, attn = model.decoder(tokens, positions, encoder_out)
+            probs = F.softmax(decoder_out[:, -1, :]).data
+            attn = attn[:, -1, :].data
+            if avg_probs is None or avg_attn is None:
+                avg_probs = probs
+                avg_attn = attn
+            else:
+                avg_probs.add_(probs)
+                avg_attn.add_(attn)
+        avg_probs.div_(len(self.models))
+        avg_probs.log_()
+        avg_attn.div_(len(self.models))
 
-    def cuda(self):
-        self.model.cuda()
-        self.positions = self.positions.cuda()
-        return self
+        return avg_probs, avg_attn
 
     def _expand_encoder_out(self, encoder_out, beam_size):
         res = []
