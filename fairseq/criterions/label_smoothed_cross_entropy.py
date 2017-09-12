@@ -6,8 +6,12 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+import math
 import torch
 from torch.autograd.variable import Variable
+import torch.nn.functional as F
+
+from .fairseq_criterion import FairseqCriterion
 
 
 class LabelSmoothedCrossEntropy(torch.autograd.Function):
@@ -37,6 +41,22 @@ class LabelSmoothedCrossEntropy(torch.autograd.Function):
         return Variable(ctx.grad_input, volatile=True) * grad, None, None, None, None
 
 
-def label_smoothed_cross_entropy(input, target, eps=0.1, padding_idx=None, weights=None):
-    return LabelSmoothedCrossEntropy.apply(input, target, eps, padding_idx, weights)
+class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
+    def __init__(self, eps, padding_idx=None, weights=None):
+        super().__init__()
+        self.eps = eps
+        self.padding_idx = padding_idx
+        self.weights = weights
+
+    def prepare(self, samples):
+        self.denom = sum(s['ntokens'] if s else 0 for s in samples)
+
+    def forward(self, net_output, sample):
+        input = F.log_softmax(net_output.view(-1, net_output.size(-1)))
+        target = sample['net_input']['target'].view(-1)
+        loss = LabelSmoothedCrossEntropy.apply(input, target, self.eps, self.padding_idx, self.weights)
+        return loss / self.denom
+
+    def aggregate(self, losses):
+        return sum(losses) / math.log(2)

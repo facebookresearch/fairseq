@@ -6,9 +6,11 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-from .beamable_mm import *
-from .linearized_convolution import *
+from .cross_entropy import CrossEntropyCriterion
+from .fairseq_criterion import FairseqCriterion
+from .label_smoothed_cross_entropy import LabelSmoothedCrossEntropyCriterion
 
 __all__ = [
-    'BeamableMM', 'LinearizedConvolution',
+    'CrossEntropyCriterion',
+    'LabelSmoothedCrossEntropyCriterion',
 ]

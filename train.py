@@ -13,7 +13,7 @@ import torch
 import math
 
 from fairseq import bleu, data, options, utils
-from fairseq.meters import AverageMeter, TimeMeter
+from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.multiprocessing_trainer import MultiprocessingTrainer
 from fairseq.progress_bar import progress_bar
 from fairseq.sequence_generator import SequenceGenerator
@@ -68,6 +68,7 @@ def main():
     # Build model
     print('| model {}'.format(args.arch))
     model = utils.build_model(args, dataset)
+    criterion = utils.build_criterion(args, dataset)
 
     # Start multiprocessing
     trainer = MultiprocessingTrainer(args, model)
@@ -79,15 +80,17 @@ def main():
     val_loss = None
     max_epoch = args.max_epoch or math.inf
     lr = trainer.get_lr()
+    train_meter = StopwatchMeter()
+    train_meter.start()
     while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
-        train(args, epoch, batch_offset, trainer, dataset, num_gpus)
+        train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus)
 
         # evaluate on validate set
         for k, subset in enumerate(args.valid_subset.split(',')):
-            val_loss = validate(args, epoch, trainer, dataset, subset, num_gpus)
+            val_loss = validate(args, epoch, trainer, criterion, dataset, subset, num_gpus)
             if k == 0:
-                if not args.nosave:
+                if not args.no_save:
                     # save checkpoint
                     trainer.save_checkpoint(args, epoch, 0, val_loss)
                 # only use first validation loss to update the learning schedule
@@ -95,6 +98,8 @@ def main():
 
         epoch += 1
         batch_offset = 0
+    train_meter.stop()
+    print('| done training in {:.1f} seconds'.format(train_meter.sum))
 
     # Generate on test set and compute BLEU score
     for beam in [1, 5, 10, 20]:
@@ -107,7 +112,7 @@ def main():
     trainer.stop()
 
 
-def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
+def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
     """Train the model for one epoch."""
 
     itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
@@ -124,7 +129,7 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in data.skip_group_enumerator(t, num_gpus, batch_offset):
-            loss, grad_norm = trainer.train_step(sample)
+            loss, grad_norm = trainer.train_step(sample, criterion)
 
             ntokens = sum(s['ntokens'] for s in sample)
             src_size = sum(s['src_tokens'].size(0) for s in sample)
@@ -163,7 +168,7 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
                            gnorm_meter.avg))
 
 
-def validate(args, epoch, trainer, dataset, subset, ngpus):
+def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
     """Evaluate the model on the validation set and return the average loss."""
 
     itr = dataset.dataloader(subset, batch_size=None, max_tokens=args.max_tokens)
@@ -173,7 +178,7 @@ def validate(args, epoch, trainer, dataset, subset, ngpus):
     with progress_bar(itr, desc, leave=False) as t:
         for _, sample in data.skip_group_enumerator(t, ngpus):
             ntokens = sum(s['ntokens'] for s in sample)
-            loss = trainer.valid_step(sample)
+            loss = trainer.valid_step(sample, criterion)
             loss_meter.update(loss, ntokens)
             t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
 

@@ -11,7 +11,7 @@ import torch
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import data, models
+from fairseq import criterions, data, models
 
 
 def build_model(args, dataset):
@@ -22,12 +22,18 @@ def build_model(args, dataset):
         model = models.fconv(
             dataset, args.dropout, args.encoder_embed_dim, encoder_layers,
             args.decoder_embed_dim, decoder_layers, decoder_attention,
-            decoder_out_embed_dim=args.decoder_out_embed_dim,
-            label_smoothing=args.label_smoothing)
+            decoder_out_embed_dim=args.decoder_out_embed_dim)
     else:
-        model = models.__dict__[args.arch](dataset, args.dropout,
-                                           label_smoothing=args.label_smoothing)
+        model = models.__dict__[args.arch](dataset, args.dropout)
     return model
+
+
+def build_criterion(args, dataset):
+    padding_idx = dataset.dst_dict.pad()
+    if args.label_smoothing > 0:
+        return criterions.LabelSmoothedCrossEntropyCriterion(args.label_smoothing, padding_idx)
+    else:
+        return criterions.CrossEntropyCriterion(padding_idx)
 
 
 def torch_persistent_save(*args, **kwargs):

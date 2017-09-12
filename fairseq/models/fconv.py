@@ -11,35 +11,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.modules import label_smoothed_cross_entropy
 from fairseq.modules import BeamableMM, LinearizedConvolution
 
 
 class FConvModel(nn.Module):
-    def __init__(self, encoder, decoder, padding_idx=1, label_smoothing=0.):
+    def __init__(self, encoder, decoder, padding_idx=1):
         super(FConvModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.encoder.num_attention_layers = sum([layer is not None for layer in decoder.attention])
         self.padding_idx = padding_idx
-        self.label_smoothing = label_smoothing
         self._is_generation_fast = False
 
     def forward(self, src_tokens, src_positions, input_tokens, input_positions, target):
         encoder_out = self.encoder(src_tokens, src_positions)
         decoder_out = self.decoder(input_tokens, input_positions, encoder_out)
-        decoder_out = decoder_out.view(-1, decoder_out.size(-1))
-        target = target.view(-1)
-
-        if self.label_smoothing > 0:
-            decoder_out = F.log_softmax(decoder_out)
-            return label_smoothed_cross_entropy(decoder_out, target,
-                                                eps=self.label_smoothing,
-                                                padding_idx=self.padding_idx)
-
-        loss = F.cross_entropy(decoder_out, target, size_average=False,
-                               ignore_index=self.padding_idx)
-        return loss
+        return decoder_out.view(-1, decoder_out.size(-1))
 
     def make_generation_fast_(self, beam_size, use_beamable_mm=False):
         """Optimize model for faster generation.
@@ -436,42 +423,37 @@ class GradMultiply(torch.autograd.Function):
     def backward(ctx, grad):
         return grad * ctx.scale, None
 
-def fconv_iwslt_de_en(dataset, dropout, label_smoothing=0.0):
+
+def fconv_iwslt_de_en(dataset, dropout):
     encoder_convs = [(256, 3)] * 4
     decoder_convs = [(256, 3)] * 3
-    return fconv(dataset, dropout, 256, encoder_convs, 256, decoder_convs,
-                 label_smoothing=label_smoothing)
+    return fconv(dataset, dropout, 256, encoder_convs, 256, decoder_convs)
 
 
-def fconv_wmt_en_ro(dataset, dropout, label_smoothing=0.0):
+def fconv_wmt_en_ro(dataset, dropout):
     convs = [(512, 3)] * 20
-    return fconv(dataset, dropout, 512, convs, 512, convs,
-                 label_smoothing=label_smoothing)
+    return fconv(dataset, dropout, 512, convs, 512, convs)
 
 
-def fconv_wmt_en_de(dataset, dropout, label_smoothing=0.0):
+def fconv_wmt_en_de(dataset, dropout):
     convs = [(512, 3)] * 9  # first 10 layers have 512 units
     convs += [(1024, 3)] * 4  # next 3 layers have 768 units
     convs += [(2048, 1)] * 2  # final 2 layers are 1x1
-    return fconv(dataset, dropout, 768, convs, 768, convs,
-                 decoder_out_embed_dim=512,
-                 label_smoothing=label_smoothing)
+    return fconv(dataset, dropout, 768, convs, 768, convs, decoder_out_embed_dim=512)
 
 
-def fconv_wmt_en_fr(dataset, dropout, label_smoothing=0.0):
+def fconv_wmt_en_fr(dataset, dropout):
     convs = [(512, 3)] * 6  # first 5 layers have 512 units
     convs += [(768, 3)] * 4  # next 4 layers have 768 units
     convs += [(1024, 3)] * 3  # next 4 layers have 1024 units
     convs += [(2048, 1)] * 1  # next 1 layer is 1x1
     convs += [(4096, 1)] * 1  # final 1 layer is 1x1
-    return fconv(dataset, dropout, 768, convs, 768, convs,
-                 decoder_out_embed_dim=512,
-                 label_smoothing=label_smoothing)
+    return fconv(dataset, dropout, 768, convs, 768, convs, decoder_out_embed_dim=512)
 
 
 def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
           decoder_embed_dim, decoder_convolutions, attention=True,
-          decoder_out_embed_dim=256, label_smoothing=0.0):
+          decoder_out_embed_dim=256):
     padding_idx = dataset.dst_dict.pad()
 
     encoder = Encoder(
@@ -488,4 +470,4 @@ def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
         attention=attention,
         dropout=dropout,
         padding_idx=padding_idx)
-    return FConvModel(encoder, decoder, padding_idx, label_smoothing=label_smoothing)
+    return FConvModel(encoder, decoder, padding_idx)
