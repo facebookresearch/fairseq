@@ -7,11 +7,11 @@
 #
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from .conv_tbc import ConvTBC
 
 
-class LinearizedConvolution(nn.Conv1d):
+class LinearizedConvolution(ConvTBC):
     """An optimized version of nn.Conv1d.
 
     This module replaces convolutions with linear layers as appropriate
@@ -25,19 +25,10 @@ class LinearizedConvolution(nn.Conv1d):
         self._linearized_weight = None
         self.register_backward_hook(self._clear_linearized_weight)
 
-    def forward(self, x):
-        if self.kernel_size[0] > 1:
-            x = x.transpose(1, 2)  # B x T x C -> B x C x T
-            x = super().forward(x)
-            x = x.transpose(2, 1)  # B x C x T -> B x T x C
-        else:
-            x = F.linear(x, self.weight.squeeze(2), self.bias)
-        return x
-
     def remove_future_timesteps(self, x):
         """Remove future time steps created by padding."""
         if self.kernel_size[0] > 1 and self.padding[0] > 0:
-            x = x[:, :-self.padding[0], :]
+            x = x[:-self.padding[0], :, :]
         return x
 
     def incremental_forward(self, input):
@@ -83,10 +74,10 @@ class LinearizedConvolution(nn.Conv1d):
 
     def _get_linearized_weight(self):
         if self._linearized_weight is None:
-            nout, nin, kw = self.weight.size()
-            self._linearized_weight = self.weight \
-                .transpose(1, 2).contiguous() \
-                .view(nout, kw * nin)
+            kw = self.kernel_size[0]
+            weight = self.weight.transpose(2, 1).transpose(1, 0).contiguous()
+            assert weight.size() == (self.out_channels, kw, self.in_channels)
+            self._linearized_weight = weight.view(self.out_channels, -1)
         return self._linearized_weight
 
     def _clear_linearized_weight(self, *args):

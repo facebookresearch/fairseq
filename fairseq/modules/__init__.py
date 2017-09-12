@@ -8,7 +8,8 @@
 
 from .beamable_mm import *
 from .linearized_convolution import *
+from .conv_tbc import ConvTBC
 
 __all__ = [
-    'BeamableMM', 'LinearizedConvolution',
+    'BeamableMM', 'LinearizedConvolution', 'ConvTBC',
 ]

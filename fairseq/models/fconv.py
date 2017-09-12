@@ -80,11 +80,11 @@ class Encoder(nn.Module):
         self.convolutions = nn.ModuleList()
         for (out_channels, kernel_size) in convolutions:
             pad = (kernel_size - 1) // 2
-            self.projections.append(Projection(in_channels, out_channels)
+            self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
-                Conv1d(in_channels, out_channels * 2, kernel_size, padding=pad,
-                       dropout=dropout))
+                ConvTBC(in_channels, out_channels * 2, kernel_size, padding=pad,
+                        dropout=dropout))
             in_channels = out_channels
         self.fc2 = Linear(in_channels, embed_dim)
 
@@ -97,19 +97,19 @@ class Encoder(nn.Module):
         # project to size of convolution
         x = self.fc1(x)
 
-        # B x T x C -> B x C x T
-        x = x.transpose(1, 2)
+        # B x T x C -> T x B x C
+        x = x.transpose(0, 1)
 
         # temporal convolutions
         for proj, conv in zip(self.projections, self.convolutions):
             residual = x if proj is None else proj(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x)
-            x = F.glu(x, dim=1)
+            x = F.glu(x, dim=-1)
             x = (x + residual) * math.sqrt(0.5)
 
-        # B x C x T -> B x T x C
-        x = x.transpose(2, 1)
+        # T x B x C -> B x T x C
+        x = x.transpose(1, 0)
 
         # project back to size of embedding
         x = self.fc2(x)
@@ -204,6 +204,9 @@ class Decoder(nn.Module):
         encoder_a, encoder_b = encoder_out
         encoder_a = encoder_a.transpose(1, 2).contiguous()
 
+        # B x T x C -> T x B x C
+        x = x.transpose(0, 1)
+
         # temporal convolutions
         for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
             residual = x if proj is None else proj(x)
@@ -215,10 +218,15 @@ class Decoder(nn.Module):
 
             # attention
             if attention is not None:
+                x = x.transpose(1, 0)
                 x, _ = attention(x, target_embedding, (encoder_a, encoder_b))
+                x = x.transpose(1, 0)
 
             # residual
             x = (x + residual) * math.sqrt(0.5)
+
+        # T x B x C -> B x T x C
+        x = x.transpose(1, 0)
 
         # project back to size of vocabulary
         x = self.fc2(x)
@@ -405,6 +413,16 @@ def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs
     m.weight.data.normal_(mean=0, std=std)
     m.bias.data.zero_()
     return nn.utils.weight_norm(m)
+
+
+def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
+    """Weight-normalized Conv1d layer"""
+    from fairseq.modules import ConvTBC
+    m = ConvTBC(in_channels, out_channels, kernel_size, **kwargs)
+    std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
+    m.weight.data.normal_(mean=0, std=std)
+    m.bias.data.zero_()
+    return nn.utils.weight_norm(m, dim=2)
 
 
 def grad_multiply(x, scale):
