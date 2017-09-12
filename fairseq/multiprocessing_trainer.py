@@ -52,6 +52,8 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         """Initialize child processes."""
         self.args = args
 
+        # set torch.seed in this process
+        torch.manual_seed(args.seed)
         # set CUDA device
         torch.cuda.set_device(device_id)
 
