@@ -119,15 +119,18 @@ def load_ensemble_for_inference(models, data_path):
 
 def prepare_sample(sample, volatile=False, cuda_device=None):
     """Wrap input tensors in Variable class."""
-    r = {
-        'id': sample['id'],
-        'ntokens': sample['ntokens'],
-        'net_input': {},
-    }
-    # prepare input to network
-    for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions', 'target']:
-        tensor = sample[key]
+
+    def make_variable(tensor):
         if cuda_device is not None and torch.cuda.is_available():
             tensor = tensor.cuda(async=True, device=cuda_device)
-        r['net_input'][key] = Variable(tensor, volatile=volatile)
-    return r
+        return Variable(tensor, volatile=volatile)
+
+    return {
+        'id': sample['id'],
+        'ntokens': sample['ntokens'],
+        'target': make_variable(sample['target']),
+        'net_input': {
+            key: make_variable(sample[key])
+            for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions']
+        },
+    }

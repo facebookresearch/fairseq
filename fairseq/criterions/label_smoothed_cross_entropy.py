@@ -54,7 +54,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
     def forward(self, net_output, sample):
         input = F.log_softmax(net_output.view(-1, net_output.size(-1)))
-        target = sample['net_input']['target'].view(-1)
+        target = sample['target'].view(-1)
         loss = LabelSmoothedCrossEntropy.apply(input, target, self.eps, self.padding_idx, self.weights)
         return loss / self.denom
 

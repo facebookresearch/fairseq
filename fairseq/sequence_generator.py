@@ -75,7 +75,7 @@ class SequenceGenerator(object):
             for i, id in enumerate(s['id']):
                 src = input['src_tokens'].data[i, :]
                 # remove padding from ref, which appears at the beginning
-                ref = lstrip_pad(input['target'].data[i, :])
+                ref = lstrip_pad(s['target'].data[i, :])
                 yield id, src, ref, hypos[i]
 
     def generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):

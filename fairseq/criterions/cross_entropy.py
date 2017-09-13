@@ -23,7 +23,7 @@ class CrossEntropyCriterion(FairseqCriterion):
 
     def forward(self, net_output, sample):
         input = net_output.view(-1, net_output.size(-1))
-        target = sample['net_input']['target'].view(-1)
+        target = sample['target'].view(-1)
         loss = F.cross_entropy(input, target, size_average=False, ignore_index=self.padding_idx)
         return loss / self.denom
 

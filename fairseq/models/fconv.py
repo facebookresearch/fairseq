@@ -23,7 +23,7 @@ class FConvModel(nn.Module):
         self.padding_idx = padding_idx
         self._is_generation_fast = False
 
-    def forward(self, src_tokens, src_positions, input_tokens, input_positions, target):
+    def forward(self, src_tokens, src_positions, input_tokens, input_positions):
         encoder_out = self.encoder(src_tokens, src_positions)
         decoder_out = self.decoder(input_tokens, input_positions, encoder_out)
         return decoder_out.view(-1, decoder_out.size(-1))
