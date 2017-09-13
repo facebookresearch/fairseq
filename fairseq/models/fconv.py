@@ -389,23 +389,6 @@ def Linear(in_features, out_features, dropout=0):
     return nn.utils.weight_norm(m)
 
 
-def Projection(in_features, out_features, dropout=0):
-    """Weight-normalized Linear via 1x1 convolution (input: N x C x T)"""
-    m = nn.Conv1d(in_features, out_features, kernel_size=1)
-    m.weight.data.normal_(mean=0, std=math.sqrt((1 - dropout) / in_features))
-    m.bias.data.zero_()
-    return nn.utils.weight_norm(m)
-
-
-def Conv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
-    """Weight-normalized Conv1d layer"""
-    m = nn.Conv1d(in_channels, out_channels, kernel_size, **kwargs)
-    std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
-    m.weight.data.normal_(mean=0, std=std)
-    m.bias.data.zero_()
-    return nn.utils.weight_norm(m)
-
-
 def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
     """Weight-normalized Conv1d layer optimized for decoding"""
     m = LinearizedConvolution(in_channels, out_channels, kernel_size, **kwargs)
