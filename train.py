@@ -177,7 +177,7 @@ def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
                              max_positions=args.max_positions)
     loss_meter = AverageMeter()
 
-    desc = '| epoch {:03d} | valid on {} subset'.format(epoch, subset)
+    desc = '| epoch {:03d} | valid on \'{}\' subset'.format(epoch, subset)
     with progress_bar(itr, desc, leave=False) as t:
         for _, sample in data.skip_group_enumerator(t, ngpus):
             ntokens = sum(s['ntokens'] for s in sample)
@@ -196,7 +196,7 @@ def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
 def score_test(args, model, dataset, subset, beam, cuda_device):
     """Evaluate the model on the test set and return the BLEU scorer."""
 
-    translator = SequenceGenerator(model, dataset.dst_dict, beam_size=beam)
+    translator = SequenceGenerator([model], dataset.dst_dict, beam_size=beam)
     if torch.cuda.is_available():
         translator.cuda()
 
