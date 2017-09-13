@@ -216,8 +216,8 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None, max_positio
         # - 2 here stems from make_positions() where we offset positions
         # by padding_value + 1
         if src.sizes[idx] < 2 or \
-                        (dst is not None and dst.sizes[idx] < 2) or \
-                        sizes[idx] > max_positions - 2:
+                (dst is not None and dst.sizes[idx] < 2) or \
+                sizes[idx] > max_positions - 2:
             raise Exception("Unable to handle input id {} of "
                             "size {} / {}.".format(idx, src.sizes[idx], dst.sizes[idx]))
 
