@@ -26,9 +26,8 @@ If you use the code in your paper, then please cite it as:
 
 Install fairseq by cloning the GitHub repository and by running
 
-TODO: if we do proper install, will it be available everywhere?
 ```
-python setup.py develop
+python setup.py install
 ```
 
 The following command-line tools are available:
@@ -47,15 +46,17 @@ First, download a pre-trained model along with its vocabularies:
 $ curl https://s3.amazonaws.com/fairseq/models/wmt14.en-fr.fconv-cuda.tar.bz2 | tar xvjf -
 ```
 
-Let's use `python generate.py -i` to translate some text.
-This model uses a [Byte Pair Encoding (BPE) vocabulary](https://arxiv.org/abs/1508.07909), so we'll have to apply the encoding to the source text.
-This can be done with [apply_bpe.py](https://github.com/rsennrich/subword-nmt/blob/master/apply_bpe.py) using the `bpecodes` file in within `wmt14.en-fr.fconv-cuda/`.
-`@@` is used as a continuation marker and the original text can be easily recovered with e.g. `sed s/@@ //g`.
+This model uses a [Byte Pair Encoding (BPE) vocabulary](https://arxiv.org/abs/1508.07909), so we'll have to apply the encoding to the source text before it can be translated.
+This can be done with the [apply_bpe.py](https://github.com/rsennrich/subword-nmt/blob/master/apply_bpe.py) script using the `wmt14.en-fr.fconv-cuda/bpecodes` file.
+`@@` is used as a continuation marker and the original text can be easily recovered with e.g. `sed s/@@ //g` or by passing the `--remove-bpe` flag to `generate.py`.
 Prior to BPE, input text needs to be tokenized using `tokenizer.perl` from [mosesdecoder](https://github.com/moses-smt/mosesdecoder).
+
+Let's use `python generate.py -i` to generate translations.
 Here, we use a beam size of 5:
 ```
-$ python generate.py -i --path wmt14.en-fr.fconv-py/model.pt wmt14.en-fr.fconv-py \
-  --beam 5 -s en -t fr -a fconv_wmt_en_fr
+$ python generate.py -i \
+  --path wmt14.en-fr.fconv-py/model.pt \
+  --beam 5
 | [en] dictionary: 44206 types
 | [fr] dictionary: 44463 types
 | model fconv_wmt_en_fr
@@ -67,7 +68,7 @@ H       -0.08662842959165573    Pourquoi est-il rare de découvrir de nouvelles 
 A       0 1 3 3 5 6 6 10 8 8 8 11 12
 ```
 
-This generation script produces four types of outputs: a line prefixed with *S* shows the supplied source sentence after applying the vocabulary; *O* is a copy of the original source sentence; *H* is the hypothesis along with an average log-likelihood and *A* are attention maxima for each word in the hypothesis (including the end-of-sentence marker which is omitted from the text).
+This generation script produces four types of outputs: a line prefixed with *S* shows the supplied source sentence after applying the vocabulary; *O* is a copy of the original source sentence; *H* is the hypothesis along with an average log-likelihood; and *A* is the attention maxima for each word in the hypothesis, including the end-of-sentence marker which is omitted from the text.
 
 Check [below](#pre-trained-models) for a full list of pre-trained models available.
 
@@ -87,7 +88,7 @@ $ python preprocess.py --source-lang de --target-lang en \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --thresholdtgt 3 --thresholdsrc 3 --destdir data-bin/iwslt14.tokenized.de-en
 ```
-This will write binarized data that can be used for model training to data-bin/iwslt14.tokenized.de-en.
+This will write binarized data that can be used for model training to `data-bin/iwslt14.tokenized.de-en`.
 
 ### Training
 Use `python train.py` to train a new model.
@@ -103,14 +104,16 @@ $ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
 By default, `python train.py` will use all available GPUs on your machine.
 Use the [CUDA_VISIBLE_DEVICES](http://acceleware.com/blog/cudavisibledevices-masking-gpus) environment variable to select specific GPUs and/or to change the number of GPU devices that will be used.
 
+Also note that the batch size is specified in terms of the maximum number of tokens per batch (`--max-tokens`).
+You may need to use a smaller value depending on the available GPU memory on your system.
+
 ### Generation
-Once your model is trained, you can translate with it using `python generate.py` **(for binarized data) or `python generate.py -i` (for text)**:
+Once your model is trained, you can generate translations using `python generate.py` **(for binarized data)** or `python generate.py -i` **(for raw text)**:
 TODO: verify all of these
 ```
-$ python generate.py data-bin/iwslt14.tokenized.de-en --batch-size 128 --beam 5 \
-  --beamable-mm --path trainings/fconv/checkpoint_best.pt \
-  --encoder-layers "[(256, 3)] * 4" --decoder-layers "[(256, 3)] * 3" \
-  --encoder-embed-dim 256 --decoder-embed-dim 256
+$ python generate.py data-bin/iwslt14.tokenized.de-en \
+  --path trainings/fconv/checkpoint_best.pt \
+  --batch-size 128 --beam 5
   | [de] dictionary: 35475 types
   | [en] dictionary: 24739 types
   | data-bin/iwslt14.tokenized.de-en test 6750 examples
@@ -121,7 +124,8 @@ $ python generate.py data-bin/iwslt14.tokenized.de-en --batch-size 128 --beam 5 
   ...
 ```
 
-To run generation only on CPU, use the --cpu flag with `python generate.py`.
+To generate translations with only a CPU, use the `--cpu` flag.
+BPE continuation markers can be removed with the `--remove-bpe` flag.
 (TODO: check that --cpu works on a non-GPU machine).
 
 # Pre-trained Models [TO BE ADAPTED]
