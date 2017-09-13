@@ -87,18 +87,19 @@ class LanguageDatasets(object):
 
     def dataloader(self, split, batch_size=1, num_workers=0,
                    max_tokens=None, seed=None, epoch=1,
-                   sample_without_replacement=0):
+                   sample_without_replacement=0, max_positions=1024):
         dataset = self.splits[split]
         if split.startswith('train'):
             with numpy_seed(seed):
                 batch_sampler = shuffled_batches_by_size(
                     dataset.src, dataset.dst,
                     max_tokens=max_tokens, epoch=epoch,
-                    sample=sample_without_replacement)
+                    sample=sample_without_replacement,
+                    max_positions=max_positions)
         elif split.startswith('valid'):
-            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst))
+            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst, max_positions=max_positions))
         else:
-            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens))
+            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, max_positions=max_positions))
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -185,7 +186,7 @@ class LanguagePairDataset(object):
         return len(self.src)
 
 
-def batches_by_size(src, batch_size=None, max_tokens=None, dst=None):
+def batches_by_size(src, batch_size=None, max_tokens=None, dst=None, max_positions=1024):
     """Returns batches of indices sorted by size. Sequences of different lengths
     are not allowed in the same batch."""
     assert isinstance(src, IndexedDataset)
@@ -212,6 +213,14 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None):
 
     cur_max_size = 0
     for idx in indices:
+        # - 2 here stems from make_positions() where we offset positions
+        # by padding_value + 1
+        if src.sizes[idx] < 2 or \
+                        (dst is not None and dst.sizes[idx] < 2) or \
+                        sizes[idx] > max_positions - 2:
+            raise Exception("Unable to handle input id {} of "
+                            "size {} / {}.".format(idx, src.sizes[idx], dst.sizes[idx]))
+
         if yield_batch(idx, cur_max_size * (len(batch) + 1)):
             yield batch
             batch = []
@@ -223,7 +232,7 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None):
         yield batch
 
 
-def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0):
+def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0, max_positions=1024):
     """Returns batches of indices, bucketed by size and then shuffled. Batches
     may contain sequences of different lengths."""
     assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
@@ -239,8 +248,15 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0):
     def make_batches():
         batch = []
         sample_len = 0
-
+        ignored = []
         for idx in indices:
+            # - 2 here stems from make_positions() where we offset positions
+            # by padding_value + 1
+            if src.sizes[idx] < 2 or dst.sizes[idx] < 2 or \
+                            src.sizes[idx] > max_positions - 2 or \
+                            dst.sizes[idx] > max_positions - 2:
+                ignored.append(idx)
+                continue
             sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
             if len(batch) > 0 and (len(batch) + 1) * sample_len > max_tokens:
                 yield batch
@@ -252,6 +268,9 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0):
         if len(batch) > 0:
             yield batch
 
+        if len(ignored) > 0:
+            print("Warning! {} samples are either too short or too long "
+                  "and will be ignored, sample ids={}".format(len(ignored), ignored))
     batches = list(make_batches())
 
     np.random.shuffle(batches)

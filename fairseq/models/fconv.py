@@ -66,13 +66,13 @@ class FConvModel(nn.Module):
 
 class Encoder(nn.Module):
     """Convolutional encoder"""
-    def __init__(self, num_embeddings, embed_dim=512, max_position=1024,
+    def __init__(self, num_embeddings, embed_dim=512, max_positions=1024,
                  convolutions=((512, 3),) * 20, dropout=0.1, padding_idx=1):
         super(Encoder, self).__init__()
         self.dropout = dropout
         self.num_attention_layers = None
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = Embedding(max_position, embed_dim, padding_idx)
+        self.embed_positions = Embedding(max_positions, embed_dim, padding_idx)
 
         in_channels = convolutions[0][0]
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
@@ -160,7 +160,7 @@ class AttentionLayer(nn.Module):
 class Decoder(nn.Module):
     """Convolutional decoder"""
     def __init__(self, num_embeddings, embed_dim=512, out_embed_dim=256,
-                 max_position=1024, convolutions=((512, 3),) * 20,
+                 max_positions=1024, convolutions=((512, 3),) * 20,
                  attention=True, dropout=0.1, padding_idx=1):
         super(Decoder, self).__init__()
         self.dropout = dropout
@@ -171,7 +171,7 @@ class Decoder(nn.Module):
             attention = [attention] * len(convolutions)
 
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = Embedding(max_position, embed_dim, padding_idx)
+        self.embed_positions = Embedding(max_positions, embed_dim, padding_idx)
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
         self.projections = nn.ModuleList()
         self.convolutions = nn.ModuleList()
@@ -424,37 +424,40 @@ class GradMultiply(torch.autograd.Function):
     def backward(ctx, grad):
         return grad * ctx.scale, None
 
-
-def fconv_iwslt_de_en(dataset, dropout):
+def fconv_iwslt_de_en(dataset, dropout, **kwargs):
     encoder_convs = [(256, 3)] * 4
     decoder_convs = [(256, 3)] * 3
-    return fconv(dataset, dropout, 256, encoder_convs, 256, decoder_convs)
+    return fconv(dataset, dropout, 256, encoder_convs, 256, decoder_convs, **kwargs)
 
 
-def fconv_wmt_en_ro(dataset, dropout):
+def fconv_wmt_en_ro(dataset, dropout, **kwargs):
     convs = [(512, 3)] * 20
-    return fconv(dataset, dropout, 512, convs, 512, convs)
+    return fconv(dataset, dropout, 512, convs, 512, convs, **kwargs)
 
 
-def fconv_wmt_en_de(dataset, dropout):
+def fconv_wmt_en_de(dataset, dropout, **kwargs):
     convs = [(512, 3)] * 9  # first 10 layers have 512 units
     convs += [(1024, 3)] * 4  # next 3 layers have 768 units
     convs += [(2048, 1)] * 2  # final 2 layers are 1x1
-    return fconv(dataset, dropout, 768, convs, 768, convs, decoder_out_embed_dim=512)
+    return fconv(dataset, dropout, 768, convs, 768, convs,
+                 decoder_out_embed_dim=512,
+                 **kwargs)
 
 
-def fconv_wmt_en_fr(dataset, dropout):
+def fconv_wmt_en_fr(dataset, dropout, **kwargs):
     convs = [(512, 3)] * 6  # first 5 layers have 512 units
     convs += [(768, 3)] * 4  # next 4 layers have 768 units
     convs += [(1024, 3)] * 3  # next 4 layers have 1024 units
     convs += [(2048, 1)] * 1  # next 1 layer is 1x1
     convs += [(4096, 1)] * 1  # final 1 layer is 1x1
-    return fconv(dataset, dropout, 768, convs, 768, convs, decoder_out_embed_dim=512)
+    return fconv(dataset, dropout, 768, convs, 768, convs,
+                 decoder_out_embed_dim=512,
+                 **kwargs)
 
 
 def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
           decoder_embed_dim, decoder_convolutions, attention=True,
-          decoder_out_embed_dim=256):
+          decoder_out_embed_dim=256, max_positions=1024):
     padding_idx = dataset.dst_dict.pad()
 
     encoder = Encoder(
@@ -462,7 +465,8 @@ def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
         embed_dim=encoder_embed_dim,
         convolutions=encoder_convolutions,
         dropout=dropout,
-        padding_idx=padding_idx)
+        padding_idx=padding_idx,
+        max_positions=max_positions)
     decoder = Decoder(
         len(dataset.dst_dict),
         embed_dim=decoder_embed_dim,
@@ -470,5 +474,6 @@ def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
         out_embed_dim=decoder_out_embed_dim,
         attention=attention,
         dropout=dropout,
-        padding_idx=padding_idx)
+        padding_idx=padding_idx,
+        max_positions=max_positions)
     return FConvModel(encoder, decoder, padding_idx)

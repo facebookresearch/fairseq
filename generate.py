@@ -129,7 +129,7 @@ def main():
             dataset.dst_dict.pad() if not args.remove_bpe else -1,
             dataset.dst_dict.eos() if not args.remove_bpe else -1,
             dataset.dst_dict.unk())
-        itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size)
+        itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size, max_positions=args.max_positions)
         num_sentences = 0
         with progress_bar(itr, smoothing=0, leave=False) as t:
             wps_meter = TimeMeter()

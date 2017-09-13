@@ -22,9 +22,11 @@ def build_model(args, dataset):
         model = models.fconv(
             dataset, args.dropout, args.encoder_embed_dim, encoder_layers,
             args.decoder_embed_dim, decoder_layers, decoder_attention,
-            decoder_out_embed_dim=args.decoder_out_embed_dim)
+            decoder_out_embed_dim=args.decoder_out_embed_dim,
+            max_positions=args.max_positions)
     else:
-        model = models.__dict__[args.arch](dataset, args.dropout)
+        model = models.__dict__[args.arch](dataset, args.dropout,
+                                           max_positions=args.max_positions)
     return model
 
 

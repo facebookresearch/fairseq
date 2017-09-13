@@ -117,6 +117,7 @@ def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
 
     itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
                              max_tokens=args.max_tokens, seed=args.seed, epoch=epoch,
+                             max_positions=args.max_positions,
                              sample_without_replacement=args.sample_without_replacement)
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()    # sentences per batch
@@ -171,7 +172,9 @@ def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
 def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
     """Evaluate the model on the validation set and return the average loss."""
 
-    itr = dataset.dataloader(subset, batch_size=None, max_tokens=args.max_tokens)
+    itr = dataset.dataloader(subset, batch_size=None,
+                             max_tokens=args.max_tokens,
+                             max_positions=args.max_positions)
     loss_meter = AverageMeter()
 
     desc = '| epoch {:03d} | valid on {} subset'.format(epoch, subset)
@@ -198,7 +201,7 @@ def score_test(args, model, dataset, subset, beam, cuda_device):
         translator.cuda()
 
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
-    itr = dataset.dataloader(subset, batch_size=4)
+    itr = dataset.dataloader(subset, batch_size=4, max_positions=args.max_positions)
     for _, _, ref, hypos in translator.generate_batched_itr(itr, cuda_device=cuda_device):
         scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
     return scorer

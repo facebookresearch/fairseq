@@ -127,4 +127,6 @@ def add_model_args(parser):
                        help='dropout probability')
     group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
                        help='epsilon for label smoothing, 0 means no label smoothing')
+    group.add_argument('--max-positions', default=1024, type=int, metavar='N',
+                       help='max number of tokens in the sequence')
     return group
