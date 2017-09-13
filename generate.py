@@ -54,24 +54,50 @@ def main():
                                    stop_early=(not args.no_early_stop),
                                    normalize_scores=(not args.unnormalized),
                                    len_penalty=args.lenpen)
+    align_dict = {}
+    if args.unk_replace_dict != '':
+        assert args.interactive, "Unkown words replacing requires access to original source and is only" \
+                                 "supported in interactive mode"
+        with open(args.unk_replace_dict, 'r') as f:
+            for line in f:
+                l = line.split()
+                align_dict[l[0]] = l[1]
+
+    def replace_unk(hypo_str, align_str, src, unk):
+        hypo_tokens = hypo_str.split()
+        src_tokens = tokenizer.tokenize_line(src)
+        align_idx = [int(i) for i in align_str.split()]
+        for i, ht in enumerate(hypo_tokens):
+            if ht == unk:
+                src_token = src_tokens[align_idx[i]]
+                if src_token in align_dict:
+                    hypo_tokens[i] = align_dict[src_token]
+                else:
+                    hypo_tokens[i] = src_token
+        return ' '.join(hypo_tokens)
+
     if use_cuda:
         translator.cuda()
 
     bpe_symbol = '@@ ' if args.remove_bpe else None
     def display_hypotheses(id, src, orig, ref, hypos):
         id_str = '' if id is None else '-{}'.format(id)
-        print('S{}\t{}'.format(id_str, to_sentence(dataset.src_dict, src, bpe_symbol)))
+        src_str = to_sentence(dataset.src_dict, src, bpe_symbol)
+        print('S{}\t{}'.format(id_str, src_str))
         if orig is not None:
             print('O{}\t{}'.format(id_str, orig.strip()))
         if ref is not None:
             print('T{}\t{}'.format(id_str, to_sentence(dataset.dst_dict, ref, bpe_symbol, ref_unk=True)))
         for hypo in hypos:
+            hypo_str = to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)
+            align_str = ' '.join(map(str, hypo['alignment']))
+            if args.unk_replace_dict != '':
+                hypo_str = replace_unk(hypo_str, align_str, orig, unk_symbol(dataset.dst_dict))
             print('H{}\t{}\t{}'.format(
-                id_str, hypo['score'], to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)))
-            print('A{}\t{}'.format(id_str, ' '.join(map(str, hypo['alignment']))))
+                id_str, hypo['score'], hypo_str))
+            print('A{}\t{}'.format(id_str, align_str))
 
     if args.interactive:
-        print('> ', end='', flush=True)
         for line in sys.stdin:
             tokens = tokenizer.Tokenizer.tokenize(line, dataset.src_dict, add_if_not_exist=False).long()
             start = dataset.src_dict.pad() + 1
@@ -82,7 +108,6 @@ def main():
             translations = translator.generate(Variable(tokens.view(1, -1)), Variable(positions.view(1, -1)))
             hypos = translations[0]
             display_hypotheses(None, tokens, line, None, hypos[:min(len(hypos), args.nbest)])
-            print('> ', end='', flush=True)
 
     else:
         non_bpe_dict = {}
@@ -131,13 +156,15 @@ def to_token(dict, i, runk):
     return runk if i == dict.unk() else dict[i]
 
 
+def unk_symbol(dict, ref_unk=False):
+    return '<{}>'.format(dict.unk_word) if ref_unk else dict.unk_word
+
 def to_sentence(dict, tokens, bpe_symbol=None, ref_unk=False):
     if torch.is_tensor(tokens) and tokens.dim() == 2:
         sentences = [to_sentence(dict, token) for token in tokens]
         return '\n'.join(sentences)
     eos = dict.eos()
-    unk = dict[dict.unk()]
-    runk = '<{}>'.format(unk) if ref_unk else unk
+    runk = unk_symbol(dict, ref_unk=ref_unk)
     sent = ' '.join([to_token(dict, i, runk) for i in tokens if i != eos])
     if bpe_symbol is not None:
         sent = sent.replace(bpe_symbol, '')

@@ -8,6 +8,7 @@
 
 import argparse
 import os
+from itertools import zip_longest
 
 from fairseq import dictionary, indexed_dataset
 from fairseq.tokenizer import Tokenizer
@@ -27,6 +28,7 @@ def main():
     parser.add_argument('--thresholdsrc', metavar='N', default=0, type=int, help='map words appearing less than threshold times to unknown')
     parser.add_argument('--nwordstgt', metavar='N', default=-1, type=int, help='number of target words to retain')
     parser.add_argument('--nwordssrc', metavar='N', default=-1, type=int, help='number of source words to retain')
+    parser.add_argument('--alignfile', metavar='ALIGN', default=None, help='an alignment file (optional)')
     args = parser.parse_args()
     print(args)
 
@@ -73,6 +75,51 @@ def main():
         make_dataset(testpref, outprefix, args.source_lang)
         make_dataset(testpref, outprefix, args.target_lang)
     print("| Wrote preprocessed data to {}".format(args.destdir))
+
+
+    if args.alignfile:
+        src_file_name = '{}.{}'.format(args.trainpref, args.source_lang)
+        tgt_file_name = '{}.{}'.format(args.trainpref, args.target_lang)
+        src_dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)))
+        freq_map = {}
+        with open(args.alignfile, 'r') as align_file:
+            with open(src_file_name, 'r') as src_file:
+                with open(tgt_file_name, 'r') as tgt_file:
+                    for a, s, t in zip_longest(align_file, src_file, tgt_file):
+                        si = Tokenizer.tokenize(s, src_dict, add_if_not_exist=False)
+                        ti = Tokenizer.tokenize(t, tgt_dict, add_if_not_exist=False)
+                        ai = list(map(lambda x : tuple(x.split('-')), a.split()))
+                        for sai, tai in ai:
+                            srcidx = si[int(sai)]
+                            tgtidx = ti[int(tai)]
+                            if srcidx != src_dict.unk() and \
+                                tgtidx != tgt_dict.unk():
+
+                                assert srcidx != src_dict.pad()
+                                assert srcidx != src_dict.eos()
+
+                                assert tgtidx != tgt_dict.pad()
+                                assert tgtidx != tgt_dict.eos()
+
+                                if not srcidx in freq_map:
+                                    freq_map[srcidx] = {}
+                                if not tgtidx in freq_map[srcidx]:
+                                    freq_map[srcidx][tgtidx] = 1
+                                else:
+                                    freq_map[srcidx][tgtidx] += 1
+
+        align_dict = {}
+        for srcidx in freq_map.keys():
+            align_dict[srcidx] = max(freq_map[srcidx], key=freq_map[srcidx].get)
+
+        with open(os.path.join(args.destdir, 'alignment.{}-{}.txt'.format(
+                args.source_lang, args.target_lang)), 'w') as f:
+            for k,v in align_dict.items():
+                print('{} {}'.format(src_dict[k], tgt_dict[v]), file=f)
+
+
+
 
 if __name__ == '__main__':
     main()
