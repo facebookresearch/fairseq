@@ -104,11 +104,14 @@ class Dictionary(object):
             d.count.append(count)
         return d
 
-    def save(self, f, threshold=3):
+    def save(self, f, threshold=3, nwords=-1):
         """Stores dictionary into a text file"""
         if isinstance(f, str):
             with open(f, 'w') as fd:
-                return self.save(fd, threshold)
+                return self.save(fd, threshold, nwords)
+        cnt = 0
         for i, t in enumerate(zip(self.symbols, self.count)):
-            if i >= self.nspecial and t[1] >= threshold:
+            if i >= self.nspecial and t[1] >= threshold \
+                    and (nwords < 0 or cnt < nwords):
                 print('{} {}'.format(t[0], t[1]), file=f)
+                cnt += 1

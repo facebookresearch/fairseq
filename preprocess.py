@@ -38,10 +38,10 @@ def main():
 
     src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang))
     src_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)),
-                  threshold=args.thresholdsrc)
+                  threshold=args.thresholdsrc, nwords=args.nwordssrc)
     tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
     tgt_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)),
-                  threshold=args.thresholdtgt)
+                  threshold=args.thresholdtgt, nwords=args.nwordstgt)
 
     def make_dataset(input_prefix, output_prefix, lang):
         dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(lang)))
