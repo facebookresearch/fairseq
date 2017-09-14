@@ -12,7 +12,7 @@ import torch
 
 class Dictionary(object):
     """A mapping from symbols to consecutive integers"""
-    def __init__(self, pad = '<pad>', eos = '</s>', unk = '<unk>'):
+    def __init__(self, pad='<pad>', eos='</s>', unk='<unk>'):
         self.unk_word, self.pad_word, self.eos_word = unk, pad, eos
         self.symbols = []
         self.count = []
@@ -46,7 +46,7 @@ class Dictionary(object):
         eos = self.eos()
         return ' '.join([self[i] for i in tensor if i != eos])
 
-    def add_symbol(self, word, n = 1):
+    def add_symbol(self, word, n=1):
         """Adds a word to the dictionary"""
         if word in self.indices:
             idx = self.indices[word]
@@ -61,10 +61,11 @@ class Dictionary(object):
 
     def finalize(self):
         """Sort symbols by frequency in descending order, ignoring special ones."""
-        self.count, self.symbols = zip(*sorted(zip(self.count, self.symbols),
-                key=(lambda x: math.inf if self.indices[x[1]] < self.nspecial else x[0]),
-                        reverse=True))
-
+        self.count, self.symbols = zip(
+            *sorted(zip(self.count, self.symbols),
+                    key=(lambda x: math.inf if self.indices[x[1]] < self.nspecial else x[0]),
+                    reverse=True)
+        )
 
     def pad(self):
         """Helper to get index of pad symbol"""
@@ -103,7 +104,7 @@ class Dictionary(object):
             d.count.append(count)
         return d
 
-    def save(self, f, threshold = 3):
+    def save(self, f, threshold=3):
         """Stores dictionary into a text file"""
         if isinstance(f, str):
             with open(f, 'w') as fd:

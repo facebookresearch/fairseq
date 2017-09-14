@@ -14,13 +14,16 @@ from torch.autograd import Variable, gradcheck
 
 torch.set_default_tensor_type('torch.DoubleTensor')
 
+
 class TestFConv(unittest.TestCase):
 
     def test_label_smoothing(self):
         input = Variable(torch.randn(3, 5), requires_grad=True)
         idx = torch.rand(3) * 4
         target = Variable(idx.long())
-        self.assertTrue(gradcheck(lambda x, y: label_smoothed_cross_entropy(x, y, eps=0.1, padding_idx=2), (input, target)))
+        self.assertTrue(gradcheck(
+            lambda x, y: label_smoothed_cross_entropy(x, y, eps=0.1, padding_idx=2), (input, target)
+        ))
         weights = torch.ones(5)
         weights[2] = 0
         self.assertTrue(gradcheck(lambda x, y: label_smoothed_cross_entropy(x, y, weights=weights), (input, target)))

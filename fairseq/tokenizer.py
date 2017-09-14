@@ -23,7 +23,7 @@ def tokenize_line(line):
 class Tokenizer:
 
     @staticmethod
-    def build_dictionary(filename, tokenize = tokenize_line):
+    def build_dictionary(filename, tokenize=tokenize_line):
         dict = dictionary.Dictionary()
         Tokenizer.add_file_to_dictionary(filename, dict, tokenize)
         dict.finalize()
@@ -61,7 +61,7 @@ class Tokenizer:
                 ids[nwords] = dict.eos_index
                 consumer(ids)
                 ntok = ntok + len(ids)
-        return { 'nseq' : nseq, 'nunk' : nunk, 'ntok' : ntok, 'replaced' : len(replaced) }
+        return {'nseq': nseq, 'nunk': nunk, 'ntok': ntok, 'replaced': len(replaced)}
 
     @staticmethod
     def tokenize(line, dict, tokenize=tokenize_line, add_if_not_exist=True):

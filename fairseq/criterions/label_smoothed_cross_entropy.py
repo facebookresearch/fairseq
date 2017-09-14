@@ -22,7 +22,7 @@ class LabelSmoothedCrossEntropy(torch.autograd.Function):
         target = target.view(target.size(0), 1)
         grad_input = grad_input.scatter_(grad_input.dim() - 1, target, eps - 1)
 
-        norm =  grad_input.size(-1)
+        norm = grad_input.size(-1)
         if weights is not None:
             norm = weights.sum()
             grad_input.mul(weights.view(1, weights.size(0)).expand_as(grad_input))

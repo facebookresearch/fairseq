@@ -10,7 +10,7 @@ import sys
 import torch
 from torch.autograd import Variable
 
-from fairseq import bleu, data, options, utils, tokenizer
+from fairseq import bleu, options, utils, tokenizer
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.progress_bar import progress_bar
 from fairseq.sequence_generator import SequenceGenerator
@@ -158,6 +158,7 @@ def to_token(dict, i, runk):
 
 def unk_symbol(dict, ref_unk=False):
     return '<{}>'.format(dict.unk_word) if ref_unk else dict.unk_word
+
 
 def to_sentence(dict, tokens, bpe_symbol=None, ref_unk=False):
     if torch.is_tensor(tokens) and tokens.dim() == 2:

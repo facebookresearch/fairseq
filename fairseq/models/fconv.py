@@ -56,11 +56,12 @@ class FConvModel(nn.Module):
         if use_beamable_mm:
             self.decoder._use_beamable_mm(beam_size)
 
-        # this model should no longer be used for training
-        self.eval()
         def train(mode):
             if mode:
                 raise RuntimeError('cannot train after make_generation_fast')
+
+        # this model should no longer be used for training
+        self.eval()
         self.train = train
 
 
@@ -261,12 +262,16 @@ class Decoder(nn.Module):
         ```
         """
         class IncrementalInference(object):
+
             def __init__(self, decoder):
                 self.decoder = decoder
+
             def __enter__(self):
                 self.decoder._start_incremental_inference()
+
             def __exit__(self, *args):
                 self.decoder._stop_incremental_inference()
+
         return IncrementalInference(self)
 
     def _start_incremental_inference(self):
@@ -423,6 +428,7 @@ class GradMultiply(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad):
         return grad * ctx.scale, None
+
 
 def fconv_iwslt_de_en(dataset, dropout, **kwargs):
     encoder_convs = [(256, 3)] * 4

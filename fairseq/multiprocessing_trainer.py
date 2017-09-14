@@ -10,7 +10,6 @@
 Train a network on multiple GPUs using multiprocessing.
 """
 
-import math
 import torch
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
@@ -88,7 +87,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             lr_scheduler = ReduceLROnPlateau(self.optimizer, patience=0)
         return lr_scheduler
 
-
     def get_model(self):
         """Get one of the model replicas."""
         # just return the first model, since all replicas are the same
@@ -96,7 +94,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
     def _async_get_model(self, rank, device_id):
         return self.model
-
 
     def save_checkpoint(self, args, epoch, batch_offset, val_loss=None):
         """Save a checkpoint for the current model."""
@@ -106,7 +103,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def _async_save_checkpoint(self, rank, device_id, args, epoch, batch_offset, val_loss):
         utils.save_checkpoint(args, epoch, batch_offset, self.model,
                               self.optimizer, self.lr_scheduler, val_loss)
-
 
     def load_checkpoint(self, filename):
         """Load a checkpoint into the model replicas in each process."""
@@ -120,7 +116,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def _async_load_checkpoint(self, rank, device_id, filename):
         return utils.load_checkpoint(filename, self.model, self.optimizer,
                                      self.lr_scheduler, cuda_device=device_id)
-
 
     def train_step(self, samples, criterion):
         """Do forward, backward and gradient step in parallel."""
@@ -193,7 +188,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             flat_grads.div_(coef)
         return norm
 
-
     def valid_step(self, samples, criterion):
         """Do forward pass in parallel."""
         # scatter sample across GPUs
@@ -222,14 +216,12 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         loss = criterion(net_output, sample)
         return loss.data[0]
 
-
     def get_lr(self):
         """Get the current learning rate."""
         return self.call_async(0, '_async_get_lr').gen()
 
     def _async_get_lr(self, rank, device_id):
         return self.optimizer.param_groups[0]['lr']
-
 
     def lr_step(self, val_loss=None, epoch=None):
         """Adjust the learning rate depending on the validation loss."""
@@ -246,7 +238,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         else:
             self.lr_scheduler.step(val_loss, epoch)
         return self.optimizer.param_groups[0]['lr']
-
 
     def _scatter_samples(self, samples, volatile=False):
         """Split and distribute a sample across GPUs."""

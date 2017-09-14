@@ -170,6 +170,7 @@ class SequenceGenerator(object):
             for idx, score in zip(bbsz_idx.cpu(), norm_scores.cpu()):
                 sent = idx // beam_size
                 sents_seen.add(sent)
+
                 def get_hypo():
                     hypo = tokens[idx, 1:step+2].clone()
                     hypo[step] = self.eos
@@ -179,6 +180,7 @@ class SequenceGenerator(object):
                         'score': score,
                         'alignment': alignment,
                     }
+
                 if len(finalized[sent]) < beam_size:
                     finalized[sent].append(get_hypo())
                 elif score > worst_finalized[sent]['score']:
@@ -192,6 +194,7 @@ class SequenceGenerator(object):
                         'score': s['score'],
                         'idx': idx,
                     }
+
             # return number of hypotheses finished this step
             num_finished = 0
             for sent in sents_seen:
@@ -336,7 +339,7 @@ class SequenceGenerator(object):
             res.append(
                 # repeat beam_size times along second dimension
                 tensor.repeat(1, beam_size, *[1 for i in range(tensor.dim()-2)]) \
-                    # then collapse into [bsz*beam, ...original dims...]
-                    .view(-1, *tensor.size()[1:])
+                # then collapse into [bsz*beam, ...original dims...]
+                .view(-1, *tensor.size()[1:])
             )
         return tuple(res)

@@ -97,7 +97,8 @@ class LanguageDatasets(object):
                     sample=sample_without_replacement,
                     max_positions=max_positions)
         elif split.startswith('valid'):
-            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst, max_positions=max_positions))
+            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst,
+                                                 max_positions=max_positions))
         else:
             batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, max_positions=max_positions))
 
@@ -195,7 +196,7 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None, max_positio
         max_tokens = float('Inf')
     sizes = src.sizes
     indices = np.argsort(sizes, kind='mergesort')
-    if not dst is None:
+    if dst is not None:
         sizes = np.maximum(sizes, dst.sizes)
 
     batch = []
@@ -271,8 +272,8 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0, max_p
         if len(ignored) > 0:
             print("Warning! {} samples are either too short or too long "
                   "and will be ignored, sample ids={}".format(len(ignored), ignored))
-    batches = list(make_batches())
 
+    batches = list(make_batches())
     np.random.shuffle(batches)
 
     if sample:

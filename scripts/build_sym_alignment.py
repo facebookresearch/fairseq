@@ -6,8 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-#!/usr/bin/env python
-
 """
 Use this script in order to build symmetric alignments for your translation
 dataset.
@@ -84,8 +82,7 @@ def main():
 
     # run symmetrization
     sym_out_file = os.path.join(args.output_dir, 'aligned')
-    sym_cmd = '{SYMFASTALIGN} {FWD} {BWD} {SRC} ' \
-              '{TGT} {OUT} {HEURISTIC} {SYMAL}'.format(
+    sym_cmd = '{SYMFASTALIGN} {FWD} {BWD} {SRC} {TGT} {OUT} {HEURISTIC} {SYMAL}'.format(
         SYMFASTALIGN=sym_fast_align_bin,
         FWD=fwd_align_file,
         BWD=bwd_align_file,
@@ -93,7 +90,8 @@ def main():
         TGT=args.target_file,
         OUT=sym_out_file,
         HEURISTIC=args.sym_heuristic,
-        SYMAL=symal_bin)
+        SYMAL=symal_bin
+    )
     assert os.system(sym_cmd) == 0
 
 

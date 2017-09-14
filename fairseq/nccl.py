@@ -13,7 +13,6 @@ GPU separately.
 
 import ctypes
 import warnings
-import torch.cuda
 
 lib = None
 _uid = None

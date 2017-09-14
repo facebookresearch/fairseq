@@ -32,11 +32,14 @@ class MultiprocessingEventLoop(object):
         Call a function named `action` on the rank'th process and return
         a Future with the result.
         """
+
+        def result_generator():
+            yield self.return_pipes[rank].recv()
+
         assert not self.return_pipes[rank].poll(), \
             'return pipe must be consumed before calling another function'
         self.input_pipes[rank].send((action, kwargs))
-        def result_generator():
-            yield self.return_pipes[rank].recv()
+
         return Future(result_generator())
 
     def stop(self, interrupt_children=False):
@@ -135,7 +138,7 @@ class MultiprocessingEventLoop(object):
         except KeyboardInterrupt:
             # killed by parent, do nothing
             pass
-        except Exception as e:
+        except Exception:
             # propagate exception from child to parent process, keeping
             # original traceback
             import traceback

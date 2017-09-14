@@ -7,7 +7,6 @@
 #
 
 import collections
-import functools
 import os
 import torch
 import math
@@ -23,16 +22,16 @@ def main():
     parser = options.get_parser('Trainer')
     dataset_args = options.add_dataset_args(parser)
     dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
-                          help='maximum number of tokens in a batch')
+                              help='maximum number of tokens in a batch')
     dataset_args.add_argument('--train-subset', default='train', metavar='SPLIT',
-                          choices=['train', 'valid', 'test'],
-                          help='data subset to use for training (train, valid, test)')
+                              choices=['train', 'valid', 'test'],
+                              help='data subset to use for training (train, valid, test)')
     dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
-                          help='comma separated list ofdata subsets '
-                               ' to use for validation (train, valid, valid1,test, test1)')
+                              help='comma separated list ofdata subsets '
+                                   ' to use for validation (train, valid, valid1,test, test1)')
     dataset_args.add_argument('--test-subset', default='test', metavar='SPLIT',
-                          help='comma separated list ofdata subset '
-                               'to use for testing (train, valid, test)')
+                              help='comma separated list ofdata subset '
+                                   'to use for testing (train, valid, test)')
     options.add_optimization_args(parser)
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
