@@ -58,6 +58,7 @@ class Scorer(object):
             raise TypeError('pred must be a torch.IntTensor(got {})'
                             .format(type(pred)))
 
+        assert self.unk <= 0, 'unknown token index must be >0'
         rref = ref.clone()
         rref.apply_(lambda x: x if x != self.unk else -x)
 
