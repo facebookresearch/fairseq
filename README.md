@@ -18,16 +18,39 @@ If you use the code in your paper, then please cite it as:
 }
 ```
 
-# Requirements and Installation [TO BE ADAPTED]
+# Requirements and Installation
 * A computer running macOS or Linux
 * For training new models, you'll also need a NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
-* Python version 3.x  TODO: version?
-* A [PyTorch installation](http://pytorch.org/)  TODO: what version we require?
+* Python version 3.6
+* A [PyTorch installation](http://pytorch.org/)
+
+Currently fairseq-py requires PyTorch from the GitHub repository. There are multiple ways of installing it.
+We suggest using [Miniconda3](https://conda.io/miniconda.html) and the following instructions.
+
+* Install Miniconda3 from https://conda.io/miniconda.html create and activate python 3 environment.
+
+```
+conda install gcc numpy cudnn nccl
+conda install magma-cuda80 -c soumith
+pip install cmake
+pip install cffi
+
+git clone https://github.com/pytorch/pytorch.git
+cd pytorch
+git reset --hard a03e5cb40938b6b3f3e6dbddf9cff8afdff72d1b
+git submodule update --init
+pip install -r requirements.txt
+
+NO_DISTRIBUTED=1 python setup.py install
+```
+
 
 Install fairseq by cloning the GitHub repository and by running
 
 ```
-python setup.py install
+pip install -r requirements.txt
+python setup.py build
+python setup.py develop
 ```
 
 The following command-line tools are available:
@@ -43,7 +66,7 @@ The following command-line tools are available:
 ## Evaluating Pre-trained Models [TO BE ADAPTED]
 First, download a pre-trained model along with its vocabularies:
 ```
-$ curl https://s3.amazonaws.com/fairseq/models/wmt14.en-fr.fconv-cuda.tar.bz2 | tar xvjf -
+$ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.fconv-py.tar.bz2 | tar xvjf -
 ```
 
 This model uses a [Byte Pair Encoding (BPE) vocabulary](https://arxiv.org/abs/1508.07909), so we'll have to apply the encoding to the source text before it can be translated.
@@ -54,9 +77,10 @@ Prior to BPE, input text needs to be tokenized using `tokenizer.perl` from [mose
 Let's use `python generate.py -i` to generate translations.
 Here, we use a beam size of 5:
 ```
+$ MODEL_DIR=wmt14.en-fr.fconv-py
 $ python generate.py -i \
-  --path wmt14.en-fr.fconv-py/model.pt \
-  --beam 5
+ --path $MODEL_DIR/model.pt $MODEL_DIR \
+ --beam 5
 | [en] dictionary: 44206 types
 | [fr] dictionary: 44463 types
 | model fconv_wmt_en_fr
@@ -96,7 +120,7 @@ Here a few example settings that work well for the IWSLT 2014 dataset:
 ```
 $ mkdir -p trainings/fconv
 $ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
-  --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 10000 \
+  --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
   --encoder-layers "[(256, 3)] * 4" --decoder-layers "[(256, 3)] * 3" \
   --encoder-embed-dim 256 --decoder-embed-dim 256 --save-dir trainings/fconv
 ```
@@ -109,7 +133,6 @@ You may need to use a smaller value depending on the available GPU memory on you
 
 ### Generation
 Once your model is trained, you can generate translations using `python generate.py` **(for binarized data)** or `python generate.py -i` **(for raw text)**:
-TODO: verify all of these
 ```
 $ python generate.py data-bin/iwslt14.tokenized.de-en \
   --path trainings/fconv/checkpoint_best.pt \
@@ -126,36 +149,34 @@ $ python generate.py data-bin/iwslt14.tokenized.de-en \
 
 To generate translations with only a CPU, use the `--cpu` flag.
 BPE continuation markers can be removed with the `--remove-bpe` flag.
-(TODO: check that --cpu works on a non-GPU machine).
 
-# Pre-trained Models [TO BE ADAPTED]
+# Pre-trained Models
 
 We provide the following pre-trained fully convolutional sequence-to-sequence models:
 
-* [wmt14.en-fr.fconv-cuda.tar.bz2](https://s3.amazonaws.com/fairseq/models/wmt14.en-fr.fconv-cuda.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
-* [wmt14.en-de.fconv-cuda.tar.bz2](https://s3.amazonaws.com/fairseq/models/wmt14.en-de.fconv-cuda.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
+* [wmt14.en-fr.fconv-py.tar.bz2](https://s3.amazonaws.com/faiseq-py/models/wmt14.en-fr.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
+* [wmt14.en-de.fconv-py.tar.bz2](https://s3.amazonaws.com/faiseq-py/models/wmt14.en-de.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
 
 In addition, we provide pre-processed and binarized test sets for the models above:
-
-* [wmt14.en-fr.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq/data/wmt14.en-fr.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-French
-* [wmt14.en-fr.ntst1213.tar.bz2](https://s3.amazonaws.com/fairseq/data/wmt14.en-fr.ntst1213.tar.bz2): newstest2012 and newstest2013 test sets for WMT14 English-French
-* [wmt14.en-de.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq/data/wmt14.en-de.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-German
+* [wmt14.en-fr.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-French
+* [wmt14.en-fr.ntst1213.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.ntst1213.tar.bz2): newstest2012 and newstest2013 test sets for WMT14 English-French
+* [wmt14.en-de.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-de.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-German
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for English-French on a GTX-1080ti:
 ```
-$ curl https://s3.amazonaws.com/fairseq/data/wmt14.en-fr.newstest2014.tar.bz2 | tar xvjf -
-TODO: verify all of these
-$ python generate.py data-bin/wmt14.en-fr -gen-subset newstest2014 \
-  --path wmt14.en-fr.fconv-cuda/model.th7 --beam 5 --batch-size 128 | tee /tmp/gen.out
+$ curl https://s3.amazonaws.com/faiseq-py/models/wmt14.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
+$ curl https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.newstest2014.tar.bz2 | tar xvjf - -C data-bin
+$ python generate.py data-bin/wmt14.en-fr.newstest2014  \
+  --path data-bin/wmt14.en-fr.fconv-py/model.pt \
+  --beam 5 --batch-size 128 --remove-bpe | tee /tmp/gen.out
 ...
 | Translated 3003 sentences (95451 tokens) in 136.3s (700.49 tokens/s)
 | Timings: setup 0.1s (0.1%), encoder 1.9s (1.4%), decoder 108.9s (79.9%), search_results 0.0s (0.0%), search_prune 12.5s (9.2%)
 | BLEU4 = 43.43, 68.2/49.2/37.4/28.8 (BP=0.996, ratio=1.004, sys_len=92087, ref_len=92448)
 
 # Word-level BLEU scoring:
-$ grep ^H /tmp/gen.out | cut -f3- | sed 's/@@ //g' > /tmp/gen.out.sys
-$ grep ^T /tmp/gen.out | cut -f2- | sed 's/@@ //g' > /tmp/gen.out.ref
-$ fairseq score -sys /tmp/gen.out.sys -ref /tmp/gen.out.ref
+$ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
+TODO: update scores
 BLEU4 = 40.55, 67.6/46.5/34.0/25.3 (BP=1.000, ratio=0.998, sys_len=81369, ref_len=81194)
 ```
 

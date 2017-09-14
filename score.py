@@ -40,7 +40,7 @@ def main():
 
     def score(fdsys):
         with open(args.ref) as fdref:
-            scorer = bleu.Scorer(dict.pad(), dict.eos())
+            scorer = bleu.Scorer(dict.pad(), dict.eos(), dict.unk())
             for sys_tok, ref_tok in zip(readlines(fdsys), readlines(fdref)):
                 sys_tok = tokenizer.Tokenizer.tokenize(sys_tok, dict)
                 ref_tok = tokenizer.Tokenizer.tokenize(ref_tok, dict)
