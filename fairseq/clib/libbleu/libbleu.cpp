@@ -67,13 +67,13 @@ size_t bleu_hash(int len, int* data) {
 }
 
 void bleu_addngram(
-    size_t *ntotal, size_t *nmatch, int n,
+    size_t *ntotal, size_t *nmatch, size_t n,
     size_t reflen, int* ref, size_t predlen, int* pred) {
 
   if (predlen < n) { return; }
 
   predlen = predlen - n + 1;
-  (*ntotal) += (size_t)(predlen);
+  (*ntotal) += predlen;
 
   if (reflen < n) { return; }
 

@@ -67,7 +67,11 @@ class ConvTBCFunction(Function):
         ctx.weight_size = weight_size
         ctx.save_for_backward(input, weight)
         temporal_convolution_tbc.TemporalConvolutionTBC_forward(
-            input, output, weight, bias)
+            input.type().encode('utf-8'),
+            input,
+            output,
+            weight,
+            bias)
 
         return output
 
@@ -81,6 +85,7 @@ class ConvTBCFunction(Function):
         grad_bias = grad_output.new(ctx.weight_size[2])
 
         temporal_convolution_tbc.TemporalConvolutionTBC_backward(
+            input.type().encode('utf-8'),
             grad_output,
             grad_input,
             grad_weight,

@@ -7,32 +7,40 @@
  */
 
 #include <stdio.h>
-#include <THC/THC.h>
+#include <string.h>
+#include <stdexcept>
 #include <ATen/ATen.h>
 
 
 using at::Tensor;
 extern THCState* state;
 
+at::Type& getDataType(const char* dtype) {
+  if (strcmp(dtype, "torch.cuda.FloatTensor") == 0) {
+    return at::getType(at::kCUDA, at::kFloat);
+  } else if (strcmp(dtype, "torch.FloatTensor") == 0) {
+    return at::getType(at::kCPU, at::kFloat);
+  } else {
+    throw std::runtime_error(std::string("Unsupported data type: ") + dtype);
+  }
+}
 
-inline at::Tensor t(THCudaTensor* i) {
-  return at::getType(at::kCUDA, at::kFloat).unsafeTensorFromTH(i, true);
+inline at::Tensor t(at::Type& type, void* i) {
+  return type.unsafeTensorFromTH(i, true);
 }
 
 extern "C" void TemporalConvolutionTBC_forward(
-  THCudaTensor* _input,
-  THCudaTensor* _output,
-  THCudaTensor* _weight,
-  THCudaTensor* _bias)
+  const char* dtype,
+  void* _input,
+  void* _output,
+  void* _weight,
+  void* _bias)
 {
-  Tensor input = t(_input);
-  Tensor output = t(_output);
-  Tensor weight = t(_weight);
-  Tensor bias = t(_bias);
-
-  auto W = weight.data<float>();
-  auto I = input.data<float>();
-  auto O = output.data<float>();
+  auto& type = getDataType(dtype);
+  Tensor input = t(type, _input);
+  Tensor output = t(type, _output);
+  Tensor weight = t(type, _weight);
+  Tensor bias = t(type, _bias);
 
   auto input_size = input.sizes();
   auto output_size = output.sizes();
@@ -46,7 +54,6 @@ extern "C" void TemporalConvolutionTBC_forward(
   int pad = (olen - ilen + kw - 1) / 2;
 
   // input * weights + bias -> output_features
-
   output.copy_(bias.expand(output.sizes()));
   for (int k = 0; k < kw; k++) {
     int iShift = std::max(0, k - pad);
@@ -56,46 +63,31 @@ extern "C" void TemporalConvolutionTBC_forward(
     // input    is l*m (row-major)
     // weight   is m*r (row-major)
     // output   is l*r (row-major)
-    if (t > 0)
-      THCudaBlas_Sgemm(
-          state,
-          'n',
-          'n',
-          outputPlanes, // r
-          batchSize * t, // l
-          inputPlanes, // m
-          1, // alpha
-          W + k * weight.strides()[0],
-          outputPlanes, // r
-          I + iShift * input.strides()[0],
-          input.strides()[1], // >=m
-          1, // beta
-          O + oShift * output.strides()[0],
-          output.strides()[1] // r
-          );
+    if (t > 0) {
+      auto W = weight[k];
+      auto I = input.narrow(0, iShift, t).view({t * batchSize, inputPlanes});
+      auto O = output.narrow(0, oShift, t).view({t * batchSize, outputPlanes});
+      at::addmm_out(1, O, 1, I, W, O);
+    }
   }
 }
 
 extern "C" void TemporalConvolutionTBC_backward(
-  THCudaTensor* _dOutput,
-  THCudaTensor* _dInput,
-  THCudaTensor* _dWeight,
-  THCudaTensor* _dBias,
-  THCudaTensor* _input,
-  THCudaTensor* _weight)
+  const char* dtype,
+  void* _dOutput,
+  void* _dInput,
+  void* _dWeight,
+  void* _dBias,
+  void* _input,
+  void* _weight)
 {
-  Tensor dOutput = t(_dOutput);
-  Tensor dInput = t(_dInput);
-  Tensor dWeight = t(_dWeight);
-  Tensor dBias = t(_dBias);
-  Tensor input = t(_input);
-  Tensor weight = t(_weight);
-
-  auto dO = dOutput.data<float>();
-  auto dI = dInput.data<float>();
-  auto dW = dWeight.data<float>();
-  auto I = input.data<float>();
-  auto W = weight.data<float>();
+  auto& type = getDataType(dtype);
+  Tensor dOutput = t(type, _dOutput);
+  Tensor dInput = t(type, _dInput);
+  Tensor dWeight = t(type, _dWeight);
+  Tensor dBias = t(type, _dBias);
+  Tensor input = t(type, _input);
+  Tensor weight = t(type, _weight);
 
   auto input_size = input.sizes();
   auto output_size = dOutput.sizes();
@@ -113,56 +105,26 @@ extern "C" void TemporalConvolutionTBC_backward(
     int oShift = std::max(0, pad - k);
     int t = std::min(ilen + pad - k, olen) - oShift;
     // dOutput * T(weight) -> dInput
-    // Note: gemm assumes column-major matrices
-    // dOutput is l*m (row-major)
-    // weight  is r*m (row-major)
-    // dInput  is l*r (row-major)
-    if (t > 0)
-      THCudaBlas_Sgemm(
-          state,
-          't',
-          'n',
-          inputPlanes, // r
-          batchSize * t, // l
-          outputPlanes, // m
-          1, // alpha
-          W + k * weight.strides()[0],
-          outputPlanes, // m
-          dO + oShift * dOutput.strides()[0],
-          dOutput.strides()[1], // m
-          1, // beta
-          dI + iShift * dInput.strides()[0],
-          dInput.strides()[1] // m
-          );
+    if (t > 0) {
+      auto dO = dOutput.narrow(0, oShift, t).view({t * batchSize, outputPlanes});
+      auto dI = dInput.narrow(0, iShift, t).view({t * batchSize, inputPlanes});
+      at::addmm_out(1, dI, 1, dO, weight[k].t(), dI);
+    }
   }
 
   for (int k = 0; k < kw; k++) {
     int iShift = std::max(0, k - pad);
     int oShift = std::max(0, pad - k);
     int t = std::min(ilen + pad - k, olen) - oShift;
-    // Note: gemm assumes column-major matrices
-    // Input    is m*l (row-major)
-    // dOutput  is m*r (row-major)
-    // dWeight  is l*r (row-major)
-    if (t > 0)
-      THCudaBlas_Sgemm(
-          state,
-          'n',
-          't',
-          outputPlanes, // r
-          inputPlanes, // l
-          batchSize * t, // m
-          1, //scale, // alpha
-          dO + oShift * dOutput.strides()[0],
-          dOutput.strides()[1], // r
-          I + iShift * input.strides()[0],
-          input.strides()[1], // l
-          1, // beta
-          dW + k * dWeight.strides()[0],
-          outputPlanes // r
-          );
-   }
+    // T(input) * dOutput -> dWeight
+    if (t > 0) {
+      auto dW = dWeight[k];
+      auto dO = dOutput.narrow(0, oShift, t).view({t * batchSize, outputPlanes});
+      auto I = input.narrow(0, iShift, t).view({t * batchSize, inputPlanes}).t();
+      at::addmm_out(1, dW, 1, I, dO, dW);
+    }
+  }
 
-   auto tmp = dOutput.sum(0, false);
-   at::sum_out(tmp, 0, dBias);
+  auto tmp = dOutput.sum(0, false);
+  at::sum_out(tmp, 0, dBias);
 }
