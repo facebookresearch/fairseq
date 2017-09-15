@@ -430,56 +430,90 @@ class GradMultiply(torch.autograd.Function):
         return grad * ctx.scale, None
 
 
-def fconv_iwslt_de_en(dataset, dropout, **kwargs):
-    encoder_convs = [(256, 3)] * 4
-    decoder_convs = [(256, 3)] * 3
-    return fconv(dataset, dropout, 256, encoder_convs, 256, decoder_convs, **kwargs)
+def get_archs():
+    return [
+        'fconv', 'fconv_iwslt_de_en', 'fconv_wmt_en_ro', 'fconv_wmt_en_de', 'fconv_wmt_en_fr',
+    ]
 
 
-def fconv_wmt_en_ro(dataset, dropout, **kwargs):
-    convs = [(512, 3)] * 20
-    return fconv(dataset, dropout, 512, convs, 512, convs, **kwargs)
+def _check_arch(args):
+    """Check that the specified architecture is valid and not ambiguous."""
+    if args.arch not in get_archs():
+        raise ValueError('Unknown fconv model architecture: {}'.format(args.arch))
+    if args.arch != 'fconv':
+        # check that architecture is not ambiguous
+        for a in ['encoder_embed_dim', 'encoder_layers', 'decoder_embed_dim', 'decoder_layers',
+                  'decoder_out_embed_dim']:
+            if hasattr(args, a):
+                raise ValueError('--{} cannot be combined with --arch={}'.format(a, args.arch))
 
 
-def fconv_wmt_en_de(dataset, dropout, **kwargs):
-    convs = [(512, 3)] * 9  # first 10 layers have 512 units
-    convs += [(1024, 3)] * 4  # next 3 layers have 768 units
-    convs += [(2048, 1)] * 2  # final 2 layers are 1x1
-    return fconv(dataset, dropout, 768, convs, 768, convs,
-                 decoder_out_embed_dim=512,
-                 **kwargs)
+def parse_arch(args):
+    _check_arch(args)
+
+    if args.arch == 'fconv_iwslt_de_en':
+        args.encoder_embed_dim = 256
+        args.encoder_layers = '[(256, 3)] * 4'
+        args.decoder_embed_dim = 256
+        args.decoder_layers = '[(256, 3)] * 3'
+        args.decoder_out_embed_dim = 256
+    elif args.arch == 'fconv_wmt_en_ro':
+        args.encoder_embed_dim = 512
+        args.encoder_layers = '[(512, 3)] * 20'
+        args.decoder_embed_dim = 512
+        args.decoder_layers = '[(512, 3)] * 20'
+        args.decoder_out_embed_dim = 512
+    elif args.arch == 'fconv_wmt_en_de':
+        convs = '[(512, 3)] * 9'       # first 9 layers have 512 units
+        convs += ' + [(1024, 3)] * 4'  # next 4 layers have 1024 units
+        convs += ' + [(2048, 1)] * 2'  # final 2 layers use 1x1 convolutions
+        args.encoder_embed_dim = 768
+        args.encoder_layers = convs
+        args.decoder_embed_dim = 768
+        args.decoder_layers = convs
+        args.decoder_out_embed_dim = 512
+    elif args.arch == 'fconv_wmt_en_fr':
+        convs = '[(512, 3)] * 6'       # first 6 layers have 512 units
+        convs += ' + [(768, 3)] * 4'   # next 4 layers have 768 units
+        convs += ' + [(1024, 3)] * 3'  # next 3 layers have 1024 units
+        convs += ' + [(2048, 1)] * 1'  # next 1 layer uses 1x1 convolutions
+        convs += ' + [(4096, 1)] * 1'  # final 1 layer uses 1x1 convolutions
+        args.encoder_embed_dim = 768
+        args.encoder_layers = convs
+        args.decoder_embed_dim = 768
+        args.decoder_layers = convs
+        args.decoder_out_embed_dim = 512
+    else:
+        assert args.arch == 'fconv'
+
+    # default architecture
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
+    args.encoder_layers = getattr(args, 'encoder_layers', '[(512, 3)] * 20')
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
+    args.decoder_layers = getattr(args, 'decoder_layers', '[(512, 3)] * 20')
+    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
+    args.decoder_attention = getattr(args, 'decoder_attention', 'True')
+    return args
 
 
-def fconv_wmt_en_fr(dataset, dropout, **kwargs):
-    convs = [(512, 3)] * 6  # first 5 layers have 512 units
-    convs += [(768, 3)] * 4  # next 4 layers have 768 units
-    convs += [(1024, 3)] * 3  # next 4 layers have 1024 units
-    convs += [(2048, 1)] * 1  # next 1 layer is 1x1
-    convs += [(4096, 1)] * 1  # final 1 layer is 1x1
-    return fconv(dataset, dropout, 768, convs, 768, convs,
-                 decoder_out_embed_dim=512,
-                 **kwargs)
-
-
-def fconv(dataset, dropout, encoder_embed_dim, encoder_convolutions,
-          decoder_embed_dim, decoder_convolutions, attention=True,
-          decoder_out_embed_dim=256, max_positions=1024):
+def build_model(args, dataset):
     padding_idx = dataset.dst_dict.pad()
-
     encoder = Encoder(
         len(dataset.src_dict),
-        embed_dim=encoder_embed_dim,
-        convolutions=encoder_convolutions,
-        dropout=dropout,
+        embed_dim=args.encoder_embed_dim,
+        convolutions=eval(args.encoder_layers),
+        dropout=args.dropout,
         padding_idx=padding_idx,
-        max_positions=max_positions)
+        max_positions=args.max_positions,
+    )
     decoder = Decoder(
         len(dataset.dst_dict),
-        embed_dim=decoder_embed_dim,
-        convolutions=decoder_convolutions,
-        out_embed_dim=decoder_out_embed_dim,
-        attention=attention,
-        dropout=dropout,
+        embed_dim=args.decoder_embed_dim,
+        convolutions=eval(args.decoder_layers),
+        out_embed_dim=args.decoder_out_embed_dim,
+        attention=eval(args.decoder_attention),
+        dropout=args.dropout,
         padding_idx=padding_idx,
-        max_positions=max_positions)
+        max_positions=args.max_positions,
+    )
     return FConvModel(encoder, decoder, padding_idx)

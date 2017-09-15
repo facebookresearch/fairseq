@@ -109,22 +109,35 @@ def add_generation_args(parser):
 
 
 def add_model_args(parser):
-    group = parser.add_argument_group('Model configuration')
-    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
-                       choices=models.__all__,
-                       help='model architecture ({})'.format(', '.join(models.__all__)))
-    group.add_argument('--encoder-embed-dim', default=512, type=int, metavar='N',
+    group = parser.add_argument_group(
+        'Model configuration',
+        # Only include attributes which are explicitly given as command-line
+        # arguments or which have model-independent default values.
+        argument_default=argparse.SUPPRESS,
+    )
+
+    # The model architecture can be specified in several ways.
+    # In increasing order of priority:
+    # 1) model defaults (lowest priority)
+    # 2) --arch argument
+    # 3) --encoder/decoder-* arguments (highest priority)
+    # Note: --arch cannot be combined with --encoder/decoder-* arguments.
+    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH', choices=models.arch_model_map.keys(),
+                       help='model architecture ({})'.format(', '.join(models.arch_model_map.keys())))
+    group.add_argument('--encoder-embed-dim', type=int, metavar='N',
                        help='encoder embedding dimension')
-    group.add_argument('--encoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
+    group.add_argument('--encoder-layers', type=str, metavar='EXPR',
                        help='encoder layers [(dim, kernel_size), ...]')
-    group.add_argument('--decoder-embed-dim', default=512, type=int, metavar='N',
+    group.add_argument('--decoder-embed-dim', type=int, metavar='N',
                        help='decoder embedding dimension')
-    group.add_argument('--decoder-layers', default='[(512, 3)] * 20', type=str, metavar='EXPR',
+    group.add_argument('--decoder-layers', type=str, metavar='EXPR',
                        help='decoder layers [(dim, kernel_size), ...]')
-    group.add_argument('--decoder-attention', default='True', type=str, metavar='EXPR',
-                       help='decoder attention [True, ...]')
-    group.add_argument('--decoder-out-embed-dim', default=256, type=int, metavar='N',
+    group.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
                        help='decoder output embedding dimension')
+    group.add_argument('--decoder-attention', type=str, metavar='EXPR',
+                       help='decoder attention [True, ...]')
+
+    # These arguments have default values independent of the model:
     group.add_argument('--dropout', default=0.1, type=float, metavar='D',
                        help='dropout probability')
     group.add_argument('--label-smoothing', default=0, type=float, metavar='D',

@@ -6,9 +6,14 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-from .fconv import *
+from . import fconv
 
-__all__ = [
-    'fconv', 'fconv_iwslt_de_en', 'fconv_wmt_en_ro', 'fconv_wmt_en_de',
-    'fconv_wmt_en_fr',
-]
+
+__all__ = ['fconv']
+
+arch_model_map = {}
+for model in __all__:
+    archs = locals()[model].get_archs()
+    for arch in archs:
+        assert arch not in arch_model_map, 'Duplicate model architecture detected: {}'.format(arch)
+        arch_model_map[arch] = model

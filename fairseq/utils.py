@@ -14,20 +14,16 @@ from torch.serialization import default_restore_location
 from fairseq import criterions, data, models
 
 
+def parse_args_and_arch(parser):
+    args = parser.parse_args()
+    args.model = models.arch_model_map[args.arch]
+    args = getattr(models, args.model).parse_arch(args)
+    return args
+
+
 def build_model(args, dataset):
-    if args.arch == 'fconv':
-        encoder_layers = eval(args.encoder_layers)
-        decoder_layers = eval(args.decoder_layers)
-        decoder_attention = eval(args.decoder_attention)
-        model = models.fconv(
-            dataset, args.dropout, args.encoder_embed_dim, encoder_layers,
-            args.decoder_embed_dim, decoder_layers, decoder_attention,
-            decoder_out_embed_dim=args.decoder_out_embed_dim,
-            max_positions=args.max_positions)
-    else:
-        model = models.__dict__[args.arch](dataset, args.dropout,
-                                           max_positions=args.max_positions)
-    return model
+    assert hasattr(models, args.model), 'Missing model type'
+    return getattr(models, args.model).build_model(args, dataset)
 
 
 def build_criterion(args, dataset):
@@ -95,14 +91,14 @@ def load_checkpoint(filename, model, optimizer, lr_scheduler, cuda_device=None):
     return epoch, batch_offset
 
 
-def load_ensemble_for_inference(models, data_path):
+def load_ensemble_for_inference(filenames, data_path):
     # load model architectures and weights
     states = []
-    for model in models:
-        if not os.path.exists(model):
-            raise IOError('Model file not found: ' + model)
+    for filename in filenames:
+        if not os.path.exists(filename):
+            raise IOError('Model file not found: {}'.format(filename))
         states.append(
-            torch.load(model, map_location=lambda s, l: default_restore_location(s, 'cpu'))
+            torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
         )
 
     # load dataset
@@ -110,13 +106,13 @@ def load_ensemble_for_inference(models, data_path):
     dataset = data.load(data_path, args.source_lang, args.target_lang)
 
     # build models
-    models = []
+    ensemble = []
     for state in states:
         model = build_model(args, dataset)
         model.load_state_dict(state['model'])
-        models.append(model)
+        ensemble.append(model)
 
-    return models, dataset
+    return ensemble, dataset
 
 
 def prepare_sample(sample, volatile=False, cuda_device=None):
