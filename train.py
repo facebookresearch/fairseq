@@ -36,7 +36,7 @@ def main():
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
 
-    args = parser.parse_args()
+    args = utils.parse_args_and_arch(parser)
     print(args)
 
     if args.no_progress_bar:

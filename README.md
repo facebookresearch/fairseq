@@ -1,7 +1,7 @@
 # Introduction
 FAIR Sequence-to-Sequence Toolkit (PyTorch)
 
-This is a PyTorch version of [fairseq](https://github.com/facebookresearch/fairseq), a sequence-to-sequence learning toolkit from Facebook AI Research. The original authors of this reimplementation are (in no particular order) Sergey Edunov, Myle Ott, and Sam Gross. The toolkit implements the fully convolutional model described in [Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122). The toolkit features multi-GPU training on a single machine as well as fast beam search generation on both CPU and GPU. We provide pre-trained models for English to French and English to German translation.
+This is a PyTorch version of [fairseq](https://github.com/facebookresearch/fairseq), a sequence-to-sequence learning toolkit from Facebook AI Research. The original authors of this reimplementation are (in no particular order) Sergey Edunov, Myle Ott, and Sam Gross. The toolkit implements the fully convolutional model described in [Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122) and features multi-GPU training on a single machine as well as fast beam search generation on both CPU and GPU. We provide pre-trained models for English to French and English to German translation.
 
 ![Model](fairseq.gif)
 
@@ -27,8 +27,9 @@ If you use the code in your paper, then please cite it as:
 Currently fairseq-py requires PyTorch from the GitHub repository. There are multiple ways of installing it.
 We suggest using [Miniconda3](https://conda.io/miniconda.html) and the following instructions.
 
-* Install Miniconda3 from https://conda.io/miniconda.html create and activate python 3 environment.
+* Install Miniconda3 from https://conda.io/miniconda.html; create and activate a Python 3 environment.
 
+* Install PyTorch:
 ```
 conda install gcc numpy cudnn nccl
 conda install magma-cuda80 -c soumith
@@ -44,14 +45,14 @@ pip install -r requirements.txt
 NO_DISTRIBUTED=1 python setup.py install
 ```
 
-
-Install fairseq by cloning the GitHub repository and by running
-
+* Install fairseq-py by cloning the GitHub repository and running:
 ```
 pip install -r requirements.txt
 python setup.py build
 python setup.py develop
 ```
+
+# Quick Start
 
 The following command-line tools are available:
 * `python preprocess.py`: Data pre-processing: build vocabularies and binarize training data
@@ -59,9 +60,6 @@ The following command-line tools are available:
 * `python generate.py`: Translate pre-processed data with a trained model
 * `python generate.py -i`: Translate raw text with a trained model
 * `python score.py`: BLEU scoring of generated translations against reference translations
-
-
-# Quick Start
 
 ## Evaluating Pre-trained Models [TO BE ADAPTED]
 First, download a pre-trained model along with its vocabularies:
@@ -100,7 +98,7 @@ Check [below](#pre-trained-models) for a full list of pre-trained models availab
 ## Training a New Model
 
 ### Data Pre-processing
-The fairseq source distribution contains an example pre-processing script for
+The fairseq-py source distribution contains an example pre-processing script for
 the IWSLT 2014 German-English corpus.
 Pre-process and binarize the data as follows:
 ```
@@ -118,11 +116,10 @@ This will write binarized data that can be used for model training to `data-bin/
 Use `python train.py` to train a new model.
 Here a few example settings that work well for the IWSLT 2014 dataset:
 ```
-$ mkdir -p trainings/fconv
+$ mkdir -p checkpoints/fconv
 $ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
   --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
-  --encoder-layers "[(256, 3)] * 4" --decoder-layers "[(256, 3)] * 3" \
-  --encoder-embed-dim 256 --decoder-embed-dim 256 --save-dir trainings/fconv
+  --arch fconv_iwslt_de_en --save-dir checkpoints/fconv
 ```
 
 By default, `python train.py` will use all available GPUs on your machine.
@@ -135,7 +132,7 @@ You may need to use a smaller value depending on the available GPU memory on you
 Once your model is trained, you can generate translations using `python generate.py` **(for binarized data)** or `python generate.py -i` **(for raw text)**:
 ```
 $ python generate.py data-bin/iwslt14.tokenized.de-en \
-  --path trainings/fconv/checkpoint_best.pt \
+  --path checkpoints/fconv/checkpoint_best.pt \
   --batch-size 128 --beam 5
   | [de] dictionary: 35475 types
   | [en] dictionary: 24739 types
@@ -172,9 +169,12 @@ $ python generate.py data-bin/wmt14.en-fr.newstest2014  \
 ...
 | Translated 3003 sentences (95451 tokens) in 136.3s (700.49 tokens/s)
 | Timings: setup 0.1s (0.1%), encoder 1.9s (1.4%), decoder 108.9s (79.9%), search_results 0.0s (0.0%), search_prune 12.5s (9.2%)
+TODO: update scores (should be same as score.py)
 | BLEU4 = 43.43, 68.2/49.2/37.4/28.8 (BP=0.996, ratio=1.004, sys_len=92087, ref_len=92448)
 
-# Word-level BLEU scoring:
+# Scoring with score.py:
+$ grep ^H /tmp/gen.out | cut -f3- | sed 's/@@ //g' > /tmp/gen.out.sys
+$ grep ^T /tmp/gen.out | cut -f2- | sed 's/@@ //g' > /tmp/gen.out.ref
 $ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
 TODO: update scores
 BLEU4 = 40.55, 67.6/46.5/34.0/25.3 (BP=1.000, ratio=0.998, sys_len=81369, ref_len=81194)
@@ -186,6 +186,6 @@ BLEU4 = 40.55, 67.6/46.5/34.0/25.3 (BP=1.000, ratio=0.998, sys_len=81369, ref_le
 * Google group: https://groups.google.com/forum/#!forum/fairseq-users
 
 # License
-fairseq is BSD-licensed.
+fairseq-py is BSD-licensed.
 The license applies to the pre-trained models as well.
 We also provide an additional patent grant.
