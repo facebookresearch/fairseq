@@ -6,8 +6,11 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+import logging
 import os
 import torch
+import traceback
+
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
@@ -39,8 +42,8 @@ def torch_persistent_save(*args, **kwargs):
         try:
             return torch.save(*args, **kwargs)
         except:
-            if i == 3:
-                raise
+            if i == 2:
+                logging.error(traceback.format_exc())
 
 
 def save_checkpoint(args, epoch, batch_offset, model, optimizer, lr_scheduler, val_loss=None):
