@@ -61,7 +61,7 @@ The following command-line tools are available:
 * `python generate.py -i`: Translate raw text with a trained model
 * `python score.py`: BLEU scoring of generated translations against reference translations
 
-## Evaluating Pre-trained Models [TO BE ADAPTED]
+## Evaluating Pre-trained Models
 First, download a pre-trained model along with its vocabularies:
 ```
 $ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.fconv-py.tar.bz2 | tar xvjf -
