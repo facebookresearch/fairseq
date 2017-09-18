@@ -16,7 +16,7 @@ from fairseq import bleu, dictionary, tokenizer
 def main():
     parser = argparse.ArgumentParser(description='Command-line script for BLEU scoring.')
     parser.add_argument('-s', '--sys', default='-', help='system output')
-    parser.add_argument('-r', '--ref', default='', help='references')
+    parser.add_argument('-r', '--ref', required=True, help='references')
     parser.add_argument('-o', '--order', default=4, metavar='N',
                         type=int, help='consider ngrams up to this order')
     parser.add_argument('--ignore-case', action='store_true',

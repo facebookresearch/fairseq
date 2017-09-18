@@ -151,8 +151,8 @@ BPE continuation markers can be removed with the `--remove-bpe` flag.
 
 We provide the following pre-trained fully convolutional sequence-to-sequence models:
 
-* [wmt14.en-fr.fconv-py.tar.bz2](https://s3.amazonaws.com/faiseq-py/models/wmt14.en-fr.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
-* [wmt14.en-de.fconv-py.tar.bz2](https://s3.amazonaws.com/faiseq-py/models/wmt14.en-de.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
+* [wmt14.en-fr.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
+* [wmt14.en-de.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.en-de.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
 
 In addition, we provide pre-processed and binarized test sets for the models above:
 * [wmt14.en-fr.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-French
@@ -161,23 +161,20 @@ In addition, we provide pre-processed and binarized test sets for the models abo
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for English-French on a GTX-1080ti:
 ```
-$ curl https://s3.amazonaws.com/faiseq-py/models/wmt14.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
+$ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
 $ curl https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.newstest2014.tar.bz2 | tar xvjf - -C data-bin
 $ python generate.py data-bin/wmt14.en-fr.newstest2014  \
   --path data-bin/wmt14.en-fr.fconv-py/model.pt \
   --beam 5 --batch-size 128 --remove-bpe | tee /tmp/gen.out
 ...
-| Translated 3003 sentences (95451 tokens) in 136.3s (700.49 tokens/s)
-| Timings: setup 0.1s (0.1%), encoder 1.9s (1.4%), decoder 108.9s (79.9%), search_results 0.0s (0.0%), search_prune 12.5s (9.2%)
-TODO: update scores (should be same as score.py)
-| BLEU4 = 43.43, 68.2/49.2/37.4/28.8 (BP=0.996, ratio=1.004, sys_len=92087, ref_len=92448)
+| Translated 3003 sentences (95451 tokens) in 81.3s (1174.33 tokens/s)
+| Generate test with beam=5: BLEU4 = 40.23, 67.5/46.4/33.8/25.0 (BP=0.997, ratio=1.003, syslen=80963, reflen=81194)
 
 # Scoring with score.py:
-$ grep ^H /tmp/gen.out | cut -f3- | sed 's/@@ //g' > /tmp/gen.out.sys
-$ grep ^T /tmp/gen.out | cut -f2- | sed 's/@@ //g' > /tmp/gen.out.ref
+$ grep ^H /tmp/gen.out | cut -f3- > /tmp/gen.out.sys
+$ grep ^T /tmp/gen.out | cut -f2- > /tmp/gen.out.ref
 $ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
-TODO: update scores
-BLEU4 = 40.55, 67.6/46.5/34.0/25.3 (BP=1.000, ratio=0.998, sys_len=81369, ref_len=81194)
+BLEU4 = 40.23, 67.5/46.4/33.8/25.0 (BP=0.997, ratio=1.003, syslen=80963, reflen=81194)
 ```
 
 # Join the fairseq community
