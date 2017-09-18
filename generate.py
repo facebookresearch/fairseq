@@ -110,25 +110,16 @@ def main():
             display_hypotheses(None, tokens, line, None, hypos[:min(len(hypos), args.nbest)])
 
     else:
-        non_bpe_dict = {}
-        def maybe_remove_bpe_and_reindex(tokens):
-            """Helper for removing BPE symbols from a tensor of indices.
-
-            If BPE removal is enabled, the returned tensor is reindexed
-            using a new dictionary that is created on-the-fly."""
+        def maybe_remove_bpe(tokens):
+            """Helper for removing BPE symbols from a hypothesis."""
             if not args.remove_bpe:
                 return tokens
             assert (tokens == dataset.dst_dict.pad()).sum() == 0
-            return torch.IntTensor([
-                non_bpe_dict.setdefault(w, len(non_bpe_dict))
-                for w in to_sentence(dataset.dst_dict, tokens, bpe_symbol).split(' ')
-            ])
+            hypo_minus_bpe = to_sentence(dataset.dst_dict, tokens, bpe_symbol)
+            return tokenizer.Tokenizer.tokenize(hypo_minus_bpe, dataset.dst_dict, add_if_not_exist=True)
 
         # Generate and compute BLEU score
-        scorer = bleu.Scorer(
-            dataset.dst_dict.pad() if not args.remove_bpe else -1,
-            dataset.dst_dict.eos() if not args.remove_bpe else -1,
-            dataset.dst_dict.unk())
+        scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
         itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size, max_positions=args.max_positions)
         num_sentences = 0
         with progress_bar(itr, smoothing=0, leave=False) as t:
@@ -140,7 +131,7 @@ def main():
             for id, src, ref, hypos in translations:
                 ref = ref.int().cpu()
                 top_hypo = hypos[0]['tokens'].int().cpu()
-                scorer.add(maybe_remove_bpe_and_reindex(ref), maybe_remove_bpe_and_reindex(top_hypo))
+                scorer.add(maybe_remove_bpe(ref), maybe_remove_bpe(top_hypo))
                 display_hypotheses(id, src, None, ref, hypos[:min(len(hypos), args.nbest)])
 
                 wps_meter.update(src.size(0))
