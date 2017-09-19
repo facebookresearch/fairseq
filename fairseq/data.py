@@ -105,7 +105,6 @@ class LanguageDatasets(object):
         return torch.utils.data.DataLoader(
             dataset,
             num_workers=num_workers,
-            pin_memory=torch.cuda.is_available(),
             collate_fn=PaddingCollater(self.src_dict.pad()),
             batch_sampler=batch_sampler)
 
