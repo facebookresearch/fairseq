@@ -126,7 +126,7 @@ class SequenceGenerator(object):
 
         # helper function for allocating buffers on the fly
         buffers = {}
-        def buffer(name, type_of=tokens):
+        def buffer(name, type_of=tokens):  # noqa
             if name not in buffers:
                 buffers[name] = type_of.new()
             return buffers[name]

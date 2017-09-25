@@ -41,7 +41,7 @@ def torch_persistent_save(*args, **kwargs):
     for i in range(3):
         try:
             return torch.save(*args, **kwargs)
-        except:
+        except Exception:
             if i == 2:
                 logging.error(traceback.format_exc())
 

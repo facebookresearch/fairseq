@@ -326,7 +326,7 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0, max_p
 
         batches = result
     else:
-        for i in range(epoch - 1):
+        for _ in range(epoch - 1):
             np.random.shuffle(batches)
 
     return batches
