@@ -38,13 +38,31 @@ class Dictionary(object):
             return self.indices[sym]
         return self.unk_index
 
-    def string(self, tensor):
-        if torch.is_tensor(tensor) and tensor.dim() == 2:
-            sentences = [self.string(line) for line in tensor]
-            return '\n'.join(sentences)
+    def string(self, tensor, bpe_symbol=None, escape_unk=False):
+        """Helper for converting a tensor of token indices to a string.
 
-        eos = self.eos()
-        return ' '.join([self[i] for i in tensor if i != eos])
+        Can optionally remove BPE symbols or escape <unk> words.
+        """
+        if torch.is_tensor(tensor) and tensor.dim() == 2:
+            return '\n'.join(self.to_string(t) for t in tensor)
+
+        def token_string(i):
+            if i == self.unk():
+                return self.unk_string(escape_unk)
+            else:
+                return self[i]
+
+        sent = ' '.join(token_string(i) for i in tensor if i != self.eos())
+        if bpe_symbol is not None:
+            sent = sent.replace(bpe_symbol, '')
+        return sent
+
+    def unk_string(self, escape=False):
+        """Return unknown string, optionally escaped as: <<unk>>"""
+        if escape:
+            return '<{}>'.format(self.unk_word)
+        else:
+            return self.unk_word
 
     def add_symbol(self, word, n=1):
         """Adds a word to the dictionary"""
