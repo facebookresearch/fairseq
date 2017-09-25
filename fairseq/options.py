@@ -91,7 +91,7 @@ def add_generation_args(parser):
     group.add_argument('--max-len-b', default=200, type=int, metavar='N',
                        help=('generate sequence of maximum length ax + b, '
                              'where x is the source length'))
-    group.add_argument('--remove-bpe', action='store_true',
+    group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring')
     group.add_argument('--no-early-stop', action='store_true',
                        help=('continue searching even after finalizing k=beam '

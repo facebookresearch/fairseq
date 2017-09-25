@@ -84,19 +84,18 @@ def main():
                     hypo_tokens[i] = src_token
         return ' '.join(hypo_tokens)
 
-    bpe_symbol = '@@ ' if args.remove_bpe else None
     def display_hypotheses(id, src, orig, ref, hypos):
         if args.quiet:
             return
         id_str = '' if id is None else '-{}'.format(id)
-        src_str = dataset.src_dict.string(src, bpe_symbol)
+        src_str = dataset.src_dict.string(src, args.remove_bpe)
         print('S{}\t{}'.format(id_str, src_str))
         if orig is not None:
             print('O{}\t{}'.format(id_str, orig.strip()))
         if ref is not None:
-            print('T{}\t{}'.format(id_str, dataset.dst_dict.string(ref, bpe_symbol, escape_unk=True)))
+            print('T{}\t{}'.format(id_str, dataset.dst_dict.string(ref, args.remove_bpe, escape_unk=True)))
         for hypo in hypos:
-            hypo_str = dataset.dst_dict.string(hypo['tokens'], bpe_symbol)
+            hypo_str = dataset.dst_dict.string(hypo['tokens'], args.remove_bpe)
             align_str = ' '.join(map(str, hypo['alignment']))
             if args.unk_replace_dict != '':
                 hypo_str = replace_unk(hypo_str, align_str, orig, dataset.dst_dict.unk_string())
@@ -118,10 +117,10 @@ def main():
     else:
         def maybe_remove_bpe(tokens):
             """Helper for removing BPE symbols from a hypothesis."""
-            if not args.remove_bpe:
+            if args.remove_bpe is None:
                 return tokens
             assert (tokens == dataset.dst_dict.pad()).sum() == 0
-            hypo_minus_bpe = dataset.dst_dict.string(tokens, bpe_symbol)
+            hypo_minus_bpe = dataset.dst_dict.string(tokens, args.remove_bpe)
             return tokenizer.Tokenizer.tokenize(hypo_minus_bpe, dataset.dst_dict, add_if_not_exist=True)
 
         # Generate and compute BLEU score
