@@ -48,7 +48,7 @@ def main():
 
     # Optimize model for generation
     for model in models:
-        model.make_generation_fast_(args.beam, not args.no_beamable_mm)
+        model.make_generation_fast_(not args.no_beamable_mm)
 
     # Initialize generator
     translator = SequenceGenerator(

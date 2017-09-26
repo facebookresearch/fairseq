@@ -87,13 +87,16 @@ class SequenceGenerator(object):
 
     def _generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
         bsz = src_tokens.size(0)
-        beam_size = beam_size if beam_size is not None else self.beam_size
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
+
+        # the max beam size is the dictionary size - 1, since we never select pad
+        beam_size = beam_size if beam_size is not None else self.beam_size
+        beam_size = min(beam_size, len(self.dict) - 1)
 
         encoder_outs = []
         for model in self.models:
             model.eval()
-            model.decoder.clear_incremental_state()  # start a fresh sequence
+            model.decoder.start_fresh_sequence(beam_size)  # start a fresh sequence
 
             # compute the encoder output and expand to beam size
             encoder_out = model.encoder(src_tokens, src_positions)
@@ -172,7 +175,7 @@ class SequenceGenerator(object):
                 sents_seen.add(sent)
 
                 def get_hypo():
-                    hypo = tokens[idx, 1:step+2].clone()
+                    hypo = tokens[idx, 1:step+2].clone()  # skip the first index, which is EOS
                     hypo[step] = self.eos
                     alignment = align[idx, 1:step+2].clone()
                     return {
@@ -219,6 +222,7 @@ class SequenceGenerator(object):
             else:
                 # make probs contain cumulative scores for each hypothesis
                 probs.add_(scores.view(-1, 1))
+            probs[:, self.pad] = -math.inf  # never select pad
 
             # record alignment to source tokens, based on attention
             _ignore_scores = buffer('_ignore_scores', type_of=scores)
@@ -229,7 +233,9 @@ class SequenceGenerator(object):
             cand_scores = buffer('cand_scores', type_of=scores)
             cand_indices = buffer('cand_indices')
             cand_beams = buffer('cand_beams')
-            probs.view(bsz, -1).topk(cand_size, out=(cand_scores, cand_indices))
+            probs.view(bsz, -1).topk(
+                min(cand_size, probs.view(bsz, -1).size(1) - 1),  # -1 so we never select pad
+                out=(cand_scores, cand_indices))
             torch.div(cand_indices, self.vocab_size, out=cand_beams)
             cand_indices.fmod_(self.vocab_size)
 
@@ -256,7 +262,7 @@ class SequenceGenerator(object):
             # and values < cand_size indicate candidate active hypos.
             # After, the min values per row are the top candidate active hypos
             active_mask = buffer('active_mask')
-            torch.add((eos_mask*cand_size).type_as(cand_offsets), cand_offsets,
+            torch.add((eos_mask*cand_size).type_as(cand_offsets), cand_offsets[:eos_mask.size(1)],
                       out=active_mask)
 
             # get the top beam_size active hypotheses, which are just the hypos

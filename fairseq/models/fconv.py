@@ -28,7 +28,7 @@ class FConvModel(nn.Module):
         decoder_out = self.decoder(input_tokens, input_positions, encoder_out)
         return decoder_out.view(-1, decoder_out.size(-1))
 
-    def make_generation_fast_(self, beam_size, use_beamable_mm=False):
+    def make_generation_fast_(self, use_beamable_mm=False):
         """Optimize model for faster generation.
 
         Optimizations include:
@@ -54,7 +54,7 @@ class FConvModel(nn.Module):
 
         # use BeamableMM in attention layers
         if use_beamable_mm:
-            self.decoder._use_beamable_mm(beam_size)
+            self.decoder._use_beamable_mm()
 
         def train(mode):
             if mode:
@@ -243,14 +243,14 @@ class Decoder(nn.Module):
             context += conv.kernel_size[0] - 1
         return context
 
-    def incremental_inference(self):
+    def incremental_inference(self, beam_size=None):
         """Context manager for incremental inference.
 
         This provides an optimized forward pass for incremental inference
         (i.e., it predicts one time step at a time). If the input order changes
         between time steps, call model.decoder.reorder_incremental_state to
         update the relevant buffers. To generate a fresh sequence, first call
-        model.decoder.clear_incremental_state.
+        model.decoder.start_fresh_sequence.
 
         Usage:
         ```
@@ -263,18 +263,19 @@ class Decoder(nn.Module):
         """
         class IncrementalInference(object):
 
-            def __init__(self, decoder):
+            def __init__(self, decoder, beam_size):
                 self.decoder = decoder
+                self.beam_size = beam_size
 
             def __enter__(self):
-                self.decoder._start_incremental_inference()
+                self.decoder._start_incremental_inference(self.beam_size)
 
             def __exit__(self, *args):
                 self.decoder._stop_incremental_inference()
 
-        return IncrementalInference(self)
+        return IncrementalInference(self, beam_size)
 
-    def _start_incremental_inference(self):
+    def _start_incremental_inference(self, beam_size):
         assert not self._is_inference_incremental, \
             'already performing incremental inference'
         self._is_inference_incremental = True
@@ -287,7 +288,7 @@ class Decoder(nn.Module):
         self.forward = self._incremental_forward
 
         # start a fresh sequence
-        self.clear_incremental_state()
+        self.start_fresh_sequence(beam_size)
 
     def _stop_incremental_inference(self):
         # restore original forward and convolution layers
@@ -348,17 +349,21 @@ class Decoder(nn.Module):
 
         return x, avg_attn_scores
 
-    def clear_incremental_state(self):
+    def start_fresh_sequence(self, beam_size=None):
         """Clear all state used for incremental generation.
 
         **For incremental inference only**
 
         This should be called before generating a fresh sequence.
+        beam_size is required if using BeamableMM.
         """
         if self._is_inference_incremental:
             self.prev_state = None
             for conv in self.convolutions:
                 conv.clear_buffer()
+            for attn in self.attention:
+                if isinstance(attn.bmm, BeamableMM):
+                    attn.bmm.set_beam_size(beam_size)
 
     def reorder_incremental_state(self, new_order):
         """Reorder buffered internal state (for incremental generation).
@@ -373,9 +378,9 @@ class Decoder(nn.Module):
             for conv in self.convolutions:
                 conv.reorder_buffer(new_order)
 
-    def _use_beamable_mm(self, beam_size):
+    def _use_beamable_mm(self):
         """Replace torch.bmm with BeamableMM in attention layers."""
-        beamable_mm = BeamableMM(beam_size)
+        beamable_mm = BeamableMM()
         for attn in self.attention:
             attn.bmm = beamable_mm
 
