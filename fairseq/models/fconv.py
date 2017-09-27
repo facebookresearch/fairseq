@@ -284,9 +284,8 @@ class Decoder(nn.Module):
             'already performing incremental inference'
         self._is_inference_incremental = True
 
-        # save original forward and convolution layers
+        # save original forward
         self._orig_forward = self.forward
-        self._orig_conv = self.convolutions
 
         # switch to incremental forward
         self.forward = self._incremental_forward
@@ -295,9 +294,8 @@ class Decoder(nn.Module):
         self.start_fresh_sequence(beam_size)
 
     def _stop_incremental_inference(self):
-        # restore original forward and convolution layers
+        # restore original forward
         self.forward = self._orig_forward
-        self.convolutions = self._orig_conv
 
         self._is_inference_incremental = False
 
