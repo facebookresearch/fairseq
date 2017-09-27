@@ -48,7 +48,7 @@ class SequenceGenerator(object):
         self.positions = self.positions.cuda()
         return self
 
-    def generate_batched_itr(self, data_itr, maxlen_a=0, maxlen_b=200,
+    def generate_batched_itr(self, data_itr, maxlen_a=0.0, maxlen_b=200,
                              cuda_device=None, timer=None):
         """Iterate over a batched dataset and yield individual translations.
 
@@ -69,7 +69,7 @@ class SequenceGenerator(object):
             if timer is not None:
                 timer.start()
             hypos = self.generate(input['src_tokens'], input['src_positions'],
-                                  maxlen=(maxlen_a*srclen + maxlen_b))
+                                  maxlen=int(maxlen_a*srclen + maxlen_b))
             if timer is not None:
                 timer.stop(s['ntokens'])
             for i, id in enumerate(s['id']):
