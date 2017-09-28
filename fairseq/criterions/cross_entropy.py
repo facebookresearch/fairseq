@@ -21,11 +21,16 @@ class CrossEntropyCriterion(FairseqCriterion):
     def grad_denom(self, samples):
         return sum(s['ntokens'] if s else 0 for s in samples)
 
-    def forward(self, net_output, sample):
+    def forward(self, model, sample, grad_denom):
+        net_output = model(**sample['net_input'])
         input = net_output.view(-1, net_output.size(-1))
         target = sample['target'].view(-1)
         loss = F.cross_entropy(input, target, size_average=False, ignore_index=self.padding_idx)
-        return loss
+        return {
+            'loss': loss / grad_denom,
+        }
 
-    def aggregate(self, losses):
-        return sum(losses) / math.log(2)
+    def aggregate(self, loss_dicts):
+        return {
+            'loss': sum(l['loss'].data[0] for l in loss_dicts if 'loss' in l) / math.log(2),
+        }

@@ -52,11 +52,16 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def grad_denom(self, samples):
         return sum(s['ntokens'] if s else 0 for s in samples)
 
-    def forward(self, net_output, sample):
+    def forward(self, model, sample, grad_denom):
+        net_output = model(**sample['net_input'])
         input = F.log_softmax(net_output.view(-1, net_output.size(-1)))
         target = sample['target'].view(-1)
         loss = LabelSmoothedCrossEntropy.apply(input, target, self.eps, self.padding_idx, self.weights)
-        return loss
+        return {
+            'loss': loss / grad_denom,
+        }
 
-    def aggregate(self, losses):
-        return sum(losses) / math.log(2)
+    def aggregate(self, loss_dicts):
+        return {
+            'loss': sum(l['loss'].data[0] for l in loss_dicts if 'loss' in l) / math.log(2),
+        }

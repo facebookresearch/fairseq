@@ -146,10 +146,11 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         ]
 
         # aggregate losses and gradient norms
-        losses, grad_norms = Future.gen_tuple_list(losses)
-        loss = self.criterion.aggregate(losses)
+        loss_dicts = Future.gen_list(losses)
+        loss_dict = self.criterion.aggregate(loss_dicts)
+        loss_dict['gnorm'] = loss_dicts[0]['gnorm']
 
-        return loss, grad_norms[0]
+        return loss_dict
 
     def _async_train_step(self, rank, device_id, grad_denom):
         self.model.train()
@@ -159,14 +160,11 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # calculate loss and grads
         loss = 0
+        loss_dict = {}
         if self._sample is not None:
-            self._sample = self.criterion.prepare(self.model, self._sample)
-            net_output = self.model(**self._sample['net_input'])
-            loss_ = self.criterion(net_output, self._sample)
-            if grad_denom is not None:
-                loss_ /= grad_denom
-            loss_.backward()
-            loss = loss_.data[0]
+            loss_dict = self.criterion(self.model, self._sample, grad_denom)
+            loss_dict['loss'].backward()
+            loss = loss_dict['loss'].data[0]
 
         # flatten grads into a contiguous block of memory
         if self.flat_grads is None:
@@ -176,12 +174,12 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         nccl.all_reduce(self.flat_grads)
 
         # clip grads
-        grad_norm = self._clip_grads_(self.flat_grads, self.args.clip_norm)
+        loss_dict['gnorm'] = self._clip_grads_(self.flat_grads, self.args.clip_norm)
 
         # take an optimization step
         self.optimizer.step()
 
-        return loss, grad_norm
+        return loss_dict
 
     def _flatten_grads_(self, model):
         num_params = sum(p.data.numel() for p in model.parameters())
@@ -218,20 +216,15 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         ]
 
         # aggregate losses
-        loss = self.criterion.aggregate(Future.gen_list(losses))
+        loss_dict = self.criterion.aggregate(Future.gen_list(losses))
 
-        return loss
+        return loss_dict
 
     def _async_valid_step(self, rank, device_id, grad_denom):
         if self._sample is None:
-            return 0
+            return {}
         self.model.eval()
-        self._sample = self.criterion.prepare(self.model, self._sample)
-        net_output = self.model(**self._sample['net_input'])
-        loss = self.criterion(net_output, self._sample)
-        if grad_denom is not None:
-            loss /= grad_denom
-        return loss.data[0]
+        return self.criterion(self.model, self._sample, grad_denom)
 
     def get_lr(self):
         """Get the current learning rate."""
