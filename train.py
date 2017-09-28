@@ -68,7 +68,7 @@ def main():
     criterion = utils.build_criterion(args, dataset)
 
     # Start multiprocessing
-    trainer = MultiprocessingTrainer(args, model)
+    trainer = MultiprocessingTrainer(args, model, criterion)
 
     # Load the latest checkpoint if one is available
     epoch, batch_offset = trainer.load_checkpoint(os.path.join(args.save_dir, args.restore_file))
@@ -81,11 +81,11 @@ def main():
     train_meter.start()
     while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
-        train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus)
+        train(args, epoch, batch_offset, trainer, dataset, num_gpus)
 
         # evaluate on validate set
         for k, subset in enumerate(args.valid_subset.split(',')):
-            val_loss = validate(args, epoch, trainer, criterion, dataset, subset, num_gpus)
+            val_loss = validate(args, epoch, trainer, dataset, subset, num_gpus)
             if k == 0:
                 if not args.no_save:
                     # save checkpoint
@@ -102,7 +102,7 @@ def main():
     trainer.stop()
 
 
-def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
+def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
     """Train the model for one epoch."""
 
     itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
@@ -121,7 +121,7 @@ def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in data.skip_group_enumerator(t, num_gpus, batch_offset):
-            loss, grad_norm = trainer.train_step(sample, criterion)
+            loss, grad_norm = trainer.train_step(sample)
 
             ntokens = sum(s['ntokens'] for s in sample)
             src_size = sum(s['src_tokens'].size(0) for s in sample)
@@ -160,7 +160,7 @@ def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
                            gnorm_meter.avg))
 
 
-def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
+def validate(args, epoch, trainer, dataset, subset, ngpus):
     """Evaluate the model on the validation set and return the average loss."""
 
     itr = dataset.dataloader(subset, batch_size=None,
@@ -173,7 +173,7 @@ def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
     with progress_bar(itr, desc, leave=False) as t:
         for _, sample in data.skip_group_enumerator(t, ngpus):
             ntokens = sum(s['ntokens'] for s in sample)
-            loss = trainer.valid_step(sample, criterion)
+            loss = trainer.valid_step(sample)
             loss_meter.update(loss, ntokens)
             t.set_postfix(loss='{:.2f}'.format(loss_meter.avg), refresh=False)
 

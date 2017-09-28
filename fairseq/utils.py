@@ -46,15 +46,23 @@ def torch_persistent_save(*args, **kwargs):
                 logging.error(traceback.format_exc())
 
 
-def save_checkpoint(args, epoch, batch_offset, model, optimizer, lr_scheduler, val_loss=None):
+def save_checkpoint(args, epoch, batch_offset, model, criterion, optimizer, lr_scheduler,
+                    val_loss=None, optim_history=None):
+    if optim_history is None:
+        optim_history = []
     state_dict = {
         'args': args,
         'epoch': epoch,
         'batch_offset': batch_offset,
         'model': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-        'best_loss': lr_scheduler.best,
         'val_loss': val_loss,
+        'optimizer_history': optim_history + [
+            {
+                'criterion_name': criterion.__class__.__name__,
+                'optimizer': optimizer.state_dict(),
+                'best_loss': lr_scheduler.best,
+            }
+        ],
     }
 
     if batch_offset == 0:
@@ -72,9 +80,9 @@ def save_checkpoint(args, epoch, batch_offset, model, optimizer, lr_scheduler, v
     torch_persistent_save(state_dict, last_filename)
 
 
-def load_checkpoint(filename, model, optimizer, lr_scheduler, cuda_device=None):
+def load_checkpoint(filename, model, criterion, optimizer, lr_scheduler, cuda_device=None):
     if not os.path.exists(filename):
-        return 1, 0
+        return 1, 0, []
     if cuda_device is None:
         state = torch.load(filename)
     else:
@@ -82,16 +90,41 @@ def load_checkpoint(filename, model, optimizer, lr_scheduler, cuda_device=None):
             filename,
             map_location=lambda s, l: default_restore_location(s, 'cuda:{}'.format(cuda_device))
         )
+    state = _upgrade_state_dict(state)
 
     model.load_state_dict(state['model'])
-    optimizer.load_state_dict(state['optimizer'])
-    lr_scheduler.best = state['best_loss']
     epoch = state['epoch'] + 1
     batch_offset = state['batch_offset']
 
+    # only load optimizer and lr_scheduler if they match with the checkpoint
+    opt_str = ''
+    optim_history = state['optimizer_history']
+    last_optim = optim_history[-1]
+    if last_optim['criterion_name'] == criterion.__class__.__name__:
+        optimizer.load_state_dict(last_optim['optimizer'])
+        lr_scheduler.best = last_optim['best_loss']
+        opt_str = '; criterion: {}'.format(last_optim['criterion_name'])
+
     gpu_str = ' on GPU #{}'.format(cuda_device) if cuda_device is not None else ''
-    print('| loaded checkpoint {} (epoch {}){}'.format(filename, epoch, gpu_str))
-    return epoch, batch_offset
+    print('| loaded checkpoint {} (epoch {}{}){}'.format(filename, epoch, opt_str, gpu_str))
+
+    return epoch, batch_offset, optim_history
+
+
+def _upgrade_state_dict(state):
+    """Helper for upgrading old model checkpoints."""
+    # add optimizer_history
+    if 'optimizer_history' not in state:
+        state['optimizer_history'] = [
+            {
+                'criterion_name': criterions.CrossEntropyCriterion.__name__,
+                'optimizer': state['optimizer'],
+                'best_loss': state['best_loss'],
+            },
+        ]
+        del state['optimizer']
+        del state['best_loss']
+    return state
 
 
 def load_ensemble_for_inference(filenames, data_path, split):
