@@ -18,14 +18,14 @@ class CrossEntropyCriterion(FairseqCriterion):
         super().__init__()
         self.padding_idx = padding_idx
 
-    def prepare(self, samples):
-        self.denom = sum(s['ntokens'] if s else 0 for s in samples)
+    def grad_denom(self, samples):
+        return sum(s['ntokens'] if s else 0 for s in samples)
 
     def forward(self, net_output, sample):
         input = net_output.view(-1, net_output.size(-1))
         target = sample['target'].view(-1)
         loss = F.cross_entropy(input, target, size_average=False, ignore_index=self.padding_idx)
-        return loss / self.denom
+        return loss
 
     def aggregate(self, losses):
         return sum(losses) / math.log(2)

@@ -11,12 +11,16 @@ from torch.nn.modules.loss import _Loss
 
 class FairseqCriterion(_Loss):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self):
+        super().__init__()
 
-    def prepare(self, samples):
-        """Prepare criterion for DataParallel training."""
+    def grad_denom(self, samples):
+        """Gradient normalization term for DataParallel training."""
         raise NotImplementedError
+
+    def prepare(self, model, sample):
+        """Apply criterion-specific modifications to the sample."""
+        return sample
 
     def forward(self, net_output, sample):
         """Compute the loss for the given sample and network output."""
