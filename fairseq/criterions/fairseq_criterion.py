@@ -18,18 +18,10 @@ class FairseqCriterion(_Loss):
         """Gradient normalization term for DataParallel training."""
         raise NotImplementedError
 
-    def prepare(self, model, sample):
-        """Apply criterion-specific modifications to the sample."""
-        return sample
-
-    def forward(self, net_output, sample):
+    def forward(self, model, sample, grad_denom):
         """Compute the loss for the given sample and network output."""
         raise NotImplementedError
 
-    def aggregate(self, losses):
-        """Aggregate losses from DataParallel training.
-
-        Takes a list of losses as input (as returned by forward) and
-        aggregates them into the total loss for the mini-batch.
-        """
+    def aggregate(self, losses, log_infos):
+        """Aggregate losses from DataParallel training."""
         raise NotImplementedError
