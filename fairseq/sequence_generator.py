@@ -80,10 +80,7 @@ class SequenceGenerator(object):
 
     def generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
         """Generate a batch of translations."""
-        with ExitStack() as stack:
-            for model in self.models:
-                stack.enter_context(model.decoder.incremental_inference())
-            return self._generate(src_tokens, src_positions, beam_size, maxlen)
+        return self._generate(src_tokens, src_positions, beam_size, maxlen)
 
     def _generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
         bsz = src_tokens.size(0)
@@ -96,7 +93,6 @@ class SequenceGenerator(object):
         encoder_outs = []
         for model in self.models:
             model.eval()
-            model.decoder.start_fresh_sequence(beam_size)  # start a fresh sequence
 
             # compute the encoder output and expand to beam size
             encoder_out = model.encoder(src_tokens, src_positions)
@@ -209,11 +205,6 @@ class SequenceGenerator(object):
 
         reorder_state = None
         for step in range(maxlen + 1):  # one extra step for EOS marker
-            # reorder decoder internal states based on the prev choice of beams
-            if reorder_state is not None:
-                for model in self.models:
-                    model.decoder.reorder_incremental_state(reorder_state)
-
             probs, avg_attn_scores = self._decode(tokens[:, :step+1], encoder_outs)
             if step == 0:
                 # at the first step all hypotheses are equally likely, so use

@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.modules import BeamableMM, LinearizedConvolution
+from fairseq.modules import BeamableMM
 
 
 class FConvModel(nn.Module):
@@ -25,7 +25,7 @@ class FConvModel(nn.Module):
 
     def forward(self, src_tokens, src_positions, input_tokens, input_positions):
         encoder_out = self.encoder(src_tokens, src_positions)
-        decoder_out = self.decoder(input_tokens, input_positions, encoder_out)
+        decoder_out, _ = self.decoder(input_tokens, input_positions, encoder_out)
         return decoder_out.view(-1, decoder_out.size(-1))
 
     def make_generation_fast_(self, use_beamable_mm=False):
@@ -81,11 +81,11 @@ class Encoder(nn.Module):
         self.convolutions = nn.ModuleList()
         for (out_channels, kernel_size) in convolutions:
             pad = (kernel_size - 1) // 2
-            self.projections.append(Linear(in_channels, out_channels)
+            self.projections.append(Projection(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
-                ConvTBC(in_channels, out_channels * 2, kernel_size, padding=pad,
-                        dropout=dropout))
+                Conv1d(in_channels, out_channels * 2, kernel_size, padding=pad,
+                       dropout=dropout))
             in_channels = out_channels
         self.fc2 = Linear(in_channels, embed_dim)
 
@@ -98,19 +98,19 @@ class Encoder(nn.Module):
         # project to size of convolution
         x = self.fc1(x)
 
-        # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
+        # B x T x C -> B x C x T
+        x = x.transpose(1, 2)
 
         # temporal convolutions
         for proj, conv in zip(self.projections, self.convolutions):
             residual = x if proj is None else proj(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x)
-            x = F.glu(x, dim=-1)
+            x = F.glu(x, dim=1)
             x = (x + residual) * math.sqrt(0.5)
 
-        # T x B x C -> B x T x C
-        x = x.transpose(1, 0)
+        # B x T x C -> B x T x C
+        x = x.transpose(2, 1)
 
         # project back to size of embedding
         x = self.fc2(x)
@@ -182,8 +182,8 @@ class Decoder(nn.Module):
             self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
-                LinearizedConv1d(in_channels, out_channels * 2, kernel_size,
-                                 padding=pad, dropout=dropout))
+                Conv1d(in_channels, out_channels * 2, kernel_size,
+                       padding=pad, dropout=dropout))
             self.attention.append(AttentionLayer(out_channels, embed_dim)
                                   if attention[i] else None)
             in_channels = out_channels
@@ -205,130 +205,16 @@ class Decoder(nn.Module):
         encoder_a, encoder_b = encoder_out
         encoder_a = encoder_a.transpose(1, 2).contiguous()
 
-        # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
-
-        # temporal convolutions
-        for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
-            residual = x if proj is None else proj(x)
-
-            x = F.dropout(x, p=self.dropout, training=self.training)
-            x = conv(x)
-            x = conv.remove_future_timesteps(x)
-            x = F.glu(x)
-
-            # attention
-            if attention is not None:
-                x = x.transpose(1, 0)
-                x, _ = attention(x, target_embedding, (encoder_a, encoder_b))
-                x = x.transpose(1, 0)
-
-            # residual
-            x = (x + residual) * math.sqrt(0.5)
-
-        # T x B x C -> B x T x C
-        x = x.transpose(1, 0)
-
-        # project back to size of vocabulary
-        x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.fc3(x)
-
-        return x
-
-    def context_size(self):
-        """Maximum number of input elements each output element depends on"""
-        context = 1
-        for conv in self.convolutions:
-            context += conv.kernel_size[0] - 1
-        return context
-
-    def incremental_inference(self, beam_size=None):
-        """Context manager for incremental inference.
-
-        This provides an optimized forward pass for incremental inference
-        (i.e., it predicts one time step at a time). If the input order changes
-        between time steps, call model.decoder.reorder_incremental_state to
-        update the relevant buffers. To generate a fresh sequence, first call
-        model.decoder.start_fresh_sequence.
-
-        Usage:
-        ```
-        with model.decoder.incremental_inference():
-            for step in range(maxlen):
-                out = model.decoder(tokens[:, :step], positions[:, :step],
-                                    encoder_out)
-                probs = F.log_softmax(out[:, -1, :])
-        ```
-        """
-        class IncrementalInference(object):
-
-            def __init__(self, decoder, beam_size):
-                self.decoder = decoder
-                self.beam_size = beam_size
-
-            def __enter__(self):
-                self.decoder._start_incremental_inference(self.beam_size)
-
-            def __exit__(self, *args):
-                self.decoder._stop_incremental_inference()
-
-        return IncrementalInference(self, beam_size)
-
-    def _start_incremental_inference(self, beam_size):
-        assert not self._is_inference_incremental, \
-            'already performing incremental inference'
-        self._is_inference_incremental = True
-
-        # save original forward and convolution layers
-        self._orig_forward = self.forward
-        self._orig_conv = self.convolutions
-
-        # switch to incremental forward
-        self.forward = self._incremental_forward
-
-        # start a fresh sequence
-        self.start_fresh_sequence(beam_size)
-
-    def _stop_incremental_inference(self):
-        # restore original forward and convolution layers
-        self.forward = self._orig_forward
-        self.convolutions = self._orig_conv
-
-        self._is_inference_incremental = False
-
-    def _incremental_forward(self, tokens, positions, encoder_out):
-        assert self._is_inference_incremental
-
-        # setup initial state
-        if self.prev_state is None:
-            # transpose encoder output once to speed up attention layers
-            encoder_a, encoder_b = encoder_out
-            encoder_a = encoder_a.transpose(1, 2).contiguous()
-            self.prev_state = {
-                'encoder_out': (encoder_a, encoder_b),
-            }
-
-        # load previous state
-        encoder_a, encoder_b = self.prev_state['encoder_out']
-
-        # keep only the last token for incremental forward pass
-        tokens = tokens[:, -1:]
-        positions = positions[:, -1:]
-
-        # embed tokens and positions
-        x = self.embed_tokens(tokens) + self.embed_positions(positions)
-        target_embedding = x
-
-        # project to size of convolution
-        x = self.fc1(x)
-
         # temporal convolutions
         avg_attn_scores = None
         num_attn_layers = len(self.attention)
         for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
             residual = x if proj is None else proj(x)
-            x = conv.incremental_forward(x)
+
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = conv(x.transpose(1, 2)).transpose(2, 1)
+            if conv.padding[0] > 0:
+                x = x[:, :-conv.padding[0], :]  # remove future timestamps
             x = F.glu(x)
 
             # attention
@@ -345,38 +231,17 @@ class Decoder(nn.Module):
 
         # project back to size of vocabulary
         x = self.fc2(x)
+        x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.fc3(x)
 
         return x, avg_attn_scores
 
-    def start_fresh_sequence(self, beam_size=None):
-        """Clear all state used for incremental generation.
-
-        **For incremental inference only**
-
-        This should be called before generating a fresh sequence.
-        beam_size is required if using BeamableMM.
-        """
-        if self._is_inference_incremental:
-            self.prev_state = None
-            for conv in self.convolutions:
-                conv.clear_buffer()
-            for attn in self.attention:
-                if isinstance(attn.bmm, BeamableMM):
-                    attn.bmm.set_beam_size(beam_size)
-
-    def reorder_incremental_state(self, new_order):
-        """Reorder buffered internal state (for incremental generation).
-
-        **For incremental inference only**
-
-        This should be called when the order of the input has changed from the
-        previous time step. A typical use case is beam search, where the input
-        order changes between time steps based on the choice of beams.
-        """
-        if self._is_inference_incremental:
-            for conv in self.convolutions:
-                conv.reorder_buffer(new_order)
+    def context_size(self):
+        """Maximum number of input elements each output element depends on"""
+        context = 1
+        for conv in self.convolutions:
+            context += conv.kernel_size[0] - 1
+        return context
 
     def _use_beamable_mm(self):
         """Replace torch.bmm with BeamableMM in attention layers."""
@@ -391,6 +256,14 @@ def Embedding(num_embeddings, embedding_dim, padding_idx):
     return m
 
 
+def Projection(in_features, out_features, dropout=0):
+    """Weight-normalized Linear via 1x1 convolution (input: N x C x T)"""
+    m = nn.Conv1d(in_features, out_features, kernel_size=1)
+    m.weight.data.normal_(mean=0, std=math.sqrt((1 - dropout) / in_features))
+    m.bias.data.zero_()
+    return nn.utils.weight_norm(m)
+
+
 def Linear(in_features, out_features, dropout=0):
     """Weight-normalized Linear layer (input: N x T x C)"""
     m = nn.Linear(in_features, out_features)
@@ -399,23 +272,13 @@ def Linear(in_features, out_features, dropout=0):
     return nn.utils.weight_norm(m)
 
 
-def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
-    """Weight-normalized Conv1d layer optimized for decoding"""
-    m = LinearizedConvolution(in_channels, out_channels, kernel_size, **kwargs)
+def Conv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
+    """Weight-normalized Conv1d layer"""
+    m = nn.Conv1d(in_channels, out_channels, kernel_size, **kwargs)
     std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
     m.weight.data.normal_(mean=0, std=std)
     m.bias.data.zero_()
     return nn.utils.weight_norm(m)
-
-
-def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
-    """Weight-normalized Conv1d layer"""
-    from fairseq.modules import ConvTBC
-    m = ConvTBC(in_channels, out_channels, kernel_size, **kwargs)
-    std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
-    m.weight.data.normal_(mean=0, std=std)
-    m.bias.data.zero_()
-    return nn.utils.weight_norm(m, dim=2)
 
 
 def grad_multiply(x, scale):
