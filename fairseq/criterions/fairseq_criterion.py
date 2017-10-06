@@ -14,14 +14,22 @@ class FairseqCriterion(_Loss):
     def __init__(self):
         super().__init__()
 
-    def grad_denom(self, samples):
-        """Gradient normalization term for DataParallel training."""
+    def forward(self, model, sample):
+        """Compute the loss for the given sample.
+
+        Returns a tuple with three elements:
+        1) the loss, as a Variable
+        2) the sample size, which is used as the denominator for the gradient
+        3) logging outputs to display while training
+        """
         raise NotImplementedError
 
-    def forward(self, model, sample, grad_denom):
-        """Compute the loss for the given sample and network output."""
+    @staticmethod
+    def aggregate_logging_outputs(logging_outputs):
+        """Aggregate logging outputs from data parallel training."""
         raise NotImplementedError
 
-    def aggregate(self, losses, log_infos):
-        """Aggregate losses from DataParallel training."""
-        raise NotImplementedError
+    @staticmethod
+    def grad_denom(sample_sizes):
+        """Compute the gradient denominator for a set of sample sizes."""
+        return sum(sample_sizes)
