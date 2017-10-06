@@ -104,11 +104,11 @@ void bleu_zero_init(bleu_stat* stat) {
 
 void bleu_one_init(bleu_stat* stat) {
   bleu_zero_init(stat);
-  stat->count1 = 1;
+  stat->count1 = 0;
   stat->count2 = 1;
   stat->count3 = 1;
   stat->count4 = 1;
-  stat->match1 = 1;
+  stat->match1 = 0;
   stat->match2 = 1;
   stat->match3 = 1;
   stat->match4 = 1;
