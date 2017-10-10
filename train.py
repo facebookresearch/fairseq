@@ -148,7 +148,7 @@ def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
                 ('lr', lr),
                 ('clip', '{:3.0f}%'.format(clip_meter.avg * 100)),
                 ('gnorm', '{:.4f}'.format(gnorm_meter.avg)),
-            ]))
+            ]), refresh=False)
 
             if i == 0:
                 # ignore the first mini-batch in words-per-second calculation
@@ -182,7 +182,7 @@ def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
             ntokens = sum(s['ntokens'] for s in sample)
             loss = trainer.valid_step(sample, criterion)
             loss_meter.update(loss, ntokens)
-            t.set_postfix(loss='{:.2f}'.format(loss_meter.avg))
+            t.set_postfix(loss='{:.2f}'.format(loss_meter.avg), refresh=False)
 
         val_loss = loss_meter.avg
         t.write(desc + ' | valid loss {:2.2f} | valid ppl {:3.2f}'
