@@ -154,7 +154,7 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
                 ('bsz', '{:5d}'.format(round(bsz_meter.avg))),
                 ('lr', lr),
                 ('clip', '{:3.0f}%'.format(clip_meter.avg * 100)),
-            ] + extra_postfix))
+            ] + extra_postfix), refresh=False)
 
             if i == 0:
                 # ignore the first mini-batch in words-per-second calculation
@@ -201,7 +201,7 @@ def validate(args, epoch, trainer, dataset, subset, ngpus):
 
             t.set_postfix(collections.OrderedDict([
                 ('loss', '{:.2f}'.format(loss_meter.avg)),
-            ] + extra_postfix))
+            ] + extra_postfix), refresh=False)
 
         val_loss = loss_meter.avg
         fmt = desc + ' | valid loss {:2.2f} | valid ppl {:3.2f}'.format(
