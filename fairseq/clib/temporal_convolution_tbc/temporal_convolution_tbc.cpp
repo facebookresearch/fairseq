@@ -67,7 +67,7 @@ extern "C" void TemporalConvolutionTBC_forward(
       auto W = weight[k];
       auto I = input.narrow(0, iShift, t).view({t * batchSize, inputPlanes});
       auto O = output.narrow(0, oShift, t).view({t * batchSize, outputPlanes});
-      at::addmm_out(1, O, 1, I, W, O);
+      O.addmm_(I, W);
     }
   }
 }
@@ -108,7 +108,7 @@ extern "C" void TemporalConvolutionTBC_backward(
     if (t > 0) {
       auto dO = dOutput.narrow(0, oShift, t).view({t * batchSize, outputPlanes});
       auto dI = dInput.narrow(0, iShift, t).view({t * batchSize, inputPlanes});
-      at::addmm_out(1, dI, 1, dO, weight[k].t(), dI);
+      dI.addmm_(dO, weight[k].t());
     }
   }
 
@@ -121,10 +121,10 @@ extern "C" void TemporalConvolutionTBC_backward(
       auto dW = dWeight[k];
       auto dO = dOutput.narrow(0, oShift, t).view({t * batchSize, outputPlanes});
       auto I = input.narrow(0, iShift, t).view({t * batchSize, inputPlanes}).t();
-      at::addmm_out(1, dW, 1, I, dO, dW);
+      dW.addmm_(I, dO);
     }
   }
 
   auto tmp = dOutput.sum(0, false);
-  at::sum_out(tmp, 0, dBias);
+  dBias.assign_(tmp.sum(0));
 }
