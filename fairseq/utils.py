@@ -127,7 +127,7 @@ def _upgrade_state_dict(state):
     return state
 
 
-def load_ensemble_for_inference(filenames, data_path):
+def load_ensemble_for_inference(filenames, data_path, split):
     # load model architectures and weights
     states = []
     for filename in filenames:
@@ -139,7 +139,7 @@ def load_ensemble_for_inference(filenames, data_path):
 
     # load dataset
     args = states[0]['args']
-    dataset = data.load(data_path, args.source_lang, args.target_lang)
+    dataset = data.load(data_path, [split], args.source_lang, args.target_lang)
 
     # build models
     ensemble = []

@@ -39,7 +39,7 @@ def main():
 
     # Load model and dataset
     print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models, dataset = utils.load_ensemble_for_inference(args.path, args.data)
+    models, dataset = utils.load_ensemble_for_inference(args.path, args.data, args.gen_subset)
 
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
@@ -82,6 +82,8 @@ def main():
         return ' '.join(hypo_tokens)
 
     def display_hypotheses(id, src, orig, ref, hypos):
+        if args.quiet:
+            return
         id_str = '' if id is None else '-{}'.format(id)
         src_str = dataset.src_dict.string(src, args.remove_bpe)
         print('S{}\t{}'.format(id_str, src_str))

@@ -17,7 +17,7 @@ from fairseq.dictionary import Dictionary
 from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset
 
 
-def load_with_check(path, src=None, dst=None):
+def load_with_check(path, load_splits, src=None, dst=None):
     """Loads the train, valid, and test sets from the specified folder
     and check that training files exist."""
 
@@ -43,12 +43,12 @@ def load_with_check(path, src=None, dst=None):
     else:
         raise ValueError('training file not found for {}-{}'.format(src, dst))
 
-    dataset = load(path, src, dst)
+    dataset = load(path, load_splits, src, dst)
     return dataset
 
 
-def load(path, src, dst):
-    """Loads the train, valid, and test sets from the specified folder."""
+def load(path, load_splits, src, dst):
+    """Loads specified data splits (e.g. test, train or valid) from the path."""
 
     langcode = '{}-{}'.format(src, dst)
 
@@ -59,7 +59,7 @@ def load(path, src, dst):
     dst_dict = Dictionary.load(fmt_path('dict.{}.txt', dst))
     dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
 
-    for split in ['train', 'valid', 'test']:
+    for split in load_splits:
         for k in itertools.count():
             prefix = "{}{}".format(split, k if k > 0 else '')
             src_path = fmt_path('{}.{}.{}', prefix, langcode, src)
