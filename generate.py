@@ -45,6 +45,10 @@ def main():
     if not args.interactive:
         print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
 
+    # Max positions is the model property but it is needed in data reader to be able to
+    # ignore too long sentences
+    args.max_positions = min(args.max_positions, *(m.decoder.max_positions() for m in models))
+
     # Optimize model for generation
     for model in models:
         model.make_generation_fast_(not args.no_beamable_mm)
@@ -122,7 +126,9 @@ def main():
 
         # Generate and compute BLEU score
         scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
-        itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size, max_positions=args.max_positions)
+        itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size,
+                                 max_positions=args.max_positions,
+                                 skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
         num_sentences = 0
         with progress_bar(itr, smoothing=0, leave=False) as t:
             wps_meter = TimeMeter()

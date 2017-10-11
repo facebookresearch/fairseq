@@ -243,6 +243,10 @@ class Decoder(nn.Module):
             context += conv.kernel_size[0] - 1
         return context
 
+    def max_positions(self):
+        """Returns maximum size of positions embeddings supported by this decoder"""
+        return self.embed_positions.num_embeddings
+
     def incremental_inference(self, beam_size=None):
         """Context manager for incremental inference.
 

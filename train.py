@@ -107,7 +107,8 @@ def train(args, epoch, batch_offset, trainer, criterion, dataset, num_gpus):
     itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
                              max_tokens=args.max_tokens, seed=args.seed, epoch=epoch,
                              max_positions=args.max_positions,
-                             sample_without_replacement=args.sample_without_replacement)
+                             sample_without_replacement=args.sample_without_replacement,
+                             skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()    # sentences per batch
     wpb_meter = AverageMeter()    # words per batch
@@ -163,7 +164,8 @@ def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
 
     itr = dataset.dataloader(subset, batch_size=None,
                              max_tokens=args.max_tokens,
-                             max_positions=args.max_positions)
+                             max_positions=args.max_positions,
+                             skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     loss_meter = AverageMeter()
 
     desc = '| epoch {:03d} | valid on \'{}\' subset'.format(epoch, subset)
