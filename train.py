@@ -29,9 +29,6 @@ def main():
     dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
                               help='comma separated list ofdata subsets '
                                    ' to use for validation (train, valid, valid1,test, test1)')
-    dataset_args.add_argument('--test-subset', default='test', metavar='SPLIT',
-                              help='comma separated list ofdata subset '
-                                   'to use for testing (train, valid, test)')
     options.add_optimization_args(parser)
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
@@ -48,7 +45,7 @@ def main():
     torch.manual_seed(args.seed)
 
     # Load dataset
-    dataset = data.load_with_check(args.data, args.source_lang, args.target_lang)
+    dataset = data.load_with_check(args.data, ['train', 'valid'], args.source_lang, args.target_lang)
     if args.source_lang is None or args.target_lang is None:
         # record inferred languages in args, so that it's saved in checkpoints
         args.source_lang, args.target_lang = dataset.src, dataset.dst
@@ -99,13 +96,6 @@ def main():
         batch_offset = 0
     train_meter.stop()
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
-
-    # Generate on test set and compute BLEU score
-    for beam in [1, 5, 10, 20]:
-        for subset in args.test_subset.split(','):
-            scorer = score_test(args, trainer.get_model(), dataset, subset, beam,
-                                cuda_device=(0 if num_gpus > 0 else None))
-            print('| Test on {} with beam={}: {}'.format(subset, beam, scorer.result_string()))
 
     # Stop multiprocessing
     trainer.stop()
@@ -190,20 +180,6 @@ def validate(args, epoch, trainer, criterion, dataset, subset, ngpus):
 
     # update and return the learning rate
     return val_loss
-
-
-def score_test(args, model, dataset, subset, beam, cuda_device):
-    """Evaluate the model on the test set and return the BLEU scorer."""
-
-    translator = SequenceGenerator([model], dataset.dst_dict, beam_size=beam)
-    if torch.cuda.is_available():
-        translator.cuda()
-
-    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
-    itr = dataset.dataloader(subset, batch_size=4, max_positions=args.max_positions)
-    for _, _, ref, hypos in translator.generate_batched_itr(itr, cuda_device=cuda_device):
-        scorer.add(ref.int().cpu(), hypos[0]['tokens'].int().cpu())
-    return scorer
 
 
 if __name__ == '__main__':
