@@ -35,8 +35,8 @@ class SequenceGenerator(object):
         self.vocab_size = len(dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        self.maxlen = maxlen
-        self.positions = torch.LongTensor(range(self.pad + 1, self.pad + maxlen + 2))
+        self.maxlen = min(maxlen, *(m.decoder.max_positions() - self.pad - 2 for m in self.models))
+        self.positions = torch.LongTensor(range(self.pad + 1, self.pad + self.maxlen + 2))
         self.decoder_context = models[0].decoder.context_size()
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores

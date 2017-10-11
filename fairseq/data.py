@@ -91,7 +91,8 @@ class LanguageDatasets(object):
 
     def dataloader(self, split, batch_size=1, num_workers=0,
                    max_tokens=None, seed=None, epoch=1,
-                   sample_without_replacement=0, max_positions=1024):
+                   sample_without_replacement=0, max_positions=1024,
+                   skip_invalid_size_inputs_valid_test=False):
         dataset = self.splits[split]
         if split.startswith('train'):
             with numpy_seed(seed):
@@ -102,9 +103,11 @@ class LanguageDatasets(object):
                     max_positions=max_positions)
         elif split.startswith('valid'):
             batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst,
-                                                 max_positions=max_positions))
+                                                 max_positions=max_positions,
+                                                 ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
         else:
-            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, max_positions=max_positions))
+            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, max_positions=max_positions,
+                                                 ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -207,7 +210,8 @@ class LanguagePairDataset(object):
         return res
 
 
-def batches_by_size(src, batch_size=None, max_tokens=None, dst=None, max_positions=1024):
+def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
+                    max_positions=1024, ignore_invalid_inputs=False):
     """Returns batches of indices sorted by size. Sequences of different lengths
     are not allowed in the same batch."""
     assert isinstance(src, IndexedDataset)
@@ -233,14 +237,20 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None, max_positio
         return False
 
     cur_max_size = 0
+    ignored = []
     for idx in indices:
         # - 2 here stems from make_positions() where we offset positions
         # by padding_value + 1
         if src.sizes[idx] < 2 or \
                 (False if dst is None else dst.sizes[idx] < 2) or \
                 sizes[idx] > max_positions - 2:
+            if ignore_invalid_inputs:
+                ignored.append(idx)
+                continue
+
             raise Exception("Unable to handle input id {} of "
-                            "size {} / {}.".format(idx, src.sizes[idx], dst.sizes[idx]))
+                            "size {} / {}.".format(idx, src.sizes[idx],
+                                                   "none" if dst is None else dst.sizes[idx]))
 
         if yield_batch(idx, cur_max_size * (len(batch) + 1)):
             yield batch
@@ -248,6 +258,10 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None, max_positio
             cur_max_size = 0
         batch.append(idx)
         cur_max_size = max(cur_max_size, sizes[idx])
+
+    if len(ignored) > 0:
+        print("Warning! {} samples are either too short or too long "
+              "and will be ignored, sample ids={}".format(len(ignored), ignored))
 
     if len(batch) > 0:
         yield batch

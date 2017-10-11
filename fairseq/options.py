@@ -34,6 +34,8 @@ def add_dataset_args(parser):
                        help='number of data loading workers (default: 1)')
     group.add_argument('--max-positions', default=1024, type=int, metavar='N',
                        help='max number of tokens in the sequence')
+    group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
+                       help='Ignore too long or too short lines in valid and test set')
     return group
 
 
