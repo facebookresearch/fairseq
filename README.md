@@ -108,7 +108,7 @@ $ cd ..
 $ TEXT=data/iwslt14.tokenized.de-en
 $ python preprocess.py --source-lang de --target-lang en \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
-  --thresholdtgt 3 --thresholdsrc 3 --destdir data-bin/iwslt14.tokenized.de-en
+  --destdir data-bin/iwslt14.tokenized.de-en
 ```
 This will write binarized data that can be used for model training to `data-bin/iwslt14.tokenized.de-en`.
 
