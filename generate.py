@@ -135,7 +135,7 @@ def main():
                 display_hypotheses(id, src, None, ref, hypos[:min(len(hypos), args.nbest)])
 
                 wps_meter.update(src.size(0))
-                t.set_postfix(wps='{:5d}'.format(round(wps_meter.avg)))
+                t.set_postfix(wps='{:5d}'.format(round(wps_meter.avg)), refresh=False)
                 num_sentences += 1
 
         print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(
