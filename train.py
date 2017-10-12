@@ -62,16 +62,25 @@ def main():
 
     print('| using {} GPUs (with max tokens per GPU = {})'.format(num_gpus, args.max_tokens))
 
-    # Build model
-    print('| model {}'.format(args.arch))
+    # Build model and criterion
     model = utils.build_model(args, dataset)
     criterion = utils.build_criterion(args, dataset)
+    print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
 
     # Start multiprocessing
     trainer = MultiprocessingTrainer(args, model, criterion)
 
     # Load the latest checkpoint if one is available
-    epoch, batch_offset = trainer.load_checkpoint(os.path.join(args.save_dir, args.restore_file))
+    checkpoint_path = os.path.join(args.save_dir, args.restore_file)
+    extra_state = trainer.load_checkpoint(checkpoint_path)
+    if extra_state is not None:
+        epoch = extra_state['epoch']
+        batch_offset = extra_state['batch_offset']
+        print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
+        if batch_offset == 0:
+            epoch += 1
+    else:
+        epoch, batch_offset = 1, 0
 
     # Train until the learning rate gets too small
     val_loss = None
@@ -89,7 +98,7 @@ def main():
             if k == 0:
                 if not args.no_save:
                     # save checkpoint
-                    trainer.save_checkpoint(args, epoch, 0, val_loss)
+                    save_checkpoint(trainer, args, epoch, 0, val_loss)
                 # only use first validation loss to update the learning schedule
                 lr = trainer.lr_step(val_loss, epoch)
 
@@ -151,7 +160,7 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
                 # ignore the first mini-batch in words-per-second calculation
                 wps_meter.reset()
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
-                trainer.save_checkpoint(args, epoch, i + 1)
+                save_checkpoint(trainer, args, epoch, i + 1)
 
         fmt = desc + ' | train loss {:2.2f} | train ppl {:3.2f}'.format(
             loss_meter.avg, math.pow(2, loss_meter.avg))
@@ -164,6 +173,28 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
             for k, meter in extra_meters.items()
         )
         t.write(fmt)
+
+
+def save_checkpoint(trainer, args, epoch, batch_offset, val_loss):
+    extra_state = {
+        'epoch': epoch,
+        'batch_offset': batch_offset,
+        'val_loss': val_loss,
+    }
+
+    if batch_offset == 0:
+        if not args.no_epoch_checkpoints:
+            epoch_filename = os.path.join(args.save_dir, 'checkpoint{}.pt'.format(epoch))
+            trainer.save_checkpoint(epoch_filename, extra_state)
+
+        assert val_loss is not None
+        if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
+            save_checkpoint.best = val_loss
+            best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
+            trainer.save_checkpoint(best_filename, extra_state)
+
+    last_filename = os.path.join(args.save_dir, 'checkpoint_last.pt')
+    trainer.save_checkpoint(last_filename, extra_state)
 
 
 def validate(args, epoch, trainer, dataset, subset, ngpus):

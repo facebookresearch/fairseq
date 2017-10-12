@@ -100,14 +100,13 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def _async_get_model(self, rank, device_id):
         return self.model
 
-    def save_checkpoint(self, args, epoch, batch_offset, val_loss=None):
+    def save_checkpoint(self, filename, extra_state):
         """Save a checkpoint for the current model."""
-        self.call_async(0, '_async_save_checkpoint', args=args, epoch=epoch,
-                        batch_offset=batch_offset, val_loss=val_loss).gen()
+        self.call_async(0, '_async_save_checkpoint', filename=filename, extra_state=extra_state).gen()
 
-    def _async_save_checkpoint(self, rank, device_id, args, epoch, batch_offset, val_loss):
-        utils.save_checkpoint(args, epoch, batch_offset, self.model, self.criterion,
-                              self.optimizer, self.lr_scheduler, val_loss, self._optim_history)
+    def _async_save_checkpoint(self, rank, device_id, filename, extra_state):
+        utils.save_state(filename, self.args, self.model, self.criterion, self.optimizer,
+                         self.lr_scheduler, self._optim_history, extra_state)
 
     def load_checkpoint(self, filename):
         """Load a checkpoint into the model replicas in each process."""
@@ -115,14 +114,14 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             self.call_async(rank, '_async_load_checkpoint', filename=filename)
             for rank in range(self.num_replicas)
         ])
-        epoch, batch_offset = results[0]
-        return epoch, batch_offset
+        extra_state = results[0]
+        return extra_state
 
     def _async_load_checkpoint(self, rank, device_id, filename):
-        epoch, batch_offset, self._optim_history = utils.load_checkpoint(
-            filename, self.model, self.criterion, self.optimizer, self.lr_scheduler,
-            cuda_device=device_id)
-        return epoch, batch_offset
+        extra_state, self._optim_history = utils.load_state(
+            filename, self.model, self.criterion, self.optimizer,
+            self.lr_scheduler, cuda_device=device_id)
+        return extra_state
 
     def train_step(self, samples):
         """Do forward, backward and gradient step in parallel."""
