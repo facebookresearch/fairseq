@@ -46,16 +46,14 @@ def torch_persistent_save(*args, **kwargs):
                 logging.error(traceback.format_exc())
 
 
-def save_checkpoint(args, epoch, batch_offset, model, criterion, optimizer, lr_scheduler,
-                    val_loss=None, optim_history=None):
+def save_state(filename, args, model, criterion, optimizer, lr_scheduler, optim_history=None, extra_state=None):
     if optim_history is None:
         optim_history = []
+    if extra_state is None:
+        extra_state = {}
     state_dict = {
         'args': args,
-        'epoch': epoch,
-        'batch_offset': batch_offset,
         'model': model.state_dict(),
-        'val_loss': val_loss,
         'optimizer_history': optim_history + [
             {
                 'criterion_name': criterion.__class__.__name__,
@@ -63,26 +61,14 @@ def save_checkpoint(args, epoch, batch_offset, model, criterion, optimizer, lr_s
                 'best_loss': lr_scheduler.best,
             }
         ],
+        'extra_state': extra_state,
     }
-
-    if batch_offset == 0:
-        if not args.no_epoch_checkpoints:
-            epoch_filename = os.path.join(args.save_dir, 'checkpoint{}.pt'.format(epoch))
-            torch_persistent_save(state_dict, epoch_filename)
-
-        assert val_loss is not None
-        if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
-            save_checkpoint.best = val_loss
-            best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
-            torch_persistent_save(state_dict, best_filename)
-
-    last_filename = os.path.join(args.save_dir, 'checkpoint_last.pt')
-    torch_persistent_save(state_dict, last_filename)
+    torch_persistent_save(state_dict, filename)
 
 
-def load_checkpoint(filename, model, criterion, optimizer, lr_scheduler, cuda_device=None):
+def load_state(filename, model, criterion, optimizer, lr_scheduler, cuda_device=None):
     if not os.path.exists(filename):
-        return 1, 0, []
+        return None, []
     if cuda_device is None:
         state = torch.load(filename)
     else:
@@ -92,23 +78,17 @@ def load_checkpoint(filename, model, criterion, optimizer, lr_scheduler, cuda_de
         )
     state = _upgrade_state_dict(state)
 
+    # load model parameters
     model.load_state_dict(state['model'])
-    epoch = state['epoch'] + 1
-    batch_offset = state['batch_offset']
 
     # only load optimizer and lr_scheduler if they match with the checkpoint
-    opt_str = ''
     optim_history = state['optimizer_history']
     last_optim = optim_history[-1]
     if last_optim['criterion_name'] == criterion.__class__.__name__:
         optimizer.load_state_dict(last_optim['optimizer'])
         lr_scheduler.best = last_optim['best_loss']
-        opt_str = '; criterion: {}'.format(last_optim['criterion_name'])
 
-    gpu_str = ' on GPU #{}'.format(cuda_device) if cuda_device is not None else ''
-    print('| loaded checkpoint {} (epoch {}{}){}'.format(filename, epoch, opt_str, gpu_str))
-
-    return epoch, batch_offset, optim_history
+    return state['extra_state'], optim_history
 
 
 def _upgrade_state_dict(state):
@@ -124,6 +104,16 @@ def _upgrade_state_dict(state):
         ]
         del state['optimizer']
         del state['best_loss']
+    # move extra_state into sub-dictionary
+    if 'epoch' in state and 'extra_state' not in state:
+        state['extra_state'] = {
+            'epoch': state['epoch'],
+            'batch_offset': state['batch_offset'],
+            'val_loss': state['val_loss'],
+        }
+        del state['epoch']
+        del state['batch_offset']
+        del state['val_loss']
     return state
 
 
