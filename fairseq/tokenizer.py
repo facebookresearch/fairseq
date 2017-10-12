@@ -6,7 +6,9 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+from collections import Counter
 import re
+
 import torch
 
 from fairseq import dictionary
@@ -32,46 +34,41 @@ class Tokenizer:
     @staticmethod
     def add_file_to_dictionary(filename, dict, tokenize):
         with open(filename, 'r') as f:
-            for line in f.readlines():
+            for line in f:
                 for word in tokenize(line):
                     dict.add_symbol(word)
                 dict.add_symbol(dict.eos_word)
 
     @staticmethod
     def binarize(filename, dict, consumer, tokenize=tokenize_line):
-        nseq, ntok, nunk = 0, 0, 0
-        replaced = {}
-        with open(filename, 'r') as f:
-            for line in f.readlines():
-                words = tokenize(line)
-                nwords = len(words)
-                ids = torch.IntTensor(nwords + 1)
-                nseq = nseq + 1
-                for i in range(0, len(words)):
-                    word = words[i]
-                    idx = dict.index(word)
-                    if idx == dict.unk_index and word != dict.unk_word:
-                        nunk = nunk + 1
-                        if word in replaced:
-                            replaced[word] = replaced[word] + 1
-                        else:
-                            replaced[word] = 1
-                    ids[i] = idx
+        nseq, ntok = 0, 0
+        replaced = Counter()
 
-                ids[nwords] = dict.eos_index
+        def replaced_consumer(word, idx):
+            if idx == dict.unk_index and word != dict.unk_word:
+                replaced.update([word])
+
+        with open(filename, 'r') as f:
+            for line in f:
+                ids = Tokenizer.tokenize(line, dict, tokenize, add_if_not_exist=False, consumer=replaced_consumer)
+                nseq += 1
+
                 consumer(ids)
-                ntok = ntok + len(ids)
-        return {'nseq': nseq, 'nunk': nunk, 'ntok': ntok, 'replaced': len(replaced)}
+                ntok += len(ids)
+        return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': len(replaced)}
 
     @staticmethod
-    def tokenize(line, dict, tokenize=tokenize_line, add_if_not_exist=True):
+    def tokenize(line, dict, tokenize=tokenize_line, add_if_not_exist=True, consumer=None):
         words = tokenize(line)
         nwords = len(words)
         ids = torch.IntTensor(nwords + 1)
-        for i in range(0, len(words)):
+        for i, word in enumerate(words):
             if add_if_not_exist:
-                ids[i] = dict.add_symbol(words[i])
+                idx = dict.add_symbol(word)
             else:
-                ids[i] = dict.index(words[i])
+                idx = dict.index(word)
+            if consumer is not None:
+                consumer(word, idx)
+            ids[i] = idx
         ids[nwords] = dict.eos_index
         return ids
