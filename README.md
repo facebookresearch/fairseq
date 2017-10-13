@@ -29,21 +29,7 @@ We suggest using [Miniconda3](https://conda.io/miniconda.html) and the following
 
 * Install Miniconda3 from https://conda.io/miniconda.html; create and activate a Python 3 environment.
 
-* Install PyTorch:
-```
-conda install gcc numpy cudnn nccl
-conda install magma-cuda80 -c soumith
-pip install cmake
-pip install cffi
-
-git clone https://github.com/pytorch/pytorch.git
-cd pytorch
-git reset --hard a03e5cb40938b6b3f3e6dbddf9cff8afdff72d1b
-git submodule update --init
-pip install -r requirements.txt
-
-NO_DISTRIBUTED=1 python setup.py install
-```
+* Install PyTorch from source: https://github.com/pytorch/pytorch#from-source.
 
 * Install fairseq-py by cloning the GitHub repository and running:
 ```
