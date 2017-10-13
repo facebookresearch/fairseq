@@ -24,14 +24,10 @@ If you use the code in your paper, then please cite it as:
 * Python version 3.6
 * A [PyTorch installation](http://pytorch.org/)
 
-Currently fairseq-py requires PyTorch from the GitHub repository. There are multiple ways of installing it.
-We suggest using [Miniconda3](https://conda.io/miniconda.html) and the following instructions.
+Currently fairseq-py requires installing PyTorch from source.
+Please follow the instructions here: https://github.com/pytorch/pytorch#from-source.
 
-* Install Miniconda3 from https://conda.io/miniconda.html; create and activate a Python 3 environment.
-
-* Install PyTorch from source: https://github.com/pytorch/pytorch#from-source.
-
-* Install fairseq-py by cloning the GitHub repository and running:
+After PyTorch is installed, you can install fairseq-py with:
 ```
 pip install -r requirements.txt
 python setup.py build
