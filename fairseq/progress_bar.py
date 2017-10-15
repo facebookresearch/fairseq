@@ -31,7 +31,7 @@ class progress_bar(tqdm):
 class simple_progress_bar(object):
     """A minimal replacement for tqdm in non-TTY environments."""
 
-    def __init__(self, print_interval, iterable, desc, *_args, **_kwargs):
+    def __init__(self, print_interval, iterable, desc=None, *_args, **_kwargs):
         super().__init__()
         self.print_interval = print_interval
         self.iterable = iterable
@@ -48,7 +48,8 @@ class simple_progress_bar(object):
         for i, obj in enumerate(self.iterable):
             yield obj
             if i > 0 and i % self.print_interval == 0:
-                msg = '{}:  {:5d} / {:d} {}\n'.format(self.desc, i, size, self.postfix)
+                desc = '' if self.desc is None else '{}:  '.format(self.desc)
+                msg = '{}{:5d} / {:d} {}\n'.format(desc, i, size, self.postfix)
                 sys.stdout.write(msg)
                 sys.stdout.flush()
 
