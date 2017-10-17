@@ -9,6 +9,7 @@
 import argparse
 
 from fairseq import models
+from fairseq.multiprocessing_trainer import MultiprocessingTrainer
 
 
 def get_parser(desc):
@@ -41,6 +42,9 @@ def add_dataset_args(parser):
 
 def add_optimization_args(parser):
     group = parser.add_argument_group('Optimization')
+    group.add_argument('--optimizer', default='nag', metavar='OPT',
+                       choices=MultiprocessingTrainer.OPTIMIZERS,
+                       help='optimizer ({})'.format(', '.join(MultiprocessingTrainer.OPTIMIZERS)))
     group.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
                        help='initial learning rate')
     group.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
@@ -53,6 +57,8 @@ def add_optimization_args(parser):
                        help='learning rate shrink factor for annealing, lr_new = (lr * lrshrink)')
     group.add_argument('--momentum', default=0.99, type=float, metavar='M',
                        help='momentum factor')
+    group.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
+                       help='betas for Adam optimizer')
     group.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
                        help='clip threshold of gradients')
     group.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
