@@ -12,11 +12,10 @@ import os
 import torch
 import math
 
-from fairseq import bleu, data, options, utils
+from fairseq import data, options, utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.multiprocessing_trainer import MultiprocessingTrainer
 from fairseq.progress_bar import progress_bar
-from fairseq.sequence_generator import SequenceGenerator
 
 
 def main():
@@ -53,7 +52,7 @@ def main():
 
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-    for split in dataset.splits:
+    for split in ['train', 'valid']:
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
     if not torch.cuda.is_available():
@@ -63,8 +62,8 @@ def main():
     print('| using {} GPUs (with max tokens per GPU = {})'.format(num_gpus, args.max_tokens))
 
     # Build model and criterion
-    model = utils.build_model(args, dataset)
-    criterion = utils.build_criterion(args, dataset)
+    model = utils.build_model(args, dataset.src_dict, dataset.dst_dict)
+    criterion = utils.build_criterion(args, dataset.src_dict, dataset.dst_dict)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
 
     # Start multiprocessing

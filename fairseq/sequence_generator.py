@@ -16,7 +16,7 @@ from fairseq import utils
 
 
 class SequenceGenerator(object):
-    def __init__(self, models, dst_dict, beam_size=1, minlen=1, maxlen=200,
+    def __init__(self, models, beam_size=1, minlen=1, maxlen=200,
                  stop_early=True, normalize_scores=True, len_penalty=1):
         """Generates translations of a given source sentence.
 
@@ -29,13 +29,14 @@ class SequenceGenerator(object):
             normalize_scores: Normalize scores by the length of the output.
         """
         self.models = models
-        self.dict = dst_dict
-        self.pad = dst_dict.pad()
-        self.eos = dst_dict.eos()
-        self.vocab_size = len(dst_dict)
+        self.pad = models[0].dst_dict.pad()
+        self.eos = models[0].dst_dict.eos()
+        assert all(m.dst_dict.pad() == self.pad for m in self.models[1:])
+        assert all(m.dst_dict.eos() == self.eos for m in self.models[1:])
+        self.vocab_size = len(models[0].dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        self.maxlen = min(maxlen, *(m.decoder.max_positions() - self.pad - 2 for m in self.models))
+        self.maxlen = min(maxlen, *[m.decoder.max_positions() - self.pad - 2 for m in self.models])
         self.positions = torch.LongTensor(range(self.pad + 1, self.pad + self.maxlen + 2))
         self.decoder_context = models[0].decoder.context_size()
         self.stop_early = stop_early
@@ -91,7 +92,7 @@ class SequenceGenerator(object):
 
         # the max beam size is the dictionary size - 1, since we never select pad
         beam_size = beam_size if beam_size is not None else self.beam_size
-        beam_size = min(beam_size, len(self.dict) - 1)
+        beam_size = min(beam_size, self.vocab_size - 1)
 
         encoder_outs = []
         for model in self.models:

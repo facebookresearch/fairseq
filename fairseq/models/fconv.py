@@ -15,12 +15,18 @@ from fairseq.modules import BeamableMM, LinearizedConvolution
 
 
 class FConvModel(nn.Module):
-    def __init__(self, encoder, decoder, padding_idx=1):
+    def __init__(self, encoder, decoder):
         super(FConvModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+
+        self.src_dict = encoder.dictionary
+        self.dst_dict = decoder.dictionary
+        assert self.src_dict.pad() == self.dst_dict.pad()
+        assert self.src_dict.eos() == self.dst_dict.eos()
+        assert self.src_dict.unk() == self.dst_dict.unk()
+
         self.encoder.num_attention_layers = sum([layer is not None for layer in decoder.attention])
-        self.padding_idx = padding_idx
         self._is_generation_fast = False
 
     def forward(self, src_tokens, src_positions, input_tokens, input_positions):
@@ -67,11 +73,15 @@ class FConvModel(nn.Module):
 
 class Encoder(nn.Module):
     """Convolutional encoder"""
-    def __init__(self, num_embeddings, embed_dim=512, max_positions=1024,
-                 convolutions=((512, 3),) * 20, dropout=0.1, padding_idx=1):
+    def __init__(self, dictionary, embed_dim=512, max_positions=1024,
+                 convolutions=((512, 3),) * 20, dropout=0.1):
         super(Encoder, self).__init__()
+        self.dictionary = dictionary
         self.dropout = dropout
         self.num_attention_layers = None
+
+        num_embeddings = len(dictionary)
+        padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
         self.embed_positions = Embedding(max_positions, embed_dim, padding_idx)
 
@@ -160,10 +170,11 @@ class AttentionLayer(nn.Module):
 
 class Decoder(nn.Module):
     """Convolutional decoder"""
-    def __init__(self, num_embeddings, embed_dim=512, out_embed_dim=256,
+    def __init__(self, dictionary, embed_dim=512, out_embed_dim=256,
                  max_positions=1024, convolutions=((512, 3),) * 20,
-                 attention=True, dropout=0.1, padding_idx=1):
+                 attention=True, dropout=0.1):
         super(Decoder, self).__init__()
+        self.dictionary = dictionary
         self.dropout = dropout
 
         in_channels = convolutions[0][0]
@@ -171,8 +182,11 @@ class Decoder(nn.Module):
             # expand True into [True, True, ...] and do the same with False
             attention = [attention] * len(convolutions)
 
+        num_embeddings = len(dictionary)
+        padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
         self.embed_positions = Embedding(max_positions, embed_dim, padding_idx)
+
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
         self.projections = nn.ModuleList()
         self.convolutions = nn.ModuleList()
@@ -503,24 +517,21 @@ def parse_arch(args):
     return args
 
 
-def build_model(args, dataset):
-    padding_idx = dataset.dst_dict.pad()
+def build_model(args, src_dict, dst_dict):
     encoder = Encoder(
-        len(dataset.src_dict),
+        src_dict,
         embed_dim=args.encoder_embed_dim,
         convolutions=eval(args.encoder_layers),
         dropout=args.dropout,
-        padding_idx=padding_idx,
         max_positions=args.max_positions,
     )
     decoder = Decoder(
-        len(dataset.dst_dict),
+        dst_dict,
         embed_dim=args.decoder_embed_dim,
         convolutions=eval(args.decoder_layers),
         out_embed_dim=args.decoder_out_embed_dim,
         attention=eval(args.decoder_attention),
         dropout=args.dropout,
-        padding_idx=padding_idx,
         max_positions=args.max_positions,
     )
-    return FConvModel(encoder, decoder, padding_idx)
+    return FConvModel(encoder, decoder)
