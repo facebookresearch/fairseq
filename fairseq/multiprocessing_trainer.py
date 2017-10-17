@@ -31,6 +31,8 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     (prefixed with `_async_`), which run on each process in parallel.
     """
 
+    OPTIMIZERS = ['adagrad', 'adam', 'nag', 'sgd']
+
     def __init__(self, args, model, criterion, device_ids=None,
                  multiprocessing_method='spawn'):
         if device_ids is None:
@@ -69,14 +71,31 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         self.criterion = criterion.cuda()
 
         # initialize optimizer
-        self.optimizer = NAG(self.model.parameters(), lr=self.args.lr,
-                             momentum=self.args.momentum,
-                             weight_decay=self.args.weight_decay)
+        self.optimizer = self._build_optimizer()
         self.flat_grads = None
         self.loss = None
 
         # initialize LR scheduler
         self.lr_scheduler = self._build_lr_scheduler()
+
+    def _build_optimizer(self):
+        if self.args.optimizer == 'adagrad':
+            return torch.optim.Adagrad(self.model.parameters(), lr=self.args.lr,
+                                       weight_decay=self.args.weight_decay)
+        elif self.args.optimizer == 'adam':
+            return torch.optim.Adam(self.model.parameters(), lr=self.args.lr,
+                                    betas=eval(self.args.adam_betas),
+                                    weight_decay=self.args.weight_decay)
+        elif self.args.optimizer == 'nag':
+            return NAG(self.model.parameters(), lr=self.args.lr,
+                       momentum=self.args.momentum,
+                       weight_decay=self.args.weight_decay)
+        elif self.args.optimizer == 'sgd':
+            return torch.optim.SGD(self.model.parameters(), lr=self.args.lr,
+                                   momentum=self.args.momentum,
+                                   weight_decay=self.args.weight_decay)
+        else:
+            raise ValueError('Unknown optimizer: {}'.format(self.args.optimizer))
 
     def _build_lr_scheduler(self):
         if self.args.force_anneal > 0:
