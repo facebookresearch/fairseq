@@ -11,7 +11,7 @@ import sys
 import torch
 from torch.autograd import Variable
 
-from fairseq import bleu, options, tokenizer, utils
+from fairseq import bleu, data, options, tokenizer, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.progress_bar import progress_bar
 from fairseq.sequence_generator import SequenceGenerator
@@ -37,9 +37,15 @@ def main():
         progress_bar.enabled = False
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-    # Load model and dataset
+    # Load dataset
+    dataset = data.load_with_check(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+    if args.source_lang is None or args.target_lang is None:
+        # record inferred languages in args
+        args.source_lang, args.target_lang = dataset.src, dataset.dst
+
+    # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models, dataset = utils.load_ensemble_for_inference(args.path, args.data, args.gen_subset)
+    models = utils.load_ensemble_for_inference(args.path, dataset.src_dict, dataset.dst_dict)
 
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
@@ -50,13 +56,13 @@ def main():
     # ignore too long sentences
     args.max_positions = min(args.max_positions, *(m.decoder.max_positions() for m in models))
 
-    # Optimize model for generation
+    # Optimize ensemble for generation
     for model in models:
         model.make_generation_fast_(not args.no_beamable_mm)
 
     # Initialize generator
     translator = SequenceGenerator(
-        models, dataset.dst_dict, beam_size=args.beam, stop_early=(not args.no_early_stop),
+        models, beam_size=args.beam, stop_early=(not args.no_early_stop),
         normalize_scores=(not args.unnormalized), len_penalty=args.lenpen
     )
     if use_cuda:

@@ -14,7 +14,7 @@ import traceback
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, data, models
+from fairseq import criterions, models
 
 
 def parse_args_and_arch(parser):
@@ -24,13 +24,13 @@ def parse_args_and_arch(parser):
     return args
 
 
-def build_model(args, dataset):
+def build_model(args, src_dict, dst_dict):
     assert hasattr(models, args.model), 'Missing model type'
-    return getattr(models, args.model).build_model(args, dataset)
+    return getattr(models, args.model).build_model(args, src_dict, dst_dict)
 
 
-def build_criterion(args, dataset):
-    padding_idx = dataset.dst_dict.pad()
+def build_criterion(args, src_dict, dst_dict):
+    padding_idx = dst_dict.pad()
     if args.label_smoothing > 0:
         return criterions.LabelSmoothedCrossEntropyCriterion(args.label_smoothing, padding_idx)
     else:
@@ -117,7 +117,7 @@ def _upgrade_state_dict(state):
     return state
 
 
-def load_ensemble_for_inference(filenames, data_path, split):
+def load_ensemble_for_inference(filenames, src_dict, dst_dict):
     # load model architectures and weights
     states = []
     for filename in filenames:
@@ -126,19 +126,15 @@ def load_ensemble_for_inference(filenames, data_path, split):
         states.append(
             torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
         )
-
-    # load dataset
     args = states[0]['args']
-    dataset = data.load(data_path, [split], args.source_lang, args.target_lang)
 
-    # build models
+    # build ensemble
     ensemble = []
     for state in states:
-        model = build_model(args, dataset)
+        model = build_model(args, src_dict, dst_dict)
         model.load_state_dict(state['model'])
         ensemble.append(model)
-
-    return ensemble, dataset
+    return ensemble
 
 
 def prepare_sample(sample, volatile=False, cuda_device=None):
