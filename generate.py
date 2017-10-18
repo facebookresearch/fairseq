@@ -27,10 +27,13 @@ def main():
                               help='batch size')
     dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
                               help='data subset to generate (train, valid, test)')
+    dataset_args.add_argument('--output', default='output', metavar='FILE',
+                              help='path to pred output')
     options.add_generation_args(parser)
 
     args = parser.parse_args()
     print(args)
+    pred_out = open(args.output, 'w')
 
     if args.no_progress_bar:
         progress_bar.enabled = False
@@ -89,19 +92,25 @@ def main():
             return
         id_str = '' if id is None else '-{}'.format(id)
         src_str = to_sentence(dataset.src_dict, src, bpe_symbol)
-        print('S{}\t{}'.format(id_str, src_str))
+        #print('S{}\t{}'.format(id_str, src_str))
         if orig is not None:
-            print('O{}\t{}'.format(id_str, orig.strip()))
+            pass
+            #print('O{}\t{}'.format(id_str, orig.strip()))
         if ref is not None:
+            pred_result = to_sentence(dataset.dst_dict, ref, bpe_symbol, ref_unk=True)
+            pred_out.write(pred_result+'\n')
             print('T{}\t{}'.format(id_str, to_sentence(dataset.dst_dict, ref, bpe_symbol, ref_unk=True)))
         for hypo in hypos:
             hypo_str = to_sentence(dataset.dst_dict, hypo['tokens'], bpe_symbol)
             align_str = ' '.join(map(str, hypo['alignment']))
             if args.unk_replace_dict != '':
                 hypo_str = replace_unk(hypo_str, align_str, orig, unk_symbol(dataset.dst_dict))
+            pred_out.write(hypo_str+'\n')
+            '''
             print('H{}\t{}\t{}'.format(
                 id_str, hypo['score'], hypo_str))
             print('A{}\t{}'.format(id_str, align_str))
+            '''
 
     if args.interactive:
         for line in sys.stdin:
