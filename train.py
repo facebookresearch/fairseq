@@ -133,6 +133,7 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
     desc = '| epoch {:03d}'.format(epoch)
+    trainer.set_seed(args.seed + epoch)
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in data.skip_group_enumerator(t, num_gpus, batch_offset):
