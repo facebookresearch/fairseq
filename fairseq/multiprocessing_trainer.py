@@ -57,9 +57,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         """Initialize child processes."""
         self.args = args
 
-        # set torch.seed in this process
-        torch.manual_seed(args.seed)
-
         # set CUDA device
         torch.cuda.set_device(device_id)
 
@@ -141,6 +138,15 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             filename, self.model, self.criterion, self.optimizer,
             self.lr_scheduler, cuda_device=device_id)
         return extra_state
+
+    def set_seed(self, seed):
+        Future.gen_list([
+            self.call_async(rank, '_async_set_seed', seed=seed)
+            for rank in range(self.num_replicas)
+        ])
+
+    def _async_set_seed(self, rank, device_id, seed):
+        torch.manual_seed(seed)
 
     def train_step(self, samples):
         """Do forward, backward and gradient step in parallel."""
