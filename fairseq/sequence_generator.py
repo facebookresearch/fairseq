@@ -16,7 +16,7 @@ from fairseq import utils
 
 
 class SequenceGenerator(object):
-    def __init__(self, models, dst_dict, beam_size=1, minlen=1, maxlen=200,
+    def __init__(self, models, beam_size=1, minlen=1, maxlen=200,
                  stop_early=True, normalize_scores=True, len_penalty=1):
         """Generates translations of a given source sentence.
 
@@ -29,13 +29,14 @@ class SequenceGenerator(object):
             normalize_scores: Normalize scores by the length of the output.
         """
         self.models = models
-        self.dict = dst_dict
-        self.pad = dst_dict.pad()
-        self.eos = dst_dict.eos()
-        self.vocab_size = len(dst_dict)
+        self.pad = models[0].dst_dict.pad()
+        self.eos = models[0].dst_dict.eos()
+        assert all(m.dst_dict.pad() == self.pad for m in self.models[1:])
+        assert all(m.dst_dict.eos() == self.eos for m in self.models[1:])
+        self.vocab_size = len(models[0].dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        self.maxlen = min(maxlen, *(m.decoder.max_positions() - self.pad - 2 for m in self.models))
+        self.maxlen = min(maxlen, *[m.decoder.max_positions() - self.pad - 2 for m in self.models])
         self.positions = torch.LongTensor(range(self.pad + 1, self.pad + self.maxlen + 2))
         self.decoder_context = models[0].decoder.context_size()
         self.stop_early = stop_early
@@ -48,7 +49,7 @@ class SequenceGenerator(object):
         self.positions = self.positions.cuda()
         return self
 
-    def generate_batched_itr(self, data_itr, maxlen_a=0, maxlen_b=200,
+    def generate_batched_itr(self, data_itr, maxlen_a=0.0, maxlen_b=200,
                              cuda_device=None, timer=None):
         """Iterate over a batched dataset and yield individual translations.
 
@@ -69,7 +70,7 @@ class SequenceGenerator(object):
             if timer is not None:
                 timer.start()
             hypos = self.generate(input['src_tokens'], input['src_positions'],
-                                  maxlen=(maxlen_a*srclen + maxlen_b))
+                                  maxlen=int(maxlen_a*srclen + maxlen_b))
             if timer is not None:
                 timer.stop(s['ntokens'])
             for i, id in enumerate(s['id']):
@@ -91,7 +92,7 @@ class SequenceGenerator(object):
 
         # the max beam size is the dictionary size - 1, since we never select pad
         beam_size = beam_size if beam_size is not None else self.beam_size
-        beam_size = min(beam_size, len(self.dict) - 1)
+        beam_size = min(beam_size, self.vocab_size - 1)
 
         encoder_outs = []
         for model in self.models:
@@ -108,8 +109,8 @@ class SequenceGenerator(object):
         tokens = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(self.pad)
         tokens_buf = tokens.clone()
         tokens[:, 0] = self.eos
-        align = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(-1)
-        align_buf = align.clone()
+        attn = scores.new(bsz * beam_size, src_tokens.size(1), maxlen + 2)
+        attn_buf = attn.clone()
 
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
@@ -126,7 +127,7 @@ class SequenceGenerator(object):
 
         # helper function for allocating buffers on the fly
         buffers = {}
-        def buffer(name, type_of=tokens):
+        def buffer(name, type_of=tokens):  # noqa
             if name not in buffers:
                 buffers[name] = type_of.new()
             return buffers[name]
@@ -177,10 +178,12 @@ class SequenceGenerator(object):
                 def get_hypo():
                     hypo = tokens[idx, 1:step+2].clone()  # skip the first index, which is EOS
                     hypo[step] = self.eos
-                    alignment = align[idx, 1:step+2].clone()
+                    attention = attn[idx, :, 1:step+2].clone()
+                    _, alignment = attention.max(dim=0)
                     return {
                         'tokens': hypo,
                         'score': score,
+                        'attention': attention,
                         'alignment': alignment,
                     }
 
@@ -224,9 +227,8 @@ class SequenceGenerator(object):
                 probs.add_(scores.view(-1, 1))
             probs[:, self.pad] = -math.inf  # never select pad
 
-            # record alignment to source tokens, based on attention
-            _ignore_scores = buffer('_ignore_scores', type_of=scores)
-            avg_attn_scores.topk(1, out=(_ignore_scores, align[:, step+1].unsqueeze(1)))
+            # Record attention scores
+            attn[:, :, step+1].copy_(avg_attn_scores)
 
             # take the best 2 x beam_size predictions. We'll choose the first
             # beam_size of these which don't predict eos to continue with.
@@ -290,17 +292,17 @@ class SequenceGenerator(object):
             cand_indices.gather(1, active_hypos,
                                 out=tokens_buf.view(bsz, beam_size, -1)[:, :, step+1])
 
-            # copy attention/alignment for active hypotheses
-            torch.index_select(align[:, :step+2], dim=0, index=active_bbsz_idx,
-                               out=align_buf[:, :step+2])
+            # copy attention for active hypotheses
+            torch.index_select(attn[:, :, :step+2], dim=0, index=active_bbsz_idx,
+                               out=attn_buf[:, :, :step+2])
 
             # swap buffers
             old_tokens = tokens
             tokens = tokens_buf
             tokens_buf = old_tokens
-            old_align = align
-            align = align_buf
-            align_buf = old_align
+            old_attn = attn
+            attn = attn_buf
+            attn_buf = old_attn
 
             # reorder incremental state in decoder
             reorder_state = active_bbsz_idx

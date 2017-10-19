@@ -9,6 +9,7 @@
 import argparse
 
 from fairseq import models
+from fairseq.multiprocessing_trainer import MultiprocessingTrainer
 
 
 def get_parser(desc):
@@ -41,6 +42,9 @@ def add_dataset_args(parser):
 
 def add_optimization_args(parser):
     group = parser.add_argument_group('Optimization')
+    group.add_argument('--optimizer', default='nag', metavar='OPT',
+                       choices=MultiprocessingTrainer.OPTIMIZERS,
+                       help='optimizer ({})'.format(', '.join(MultiprocessingTrainer.OPTIMIZERS)))
     group.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
                        help='initial learning rate')
     group.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
@@ -53,6 +57,8 @@ def add_optimization_args(parser):
                        help='learning rate shrink factor for annealing, lr_new = (lr * lrshrink)')
     group.add_argument('--momentum', default=0.99, type=float, metavar='M',
                        help='momentum factor')
+    group.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
+                       help='betas for Adam optimizer')
     group.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
                        help='clip threshold of gradients')
     group.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
@@ -85,13 +91,13 @@ def add_generation_args(parser):
                        help='beam size')
     group.add_argument('--nbest', default=1, type=int, metavar='N',
                        help='number of hypotheses to output')
-    group.add_argument('--max-len-a', default=0, type=int, metavar='N',
-                       help=('generate sequence of maximum length ax + b, '
+    group.add_argument('--max-len-a', default=0, type=float, metavar='N',
+                       help=('generate sequences of maximum length ax + b, '
                              'where x is the source length'))
     group.add_argument('--max-len-b', default=200, type=int, metavar='N',
-                       help=('generate sequence of maximum length ax + b, '
+                       help=('generate sequences of maximum length ax + b, '
                              'where x is the source length'))
-    group.add_argument('--remove-bpe', action='store_true',
+    group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring')
     group.add_argument('--no-early-stop', action='store_true',
                        help=('continue searching even after finalizing k=beam '

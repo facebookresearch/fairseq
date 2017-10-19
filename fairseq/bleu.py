@@ -97,7 +97,7 @@ class Scorer(object):
     def result_string(self, order=4):
         assert order <= 4, "BLEU scores for order > 4 aren't supported"
         fmt = 'BLEU{} = {:2.2f}, {:2.1f}'
-        for i in range(1, order):
+        for _ in range(1, order):
             fmt += '/{:2.1f}'
         fmt += ' (BP={:.3f}, ratio={:.3f}, syslen={}, reflen={})'
         bleup = [p * 100 for p in self.precision()[:order]]

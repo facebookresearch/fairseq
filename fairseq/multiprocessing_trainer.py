@@ -15,7 +15,6 @@ import torch
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
 from fairseq import nccl, utils
-from fairseq.criterions import FairseqCriterion
 from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
 from fairseq.nag import NAG
 
@@ -32,7 +31,9 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     (prefixed with `_async_`), which run on each process in parallel.
     """
 
-    def __init__(self, args, model, device_ids=None,
+    OPTIMIZERS = ['adagrad', 'adam', 'nag', 'sgd']
+
+    def __init__(self, args, model, criterion, device_ids=None,
                  multiprocessing_method='spawn'):
         if device_ids is None:
             device_ids = tuple(range(torch.cuda.device_count()))
@@ -42,21 +43,19 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             raise NotImplementedError('Training on CPU is not supported')
         model = model.share_memory()
         nccl_uid = nccl.get_unique_id()
+        self.criterion = criterion
 
         Future.gen_list([
             self.call_async(rank, '_async_init', args=args, model=model,
-                            nccl_uid=nccl_uid)
+                            criterion=criterion, nccl_uid=nccl_uid)
             for rank in range(self.num_replicas)
         ])
 
         self._grads_initialized = False
 
-    def _async_init(self, rank, device_id, args, model, nccl_uid):
+    def _async_init(self, rank, device_id, args, model, criterion, nccl_uid):
         """Initialize child processes."""
         self.args = args
-
-        # set torch.seed in this process
-        torch.manual_seed(args.seed)
 
         # set CUDA device
         torch.cuda.set_device(device_id)
@@ -64,17 +63,36 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         # initialize NCCL
         nccl.initialize(self.num_replicas, nccl_uid, device_id)
 
-        # copy model to current device
+        # copy model and criterion to current device
         self.model = model.cuda()
+        self.criterion = criterion.cuda()
 
         # initialize optimizer
-        self.optimizer = NAG(self.model.parameters(), lr=self.args.lr,
-                             momentum=self.args.momentum,
-                             weight_decay=self.args.weight_decay)
+        self.optimizer = self._build_optimizer()
         self.flat_grads = None
+        self.loss = None
 
         # initialize LR scheduler
         self.lr_scheduler = self._build_lr_scheduler()
+
+    def _build_optimizer(self):
+        if self.args.optimizer == 'adagrad':
+            return torch.optim.Adagrad(self.model.parameters(), lr=self.args.lr,
+                                       weight_decay=self.args.weight_decay)
+        elif self.args.optimizer == 'adam':
+            return torch.optim.Adam(self.model.parameters(), lr=self.args.lr,
+                                    betas=eval(self.args.adam_betas),
+                                    weight_decay=self.args.weight_decay)
+        elif self.args.optimizer == 'nag':
+            return NAG(self.model.parameters(), lr=self.args.lr,
+                       momentum=self.args.momentum,
+                       weight_decay=self.args.weight_decay)
+        elif self.args.optimizer == 'sgd':
+            return torch.optim.SGD(self.model.parameters(), lr=self.args.lr,
+                                   momentum=self.args.momentum,
+                                   weight_decay=self.args.weight_decay)
+        else:
+            raise ValueError('Unknown optimizer: {}'.format(self.args.optimizer))
 
     def _build_lr_scheduler(self):
         if self.args.force_anneal > 0:
@@ -98,14 +116,13 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def _async_get_model(self, rank, device_id):
         return self.model
 
-    def save_checkpoint(self, args, epoch, batch_offset, val_loss=None):
+    def save_checkpoint(self, filename, extra_state):
         """Save a checkpoint for the current model."""
-        self.call_async(0, '_async_save_checkpoint', args=args, epoch=epoch,
-                        batch_offset=batch_offset, val_loss=val_loss).gen()
+        self.call_async(0, '_async_save_checkpoint', filename=filename, extra_state=extra_state).gen()
 
-    def _async_save_checkpoint(self, rank, device_id, args, epoch, batch_offset, val_loss):
-        utils.save_checkpoint(args, epoch, batch_offset, self.model,
-                              self.optimizer, self.lr_scheduler, val_loss)
+    def _async_save_checkpoint(self, rank, device_id, filename, extra_state):
+        utils.save_state(filename, self.args, self.model, self.criterion, self.optimizer,
+                         self.lr_scheduler, self._optim_history, extra_state)
 
     def load_checkpoint(self, filename):
         """Load a checkpoint into the model replicas in each process."""
@@ -113,17 +130,26 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             self.call_async(rank, '_async_load_checkpoint', filename=filename)
             for rank in range(self.num_replicas)
         ])
-        epoch, batch_offset = results[0]
-        return epoch, batch_offset
+        extra_state = results[0]
+        return extra_state
 
     def _async_load_checkpoint(self, rank, device_id, filename):
-        return utils.load_checkpoint(filename, self.model, self.optimizer,
-                                     self.lr_scheduler, cuda_device=device_id)
+        extra_state, self._optim_history = utils.load_state(
+            filename, self.model, self.criterion, self.optimizer,
+            self.lr_scheduler, cuda_device=device_id)
+        return extra_state
 
-    def train_step(self, samples, criterion):
+    def set_seed(self, seed):
+        Future.gen_list([
+            self.call_async(rank, '_async_set_seed', seed=seed)
+            for rank in range(self.num_replicas)
+        ])
+
+    def _async_set_seed(self, rank, device_id, seed):
+        torch.manual_seed(seed)
+
+    def train_step(self, samples):
         """Do forward, backward and gradient step in parallel."""
-        assert isinstance(criterion, FairseqCriterion)
-
         # PyTorch initializes gradient buffers lazily, so the first
         # train step needs to send non-empty samples to all replicas
         replace_empty_samples = False
@@ -133,33 +159,45 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # scatter sample across GPUs
         self._scatter_samples(samples, replace_empty_samples=replace_empty_samples)
-        criterion.prepare(samples)
 
-        # forward pass, backward pass and gradient step
-        losses = [
-            self.call_async(rank, '_async_train_step', criterion=criterion)
+        # forward pass
+        sample_sizes, logging_outputs = Future.gen_tuple_list([
+            self.call_async(rank, '_async_forward')
             for rank in range(self.num_replicas)
-        ]
+        ])
 
-        # aggregate losses and gradient norms
-        losses, grad_norms = Future.gen_tuple_list(losses)
-        loss = criterion.aggregate(losses)
+        # backward pass, all-reduce gradients and take an optimization step
+        grad_denom = self.criterion.__class__.grad_denom(sample_sizes)
+        grad_norms = Future.gen_list([
+            self.call_async(rank, '_async_backward_and_opt', grad_denom=grad_denom)
+            for rank in range(self.num_replicas)
+        ])
 
-        return loss, grad_norms[0]
+        # aggregate logging output
+        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        logging_output['gnorm'] = grad_norms[0]  # log the gradient norm
 
-    def _async_train_step(self, rank, device_id, criterion):
-        self.model.train()
+        return logging_output
 
-        # zero grads even if net_input is None, since we will all-reduce them
-        self.optimizer.zero_grad()
+    def _async_forward(self, rank, device_id, eval=False):
+        if eval:
+            self.model.eval()
+        else:
+            self.model.train()
+            self.optimizer.zero_grad()
 
-        # calculate loss and grads
-        loss = 0
-        if self._sample is not None:
-            net_output = self.model(**self._sample['net_input'])
-            loss_ = criterion(net_output, self._sample)
-            loss_.backward()
-            loss = loss_.data[0]
+        if self._sample is None:
+            return 0, {}
+
+        # calculate loss and sample size
+        self.loss, sample_size, logging_output = self.criterion(self.model, self._sample)
+
+        return sample_size, logging_output
+
+    def _async_backward_and_opt(self, rank, device_id, grad_denom):
+        if self.loss is not None:
+            # backward pass
+            self.loss.backward()
 
         # flatten grads into a contiguous block of memory
         if self.flat_grads is None:
@@ -168,13 +206,20 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         # all-reduce grads
         nccl.all_reduce(self.flat_grads)
 
+        # normalize grads
+        if grad_denom != 0:
+            self.flat_grads.div_(grad_denom)
+
         # clip grads
         grad_norm = self._clip_grads_(self.flat_grads, self.args.clip_norm)
 
         # take an optimization step
         self.optimizer.step()
 
-        return loss, grad_norm
+        # reset loss
+        self.loss = None
+
+        return grad_norm
 
     def _flatten_grads_(self, model):
         num_params = sum(p.data.numel() for p in model.parameters())
@@ -196,30 +241,21 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             flat_grads.div_(coef)
         return norm
 
-    def valid_step(self, samples, criterion):
+    def valid_step(self, samples):
         """Do forward pass in parallel."""
         # scatter sample across GPUs
         self._scatter_samples(samples, volatile=True)
-        criterion.prepare(samples)
 
         # forward pass
-        losses = [
-            self.call_async(rank, '_async_valid_step', criterion=criterion)
+        _sample_sizes, logging_outputs = Future.gen_tuple_list([
+            self.call_async(rank, '_async_forward', eval=True)
             for rank in range(self.num_replicas)
-        ]
+        ])
 
-        # aggregate losses
-        loss = criterion.aggregate(Future.gen_list(losses))
+        # aggregate logging output
+        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
 
-        return loss
-
-    def _async_valid_step(self, rank, device_id, criterion):
-        if self._sample is None:
-            return 0
-        self.model.eval()
-        net_output = self.model(**self._sample['net_input'])
-        loss = criterion(net_output, self._sample)
-        return loss.data[0]
+        return logging_output
 
     def get_lr(self):
         """Get the current learning rate."""

@@ -11,21 +11,25 @@ from torch.nn.modules.loss import _Loss
 
 class FairseqCriterion(_Loss):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self):
+        super().__init__()
 
-    def prepare(self, samples):
-        """Prepare criterion for DataParallel training."""
-        raise NotImplementedError
+    def forward(self, model, sample):
+        """Compute the loss for the given sample.
 
-    def forward(self, net_output, sample):
-        """Compute the loss for the given sample and network output."""
-        raise NotImplementedError
-
-    def aggregate(self, losses):
-        """Aggregate losses from DataParallel training.
-
-        Takes a list of losses as input (as returned by forward) and
-        aggregates them into the total loss for the mini-batch.
+        Returns a tuple with three elements:
+        1) the loss, as a Variable
+        2) the sample size, which is used as the denominator for the gradient
+        3) logging outputs to display while training
         """
         raise NotImplementedError
+
+    @staticmethod
+    def aggregate_logging_outputs(logging_outputs):
+        """Aggregate logging outputs from data parallel training."""
+        raise NotImplementedError
+
+    @staticmethod
+    def grad_denom(sample_sizes):
+        """Compute the gradient denominator for a set of sample sizes."""
+        return sum(sample_sizes)
