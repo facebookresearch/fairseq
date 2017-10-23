@@ -250,10 +250,11 @@ class SequenceGenerator(object):
             eos_mask = cand_indices.eq(self.eos)
             if step >= self.minlen:
                 eos_bbsz_idx = buffer('eos_bbsz_idx')
-                cand_bbsz_idx.masked_select(eos_mask, out=eos_bbsz_idx)
+                # only consider eos when it's among the top beam_size indices
+                cand_bbsz_idx[:, :beam_size].masked_select(eos_mask[:, :beam_size], out=eos_bbsz_idx)
                 if eos_bbsz_idx.numel() > 0:
                     eos_scores = buffer('eos_scores', type_of=scores)
-                    cand_scores.masked_select(eos_mask, out=eos_scores)
+                    cand_scores[:, :beam_size].masked_select(eos_mask[:, :beam_size], out=eos_scores)
                     num_remaining_sent -= finalize_hypos(step, eos_bbsz_idx, eos_scores)
 
             assert num_remaining_sent >= 0
