@@ -152,14 +152,14 @@ $ python generate.py data-bin/wmt14.en-fr.newstest2014  \
   --path data-bin/wmt14.en-fr.fconv-py/model.pt \
   --beam 5 --batch-size 128 --remove-bpe | tee /tmp/gen.out
 ...
-| Translated 3003 sentences (95451 tokens) in 94.5s (1009.60 tokens/s)
-| Generate test with beam=5: BLEU4 = 40.70, 67.7/46.8/34.2/25.4 (BP=1.000, ratio=1.000, syslen=81190, reflen=81194)
+| Translated 3003 sentences (95451 tokens) in 93.8s (1018.09 tokens/s)
+| Generate test with beam=5: BLEU4 = 40.67, 67.7/46.7/34.2/25.3 (BP=1.000, ratio=0.998, syslen=81377, reflen=81194)
 
 # Scoring with score.py:
 $ grep ^H /tmp/gen.out | cut -f3- > /tmp/gen.out.sys
 $ grep ^T /tmp/gen.out | cut -f2- > /tmp/gen.out.ref
 $ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
-BLEU4 = 40.70, 67.7/46.8/34.2/25.4 (BP=1.000, ratio=1.000, syslen=81190, reflen=81194)
+BLEU4 = 40.67, 67.7/46.7/34.2/25.3 (BP=1.000, ratio=0.998, syslen=81377, reflen=81194)
 ```
 
 # Join the fairseq community
