@@ -28,6 +28,8 @@ def main():
                         help='map words appearing less than threshold times to unknown')
     parser.add_argument('--thresholdsrc', metavar='N', default=0, type=int,
                         help='map words appearing less than threshold times to unknown')
+    parser.add_argument('--tgtdict', metavar='FP', help='reuse given target dictionary')
+    parser.add_argument('--srcdict', metavar='FP', help='reuse given source dictionary')
     parser.add_argument('--nwordstgt', metavar='N', default=-1, type=int, help='number of target words to retain')
     parser.add_argument('--nwordssrc', metavar='N', default=-1, type=int, help='number of source words to retain')
     parser.add_argument('--alignfile', metavar='ALIGN', default=None, help='an alignment file (optional)')
@@ -37,10 +39,17 @@ def main():
 
     os.makedirs(args.destdir, exist_ok=True)
 
-    src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang))
+    if args.srcdict:
+        src_dict = dictionary.Dictionary.load(args.srcdict)
+    else:
+        src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang))
     src_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)),
                   threshold=args.thresholdsrc, nwords=args.nwordssrc)
-    tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
+
+    if args.tgtdict:
+        tgt_dict = dictionary.Dictionary.load(args.tgtdict)
+    else:
+        tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
     tgt_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)),
                   threshold=args.thresholdtgt, nwords=args.nwordstgt)
 
