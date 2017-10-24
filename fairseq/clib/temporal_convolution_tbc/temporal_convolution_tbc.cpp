@@ -29,7 +29,7 @@ inline at::Tensor t(at::Type& type, void* i) {
   return type.unsafeTensorFromTH(i, true);
 }
 
-extern "C" void TemporalConvolutionTBC_forward(
+void TemporalConvolutionTBC_forward(
   const char* dtype,
   void* _input,
   void* _output,
@@ -72,7 +72,7 @@ extern "C" void TemporalConvolutionTBC_forward(
   }
 }
 
-extern "C" void TemporalConvolutionTBC_backward(
+void TemporalConvolutionTBC_backward(
   const char* dtype,
   void* _dOutput,
   void* _dInput,

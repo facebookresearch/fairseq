@@ -42,6 +42,7 @@ conv_tbc = create_extension(
     define_macros=[('WITH_CUDA', None)],
     with_cuda=True,
     extra_compile_args=['-std=c++11'],
+    source_extension='.cpp',
 )
 
 
