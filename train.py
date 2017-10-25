@@ -120,11 +120,15 @@ def get_perplexity(loss):
 def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
     """Train the model for one epoch."""
 
+    torch.manual_seed(args.seed + epoch)
+    trainer.set_seed(args.seed + epoch)
+
     itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
                              max_tokens=args.max_tokens, seed=args.seed, epoch=epoch,
                              max_positions=args.max_positions,
                              sample_without_replacement=args.sample_without_replacement,
-                             skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
+                             skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
+                             sort_by_source_size=(epoch <= args.curriculum))
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()    # sentences per batch
     wpb_meter = AverageMeter()    # words per batch
@@ -133,7 +137,6 @@ def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
     desc = '| epoch {:03d}'.format(epoch)
-    trainer.set_seed(args.seed + epoch)
     lr = trainer.get_lr()
     with progress_bar(itr, desc, leave=False) as t:
         for i, sample in data.skip_group_enumerator(t, num_gpus, batch_offset):
