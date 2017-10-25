@@ -112,6 +112,8 @@ def add_generation_args(parser):
                        help='don\'t use BeamableMM in attention layers')
     group.add_argument('--lenpen', default=1, type=float,
                        help='length penalty: <1.0 favors shorter, >1.0 favors longer sentences')
+    group.add_argument('--unkpen', default=0, type=float,
+                       help='unknown word penalty: <0 produces more unks, >0 produces fewer')
     group.add_argument('--unk-replace-dict', default='', type=str,
                        help='performs unk word replacement')
     group.add_argument('--quiet', action='store_true',
