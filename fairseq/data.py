@@ -94,7 +94,8 @@ class LanguageDatasets(object):
     def dataloader(self, split, batch_size=1, num_workers=0,
                    max_tokens=None, seed=None, epoch=1,
                    sample_without_replacement=0, max_positions=1024,
-                   skip_invalid_size_inputs_valid_test=False):
+                   skip_invalid_size_inputs_valid_test=False,
+                   sort_by_source_size=False):
         dataset = self.splits[split]
         if split.startswith('train'):
             with numpy_seed(seed):
@@ -102,7 +103,8 @@ class LanguageDatasets(object):
                     dataset.src, dataset.dst,
                     max_tokens=max_tokens, epoch=epoch,
                     sample=sample_without_replacement,
-                    max_positions=max_positions)
+                    max_positions=max_positions,
+                    sort_by_source_size=sort_by_source_size)
         elif split.startswith('valid'):
             batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst,
                                                  max_positions=max_positions,
@@ -269,7 +271,8 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
         yield batch
 
 
-def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0, max_positions=1024):
+def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0,
+                             max_positions=1024, sort_by_source_size=False):
     """Returns batches of indices, bucketed by size and then shuffled. Batches
     may contain sequences of different lengths."""
     assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
@@ -310,7 +313,8 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0, max_p
                   "and will be ignored, sample ids={}".format(len(ignored), ignored))
 
     batches = list(make_batches())
-    np.random.shuffle(batches)
+    if not sort_by_source_size:
+        np.random.shuffle(batches)
 
     if sample:
         offset = (epoch - 1) * sample
@@ -327,9 +331,6 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0, max_p
             "batch length is not correct {}".format(len(result))
 
         batches = result
-    else:
-        for _ in range(epoch - 1):
-            np.random.shuffle(batches)
 
     return batches
 

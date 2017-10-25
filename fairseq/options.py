@@ -67,6 +67,8 @@ def add_optimization_args(parser):
                        help='If bigger than 0, use that number of mini-batches for each epoch,'
                             ' where each sample is drawn randomly without replacement from the'
                             ' dataset')
+    group.add_argument('--curriculum', default=0, type=int, metavar='N',
+                       help='sort batches by source length for first N epochs')
     return group
 
 
