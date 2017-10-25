@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from fairseq import utils
+from fairseq.models import FairseqIncrementalDecoder
 
 
 class SequenceGenerator(object):
@@ -36,9 +37,7 @@ class SequenceGenerator(object):
         self.vocab_size = len(models[0].dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        self.maxlen = min(maxlen, *[m.decoder.max_positions() - self.pad - 2 for m in self.models])
-        self.positions = torch.LongTensor(range(self.pad + 1, self.pad + self.maxlen + 2))
-        self.decoder_context = models[0].decoder.context_size()
+        self.maxlen = min(maxlen, *[m.decoder.max_positions() for m in self.models])
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
@@ -46,10 +45,9 @@ class SequenceGenerator(object):
     def cuda(self):
         for model in self.models:
             model.cuda()
-        self.positions = self.positions.cuda()
         return self
 
-    def generate_batched_itr(self, data_itr, maxlen_a=0.0, maxlen_b=200,
+    def generate_batched_itr(self, data_itr, beam_size=None, maxlen_a=0.0, maxlen_b=None,
                              cuda_device=None, timer=None):
         """Iterate over a batched dataset and yield individual translations.
 
@@ -63,13 +61,16 @@ class SequenceGenerator(object):
         def lstrip_pad(tensor):
             return tensor[tensor.eq(self.pad).sum():]
 
+        if maxlen_b is None:
+            maxlen_b = self.maxlen
+
         for sample in data_itr:
             s = utils.prepare_sample(sample, volatile=True, cuda_device=cuda_device)
             input = s['net_input']
             srclen = input['src_tokens'].size(1)
             if timer is not None:
                 timer.start()
-            hypos = self.generate(input['src_tokens'], input['src_positions'],
+            hypos = self.generate(input['src_tokens'], beam_size=beam_size,
                                   maxlen=int(maxlen_a*srclen + maxlen_b))
             if timer is not None:
                 timer.stop(s['ntokens'])
@@ -79,14 +80,15 @@ class SequenceGenerator(object):
                 ref = lstrip_pad(s['target'].data[i, :])
                 yield id, src, ref, hypos[i]
 
-    def generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
+    def generate(self, src_tokens, beam_size=None, maxlen=None):
         """Generate a batch of translations."""
         with ExitStack() as stack:
             for model in self.models:
-                stack.enter_context(model.decoder.incremental_inference())
-            return self._generate(src_tokens, src_positions, beam_size, maxlen)
+                if isinstance(model.decoder, FairseqIncrementalDecoder):
+                    stack.enter_context(model.decoder.incremental_inference())
+            return self._generate(src_tokens, beam_size, maxlen)
 
-    def _generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
+    def _generate(self, src_tokens, beam_size=None, maxlen=None):
         bsz = src_tokens.size(0)
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
 
@@ -97,10 +99,11 @@ class SequenceGenerator(object):
         encoder_outs = []
         for model in self.models:
             model.eval()
-            model.decoder.start_fresh_sequence(beam_size)  # start a fresh sequence
+            if isinstance(model.decoder, FairseqIncrementalDecoder):
+                model.decoder.set_beam_size(beam_size)
 
             # compute the encoder output and expand to beam size
-            encoder_out = model.encoder(src_tokens, src_positions)
+            encoder_out = model.encoder(src_tokens)
             encoder_out = self._expand_encoder_out(encoder_out, beam_size)
             encoder_outs.append(encoder_out)
 
@@ -215,7 +218,8 @@ class SequenceGenerator(object):
             # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
                 for model in self.models:
-                    model.decoder.reorder_incremental_state(reorder_state)
+                    if isinstance(model.decoder, FairseqIncrementalDecoder):
+                        model.decoder.reorder_incremental_state(reorder_state)
 
             probs, avg_attn_scores = self._decode(tokens[:, :step+1], encoder_outs)
             if step == 0:
@@ -315,19 +319,16 @@ class SequenceGenerator(object):
         return finalized
 
     def _decode(self, tokens, encoder_outs):
-        length = tokens.size(1)
-
-        # repeat the first length positions to fill batch
-        positions = self.positions[:length].view(1, length)
-
-        # wrap in Variables
+        # wrap in Variable
         tokens = Variable(tokens, volatile=True)
-        positions = Variable(positions, volatile=True)
 
         avg_probs = None
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
-            decoder_out, attn = model.decoder(tokens, positions, encoder_out)
+            if isinstance(model.decoder, FairseqIncrementalDecoder):
+                decoder_out, attn = model.decoder.incremental_forward(tokens, encoder_out)
+            else:
+                decoder_out, attn = model.decoder.forward(tokens, encoder_out)
             probs = F.softmax(decoder_out[:, -1, :]).data
             attn = attn[:, -1, :].data
             if avg_probs is None or avg_attn is None:

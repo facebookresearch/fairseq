@@ -8,8 +8,12 @@
 
 from .beamable_mm import BeamableMM
 from .conv_tbc import ConvTBC
+from .grad_multiply import GradMultiply
 from .linearized_convolution import LinearizedConvolution
 
 __all__ = [
-    'BeamableMM', 'LinearizedConvolution', 'ConvTBC',
+    'BeamableMM',
+    'ConvTBC',
+    'GradMultiply',
+    'LinearizedConvolution',
 ]

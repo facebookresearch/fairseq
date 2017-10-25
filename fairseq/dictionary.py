@@ -17,6 +17,7 @@ class Dictionary(object):
         self.symbols = []
         self.count = []
         self.indices = {}
+        # dictionary indexing starts at 1 for consistency with Lua
         self.add_symbol('<Lua heritage>')
         self.pad_index = self.add_symbol(pad)
         self.eos_index = self.add_symbol(eos)

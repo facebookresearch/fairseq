@@ -10,7 +10,7 @@ import torch
 import unittest
 from fairseq.modules import ConvTBC
 import torch.nn as nn
-from torch.autograd import Variable, gradcheck
+from torch.autograd import Variable
 
 
 class TestConvTBC(unittest.TestCase):
@@ -31,7 +31,7 @@ class TestConvTBC(unittest.TestCase):
         output1d = conv1d(input1d)
 
         self.assertAlmostEqual(output_tbc.data.transpose(0, 1).transpose(1, 2), output1d.data)
-        
+
         grad_tbc = torch.randn(output_tbc.size())
         grad1d = grad_tbc.transpose(0, 1).transpose(1, 2).contiguous()
 

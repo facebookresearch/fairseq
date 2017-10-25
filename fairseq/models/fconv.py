@@ -8,74 +8,42 @@
 
 import math
 import torch
+from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.modules import BeamableMM, LinearizedConvolution
+from fairseq.data import LanguagePairDataset
+from fairseq.modules import BeamableMM, GradMultiply, LinearizedConvolution
+
+from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel
 
 
-class FConvModel(nn.Module):
+def make_positions(tokens, padding_idx, left_pad, offset=0):
+    seqlen = tokens.size(1)
+    if not hasattr(make_positions, 'range'):
+        make_positions.range = tokens.new()
+    if make_positions.range.numel() < offset + seqlen:
+        # offset positions by the padding index
+        torch.arange(padding_idx + 1, padding_idx + 1 + offset + seqlen,
+                     out=make_positions.range)
+    mask = tokens.ne(padding_idx)
+    positions = make_positions.range[offset:offset+seqlen].expand_as(tokens)
+    if left_pad:
+        positions = positions - mask.size(1) + mask.long().sum(dim=1).unsqueeze(1)
+    return tokens.clone().masked_scatter_(mask, positions[mask])
+
+
+class FConvModel(FairseqModel):
     def __init__(self, encoder, decoder):
-        super(FConvModel, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-
-        self.src_dict = encoder.dictionary
-        self.dst_dict = decoder.dictionary
-        assert self.src_dict.pad() == self.dst_dict.pad()
-        assert self.src_dict.eos() == self.dst_dict.eos()
-        assert self.src_dict.unk() == self.dst_dict.unk()
-
-        self.encoder.num_attention_layers = sum([layer is not None for layer in decoder.attention])
-        self._is_generation_fast = False
-
-    def forward(self, src_tokens, src_positions, input_tokens, input_positions):
-        encoder_out = self.encoder(src_tokens, src_positions)
-        decoder_out = self.decoder(input_tokens, input_positions, encoder_out)
-        return decoder_out.view(-1, decoder_out.size(-1))
-
-    def make_generation_fast_(self, use_beamable_mm=False):
-        """Optimize model for faster generation.
-
-        Optimizations include:
-        - remove WeightNorm
-        - (optionally) use BeamableMM in attention layers
-
-        The optimized model should not be used again for training.
-
-        Note: this can be combined with incremental inference in the Decoder for
-        even faster generation.
-        """
-        if self._is_generation_fast:
-            return  # only apply once
-        self._is_generation_fast = True
-
-        # remove weight norm from all modules in the network
-        def remove_weight_norm(m):
-            try:
-                nn.utils.remove_weight_norm(m)
-            except ValueError:  # this module didn't have weight norm
-                return
-        self.apply(remove_weight_norm)
-
-        # use BeamableMM in attention layers
-        if use_beamable_mm:
-            self.decoder._use_beamable_mm()
-
-        def train(mode):
-            if mode:
-                raise RuntimeError('cannot train after make_generation_fast')
-
-        # this model should no longer be used for training
-        self.eval()
-        self.train = train
+        super().__init__(encoder, decoder)
+        self.encoder.num_attention_layers = sum(layer is not None for layer in decoder.attention)
 
 
-class Encoder(nn.Module):
+class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
     def __init__(self, dictionary, embed_dim=512, max_positions=1024,
                  convolutions=((512, 3),) * 20, dropout=0.1):
-        super(Encoder, self).__init__()
+        super().__init__()
         self.dictionary = dictionary
         self.dropout = dropout
         self.num_attention_layers = None
@@ -99,9 +67,12 @@ class Encoder(nn.Module):
             in_channels = out_channels
         self.fc2 = Linear(in_channels, embed_dim)
 
-    def forward(self, tokens, positions):
+    def forward(self, src_tokens):
+        positions = Variable(make_positions(src_tokens.data, self.dictionary.pad(),
+                                            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE))
+
         # embed tokens and positions
-        x = self.embed_tokens(tokens) + self.embed_positions(positions)
+        x = self.embed_tokens(src_tokens) + self.embed_positions(positions)
         x = F.dropout(x, p=self.dropout, training=self.training)
         input_embedding = x
 
@@ -126,17 +97,21 @@ class Encoder(nn.Module):
         x = self.fc2(x)
 
         # scale gradients (this only affects backward, not forward)
-        x = grad_multiply(x, 1.0 / (2.0 * self.num_attention_layers))
+        x = GradMultiply.apply(x, 1.0 / (2.0 * self.num_attention_layers))
 
         # add output to input embedding for attention
         y = (x + input_embedding) * math.sqrt(0.5)
 
         return x, y
 
+    def max_positions(self):
+        """Maximum input length supported by the encoder."""
+        return self.embed_positions.num_embeddings - self.dictionary.pad() - 1
+
 
 class AttentionLayer(nn.Module):
     def __init__(self, conv_channels, embed_dim, bmm=None):
-        super(AttentionLayer, self).__init__()
+        super().__init__()
         # projects from output of convolution to embedding dimension
         self.in_projection = Linear(conv_channels, embed_dim)
         # projects from embedding dimension to convolution size
@@ -167,13 +142,18 @@ class AttentionLayer(nn.Module):
         x = (self.out_projection(x) + residual) * math.sqrt(0.5)
         return x, attn_scores
 
+    def make_generation_fast_(self, beamable_mm_beam_size=None, **kwargs):
+        """Replace torch.bmm with BeamableMM."""
+        if beamable_mm_beam_size is not None:
+            self.bmm = BeamableMM(beamable_mm_beam_size)
 
-class Decoder(nn.Module):
+
+class FConvDecoder(FairseqIncrementalDecoder):
     """Convolutional decoder"""
     def __init__(self, dictionary, embed_dim=512, out_embed_dim=256,
                  max_positions=1024, convolutions=((512, 3),) * 20,
                  attention=True, dropout=0.1):
-        super(Decoder, self).__init__()
+        super().__init__()
         self.dictionary = dictionary
         self.dropout = dropout
 
@@ -204,25 +184,38 @@ class Decoder(nn.Module):
         self.fc2 = Linear(in_channels, out_embed_dim)
         self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-        self._is_inference_incremental = False
+    def forward(self, input_tokens, encoder_out):
+        positions = Variable(make_positions(input_tokens.data, self.dictionary.pad(),
+                                            left_pad=LanguagePairDataset.LEFT_PAD_TARGET))
+        return self._forward(input_tokens, positions, encoder_out)
 
-    def forward(self, tokens, positions, encoder_out):
+    def incremental_forward(self, input_tokens, encoder_out):
+        """Forward pass for one time step."""
+        # positions is the same for every token when decoding a single step
+        positions = Variable(input_tokens.data.new(1, 1).fill_(
+            self.dictionary.pad() + input_tokens.size(1)))
+
+        # keep only the last token for incremental forward pass
+        return self._forward(input_tokens[:, -1:], positions, encoder_out)
+
+    def _forward(self, input_tokens, positions, encoder_out):
+        # split and transpose encoder outputs
+        encoder_a, encoder_b = self._split_encoder_out(encoder_out)
+
         # embed tokens and positions
-        x = self.embed_tokens(tokens) + self.embed_positions(positions)
+        x = self.embed_tokens(input_tokens) + self.embed_positions(positions)
         x = F.dropout(x, p=self.dropout, training=self.training)
         target_embedding = x
 
         # project to size of convolution
         x = self.fc1(x)
 
-        # transpose only once to speed up attention layers
-        encoder_a, encoder_b = encoder_out
-        encoder_a = encoder_a.transpose(1, 2).contiguous()
-
         # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
+        x = self._transpose_unless_incremental_eval(x)
 
         # temporal convolutions
+        avg_attn_scores = None
+        num_attn_layers = len(self.attention)
         for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
             residual = x if proj is None else proj(x)
 
@@ -233,172 +226,54 @@ class Decoder(nn.Module):
 
             # attention
             if attention is not None:
-                x = x.transpose(1, 0)
-                x, _ = attention(x, target_embedding, (encoder_a, encoder_b))
-                x = x.transpose(1, 0)
+                x = self._transpose_unless_incremental_eval(x)
+
+                x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b))
+                attn_scores = attn_scores / num_attn_layers
+                if avg_attn_scores is None:
+                    avg_attn_scores = attn_scores
+                else:
+                    avg_attn_scores.add_(attn_scores)
+
+                x = self._transpose_unless_incremental_eval(x)
 
             # residual
             x = (x + residual) * math.sqrt(0.5)
 
         # T x B x C -> B x T x C
-        x = x.transpose(1, 0)
+        x = self._transpose_unless_incremental_eval(x)
 
         # project back to size of vocabulary
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.fc3(x)
 
-        return x
-
-    def context_size(self):
-        """Maximum number of input elements each output element depends on"""
-        context = 1
-        for conv in self.convolutions:
-            context += conv.kernel_size[0] - 1
-        return context
-
-    def max_positions(self):
-        """Returns maximum size of positions embeddings supported by this decoder"""
-        return self.embed_positions.num_embeddings
-
-    def incremental_inference(self, beam_size=None):
-        """Context manager for incremental inference.
-
-        This provides an optimized forward pass for incremental inference
-        (i.e., it predicts one time step at a time). If the input order changes
-        between time steps, call model.decoder.reorder_incremental_state to
-        update the relevant buffers. To generate a fresh sequence, first call
-        model.decoder.start_fresh_sequence.
-
-        Usage:
-        ```
-        with model.decoder.incremental_inference():
-            for step in range(maxlen):
-                out = model.decoder(tokens[:, :step], positions[:, :step],
-                                    encoder_out)
-                probs = F.log_softmax(out[:, -1, :])
-        ```
-        """
-        class IncrementalInference(object):
-
-            def __init__(self, decoder, beam_size):
-                self.decoder = decoder
-                self.beam_size = beam_size
-
-            def __enter__(self):
-                self.decoder._start_incremental_inference(self.beam_size)
-
-            def __exit__(self, *args):
-                self.decoder._stop_incremental_inference()
-
-        return IncrementalInference(self, beam_size)
-
-    def _start_incremental_inference(self, beam_size):
-        assert not self._is_inference_incremental, \
-            'already performing incremental inference'
-        self._is_inference_incremental = True
-
-        # save original forward
-        self._orig_forward = self.forward
-
-        # switch to incremental forward
-        self.forward = self._incremental_forward
-
-        # start a fresh sequence
-        self.start_fresh_sequence(beam_size)
-
-    def _stop_incremental_inference(self):
-        # restore original forward
-        self.forward = self._orig_forward
-
-        self._is_inference_incremental = False
-
-    def _incremental_forward(self, tokens, positions, encoder_out):
-        assert self._is_inference_incremental
-
-        # setup initial state
-        if self.prev_state is None:
-            # transpose encoder output once to speed up attention layers
-            encoder_a, encoder_b = encoder_out
-            encoder_a = encoder_a.transpose(1, 2).contiguous()
-            self.prev_state = {
-                'encoder_out': (encoder_a, encoder_b),
-            }
-
-        # load previous state
-        encoder_a, encoder_b = self.prev_state['encoder_out']
-
-        # keep only the last token for incremental forward pass
-        tokens = tokens[:, -1:]
-        positions = positions[:, -1:]
-
-        # embed tokens and positions
-        x = self.embed_tokens(tokens) + self.embed_positions(positions)
-        target_embedding = x
-
-        # project to size of convolution
-        x = self.fc1(x)
-
-        # temporal convolutions
-        avg_attn_scores = None
-        num_attn_layers = len(self.attention)
-        for proj, conv, attention in zip(self.projections, self.convolutions, self.attention):
-            residual = x if proj is None else proj(x)
-            x = conv.incremental_forward(x)
-            x = F.glu(x)
-
-            # attention
-            if attention is not None:
-                x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b))
-                attn_scores = attn_scores / num_attn_layers
-                if avg_attn_scores is None:
-                    avg_attn_scores = attn_scores
-                else:
-                    avg_attn_scores += attn_scores
-
-            # residual
-            x = (x + residual) * math.sqrt(0.5)
-
-        # project back to size of vocabulary
-        x = self.fc2(x)
-        x = self.fc3(x)
-
         return x, avg_attn_scores
 
-    def start_fresh_sequence(self, beam_size=None):
-        """Clear all state used for incremental generation.
+    def max_positions(self):
+        """Maximum output length supported by the decoder."""
+        return self.embed_positions.num_embeddings - self.dictionary.pad() - 1
 
-        **For incremental inference only**
+    def _split_encoder_out(self, encoder_out):
+        """Split and transpose encoder outputs.
 
-        This should be called before generating a fresh sequence.
-        beam_size is required if using BeamableMM.
+        This is cached when doing incremental inference.
         """
-        if self._is_inference_incremental:
-            self.prev_state = None
-            for conv in self.convolutions:
-                conv.clear_buffer()
-            for attn in self.attention:
-                if isinstance(attn.bmm, BeamableMM):
-                    attn.bmm.set_beam_size(beam_size)
+        cached_result = self.get_incremental_state('encoder_out')
+        if cached_result:
+            return cached_result
 
-    def reorder_incremental_state(self, new_order):
-        """Reorder buffered internal state (for incremental generation).
+        # transpose only once to speed up attention layers
+        encoder_a, encoder_b = encoder_out
+        encoder_a = encoder_a.transpose(1, 2).contiguous()
+        result = (encoder_a, encoder_b)
 
-        **For incremental inference only**
+        return self.set_incremental_state('encoder_out', result)
 
-        This should be called when the order of the input has changed from the
-        previous time step. A typical use case is beam search, where the input
-        order changes between time steps based on the choice of beams.
-        """
-        if self._is_inference_incremental:
-            for conv in self.convolutions:
-                conv.reorder_buffer(new_order)
-
-    def _use_beamable_mm(self):
-        """Replace torch.bmm with BeamableMM in attention layers."""
-        beamable_mm = BeamableMM()
-        for attn in self.attention:
-            attn.bmm = beamable_mm
+    def _transpose_unless_incremental_eval(self, x):
+        if self._is_incremental_eval:
+            return x
+        return x.transpose(0, 1)
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
@@ -432,23 +307,6 @@ def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
     m.weight.data.normal_(mean=0, std=std)
     m.bias.data.zero_()
     return nn.utils.weight_norm(m, dim=2)
-
-
-def grad_multiply(x, scale):
-    return GradMultiply.apply(x, scale)
-
-
-class GradMultiply(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, scale):
-        ctx.scale = scale
-        res = x.new(x)
-        ctx.mark_shared_storage((x, res))
-        return res
-
-    @staticmethod
-    def backward(ctx, grad):
-        return grad * ctx.scale, None
 
 
 def get_archs():
@@ -518,14 +376,14 @@ def parse_arch(args):
 
 
 def build_model(args, src_dict, dst_dict):
-    encoder = Encoder(
+    encoder = FConvEncoder(
         src_dict,
         embed_dim=args.encoder_embed_dim,
         convolutions=eval(args.encoder_layers),
         dropout=args.dropout,
         max_positions=args.max_positions,
     )
-    decoder = Decoder(
+    decoder = FConvDecoder(
         dst_dict,
         embed_dim=args.decoder_embed_dim,
         convolutions=eval(args.decoder_layers),

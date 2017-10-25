@@ -52,19 +52,15 @@ def main():
     if not args.interactive:
         print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
 
-    # Max positions is the model property but it is needed in data reader to be able to
-    # ignore too long sentences
-    args.max_positions = min(args.max_positions, *(m.decoder.max_positions() for m in models))
-
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(not args.no_beamable_mm)
+        model.make_generation_fast_(
+            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
 
     # Initialize generator
     translator = SequenceGenerator(
         models, beam_size=args.beam, stop_early=(not args.no_early_stop),
-        normalize_scores=(not args.unnormalized), len_penalty=args.lenpen
-    )
+        normalize_scores=(not args.unnormalized), len_penalty=args.lenpen)
     if use_cuda:
         translator.cuda()
 
@@ -112,12 +108,9 @@ def main():
     if args.interactive:
         for line in sys.stdin:
             tokens = tokenizer.Tokenizer.tokenize(line, dataset.src_dict, add_if_not_exist=False).long()
-            start = dataset.src_dict.pad() + 1
-            positions = torch.arange(start, start + len(tokens)).type_as(tokens)
             if use_cuda:
-                positions = positions.cuda()
                 tokens = tokens.cuda()
-            translations = translator.generate(Variable(tokens.view(1, -1)), Variable(positions.view(1, -1)))
+            translations = translator.generate(Variable(tokens.view(1, -1)))
             hypos = translations[0]
             display_hypotheses(None, tokens, line, None, hypos[:min(len(hypos), args.nbest)])
 
@@ -132,8 +125,9 @@ def main():
 
         # Generate and compute BLEU score
         scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
+        max_positions = min(model.max_encoder_positions() for model in models)
         itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size,
-                                 max_positions=args.max_positions,
+                                 max_positions=max_positions,
                                  skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
         num_sentences = 0
         with progress_bar(itr, smoothing=0, leave=False) as t:
