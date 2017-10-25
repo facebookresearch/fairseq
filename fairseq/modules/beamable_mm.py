@@ -18,9 +18,9 @@ class BeamableMM(nn.Module):
     inference by replacing the inputs {(bsz x 1 x nhu), (bsz x sz2 x nhu)}
     with smaller inputs {(bsz/beam x beam x nhu), (bsz/beam x sz2 x nhu)}.
     """
-    def __init__(self):
+    def __init__(self, beam_size=None):
         super(BeamableMM, self).__init__()
-        self.beam_size = None
+        self.beam_size = beam_size
 
     def forward(self, input1, input2):
         if (

@@ -151,6 +151,6 @@ def prepare_sample(sample, volatile=False, cuda_device=None):
         'target': make_variable(sample['target']),
         'net_input': {
             key: make_variable(sample[key])
-            for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions']
+            for key in ['src_tokens', 'input_tokens']
         },
     }

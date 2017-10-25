@@ -14,33 +14,44 @@ from .conv_tbc import ConvTBC
 class LinearizedConvolution(ConvTBC):
     """An optimized version of nn.Conv1d.
 
-    This module replaces convolutions with linear layers as appropriate
-    and supports optimizations for incremental inference.
+    At training time, this module uses ConvTBC, which is an optimized version
+    of Conv1d. At inference time, it optimizes incremental generation (i.e.,
+    one time step at a time) by replacing the convolutions with linear layers.
     """
 
     def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
         super().__init__(in_channels, out_channels, kernel_size, **kwargs)
-        self.clear_buffer()
-
+        self._is_incremental_eval = False
         self._linearized_weight = None
         self.register_backward_hook(self._clear_linearized_weight)
 
     def remove_future_timesteps(self, x):
         """Remove future time steps created by padding."""
-        if self.kernel_size[0] > 1 and self.padding[0] > 0:
+        if not self._is_incremental_eval and self.kernel_size[0] > 1 and self.padding[0] > 0:
             x = x[:-self.padding[0], :, :]
         return x
+
+    def incremental_eval(self, mode=True):
+        self._is_incremental_eval = mode
+        if mode:
+            self.clear_incremental_state()
+
+    def forward(self, input):
+        if self._is_incremental_eval:
+            return self.incremental_forward(input)
+        else:
+            return super().forward(input)
 
     def incremental_forward(self, input):
         """Forward convolution one time step at a time.
 
-        This function maintains an internal state to buffer signal and
-        accepts a single frame as input. If the input order changes
-        between time steps, call reorder_buffer. To apply to fresh
-        inputs, call clear_buffer.
+        This function maintains an internal state to buffer signal and accepts
+        a single frame as input. If the input order changes between time steps,
+        call reorder_incremental_state. To apply to fresh inputs, call
+        clear_incremental_state.
         """
-        if self.training:
-            raise RuntimeError('LinearizedConvolution only supports inference')
+        if self.training or not self._is_incremental_eval:
+            raise RuntimeError('incremental_forward only supports incremental evaluation')
 
         # run forward pre hooks (e.g., weight norm)
         for hook in self._forward_pre_hooks.values():
@@ -65,10 +76,10 @@ class LinearizedConvolution(ConvTBC):
         output = F.linear(input.view(bsz, -1), weight, self.bias)
         return output.view(bsz, 1, -1)
 
-    def clear_buffer(self):
+    def clear_incremental_state(self):
         self.input_buffer = None
 
-    def reorder_buffer(self, new_order):
+    def reorder_incremental_state(self, new_order):
         if self.input_buffer is not None:
             self.input_buffer = self.input_buffer.index_select(0, new_order)
 

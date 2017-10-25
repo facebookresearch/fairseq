@@ -106,12 +106,14 @@ class LanguageDatasets(object):
                     max_positions=max_positions,
                     sort_by_source_size=sort_by_source_size)
         elif split.startswith('valid'):
-            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, dst=dataset.dst,
-                                                 max_positions=max_positions,
-                                                 ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
+            batch_sampler = list(batches_by_size(
+                dataset.src, batch_size, max_tokens, dst=dataset.dst,
+                max_positions=max_positions,
+                ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
         else:
-            batch_sampler = list(batches_by_size(dataset.src, batch_size, max_tokens, max_positions=max_positions,
-                                                 ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
+            batch_sampler = list(batches_by_size(
+                dataset.src, batch_size, max_tokens, max_positions=max_positions,
+                ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -137,6 +139,11 @@ def skip_group_enumerator(it, ngpus, offset=0):
 
 
 class LanguagePairDataset(object):
+
+    # padding constants
+    LEFT_PAD_SOURCE = False
+    LEFT_PAD_TARGET = True
+
     def __init__(self, src, dst, pad_idx, eos_idx):
         self.src = src
         self.dst = dst
@@ -166,17 +173,13 @@ class LanguagePairDataset(object):
             return LanguagePairDataset.collate_tokens(
                 [s[key] for s in samples], pad_idx, eos_idx, left_pad, move_eos_to_beginning)
 
-        def merge_positions(key, left_pad):
-            return LanguagePairDataset.collate_positions([s[key] for s in samples], pad_idx, left_pad)
-
         ntokens = sum(len(s['target']) for s in samples)
         return {
             'id': torch.LongTensor([s['id'].item() for s in samples]),
-            'input_tokens': merge('target', left_pad=True, move_eos_to_beginning=True),
-            'input_positions': merge_positions('target', left_pad=True),
-            'target': merge('target', left_pad=True),
-            'src_tokens': merge('source', left_pad=False),
-            'src_positions': merge_positions('source', left_pad=False),
+            'input_tokens': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+                                  move_eos_to_beginning=True),
+            'target': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET),
+            'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
             'ntokens': ntokens,
         }
 
@@ -199,18 +202,6 @@ class LanguagePairDataset(object):
                 copy_tensor(v, res[i][size-len(v):])
             else:
                 copy_tensor(v, res[i][:len(v)])
-        return res
-
-    @staticmethod
-    def collate_positions(values, pad_idx, left_pad):
-        start = pad_idx + 1
-        size = max(v.size(0) for v in values)
-        res = values[0].new(len(values), size).fill_(pad_idx)
-        for i, v in enumerate(values):
-            if left_pad:
-                torch.arange(start, start + len(v), out=res[i][size-len(v):])
-            else:
-                torch.arange(start, start + len(v), out=res[i][:len(v)])
         return res
 
 
@@ -243,15 +234,12 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
     cur_max_size = 0
     ignored = []
     for idx in indices:
-        # - 2 here stems from make_positions() where we offset positions
-        # by padding_value + 1
         if src.sizes[idx] < 2 or \
                 (False if dst is None else dst.sizes[idx] < 2) or \
-                sizes[idx] > max_positions - 2:
+                sizes[idx] > max_positions:
             if ignore_invalid_inputs:
                 ignored.append(idx)
                 continue
-
             raise Exception("Unable to handle input id {} of "
                             "size {} / {}.".format(idx, src.sizes[idx],
                                                    "none" if dst is None else dst.sizes[idx]))
@@ -290,11 +278,9 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0,
         sample_len = 0
         ignored = []
         for idx in indices:
-            # - 2 here stems from make_positions() where we offset positions
-            # by padding_value + 1
             if src.sizes[idx] < 2 or dst.sizes[idx] < 2 or \
-                            src.sizes[idx] > max_positions - 2 or \
-                            dst.sizes[idx] > max_positions - 2:
+                    src.sizes[idx] > max_positions or \
+                    dst.sizes[idx] > max_positions:
                 ignored.append(idx)
                 continue
             sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
