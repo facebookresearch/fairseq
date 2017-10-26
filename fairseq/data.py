@@ -8,6 +8,7 @@
 
 import contextlib
 import itertools
+import numbers
 import numpy as np
 import os
 import torch
@@ -93,7 +94,7 @@ class LanguageDatasets(object):
 
     def dataloader(self, split, batch_size=1, num_workers=0,
                    max_tokens=None, seed=None, epoch=1,
-                   sample_without_replacement=0, max_positions=1024,
+                   sample_without_replacement=0, max_positions=(1024, 1024),
                    skip_invalid_size_inputs_valid_test=False,
                    sort_by_source_size=False):
         dataset = self.splits[split]
@@ -205,8 +206,20 @@ class LanguagePairDataset(object):
         return res
 
 
+def _valid_size(src_size, dst_size, max_positions):
+    if isinstance(max_positions, numbers.Number):
+        max_src_positions, max_dst_positions = max_positions, max_positions
+    else:
+        max_src_positions, max_dst_positions = max_positions
+    if src_size < 2 or src_size > max_src_positions:
+        return False
+    if dst_size is not None and (dst_size < 2 or dst_size > max_dst_positions):
+        return False
+    return True
+
+
 def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
-                    max_positions=1024, ignore_invalid_inputs=False):
+                    max_positions=(1024, 1024), ignore_invalid_inputs=False):
     """Returns batches of indices sorted by size. Sequences of different lengths
     are not allowed in the same batch."""
     assert isinstance(src, IndexedDataset)
@@ -234,15 +247,14 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
     cur_max_size = 0
     ignored = []
     for idx in indices:
-        if src.sizes[idx] < 2 or \
-                (False if dst is None else dst.sizes[idx] < 2) or \
-                sizes[idx] > max_positions:
+        if not _valid_size(src.sizes[idx],
+                           None if dst is None else dst.sizes[idx],
+                           max_positions):
             if ignore_invalid_inputs:
                 ignored.append(idx)
                 continue
-            raise Exception("Unable to handle input id {} of "
-                            "size {} / {}.".format(idx, src.sizes[idx],
-                                                   "none" if dst is None else dst.sizes[idx]))
+            raise Exception("Unable to handle input id {} of size {} / {}.".format(
+                idx, src.sizes[idx], "none" if dst is None else dst.sizes[idx]))
 
         if yield_batch(idx, cur_max_size * (len(batch) + 1)):
             yield batch
@@ -253,14 +265,14 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
 
     if len(ignored) > 0:
         print("Warning! {} samples are either too short or too long "
-              "and will be ignored, sample ids={}".format(len(ignored), ignored))
+              "and will be ignored, first few sample ids={}".format(len(ignored), ignored[:10]))
 
     if len(batch) > 0:
         yield batch
 
 
 def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0,
-                             max_positions=1024, sort_by_source_size=False):
+                             max_positions=(1024, 1024), sort_by_source_size=False):
     """Returns batches of indices, bucketed by size and then shuffled. Batches
     may contain sequences of different lengths."""
     assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
@@ -278,9 +290,7 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0,
         sample_len = 0
         ignored = []
         for idx in indices:
-            if src.sizes[idx] < 2 or dst.sizes[idx] < 2 or \
-                    src.sizes[idx] > max_positions or \
-                    dst.sizes[idx] > max_positions:
+            if not _valid_size(src.sizes[idx], dst.sizes[idx], max_positions):
                 ignored.append(idx)
                 continue
             sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
@@ -296,7 +306,7 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0,
 
         if len(ignored) > 0:
             print("Warning! {} samples are either too short or too long "
-                  "and will be ignored, sample ids={}".format(len(ignored), ignored))
+                  "and will be ignored, first few sample ids={}".format(len(ignored), ignored[:10]))
 
     batches = list(make_batches())
     if not sort_by_source_size:

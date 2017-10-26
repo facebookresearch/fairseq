@@ -381,7 +381,7 @@ def build_model(args, src_dict, dst_dict):
         embed_dim=args.encoder_embed_dim,
         convolutions=eval(args.encoder_layers),
         dropout=args.dropout,
-        max_positions=args.max_positions,
+        max_positions=args.max_source_positions,
     )
     decoder = FConvDecoder(
         dst_dict,
@@ -390,6 +390,6 @@ def build_model(args, src_dict, dst_dict):
         out_embed_dim=args.decoder_out_embed_dim,
         attention=eval(args.decoder_attention),
         dropout=args.dropout,
-        max_positions=args.max_positions,
+        max_positions=args.max_target_positions,
     )
     return FConvModel(encoder, decoder)
