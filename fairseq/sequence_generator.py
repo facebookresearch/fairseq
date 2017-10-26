@@ -40,7 +40,7 @@ class SequenceGenerator(object):
         self.vocab_size = len(models[0].dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        self.maxlen = min(maxlen, *[m.decoder.max_positions() for m in self.models])
+        self.maxlen = min(maxlen, *[m.max_decoder_positions() for m in self.models])
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty

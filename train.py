@@ -66,6 +66,11 @@ def main():
     criterion = utils.build_criterion(args, dataset.src_dict, dataset.dst_dict)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
 
+    # The max number of positions can be different for train and valid
+    # e.g., RNNs may support more positions at test time than seen in training
+    max_positions_train = (args.max_source_positions, args.max_target_positions)
+    max_positions_valid = (model.max_encoder_positions(), model.max_decoder_positions())
+
     # Start multiprocessing
     trainer = MultiprocessingTrainer(args, model, criterion)
 
@@ -89,11 +94,11 @@ def main():
     train_meter.start()
     while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
-        train(args, epoch, batch_offset, trainer, dataset, num_gpus)
+        train(args, epoch, batch_offset, trainer, dataset, max_positions_train, num_gpus)
 
         # evaluate on validate set
         for k, subset in enumerate(args.valid_subset.split(',')):
-            val_loss = validate(args, epoch, trainer, dataset, subset, num_gpus)
+            val_loss = validate(args, epoch, trainer, dataset, max_positions_valid, subset, num_gpus)
             if k == 0:
                 if not args.no_save:
                     # save checkpoint
@@ -117,18 +122,18 @@ def get_perplexity(loss):
         return float('inf')
 
 
-def train(args, epoch, batch_offset, trainer, dataset, num_gpus):
+def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
     """Train the model for one epoch."""
 
     torch.manual_seed(args.seed + epoch)
     trainer.set_seed(args.seed + epoch)
 
-    itr = dataset.dataloader(args.train_subset, num_workers=args.workers,
-                             max_tokens=args.max_tokens, seed=args.seed, epoch=epoch,
-                             max_positions=args.max_positions,
-                             sample_without_replacement=args.sample_without_replacement,
-                             skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
-                             sort_by_source_size=(epoch <= args.curriculum))
+    itr = dataset.dataloader(
+        args.train_subset, num_workers=args.workers, max_tokens=args.max_tokens,
+        seed=args.seed, epoch=epoch, max_positions=max_positions,
+        sample_without_replacement=args.sample_without_replacement,
+        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
+        sort_by_source_size=(epoch <= args.curriculum))
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()    # sentences per batch
     wpb_meter = AverageMeter()    # words per batch
@@ -207,13 +212,12 @@ def save_checkpoint(trainer, args, epoch, batch_offset, val_loss):
     trainer.save_checkpoint(last_filename, extra_state)
 
 
-def validate(args, epoch, trainer, dataset, subset, ngpus):
+def validate(args, epoch, trainer, dataset, max_positions, subset, ngpus):
     """Evaluate the model on the validation set and return the average loss."""
 
-    itr = dataset.dataloader(subset, batch_size=None,
-                             max_tokens=args.max_tokens,
-                             max_positions=args.max_positions,
-                             skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
+    itr = dataset.dataloader(
+        subset, batch_size=None, max_tokens=args.max_tokens, max_positions=max_positions,
+        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     loss_meter = AverageMeter()
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
