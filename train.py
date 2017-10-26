@@ -125,12 +125,13 @@ def get_perplexity(loss):
 def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
     """Train the model for one epoch."""
 
-    torch.manual_seed(args.seed + epoch)
-    trainer.set_seed(args.seed + epoch)
+    seed = args.seed + epoch
+    torch.manual_seed(seed)
+    trainer.set_seed(seed)
 
     itr = dataset.dataloader(
         args.train_subset, num_workers=args.workers, max_tokens=args.max_tokens,
-        seed=args.seed, epoch=epoch, max_positions=max_positions,
+        seed=seed, epoch=epoch, max_positions=max_positions,
         sample_without_replacement=args.sample_without_replacement,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
         sort_by_source_size=(epoch <= args.curriculum))
