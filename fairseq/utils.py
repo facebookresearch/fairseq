@@ -127,6 +127,7 @@ def load_ensemble_for_inference(filenames, src_dict, dst_dict):
             torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
         )
     args = states[0]['args']
+    args = _upgrade_args(args)
 
     # build ensemble
     ensemble = []
@@ -135,6 +136,13 @@ def load_ensemble_for_inference(filenames, src_dict, dst_dict):
         model.load_state_dict(state['model'])
         ensemble.append(model)
     return ensemble
+
+
+def _upgrade_args(args):
+    if not hasattr(args, 'max_source_positions'):
+        args.max_source_positions = args.max_positions
+        args.max_target_positions = args.max_positions
+    return args
 
 
 def prepare_sample(sample, volatile=False, cuda_device=None):
