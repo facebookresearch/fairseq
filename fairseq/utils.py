@@ -14,7 +14,7 @@ import traceback
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, models
+from fairseq import criterions, models, tokenizer
 
 
 def parse_args_and_arch(parser):
@@ -162,3 +162,43 @@ def prepare_sample(sample, volatile=False, cuda_device=None):
             for key in ['src_tokens', 'input_tokens']
         },
     }
+
+
+def load_align_dict(replace_unk):
+    if replace_unk is None:
+        align_dict = None
+    elif isinstance(replace_unk, str):
+        # Load alignment dictionary for unknown word replacement if it was passed as an argument.
+        align_dict = {}
+        with open(replace_unk, 'r') as f:
+            for line in f:
+                l = line.split()
+                align_dict[l[0]] = l[1]
+    else:
+        # No alignment dictionary provided but we still want to perform unknown word replacement by copying the
+        # original source word.
+        align_dict = {}
+    return align_dict
+
+
+def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
+    # Tokens are strings here
+    hypo_tokens = tokenizer.tokenize_line(hypo_str)
+    src_tokens = tokenizer.tokenize_line(src_str)
+    for i, ht in enumerate(hypo_tokens):
+        if ht == unk:
+            src_token = src_tokens[alignment[i]]
+            # Either take the corresponding value in the aligned dictionary or just copy the original value.
+            hypo_tokens[i] = align_dict.get(src_token, src_token)
+    return ' '.join(hypo_tokens)
+
+
+def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dict, remove_bpe):
+    hypo_str = dst_dict.string(hypo_tokens, remove_bpe)
+    if align_dict is not None:
+        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, dst_dict.unk_string())
+    if align_dict is not None or remove_bpe is not None:
+        # Convert back to tokens for evaluating with unk replacement or without BPE
+        # Note that the dictionary can be modified inside the method.
+        hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, dst_dict, add_if_not_exist=True)
+    return hypo_tokens, hypo_str, alignment

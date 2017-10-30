@@ -116,8 +116,8 @@ def add_generation_args(parser):
                        help='length penalty: <1.0 favors shorter, >1.0 favors longer sentences')
     group.add_argument('--unkpen', default=0, type=float,
                        help='unknown word penalty: <0 produces more unks, >0 produces fewer')
-    group.add_argument('--unk-replace-dict', default='', type=str,
-                       help='performs unk word replacement')
+    group.add_argument('--replace-unk', nargs='?', const=True, default=None,
+                       help='perform unknown replacement (optionally with alignment dictionary)')
     group.add_argument('--quiet', action='store_true',
                        help='Only print final scores')
 
