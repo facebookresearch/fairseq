@@ -142,8 +142,8 @@ def skip_group_enumerator(it, ngpus, offset=0):
 class LanguagePairDataset(object):
 
     # padding constants
-    LEFT_PAD_SOURCE = False
-    LEFT_PAD_TARGET = True
+    LEFT_PAD_SOURCE = True
+    LEFT_PAD_TARGET = False
 
     def __init__(self, src, dst, pad_idx, eos_idx):
         self.src = src
