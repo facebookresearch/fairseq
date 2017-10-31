@@ -34,7 +34,7 @@ def main():
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load dataset
-    dataset = data.load_with_check(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+    dataset = data.load_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
     if args.source_lang is None or args.target_lang is None:
         # record inferred languages in args
         args.source_lang, args.target_lang = dataset.src, dataset.dst
@@ -67,9 +67,9 @@ def main():
     # Generate and compute BLEU score
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     max_positions = min(model.max_encoder_positions() for model in models)
-    itr = dataset.dataloader(args.gen_subset, batch_size=args.batch_size,
-                             max_positions=max_positions,
-                             skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
+    itr = dataset.eval_dataloader(
+        args.gen_subset, batch_size=args.batch_size, max_positions=max_positions,
+        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     num_sentences = 0
     with progress_bar(itr, smoothing=0, leave=False) as t:
         wps_meter = TimeMeter()

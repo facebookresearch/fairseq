@@ -18,61 +18,65 @@ from fairseq.dictionary import Dictionary
 from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset
 
 
-def load_with_check(path, load_splits, src=None, dst=None):
+def infer_language_pair(path, splits):
+    """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
+    src, dst = None, None
+    for filename in os.listdir(path):
+        parts = filename.split('.')
+        for split in splits:
+            if parts[0] == split and parts[-1] == 'idx':
+                src, dst = parts[1].split('-')
+                break
+    return src, dst
+
+
+def load_dictionaries(path, src_lang, dst_lang):
+    """Load dictionaries for a given language pair."""
+    src_dict = Dictionary.load(os.path.join(path, 'dict.{}.txt'.format(src_lang)))
+    dst_dict = Dictionary.load(os.path.join(path, 'dict.{}.txt'.format(dst_lang)))
+    return src_dict, dst_dict
+
+
+def load_dataset(path, load_splits, src=None, dst=None):
     """Loads specified data splits (e.g., test, train or valid) from the
     specified folder and check that files exist."""
-
-    def find_language_pair(files):
-        for split in load_splits:
-            for filename in files:
-                parts = filename.split('.')
-                if parts[0] == split and parts[-1] == 'idx':
-                    return parts[1].split('-')
-
-    def split_exists(split, src, dst):
-        filename = '{0}.{1}-{2}.{1}.idx'.format(split, src, dst)
-        return os.path.exists(os.path.join(path, filename))
-
     if src is None and dst is None:
         # find language pair automatically
-        src, dst = find_language_pair(os.listdir(path))
+        src, dst = infer_language_pair(path, load_splits)
 
-    if not split_exists(load_splits[0], src, dst):
-        # try reversing src and dst
-        src, dst = dst, src
+    def all_splits_exist(src, dst):
+        for split in load_splits:
+            filename = '{0}.{1}-{2}.{1}.idx'.format(split, src, dst)
+            if not os.path.exists(os.path.join(path, filename)):
+                return False
+        return True
 
-    for split in load_splits:
-        if not split_exists(load_splits[0], src, dst):
-            raise ValueError('Data split not found: {}-{} ({})'.format(
-                src, dst, split))
+    # infer langcode
+    if all_splits_exist(src, dst):
+        langcode = '{}-{}'.format(src, dst)
+    elif all_splits_exist(dst, src):
+        langcode = '{}-{}'.format(dst, src)
+    else:
+        raise Exception('Dataset cannot be loaded from path: ' + path)
 
-    dataset = load(path, load_splits, src, dst)
-    return dataset
-
-
-def load(path, load_splits, src, dst):
-    """Loads specified data splits (e.g. test, train or valid) from the path."""
-
-    langcode = '{}-{}'.format(src, dst)
+    src_dict, dst_dict = load_dictionaries(path, src, dst)
+    dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
 
     def fmt_path(fmt, *args):
         return os.path.join(path, fmt.format(*args))
-
-    src_dict = Dictionary.load(fmt_path('dict.{}.txt', src))
-    dst_dict = Dictionary.load(fmt_path('dict.{}.txt', dst))
-    dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
 
     for split in load_splits:
         for k in itertools.count():
             prefix = "{}{}".format(split, k if k > 0 else '')
             src_path = fmt_path('{}.{}.{}', prefix, langcode, src)
+            dst_path = fmt_path('{}.{}.{}', prefix, langcode, dst)
 
             if not IndexedInMemoryDataset.exists(src_path):
                 break
 
             dataset.splits[prefix] = LanguagePairDataset(
                 IndexedInMemoryDataset(src_path),
-                IndexedInMemoryDataset(fmt_path('{}.{}.{}', prefix, langcode, dst)),
+                IndexedInMemoryDataset(dst_path),
                 pad_idx=dataset.src_dict.pad(),
                 eos_idx=dataset.src_dict.eos(),
             )
@@ -92,36 +96,35 @@ class LanguageDatasets(object):
         assert self.src_dict.eos() == self.dst_dict.eos()
         assert self.src_dict.unk() == self.dst_dict.unk()
 
-    def dataloader(self, split, batch_size=1, num_workers=0,
-                   max_tokens=None, seed=None, epoch=1,
-                   sample_without_replacement=0, max_positions=(1024, 1024),
-                   skip_invalid_size_inputs_valid_test=False,
-                   sort_by_source_size=False):
+    def train_dataloader(self, split, num_workers=0, max_tokens=None,
+                         max_positions=(1024, 1024), seed=None, epoch=1,
+                         sample_without_replacement=0,
+                         sort_by_source_size=False):
         dataset = self.splits[split]
-        if split.startswith('train'):
-            with numpy_seed(seed):
-                batch_sampler = shuffled_batches_by_size(
-                    dataset.src, dataset.dst,
-                    max_tokens=max_tokens, epoch=epoch,
-                    sample=sample_without_replacement,
-                    max_positions=max_positions,
-                    sort_by_source_size=sort_by_source_size)
-        elif split.startswith('valid'):
-            batch_sampler = list(batches_by_size(
-                dataset.src, batch_size, max_tokens, dst=dataset.dst,
+        with numpy_seed(seed):
+            batch_sampler = shuffled_batches_by_size(
+                dataset.src, dataset.dst,
+                max_tokens=max_tokens, epoch=epoch,
+                sample=sample_without_replacement,
                 max_positions=max_positions,
-                ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
-        else:
-            batch_sampler = list(batches_by_size(
-                dataset.src, batch_size, max_tokens, max_positions=max_positions,
-                ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
-
+                sort_by_source_size=sort_by_source_size)
         return torch.utils.data.DataLoader(
-            dataset,
-            num_workers=num_workers,
-            collate_fn=dataset.collater,
-            batch_sampler=batch_sampler,
-        )
+            dataset, num_workers=num_workers, collate_fn=dataset.collater,
+            batch_sampler=batch_sampler)
+
+    def eval_dataloader(self, split, num_workers=0, batch_size=1,
+                        max_tokens=None, consider_dst_sizes=True,
+                        max_positions=(1024, 1024),
+                        skip_invalid_size_inputs_valid_test=False):
+        dataset = self.splits[split]
+        dst_dataset = dataset.dst if consider_dst_sizes else None
+        batch_sampler = list(batches_by_size(
+            dataset.src, dataset.dst, batch_size, max_tokens,
+            max_positions=max_positions,
+            ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
+        return torch.utils.data.DataLoader(
+            dataset, num_workers=num_workers, collate_fn=dataset.collater,
+            batch_sampler=batch_sampler)
 
 
 def skip_group_enumerator(it, ngpus, offset=0):
@@ -174,14 +177,15 @@ class LanguagePairDataset(object):
             return LanguagePairDataset.collate_tokens(
                 [s[key] for s in samples], pad_idx, eos_idx, left_pad, move_eos_to_beginning)
 
-        ntokens = sum(len(s['target']) for s in samples)
         return {
             'id': torch.LongTensor([s['id'].item() for s in samples]),
+            'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
+            # we create a shifted version of targets for feeding the previous
+            # output token(s) into the next decoder step
             'input_tokens': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
                                   move_eos_to_beginning=True),
             'target': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET),
-            'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
-            'ntokens': ntokens,
+            'ntokens': sum(len(s['target']) for s in samples),
         }
 
     @staticmethod
@@ -218,18 +222,14 @@ def _valid_size(src_size, dst_size, max_positions):
     return True
 
 
-def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
+def batches_by_size(src, dst, batch_size=None, max_tokens=None,
                     max_positions=(1024, 1024), ignore_invalid_inputs=False):
-    """Returns batches of indices sorted by size. Sequences of different lengths
-    are not allowed in the same batch."""
-    assert isinstance(src, IndexedDataset)
-    assert dst is None or isinstance(dst, IndexedDataset)
+    """Returns batches of indices sorted by size. Sequences with different
+    source lengths are not allowed in the same batch."""
+    assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
     if max_tokens is None:
         max_tokens = float('Inf')
-    sizes = src.sizes
-    indices = np.argsort(sizes, kind='mergesort')
-    if dst is not None:
-        sizes = np.maximum(sizes, dst.sizes)
+    indices = np.argsort(src.sizes, kind='mergesort')
 
     batch = []
 
@@ -238,7 +238,7 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
             return False
         if len(batch) == batch_size:
             return True
-        if sizes[batch[0]] != sizes[next_idx]:
+        if src.sizes[batch[0]] != src.sizes[next_idx]:
             return True
         if num_tokens >= max_tokens:
             return True
@@ -247,21 +247,20 @@ def batches_by_size(src, batch_size=None, max_tokens=None, dst=None,
     cur_max_size = 0
     ignored = []
     for idx in indices:
-        if not _valid_size(src.sizes[idx],
-                           None if dst is None else dst.sizes[idx],
-                           max_positions):
+        if not _valid_size(src.sizes[idx], dst.sizes[idx], max_positions):
             if ignore_invalid_inputs:
                 ignored.append(idx)
                 continue
-            raise Exception("Unable to handle input id {} of size {} / {}.".format(
-                idx, src.sizes[idx], "none" if dst is None else dst.sizes[idx]))
+            raise Exception(
+                "Unable to handle input id {} of size {} / {}.".format(
+                    idx, src.sizes[idx], dst.sizes[idx]))
 
         if yield_batch(idx, cur_max_size * (len(batch) + 1)):
             yield batch
             batch = []
             cur_max_size = 0
         batch.append(idx)
-        cur_max_size = max(cur_max_size, sizes[idx])
+        cur_max_size = max(cur_max_size, src.sizes[idx], dst.sizes[idx])
 
     if len(ignored) > 0:
         print("Warning! {} samples are either too short or too long "

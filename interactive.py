@@ -26,19 +26,17 @@ def main():
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-    # Load dataset
-    # TODO: load only dictionaries
-    dataset = data.load_with_check(args.data, ['test'], args.source_lang, args.target_lang)
+    # Load dictionaries
     if args.source_lang is None or args.target_lang is None:
-        # record inferred languages in args
-        args.source_lang, args.target_lang = dataset.src, dataset.dst
+        args.source_lang, args.target_lang, _ = data.infer_language_pair(args.data, ['test'])
+    src_dict, dst_dict = data.load_dictionaries(args.data, args.source_lang, args.target_lang)
 
     # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models = utils.load_ensemble_for_inference(args.path, dataset.src_dict, dataset.dst_dict)
+    models = utils.load_ensemble_for_inference(args.path, src_dict, dst_dict)
 
-    print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
-    print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
+    print('| [{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
+    print('| [{}] dictionary: {} types'.format(args.target_lang, len(dst_dict)))
 
     # Optimize ensemble for generation
     for model in models:
@@ -60,7 +58,7 @@ def main():
     print('Type the input sentence and press return:')
     for src_str in sys.stdin:
         src_str = src_str.strip()
-        src_tokens = tokenizer.Tokenizer.tokenize(src_str, dataset.src_dict, add_if_not_exist=False).long()
+        src_tokens = tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long()
         if use_cuda:
             src_tokens = src_tokens.cuda()
         translations = translator.generate(Variable(src_tokens.view(1, -1)))
@@ -74,7 +72,7 @@ def main():
                 src_str=src_str,
                 alignment=hypo['alignment'].int().cpu(),
                 align_dict=align_dict,
-                dst_dict=dataset.dst_dict,
+                dst_dict=dst_dict,
                 remove_bpe=args.remove_bpe)
             print('A\t{}'.format(' '.join(map(str, alignment))))
             print('H\t{}\t{}'.format(hypo['score'], hypo_str))
