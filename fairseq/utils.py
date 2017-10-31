@@ -14,7 +14,7 @@ import traceback
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, models, tokenizer
+from fairseq import criterions, data, models, tokenizer
 
 
 def parse_args_and_arch(parser):
@@ -117,7 +117,12 @@ def _upgrade_state_dict(state):
     return state
 
 
-def load_ensemble_for_inference(filenames, src_dict, dst_dict):
+def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_dir=None):
+    """Load an ensemble of models for inference.
+
+    The source and target dictionaries can be given explicitly, or loaded from
+    the `data_dir` directory.
+    """
     # load model architectures and weights
     states = []
     for filename in filenames:
@@ -129,13 +134,17 @@ def load_ensemble_for_inference(filenames, src_dict, dst_dict):
     args = states[0]['args']
     args = _upgrade_args(args)
 
+    if src_dict is None or dst_dict is None:
+        assert data_dir is not None
+        src_dict, dst_dict = data.load_dictionaries(data_dir, args.source_lang, args.target_lang)
+
     # build ensemble
     ensemble = []
     for state in states:
         model = build_model(args, src_dict, dst_dict)
         model.load_state_dict(state['model'])
         ensemble.append(model)
-    return ensemble
+    return ensemble, args
 
 
 def _upgrade_args(args):

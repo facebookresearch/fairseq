@@ -26,17 +26,13 @@ def main():
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-    # Load dictionaries
-    if args.source_lang is None or args.target_lang is None:
-        args.source_lang, args.target_lang, _ = data.infer_language_pair(args.data, ['test'])
-    src_dict, dst_dict = data.load_dictionaries(args.data, args.source_lang, args.target_lang)
-
     # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models = utils.load_ensemble_for_inference(args.path, src_dict, dst_dict)
+    models, model_args = utils.load_ensemble_for_inference(args.path, data_dir=args.data)
+    src_dict, dst_dict = models[0].src_dict, models[0].dst_dict
 
-    print('| [{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
-    print('| [{}] dictionary: {} types'.format(args.target_lang, len(dst_dict)))
+    print('| [{}] dictionary: {} types'.format(model_args.source_lang, len(src_dict)))
+    print('| [{}] dictionary: {} types'.format(model_args.target_lang, len(dst_dict)))
 
     # Optimize ensemble for generation
     for model in models:
