@@ -41,7 +41,7 @@ def main():
 
     # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models = utils.load_ensemble_for_inference(args.path, dataset.src_dict, dataset.dst_dict)
+    models, _ = utils.load_ensemble_for_inference(args.path, dataset.src_dict, dataset.dst_dict)
 
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
