@@ -61,10 +61,6 @@ class SequenceGenerator(object):
             cuda_device: GPU on which to do generation.
             timer: StopwatchMeter for timing generations.
         """
-
-        def lstrip_pad(tensor):
-            return tensor[tensor.eq(self.pad).sum():]
-
         if maxlen_b is None:
             maxlen_b = self.maxlen
 
@@ -80,8 +76,8 @@ class SequenceGenerator(object):
                 timer.stop(s['ntokens'])
             for i, id in enumerate(s['id']):
                 src = input['src_tokens'].data[i, :]
-                # remove padding from ref, which appears at the beginning
-                ref = lstrip_pad(s['target'].data[i, :])
+                # remove padding from ref
+                ref = utils.rstrip_pad(s['target'].data[i, :], self.pad)
                 yield id, src, ref, hypos[i]
 
     def generate(self, src_tokens, beam_size=None, maxlen=None):

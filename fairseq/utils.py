@@ -202,3 +202,14 @@ def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dic
         # Note that the dictionary can be modified inside the method.
         hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, dst_dict, add_if_not_exist=True)
     return hypo_tokens, hypo_str, alignment
+
+
+def lstrip_pad(tensor, pad):
+    return tensor[tensor.eq(pad).sum():]
+
+
+def rstrip_pad(tensor, pad):
+    strip = tensor.eq(pad).sum()
+    if strip > 0:
+        return tensor[:-strip]
+    return tensor
