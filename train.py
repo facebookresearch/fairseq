@@ -34,7 +34,6 @@ def main():
     options.add_model_args(parser)
 
     args = utils.parse_args_and_arch(parser)
-    print(args)
 
     if args.no_progress_bar:
         progress_bar.enabled = False
@@ -45,11 +44,12 @@ def main():
     torch.manual_seed(args.seed)
 
     # Load dataset
-    dataset = data.load_with_check(args.data, ['train', 'valid'], args.source_lang, args.target_lang)
+    dataset = data.load_dataset(args.data, ['train', 'valid'], args.source_lang, args.target_lang)
     if args.source_lang is None or args.target_lang is None:
         # record inferred languages in args, so that it's saved in checkpoints
         args.source_lang, args.target_lang = dataset.src, dataset.dst
 
+    print(args)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
     for split in ['train', 'valid']:
@@ -129,11 +129,10 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
     torch.manual_seed(seed)
     trainer.set_seed(seed)
 
-    itr = dataset.dataloader(
+    itr = dataset.train_dataloader(
         args.train_subset, num_workers=args.workers, max_tokens=args.max_tokens,
-        seed=seed, epoch=epoch, max_positions=max_positions,
+        max_positions=max_positions, seed=seed, epoch=epoch,
         sample_without_replacement=args.sample_without_replacement,
-        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
         sort_by_source_size=(epoch <= args.curriculum))
     loss_meter = AverageMeter()
     bsz_meter = AverageMeter()    # sentences per batch
@@ -216,7 +215,7 @@ def save_checkpoint(trainer, args, epoch, batch_offset, val_loss):
 def validate(args, epoch, trainer, dataset, max_positions, subset, ngpus):
     """Evaluate the model on the validation set and return the average loss."""
 
-    itr = dataset.dataloader(
+    itr = dataset.eval_dataloader(
         subset, batch_size=None, max_tokens=args.max_tokens, max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     loss_meter = AverageMeter()
