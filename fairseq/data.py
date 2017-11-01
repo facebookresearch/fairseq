@@ -113,11 +113,9 @@ class LanguageDatasets(object):
             batch_sampler=batch_sampler)
 
     def eval_dataloader(self, split, num_workers=0, batch_size=1,
-                        max_tokens=None, consider_dst_sizes=True,
-                        max_positions=(1024, 1024),
+                        max_tokens=None, max_positions=(1024, 1024),
                         skip_invalid_size_inputs_valid_test=False):
         dataset = self.splits[split]
-        dst_dataset = dataset.dst if consider_dst_sizes else None
         batch_sampler = list(batches_by_size(
             dataset.src, dataset.dst, batch_size, max_tokens,
             max_positions=max_positions,
