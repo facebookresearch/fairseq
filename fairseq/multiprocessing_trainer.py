@@ -104,8 +104,9 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             lr_scheduler = LambdaLR(self.optimizer, anneal)
             lr_scheduler.best = None
         else:
-            # decay the LR by 0.1 every time the validation loss plateaus
-            lr_scheduler = ReduceLROnPlateau(self.optimizer, patience=0)
+            # decay the LR by a factor every time the validation loss plateaus
+            lr_scheduler = ReduceLROnPlateau(self.optimizer, patience=0,
+                                             factor=self.args.lrshrink)
         return lr_scheduler
 
     def get_model(self):
