@@ -6,8 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-import torch.nn as nn
-
 from . import FairseqDecoder
 
 

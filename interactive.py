@@ -10,7 +10,7 @@ import sys
 import torch
 from torch.autograd import Variable
 
-from fairseq import data, options, tokenizer, utils
+from fairseq import options, tokenizer, utils
 from fairseq.sequence_generator import SequenceGenerator
 
 
@@ -72,6 +72,7 @@ def main():
                 remove_bpe=args.remove_bpe)
             print('A\t{}'.format(' '.join(map(str, alignment))))
             print('H\t{}\t{}'.format(hypo['score'], hypo_str))
+
 
 if __name__ == '__main__':
     main()
