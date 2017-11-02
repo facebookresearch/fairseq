@@ -51,7 +51,7 @@ def main():
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
 
-    print('Type the input sentence and press return:')
+    print('| Type the input sentence and press return:')
     for src_str in sys.stdin:
         src_str = src_str.strip()
         src_tokens = tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long()
@@ -70,8 +70,8 @@ def main():
                 align_dict=align_dict,
                 dst_dict=dst_dict,
                 remove_bpe=args.remove_bpe)
-            print('A\t{}'.format(' '.join(map(str, alignment))))
             print('H\t{}\t{}'.format(hypo['score'], hypo_str))
+            print('A\t{}'.format(' '.join(map(str, alignment))))
 
 
 if __name__ == '__main__':

@@ -97,8 +97,8 @@ def main():
                     remove_bpe=args.remove_bpe)
 
                 if not args.quiet:
-                    print('A-{}\t{}'.format(sample_id, ' '.join(map(str, alignment))))
                     print('H-{}\t{}\t{}'.format(sample_id, hypo['score'], hypo_str))
+                    print('A-{}\t{}'.format(sample_id, ' '.join(map(str, alignment))))
 
                 # Score only the top hypothesis
                 if i == 0:
