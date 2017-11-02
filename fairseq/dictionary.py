@@ -109,8 +109,12 @@ class Dictionary(object):
         """
 
         if isinstance(f, str):
-            with open(f, 'r') as fd:
-                return Dictionary.load(fd)
+            try:
+                with open(f, 'r', encoding='utf-8') as fd:
+                    return Dictionary.load(fd)
+            except:
+                raise Exception("Incorrect encoding detected in {}, please "
+                                "rebuild the dataset".format(f))
 
         d = Dictionary()
         for line in f.readlines():
@@ -125,7 +129,7 @@ class Dictionary(object):
     def save(self, f, threshold=3, nwords=-1):
         """Stores dictionary into a text file"""
         if isinstance(f, str):
-            with open(f, 'w') as fd:
+            with open(f, 'w', encoding='utf-8') as fd:
                 return self.save(fd, threshold, nwords)
         cnt = 0
         for i, t in enumerate(zip(self.symbols, self.count)):
