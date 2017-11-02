@@ -43,7 +43,7 @@ The following command-line tools are available:
 * `python preprocess.py`: Data pre-processing: build vocabularies and binarize training data
 * `python train.py`: Train a new model on one or multiple GPUs
 * `python generate.py`: Translate pre-processed data with a trained model
-* `python generate.py -i`: Translate raw text with a trained model
+* `python interactive.py`: Translate raw text with a trained model
 * `python score.py`: BLEU scoring of generated translations against reference translations
 
 ## Evaluating Pre-trained Models
@@ -57,22 +57,21 @@ This can be done with the [apply_bpe.py](https://github.com/rsennrich/subword-nm
 `@@` is used as a continuation marker and the original text can be easily recovered with e.g. `sed s/@@ //g` or by passing the `--remove-bpe` flag to `generate.py`.
 Prior to BPE, input text needs to be tokenized using `tokenizer.perl` from [mosesdecoder](https://github.com/moses-smt/mosesdecoder).
 
-Let's use `python generate.py -i` to generate translations.
+Let's use `python interactive.py` to generate translations interactively.
 Here, we use a beam size of 5:
 ```
 $ MODEL_DIR=wmt14.en-fr.fconv-py
-$ python generate.py -i \
+$ python interactive.py \
  --path $MODEL_DIR/model.pt $MODEL_DIR \
  --beam 5
+| loading model(s) from wmt14.en-fr.fconv-py/model.pt
 | [en] dictionary: 44206 types
 | [fr] dictionary: 44463 types
-| model fconv_wmt_en_fr
-| loaded checkpoint /private/home/edunov/wmt14.en-fr.fconv-py/model.pt (epoch 37)
+| Type the input sentence and press return:
 > Why is it rare to discover new marine mam@@ mal species ?
-S       Why is it rare to discover new marine mam@@ mal species ?
 O       Why is it rare to discover new marine mam@@ mal species ?
-H       -0.08662842959165573    Pourquoi est-il rare de découvrir de nouvelles espèces de mammifères marins ?
-A       0 1 3 3 5 6 6 10 8 8 8 11 12
+H       -0.06429661810398102    Pourquoi est-il rare de découvrir de nouvelles espèces de mammifères marins ?
+A       0 1 3 3 5 6 6 8 8 8 7 11 12
 ```
 
 This generation script produces four types of outputs: a line prefixed with *S* shows the supplied source sentence after applying the vocabulary; *O* is a copy of the original source sentence; *H* is the hypothesis along with an average log-likelihood; and *A* is the attention maxima for each word in the hypothesis, including the end-of-sentence marker which is omitted from the text.
@@ -114,7 +113,7 @@ Also note that the batch size is specified in terms of the maximum number of tok
 You may need to use a smaller value depending on the available GPU memory on your system.
 
 ### Generation
-Once your model is trained, you can generate translations using `python generate.py` **(for binarized data)** or `python generate.py -i` **(for raw text)**:
+Once your model is trained, you can generate translations using `python generate.py` **(for binarized data)** or `python interactive.py` **(for raw text)**:
 ```
 $ python generate.py data-bin/iwslt14.tokenized.de-en \
   --path checkpoints/fconv/checkpoint_best.pt \
