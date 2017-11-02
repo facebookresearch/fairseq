@@ -128,7 +128,7 @@ class AttentionLayer(nn.Module):
 
         # softmax over last dim
         sz = x.size()
-        x = F.softmax(x.view(sz[0] * sz[1], sz[2]))
+        x = F.softmax(x.view(sz[0] * sz[1], sz[2]), dim=1)
         x = x.view(sz)
         attn_scores = x
 
