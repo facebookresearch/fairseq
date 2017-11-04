@@ -97,27 +97,26 @@ class LanguageDatasets(object):
         assert self.src_dict.unk() == self.dst_dict.unk()
 
     def train_dataloader(self, split, num_workers=0, max_tokens=None,
-                         max_positions=(1024, 1024), seed=None, epoch=1,
-                         sample_without_replacement=0,
+                         max_sentences=None, max_positions=(1024, 1024),
+                         seed=None, epoch=1, sample_without_replacement=0,
                          sort_by_source_size=False):
         dataset = self.splits[split]
         with numpy_seed(seed):
             batch_sampler = shuffled_batches_by_size(
-                dataset.src, dataset.dst,
-                max_tokens=max_tokens, epoch=epoch,
-                sample=sample_without_replacement,
-                max_positions=max_positions,
+                dataset.src, dataset.dst, max_tokens=max_tokens,
+                max_sentences=max_sentences, epoch=epoch,
+                sample=sample_without_replacement, max_positions=max_positions,
                 sort_by_source_size=sort_by_source_size)
         return torch.utils.data.DataLoader(
             dataset, num_workers=num_workers, collate_fn=dataset.collater,
             batch_sampler=batch_sampler)
 
-    def eval_dataloader(self, split, num_workers=0, batch_size=1,
-                        max_tokens=None, max_positions=(1024, 1024),
+    def eval_dataloader(self, split, num_workers=0, max_tokens=None,
+                        max_sentences=None, max_positions=(1024, 1024),
                         skip_invalid_size_inputs_valid_test=False):
         dataset = self.splits[split]
         batch_sampler = list(batches_by_size(
-            dataset.src, dataset.dst, batch_size, max_tokens,
+            dataset.src, dataset.dst, max_tokens, max_sentences,
             max_positions=max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs_valid_test))
         return torch.utils.data.DataLoader(
@@ -220,29 +219,23 @@ def _valid_size(src_size, dst_size, max_positions):
     return True
 
 
-def batches_by_size(src, dst, batch_size=None, max_tokens=None,
-                    max_positions=(1024, 1024), ignore_invalid_inputs=False):
-    """Returns batches of indices sorted by size. Sequences with different
-    source lengths are not allowed in the same batch."""
-    assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
-    if max_tokens is None:
-        max_tokens = float('Inf')
-    indices = np.argsort(src.sizes, kind='mergesort')
-
+def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
+                  ignore_invalid_inputs=False, allow_different_src_lens=False):
     batch = []
 
     def yield_batch(next_idx, num_tokens):
         if len(batch) == 0:
             return False
-        if len(batch) == batch_size:
+        if len(batch) == max_sentences:
             return True
-        if src.sizes[batch[0]] != src.sizes[next_idx]:
+        if num_tokens > max_tokens:
             return True
-        if num_tokens >= max_tokens:
+        if not allow_different_src_lens and \
+                (src.sizes[batch[0]] != src.sizes[next_idx]):
             return True
         return False
 
-    cur_max_size = 0
+    sample_len = 0
     ignored = []
     for idx in indices:
         if not _valid_size(src.sizes[idx], dst.sizes[idx], max_positions):
@@ -253,28 +246,48 @@ def batches_by_size(src, dst, batch_size=None, max_tokens=None,
                 "Unable to handle input id {} of size {} / {}.".format(
                     idx, src.sizes[idx], dst.sizes[idx]))
 
-        if yield_batch(idx, cur_max_size * (len(batch) + 1)):
+        sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
+        num_tokens = (len(batch) + 1) * sample_len
+        if yield_batch(idx, num_tokens):
             yield batch
             batch = []
-            cur_max_size = 0
+            sample_len = max(src.sizes[idx], dst.sizes[idx])
+
         batch.append(idx)
-        cur_max_size = max(cur_max_size, src.sizes[idx], dst.sizes[idx])
+
+    if len(batch) > 0:
+        yield batch
 
     if len(ignored) > 0:
         print("Warning! {} samples are either too short or too long "
               "and will be ignored, first few sample ids={}".format(len(ignored), ignored[:10]))
 
-    if len(batch) > 0:
-        yield batch
+
+def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
+                    max_positions=(1024, 1024), ignore_invalid_inputs=False):
+    """Returns batches of indices sorted by size. Sequences with different
+    source lengths are not allowed in the same batch."""
+    assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
+    if max_tokens is None:
+        max_tokens = float('Inf')
+    if max_sentences is None:
+        max_sentences = float('Inf')
+    indices = np.argsort(src.sizes, kind='mergesort')
+    return _make_batches(
+        src, dst, indices, max_tokens, max_sentences, max_positions,
+        ignore_invalid_inputs, allow_different_src_lens=False)
 
 
-def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0,
-                             max_positions=(1024, 1024), sort_by_source_size=False):
+def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
+                             epoch=1, sample=0, max_positions=(1024, 1024),
+                             sort_by_source_size=False):
     """Returns batches of indices, bucketed by size and then shuffled. Batches
     may contain sequences of different lengths."""
     assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
     if max_tokens is None:
         max_tokens = float('Inf')
+    if max_sentences is None:
+        max_sentences = float('Inf')
 
     indices = np.random.permutation(len(src))
 
@@ -282,30 +295,10 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, epoch=1, sample=0,
     indices = indices[np.argsort(dst.sizes[indices], kind='mergesort')]
     indices = indices[np.argsort(src.sizes[indices], kind='mergesort')]
 
-    def make_batches():
-        batch = []
-        sample_len = 0
-        ignored = []
-        for idx in indices:
-            if not _valid_size(src.sizes[idx], dst.sizes[idx], max_positions):
-                ignored.append(idx)
-                continue
-            sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
-            if len(batch) > 0 and (len(batch) + 1) * sample_len > max_tokens:
-                yield batch
-                batch = []
-                sample_len = max(src.sizes[idx], dst.sizes[idx])
+    batches = list(_make_batches(
+        src, dst, indices, max_tokens, max_sentences, max_positions,
+        ignore_invalid_inputs=True, allow_different_src_lens=True))
 
-            batch.append(idx)
-
-        if len(batch) > 0:
-            yield batch
-
-        if len(ignored) > 0:
-            print("Warning! {} samples are either too short or too long "
-                  "and will be ignored, first few sample ids={}".format(len(ignored), ignored[:10]))
-
-    batches = list(make_batches())
     if not sort_by_source_size:
         np.random.shuffle(batches)
 

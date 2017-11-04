@@ -68,7 +68,7 @@ def main():
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     max_positions = min(model.max_encoder_positions() for model in models)
     itr = dataset.eval_dataloader(
-        args.gen_subset, batch_size=args.batch_size, max_positions=max_positions,
+        args.gen_subset, max_sentences=args.batch_size, max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     num_sentences = 0
     with progress_bar(itr, smoothing=0, leave=False) as t:
