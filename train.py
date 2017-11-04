@@ -222,7 +222,9 @@ def validate(args, epoch, trainer, dataset, max_positions, subset, ngpus):
     itr = dataset.eval_dataloader(
         subset, max_tokens=args.max_tokens, max_sentences=args.max_sentences,
         max_positions=max_positions,
-        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
+        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
+        descending=True,  # largest batch first to warm the caching allocator
+    )
     loss_meter = AverageMeter()
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
