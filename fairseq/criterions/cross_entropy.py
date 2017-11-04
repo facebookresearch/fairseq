@@ -14,9 +14,8 @@ from .fairseq_criterion import FairseqCriterion
 
 class CrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, padding_idx):
-        super().__init__()
-        self.padding_idx = padding_idx
+    def __init__(self, args, dst_dict):
+        super().__init__(args, dst_dict)
 
     def forward(self, model, sample):
         """Compute the loss for the given sample.
@@ -30,7 +29,7 @@ class CrossEntropyCriterion(FairseqCriterion):
         input = net_output.view(-1, net_output.size(-1))
         target = sample['target'].view(-1)
         loss = F.cross_entropy(input, target, size_average=False, ignore_index=self.padding_idx)
-        sample_size = sample['ntokens']
+        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': loss.data[0],
             'sample_size': sample_size,

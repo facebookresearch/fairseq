@@ -23,6 +23,8 @@ def main():
     dataset_args = options.add_dataset_args(parser)
     dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
                               help='maximum number of tokens in a batch')
+    dataset_args.add_argument('--max-sentences', type=int, metavar='N',
+                              help='maximum number of sentences in a batch')
     dataset_args.add_argument('--train-subset', default='train', metavar='SPLIT',
                               choices=['train', 'valid', 'test'],
                               help='data subset to use for training (train, valid, test)')
@@ -59,7 +61,8 @@ def main():
         raise NotImplementedError('Training on CPU is not supported')
     num_gpus = torch.cuda.device_count()
 
-    print('| using {} GPUs (with max tokens per GPU = {})'.format(num_gpus, args.max_tokens))
+    print('| using {} GPUs (with max tokens per GPU = {} and max sentences per GPU = {})'.format(
+        num_gpus, args.max_tokens, args.max_sentences))
 
     # Build model and criterion
     model = utils.build_model(args, dataset.src_dict, dataset.dst_dict)
@@ -130,7 +133,8 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
     trainer.set_seed(seed)
 
     itr = dataset.train_dataloader(
-        args.train_subset, num_workers=args.workers, max_tokens=args.max_tokens,
+        args.train_subset, num_workers=args.workers,
+        max_tokens=args.max_tokens, max_sentences=args.max_sentences,
         max_positions=max_positions, seed=seed, epoch=epoch,
         sample_without_replacement=args.sample_without_replacement,
         sort_by_source_size=(epoch <= args.curriculum))
@@ -150,9 +154,9 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
             del loss_dict['loss']  # don't include in extra_meters or extra_postfix
 
             ntokens = sum(s['ntokens'] for s in sample)
-            src_size = sum(s['src_tokens'].size(0) for s in sample)
-            loss_meter.update(loss, ntokens)
-            bsz_meter.update(src_size)
+            nsentences = sum(s['src_tokens'].size(0) for s in sample)
+            loss_meter.update(loss, nsentences if args.sentence_avg else ntokens)
+            bsz_meter.update(nsentences)
             wpb_meter.update(ntokens)
             wps_meter.update(ntokens)
             clip_meter.update(1 if loss_dict['gnorm'] > args.clip_norm else 0)
@@ -216,7 +220,8 @@ def validate(args, epoch, trainer, dataset, max_positions, subset, ngpus):
     """Evaluate the model on the validation set and return the average loss."""
 
     itr = dataset.eval_dataloader(
-        subset, batch_size=None, max_tokens=args.max_tokens, max_positions=max_positions,
+        subset, max_tokens=args.max_tokens, max_sentences=args.max_sentences,
+        max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     loss_meter = AverageMeter()
     extra_meters = collections.defaultdict(lambda: AverageMeter())

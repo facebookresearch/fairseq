@@ -11,8 +11,10 @@ from torch.nn.modules.loss import _Loss
 
 class FairseqCriterion(_Loss):
 
-    def __init__(self):
+    def __init__(self, args, dst_dict):
         super().__init__()
+        self.args = args
+        self.padding_idx = dst_dict.pad()
 
     def forward(self, model, sample):
         """Compute the loss for the given sample.

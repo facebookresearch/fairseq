@@ -30,11 +30,10 @@ def build_model(args, src_dict, dst_dict):
 
 
 def build_criterion(args, src_dict, dst_dict):
-    padding_idx = dst_dict.pad()
     if args.label_smoothing > 0:
-        return criterions.LabelSmoothedCrossEntropyCriterion(args.label_smoothing, padding_idx)
+        return criterions.LabelSmoothedCrossEntropyCriterion(args, dst_dict)
     else:
-        return criterions.CrossEntropyCriterion(padding_idx)
+        return criterions.CrossEntropyCriterion(args, dst_dict)
 
 
 def torch_persistent_save(*args, **kwargs):
