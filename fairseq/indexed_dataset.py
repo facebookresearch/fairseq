@@ -11,6 +11,8 @@ import os
 import struct
 import torch
 
+from fairseq.tokenizer import Tokenizer
+
 
 def read_longs(f, n):
     a = np.empty(n, dtype=np.int64)
@@ -59,12 +61,15 @@ class IndexedDataset(object):
     def read_data(self, path):
         self.data_file = open(path + '.bin', 'rb', buffering=0)
 
+    def check_index(self, i):
+        if i < 0 or i >= self.size:
+            raise IndexError('index out of range')
+
     def __del__(self):
         self.data_file.close()
 
     def __getitem__(self, i):
-        if i < 0 or i >= self.size:
-            raise IndexError('index out of range')
+        self.check_index(i)
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
         a = np.empty(tensor_size, dtype=self.dtype)
         self.data_file.seek(self.data_offsets[i] * self.element_size)
@@ -92,12 +97,47 @@ class IndexedInMemoryDataset(IndexedDataset):
         pass
 
     def __getitem__(self, i):
-        if i < 0 or i >= self.size:
-            raise IndexError('index out of range')
+        self.check_index(i)
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
         a = np.empty(tensor_size, dtype=self.dtype)
         np.copyto(a, self.buffer[self.data_offsets[i]:self.data_offsets[i + 1]])
         return torch.from_numpy(a)
+
+
+class IndexedRawTextDataset(IndexedDataset):
+    """Takes a text file as input and binarizes it in memory at instantiation.
+    Original lines are also kept in memory"""
+
+    def __init__(self, path, dictionary):
+        self.tokens_list = []
+        self.lines = []
+        self.sizes = []
+        self.read_data(path, dictionary)
+        self.size = len(self.tokens_list)
+
+    def read_data(self, path, dictionary):
+        with open(path, 'r') as f:
+            for line in f:
+                self.lines.append(line.strip('\n'))
+                # +1 for Lua compatibility
+                tokens = Tokenizer.tokenize(line, dictionary, add_if_not_exist=False) + 1
+                self.tokens_list.append(tokens)
+                self.sizes.append(len(tokens))
+        self.sizes = np.array(self.sizes)
+
+    def __getitem__(self, i):
+        self.check_index(i)
+        return self.tokens_list[i]
+
+    def get_original_text(self, i):
+        self.check_index(i)
+        return self.lines[i]
+
+    def __del__(self):
+        pass
+
+    def __len__(self):
+        return self.size
 
 
 class IndexedDatasetBuilder(object):

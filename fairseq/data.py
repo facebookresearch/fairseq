@@ -8,6 +8,7 @@
 
 import contextlib
 import itertools
+import glob
 import numbers
 import numpy as np
 import os
@@ -15,7 +16,14 @@ import torch
 import torch.utils.data
 
 from fairseq.dictionary import Dictionary
-from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset
+from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset, IndexedRawTextDataset
+
+
+def has_binary_files(data_dir, splits):
+    for split in splits:
+        if len(glob.glob(os.path.join(data_dir, f'{split}.*-*.*.bin'))) < 2:
+            return False
+    return True
 
 
 def infer_language_pair(path, splits):
@@ -43,7 +51,12 @@ def load_dataset(path, load_splits, src=None, dst=None):
     if src is None and dst is None:
         # find language pair automatically
         src, dst = infer_language_pair(path, load_splits)
+    assert src is not None and dst is not None, 'Source and target languages should be provided'
 
+    src_dict, dst_dict = load_dictionaries(path, src, dst)
+    dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
+
+    # Load dataset from binary files
     def all_splits_exist(src, dst):
         for split in load_splits:
             filename = '{0}.{1}-{2}.{1}.idx'.format(split, src, dst)
@@ -58,9 +71,6 @@ def load_dataset(path, load_splits, src=None, dst=None):
         langcode = '{}-{}'.format(dst, src)
     else:
         raise Exception('Dataset cannot be loaded from path: ' + path)
-
-    src_dict, dst_dict = load_dictionaries(path, src, dst)
-    dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
 
     def fmt_path(fmt, *args):
         return os.path.join(path, fmt.format(*args))
@@ -81,6 +91,30 @@ def load_dataset(path, load_splits, src=None, dst=None):
                 eos_idx=dataset.src_dict.eos(),
             )
 
+    return dataset
+
+
+def load_raw_text_dataset(path, load_splits, src=None, dst=None):
+    """Loads specified data splits (e.g., test, train or valid) from raw text
+    files in the specified folder."""
+    if src is None and dst is None:
+        # find language pair automatically
+        src, dst = infer_language_pair(path, load_splits)
+    assert src is not None and dst is not None, 'Source and target languages should be provided'
+
+    src_dict, dst_dict = load_dictionaries(path, src, dst)
+    dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
+
+    # Load dataset from raw text files
+    for split in load_splits:
+        src_path = os.path.join(path, f'{split}.{src}')
+        dst_path = os.path.join(path, f'{split}.{dst}')
+        dataset.splits[split] = LanguagePairDataset(
+            IndexedRawTextDataset(src_path, src_dict),
+            IndexedRawTextDataset(dst_path, dst_dict),
+            pad_idx=dataset.src_dict.pad(),
+            eos_idx=dataset.src_dict.eos(),
+        )
     return dataset
 
 

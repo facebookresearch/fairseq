@@ -46,7 +46,11 @@ def main():
     torch.manual_seed(args.seed)
 
     # Load dataset
-    dataset = data.load_dataset(args.data, ['train', 'valid'], args.source_lang, args.target_lang)
+    splits = ['train', 'valid']
+    if data.has_binary_files(args.data, splits):
+        dataset = data.load_dataset(args.data, splits, args.source_lang, args.target_lang)
+    else:
+        dataset = data.load_raw_text_dataset(args.data, splits, args.source_lang, args.target_lang)
     if args.source_lang is None or args.target_lang is None:
         # record inferred languages in args, so that it's saved in checkpoints
         args.source_lang, args.target_lang = dataset.src, dataset.dst
@@ -54,7 +58,7 @@ def main():
     print(args)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-    for split in ['train', 'valid']:
+    for split in splits:
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
     if not torch.cuda.is_available():
