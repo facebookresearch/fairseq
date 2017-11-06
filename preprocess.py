@@ -8,8 +8,9 @@
 #
 
 import argparse
-import os
 from itertools import zip_longest
+import os
+import shutil
 
 from fairseq import dictionary, indexed_dataset
 from fairseq.tokenizer import Tokenizer
@@ -33,10 +34,11 @@ def main():
     parser.add_argument('--nwordstgt', metavar='N', default=-1, type=int, help='number of target words to retain')
     parser.add_argument('--nwordssrc', metavar='N', default=-1, type=int, help='number of source words to retain')
     parser.add_argument('--alignfile', metavar='ALIGN', default=None, help='an alignment file (optional)')
+    parser.add_argument('--output-format', metavar='FORMAT', default='binary', choices=['binary', 'raw'],
+                        help='output format (optional)')
 
     args = parser.parse_args()
     print(args)
-
     os.makedirs(args.destdir, exist_ok=True)
 
     if args.srcdict:
@@ -53,7 +55,7 @@ def main():
     tgt_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)),
                   threshold=args.thresholdtgt, nwords=args.nwordstgt)
 
-    def make_dataset(input_prefix, output_prefix, lang):
+    def make_binary_dataset(input_prefix, output_prefix, lang):
         dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(lang)))
         print('| [{}] Dictionary: {} types'.format(lang, len(dict) - 1))
 
@@ -74,16 +76,24 @@ def main():
             args.destdir, output_prefix,
             args.source_lang, args.target_lang, lang))
 
-    make_dataset(args.trainpref, 'train', args.source_lang)
-    make_dataset(args.trainpref, 'train', args.target_lang)
+    def make_dataset(input_prefix, output_prefix, lang, output_format='binary'):
+        if output_format == 'binary':
+            make_binary_dataset(input_prefix, output_prefix, lang)
+        elif output_format == 'raw':
+            # Copy original text file to destination folder
+            output_text_file = os.path.join(args.destdir, f'{output_prefix}.{lang}')
+            shutil.copyfile('{}.{}'.format(input_prefix, lang), output_text_file)
+
+    make_dataset(args.trainpref, 'train', args.source_lang, args.output_format)
+    make_dataset(args.trainpref, 'train', args.target_lang, args.output_format)
     for k, validpref in enumerate(args.validpref.split(',')):
         outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
-        make_dataset(validpref, outprefix, args.source_lang)
-        make_dataset(validpref, outprefix, args.target_lang)
+        make_dataset(validpref, outprefix, args.source_lang, args.output_format)
+        make_dataset(validpref, outprefix, args.target_lang, args.output_format)
     for k, testpref in enumerate(args.testpref.split(',')):
         outprefix = 'test{}'.format(k) if k > 0 else 'test'
-        make_dataset(testpref, outprefix, args.source_lang)
-        make_dataset(testpref, outprefix, args.target_lang)
+        make_dataset(testpref, outprefix, args.source_lang, args.output_format)
+        make_dataset(testpref, outprefix, args.target_lang, args.output_format)
     print('| Wrote preprocessed data to {}'.format(args.destdir))
 
     if args.alignfile:

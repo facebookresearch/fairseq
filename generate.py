@@ -34,7 +34,10 @@ def main():
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load dataset
-    dataset = data.load_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+    if args.replace_unk is None:
+        dataset = data.load_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+    else:
+        dataset = data.load_raw_text_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
     if args.source_lang is None or args.target_lang is None:
         # record inferred languages in args
         args.source_lang, args.target_lang = dataset.src, dataset.dst
@@ -80,8 +83,14 @@ def main():
         for sample_id, src_tokens, target_tokens, hypos in translations:
             # Process input and ground truth
             target_tokens = target_tokens.int().cpu()
-            src_str = dataset.src_dict.string(src_tokens, args.remove_bpe)
-            target_str = dataset.dst_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+            # Either retrieve the original sentences or regenerate them from tokens.
+            if align_dict is not None:
+                src_str = dataset.splits[args.gen_subset].src.get_original_text(sample_id)
+                target_str = dataset.splits[args.gen_subset].dst.get_original_text(sample_id)
+            else:
+                src_str = dataset.src_dict.string(src_tokens, args.remove_bpe)
+                target_str = dataset.dst_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+
             if not args.quiet:
                 print('S-{}\t{}'.format(sample_id, src_str))
                 print('T-{}\t{}'.format(sample_id, target_str))
@@ -102,8 +111,8 @@ def main():
 
                 # Score only the top hypothesis
                 if i == 0:
-                    if args.remove_bpe is not None:
-                        # Convert the string without BPE back to tokens for evaluation
+                    if align_dict is not None or args.remove_bpe is not None:
+                        # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tokenizer.Tokenizer.tokenize(target_str,
                                                                      dataset.dst_dict,
                                                                      add_if_not_exist=True)
