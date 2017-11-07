@@ -8,7 +8,7 @@
 
 import torch
 import unittest
-from fairseq.criterions.label_smoothed_cross_entropy import LabelSmoothedCrossEntropy
+from fairseq.criterions.label_smoothed_cross_entropy import LabelSmoothedNLLLoss
 from torch.autograd import Variable, gradcheck
 
 
@@ -21,7 +21,7 @@ class TestLabelSmoothing(unittest.TestCase):
         input = Variable(torch.randn(3, 5), requires_grad=True)
         idx = torch.rand(3) * 4
         target = Variable(idx.long())
-        criterion = LabelSmoothedCrossEntropy()
+        criterion = LabelSmoothedNLLLoss()
         self.assertTrue(gradcheck(
             lambda x, y: criterion.apply(x, y, 0.1, 2, None), (input, target)
         ))
