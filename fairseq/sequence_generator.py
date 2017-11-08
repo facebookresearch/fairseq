@@ -89,7 +89,7 @@ class SequenceGenerator(object):
             return self._generate(src_tokens, beam_size, maxlen)
 
     def _generate(self, src_tokens, beam_size=None, maxlen=None):
-        bsz = src_tokens.size(0)
+        bsz, srclen = src_tokens.size()
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
 
         # the max beam size is the dictionary size - 1, since we never select pad
@@ -102,9 +102,8 @@ class SequenceGenerator(object):
             if isinstance(model.decoder, FairseqIncrementalDecoder):
                 model.decoder.set_beam_size(beam_size)
 
-            # compute the encoder output and expand to beam size
-            encoder_out = model.encoder(src_tokens)
-            encoder_out = self._expand_encoder_out(encoder_out, beam_size)
+            # compute the encoder output for each beam
+            encoder_out = model.encoder(src_tokens.repeat(1, beam_size).view(-1, srclen))
             encoder_outs.append(encoder_out)
 
         # initialize buffers
@@ -343,14 +342,3 @@ class SequenceGenerator(object):
         avg_attn.div_(len(self.models))
 
         return avg_probs, avg_attn
-
-    def _expand_encoder_out(self, encoder_out, beam_size):
-        res = []
-        for tensor in encoder_out:
-            res.append(
-                # repeat beam_size times along second dimension
-                tensor.repeat(1, beam_size, *[1 for i in range(tensor.dim()-2)]) \
-                # then collapse into [bsz*beam, ...original dims...]
-                .view(-1, *tensor.size()[1:])
-            )
-        return tuple(res)

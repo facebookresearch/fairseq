@@ -156,6 +156,16 @@ def add_model_args(parser):
     group.add_argument('--decoder-attention', type=str, metavar='EXPR',
                        help='decoder attention [True, ...]')
 
+    # Granular dropout settings for models that support them (e.g., LSTM):
+    group.add_argument('--encoder-dropout-in', type=float, metavar='D',
+                       help='dropout probability for encoder input embedding')
+    group.add_argument('--encoder-dropout-out', type=float, metavar='D',
+                       help='dropout probability for encoder output')
+    group.add_argument('--decoder-dropout-in', type=float, metavar='D',
+                       help='dropout probability for decoder input embedding')
+    group.add_argument('--decoder-dropout-out', type=float, metavar='D',
+                       help='dropout probability for decoder output')
+
     # These arguments have default values independent of the model:
     group.add_argument('--dropout', default=0.1, type=float, metavar='D',
                        help='dropout probability')

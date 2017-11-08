@@ -11,10 +11,10 @@ from .fairseq_encoder import FairseqEncoder
 from .fairseq_incremental_decoder import FairseqIncrementalDecoder
 from .fairseq_model import FairseqModel
 
-from . import fconv
+from . import fconv, lstm
 
 
-__all__ = ['fconv']
+__all__ = ['fconv', 'lstm']
 
 arch_model_map = {}
 for model in __all__:
