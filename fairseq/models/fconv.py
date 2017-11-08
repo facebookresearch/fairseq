@@ -250,6 +250,10 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
         return x, avg_attn_scores
 
+    def reorder_incremental_state(self, new_order):
+        """Reorder buffered internal state (for incremental generation)."""
+        super().reorder_incremental_state(new_order)
+
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return self.embed_positions.num_embeddings - self.dictionary.pad() - 1
