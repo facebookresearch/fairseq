@@ -26,7 +26,7 @@ def main():
     options.add_generation_args(parser)
 
     args = parser.parse_args()
-    if args.no_progress_bar:
+    if args.no_progress_bar and args.log_format is None:
         args.log_format = 'none'
     print(args)
 

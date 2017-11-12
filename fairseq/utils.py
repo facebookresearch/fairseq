@@ -10,6 +10,7 @@ import logging
 import os
 import torch
 import traceback
+import sys
 
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
@@ -37,14 +38,19 @@ def build_criterion(args, src_dict, dst_dict):
 
 
 def build_progress_bar(args, iterator, epoch=None, prefix=None):
+    if args.log_format is None:
+        args.log_format = 'tqdm' if sys.stderr.isatty() else 'simple'
+
     if args.log_format == 'json':
         bar = progress_bar.json_progress_bar(iterator, epoch, prefix, args.log_interval)
     elif args.log_format == 'none':
         bar = progress_bar.noop_progress_bar(iterator, epoch, prefix)
+    elif args.log_format == 'simple':
+        bar = progress_bar.simple_progress_bar(iterator, epoch, prefix, args.log_interval)
     elif args.log_format == 'tqdm':
         bar = progress_bar.tqdm_progress_bar(iterator, epoch, prefix)
     else:
-        bar = progress_bar.simple_progress_bar(iterator, epoch, prefix, args.log_interval)
+        raise ValueError(f'Unknown log format: {args.log_format}')
     return bar
 
 
