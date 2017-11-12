@@ -185,6 +185,13 @@ class FConvDecoder(FairseqIncrementalDecoder):
         self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
     def forward(self, input_tokens, encoder_out):
+        if self._is_incremental_eval:
+            return self.incremental_forward(input_tokens, encoder_out)
+        else:
+            return self.batch_forward(input_tokens, encoder_out)
+
+    def batch_forward(self, input_tokens, encoder_out):
+        """Forward pass for decoding multiple time steps in batch mode."""
         positions = Variable(make_positions(input_tokens.data, self.dictionary.pad(),
                                             left_pad=LanguagePairDataset.LEFT_PAD_TARGET))
         return self._forward(input_tokens, positions, encoder_out)

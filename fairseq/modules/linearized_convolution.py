@@ -50,13 +50,6 @@ class LinearizedConvolution(ConvTBC):
         call reorder_incremental_state. To apply to fresh inputs, call
         clear_incremental_state.
         """
-        if self.training or not self._is_incremental_eval:
-            raise RuntimeError('incremental_forward only supports incremental evaluation')
-
-        # run forward pre hooks (e.g., weight norm)
-        for hook in self._forward_pre_hooks.values():
-            hook(self, input)
-
         # reshape weight
         weight = self._get_linearized_weight()
         kw = self.kernel_size[0]

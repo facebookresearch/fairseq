@@ -18,12 +18,10 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         self._incremental_state = {}
 
     def forward(self, tokens, encoder_out):
-        raise NotImplementedError
-
-    def incremental_forward(self, tokens, encoder_out):
-        """Forward pass for one time step."""
-        # keep only the last token for incremental forward pass
-        return self.forward(tokens[:, -1:], encoder_out)
+        if self._is_incremental_eval:
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
 
     def incremental_inference(self):
         """Context manager for incremental inference.
@@ -38,8 +36,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         ```
         with model.decoder.incremental_inference():
             for step in range(maxlen):
-                out, _ = model.decoder.incremental_forward(
-                    tokens[:, :step], encoder_out)
+                out, _ = model.decoder(tokens[:, :step], encoder_out)
                 probs = torch.nn.functional.log_softmax(out[:, -1, :])
         ```
         """
