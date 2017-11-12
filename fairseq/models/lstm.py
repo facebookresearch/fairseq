@@ -126,7 +126,6 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
     def forward(self, input_tokens, encoder_out):
         bsz, seqlen = input_tokens.size()
-        num_layers = len(self.layers)
 
         # get outputs from encoder
         encoder_outs, _, _ = encoder_out
@@ -220,10 +219,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
     def _init_prev_states(self, input_tokens, encoder_out):
         _, encoder_hiddens, encoder_cells = encoder_out
-        bsz = input_tokens.size(0)
         num_layers = len(self.layers)
-        embed_dim = encoder_hiddens.size(2)
-
         prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
         prev_cells = [encoder_cells[i] for i in range(num_layers)]
         return prev_hiddens, prev_cells
