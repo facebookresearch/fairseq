@@ -36,7 +36,7 @@ def main():
 
     args = utils.parse_args_and_arch(parser)
 
-    if args.no_progress_bar and args.log_format == 'tqdm':
+    if args.no_progress_bar and args.log_format is None:
         args.log_format = 'simple'
 
     if not os.path.exists(args.save_dir):
