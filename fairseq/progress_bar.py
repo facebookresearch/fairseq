@@ -54,7 +54,7 @@ class progress_bar(object):
 
     def _str_pipes(self, stats):
         return ' | '.join(key + ' ' + stats[key].strip()
-                         for key in stats.keys())
+                          for key in stats.keys())
 
     def _format_stats(self, stats):
         postfix = OrderedDict(stats)
