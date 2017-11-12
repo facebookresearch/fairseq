@@ -14,7 +14,7 @@ import traceback
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, data, models, tokenizer
+from fairseq import criterions, data, models, progress_bar, tokenizer
 
 
 def parse_args_and_arch(parser):
@@ -34,6 +34,18 @@ def build_criterion(args, src_dict, dst_dict):
         return criterions.LabelSmoothedCrossEntropyCriterion(args, dst_dict)
     else:
         return criterions.CrossEntropyCriterion(args, dst_dict)
+
+
+def build_progress_bar(args, iterator, epoch=None, prefix=None):
+    if args.log_format == 'json':
+        bar = progress_bar.json_progress_bar(iterator, epoch, prefix, args.log_interval)
+    elif args.log_format == 'none':
+        bar = progress_bar.noop_progress_bar(iterator, epoch, prefix)
+    elif args.log_format == 'tqdm':
+        bar = progress_bar.tqdm_progress_bar(iterator, epoch, prefix)
+    else:
+        bar = progress_bar.simple_progress_bar(iterator, epoch, prefix, args.log_interval)
+    return bar
 
 
 def torch_persistent_save(*args, **kwargs):
