@@ -7,35 +7,29 @@
 #
 
 """
-Progress bar wrapper around tqdm which handles non-TTY outputs.
+Wrapper around various loggers and progress bars (e.g., tqdm).
 """
 
 from collections import OrderedDict
+import json
 from numbers import Number
 import sys
 
 from tqdm import tqdm
 
-
-class progress_bar(tqdm):
-    enabled = sys.stderr.isatty()
-    print_interval = 1000
-
-    def __new__(cls, *args, **kwargs):
-        if cls.enabled:
-            return tqdm(*args, **kwargs)
-        else:
-            return simple_progress_bar(cls.print_interval, *args, **kwargs)
+from fairseq.meters import AverageMeter
 
 
-class simple_progress_bar(object):
-    """A minimal replacement for tqdm in non-TTY environments."""
-
-    def __init__(self, print_interval, iterable, desc=None, *_args, **_kwargs):
-        super().__init__()
-        self.print_interval = print_interval
+class progress_bar(object):
+    """Abstract class for progress bars."""
+    def __init__(self, iterable, epoch=None, prefix=None):
         self.iterable = iterable
-        self.desc = desc
+        self.epoch = epoch
+        self.prefix = ''
+        if epoch is not None:
+            self.prefix += f'| epoch {epoch:03d}'
+        if prefix is not None:
+            self.prefix += f' | {prefix}'
 
     def __enter__(self):
         return self
@@ -44,36 +38,149 @@ class simple_progress_bar(object):
         return False
 
     def __iter__(self):
-        size = len(self.iterable)
-        for i, obj in enumerate(self.iterable):
-            yield obj
-            if i > 0 and i % self.print_interval == 0:
-                desc = '' if self.desc is None else '{}:  '.format(self.desc)
-                msg = '{}{:5d} / {:d} {}\n'.format(desc, i, size, self.postfix)
-                sys.stdout.write(msg)
-                sys.stdout.flush()
+        raise NotImplementedError
 
-    def set_postfix(self, ordered_dict=None, refresh=True, **kwargs):
-        # Sort in alphabetical order to be more deterministic
-        postfix = OrderedDict([] if ordered_dict is None else ordered_dict)
-        for key in sorted(kwargs.keys()):
-            postfix[key] = kwargs[key]
+    def log(self, stats):
+        """Log intermediate stats according to log_interval."""
+        raise NotImplementedError
+
+    def print(self, stats):
+        """Print end-of-epoch stats."""
+        raise NotImplementedError
+
+    def _str_commas(self, stats):
+        return ', '.join(key + '=' + stats[key].strip()
+                         for key in stats.keys())
+
+    def _str_pipes(self, stats):
+        return ' | '.join(key + ' ' + stats[key].strip()
+                         for key in stats.keys())
+
+    def _format_stats(self, stats):
+        postfix = OrderedDict(stats)
         # Preprocess stats according to datatype
         for key in postfix.keys():
             # Number: limit the length of the string
             if isinstance(postfix[key], Number):
-                postfix[key] = '{0:2.3g}'.format(postfix[key])
+                postfix[key] = '{:g}'.format(postfix[key])
+            # Meter: display both current and average value
+            elif isinstance(postfix[key], AverageMeter):
+                postfix[key] = '{:.2f} ({:.2f})'.format(
+                    postfix[key].val, postfix[key].avg)
             # Else for any other type, try to get the string conversion
             elif not isinstance(postfix[key], str):
                 postfix[key] = str(postfix[key])
             # Else if it's a string, don't need to preprocess anything
-        # Stitch together to get the final postfix
-        self.postfix = ', '.join(key + '=' + postfix[key].strip()
-                                 for key in postfix.keys())
+        return postfix
 
-    @classmethod
-    def write(cls, s, file=None, end="\n"):
-        fp = file if file is not None else sys.stdout
-        fp.write(s)
-        fp.write(end)
-        fp.flush()
+
+class json_progress_bar(progress_bar):
+    """Log output in JSON format."""
+
+    def __init__(self, iterable, epoch=None, prefix=None, log_interval=1000):
+        super().__init__(iterable, epoch, prefix)
+        self.log_interval = log_interval
+        self.postfix_json = None
+
+    def __iter__(self):
+        size = float(len(self.iterable))
+        for i, obj in enumerate(self.iterable):
+            yield obj
+            if self.stats is not None and i > 0 and \
+                    self.log_interval is not None and i % self.log_interval == 0:
+                update = self.epoch + float(i / size) if self.epoch is not None else None
+                stats = self._format_stats(self.stats, epoch=self.epoch, update=update)
+                print("sweep_log: " + json.dumps(stats))
+
+    def log(self, stats):
+        """Log intermediate stats according to log_interval."""
+        self.stats = stats
+
+    def print(self, stats):
+        """Print end-of-epoch stats."""
+        stats = self._format_stats(self.stats, epoch=self.epoch)
+        print("sweep_log: " + json.dumps(stats))
+
+    def _format_stats(self, stats, epoch=None, update=None):
+        postfix = OrderedDict()
+        if epoch is not None:
+            postfix['epoch'] = epoch
+        if update is not None:
+            postfix['update'] = update
+        # Preprocess stats according to datatype
+        for key in stats.keys():
+            # Meter: display both current and average value
+            if isinstance(stats[key], AverageMeter):
+                postfix[key] = stats[key].val
+                postfix[key + '_avg'] = stats[key].avg
+            else:
+                postfix[key] = stats[key]
+        return postfix
+
+
+class noop_progress_bar(progress_bar):
+    """No logging."""
+
+    def __init__(self, iterable, epoch=None, prefix=None):
+        super().__init__(iterable, epoch, prefix)
+
+    def __iter__(self):
+        for obj in self.iterable:
+            yield obj
+
+    def log(self, stats):
+        """Log intermediate stats according to log_interval."""
+        pass
+
+    def print(self, stats):
+        """Print end-of-epoch stats."""
+        pass
+
+
+class simple_progress_bar(progress_bar):
+    """A minimal logger for non-TTY environments."""
+
+    def __init__(self, iterable, epoch=None, prefix=None, log_interval=1000):
+        super().__init__(iterable, epoch, prefix)
+        self.log_interval = log_interval
+        self.stats = None
+
+    def __iter__(self):
+        size = len(self.iterable)
+        for i, obj in enumerate(self.iterable):
+            yield obj
+            if self.stats is not None and i > 0 and \
+                    self.log_interval is not None and i % self.log_interval == 0:
+                postfix = self._str_commas(self.stats)
+                print(f'{self.prefix}:  {i:5d} / {size:d} {postfix}')
+                sys.stdout.flush()
+
+    def log(self, stats):
+        """Log intermediate stats according to log_interval."""
+        self.stats = self._format_stats(stats)
+
+    def print(self, stats):
+        """Print end-of-epoch stats."""
+        postfix = self._str_pipes(self._format_stats(stats))
+        print(f'{self.prefix} | {postfix}')
+        sys.stdout.flush()
+
+
+class tqdm_progress_bar(progress_bar):
+    """Log to tqdm."""
+
+    def __init__(self, iterable, epoch=None, prefix=None):
+        super().__init__(iterable, epoch, prefix)
+        self.tqdm = tqdm(iterable, self.prefix, leave=False)
+
+    def __iter__(self):
+        return iter(self.tqdm)
+
+    def log(self, stats):
+        """Log intermediate stats according to log_interval."""
+        self.tqdm.set_postfix(self._format_stats(stats), refresh=False)
+
+    def print(self, stats):
+        """Print end-of-epoch stats."""
+        postfix = self._str_pipes(self._format_stats(stats))
+        self.tqdm.write(f'{self.tqdm.desc} | {postfix}')

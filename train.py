@@ -15,7 +15,6 @@ import math
 from fairseq import data, options, utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.multiprocessing_trainer import MultiprocessingTrainer
-from fairseq.progress_bar import progress_bar
 
 
 def main():
@@ -38,8 +37,7 @@ def main():
     args = utils.parse_args_and_arch(parser)
 
     if args.no_progress_bar:
-        progress_bar.enabled = False
-        progress_bar.print_interval = args.log_interval
+        args.log_format = 'simple'
 
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
@@ -124,7 +122,7 @@ def main():
 
 def get_perplexity(loss):
     try:
-        return math.pow(2, loss)
+        return round(math.pow(2, loss), 2)
     except OverflowError:
         return float('inf')
 
@@ -149,9 +147,8 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
     clip_meter = AverageMeter()   # % of updates clipped
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
-    desc = '| epoch {:03d}'.format(epoch)
     lr = trainer.get_lr()
-    with progress_bar(itr, desc, leave=False) as t:
+    with utils.build_progress_bar(args, itr, epoch) as t:
         for i, sample in data.skip_group_enumerator(t, num_gpus, batch_offset):
             loss_dict = trainer.train_step(sample)
             loss = loss_dict['loss']
@@ -168,16 +165,16 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
             extra_postfix = []
             for k, v in loss_dict.items():
                 extra_meters[k].update(v)
-                extra_postfix.append((k, '{:.4f}'.format(extra_meters[k].avg)))
+                extra_postfix.append((k, extra_meters[k].avg))
 
-            t.set_postfix(collections.OrderedDict([
-                ('loss', '{:.2f} ({:.2f})'.format(loss, loss_meter.avg)),
-                ('wps', '{:5d}'.format(round(wps_meter.avg))),
-                ('wpb', '{:5d}'.format(round(wpb_meter.avg))),
-                ('bsz', '{:5d}'.format(round(bsz_meter.avg))),
+            t.log(collections.OrderedDict([
+                ('loss', loss_meter),
+                ('wps', round(wps_meter.avg)),
+                ('wpb', round(wpb_meter.avg)),
+                ('bsz', round(bsz_meter.avg)),
                 ('lr', lr),
-                ('clip', '{:3.0f}%'.format(clip_meter.avg * 100)),
-            ] + extra_postfix), refresh=False)
+                ('clip', '{:.0%}'.format(clip_meter.avg)),
+            ] + extra_postfix))
 
             if i == 0:
                 # ignore the first mini-batch in words-per-second calculation
@@ -185,17 +182,19 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions, num_gpus):
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
                 save_checkpoint(trainer, args, epoch, i + 1)
 
-        fmt = desc + ' | train loss {:2.2f} | train ppl {:3.2f}'.format(
-            loss_meter.avg, get_perplexity(loss_meter.avg))
-        fmt += ' | s/checkpoint {:7d} | words/s {:6d} | words/batch {:6d}'.format(
-            round(wps_meter.elapsed_time), round(wps_meter.avg), round(wpb_meter.avg))
-        fmt += ' | bsz {:5d} | lr {:0.6f} | clip {:3.0f}%'.format(
-            round(bsz_meter.avg), lr, clip_meter.avg * 100)
-        fmt += ''.join(
-            ' | {} {:.4f}'.format(k, meter.avg)
+        t.print(collections.OrderedDict([
+            ('train loss', round(loss_meter.avg, 2)),
+            ('train ppl', get_perplexity(loss_meter.avg)),
+            ('s/checkpoint', round(wps_meter.elapsed_time)),
+            ('words/s', round(wps_meter.avg)),
+            ('words/batch', round(wpb_meter.avg)),
+            ('bsz', round(bsz_meter.avg)),
+            ('lr', lr),
+            ('clip', '{:3.0f}%'.format(clip_meter.avg * 100)),
+        ] + [
+            (k, meter.avg)
             for k, meter in extra_meters.items()
-        )
-        t.write(fmt)
+        ]))
 
 
 def save_checkpoint(trainer, args, epoch, batch_offset, val_loss):
@@ -232,8 +231,8 @@ def validate(args, epoch, trainer, dataset, max_positions, subset, ngpus):
     loss_meter = AverageMeter()
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
-    desc = '| epoch {:03d} | valid on \'{}\' subset'.format(epoch, subset)
-    with progress_bar(itr, desc, leave=False) as t:
+    prefix = 'valid on \'{}\' subset'.format(subset)
+    with utils.build_progress_bar(args, itr, epoch, prefix) as t:
         for _, sample in data.skip_group_enumerator(t, ngpus):
             loss_dict = trainer.valid_step(sample)
             loss = loss_dict['loss']
@@ -245,23 +244,22 @@ def validate(args, epoch, trainer, dataset, max_positions, subset, ngpus):
             extra_postfix = []
             for k, v in loss_dict.items():
                 extra_meters[k].update(v)
-                extra_postfix.append((k, '{:.4f}'.format(extra_meters[k].avg)))
+                extra_postfix.append((k, extra_meters[k].avg))
 
-            t.set_postfix(collections.OrderedDict([
-                ('loss', '{:.2f}'.format(loss_meter.avg)),
-            ] + extra_postfix), refresh=False)
+            t.log(collections.OrderedDict([
+                ('valid loss', round(loss_meter.avg, 2)),
+            ] + extra_postfix))
 
-        val_loss = loss_meter.avg
-        fmt = desc + ' | valid loss {:2.2f} | valid ppl {:3.2f}'.format(
-            val_loss, get_perplexity(val_loss))
-        fmt += ''.join(
-            ' | {} {:.4f}'.format(k, meter.avg)
+        t.print(collections.OrderedDict([
+            ('valid loss', round(loss_meter.avg, 2)),
+            ('valid ppl', get_perplexity(loss_meter.avg)),
+        ] + [
+            (k, meter.avg)
             for k, meter in extra_meters.items()
-        )
-        t.write(fmt)
+        ]))
 
     # update and return the learning rate
-    return val_loss
+    return loss_meter.avg
 
 
 if __name__ == '__main__':

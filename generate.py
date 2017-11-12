@@ -11,7 +11,6 @@ import torch
 
 from fairseq import bleu, data, options, tokenizer, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
-from fairseq.progress_bar import progress_bar
 from fairseq.sequence_generator import SequenceGenerator
 
 
@@ -27,10 +26,10 @@ def main():
     options.add_generation_args(parser)
 
     args = parser.parse_args()
+    if args.no_progress_bar:
+        args.log_format = 'none'
     print(args)
 
-    if args.no_progress_bar:
-        progress_bar.enabled = False
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load dataset
@@ -74,7 +73,7 @@ def main():
         args.gen_subset, max_sentences=args.batch_size, max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     num_sentences = 0
-    with progress_bar(itr, smoothing=0, leave=False) as t:
+    with utils.build_progress_bar(args, itr) as t:
         wps_meter = TimeMeter()
         gen_timer = StopwatchMeter()
         translations = translator.generate_batched_itr(
@@ -119,7 +118,7 @@ def main():
                     scorer.add(target_tokens, hypo_tokens)
 
             wps_meter.update(src_tokens.size(0))
-            t.set_postfix(wps='{:5d}'.format(round(wps_meter.avg)), refresh=False)
+            t.log({'wps': round(wps_meter.avg)})
             num_sentences += 1
 
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(

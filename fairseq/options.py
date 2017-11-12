@@ -18,6 +18,8 @@ def get_parser(desc):
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
     parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
                         help='log progress every N updates (when progress bar is disabled)')
+    parser.add_argument('--log-format', default='tqdm', help='log format to use',
+                        choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
     return parser
