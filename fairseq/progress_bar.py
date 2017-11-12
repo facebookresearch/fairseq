@@ -80,7 +80,7 @@ class json_progress_bar(progress_bar):
     def __init__(self, iterable, epoch=None, prefix=None, log_interval=1000):
         super().__init__(iterable, epoch, prefix)
         self.log_interval = log_interval
-        self.postfix_json = None
+        self.stats = None
 
     def __iter__(self):
         size = float(len(self.iterable))

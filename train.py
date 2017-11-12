@@ -36,7 +36,7 @@ def main():
 
     args = utils.parse_args_and_arch(parser)
 
-    if args.no_progress_bar:
+    if args.no_progress_bar and args.log_format == 'tqdm':
         args.log_format = 'simple'
 
     if not os.path.exists(args.save_dir):
@@ -74,7 +74,10 @@ def main():
     # The max number of positions can be different for train and valid
     # e.g., RNNs may support more positions at test time than seen in training
     max_positions_train = (args.max_source_positions, args.max_target_positions)
-    max_positions_valid = (model.max_encoder_positions(), model.max_decoder_positions())
+    max_positions_valid = (
+        min(args.max_source_positions, model.max_encoder_positions()),
+        min(args.max_target_positions, model.max_decoder_positions())
+    )
 
     # Start multiprocessing
     trainer = MultiprocessingTrainer(args, model, criterion)
