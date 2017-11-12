@@ -6,10 +6,15 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-from .cross_entropy import CrossEntropyCriterion
-from .label_smoothed_cross_entropy import LabelSmoothedCrossEntropyCriterion
+import torch.nn as nn
 
-__all__ = [
-    'CrossEntropyCriterion',
-    'LabelSmoothedCrossEntropyCriterion',
-]
+
+class FairseqEncoder(nn.Module):
+    """Base class for encoders."""
+
+    def __init__(self):
+        super().__init__()
+
+    def max_positions(self):
+        """Maximum input length supported by the encoder."""
+        raise NotImplementedError

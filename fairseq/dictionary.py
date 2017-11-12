@@ -17,6 +17,7 @@ class Dictionary(object):
         self.symbols = []
         self.count = []
         self.indices = {}
+        # dictionary indexing starts at 1 for consistency with Lua
         self.add_symbol('<Lua heritage>')
         self.pad_index = self.add_symbol(pad)
         self.eos_index = self.add_symbol(eos)
@@ -44,7 +45,7 @@ class Dictionary(object):
         Can optionally remove BPE symbols or escape <unk> words.
         """
         if torch.is_tensor(tensor) and tensor.dim() == 2:
-            return '\n'.join(self.to_string(t) for t in tensor)
+            return '\n'.join(self.string(t) for t in tensor)
 
         def token_string(i):
             if i == self.unk():

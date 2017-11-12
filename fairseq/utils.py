@@ -14,7 +14,7 @@ import traceback
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, models
+from fairseq import criterions, data, models, progress_bar, tokenizer
 
 
 def parse_args_and_arch(parser):
@@ -30,11 +30,22 @@ def build_model(args, src_dict, dst_dict):
 
 
 def build_criterion(args, src_dict, dst_dict):
-    padding_idx = dst_dict.pad()
     if args.label_smoothing > 0:
-        return criterions.LabelSmoothedCrossEntropyCriterion(args.label_smoothing, padding_idx)
+        return criterions.LabelSmoothedCrossEntropyCriterion(args, dst_dict)
     else:
-        return criterions.CrossEntropyCriterion(padding_idx)
+        return criterions.CrossEntropyCriterion(args, dst_dict)
+
+
+def build_progress_bar(args, iterator, epoch=None, prefix=None):
+    if args.log_format == 'json':
+        bar = progress_bar.json_progress_bar(iterator, epoch, prefix, args.log_interval)
+    elif args.log_format == 'none':
+        bar = progress_bar.noop_progress_bar(iterator, epoch, prefix)
+    elif args.log_format == 'tqdm':
+        bar = progress_bar.tqdm_progress_bar(iterator, epoch, prefix)
+    else:
+        bar = progress_bar.simple_progress_bar(iterator, epoch, prefix, args.log_interval)
+    return bar
 
 
 def torch_persistent_save(*args, **kwargs):
@@ -122,7 +133,12 @@ def _upgrade_state_dict(state):
     return state
 
 
-def load_ensemble_for_inference(filenames, src_dict, dst_dict):
+def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_dir=None):
+    """Load an ensemble of models for inference.
+
+    The source and target dictionaries can be given explicitly, or loaded from
+    the `data_dir` directory.
+    """
     # load model architectures and weights
     states = []
     for filename in filenames:
@@ -132,6 +148,11 @@ def load_ensemble_for_inference(filenames, src_dict, dst_dict):
             torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
         )
     args = states[0]['args']
+    args = _upgrade_args(args)
+
+    if src_dict is None or dst_dict is None:
+        assert data_dir is not None
+        src_dict, dst_dict = data.load_dictionaries(data_dir, args.source_lang, args.target_lang)
 
     # build ensemble
     ensemble = []
@@ -139,7 +160,14 @@ def load_ensemble_for_inference(filenames, src_dict, dst_dict):
         model = build_model(args, src_dict, dst_dict)
         model.load_state_dict(state['model'])
         ensemble.append(model)
-    return ensemble
+    return ensemble, args
+
+
+def _upgrade_args(args):
+    if not hasattr(args, 'max_source_positions'):
+        args.max_source_positions = args.max_positions
+        args.max_target_positions = args.max_positions
+    return args
 
 
 def prepare_sample(sample, volatile=False, cuda_device=None):
@@ -156,6 +184,58 @@ def prepare_sample(sample, volatile=False, cuda_device=None):
         'target': make_variable(sample['target']),
         'net_input': {
             key: make_variable(sample[key])
-            for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions']
+            for key in ['src_tokens', 'input_tokens']
         },
     }
+
+
+def load_align_dict(replace_unk):
+    if replace_unk is None:
+        align_dict = None
+    elif isinstance(replace_unk, str):
+        # Load alignment dictionary for unknown word replacement if it was passed as an argument.
+        align_dict = {}
+        with open(replace_unk, 'r') as f:
+            for line in f:
+                l = line.split()
+                align_dict[l[0]] = l[1]
+    else:
+        # No alignment dictionary provided but we still want to perform unknown word replacement by copying the
+        # original source word.
+        align_dict = {}
+    return align_dict
+
+
+def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
+    # Tokens are strings here
+    hypo_tokens = tokenizer.tokenize_line(hypo_str)
+    # TODO: Very rare cases where the replacement is '<eos>' should be handled gracefully
+    src_tokens = tokenizer.tokenize_line(src_str) + ['<eos>']
+    for i, ht in enumerate(hypo_tokens):
+        if ht == unk:
+            src_token = src_tokens[alignment[i]]
+            # Either take the corresponding value in the aligned dictionary or just copy the original value.
+            hypo_tokens[i] = align_dict.get(src_token, src_token)
+    return ' '.join(hypo_tokens)
+
+
+def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dict, remove_bpe):
+    hypo_str = dst_dict.string(hypo_tokens, remove_bpe)
+    if align_dict is not None:
+        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, dst_dict.unk_string())
+    if align_dict is not None or remove_bpe is not None:
+        # Convert back to tokens for evaluating with unk replacement or without BPE
+        # Note that the dictionary can be modified inside the method.
+        hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, dst_dict, add_if_not_exist=True)
+    return hypo_tokens, hypo_str, alignment
+
+
+def lstrip_pad(tensor, pad):
+    return tensor[tensor.eq(pad).sum():]
+
+
+def rstrip_pad(tensor, pad):
+    strip = tensor.eq(pad).sum()
+    if strip > 0:
+        return tensor[:-strip]
+    return tensor

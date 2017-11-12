@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from .fairseq_criterion import FairseqCriterion
 
 
-class LabelSmoothedCrossEntropy(torch.autograd.Function):
+class LabelSmoothedNLLLoss(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, target, eps, padding_idx, weights):
@@ -43,10 +43,9 @@ class LabelSmoothedCrossEntropy(torch.autograd.Function):
 
 class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, eps, padding_idx=None, weights=None):
-        super().__init__()
-        self.eps = eps
-        self.padding_idx = padding_idx
+    def __init__(self, args, dst_dict, weights=None):
+        super().__init__(args, dst_dict)
+        self.eps = args.label_smoothing
         self.weights = weights
 
     def forward(self, model, sample):
@@ -60,8 +59,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         net_output = model(**sample['net_input'])
         input = F.log_softmax(net_output.view(-1, net_output.size(-1)))
         target = sample['target'].view(-1)
-        loss = LabelSmoothedCrossEntropy.apply(input, target, self.eps, self.padding_idx, self.weights)
-        sample_size = sample['ntokens']
+        loss = LabelSmoothedNLLLoss.apply(input, target, self.eps, self.padding_idx, self.weights)
+        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': loss.data[0],
             'sample_size': sample_size,
