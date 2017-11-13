@@ -94,7 +94,7 @@ class AttentionLayer(nn.Module):
 
         # compute attention
         attn_scores = (source_hids * x.unsqueeze(0)).sum(dim=2)
-        attn_scores = F.softmax(attn_scores.t(), dim=1).t()  # srclen x bsz
+        attn_scores = F.softmax(attn_scores.t()).t()  # srclen x bsz
 
         # sum weighted sources
         x = (attn_scores.unsqueeze(2) * source_hids).sum(dim=0)
@@ -125,6 +125,11 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
     def forward(self, input_tokens, encoder_out):
+        if self._is_incremental_eval:
+            input_tokens = input_tokens[:, -1:]
+        return self._forward(input_tokens, encoder_out)
+
+    def _forward(self, input_tokens, encoder_out):
         bsz, seqlen = input_tokens.size()
 
         # get outputs from encoder
