@@ -50,7 +50,7 @@ def build_progress_bar(args, iterator, epoch=None, prefix=None):
     elif args.log_format == 'tqdm':
         bar = progress_bar.tqdm_progress_bar(iterator, epoch, prefix)
     else:
-        raise ValueError(f'Unknown log format: {args.log_format}')
+        raise ValueError('Unknown log format: {}'.format(args.log_format))
     return bar
 
 
