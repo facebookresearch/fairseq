@@ -27,9 +27,9 @@ class progress_bar(object):
         self.epoch = epoch
         self.prefix = ''
         if epoch is not None:
-            self.prefix += f'| epoch {epoch:03d}'
+            self.prefix += '| epoch {:03d}'.format(epoch)
         if prefix is not None:
-            self.prefix += f' | {prefix}'
+            self.prefix += ' | {}'.format(prefix)
 
     def __enter__(self):
         return self
@@ -90,7 +90,7 @@ class json_progress_bar(progress_bar):
                     self.log_interval is not None and i % self.log_interval == 0:
                 update = self.epoch + float(i / size) if self.epoch is not None else None
                 stats = self._format_stats(self.stats, epoch=self.epoch, update=update)
-                print("sweep_log: " + json.dumps(stats), flush=True)
+                print('sweep_log: ' + json.dumps(stats), flush=True)
 
     def log(self, stats):
         """Log intermediate stats according to log_interval."""
@@ -152,7 +152,8 @@ class simple_progress_bar(progress_bar):
             if self.stats is not None and i > 0 and \
                     self.log_interval is not None and i % self.log_interval == 0:
                 postfix = self._str_commas(self.stats)
-                print(f'{self.prefix}:  {i:5d} / {size:d} {postfix}', flush=True)
+                print('{}:  {:5d} / {:d} {}'.format(self.prefix, i, size, postfix),
+                      flush=True)
 
     def log(self, stats):
         """Log intermediate stats according to log_interval."""
@@ -161,7 +162,7 @@ class simple_progress_bar(progress_bar):
     def print(self, stats):
         """Print end-of-epoch stats."""
         postfix = self._str_pipes(self._format_stats(stats))
-        print(f'{self.prefix} | {postfix}', flush=True)
+        print('{} | {}'.format(self.prefix, postfix), flush=True)
 
 
 class tqdm_progress_bar(progress_bar):
@@ -181,4 +182,4 @@ class tqdm_progress_bar(progress_bar):
     def print(self, stats):
         """Print end-of-epoch stats."""
         postfix = self._str_pipes(self._format_stats(stats))
-        self.tqdm.write(f'{self.tqdm.desc} | {postfix}')
+        self.tqdm.write('{} | {}'.format(self.tqdm.desc, postfix))
