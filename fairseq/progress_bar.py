@@ -13,7 +13,6 @@ Wrapper around various loggers and progress bars (e.g., tqdm).
 from collections import OrderedDict
 import json
 from numbers import Number
-import sys
 
 from tqdm import tqdm
 
