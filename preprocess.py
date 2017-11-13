@@ -81,7 +81,7 @@ def main():
             make_binary_dataset(input_prefix, output_prefix, lang)
         elif output_format == 'raw':
             # Copy original text file to destination folder
-            output_text_file = os.path.join(args.destdir, f'{output_prefix}.{lang}')
+            output_text_file = os.path.join(args.destdir, '{}.{}'.format(output_prefix, lang))
             shutil.copyfile('{}.{}'.format(input_prefix, lang), output_text_file)
 
     make_dataset(args.trainpref, 'train', args.source_lang, args.output_format)
