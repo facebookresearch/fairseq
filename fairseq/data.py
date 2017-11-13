@@ -21,7 +21,7 @@ from fairseq.indexed_dataset import IndexedDataset, IndexedInMemoryDataset, Inde
 
 def has_binary_files(data_dir, splits):
     for split in splits:
-        if len(glob.glob(os.path.join(data_dir, f'{split}.*-*.*.bin'))) < 2:
+        if len(glob.glob(os.path.join(data_dir, '{}.*-*.*.bin'.format(split)))) < 2:
             return False
     return True
 
@@ -107,8 +107,8 @@ def load_raw_text_dataset(path, load_splits, src=None, dst=None):
 
     # Load dataset from raw text files
     for split in load_splits:
-        src_path = os.path.join(path, f'{split}.{src}')
-        dst_path = os.path.join(path, f'{split}.{dst}')
+        src_path = os.path.join(path, '{}.{}'.format(split, src))
+        dst_path = os.path.join(path, '{}.{}'.format(split, dst))
         dataset.splits[split] = LanguagePairDataset(
             IndexedRawTextDataset(src_path, src_dict),
             IndexedRawTextDataset(dst_path, dst_dict),
