@@ -96,7 +96,11 @@ def load_state(filename, model, criterion, optimizer, lr_scheduler, cuda_device=
     state = _upgrade_state_dict(state)
 
     # load model parameters
-    model.load_state_dict(state['model'])
+    try:
+        model.load_state_dict(state['model'])
+    except:
+        raise Exception('Cannot load model parameters from checkpoint, '
+                        'please ensure that the architectures match')
 
     # only load optimizer and lr_scheduler if they match with the checkpoint
     optim_history = state['optimizer_history']
