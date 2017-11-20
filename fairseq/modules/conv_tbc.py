@@ -39,8 +39,7 @@ class ConvTBC(torch.nn.Module):
         self.bias = torch.nn.Parameter(torch.Tensor(out_channels))
 
     def forward(self, input):
-        return ConvTBCFunction.apply(
-            input.contiguous(), self.weight, self.bias, self.padding[0])
+        return input.conv_tbc(self.weight, self.bias, self.padding[0])
 
     def __repr__(self):
         s = ('{name}({in_channels}, {out_channels}, kernel_size={kernel_size}'
@@ -49,57 +48,3 @@ class ConvTBC(torch.nn.Module):
             s += ', bias=False'
         s += ')'
         return s.format(name=self.__class__.__name__, **self.__dict__)
-
-
-class ConvTBCFunction(Function):
-    @staticmethod
-    def forward(ctx, input, weight, bias, pad):
-        input_size = input.size()
-        weight_size = weight.size()
-        kernel_size = weight_size[0]
-
-        output = input.new(
-            input_size[0] - kernel_size + 1 + pad * 2,
-            input_size[1],
-            weight_size[2])
-
-        ctx.input_size = input_size
-        ctx.weight_size = weight_size
-        ctx.save_for_backward(input, weight)
-        temporal_convolution_tbc.TemporalConvolutionTBC_forward(
-            input.type().encode('utf-8'),
-            input,
-            output,
-            weight,
-            bias)
-
-        return output
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        input, weight = ctx.saved_tensors
-
-        grad_output = grad_output.data.contiguous()
-        grad_input = grad_output.new(ctx.input_size).zero_()
-        grad_weight = grad_output.new(ctx.weight_size).zero_()
-        grad_bias = grad_output.new(ctx.weight_size[2])
-
-        temporal_convolution_tbc.TemporalConvolutionTBC_backward(
-            input.type().encode('utf-8'),
-            grad_output,
-            grad_input,
-            grad_weight,
-            grad_bias,
-            input,
-            weight)
-
-        grad_input = Variable(grad_input, volatile=True)
-        grad_weight = Variable(grad_weight, volatile=True)
-        grad_bias = Variable(grad_bias, volatile=True)
-
-        return grad_input, grad_weight, grad_bias, None
-
-
-def conv_tbc(input, weight, bias=None, stride=1, padding=0):
-    return ConvTBCFunction.apply(
-        input.contiguous(), weight, bias, padding[0])
