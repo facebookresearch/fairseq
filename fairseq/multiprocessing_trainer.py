@@ -68,41 +68,43 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         self.model = model.cuda()
         self.criterion = criterion.cuda()
 
-        # initialize optimizer
+        # initialize optimizer and LR scheduler
+        self.args.lr = list(map(float, self.args.lr.split(',')))
         self.optimizer = self._build_optimizer()
-        self.loss = None
-
-        # initialize LR scheduler
         self.lr_scheduler = self._build_lr_scheduler()
 
+        self.loss = None
         self._max_bsz_seen = 0
 
     def _build_optimizer(self):
         if self.args.optimizer == 'adagrad':
-            return torch.optim.Adagrad(self.model.parameters(), lr=self.args.lr,
+            return torch.optim.Adagrad(self.model.parameters(), lr=self.args.lr[0],
                                        weight_decay=self.args.weight_decay)
         elif self.args.optimizer == 'adam':
-            return torch.optim.Adam(self.model.parameters(), lr=self.args.lr,
+            return torch.optim.Adam(self.model.parameters(), lr=self.args.lr[0],
                                     betas=eval(self.args.adam_betas),
                                     weight_decay=self.args.weight_decay)
         elif self.args.optimizer == 'nag':
-            return NAG(self.model.parameters(), lr=self.args.lr,
+            return NAG(self.model.parameters(), lr=self.args.lr[0],
                        momentum=self.args.momentum,
                        weight_decay=self.args.weight_decay)
         elif self.args.optimizer == 'sgd':
-            return torch.optim.SGD(self.model.parameters(), lr=self.args.lr,
+            return torch.optim.SGD(self.model.parameters(), lr=self.args.lr[0],
                                    momentum=self.args.momentum,
                                    weight_decay=self.args.weight_decay)
         else:
             raise ValueError('Unknown optimizer: {}'.format(self.args.optimizer))
 
     def _build_lr_scheduler(self):
-        if self.args.force_anneal > 0:
+        if len(self.args.lr) > 1 or self.args.force_anneal > 0:
+            lrs = self.args.lr
             def anneal(e):
                 if e < self.args.force_anneal:
-                    return 1
+                    # use fixed LR schedule
+                    next_lr = lrs[min(e, len(lrs) - 1)]
                 else:
-                    return self.args.lrshrink ** (e + 1 - self.args.force_anneal)
+                    next_lr = lrs[-1] * self.args.lrshrink ** (e + 1 - self.args.force_anneal)
+                return next_lr / lrs[0]  # correct for scaling from LambdaLR
             lr_scheduler = LambdaLR(self.optimizer, anneal)
             lr_scheduler.best = None
         else:
