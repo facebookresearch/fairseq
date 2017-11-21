@@ -49,8 +49,8 @@ def add_optimization_args(parser):
     group.add_argument('--optimizer', default='nag', metavar='OPT',
                        choices=MultiprocessingTrainer.OPTIMIZERS,
                        help='optimizer ({})'.format(', '.join(MultiprocessingTrainer.OPTIMIZERS)))
-    group.add_argument('--lr', '--learning-rate', default=0.25, type=float, metavar='LR',
-                       help='initial learning rate')
+    group.add_argument('--lr', '--learning-rate', default='0.25', metavar='LR1,LR2,...,LRn',
+                       help='learning rate for the first n epochs with all epochs >n using LRn')
     group.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
                        help='minimum learning rate')
     group.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
