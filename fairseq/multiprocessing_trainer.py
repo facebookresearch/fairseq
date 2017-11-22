@@ -77,21 +77,39 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         self._max_bsz_seen = 0
 
     def _build_optimizer(self):
+        # When resuming training from a checkpoint, we load the old optimizer
+        # state that includes things like learning rate, momentum factor, etc.
+        # We use this dictionary to override values stored in the checkpoint,
+        # e.g., we might prefer the values specified on the command line.
+        self._override_optim_state = {}
+
         if self.args.optimizer == 'adagrad':
-            return torch.optim.Adagrad(self.model.parameters(), lr=self.args.lr[0],
-                                       weight_decay=self.args.weight_decay)
+            self._override_optim_state = {
+                'lr': self.args.lr[0],
+                'weight_decay': self.args.weight_decay,
+            }
+            return torch.optim.Adagrad(self.model.parameters(), **self._override_optim_state)
         elif self.args.optimizer == 'adam':
-            return torch.optim.Adam(self.model.parameters(), lr=self.args.lr[0],
-                                    betas=eval(self.args.adam_betas),
-                                    weight_decay=self.args.weight_decay)
+            self._override_optim_state = {
+                'lr': self.args.lr[0],
+                'betas': eval(self.args.adam_betas),
+                'weight_decay': self.args.weight_decay,
+            }
+            return torch.optim.Adam(self.model.parameters(), **self._override_optim_state)
         elif self.args.optimizer == 'nag':
-            return NAG(self.model.parameters(), lr=self.args.lr[0],
-                       momentum=self.args.momentum,
-                       weight_decay=self.args.weight_decay)
+            self._override_optim_state = {
+                'lr': self.args.lr[0],
+                'momentum': self.args.momentum,
+                'weight_decay': self.args.weight_decay,
+            }
+            return NAG(self.model.parameters(), **self._override_optim_state)
         elif self.args.optimizer == 'sgd':
-            return torch.optim.SGD(self.model.parameters(), lr=self.args.lr[0],
-                                   momentum=self.args.momentum,
-                                   weight_decay=self.args.weight_decay)
+            self._override_optim_state = {
+                'lr': self.args.lr[0],
+                'momentum': self.args.momentum,
+                'weight_decay': self.args.weight_decay,
+            }
+            return torch.optim.SGD(self.model.parameters(), **self._override_optim_state)
         else:
             raise ValueError('Unknown optimizer: {}'.format(self.args.optimizer))
 
@@ -142,6 +160,8 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         extra_state, self._optim_history = utils.load_state(
             filename, self.model, self.criterion, self.optimizer,
             self.lr_scheduler, cuda_device=device_id)
+        for group in self.optimizer.param_groups:
+            group.update(self._override_optim_state)
         return extra_state
 
     def set_seed(self, seed):
