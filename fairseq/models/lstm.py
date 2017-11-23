@@ -122,7 +122,8 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             for layer in range(num_layers)
         ])
         self.attention = AttentionLayer(encoder_embed_dim, embed_dim)
-        self.fc2 = Linear(embed_dim, out_embed_dim)
+        if embed_dim != out_embed_dim:
+            self.additional_fc = Linear(embed_dim, out_embed_dim)
         self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
     def forward(self, input_tokens, encoder_out):
@@ -198,8 +199,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         attn_scores = attn_scores.transpose(0, 2)
 
         # project back to size of vocabulary
-        x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        if hasattr(self, 'additional_fc'):
+            x = self.additional_fc(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.fc_out(x)
 
         return x, attn_scores
