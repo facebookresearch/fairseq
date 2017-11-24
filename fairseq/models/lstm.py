@@ -201,7 +201,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         # project back to size of vocabulary
         if hasattr(self, 'additional_fc'):
             x = self.additional_fc(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.dropout(x, p=self.dropout_out, training=self.training)
         x = self.fc_out(x)
 
         return x, attn_scores
