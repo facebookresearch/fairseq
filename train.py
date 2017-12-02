@@ -28,7 +28,7 @@ def main():
                               choices=['train', 'valid', 'test'],
                               help='data subset to use for training (train, valid, test)')
     dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
-                              help='comma separated list ofdata subsets '
+                              help='comma separated list of data subsets '
                                    ' to use for validation (train, valid, valid1,test, test1)')
     options.add_optimization_args(parser)
     options.add_checkpoint_args(parser)
