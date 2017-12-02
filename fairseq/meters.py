@@ -28,7 +28,7 @@ class AverageMeter(object):
 
 
 class TimeMeter(object):
-    """Computes the average occurence of some event per second"""
+    """Computes the average occurrence of some event per second"""
     def __init__(self):
         self.reset()
 
