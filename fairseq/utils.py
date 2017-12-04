@@ -94,6 +94,7 @@ def load_state(filename, model, criterion, optimizer, lr_scheduler, cuda_device=
             map_location=lambda s, l: default_restore_location(s, 'cuda:{}'.format(cuda_device))
         )
     state = _upgrade_state_dict(state)
+    state['model'] = model.upgrade_state_dict(state['model'])
 
     # load model parameters
     try:
@@ -168,6 +169,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     ensemble = []
     for state in states:
         model = build_model(args, src_dict, dst_dict)
+        state['model'] = model.upgrade_state_dict(state['model'])
         model.load_state_dict(state['model'])
         ensemble.append(model)
     return ensemble, args

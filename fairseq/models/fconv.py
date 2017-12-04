@@ -154,6 +154,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
                  max_positions=1024, convolutions=((512, 3),) * 20,
                  attention=True, dropout=0.1):
         super().__init__()
+        self.register_buffer('version', torch.Tensor([2]))
         self.dictionary = dictionary
         self.dropout = dropout
 
@@ -265,6 +266,16 @@ class FConvDecoder(FairseqIncrementalDecoder):
         """Maximum output length supported by the decoder."""
         return self.embed_positions.num_embeddings - self.dictionary.pad() - 1
 
+    def upgrade_state_dict(self, state_dict):
+        if state_dict.get('decoder.version', torch.Tensor([1]))[0] < 2:
+            # old models use incorrect weight norm dimension
+            for i, conv in enumerate(self.convolutions):
+                # reconfigure weight norm
+                nn.utils.remove_weight_norm(conv)
+                self.convolutions[i] = nn.utils.weight_norm(conv, dim=0)
+            state_dict['decoder.version'] = torch.Tensor([1])
+        return state_dict
+
     def _split_encoder_out(self, encoder_out):
         """Split and transpose encoder outputs.
 
@@ -307,7 +318,7 @@ def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs
     std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
     m.weight.data.normal_(mean=0, std=std)
     m.bias.data.zero_()
-    return nn.utils.weight_norm(m)
+    return nn.utils.weight_norm(m, dim=2)
 
 
 def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
