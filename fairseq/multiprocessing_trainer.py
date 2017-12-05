@@ -157,11 +157,24 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         return extra_state
 
     def _async_load_checkpoint(self, rank, device_id, filename):
-        extra_state, self._optim_history = utils.load_state(
-            filename, self.model, self.criterion, self.optimizer,
-            self.lr_scheduler, cuda_device=device_id)
+        extra_state, self._optim_history, last_optim_state = utils.load_model_state(
+            filename, self.model, cuda_device=device_id)
+
+        if last_optim_state is not None:
+            # rebuild optimizer after loading model, since params may have changed
+            self.optimizer = self._build_optimizer()
+            self.lr_scheduler = self._build_lr_scheduler()
+
+            # only load optimizer and lr_scheduler if they match the checkpoint
+            last_optim = self._optim_history[-1]
+            if last_optim['criterion_name'] == self.criterion.__class__.__name__:
+                self.optimizer.load_state_dict(last_optim_state)
+                self.lr_scheduler.best = last_optim['best_loss']
+
+        # override learning rate, momentum, etc. with latest values
         for group in self.optimizer.param_groups:
             group.update(self._override_optim_state)
+
         return extra_state
 
     def set_seed(self, seed):
