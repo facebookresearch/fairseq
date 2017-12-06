@@ -58,7 +58,7 @@ class FConvEncoder(FairseqEncoder):
         self.projections = nn.ModuleList()
         self.convolutions = nn.ModuleList()
         for (out_channels, kernel_size) in convolutions:
-            pad = (kernel_size - 1) // 2
+            pad = (kernel_size - 1) / 2
             self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
