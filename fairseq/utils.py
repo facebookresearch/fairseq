@@ -83,9 +83,9 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler, optim_
     torch_persistent_save(state_dict, filename)
 
 
-def load_state(filename, model, criterion, optimizer, lr_scheduler, cuda_device=None):
+def load_model_state(filename, model, cuda_device=None):
     if not os.path.exists(filename):
-        return None, []
+        return None, [], None
     if cuda_device is None:
         state = torch.load(filename)
     else:
@@ -94,18 +94,16 @@ def load_state(filename, model, criterion, optimizer, lr_scheduler, cuda_device=
             map_location=lambda s, l: default_restore_location(s, 'cuda:{}'.format(cuda_device))
         )
     state = _upgrade_state_dict(state)
+    state['model'] = model.upgrade_state_dict(state['model'])
 
     # load model parameters
-    model.load_state_dict(state['model'])
+    try:
+        model.load_state_dict(state['model'])
+    except:
+        raise Exception('Cannot load model parameters from checkpoint, '
+                        'please ensure that the architectures match')
 
-    # only load optimizer and lr_scheduler if they match with the checkpoint
-    optim_history = state['optimizer_history']
-    last_optim = optim_history[-1]
-    if last_optim['criterion_name'] == criterion.__class__.__name__:
-        optimizer.load_state_dict(state['last_optimizer_state'])
-        lr_scheduler.best = last_optim['best_loss']
-
-    return state['extra_state'], optim_history
+    return state['extra_state'], state['optimizer_history'], state['last_optimizer_state']
 
 
 def _upgrade_state_dict(state):
@@ -164,6 +162,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     ensemble = []
     for state in states:
         model = build_model(args, src_dict, dst_dict)
+        state['model'] = model.upgrade_state_dict(state['model'])
         model.load_state_dict(state['model'])
         ensemble.append(model)
     return ensemble, args

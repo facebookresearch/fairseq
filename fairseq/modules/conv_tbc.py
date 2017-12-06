@@ -59,7 +59,7 @@ class ConvTBCFunction(Function):
         kernel_size = weight_size[0]
 
         output = input.new(
-            input_size[0] - kernel_size + 1 + pad * 2,
+            input_size[0] - kernel_size + 1 + int(pad * 2),
             input_size[1],
             weight_size[2])
 

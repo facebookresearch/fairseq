@@ -43,6 +43,11 @@ class FairseqModel(nn.Module):
         """Maximum output length supported by the decoder."""
         return self.decoder.max_positions()
 
+    def upgrade_state_dict(self, state_dict):
+        state_dict = self.encoder.upgrade_state_dict(state_dict)
+        state_dict = self.decoder.upgrade_state_dict(state_dict)
+        return state_dict
+
     def make_generation_fast_(self, **kwargs):
         """Optimize model for faster generation."""
         if self._is_generation_fast:
