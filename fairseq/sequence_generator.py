@@ -269,7 +269,7 @@ class SequenceGenerator(object):
             # and values < cand_size indicate candidate active hypos.
             # After, the min values per row are the top candidate active hypos
             active_mask = buffer('active_mask')
-            torch.add((eos_mask*cand_size).type_as(cand_offsets), cand_offsets[:eos_mask.size(1)],
+            torch.add(eos_mask.type_as(cand_offsets)*cand_size, cand_offsets[:eos_mask.size(1)],
                       out=active_mask)
 
             # get the top beam_size active hypotheses, which are just the hypos
