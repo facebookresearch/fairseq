@@ -23,6 +23,10 @@ def main():
                               help='batch size')
     dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
                               help='data subset to generate (train, valid, test)')
+    dataset_args.add_argument('--num-shards', default=1, type=int, metavar='N',
+                              help='shard generation over N shards')
+    dataset_args.add_argument('--shard-id', default=0, type=int, metavar='ID',
+                              help='id of the shard to generate (id < num_shards)')
     options.add_generation_args(parser)
 
     args = parser.parse_args()
@@ -72,6 +76,10 @@ def main():
     itr = dataset.eval_dataloader(
         args.gen_subset, max_sentences=args.batch_size, max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
+    if args.num_shards > 1:
+        if args.shard_id < 0 or args.shard_id >= args.num_shards:
+            raise ValueError('--shard-id must be between 0 and num_shards')
+        itr = data.sharded_iterator(itr, args.num_shards, args.shard_id)
     num_sentences = 0
     with utils.build_progress_bar(args, itr) as t:
         wps_meter = TimeMeter()
