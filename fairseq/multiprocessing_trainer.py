@@ -15,7 +15,7 @@ import math
 import torch
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
-from fairseq import meters, nccl, utils
+from fairseq import nccl, utils
 from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
 from fairseq.nag import NAG
 
@@ -116,6 +116,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def _build_lr_scheduler(self):
         if len(self.args.lr) > 1 or self.args.force_anneal > 0:
             lrs = self.args.lr
+
             def anneal(e):
                 if e < self.args.force_anneal:
                     # use fixed LR schedule
@@ -123,6 +124,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                 else:
                     next_lr = lrs[-1] * self.args.lrshrink ** (e + 1 - self.args.force_anneal)
                 return next_lr / lrs[0]  # correct for scaling from LambdaLR
+
             lr_scheduler = LambdaLR(self.optimizer, anneal)
             lr_scheduler.best = None
         else:

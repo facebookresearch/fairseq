@@ -175,6 +175,23 @@ def skip_group_enumerator(it, ngpus, offset=0):
         yield (idx, res)
 
 
+class sharded_iterator(object):
+
+    def __init__(self, itr, num_shards, shard_id):
+        assert shard_id >= 0 and shard_id < num_shards
+        self.itr = itr
+        self.num_shards = num_shards
+        self.shard_id = shard_id
+
+    def __len__(self):
+        return len(self.itr)
+
+    def __iter__(self):
+        for i, v in enumerate(self.itr):
+            if i % self.num_shards == self.shard_id:
+                yield v
+
+
 class LanguagePairDataset(object):
 
     # padding constants
