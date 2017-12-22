@@ -145,7 +145,8 @@ class AttentionLayer(nn.Module):
     def make_generation_fast_(self, beamable_mm_beam_size=None, **kwargs):
         """Replace torch.bmm with BeamableMM."""
         if beamable_mm_beam_size is not None:
-            self.bmm = BeamableMM(beamable_mm_beam_size)
+            del self.bmm
+            self.add_module('bmm', BeamableMM(beamable_mm_beam_size))
 
 
 class FConvDecoder(FairseqIncrementalDecoder):
