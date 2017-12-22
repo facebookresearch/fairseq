@@ -163,6 +163,9 @@ class FConvDecoder(FairseqIncrementalDecoder):
         if isinstance(attention, bool):
             # expand True into [True, True, ...] and do the same with False
             attention = [attention] * len(convolutions)
+        if not isinstance(attention, list) or len(attention) != len(convolutions):
+            raise ValueError('Attention is expected to be a list of booleans of '
+                             'length equal to the number of layers.')
 
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
