@@ -236,11 +236,11 @@ def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dic
 
 
 def lstrip_pad(tensor, pad):
-    return tensor[tensor.eq(pad).sum():]
+    return tensor[tensor.eq(pad).long().sum():]
 
 
 def rstrip_pad(tensor, pad):
-    strip = tensor.eq(pad).sum()
+    strip = tensor.eq(pad).long().sum()
     if strip > 0:
         return tensor[:-strip]
     return tensor
