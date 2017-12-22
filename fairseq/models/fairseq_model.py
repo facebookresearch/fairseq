@@ -62,6 +62,11 @@ class FairseqModel(nn.Module):
                 return
         self.apply(apply_remove_weight_norm)
 
+        def apply_make_generation_fast_(module):
+            if module != self and hasattr(module, 'make_generation_fast_'):
+                module.make_generation_fast_(**kwargs)
+        self.apply(apply_make_generation_fast_)
+
         def train(mode):
             if mode:
                 raise RuntimeError('cannot train after make_generation_fast')
@@ -69,8 +74,3 @@ class FairseqModel(nn.Module):
         # this model should no longer be used for training
         self.eval()
         self.train = train
-
-        def apply_make_generation_fast_(module):
-            if module != self and hasattr(module, 'make_generation_fast_'):
-                module.make_generation_fast_(**kwargs)
-        self.apply(apply_make_generation_fast_)
