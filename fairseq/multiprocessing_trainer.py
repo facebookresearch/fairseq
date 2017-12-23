@@ -227,20 +227,21 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             self.model.train()
             self.optimizer.zero_grad()
 
-        sample_size, logging_output, oom = 0, {}, False
-        if self._sample is not None:
-            try:
-                # calculate loss and sample size
-                self.loss, sample_size, logging_output = self.criterion(self.model, self._sample)
-            except RuntimeError as e:
-                if not eval and 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory on GPU #{}, skipping batch'.format(device_id))
-                    oom = True
-                    self.loss = None
-                    if hasattr(torch.cuda, 'empty_cache'):
-                        torch.cuda.empty_cache()
-                else:
-                    raise e
+        with utils.maybe_no_grad(eval):
+            sample_size, logging_output, oom = 0, {}, False
+            if self._sample is not None:
+                try:
+                    # calculate loss and sample size
+                    self.loss, sample_size, logging_output = self.criterion(self.model, self._sample)
+                except RuntimeError as e:
+                    if not eval and 'out of memory' in str(e):
+                        print('| WARNING: ran out of memory on GPU #{}, skipping batch'.format(device_id))
+                        oom = True
+                        self.loss = None
+                        if hasattr(torch.cuda, 'empty_cache'):
+                            torch.cuda.empty_cache()
+                    else:
+                        raise e
 
         return sample_size, logging_output, oom
 
