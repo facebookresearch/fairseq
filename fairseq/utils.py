@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+import contextlib
 import logging
 import os
 import torch
@@ -244,3 +245,10 @@ def rstrip_pad(tensor, pad):
     if strip > 0:
         return tensor[:-strip]
     return tensor
+
+
+def maybe_no_grad(condition):
+    if hasattr(torch, 'no_grad') and condition:
+        return torch.no_grad()
+    # no-op context manager
+    return contextlib.ExitStack()
