@@ -57,7 +57,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(**sample['net_input'])
-        input = F.log_softmax(net_output.view(-1, net_output.size(-1)))
+        input = F.log_softmax(net_output.view(-1, net_output.size(-1)), dim=1)
         target = sample['target'].view(-1)
         loss = LabelSmoothedNLLLoss.apply(input, target, self.eps, self.padding_idx, self.weights)
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']

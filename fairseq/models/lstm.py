@@ -94,7 +94,7 @@ class AttentionLayer(nn.Module):
 
         # compute attention
         attn_scores = (source_hids * x.unsqueeze(0)).sum(dim=2)
-        attn_scores = F.softmax(attn_scores.t()).t()  # srclen x bsz
+        attn_scores = F.softmax(attn_scores.t(), dim=1).t()  # srclen x bsz
 
         # sum weighted sources
         x = (attn_scores.unsqueeze(2) * source_hids).sum(dim=0)
