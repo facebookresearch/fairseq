@@ -326,7 +326,7 @@ class SequenceGenerator(object):
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
             decoder_out, attn = model.decoder(tokens, encoder_out)
-            probs = F.softmax(decoder_out[:, -1, :]).data
+            probs = F.softmax(decoder_out[:, -1, :], dim=1).data
             attn = attn[:, -1, :].data
             if avg_probs is None or avg_attn is None:
                 avg_probs = probs

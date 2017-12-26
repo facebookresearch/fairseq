@@ -87,7 +87,7 @@ class FConvEncoder(FairseqEncoder):
             residual = x if proj is None else proj(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x)
-            x = F.glu(x, dim=-1)
+            x = F.glu(x, dim=2)
             x = (x + residual) * math.sqrt(0.5)
 
         # T x B x C -> B x T x C
@@ -128,7 +128,7 @@ class AttentionLayer(nn.Module):
 
         # softmax over last dim
         sz = x.size()
-        x = F.softmax(x.view(sz[0] * sz[1], sz[2]))
+        x = F.softmax(x.view(sz[0] * sz[1], sz[2]), dim=1)
         x = x.view(sz)
         attn_scores = x
 
@@ -234,7 +234,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x)
             x = conv.remove_future_timesteps(x)
-            x = F.glu(x)
+            x = F.glu(x, dim=2)
 
             # attention
             if attention is not None:
