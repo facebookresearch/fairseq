@@ -113,6 +113,8 @@ class Dictionary(object):
             try:
                 with open(f, 'r', encoding='utf-8') as fd:
                     return Dictionary.load(fd)
+            except FileNotFoundError as fnfe:
+                raise fnfe
             except:
                 raise Exception("Incorrect encoding detected in {}, please "
                                 "rebuild the dataset".format(f))
