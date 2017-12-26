@@ -70,6 +70,7 @@ def main():
     model = utils.build_model(args, dataset.src_dict, dataset.dst_dict)
     criterion = utils.build_criterion(args, dataset.src_dict, dataset.dst_dict)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
+    print('| num. model params: {}'.format(sum(p.data.numel() for p in model.parameters())))
 
     # The max number of positions can be different for train and valid
     # e.g., RNNs may support more positions at test time than seen in training
