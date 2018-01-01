@@ -229,13 +229,15 @@ class LanguagePairDataset(object):
 
         return {
             'id': torch.LongTensor([s['id'].item() for s in samples]),
-            'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
-            # we create a shifted version of targets for feeding the previous
-            # output token(s) into the next decoder step
-            'input_tokens': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
-                                  move_eos_to_beginning=True),
-            'target': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET),
             'ntokens': sum(len(s['target']) for s in samples),
+            'net_input': {
+                'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
+                # we create a shifted version of targets for feeding the
+                # previous output token(s) into the next decoder step
+                'input_tokens': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+                                      move_eos_to_beginning=True),
+            },
+            'target': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET),
         }
 
     @staticmethod
