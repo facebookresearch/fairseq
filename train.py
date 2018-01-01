@@ -159,7 +159,7 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
             del loss_dict['loss']  # don't include in extra_meters or extra_postfix
 
             ntokens = sum(s['ntokens'] for s in sample)
-            nsentences = sum(s['src_tokens'].size(0) for s in sample)
+            nsentences = sum(s['net_input']['src_tokens'].size(0) for s in sample)
             loss_meter.update(loss, nsentences if args.sentence_avg else ntokens)
             bsz_meter.update(nsentences)
             wpb_meter.update(ntokens)
