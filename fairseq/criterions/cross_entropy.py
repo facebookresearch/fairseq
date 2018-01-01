@@ -17,7 +17,7 @@ class CrossEntropyCriterion(FairseqCriterion):
     def __init__(self, args, dst_dict):
         super().__init__(args, dst_dict)
 
-    def forward(self, model, sample):
+    def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
@@ -28,10 +28,11 @@ class CrossEntropyCriterion(FairseqCriterion):
         net_output = model(**sample['net_input'])
         input = net_output.view(-1, net_output.size(-1))
         target = sample['target'].view(-1)
-        loss = F.cross_entropy(input, target, size_average=False, ignore_index=self.padding_idx)
+        loss = F.cross_entropy(input, target, size_average=False, ignore_index=self.padding_idx,
+                               reduce=reduce)
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
-            'loss': loss.data[0],
+            'loss': loss.data[0] if reduce else loss.data,
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
