@@ -86,6 +86,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         beam_size is required if using BeamableMM.
         """
         if self._is_incremental_eval:
+            del self._incremental_state
             self._incremental_state = {}
 
             def apply_clear_incremental_state(module):
