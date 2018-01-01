@@ -176,23 +176,25 @@ def _upgrade_args(args):
     return args
 
 
-def prepare_sample(sample, volatile=False, cuda_device=None):
+def make_variable(sample, volatile=False, cuda_device=None):
     """Wrap input tensors in Variable class."""
 
-    def make_variable(tensor):
-        if cuda_device is not None and torch.cuda.is_available():
-            tensor = tensor.cuda(async=True, device=cuda_device)
-        return Variable(tensor, volatile=volatile)
+    def _make_variable(maybe_tensor):
+        if torch.is_tensor(maybe_tensor):
+            if cuda_device is not None and torch.cuda.is_available():
+                maybe_tensor = maybe_tensor.cuda(async=True, device=cuda_device)
+            return Variable(maybe_tensor, volatile=volatile)
+        elif isinstance(maybe_tensor, dict):
+            return {
+                key: _make_variable(value)
+                for key, value in maybe_tensor.items()
+            }
+        elif isinstance(maybe_tensor, list):
+            return [_make_variable(x) for x in maybe_tensor]
+        else:
+            return maybe_tensor
 
-    return {
-        'id': sample['id'],
-        'ntokens': sample['ntokens'],
-        'target': make_variable(sample['target']),
-        'net_input': {
-            key: make_variable(sample[key])
-            for key in ['src_tokens', 'input_tokens']
-        },
-    }
+    return _make_variable(sample)
 
 
 def load_align_dict(replace_unk):
@@ -244,6 +246,14 @@ def rstrip_pad(tensor, pad):
     strip = tensor.eq(pad).long().sum()
     if strip > 0:
         return tensor[:-strip]
+    return tensor
+
+
+def strip_pad(tensor, pad):
+    if tensor[0] == pad:
+        tensor = lstrip_pad(tensor, pad)
+    if tensor[-1] == pad:
+        tensor = rstrip_pad(tensor, pad)
     return tensor
 
 

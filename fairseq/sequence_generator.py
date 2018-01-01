@@ -65,7 +65,7 @@ class SequenceGenerator(object):
             maxlen_b = self.maxlen
 
         for sample in data_itr:
-            s = utils.prepare_sample(sample, volatile=True, cuda_device=cuda_device)
+            s = utils.make_variable(sample, volatile=True, cuda_device=cuda_device)
             input = s['net_input']
             srclen = input['src_tokens'].size(1)
             if timer is not None:
@@ -74,10 +74,10 @@ class SequenceGenerator(object):
                                   maxlen=int(maxlen_a*srclen + maxlen_b))
             if timer is not None:
                 timer.stop(s['ntokens'])
-            for i, id in enumerate(s['id']):
+            for i, id in enumerate(s['id'].data):
                 src = input['src_tokens'].data[i, :]
                 # remove padding from ref
-                ref = utils.rstrip_pad(s['target'].data[i, :], self.pad)
+                ref = utils.strip_pad(s['target'].data[i, :], self.pad)
                 yield id, src, ref, hypos[i]
 
     def generate(self, src_tokens, beam_size=None, maxlen=None):

@@ -381,4 +381,4 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                     self._max_bsz_seen = sample['target'].size(0)
                     torch.cuda.empty_cache()
 
-            self._sample = utils.prepare_sample(sample, volatile=volatile, cuda_device=device_id)
+            self._sample = utils.make_variable(sample, volatile=volatile, cuda_device=device_id)
