@@ -16,7 +16,7 @@ class FairseqCriterion(_Loss):
         self.args = args
         self.padding_idx = dst_dict.pad()
 
-    def forward(self, model, sample):
+    def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
