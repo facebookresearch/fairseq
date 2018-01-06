@@ -322,7 +322,7 @@ class SequenceGenerator(object):
 
     def _decode(self, tokens, encoder_outs):
         # wrap in Variable
-        tokens = Variable(tokens, volatile=True)
+        tokens = utils.volatile_variable(tokens)
 
         avg_probs = None
         avg_attn = None
