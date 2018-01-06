@@ -8,6 +8,9 @@
 
 import torch
 import torch.nn.functional as F
+
+from fairseq import utils
+
 from .conv_tbc import ConvTBC
 
 
@@ -65,7 +68,7 @@ class LinearizedConvolution(ConvTBC):
                 self.input_buffer[:, :-1, :] = self.input_buffer[:, 1:, :].clone()
             # append next input
             self.input_buffer[:, -1, :] = input[:, -1, :]
-            input = torch.autograd.Variable(self.input_buffer, volatile=True)
+            input = utils.volatile_variable(self.input_buffer)
         output = F.linear(input.view(bsz, -1), weight, self.bias)
         return output.view(bsz, 1, -1)
 
