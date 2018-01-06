@@ -176,6 +176,20 @@ def _upgrade_args(args):
     return args
 
 
+def maybe_no_grad(condition):
+    if hasattr(torch, 'no_grad') and condition:
+        return torch.no_grad()
+    # no-op context manager
+    return contextlib.ExitStack()
+
+
+def volatile_variable(*args, **kwargs):
+    if hasattr(torch, 'no_grad'):
+        with torch.no_grad():
+            return Variable(*args, **kwargs)
+    return Variable(*args, **kwargs, volatile=True)
+
+
 def make_variable(sample, volatile=False, cuda_device=None):
     """Wrap input tensors in Variable class."""
 
@@ -183,7 +197,7 @@ def make_variable(sample, volatile=False, cuda_device=None):
         if torch.is_tensor(maybe_tensor):
             if cuda_device is not None and torch.cuda.is_available():
                 maybe_tensor = maybe_tensor.cuda(async=True, device=cuda_device)
-            return Variable(maybe_tensor, volatile=volatile)
+            return volatile_variable(maybe_tensor)
         elif isinstance(maybe_tensor, dict):
             return {
                 key: _make_variable(value)
@@ -255,10 +269,3 @@ def strip_pad(tensor, pad):
     if tensor[-1] == pad:
         tensor = rstrip_pad(tensor, pad)
     return tensor
-
-
-def maybe_no_grad(condition):
-    if hasattr(torch, 'no_grad') and condition:
-        return torch.no_grad()
-    # no-op context manager
-    return contextlib.ExitStack()

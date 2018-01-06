@@ -11,6 +11,8 @@ import torch
 from torch.autograd.variable import Variable
 import torch.nn.functional as F
 
+from fairseq import utils
+
 from .fairseq_criterion import FairseqCriterion
 
 
@@ -41,7 +43,7 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad):
-        return Variable(ctx.grad_input, volatile=True) * grad, None, None, None, None, None
+        return utils.volatile_variable(ctx.grad_input) * grad, None, None, None, None, None
 
 
 class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
