@@ -35,6 +35,10 @@ class FairseqModel(nn.Module):
         decoder_out, _ = self.decoder(input_tokens, encoder_out)
         return decoder_out.view(-1, decoder_out.size(-1))
 
+    def get_normalized_probs(self, net_output, log_probs):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        return self.decoder.get_normalized_probs(net_output, log_probs)
+
     def max_encoder_positions(self):
         """Maximum input length supported by the encoder."""
         return self.encoder.max_positions()
