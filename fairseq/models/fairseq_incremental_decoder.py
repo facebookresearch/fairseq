@@ -37,7 +37,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         with model.decoder.incremental_inference():
             for step in range(maxlen):
                 out, _ = model.decoder(tokens[:, :step], encoder_out)
-                probs = torch.nn.functional.log_softmax(out[:, -1, :])
+                probs = model.get_normalized_probs(out[:, -1, :], log_probs=False)
         ```
         """
         class IncrementalInference(object):
