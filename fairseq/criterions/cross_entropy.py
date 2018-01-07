@@ -26,10 +26,10 @@ class CrossEntropyCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(**sample['net_input'])
-        input = net_output.view(-1, net_output.size(-1))
+        lprobs = model.get_normalized_probs(net_output, log_probs=True)
         target = sample['target'].view(-1)
-        loss = F.cross_entropy(input, target, size_average=False, ignore_index=self.padding_idx,
-                               reduce=reduce)
+        loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx,
+                          reduce=reduce)
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': loss.data[0] if reduce else loss.data,
