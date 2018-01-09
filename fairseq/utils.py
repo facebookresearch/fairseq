@@ -197,7 +197,10 @@ def make_variable(sample, volatile=False, cuda_device=None):
         if torch.is_tensor(maybe_tensor):
             if cuda_device is not None and torch.cuda.is_available():
                 maybe_tensor = maybe_tensor.cuda(async=True, device=cuda_device)
-            return volatile_variable(maybe_tensor)
+            if volatile:
+                return volatile_variable(maybe_tensor)
+            else:
+                return Variable(maybe_tensor)
         elif isinstance(maybe_tensor, dict):
             return {
                 key: _make_variable(value)
