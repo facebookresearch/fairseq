@@ -12,8 +12,9 @@ import torch.nn as nn
 class FairseqEncoder(nn.Module):
     """Base class for encoders."""
 
-    def __init__(self):
+    def __init__(self, dictionary):
         super().__init__()
+        self.dictionary = dictionary
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""

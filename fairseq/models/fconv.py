@@ -28,8 +28,7 @@ class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
     def __init__(self, dictionary, embed_dim=512, max_positions=1024,
                  convolutions=((512, 3),) * 20, dropout=0.1):
-        super().__init__()
-        self.dictionary = dictionary
+        super().__init__(dictionary)
         self.dropout = dropout
         self.num_attention_layers = None
 
@@ -137,9 +136,8 @@ class FConvDecoder(FairseqIncrementalDecoder):
     def __init__(self, dictionary, embed_dim=512, out_embed_dim=256,
                  max_positions=1024, convolutions=((512, 3),) * 20,
                  attention=True, dropout=0.1):
-        super().__init__()
+        super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
-        self.dictionary = dictionary
         self.dropout = dropout
 
         in_channels = convolutions[0][0]
