@@ -12,8 +12,8 @@ from . import FairseqDecoder
 class FairseqIncrementalDecoder(FairseqDecoder):
     """Base class for incremental decoders."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, dictionary):
+        super().__init__(dictionary)
         self._is_incremental_eval = False
         self._incremental_state = {}
 

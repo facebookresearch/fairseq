@@ -23,8 +23,7 @@ class LSTMEncoder(FairseqEncoder):
     """LSTM encoder."""
     def __init__(self, dictionary, embed_dim=512, num_layers=1, dropout_in=0.1,
                  dropout_out=0.1):
-        super().__init__()
-        self.dictionary = dictionary
+        super().__init__(dictionary)
         self.dropout_in = dropout_in
         self.dropout_out = dropout_out
 
@@ -108,8 +107,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
     def __init__(self, dictionary, encoder_embed_dim=512, embed_dim=512,
                  out_embed_dim=512, num_layers=1, dropout_in=0.1,
                  dropout_out=0.1, attention=True):
-        super().__init__()
-        self.dictionary = dictionary
+        super().__init__(dictionary)
         self.dropout_in = dropout_in
         self.dropout_out = dropout_out
 

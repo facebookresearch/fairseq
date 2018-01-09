@@ -13,8 +13,9 @@ import torch.nn.functional as F
 class FairseqDecoder(nn.Module):
     """Base class for decoders."""
 
-    def __init__(self):
+    def __init__(self, dictionary):
         super().__init__()
+        self.dictionary = dictionary
 
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""
