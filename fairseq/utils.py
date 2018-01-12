@@ -176,7 +176,7 @@ def _upgrade_args(args):
     return args
 
 
-def maybe_no_grad(condition):
+def maybe_no_grad(condition=True):
     if hasattr(torch, 'no_grad') and condition:
         return torch.no_grad()
     # no-op context manager
@@ -185,9 +185,10 @@ def maybe_no_grad(condition):
 
 def volatile_variable(*args, **kwargs):
     if hasattr(torch, 'no_grad'):
-        with torch.no_grad():
-            return Variable(*args, **kwargs)
-    return Variable(*args, **kwargs, volatile=True)
+        # volatile has been deprecated, use the no_grad context manager instead
+        return Variable(*args, **kwargs)
+    else:
+        return Variable(*args, **kwargs, volatile=True)
 
 
 def make_variable(sample, volatile=False, cuda_device=None):

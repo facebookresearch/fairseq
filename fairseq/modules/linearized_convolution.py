@@ -69,7 +69,8 @@ class LinearizedConvolution(ConvTBC):
             # append next input
             self.input_buffer[:, -1, :] = input[:, -1, :]
             input = utils.volatile_variable(self.input_buffer)
-        output = F.linear(input.view(bsz, -1), weight, self.bias)
+        with utils.maybe_no_grad():
+            output = F.linear(input.view(bsz, -1), weight, self.bias)
         return output.view(bsz, 1, -1)
 
     def clear_incremental_state(self):

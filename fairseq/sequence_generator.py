@@ -71,8 +71,9 @@ class SequenceGenerator(object):
             srclen = input['src_tokens'].size(1)
             if timer is not None:
                 timer.start()
-            hypos = self.generate(input['src_tokens'], beam_size=beam_size,
-                                  maxlen=int(maxlen_a*srclen + maxlen_b))
+            with utils.maybe_no_grad():
+                hypos = self.generate(input['src_tokens'], beam_size=beam_size,
+                                      maxlen=int(maxlen_a*srclen + maxlen_b))
             if timer is not None:
                 timer.stop(s['ntokens'])
             for i, id in enumerate(s['id'].data):
@@ -327,7 +328,8 @@ class SequenceGenerator(object):
         avg_probs = None
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
-            decoder_out, attn = model.decoder(tokens, encoder_out)
+            with utils.maybe_no_grad():
+                decoder_out, attn = model.decoder(tokens, encoder_out)
             probs = model.get_normalized_probs(decoder_out[:, -1, :], log_probs=False).data
             if avg_probs is None:
                 avg_probs = probs
