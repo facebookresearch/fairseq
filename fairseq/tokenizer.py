@@ -13,12 +13,11 @@ import torch
 
 from fairseq import dictionary
 
+SPACE_NORMALIZER = re.compile("\s+")
 
 def tokenize_line(line):
-    line = re.sub(r"\t", "", line)
-    line = re.sub(r"^\s+", "", line)
-    line = re.sub(r"\s+$", "", line)
-    line = re.sub(r"\s+", " ", line)
+    line = SPACE_NORMALIZER.sub(" ", line)
+    line = line.strip()
     return line.split()
 
 
