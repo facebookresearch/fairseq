@@ -135,7 +135,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
     """Convolutional decoder"""
     def __init__(self, dictionary, embed_dim=512, out_embed_dim=256,
                  max_positions=1024, convolutions=((512, 3),) * 20,
-                 attention=True, dropout=0.1):
+                 attention=True, dropout=0.1, share_embed=False):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
         self.dropout = dropout
@@ -169,7 +169,14 @@ class FConvDecoder(FairseqIncrementalDecoder):
                                   if attention[i] else None)
             in_channels = out_channels
         self.fc2 = Linear(in_channels, out_embed_dim)
-        self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
+        if share_embed:
+            assert out_embed_dim == embed_dim, \
+                "Shared embed weights implies same dimensions " \
+                " out_embed_dim={} vs embed_dim={}".format(out_embed_dim, embed_dim)
+            self.fc3 = nn.Linear(out_embed_dim, num_embeddings)
+            self.fc3.weight = self.embed_tokens.weight
+        else:
+            self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
     def forward(self, input_tokens, encoder_out):
         # split and transpose encoder outputs
@@ -372,6 +379,7 @@ def parse_arch(args):
     args.decoder_layers = getattr(args, 'decoder_layers', '[(512, 3)] * 20')
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
     args.decoder_attention = getattr(args, 'decoder_attention', 'True')
+    args.share_input_output_embed = getattr(args, 'share_input_output_embed', False)
     return args
 
 
@@ -391,5 +399,6 @@ def build_model(args, src_dict, dst_dict):
         attention=eval(args.decoder_attention),
         dropout=args.dropout,
         max_positions=args.max_target_positions,
+        share_embed=args.share_input_output_embed
     )
     return FConvModel(encoder, decoder)

@@ -173,6 +173,8 @@ def _upgrade_args(args):
     if not hasattr(args, 'max_source_positions'):
         args.max_source_positions = args.max_positions
         args.max_target_positions = args.max_positions
+    if not hasattr(args, 'share_input_output_embed'):
+        args.share_input_output_embed = False
     return args
 
 
