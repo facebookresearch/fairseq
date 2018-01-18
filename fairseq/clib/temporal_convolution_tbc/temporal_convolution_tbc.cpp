@@ -126,5 +126,5 @@ void TemporalConvolutionTBC_backward(
   }
 
   auto tmp = dOutput.sum(0, false);
-  dBias.assign_(tmp.sum(0));
+  dBias.copy_(tmp.sum(0));
 }
