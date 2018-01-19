@@ -79,11 +79,11 @@ def main():
 
     # The max number of positions can be different for train and valid
     # e.g., RNNs may support more positions at test time than seen in training
-    max_positions_train = (args.max_source_positions, args.max_target_positions)
-    max_positions_valid = (
+    max_positions_train = (
         min(args.max_source_positions, model.max_encoder_positions()),
         min(args.max_target_positions, model.max_decoder_positions())
     )
+    max_positions_valid = (model.max_encoder_positions(), model.max_decoder_positions())
 
     # Start multiprocessing
     trainer = MultiprocessingTrainer(args, model, criterion)
