@@ -33,6 +33,7 @@ class CrossEntropyCriterion(FairseqCriterion):
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': loss.data[0] if reduce else loss.data,
+            'ntokens': sample['ntokens'],
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
@@ -40,7 +41,12 @@ class CrossEntropyCriterion(FairseqCriterion):
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
+        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
+        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
-        return {
-            'loss': sum(log.get('loss', 0) for log in logging_outputs) / sample_size / math.log(2),
+        agg_output = {
+            'loss': loss_sum / sample_size / math.log(2),
         }
+        if sample_size != ntokens:
+            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
+        return agg_output
