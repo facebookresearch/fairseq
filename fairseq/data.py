@@ -297,9 +297,10 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
             if ignore_invalid_inputs:
                 ignored.append(idx)
                 continue
-            raise Exception(
-                "Unable to handle input id {} of size {} / {}.".format(
-                    idx, src.sizes[idx], dst.sizes[idx]))
+            raise Exception((
+                "Sample #{} has size (src={}, dst={}) but max size is {}."
+                " Skip this example with --skip-invalid-size-inputs-valid-test"
+            ).format(idx, src.sizes[idx], dst.sizes[idx], max_positions))
 
         sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
         num_tokens = (len(batch) + 1) * sample_len
