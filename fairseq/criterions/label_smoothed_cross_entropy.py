@@ -70,6 +70,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         logging_output = {
             'loss': loss.data[0] if reduce else loss.data,
             'nll_loss': nll_loss.data[0] if reduce else loss.data,
+            'ntokens': sample['ntokens'],
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
@@ -77,8 +78,9 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
+        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         return {
             'loss': sum(log.get('loss', 0) for log in logging_outputs) / sample_size / math.log(2),
-            'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / sample_size / math.log(2),
+            'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
         }
