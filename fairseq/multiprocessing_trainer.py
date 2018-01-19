@@ -17,7 +17,8 @@ from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
 from fairseq import nccl, utils
 from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
-from fairseq.nag import NAG
+from fairseq.optim.nag import NAG
+from fairseq.optim.adam import Adam
 
 
 class MultiprocessingTrainer(MultiprocessingEventLoop):
@@ -95,7 +96,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                 'betas': eval(self.args.adam_betas),
                 'weight_decay': self.args.weight_decay,
             }
-            return torch.optim.Adam(self.model.parameters(), **self._override_optim_state)
+            return Adam(self.model.parameters(), **self._override_optim_state)
         elif self.args.optimizer == 'nag':
             self._override_optim_state = {
                 'lr': self.args.lr[0],
