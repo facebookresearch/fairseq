@@ -150,11 +150,11 @@ class LanguageDatasets(object):
                         skip_invalid_size_inputs_valid_test=False,
                         descending=False):
         dataset = self.splits[split]
-        batch_sampler = list(batches_by_size(
+        batch_sampler = batches_by_size(
             dataset.src, dataset.dst, max_tokens, max_sentences,
             max_positions=max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs_valid_test,
-            descending=descending))
+            descending=descending)
         return torch.utils.data.DataLoader(
             dataset, num_workers=num_workers, collate_fn=dataset.collater,
             batch_sampler=batch_sampler)
@@ -227,7 +227,7 @@ class LanguagePairDataset(object):
                 [s[key] for s in samples], pad_idx, eos_idx, left_pad, move_eos_to_beginning)
 
         return {
-            'id': torch.LongTensor([s['id'].item() for s in samples]),
+            'id': torch.LongTensor([s['id'] for s in samples]),
             'ntokens': sum(len(s['target']) for s in samples),
             'net_input': {
                 'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
@@ -291,7 +291,7 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
 
     sample_len = 0
     ignored = []
-    for idx in indices:
+    for idx in map(int, indices):
         if not _valid_size(src.sizes[idx], dst.sizes[idx], max_positions):
             if ignore_invalid_inputs:
                 ignored.append(idx)
@@ -331,9 +331,9 @@ def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
     indices = np.argsort(src.sizes, kind='mergesort')
     if descending:
         indices = np.flip(indices, 0)
-    return _make_batches(
+    return list(_make_batches(
         src, dst, indices, max_tokens, max_sentences, max_positions,
-        ignore_invalid_inputs, allow_different_src_lens=False)
+        ignore_invalid_inputs, allow_different_src_lens=False))
 
 
 def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
