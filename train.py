@@ -142,8 +142,12 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
     lr = None
+    num_updates = trainer.get_num_updates()
     with progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple') as t:
-        for i, sample in data.skip_group_enumerator(t, args.num_gpus, batch_offset):
+        for i, sample in enumerate(
+            data.skip_group_enumerator(t, args.num_gpus, batch_offset),
+            start=num_updates,
+        ):
             loss_dict = trainer.train_step(sample)
             loss = loss_dict['loss']
             lr = loss_dict['lr']
@@ -173,6 +177,7 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
                 ('wps', round(wps_meter.avg)),
                 ('wpb', round(wpb_meter.avg)),
                 ('bsz', round(bsz_meter.avg)),
+                ('num_updates', i),
                 ('lr', lr),
                 ('clip', '{:.0%}'.format(clip_meter.avg)),
             ] + extra_postfix))
@@ -241,7 +246,7 @@ def validate(args, epoch, trainer, dataset, max_positions, subset):
 
     prefix = 'valid on \'{}\' subset'.format(subset)
     with progress_bar.build_progress_bar(args, itr, epoch, prefix, no_progress_bar='simple') as t:
-        for _, sample in data.skip_group_enumerator(t, args.num_gpus):
+        for sample in data.skip_group_enumerator(t, args.num_gpus):
             loss_dict = trainer.valid_step(sample)
             ntokens = sum(s['ntokens'] for s in sample)
             loss = loss_dict['loss']

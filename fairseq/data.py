@@ -162,17 +162,16 @@ class LanguageDatasets(object):
 
 def skip_group_enumerator(it, ngpus, offset=0):
     res = []
-    idx = 0
-    for i, sample in enumerate(it):
-        if i < offset:
-            continue
+    i = 0
+    for sample in it:
         res.append(sample)
         if len(res) >= ngpus:
-            yield (i, res)
+            if i >= offset:
+                yield res
             res = []
-            idx = i + 1
+            i += 1
     if len(res) > 0:
-        yield (idx, res)
+        yield res
 
 
 class sharded_iterator(object):
