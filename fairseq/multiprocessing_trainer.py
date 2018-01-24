@@ -13,12 +13,9 @@ Train a network on multiple GPUs using multiprocessing.
 from itertools import cycle, islice
 import math
 import torch
-from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
-from fairseq import nccl, utils
+from fairseq import optim, nccl, utils
 from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
-from fairseq.optim.nag import NAG
-from fairseq.optim.adam import Adam
 
 
 class MultiprocessingTrainer(MultiprocessingEventLoop):
@@ -32,8 +29,6 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     prepare and dispatch the input to each process, and asynchronous functions
     (prefixed with `_async_`), which run on each process in parallel.
     """
-
-    OPTIMIZERS = ['adagrad', 'adam', 'nag', 'sgd']
 
     def __init__(self, args, model, criterion, device_ids=None,
                  multiprocessing_method='spawn'):
@@ -70,69 +65,12 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         self.criterion = criterion.cuda()
 
         # initialize optimizer and LR scheduler
-        self.args.lr = list(map(float, self.args.lr.split(',')))
-        self.optimizer = self._build_optimizer()
-        self.lr_scheduler = self._build_lr_scheduler()
+        self.optimizer = optim.build_optimizer(self.args, self.model.parameters())
+        self.lr_scheduler = optim.lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
 
         self.loss = None
         self._max_bsz_seen = 0
-
-    def _build_optimizer(self):
-        # When resuming training from a checkpoint, we load the old optimizer
-        # state that includes things like learning rate, momentum factor, etc.
-        # We use this dictionary to override values stored in the checkpoint,
-        # e.g., we might prefer the values specified on the command line.
-        self._override_optim_state = {}
-
-        if self.args.optimizer == 'adagrad':
-            self._override_optim_state = {
-                'lr': self.args.lr[0],
-                'weight_decay': self.args.weight_decay,
-            }
-            return torch.optim.Adagrad(self.model.parameters(), **self._override_optim_state)
-        elif self.args.optimizer == 'adam':
-            self._override_optim_state = {
-                'lr': self.args.lr[0],
-                'betas': eval(self.args.adam_betas),
-                'weight_decay': self.args.weight_decay,
-            }
-            return Adam(self.model.parameters(), **self._override_optim_state)
-        elif self.args.optimizer == 'nag':
-            self._override_optim_state = {
-                'lr': self.args.lr[0],
-                'momentum': self.args.momentum,
-                'weight_decay': self.args.weight_decay,
-            }
-            return NAG(self.model.parameters(), **self._override_optim_state)
-        elif self.args.optimizer == 'sgd':
-            self._override_optim_state = {
-                'lr': self.args.lr[0],
-                'momentum': self.args.momentum,
-                'weight_decay': self.args.weight_decay,
-            }
-            return torch.optim.SGD(self.model.parameters(), **self._override_optim_state)
-        else:
-            raise ValueError('Unknown optimizer: {}'.format(self.args.optimizer))
-
-    def _build_lr_scheduler(self):
-        if len(self.args.lr) > 1 or self.args.force_anneal > 0:
-            lrs = self.args.lr
-
-            def anneal(e):
-                if e < self.args.force_anneal:
-                    # use fixed LR schedule
-                    next_lr = lrs[min(e, len(lrs) - 1)]
-                else:
-                    next_lr = lrs[-1] * self.args.lrshrink ** (e + 1 - self.args.force_anneal)
-                return next_lr / lrs[0]  # correct for scaling from LambdaLR
-
-            lr_scheduler = LambdaLR(self.optimizer, anneal)
-            lr_scheduler.best = None
-        else:
-            # decay the LR by a factor every time the validation loss plateaus
-            lr_scheduler = ReduceLROnPlateau(self.optimizer, patience=0,
-                                             factor=self.args.lrshrink)
-        return lr_scheduler
+        self._num_updates = 0
 
     def get_model(self):
         """Get one of the model replicas."""
@@ -148,7 +86,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
     def _async_save_checkpoint(self, rank, device_id, filename, extra_state):
         utils.save_state(filename, self.args, self.model, self.criterion, self.optimizer,
-                         self.lr_scheduler, self._optim_history, extra_state)
+                         self.lr_scheduler, self._num_updates, self._optim_history, extra_state)
 
     def load_checkpoint(self, filename):
         """Load a checkpoint into the model replicas in each process."""
@@ -165,18 +103,17 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         if last_optim_state is not None:
             # rebuild optimizer after loading model, since params may have changed
-            self.optimizer = self._build_optimizer()
-            self.lr_scheduler = self._build_lr_scheduler()
+            self.optimizer = optim.build_optimizer(self.args, self.model.parameters())
+            self.lr_scheduler = optim.lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
 
-            # only load optimizer and lr_scheduler if they match the checkpoint
+            # only reload optimizer and lr_scheduler if they match
             last_optim = self._optim_history[-1]
             if last_optim['criterion_name'] == self.criterion.__class__.__name__:
-                self.optimizer.load_state_dict(last_optim_state)
-                self.lr_scheduler.best = last_optim['best_loss']
+                self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
+                if last_optim['optimizer_name'] == self.optimizer.__class__.__name__:
+                    self.optimizer.load_state_dict(last_optim_state)
 
-        # override learning rate, momentum, etc. with latest values
-        for group in self.optimizer.param_groups:
-            group.update(self._override_optim_state)
+            self._num_updates = last_optim['num_updates']
 
         return extra_state
 
@@ -209,13 +146,14 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # backward pass, all-reduce gradients and take an optimization step
         grad_denom = self.criterion.__class__.grad_denom(sample_sizes)
-        grad_norms, ooms_bwd = Future.gen_tuple_list([
+        grad_norms, ooms_bwd, lrs = Future.gen_tuple_list([
             self.call_async(rank, '_async_backward_and_opt', grad_denom=grad_denom)
             for rank in range(self.num_replicas)
         ])
 
         # aggregate logging output
         logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        logging_output['lr'] = lrs[0]
         logging_output['gnorm'] = grad_norms[0]  # log the gradient norm
         logging_output['oom'] = sum(ooms_fwd) + sum(ooms_bwd)
 
@@ -273,11 +211,15 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # take an optimization step
         self.optimizer.step()
+        self._num_updates += 1
+
+        # update learning rate
+        lr = self.lr_scheduler.step_update(self._num_updates)
 
         # reset loss
         self.loss = None
 
-        return grad_norm, oom
+        return grad_norm, oom, lr
 
     def _all_reduce_and_rescale_grads(self, grad_denom, buffer_size=10485760):
         """All-reduce and rescale gradients in chunks of the specified size."""
@@ -343,23 +285,18 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         return self.call_async(0, '_async_get_lr').gen()
 
     def _async_get_lr(self, rank, device_id):
-        return self.optimizer.param_groups[0]['lr']
+        return self.optimizer.get_lr()
 
-    def lr_step(self, val_loss=None, epoch=None):
-        """Adjust the learning rate depending on the validation loss."""
+    def lr_step(self, epoch, val_loss=None):
+        """Adjust the learning rate based on the validation loss."""
         lr = Future.gen_list([
-            self.call_async(rank, '_async_lr_step', val_loss=val_loss, epoch=epoch)
+            self.call_async(rank, '_async_lr_step', epoch=epoch, val_loss=val_loss)
             for rank in range(self.num_replicas)
         ])
         return lr[0]
 
     def _async_lr_step(self, rank, device_id, epoch, val_loss):
-        # update the learning rate
-        if self.args.force_anneal > 0:
-            self.lr_scheduler.step(epoch)
-        else:
-            self.lr_scheduler.step(val_loss, epoch)
-        return self.optimizer.param_groups[0]['lr']
+        return self.lr_scheduler.step(epoch, val_loss)
 
     def _scatter_samples(self, samples, volatile=False, replace_empty_samples=False):
         """Split and distribute a sample across GPUs."""

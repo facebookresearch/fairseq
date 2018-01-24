@@ -9,8 +9,6 @@
 from contextlib import ExitStack
 import math
 import torch
-import torch.nn.functional as F
-from torch.autograd import Variable
 
 from fairseq import utils
 from fairseq.models import FairseqIncrementalDecoder

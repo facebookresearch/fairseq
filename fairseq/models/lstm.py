@@ -11,12 +11,63 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel
+from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model, register_model_architecture
 
 
+@register_model('lstm')
 class LSTMModel(FairseqModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
+
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+                            help='dropout probability')
+        parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
+                            help='encoder embedding dimension')
+        parser.add_argument('--encoder-layers', type=int, metavar='N',
+                            help='number of encoder layers')
+        parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
+                            help='decoder embedding dimension')
+        parser.add_argument('--decoder-layers', type=int, metavar='N',
+                            help='number of decoder layers')
+        parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
+                            help='decoder output embedding dimension')
+        parser.add_argument('--decoder-attention', type=str, metavar='BOOL',
+                            help='decoder attention')
+
+        # Granular dropout settings (if not specified these default to --dropout)
+        parser.add_argument('--encoder-dropout-in', type=float, metavar='D',
+                            help='dropout probability for encoder input embedding')
+        parser.add_argument('--encoder-dropout-out', type=float, metavar='D',
+                            help='dropout probability for encoder output')
+        parser.add_argument('--decoder-dropout-in', type=float, metavar='D',
+                            help='dropout probability for decoder input embedding')
+        parser.add_argument('--decoder-dropout-out', type=float, metavar='D',
+                            help='dropout probability for decoder output')
+
+    @classmethod
+    def build_model(cls, args, src_dict, dst_dict):
+        """Build a new model instance."""
+        encoder = LSTMEncoder(
+            src_dict,
+            embed_dim=args.encoder_embed_dim,
+            num_layers=args.encoder_layers,
+            dropout_in=args.encoder_dropout_in,
+            dropout_out=args.encoder_dropout_out,
+        )
+        decoder = LSTMDecoder(
+            dst_dict,
+            encoder_embed_dim=args.encoder_embed_dim,
+            embed_dim=args.decoder_embed_dim,
+            out_embed_dim=args.decoder_out_embed_dim,
+            num_layers=args.decoder_layers,
+            attention=bool(args.decoder_attention),
+            dropout_in=args.decoder_dropout_in,
+            dropout_out=args.decoder_dropout_out,
+        )
+        return cls(encoder, decoder)
 
 
 class LSTMEncoder(FairseqEncoder):
@@ -256,50 +307,8 @@ def Linear(in_features, out_features, bias=True, dropout=0):
     return m
 
 
-def get_archs():
-    return [
-        'lstm', 'lstm_wiseman_iwslt_de_en', 'lstm_luong_wmt_en_de',
-    ]
-
-
-def _check_arch(args):
-    """Check that the specified architecture is valid and not ambiguous."""
-    if args.arch not in get_archs():
-        raise ValueError('Unknown LSTM model architecture: {}'.format(args.arch))
-    if args.arch != 'lstm':
-        # check that architecture is not ambiguous
-        for a in ['encoder_embed_dim', 'encoder_layers', 'decoder_embed_dim', 'decoder_layers',
-                  'decoder_out_embed_dim']:
-            if hasattr(args, a):
-                raise ValueError('--{} cannot be combined with --arch={}'.format(a, args.arch))
-
-
-def parse_arch(args):
-    _check_arch(args)
-
-    if args.arch == 'lstm_wiseman_iwslt_de_en':
-        args.encoder_embed_dim = 256
-        args.encoder_layers = 1
-        args.encoder_dropout_in = 0
-        args.encoder_dropout_out = 0
-        args.decoder_embed_dim = 256
-        args.decoder_layers = 1
-        args.decoder_out_embed_dim = 256
-        args.decoder_attention = True
-        args.decoder_dropout_in = 0
-    elif args.arch == 'lstm_luong_wmt_en_de':
-        args.encoder_embed_dim = 1000
-        args.encoder_layers = 4
-        args.encoder_dropout_out = 0
-        args.decoder_embed_dim = 1000
-        args.decoder_layers = 4
-        args.decoder_out_embed_dim = 1000
-        args.decoder_attention = True
-        args.decoder_dropout_out = 0
-    else:
-        assert args.arch == 'lstm'
-
-    # default architecture
+@register_model_architecture('lstm', 'lstm')
+def base_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.encoder_layers = getattr(args, 'encoder_layers', 1)
     args.encoder_dropout_in = getattr(args, 'encoder_dropout_in', args.dropout)
@@ -310,25 +319,30 @@ def parse_arch(args):
     args.decoder_attention = getattr(args, 'decoder_attention', True)
     args.decoder_dropout_in = getattr(args, 'decoder_dropout_in', args.dropout)
     args.decoder_dropout_out = getattr(args, 'decoder_dropout_out', args.dropout)
-    return args
 
 
-def build_model(args, src_dict, dst_dict):
-    encoder = LSTMEncoder(
-        src_dict,
-        embed_dim=args.encoder_embed_dim,
-        num_layers=int(args.encoder_layers),
-        dropout_in=args.encoder_dropout_in,
-        dropout_out=args.encoder_dropout_out,
-    )
-    decoder = LSTMDecoder(
-        dst_dict,
-        encoder_embed_dim=args.encoder_embed_dim,
-        embed_dim=args.decoder_embed_dim,
-        out_embed_dim=args.decoder_out_embed_dim,
-        num_layers=int(args.decoder_layers),
-        attention=bool(args.decoder_attention),
-        dropout_in=args.decoder_dropout_in,
-        dropout_out=args.decoder_dropout_out,
-    )
-    return LSTMModel(encoder, decoder)
+@register_model_architecture('lstm', 'lstm_wiseman_iwslt_de_en')
+def lstm_wiseman_iwslt_de_en(args):
+    base_architecture(args)
+    args.encoder_embed_dim = 256
+    args.encoder_layers = 1
+    args.encoder_dropout_in = 0
+    args.encoder_dropout_out = 0
+    args.decoder_embed_dim = 256
+    args.decoder_layers = 1
+    args.decoder_out_embed_dim = 256
+    args.decoder_attention = True
+    args.decoder_dropout_in = 0
+
+
+@register_model_architecture('lstm', 'lstm_luong_wmt_en_de')
+def lstm_luong_wmt_en_de(args):
+    base_architecture(args)
+    args.encoder_embed_dim = 1000
+    args.encoder_layers = 4
+    args.encoder_dropout_out = 0
+    args.decoder_embed_dim = 1000
+    args.decoder_layers = 4
+    args.decoder_out_embed_dim = 1000
+    args.decoder_attention = True
+    args.decoder_dropout_out = 0

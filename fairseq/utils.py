@@ -11,50 +11,11 @@ import logging
 import os
 import torch
 import traceback
-import sys
 
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, progress_bar, tokenizer
-
-
-def parse_args_and_arch(parser):
-    from fairseq import models
-    args = parser.parse_args()
-    args.model = models.arch_model_map[args.arch]
-    args = getattr(models, args.model).parse_arch(args)
-    return args
-
-
-def build_model(args, src_dict, dst_dict):
-    from fairseq import models
-    assert hasattr(models, args.model), 'Missing model type'
-    return getattr(models, args.model).build_model(args, src_dict, dst_dict)
-
-
-def build_criterion(args, src_dict, dst_dict):
-    if args.label_smoothing > 0:
-        return criterions.LabelSmoothedCrossEntropyCriterion(args, dst_dict)
-    else:
-        return criterions.CrossEntropyCriterion(args, dst_dict)
-
-
-def build_progress_bar(args, iterator, epoch=None, prefix=None):
-    if args.log_format is None:
-        args.log_format = 'tqdm' if sys.stderr.isatty() else 'simple'
-
-    if args.log_format == 'json':
-        bar = progress_bar.json_progress_bar(iterator, epoch, prefix, args.log_interval)
-    elif args.log_format == 'none':
-        bar = progress_bar.noop_progress_bar(iterator, epoch, prefix)
-    elif args.log_format == 'simple':
-        bar = progress_bar.simple_progress_bar(iterator, epoch, prefix, args.log_interval)
-    elif args.log_format == 'tqdm':
-        bar = progress_bar.tqdm_progress_bar(iterator, epoch, prefix)
-    else:
-        raise ValueError('Unknown log format: {}'.format(args.log_format))
-    return bar
+from fairseq import tokenizer
 
 
 def torch_persistent_save(*args, **kwargs):
@@ -66,7 +27,8 @@ def torch_persistent_save(*args, **kwargs):
                 logging.error(traceback.format_exc())
 
 
-def save_state(filename, args, model, criterion, optimizer, lr_scheduler, optim_history=None, extra_state=None):
+def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
+               num_updates, optim_history=None, extra_state=None):
     if optim_history is None:
         optim_history = []
     if extra_state is None:
@@ -77,7 +39,9 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler, optim_
         'optimizer_history': optim_history + [
             {
                 'criterion_name': criterion.__class__.__name__,
-                'best_loss': lr_scheduler.best,
+                'optimizer_name': optimizer.__class__.__name__,
+                'lr_scheduler_state': lr_scheduler.state_dict(),
+                'num_updates': num_updates,
             }
         ],
         'last_optimizer_state': optimizer.state_dict(),
@@ -115,7 +79,7 @@ def _upgrade_state_dict(state):
     if 'optimizer_history' not in state:
         state['optimizer_history'] = [
             {
-                'criterion_name': criterions.CrossEntropyCriterion.__name__,
+                'criterion_name': 'CrossEntropyCriterion',
                 'best_loss': state['best_loss'],
             },
         ]
@@ -137,6 +101,18 @@ def _upgrade_state_dict(state):
         state['last_optimizer_state'] = state['optimizer_history'][-1]['optimizer']
         for optim_hist in state['optimizer_history']:
             del optim_hist['optimizer']
+    # record the optimizer class name
+    if 'optimizer_name' not in state['optimizer_history'][-1]:
+        state['optimizer_history'][-1]['optimizer_name'] = 'FairseqNAG'
+    # move best_loss into lr_scheduler_state
+    if 'lr_scheduler_state' not in state['optimizer_history'][-1]:
+        state['optimizer_history'][-1]['lr_scheduler_state'] = {
+            'best': state['optimizer_history'][-1]['best_loss'],
+        }
+        del state['optimizer_history'][-1]['best_loss']
+    # keep track of number of updates
+    if 'num_updates' not in state['optimizer_history'][-1]:
+        state['optimizer_history'][-1]['num_updates'] = 0
     return state
 
 
@@ -146,7 +122,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     The source and target dictionaries can be given explicitly, or loaded from
     the `data_dir` directory.
     """
-    from fairseq import data
+    from fairseq import data, models
 
     # load model architectures and weights
     states = []
@@ -166,8 +142,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     # build ensemble
     ensemble = []
     for state in states:
-        model = build_model(args, src_dict, dst_dict)
-        state['model'] = model.upgrade_state_dict(state['model'])
+        model = models.build_model(args, src_dict, dst_dict)
         model.load_state_dict(state['model'])
         ensemble.append(model)
     return ensemble, args

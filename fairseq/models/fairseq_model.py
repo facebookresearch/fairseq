@@ -30,6 +30,16 @@ class FairseqModel(nn.Module):
 
         self._is_generation_fast = False
 
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        pass
+
+    @classmethod
+    def build_model(cls, args, src_dict, dst_dict):
+        """Build a new model instance."""
+        raise NotImplementedError
+
     def forward(self, src_tokens, input_tokens):
         encoder_out = self.encoder(src_tokens)
         decoder_out, _ = self.decoder(input_tokens, encoder_out)
@@ -46,6 +56,16 @@ class FairseqModel(nn.Module):
     def max_decoder_positions(self):
         """Maximum output length supported by the decoder."""
         return self.decoder.max_positions()
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Copies parameters and buffers from state_dict into this module and
+        its descendants.
+
+        Overrides the method in nn.Module; compared with that method this
+        additionally "upgrades" state_dicts from old checkpoints.
+        """
+        state_dict = self.upgrade_state_dict(state_dict)
+        super().load_state_dict(state_dict, strict)
 
     def upgrade_state_dict(self, state_dict):
         state_dict = self.encoder.upgrade_state_dict(state_dict)

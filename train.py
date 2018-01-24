@@ -12,37 +12,25 @@ import os
 import torch
 import math
 
-from fairseq import data, options, utils
+from fairseq import criterions, data, models, options, progress_bar
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.multiprocessing_trainer import MultiprocessingTrainer
 
 
 def main():
     parser = options.get_parser('Trainer')
-    dataset_args = options.add_dataset_args(parser)
-    dataset_args.add_argument('--max-tokens', default=6000, type=int, metavar='N',
-                              help='maximum number of tokens in a batch')
-    dataset_args.add_argument('--max-sentences', type=int, metavar='N',
-                              help='maximum number of sentences in a batch')
-    dataset_args.add_argument('--train-subset', default='train', metavar='SPLIT',
-                              choices=['train', 'valid', 'test'],
-                              help='data subset to use for training (train, valid, test)')
-    dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
-                              help='comma separated list of data subsets '
-                                   ' to use for validation (train, valid, valid1,test, test1)')
-    dataset_args.add_argument('--max-sentences-valid', type=int, metavar='N',
-                              help='maximum number of sentences in a validation batch')
+    options.add_dataset_args(parser, train=True)
     options.add_optimization_args(parser)
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
-
-    args = utils.parse_args_and_arch(parser)
-
-    if args.no_progress_bar and args.log_format is None:
-        args.log_format = 'simple'
+    args = options.parse_args_and_arch(parser)
+    print(args)
 
     if args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
+
+    if args.num_gpus == 0:
+        raise NotImplementedError('Training on CPU is not supported')
 
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
@@ -58,11 +46,6 @@ def main():
         # record inferred languages in args, so that it's saved in checkpoints
         args.source_lang, args.target_lang = dataset.src, dataset.dst
 
-    if not torch.cuda.is_available():
-        raise NotImplementedError('Training on CPU is not supported')
-    args.num_gpus = torch.cuda.device_count()
-
-    print(args)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
     for split in splits:
@@ -72,8 +55,8 @@ def main():
         args.num_gpus, args.max_tokens, args.max_sentences))
 
     # Build model and criterion
-    model = utils.build_model(args, dataset.src_dict, dataset.dst_dict)
-    criterion = utils.build_criterion(args, dataset.src_dict, dataset.dst_dict)
+    model = models.build_model(args, dataset.src_dict, dataset.dst_dict)
+    criterion = criterions.build_criterion(args, dataset.src_dict, dataset.dst_dict)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
     print('| num. model params: {}'.format(sum(p.data.numel() for p in model.parameters())))
 
@@ -96,6 +79,7 @@ def main():
         batch_offset = extra_state['batch_offset']
         print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
         if batch_offset == 0:
+            lr = trainer.lr_step(epoch)
             epoch += 1
     else:
         epoch, batch_offset = 1, 0
@@ -118,7 +102,7 @@ def main():
                     # save checkpoint
                     save_checkpoint(trainer, args, epoch, 0, val_loss)
                 # only use first validation loss to update the learning schedule
-                lr = trainer.lr_step(val_loss, epoch)
+                lr = trainer.lr_step(epoch, val_loss)
 
         epoch += 1
         batch_offset = 0
@@ -157,12 +141,14 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
     clip_meter = AverageMeter()   # % of updates clipped
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
-    lr = trainer.get_lr()
-    with utils.build_progress_bar(args, itr, epoch) as t:
+    lr = None
+    with progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple') as t:
         for i, sample in data.skip_group_enumerator(t, args.num_gpus, batch_offset):
             loss_dict = trainer.train_step(sample)
             loss = loss_dict['loss']
+            lr = loss_dict['lr']
             del loss_dict['loss']  # don't include in extra_meters or extra_postfix
+            del loss_dict['lr']
 
             ntokens = sum(s['ntokens'] for s in sample)
 
@@ -254,7 +240,7 @@ def validate(args, epoch, trainer, dataset, max_positions, subset):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
     prefix = 'valid on \'{}\' subset'.format(subset)
-    with utils.build_progress_bar(args, itr, epoch, prefix) as t:
+    with progress_bar.build_progress_bar(args, itr, epoch, prefix, no_progress_bar='simple') as t:
         for _, sample in data.skip_group_enumerator(t, args.num_gpus):
             loss_dict = trainer.valid_step(sample)
             ntokens = sum(s['ntokens'] for s in sample)

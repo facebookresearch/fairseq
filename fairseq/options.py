@@ -8,8 +8,42 @@
 
 import argparse
 
-from fairseq import models
-from fairseq.multiprocessing_trainer import MultiprocessingTrainer
+import torch.cuda
+
+from fairseq.criterions import CRITERION_REGISTRY
+from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
+from fairseq.optim import OPTIMIZER_REGISTRY
+from fairseq.optim.lr_scheduler import LR_SCHEDULER_REGISTRY
+
+
+def parse_args_and_arch(parser):
+    # The parser doesn't know about model/criterion/optimizer-specific args, so
+    # we parse twice. First we parse the model/criterion/optimizer, then we
+    # parse a second time after adding the *-specific arguments.
+    args, _ = parser.parse_known_args()
+
+    # Add model-specific args to parser.
+    model_specific_group = parser.add_argument_group(
+        'Model-specific configuration',
+        # Only include attributes which are explicitly given as command-line
+        # arguments or which have default values.
+        argument_default=argparse.SUPPRESS,
+    )
+    ARCH_MODEL_REGISTRY[args.arch].add_args(model_specific_group)
+
+    # Add *-specific args to parser.
+    CRITERION_REGISTRY[args.criterion].add_args(parser)
+    OPTIMIZER_REGISTRY[args.optimizer].add_args(parser)
+    LR_SCHEDULER_REGISTRY[args.lr_scheduler].add_args(parser)
+
+    # Parse a second time.
+    args = parser.parse_args()
+    args.lr = list(map(float, args.lr.split(',')))
+
+    # Apply architecture configuration.
+    ARCH_CONFIG_REGISTRY[args.arch](args)
+
+    return args
 
 
 def get_parser(desc):
@@ -22,10 +56,12 @@ def get_parser(desc):
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
+    parser.add_argument('--num-gpus', default=torch.cuda.device_count(), type=int, metavar='N',
+                        help='number of GPUs available')
     return parser
 
 
-def add_dataset_args(parser):
+def add_dataset_args(parser, train=False, gen=False):
     group = parser.add_argument_group('Dataset and data loading')
     group.add_argument('data', metavar='DIR',
                        help='path to data directory')
@@ -41,41 +77,66 @@ def add_dataset_args(parser):
                        help='max number of tokens in the target sequence')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
                        help='Ignore too long or too short lines in valid and test set')
+    group.add_argument('--max-tokens', default=6000, type=int, metavar='N',
+                       help='maximum number of tokens in a batch')
+    group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
+                       help='maximum number of sentences in a batch')
+    if train:
+        group.add_argument('--train-subset', default='train', metavar='SPLIT',
+                           choices=['train', 'valid', 'test'],
+                           help='data subset to use for training (train, valid, test)')
+        group.add_argument('--valid-subset', default='valid', metavar='SPLIT',
+                           help='comma separated list of data subsets to use for validation'
+                                ' (train, valid, valid1,test, test1)')
+        group.add_argument('--max-sentences-valid', type=int, metavar='N',
+                           help='maximum number of sentences in a validation batch')
+    if gen:
+        group.add_argument('--gen-subset', default='test', metavar='SPLIT',
+                           help='data subset to generate (train, valid, test)')
+        group.add_argument('--num-shards', default=1, type=int, metavar='N',
+                           help='shard generation over N shards')
+        group.add_argument('--shard-id', default=0, type=int, metavar='ID',
+                           help='id of the shard to generate (id < num_shards)')
     return group
 
 
 def add_optimization_args(parser):
     group = parser.add_argument_group('Optimization')
-    group.add_argument('--optimizer', default='nag', metavar='OPT',
-                       choices=MultiprocessingTrainer.OPTIMIZERS,
-                       help='optimizer ({})'.format(', '.join(MultiprocessingTrainer.OPTIMIZERS)))
-    group.add_argument('--lr', '--learning-rate', default='0.25', metavar='LR1,LR2,...,LRn',
-                       help='learning rate for the first n epochs with all epochs >n using LRn')
-    group.add_argument('--min-lr', metavar='LR', default=1e-5, type=float,
-                       help='minimum learning rate')
-    group.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
-                       help='force annealing at specified epoch')
     group.add_argument('--max-epoch', '--me', default=0, type=int, metavar='N',
                        help='force stop training at specified epoch')
-    group.add_argument('--lrshrink', default=0.1, type=float, metavar='LS',
-                       help='learning rate shrink factor for annealing, lr_new = (lr * lrshrink)')
-    group.add_argument('--momentum', default=0.99, type=float, metavar='M',
-                       help='momentum factor')
-    group.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
-                       help='betas for Adam optimizer')
     group.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
                        help='clip threshold of gradients')
+    group.add_argument('--sentence-avg', action='store_true',
+                       help='normalize gradients by the number of sentences in a batch'
+                            ' (default is to normalize by number of tokens)')
+
+    # Optimizer definitions can be found under fairseq/optim/
+    group.add_argument('--optimizer', default='nag', metavar='OPT',
+                       choices=OPTIMIZER_REGISTRY.keys(),
+                       help='optimizer: {} (default: nag)'.format(', '.join(OPTIMIZER_REGISTRY.keys())))
+    group.add_argument('--lr', '--learning-rate', default='0.25', metavar='LR_1,LR_2,...,LR_N',
+                       help='learning rate for the first N epochs; all epochs >N using LR_N'
+                            ' (note: this may be interpreted differently depending on --lr-scheduler)')
+    group.add_argument('--momentum', default=0.99, type=float, metavar='M',
+                       help='momentum factor')
     group.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                        help='weight decay')
+
+    # Learning rate schedulers can be found under fairseq/optim/lr_scheduler/
+    group.add_argument('--lr-scheduler', default='reduce_lr_on_plateau',
+                       help='learning rate scheduler: {} (default: reduce_lr_on_plateau)'.format(
+                           ', '.join(LR_SCHEDULER_REGISTRY.keys())))
+    group.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
+                       help='learning rate shrink factor for annealing, lr_new = (lr * lr_shrink)')
+    group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
+                       help='minimum learning rate')
+
     group.add_argument('--sample-without-replacement', default=0, type=int, metavar='N',
                        help='If bigger than 0, use that number of mini-batches for each epoch,'
                             ' where each sample is drawn randomly without replacement from the'
                             ' dataset')
     group.add_argument('--curriculum', default=0, type=int, metavar='N',
                        help='sort batches by source length for first N epochs')
-    group.add_argument('--sentence-avg', action='store_true',
-                       help='normalize gradients by the number of sentences in a batch'
-                            ' (default is to normalize by number of tokens)')
     return group
 
 
@@ -96,6 +157,8 @@ def add_checkpoint_args(parser):
 
 def add_generation_args(parser):
     group = parser.add_argument_group('Generation')
+    group.add_argument('--path', metavar='FILE', required=True, action='append',
+                       help='path(s) to model file(s)')
     group.add_argument('--beam', default=5, type=int, metavar='N',
                        help='beam size')
     group.add_argument('--nbest', default=1, type=int, metavar='N',
@@ -125,56 +188,32 @@ def add_generation_args(parser):
                        help='perform unknown replacement (optionally with alignment dictionary)')
     group.add_argument('--quiet', action='store_true',
                        help='Only print final scores')
-
     return group
 
 
 def add_model_args(parser):
-    group = parser.add_argument_group(
-        'Model configuration',
-        # Only include attributes which are explicitly given as command-line
-        # arguments or which have model-independent default values.
-        argument_default=argparse.SUPPRESS,
-    )
+    group = parser.add_argument_group('Model configuration')
 
+    # Model definitions can be found under fairseq/models/
+    #
     # The model architecture can be specified in several ways.
     # In increasing order of priority:
     # 1) model defaults (lowest priority)
     # 2) --arch argument
     # 3) --encoder/decoder-* arguments (highest priority)
-    # Note: --arch cannot be combined with --encoder/decoder-* arguments.
-    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH', choices=models.arch_model_map.keys(),
-                       help='model architecture ({})'.format(', '.join(models.arch_model_map.keys())))
-    group.add_argument('--encoder-embed-dim', type=int, metavar='N',
-                       help='encoder embedding dimension')
-    group.add_argument('--encoder-layers', type=str, metavar='EXPR',
-                       help='encoder layers [(dim, kernel_size), ...]')
-    group.add_argument('--decoder-embed-dim', type=int, metavar='N',
-                       help='decoder embedding dimension')
-    group.add_argument('--decoder-layers', type=str, metavar='EXPR',
-                       help='decoder layers [(dim, kernel_size), ...]')
-    group.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
-                       help='decoder output embedding dimension')
-    group.add_argument('--decoder-attention', type=str, metavar='EXPR',
-                       help='decoder attention [True, ...]')
+    group.add_argument(
+        '--arch', '-a', default='fconv', metavar='ARCH', required=True,
+        choices=ARCH_MODEL_REGISTRY.keys(),
+        help='model architecture: {} (default: fconv)'.format(
+            ', '.join(ARCH_MODEL_REGISTRY.keys())),
+    )
 
-    # Granular dropout settings for models that support them (e.g., LSTM):
-    group.add_argument('--encoder-dropout-in', type=float, metavar='D',
-                       help='dropout probability for encoder input embedding')
-    group.add_argument('--encoder-dropout-out', type=float, metavar='D',
-                       help='dropout probability for encoder output')
-    group.add_argument('--decoder-dropout-in', type=float, metavar='D',
-                       help='dropout probability for decoder input embedding')
-    group.add_argument('--decoder-dropout-out', type=float, metavar='D',
-                       help='dropout probability for decoder output')
+    # Criterion definitions can be found under fairseq/criterions/
+    group.add_argument(
+        '--criterion', default='cross_entropy', metavar='CRIT',
+        choices=CRITERION_REGISTRY.keys(),
+        help='training criterion: {} (default: cross_entropy)'.format(
+            ', '.join(CRITERION_REGISTRY.keys())),
+    )
 
-    # These arguments have default values independent of the model:
-    group.add_argument('--dropout', default=0.1, type=float, metavar='D',
-                       help='dropout probability')
-    group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
-                       help='epsilon for label smoothing, 0 means no label smoothing')
-
-    group.add_argument('--share-input-output-embed', action='store_true',
-                       help="Share input and output embeddings, "
-                            "requires --decoder-out-embed-dim and --decoder-embed-dim be equal ")
     return group
