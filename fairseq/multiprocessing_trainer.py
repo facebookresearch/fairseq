@@ -16,6 +16,7 @@ import torch
 
 from fairseq import optim, nccl, utils
 from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
+from fairseq.optim import lr_scheduler
 
 
 class MultiprocessingTrainer(MultiprocessingEventLoop):
@@ -66,7 +67,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
 
         # initialize optimizer and LR scheduler
         self.optimizer = optim.build_optimizer(self.args, self.model.parameters())
-        self.lr_scheduler = optim.lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+        self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
 
         self.loss = None
         self._max_bsz_seen = 0
@@ -104,7 +105,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         if last_optim_state is not None:
             # rebuild optimizer after loading model, since params may have changed
             self.optimizer = optim.build_optimizer(self.args, self.model.parameters())
-            self.lr_scheduler = optim.lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+            self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
 
             # only reload optimizer and lr_scheduler if they match
             last_optim = self._optim_history[-1]
