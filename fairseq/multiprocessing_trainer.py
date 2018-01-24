@@ -298,6 +298,13 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def _async_lr_step(self, rank, device_id, epoch, val_loss):
         return self.lr_scheduler.step(epoch, val_loss)
 
+    def get_num_updates(self):
+        """Get the number of parameters updates."""
+        return self.call_async(0, '_async_get_num_updates').gen()
+
+    def _async_get_num_updates(self, rank, device_id):
+        return self._num_updates
+
     def _scatter_samples(self, samples, volatile=False, replace_empty_samples=False):
         """Split and distribute a sample across GPUs."""
         if not replace_empty_samples:

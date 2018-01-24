@@ -51,7 +51,7 @@ def get_parser(desc):
         description='Facebook AI Research Sequence-to-Sequence Toolkit -- ' + desc)
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
     parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
-                        help='log progress every N updates (when progress bar is disabled)')
+                        help='log progress every N batches (when progress bar is disabled)')
     parser.add_argument('--log-format', default=None, help='log format to use',
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
@@ -146,8 +146,8 @@ def add_checkpoint_args(parser):
                        help='path to save checkpoints')
     group.add_argument('--restore-file', default='checkpoint_last.pt',
                        help='filename in save-dir from which to load checkpoint')
-    group.add_argument('--save-interval', type=int, default=-1,
-                       help='checkpoint every this many batches')
+    group.add_argument('--save-interval', type=int, default=-1, metavar='N',
+                       help='save a checkpoint every N updates')
     group.add_argument('--no-save', action='store_true',
                        help='don\'t save models and checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
