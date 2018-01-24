@@ -9,29 +9,16 @@
 
 import torch
 
-from fairseq import bleu, data, options, tokenizer, utils
+from fairseq import bleu, data, options, progress_bar, tokenizer, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_generator import SequenceGenerator
 
 
 def main():
     parser = options.get_parser('Generation')
-    parser.add_argument('--path', metavar='FILE', required=True, action='append',
-                        help='path(s) to model file(s)')
-    dataset_args = options.add_dataset_args(parser)
-    dataset_args.add_argument('--batch-size', default=32, type=int, metavar='N',
-                              help='batch size')
-    dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
-                              help='data subset to generate (train, valid, test)')
-    dataset_args.add_argument('--num-shards', default=1, type=int, metavar='N',
-                              help='shard generation over N shards')
-    dataset_args.add_argument('--shard-id', default=0, type=int, metavar='ID',
-                              help='id of the shard to generate (id < num_shards)')
+    options.add_dataset_args(parser, gen=True)
     options.add_generation_args(parser)
-
     args = parser.parse_args()
-    if args.no_progress_bar and args.log_format is None:
-        args.log_format = 'none'
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
@@ -76,14 +63,14 @@ def main():
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     max_positions = min(model.max_encoder_positions() for model in models)
     itr = dataset.eval_dataloader(
-        args.gen_subset, max_sentences=args.batch_size, max_positions=max_positions,
+        args.gen_subset, max_sentences=args.max_sentences, max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
     if args.num_shards > 1:
         if args.shard_id < 0 or args.shard_id >= args.num_shards:
             raise ValueError('--shard-id must be between 0 and num_shards')
         itr = data.sharded_iterator(itr, args.num_shards, args.shard_id)
     num_sentences = 0
-    with utils.build_progress_bar(args, itr) as t:
+    with progress_bar.build_progress_bar(args, itr) as t:
         wps_meter = TimeMeter()
         gen_timer = StopwatchMeter()
         translations = translator.generate_batched_itr(

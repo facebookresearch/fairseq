@@ -6,7 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-import torch
 import torch.nn.functional as F
 
 from fairseq import utils

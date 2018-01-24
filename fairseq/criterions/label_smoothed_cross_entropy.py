@@ -8,12 +8,11 @@
 
 import math
 import torch
-from torch.autograd.variable import Variable
 import torch.nn.functional as F
 
 from fairseq import utils
 
-from .fairseq_criterion import FairseqCriterion
+from . import FairseqCriterion, register_criterion
 
 
 class LabelSmoothedNLLLoss(torch.autograd.Function):
@@ -46,12 +45,18 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
         return utils.volatile_variable(ctx.grad_input) * grad, None, None, None, None, None
 
 
+@register_criterion('label_smoothed_cross_entropy')
 class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, dst_dict, weights=None):
-        super().__init__(args, dst_dict)
+    def __init__(self, args, src_dict, dst_dict):
+        super().__init__(args, src_dict, dst_dict)
         self.eps = args.label_smoothing
-        self.weights = weights
+
+    @staticmethod
+    def add_args(parser):
+        """Add criterion-specific arguments to the parser."""
+        parser.add_argument('--label-smoothing', default=0., type=float, metavar='D',
+                            help='epsilon for label smoothing, 0 means no label smoothing')
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
@@ -64,7 +69,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         net_output = model(**sample['net_input'])
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
         target = sample['target'].view(-1)
-        loss = LabelSmoothedNLLLoss.apply(lprobs, target, self.eps, self.padding_idx, self.weights, reduce)
+        loss = LabelSmoothedNLLLoss.apply(lprobs, target, self.eps, self.padding_idx, None, reduce)
         nll_loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
