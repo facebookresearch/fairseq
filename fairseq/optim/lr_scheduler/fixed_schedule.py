@@ -23,12 +23,12 @@ class FixedSchedule(FairseqLRScheduler):
     @staticmethod
     def add_args(parser):
         """Add arguments to the parser for this LR scheduler."""
-        parser.add_argument('--force-anneal', '--fa', default=0, type=int, metavar='N',
+        parser.add_argument('--force-anneal', '--fa', type=int, metavar='N',
                             help='force annealing at specified epoch')
 
     def anneal(self, epoch):
         lrs = self.args.lr
-        if epoch < self.args.force_anneal:
+        if self.args.force_anneal is None or epoch < self.args.force_anneal:
             # use fixed LR schedule
             next_lr = lrs[min(epoch, len(lrs) - 1)]
         else:
