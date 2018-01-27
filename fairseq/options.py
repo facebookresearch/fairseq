@@ -173,4 +173,8 @@ def add_model_args(parser):
                        help='dropout probability')
     group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
                        help='epsilon for label smoothing, 0 means no label smoothing')
+
+    group.add_argument('--share-input-output-embed', action='store_true',
+                       help="Share input and output embeddings, "
+                            "requires --decoder-out-embed-dim and --decoder-embed-dim be equal ")
     return group

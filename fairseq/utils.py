@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+import contextlib
 import logging
 import os
 import torch
@@ -15,10 +16,11 @@ import sys
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, data, models, progress_bar, tokenizer
+from fairseq import criterions, progress_bar, tokenizer
 
 
 def parse_args_and_arch(parser):
+    from fairseq import models
     args = parser.parse_args()
     args.model = models.arch_model_map[args.arch]
     args = getattr(models, args.model).parse_arch(args)
@@ -26,6 +28,7 @@ def parse_args_and_arch(parser):
 
 
 def build_model(args, src_dict, dst_dict):
+    from fairseq import models
     assert hasattr(models, args.model), 'Missing model type'
     return getattr(models, args.model).build_model(args, src_dict, dst_dict)
 
@@ -143,6 +146,8 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     The source and target dictionaries can be given explicitly, or loaded from
     the `data_dir` directory.
     """
+    from fairseq import data
+
     # load model architectures and weights
     states = []
     for filename in filenames:
@@ -172,26 +177,48 @@ def _upgrade_args(args):
     if not hasattr(args, 'max_source_positions'):
         args.max_source_positions = args.max_positions
         args.max_target_positions = args.max_positions
+    if not hasattr(args, 'share_input_output_embed'):
+        args.share_input_output_embed = False
     return args
 
 
-def prepare_sample(sample, volatile=False, cuda_device=None):
+def maybe_no_grad(condition=True):
+    if hasattr(torch, 'no_grad') and condition:
+        return torch.no_grad()
+    # no-op context manager
+    return contextlib.ExitStack()
+
+
+def volatile_variable(*args, **kwargs):
+    if hasattr(torch, 'no_grad'):
+        # volatile has been deprecated, use the no_grad context manager instead
+        return Variable(*args, **kwargs)
+    else:
+        return Variable(*args, **kwargs, volatile=True)
+
+
+def make_variable(sample, volatile=False, cuda_device=None):
     """Wrap input tensors in Variable class."""
 
-    def make_variable(tensor):
-        if cuda_device is not None and torch.cuda.is_available():
-            tensor = tensor.cuda(async=True, device=cuda_device)
-        return Variable(tensor, volatile=volatile)
+    def _make_variable(maybe_tensor):
+        if torch.is_tensor(maybe_tensor):
+            if cuda_device is not None and torch.cuda.is_available():
+                maybe_tensor = maybe_tensor.cuda(async=True, device=cuda_device)
+            if volatile:
+                return volatile_variable(maybe_tensor)
+            else:
+                return Variable(maybe_tensor)
+        elif isinstance(maybe_tensor, dict):
+            return {
+                key: _make_variable(value)
+                for key, value in maybe_tensor.items()
+            }
+        elif isinstance(maybe_tensor, list):
+            return [_make_variable(x) for x in maybe_tensor]
+        else:
+            return maybe_tensor
 
-    return {
-        'id': sample['id'],
-        'ntokens': sample['ntokens'],
-        'target': make_variable(sample['target']),
-        'net_input': {
-            key: make_variable(sample[key])
-            for key in ['src_tokens', 'input_tokens']
-        },
-    }
+    return _make_variable(sample)
 
 
 def load_align_dict(replace_unk):
@@ -236,11 +263,19 @@ def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dic
 
 
 def lstrip_pad(tensor, pad):
-    return tensor[tensor.eq(pad).sum():]
+    return tensor[tensor.eq(pad).long().sum():]
 
 
 def rstrip_pad(tensor, pad):
-    strip = tensor.eq(pad).sum()
+    strip = tensor.eq(pad).long().sum()
     if strip > 0:
         return tensor[:-strip]
+    return tensor
+
+
+def strip_pad(tensor, pad):
+    if tensor[0] == pad:
+        tensor = lstrip_pad(tensor, pad)
+    if tensor[-1] == pad:
+        tensor = rstrip_pad(tensor, pad)
     return tensor

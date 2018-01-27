@@ -12,8 +12,8 @@ from . import FairseqDecoder
 class FairseqIncrementalDecoder(FairseqDecoder):
     """Base class for incremental decoders."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, dictionary):
+        super().__init__(dictionary)
         self._is_incremental_eval = False
         self._incremental_state = {}
 
@@ -37,7 +37,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         with model.decoder.incremental_inference():
             for step in range(maxlen):
                 out, _ = model.decoder(tokens[:, :step], encoder_out)
-                probs = torch.nn.functional.log_softmax(out[:, -1, :])
+                probs = model.get_normalized_probs(out[:, -1, :], log_probs=False)
         ```
         """
         class IncrementalInference(object):
@@ -86,6 +86,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         beam_size is required if using BeamableMM.
         """
         if self._is_incremental_eval:
+            del self._incremental_state
             self._incremental_state = {}
 
             def apply_clear_incremental_state(module):
@@ -110,7 +111,9 @@ class FairseqIncrementalDecoder(FairseqDecoder):
 
     def set_beam_size(self, beam_size):
         """Sets the beam size in the decoder and all children."""
-        def apply_set_beam_size(module):
-            if module != self and hasattr(module, 'set_beam_size'):
-                module.set_beam_size(beam_size)
-        self.apply(apply_set_beam_size)
+        if getattr(self, '_beam_size', -1) != beam_size:
+            def apply_set_beam_size(module):
+                if module != self and hasattr(module, 'set_beam_size'):
+                    module.set_beam_size(beam_size)
+            self.apply(apply_set_beam_size)
+            self._beam_size = beam_size

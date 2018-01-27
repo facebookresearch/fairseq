@@ -15,9 +15,10 @@ import math
 import torch
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
-from fairseq import meters, nccl, utils
+from fairseq import nccl, utils
 from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
-from fairseq.nag import NAG
+from fairseq.optim.nag import NAG
+from fairseq.optim.adam import Adam
 
 
 class MultiprocessingTrainer(MultiprocessingEventLoop):
@@ -95,7 +96,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                 'betas': eval(self.args.adam_betas),
                 'weight_decay': self.args.weight_decay,
             }
-            return torch.optim.Adam(self.model.parameters(), **self._override_optim_state)
+            return Adam(self.model.parameters(), **self._override_optim_state)
         elif self.args.optimizer == 'nag':
             self._override_optim_state = {
                 'lr': self.args.lr[0],
@@ -116,6 +117,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     def _build_lr_scheduler(self):
         if len(self.args.lr) > 1 or self.args.force_anneal > 0:
             lrs = self.args.lr
+
             def anneal(e):
                 if e < self.args.force_anneal:
                     # use fixed LR schedule
@@ -123,6 +125,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                 else:
                     next_lr = lrs[-1] * self.args.lrshrink ** (e + 1 - self.args.force_anneal)
                 return next_lr / lrs[0]  # correct for scaling from LambdaLR
+
             lr_scheduler = LambdaLR(self.optimizer, anneal)
             lr_scheduler.best = None
         else:
@@ -225,20 +228,21 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             self.model.train()
             self.optimizer.zero_grad()
 
-        sample_size, logging_output, oom = 0, {}, False
-        if self._sample is not None:
-            try:
-                # calculate loss and sample size
-                self.loss, sample_size, logging_output = self.criterion(self.model, self._sample)
-            except RuntimeError as e:
-                if not eval and 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory on GPU #{}, skipping batch'.format(device_id))
-                    oom = True
-                    self.loss = None
-                    if hasattr(torch.cuda, 'empty_cache'):
-                        torch.cuda.empty_cache()
-                else:
-                    raise e
+        with utils.maybe_no_grad(eval):
+            sample_size, logging_output, oom = 0, {}, False
+            if self._sample is not None:
+                try:
+                    # calculate loss and sample size
+                    self.loss, sample_size, logging_output = self.criterion(self.model, self._sample)
+                except RuntimeError as e:
+                    if not eval and 'out of memory' in str(e):
+                        print('| WARNING: ran out of memory on GPU #{}, skipping batch'.format(device_id))
+                        oom = True
+                        self.loss = None
+                        if hasattr(torch.cuda, 'empty_cache'):
+                            torch.cuda.empty_cache()
+                    else:
+                        raise e
 
         return sample_size, logging_output, oom
 
@@ -262,7 +266,10 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         self._all_reduce_and_rescale_grads(grad_denom)
 
         # clip grads
-        grad_norm = torch.nn.utils.clip_grad_norm(self.model.parameters(), self.args.clip_norm)
+        if self.args.clip_norm > 0:
+            grad_norm = torch.nn.utils.clip_grad_norm(self.model.parameters(), self.args.clip_norm)
+        else:
+            grad_norm = math.sqrt(sum([p.grad.data.norm()**2 for p in self.model.parameters()]))
 
         # take an optimization step
         self.optimizer.step()
@@ -378,4 +385,4 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                     self._max_bsz_seen = sample['target'].size(0)
                     torch.cuda.empty_cache()
 
-            self._sample = utils.prepare_sample(sample, volatile=volatile, cuda_device=device_id)
+            self._sample = utils.make_variable(sample, volatile=volatile, cuda_device=device_id)

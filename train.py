@@ -30,6 +30,8 @@ def main():
     dataset_args.add_argument('--valid-subset', default='valid', metavar='SPLIT',
                               help='comma separated list of data subsets '
                                    ' to use for validation (train, valid, valid1,test, test1)')
+    dataset_args.add_argument('--max-sentences-valid', type=int, metavar='N',
+                              help='maximum number of sentences in a validation batch')
     options.add_optimization_args(parser)
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
@@ -38,6 +40,9 @@ def main():
 
     if args.no_progress_bar and args.log_format is None:
         args.log_format = 'simple'
+
+    if args.max_sentences_valid is None:
+        args.max_sentences_valid = args.max_sentences
 
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
@@ -70,14 +75,15 @@ def main():
     model = utils.build_model(args, dataset.src_dict, dataset.dst_dict)
     criterion = utils.build_criterion(args, dataset.src_dict, dataset.dst_dict)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
+    print('| num. model params: {}'.format(sum(p.data.numel() for p in model.parameters())))
 
     # The max number of positions can be different for train and valid
     # e.g., RNNs may support more positions at test time than seen in training
-    max_positions_train = (args.max_source_positions, args.max_target_positions)
-    max_positions_valid = (
+    max_positions_train = (
         min(args.max_source_positions, model.max_encoder_positions()),
         min(args.max_target_positions, model.max_decoder_positions())
     )
+    max_positions_valid = (model.max_encoder_positions(), model.max_decoder_positions())
 
     # Start multiprocessing
     trainer = MultiprocessingTrainer(args, model, criterion)
@@ -144,6 +150,7 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
         sample_without_replacement=args.sample_without_replacement,
         sort_by_source_size=(epoch <= args.curriculum))
     loss_meter = AverageMeter()
+    nll_loss_meter = AverageMeter()
     bsz_meter = AverageMeter()    # sentences per batch
     wpb_meter = AverageMeter()    # words per batch
     wps_meter = TimeMeter()       # words per second
@@ -158,7 +165,12 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
             del loss_dict['loss']  # don't include in extra_meters or extra_postfix
 
             ntokens = sum(s['ntokens'] for s in sample)
-            nsentences = sum(s['src_tokens'].size(0) for s in sample)
+
+            if 'nll_loss' in loss_dict:
+                nll_loss = loss_dict['nll_loss']
+                nll_loss_meter.update(nll_loss, ntokens)
+
+            nsentences = sum(s['net_input']['src_tokens'].size(0) for s in sample)
             loss_meter.update(loss, nsentences if args.sentence_avg else ntokens)
             bsz_meter.update(nsentences)
             wpb_meter.update(ntokens)
@@ -187,7 +199,9 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
 
         t.print(collections.OrderedDict([
             ('train loss', round(loss_meter.avg, 2)),
-            ('train ppl', get_perplexity(loss_meter.avg)),
+            ('train ppl', get_perplexity(nll_loss_meter.avg
+                                         if nll_loss_meter.count > 0
+                                         else loss_meter.avg)),
             ('s/checkpoint', round(wps_meter.elapsed_time)),
             ('words/s', round(wps_meter.avg)),
             ('words/batch', round(wpb_meter.avg)),
@@ -217,6 +231,10 @@ def save_checkpoint(trainer, args, epoch, batch_offset, val_loss):
             save_checkpoint.best = val_loss
             best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
             trainer.save_checkpoint(best_filename, extra_state)
+    elif not args.no_epoch_checkpoints:
+        epoch_filename = os.path.join(
+            args.save_dir, 'checkpoint{}_{}.pt'.format(epoch, batch_offset))
+        trainer.save_checkpoint(epoch_filename, extra_state)
 
     last_filename = os.path.join(args.save_dir, 'checkpoint_last.pt')
     trainer.save_checkpoint(last_filename, extra_state)
@@ -226,22 +244,27 @@ def validate(args, epoch, trainer, dataset, max_positions, subset):
     """Evaluate the model on the validation set and return the average loss."""
 
     itr = dataset.eval_dataloader(
-        subset, max_tokens=args.max_tokens, max_sentences=args.max_sentences,
+        subset, max_tokens=args.max_tokens, max_sentences=args.max_sentences_valid,
         max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
         descending=True,  # largest batch first to warm the caching allocator
     )
     loss_meter = AverageMeter()
+    nll_loss_meter = AverageMeter()
     extra_meters = collections.defaultdict(lambda: AverageMeter())
 
     prefix = 'valid on \'{}\' subset'.format(subset)
     with utils.build_progress_bar(args, itr, epoch, prefix) as t:
         for _, sample in data.skip_group_enumerator(t, args.num_gpus):
             loss_dict = trainer.valid_step(sample)
+            ntokens = sum(s['ntokens'] for s in sample)
             loss = loss_dict['loss']
             del loss_dict['loss']  # don't include in extra_meters or extra_postfix
 
-            ntokens = sum(s['ntokens'] for s in sample)
+            if 'nll_loss' in loss_dict:
+                nll_loss = loss_dict['nll_loss']
+                nll_loss_meter.update(nll_loss, ntokens)
+
             loss_meter.update(loss, ntokens)
 
             extra_postfix = []
@@ -255,7 +278,9 @@ def validate(args, epoch, trainer, dataset, max_positions, subset):
 
         t.print(collections.OrderedDict([
             ('valid loss', round(loss_meter.avg, 2)),
-            ('valid ppl', get_perplexity(loss_meter.avg)),
+            ('valid ppl', get_perplexity(nll_loss_meter.avg
+                                         if nll_loss_meter.count > 0
+                                         else loss_meter.avg)),
         ] + [
             (k, meter.avg)
             for k, meter in extra_meters.items()

@@ -13,24 +13,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq.data import LanguagePairDataset
-from fairseq.modules import BeamableMM, GradMultiply, LinearizedConvolution
+from fairseq.modules import BeamableMM, GradMultiply, LearnedPositionalEmbedding, LinearizedConvolution
 
 from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel
-
-
-def make_positions(tokens, padding_idx, left_pad, offset=0):
-    seqlen = tokens.size(1)
-    if not hasattr(make_positions, 'range'):
-        make_positions.range = tokens.new()
-    if make_positions.range.numel() < offset + seqlen:
-        # offset positions by the padding index
-        torch.arange(padding_idx + 1, padding_idx + 1 + offset + seqlen,
-                     out=make_positions.range)
-    mask = tokens.ne(padding_idx)
-    positions = make_positions.range[offset:offset+seqlen].expand_as(tokens)
-    if left_pad:
-        positions = positions - mask.size(1) + mask.long().sum(dim=1).unsqueeze(1)
-    return tokens.clone().masked_scatter_(mask, positions[mask])
 
 
 class FConvModel(FairseqModel):
@@ -43,15 +28,15 @@ class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
     def __init__(self, dictionary, embed_dim=512, max_positions=1024,
                  convolutions=((512, 3),) * 20, dropout=0.1):
-        super().__init__()
-        self.dictionary = dictionary
+        super().__init__(dictionary)
         self.dropout = dropout
         self.num_attention_layers = None
 
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = Embedding(max_positions, embed_dim, padding_idx)
+        self.embed_positions = PositionalEmbedding(max_positions, embed_dim, padding_idx,
+                                                   left_pad=LanguagePairDataset.LEFT_PAD_SOURCE)
 
         in_channels = convolutions[0][0]
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
@@ -68,11 +53,8 @@ class FConvEncoder(FairseqEncoder):
         self.fc2 = Linear(in_channels, embed_dim)
 
     def forward(self, src_tokens):
-        positions = Variable(make_positions(src_tokens.data, self.dictionary.pad(),
-                                            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE))
-
         # embed tokens and positions
-        x = self.embed_tokens(src_tokens) + self.embed_positions(positions)
+        x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
         x = F.dropout(x, p=self.dropout, training=self.training)
         input_embedding = x
 
@@ -87,7 +69,7 @@ class FConvEncoder(FairseqEncoder):
             residual = x if proj is None else proj(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x)
-            x = F.glu(x, dim=-1)
+            x = F.glu(x, dim=2)
             x = (x + residual) * math.sqrt(0.5)
 
         # T x B x C -> B x T x C
@@ -106,7 +88,7 @@ class FConvEncoder(FairseqEncoder):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        return self.embed_positions.num_embeddings - self.dictionary.pad() - 1
+        return self.embed_positions.max_positions()
 
 
 class AttentionLayer(nn.Module):
@@ -128,7 +110,7 @@ class AttentionLayer(nn.Module):
 
         # softmax over last dim
         sz = x.size()
-        x = F.softmax(x.view(sz[0] * sz[1], sz[2]))
+        x = F.softmax(x.view(sz[0] * sz[1], sz[2]), dim=1)
         x = x.view(sz)
         attn_scores = x
 
@@ -145,28 +127,32 @@ class AttentionLayer(nn.Module):
     def make_generation_fast_(self, beamable_mm_beam_size=None, **kwargs):
         """Replace torch.bmm with BeamableMM."""
         if beamable_mm_beam_size is not None:
-            self.bmm = BeamableMM(beamable_mm_beam_size)
+            del self.bmm
+            self.add_module('bmm', BeamableMM(beamable_mm_beam_size))
 
 
 class FConvDecoder(FairseqIncrementalDecoder):
     """Convolutional decoder"""
     def __init__(self, dictionary, embed_dim=512, out_embed_dim=256,
                  max_positions=1024, convolutions=((512, 3),) * 20,
-                 attention=True, dropout=0.1):
-        super().__init__()
+                 attention=True, dropout=0.1, share_embed=False):
+        super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
-        self.dictionary = dictionary
         self.dropout = dropout
 
         in_channels = convolutions[0][0]
         if isinstance(attention, bool):
             # expand True into [True, True, ...] and do the same with False
             attention = [attention] * len(convolutions)
+        if not isinstance(attention, list) or len(attention) != len(convolutions):
+            raise ValueError('Attention is expected to be a list of booleans of '
+                             'length equal to the number of layers.')
 
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = Embedding(max_positions, embed_dim, padding_idx)
+        self.embed_positions = PositionalEmbedding(max_positions, embed_dim, padding_idx,
+                                                   left_pad=LanguagePairDataset.LEFT_PAD_TARGET)
 
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
         self.projections = nn.ModuleList()
@@ -183,35 +169,28 @@ class FConvDecoder(FairseqIncrementalDecoder):
                                   if attention[i] else None)
             in_channels = out_channels
         self.fc2 = Linear(in_channels, out_embed_dim)
-        self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
+        if share_embed:
+            assert out_embed_dim == embed_dim, \
+                "Shared embed weights implies same dimensions " \
+                " out_embed_dim={} vs embed_dim={}".format(out_embed_dim, embed_dim)
+            self.fc3 = nn.Linear(out_embed_dim, num_embeddings)
+            self.fc3.weight = self.embed_tokens.weight
+        else:
+            self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
     def forward(self, input_tokens, encoder_out):
-        if self._is_incremental_eval:
-            return self.incremental_forward(input_tokens, encoder_out)
-        else:
-            return self.batch_forward(input_tokens, encoder_out)
-
-    def batch_forward(self, input_tokens, encoder_out):
-        """Forward pass for decoding multiple time steps in batch mode."""
-        positions = Variable(make_positions(input_tokens.data, self.dictionary.pad(),
-                                            left_pad=LanguagePairDataset.LEFT_PAD_TARGET))
-        return self._forward(input_tokens, positions, encoder_out)
-
-    def incremental_forward(self, input_tokens, encoder_out):
-        """Forward pass for one time step."""
-        # positions is the same for every token when decoding a single step
-        positions = Variable(input_tokens.data.new(1, 1).fill_(
-            self.dictionary.pad() + input_tokens.size(1)))
-
-        # keep only the last token for incremental forward pass
-        return self._forward(input_tokens[:, -1:], positions, encoder_out)
-
-    def _forward(self, input_tokens, positions, encoder_out):
         # split and transpose encoder outputs
         encoder_a, encoder_b = self._split_encoder_out(encoder_out)
 
+        # embed positions
+        positions = self.embed_positions(input_tokens)
+
+        if self._is_incremental_eval:
+            # keep only the last token for incremental forward pass
+            input_tokens = input_tokens[:, -1:]
+
         # embed tokens and positions
-        x = self.embed_tokens(input_tokens) + self.embed_positions(positions)
+        x = self.embed_tokens(input_tokens) + positions
         x = F.dropout(x, p=self.dropout, training=self.training)
         target_embedding = x
 
@@ -230,7 +209,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x)
             x = conv.remove_future_timesteps(x)
-            x = F.glu(x)
+            x = F.glu(x, dim=2)
 
             # attention
             if attention is not None:
@@ -264,7 +243,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
-        return self.embed_positions.num_embeddings - self.dictionary.pad() - 1
+        return self.embed_positions.max_positions()
 
     def upgrade_state_dict(self, state_dict):
         if state_dict.get('decoder.version', torch.Tensor([1]))[0] < 2:
@@ -300,6 +279,12 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
+    m.weight.data.normal_(0, 0.1)
+    return m
+
+
+def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad):
+    m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
     m.weight.data.normal_(0, 0.1)
     return m
 
@@ -394,6 +379,7 @@ def parse_arch(args):
     args.decoder_layers = getattr(args, 'decoder_layers', '[(512, 3)] * 20')
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
     args.decoder_attention = getattr(args, 'decoder_attention', 'True')
+    args.share_input_output_embed = getattr(args, 'share_input_output_embed', False)
     return args
 
 
@@ -413,5 +399,6 @@ def build_model(args, src_dict, dst_dict):
         attention=eval(args.decoder_attention),
         dropout=args.dropout,
         max_positions=args.max_target_positions,
+        share_embed=args.share_input_output_embed
     )
     return FConvModel(encoder, decoder)

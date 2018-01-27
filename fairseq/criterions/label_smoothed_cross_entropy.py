@@ -11,13 +11,15 @@ import torch
 from torch.autograd.variable import Variable
 import torch.nn.functional as F
 
+from fairseq import utils
+
 from .fairseq_criterion import FairseqCriterion
 
 
 class LabelSmoothedNLLLoss(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, input, target, eps, padding_idx, weights):
+    def forward(ctx, input, target, eps, padding_idx, weights, reduce=True):
         grad_input = input.new(input.size()).zero_()
         target = target.view(target.size(0), 1)
         grad_input = grad_input.scatter_(grad_input.dim() - 1, target, eps - 1)
@@ -34,11 +36,14 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
         grad_input = grad_input.add(-eps / norm)
 
         ctx.grad_input = grad_input
-        return input.new([grad_input.view(-1).dot(input.view(-1))])
+        if reduce:
+            return input.new([grad_input.view(-1).dot(input.view(-1))])
+        else:
+            return grad_input * input
 
     @staticmethod
     def backward(ctx, grad):
-        return Variable(ctx.grad_input, volatile=True) * grad, None, None, None, None
+        return utils.volatile_variable(ctx.grad_input) * grad, None, None, None, None, None
 
 
 class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
@@ -48,7 +53,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.eps = args.label_smoothing
         self.weights = weights
 
-    def forward(self, model, sample):
+    def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
@@ -57,12 +62,15 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(**sample['net_input'])
-        input = F.log_softmax(net_output.view(-1, net_output.size(-1)))
+        lprobs = model.get_normalized_probs(net_output, log_probs=True)
         target = sample['target'].view(-1)
-        loss = LabelSmoothedNLLLoss.apply(input, target, self.eps, self.padding_idx, self.weights)
+        loss = LabelSmoothedNLLLoss.apply(lprobs, target, self.eps, self.padding_idx, self.weights, reduce)
+        nll_loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
-            'loss': loss.data[0],
+            'loss': loss.data[0] if reduce else loss.data,
+            'nll_loss': nll_loss.data[0] if reduce else loss.data,
+            'ntokens': sample['ntokens'],
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
@@ -70,7 +78,9 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
+        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         return {
             'loss': sum(log.get('loss', 0) for log in logging_outputs) / sample_size / math.log(2),
+            'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
         }

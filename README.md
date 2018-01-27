@@ -24,8 +24,8 @@ If you use the code in your paper, then please cite it as:
 * Python version 3.6
 * A [PyTorch installation](http://pytorch.org/)
 
-Currently fairseq-py requires installing PyTorch from source.
-Please follow the instructions here: https://github.com/pytorch/pytorch#from-source.
+Currently fairseq-py requires PyTorch version >= 0.3.0.
+Please follow the instructions here: https://github.com/pytorch/pytorch#installation.
 
 If you use Docker make sure to increase the shared memory size either with `--ipc=host` or `--shm-size` as command line
 options to `nvidia-docker run`.

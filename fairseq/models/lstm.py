@@ -23,8 +23,7 @@ class LSTMEncoder(FairseqEncoder):
     """LSTM encoder."""
     def __init__(self, dictionary, embed_dim=512, num_layers=1, dropout_in=0.1,
                  dropout_out=0.1):
-        super().__init__()
-        self.dictionary = dictionary
+        super().__init__(dictionary)
         self.dropout_in = dropout_in
         self.dropout_out = dropout_out
 
@@ -94,7 +93,7 @@ class AttentionLayer(nn.Module):
 
         # compute attention
         attn_scores = (source_hids * x.unsqueeze(0)).sum(dim=2)
-        attn_scores = F.softmax(attn_scores.t()).t()  # srclen x bsz
+        attn_scores = F.softmax(attn_scores.t(), dim=1).t()  # srclen x bsz
 
         # sum weighted sources
         x = (attn_scores.unsqueeze(2) * source_hids).sum(dim=0)
@@ -108,8 +107,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
     def __init__(self, dictionary, encoder_embed_dim=512, embed_dim=512,
                  out_embed_dim=512, num_layers=1, dropout_in=0.1,
                  dropout_out=0.1, attention=True):
-        super().__init__()
-        self.dictionary = dictionary
+        super().__init__(dictionary)
         self.dropout_in = dropout_in
         self.dropout_out = dropout_out
 

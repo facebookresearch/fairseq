@@ -19,7 +19,7 @@ from fairseq.models import FairseqIncrementalDecoder
 class SequenceGenerator(object):
     def __init__(self, models, beam_size=1, minlen=1, maxlen=200,
                  stop_early=True, normalize_scores=True, len_penalty=1,
-                 unk_penalty=0):
+                 unk_penalty=0, retain_dropout=False):
         """Generates translations of a given source sentence.
 
         Args:
@@ -45,6 +45,7 @@ class SequenceGenerator(object):
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
+        self.retain_dropout = retain_dropout
 
     def cuda(self):
         for model in self.models:
@@ -65,19 +66,20 @@ class SequenceGenerator(object):
             maxlen_b = self.maxlen
 
         for sample in data_itr:
-            s = utils.prepare_sample(sample, volatile=True, cuda_device=cuda_device)
+            s = utils.make_variable(sample, volatile=True, cuda_device=cuda_device)
             input = s['net_input']
             srclen = input['src_tokens'].size(1)
             if timer is not None:
                 timer.start()
-            hypos = self.generate(input['src_tokens'], beam_size=beam_size,
-                                  maxlen=int(maxlen_a*srclen + maxlen_b))
+            with utils.maybe_no_grad():
+                hypos = self.generate(input['src_tokens'], beam_size=beam_size,
+                                      maxlen=int(maxlen_a*srclen + maxlen_b))
             if timer is not None:
                 timer.stop(s['ntokens'])
-            for i, id in enumerate(s['id']):
+            for i, id in enumerate(s['id'].data):
                 src = input['src_tokens'].data[i, :]
                 # remove padding from ref
-                ref = utils.rstrip_pad(s['target'].data[i, :], self.pad)
+                ref = utils.strip_pad(s['target'].data[i, :], self.pad)
                 yield id, src, ref, hypos[i]
 
     def generate(self, src_tokens, beam_size=None, maxlen=None):
@@ -98,7 +100,8 @@ class SequenceGenerator(object):
 
         encoder_outs = []
         for model in self.models:
-            model.eval()
+            if not self.retain_dropout:
+                model.eval()
             if isinstance(model.decoder, FairseqIncrementalDecoder):
                 model.decoder.set_beam_size(beam_size)
 
@@ -269,7 +272,7 @@ class SequenceGenerator(object):
             # and values < cand_size indicate candidate active hypos.
             # After, the min values per row are the top candidate active hypos
             active_mask = buffer('active_mask')
-            torch.add((eos_mask*cand_size).type_as(cand_offsets), cand_offsets[:eos_mask.size(1)],
+            torch.add(eos_mask.type_as(cand_offsets)*cand_size, cand_offsets[:eos_mask.size(1)],
                       out=active_mask)
 
             # get the top beam_size active hypotheses, which are just the hypos
@@ -320,22 +323,27 @@ class SequenceGenerator(object):
 
     def _decode(self, tokens, encoder_outs):
         # wrap in Variable
-        tokens = Variable(tokens, volatile=True)
+        tokens = utils.volatile_variable(tokens)
 
         avg_probs = None
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
-            decoder_out, attn = model.decoder(tokens, encoder_out)
-            probs = F.softmax(decoder_out[:, -1, :]).data
-            attn = attn[:, -1, :].data
-            if avg_probs is None or avg_attn is None:
+            with utils.maybe_no_grad():
+                decoder_out, attn = model.decoder(tokens, encoder_out)
+            probs = model.get_normalized_probs(decoder_out[:, -1, :], log_probs=False).data
+            if avg_probs is None:
                 avg_probs = probs
-                avg_attn = attn
             else:
                 avg_probs.add_(probs)
-                avg_attn.add_(attn)
+            if attn is not None:
+                attn = attn[:, -1, :].data
+                if avg_attn is None:
+                    avg_attn = attn
+                else:
+                    avg_attn.add_(attn)
         avg_probs.div_(len(self.models))
         avg_probs.log_()
-        avg_attn.div_(len(self.models))
+        if avg_attn is not None:
+            avg_attn.div_(len(self.models))
 
         return avg_probs, avg_attn

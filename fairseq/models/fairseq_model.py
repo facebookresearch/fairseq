@@ -35,6 +35,10 @@ class FairseqModel(nn.Module):
         decoder_out, _ = self.decoder(input_tokens, encoder_out)
         return decoder_out.view(-1, decoder_out.size(-1))
 
+    def get_normalized_probs(self, net_output, log_probs):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        return self.decoder.get_normalized_probs(net_output, log_probs)
+
     def max_encoder_positions(self):
         """Maximum input length supported by the encoder."""
         return self.encoder.max_positions()
@@ -62,6 +66,11 @@ class FairseqModel(nn.Module):
                 return
         self.apply(apply_remove_weight_norm)
 
+        def apply_make_generation_fast_(module):
+            if module != self and hasattr(module, 'make_generation_fast_'):
+                module.make_generation_fast_(**kwargs)
+        self.apply(apply_make_generation_fast_)
+
         def train(mode):
             if mode:
                 raise RuntimeError('cannot train after make_generation_fast')
@@ -69,8 +78,3 @@ class FairseqModel(nn.Module):
         # this model should no longer be used for training
         self.eval()
         self.train = train
-
-        def apply_make_generation_fast_(module):
-            if module != self and hasattr(module, 'make_generation_fast_'):
-                module.make_generation_fast_(**kwargs)
-        self.apply(apply_make_generation_fast_)

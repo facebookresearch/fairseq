@@ -175,6 +175,23 @@ def skip_group_enumerator(it, ngpus, offset=0):
         yield (idx, res)
 
 
+class sharded_iterator(object):
+
+    def __init__(self, itr, num_shards, shard_id):
+        assert shard_id >= 0 and shard_id < num_shards
+        self.itr = itr
+        self.num_shards = num_shards
+        self.shard_id = shard_id
+
+    def __len__(self):
+        return len(self.itr)
+
+    def __iter__(self):
+        for i, v in enumerate(self.itr):
+            if i % self.num_shards == self.shard_id:
+                yield v
+
+
 class LanguagePairDataset(object):
 
     # padding constants
@@ -212,13 +229,15 @@ class LanguagePairDataset(object):
 
         return {
             'id': torch.LongTensor([s['id'].item() for s in samples]),
-            'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
-            # we create a shifted version of targets for feeding the previous
-            # output token(s) into the next decoder step
-            'input_tokens': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
-                                  move_eos_to_beginning=True),
-            'target': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET),
             'ntokens': sum(len(s['target']) for s in samples),
+            'net_input': {
+                'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
+                # we create a shifted version of targets for feeding the
+                # previous output token(s) into the next decoder step
+                'input_tokens': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+                                      move_eos_to_beginning=True),
+            },
+            'target': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET),
         }
 
     @staticmethod
@@ -278,9 +297,10 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
             if ignore_invalid_inputs:
                 ignored.append(idx)
                 continue
-            raise Exception(
-                "Unable to handle input id {} of size {} / {}.".format(
-                    idx, src.sizes[idx], dst.sizes[idx]))
+            raise Exception((
+                "Sample #{} has size (src={}, dst={}) but max size is {}."
+                " Skip this example with --skip-invalid-size-inputs-valid-test"
+            ).format(idx, src.sizes[idx], dst.sizes[idx], max_positions))
 
         sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
         num_tokens = (len(batch) + 1) * sample_len
