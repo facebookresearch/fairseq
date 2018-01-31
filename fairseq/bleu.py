@@ -102,5 +102,5 @@ class Scorer(object):
         fmt += ' (BP={:.3f}, ratio={:.3f}, syslen={}, reflen={})'
         bleup = [p * 100 for p in self.precision()[:order]]
         return fmt.format(order, self.score(order=order), *bleup,
-                          self.brevity(), self.stat.reflen/self.stat.predlen,
+                          self.brevity(), self.stat.predlen/self.stat.reflen,
                           self.stat.predlen, self.stat.reflen)
