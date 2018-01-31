@@ -98,11 +98,12 @@ def main():
         for k, subset in enumerate(args.valid_subset.split(',')):
             val_loss = validate(args, epoch, trainer, dataset, max_positions_valid, subset)
             if k == 0:
+                # only use first validation loss to update the learning schedule
+                lr = trainer.lr_step(epoch, val_loss)
+
                 if not args.no_save:
                     # save checkpoint
                     save_checkpoint(trainer, args, epoch, 0, val_loss)
-                # only use first validation loss to update the learning schedule
-                lr = trainer.lr_step(epoch, val_loss)
 
         epoch += 1
         batch_offset = 0
