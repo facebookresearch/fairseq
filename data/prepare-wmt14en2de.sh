@@ -19,11 +19,13 @@ URLS=(
     "http://statmt.org/wmt13/training-parallel-europarl-v7.tgz"
     "http://statmt.org/wmt13/training-parallel-commoncrawl.tgz"
     "http://data.statmt.org/wmt17/translation-task/training-parallel-nc-v12.tgz"
+    "http://statmt.org/wmt14/test-full.tgz"
 )
 FILES=(
     "training-parallel-europarl-v7.tgz"
     "training-parallel-commoncrawl.tgz"
     "training-parallel-nc-v12.tgz"
+    "test-full.tgz"
 )
 CORPORA=(
     "training/europarl-v7.de-en"
@@ -31,6 +33,13 @@ CORPORA=(
     "training/news-commentary-v12.de-en"
 )
 
+# This will make the dataset compatible to the one used in "Convolutional Sequence to Sequence Learning"
+# https://arxiv.org/abs/1705.03122
+if [ "$1" == "--icml17" ]; then
+    URLS[2]="http://statmt.org/wmt14/training-parallel-nc-v9.tgz"
+    FILES[2]="training-parallel-nc-v9.tgz"
+    CORPORA[2]="training/news-commentary-v9.de-en"
+fi
 
 if [ ! -d "$SCRIPTS" ]; then
     echo "Please set SCRIPTS variable correctly to point to Moses scripts."
