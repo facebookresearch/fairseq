@@ -221,30 +221,26 @@ class LanguagePairDataset(object):
 
     @staticmethod
     def collate(samples, pad_idx, eos_idx):
+
+        def merge(key, left_pad, move_eos_to_beginning=False):
+            return LanguagePairDataset.collate_tokens(
+                [s[key] for s in samples],
+                pad_idx, eos_idx, left_pad, move_eos_to_beginning,
+            )
+
         id = torch.LongTensor([s['id'] for s in samples])
-        src_tokens = LanguagePairDataset.collate_tokens(
-            [s['source'] for s in samples],
-            pad_idx, eos_idx,
-            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE,
-        )
-        target = LanguagePairDataset.collate_tokens(
-            [s['target'] for s in samples],
-            pad_idx, eos_idx,
-            left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
-        )
+        src_tokens = merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE)
+        target = merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET)
         # we create a shifted version of targets for feeding the
         # previous output token(s) into the next decoder step
-        prev_output_tokens = LanguagePairDataset.collate_tokens(
-            [s['target'] for s in samples],
-            pad_idx, eos_idx,
+        prev_output_tokens = merge(
+            'target',
             left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
             move_eos_to_beginning=True,
         )
 
         # sort by descending source length
-        src_lengths = samples[0]['source'].new(
-            [s['source'].numel() for s in samples]
-        )
+        src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
         src_lengths, sort_order = src_lengths.sort(descending=True)
         id = id.index_select(0, sort_order)
         src_tokens = src_tokens.index_select(0, sort_order)
@@ -263,13 +259,7 @@ class LanguagePairDataset(object):
         }
 
     @staticmethod
-    def collate_tokens(
-        values,
-        pad_idx,
-        eos_idx,
-        left_pad,
-        move_eos_to_beginning=False,
-    ):
+    def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=False):
         size = max(v.size(0) for v in values)
         res = values[0].new(len(values), size).fill_(pad_idx)
 
