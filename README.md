@@ -49,7 +49,7 @@ The following command-line tools are available:
 ## Evaluating Pre-trained Models
 First, download a pre-trained model along with its vocabularies:
 ```
-$ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.fconv-py.tar.bz2 | tar xvjf -
+$ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2 | tar xvjf -
 ```
 
 This model uses a [Byte Pair Encoding (BPE) vocabulary](https://arxiv.org/abs/1508.07909), so we'll have to apply the encoding to the source text before it can be translated.
@@ -135,30 +135,30 @@ BPE continuation markers can be removed with the `--remove-bpe` flag.
 
 We provide the following pre-trained fully convolutional sequence-to-sequence models:
 
-* [wmt14.en-fr.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
-* [wmt14.en-de.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.en-de.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
+* [wmt14.en-fr.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
+* [wmt14.en-de.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-de.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
 
 In addition, we provide pre-processed and binarized test sets for the models above:
-* [wmt14.en-fr.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-French
-* [wmt14.en-fr.ntst1213.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.ntst1213.tar.bz2): newstest2012 and newstest2013 test sets for WMT14 English-French
-* [wmt14.en-de.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-de.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-German
+* [wmt14.en-fr.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-French
+* [wmt14.en-fr.ntst1213.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.ntst1213.tar.bz2): newstest2012 and newstest2013 test sets for WMT14 English-French
+* [wmt14.en-de.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-de.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-German
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for English-French on a GTX-1080ti:
 ```
-$ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
-$ curl https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.newstest2014.tar.bz2 | tar xvjf - -C data-bin
+$ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
+$ curl https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.newstest2014.tar.bz2 | tar xvjf - -C data-bin
 $ python generate.py data-bin/wmt14.en-fr.newstest2014  \
   --path data-bin/wmt14.en-fr.fconv-py/model.pt \
   --beam 5 --batch-size 128 --remove-bpe | tee /tmp/gen.out
 ...
-| Translated 3003 sentences (95451 tokens) in 93.8s (1018.09 tokens/s)
-| Generate test with beam=5: BLEU4 = 40.67, 67.7/46.7/34.2/25.3 (BP=1.000, ratio=0.998, syslen=81377, reflen=81194)
+| Translated 3003 sentences (96311 tokens) in 166.0s (580.04 tokens/s)
+| Generate test with beam=5: BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 
 # Scoring with score.py:
 $ grep ^H /tmp/gen.out | cut -f3- > /tmp/gen.out.sys
 $ grep ^T /tmp/gen.out | cut -f2- > /tmp/gen.out.ref
 $ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
-BLEU4 = 40.67, 67.7/46.7/34.2/25.3 (BP=1.000, ratio=0.998, syslen=81377, reflen=81194)
+BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 ```
 
 # Join the fairseq community
