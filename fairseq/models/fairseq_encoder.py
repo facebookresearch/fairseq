@@ -16,6 +16,9 @@ class FairseqEncoder(nn.Module):
         super().__init__()
         self.dictionary = dictionary
 
+    def forward(self, src_tokens, src_lengths):
+        raise NotImplementedError
+
     def max_positions(self):
         """Maximum input length supported by the encoder."""
         raise NotImplementedError

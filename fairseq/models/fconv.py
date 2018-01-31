@@ -79,8 +79,12 @@ class FConvEncoder(FairseqEncoder):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = PositionalEmbedding(max_positions, embed_dim, padding_idx,
-                                                   left_pad=LanguagePairDataset.LEFT_PAD_SOURCE)
+        self.embed_positions = PositionalEmbedding(
+            max_positions,
+            embed_dim,
+            padding_idx,
+            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE,
+        )
 
         in_channels = convolutions[0][0]
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
@@ -96,7 +100,7 @@ class FConvEncoder(FairseqEncoder):
             in_channels = out_channels
         self.fc2 = Linear(in_channels, embed_dim)
 
-    def forward(self, src_tokens):
+    def forward(self, src_tokens, src_lengths):
         # embed tokens and positions
         x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -195,8 +199,12 @@ class FConvDecoder(FairseqIncrementalDecoder):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = PositionalEmbedding(max_positions, embed_dim, padding_idx,
-                                                   left_pad=LanguagePairDataset.LEFT_PAD_TARGET)
+        self.embed_positions = PositionalEmbedding(
+            max_positions,
+            embed_dim,
+            padding_idx,
+            left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+        )
 
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
         self.projections = nn.ModuleList()
@@ -222,19 +230,19 @@ class FConvDecoder(FairseqIncrementalDecoder):
         else:
             self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-    def forward(self, input_tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out):
         # split and transpose encoder outputs
         encoder_a, encoder_b = self._split_encoder_out(encoder_out)
 
         # embed positions
-        positions = self.embed_positions(input_tokens)
+        positions = self.embed_positions(prev_output_tokens)
 
         if self._is_incremental_eval:
             # keep only the last token for incremental forward pass
-            input_tokens = input_tokens[:, -1:]
+            prev_output_tokens = prev_output_tokens[:, -1:]
 
         # embed tokens and positions
-        x = self.embed_tokens(input_tokens) + positions
+        x = self.embed_tokens(prev_output_tokens) + positions
         x = F.dropout(x, p=self.dropout, training=self.training)
         target_embedding = x
 

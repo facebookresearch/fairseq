@@ -17,7 +17,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         self._is_incremental_eval = False
         self._incremental_state = {}
 
-    def forward(self, tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out):
         if self._is_incremental_eval:
             raise NotImplementedError
         else:

@@ -17,6 +17,9 @@ class FairseqDecoder(nn.Module):
         super().__init__()
         self.dictionary = dictionary
 
+    def forward(self, prev_output_tokens, encoder_out):
+        raise NotImplementedError
+
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""
         vocab = net_output.size(-1)
