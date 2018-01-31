@@ -11,6 +11,9 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
+from fairseq import utils
+from fairseq.data import LanguagePairDataset
+
 from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model, register_model_architecture
 
 
@@ -75,21 +78,33 @@ class LSTMEncoder(FairseqEncoder):
     def __init__(self, dictionary, embed_dim=512, num_layers=1, dropout_in=0.1,
                  dropout_out=0.1):
         super().__init__(dictionary)
+        self.num_layers = num_layers
         self.dropout_in = dropout_in
         self.dropout_out = dropout_out
 
         num_embeddings = len(dictionary)
-        padding_idx = dictionary.pad()
-        self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
+        self.padding_idx = dictionary.pad()
+        self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
 
-        self.layers = nn.ModuleList([
-            LSTMCell(embed_dim, embed_dim)
-            for layer in range(num_layers)
-        ])
+        self.lstm = LSTM(
+            input_size=embed_dim,
+            hidden_size=embed_dim,
+            num_layers=num_layers,
+            dropout=self.dropout_out,
+            bidirectional=False,
+        )
 
-    def forward(self, src_tokens):
+    def forward(self, src_tokens, src_lengths):
+        if LanguagePairDataset.LEFT_PAD_SOURCE:
+            # convert left-padding to right-padding
+            src_tokens.data = utils.convert_padding_direction(
+                src_tokens.data,
+                src_lengths.data,
+                self.padding_idx,
+                left_to_right=True,
+            )
+
         bsz, seqlen = src_tokens.size()
-        num_layers = len(self.layers)
 
         # embed tokens
         x = self.embed_tokens(src_tokens)
@@ -99,27 +114,21 @@ class LSTMEncoder(FairseqEncoder):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        final_hiddens, final_cells = [], []
-        outs = [x[j] for j in range(seqlen)]
-        for i, rnn in enumerate(self.layers):
-            hidden = Variable(x.data.new(bsz, embed_dim).zero_())
-            cell = Variable(x.data.new(bsz, embed_dim).zero_())
-            for j in range(seqlen):
-                # recurrent cell
-                hidden, cell = rnn(outs[j], (hidden, cell))
+        # pack embedded source tokens into a PackedSequence
+        packed_x = nn.utils.rnn.pack_padded_sequence(x, src_lengths.tolist())
 
-                # store the most recent hidden state in outs, either to be used
-                # as the input for the next layer, or as the final output
-                outs[j] = F.dropout(hidden, p=self.dropout_out, training=self.training)
+        # apply LSTM
+        h0 = Variable(x.data.new(self.num_layers, bsz, embed_dim).zero_())
+        c0 = Variable(x.data.new(self.num_layers, bsz, embed_dim).zero_())
+        packed_outs, (final_hiddens, final_cells) = self.lstm(
+            packed_x,
+            (h0, c0),
+        )
 
-            # save the final hidden and cell states for every layer
-            final_hiddens.append(hidden)
-            final_cells.append(cell)
-
-        # collect outputs across time steps
-        x = torch.cat(outs, dim=0).view(seqlen, bsz, embed_dim)
-        final_hiddens = torch.cat(final_hiddens, dim=0).view(num_layers, bsz, embed_dim)
-        final_cells = torch.cat(final_cells, dim=0).view(num_layers, bsz, embed_dim)
+        # unpack outputs and apply dropout
+        x, _ = nn.utils.rnn.pad_packed_sequence(packed_outs, padding_value=0.)
+        x = F.dropout(x, p=self.dropout_out, training=self.training)
+        assert list(x.size()) == [seqlen, bsz, embed_dim]
 
         return x, final_hiddens, final_cells
 
@@ -175,20 +184,20 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             self.additional_fc = Linear(embed_dim, out_embed_dim)
         self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, input_tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out):
         if self._is_incremental_eval:
-            input_tokens = input_tokens[:, -1:]
-        return self._forward(input_tokens, encoder_out)
+            prev_output_tokens = prev_output_tokens[:, -1:]
+        return self._forward(prev_output_tokens, encoder_out)
 
-    def _forward(self, input_tokens, encoder_out):
-        bsz, seqlen = input_tokens.size()
+    def _forward(self, prev_output_tokens, encoder_out):
+        bsz, seqlen = prev_output_tokens.size()
 
         # get outputs from encoder
         encoder_outs, _, _ = encoder_out
         srclen = encoder_outs.size(0)
 
         # embed tokens
-        x = self.embed_tokens(input_tokens)
+        x = self.embed_tokens(prev_output_tokens)
         x = F.dropout(x, p=self.dropout_in, training=self.training)
         embed_dim = x.size(2)
 
@@ -199,7 +208,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         prev_hiddens = self.get_incremental_state('prev_hiddens')
         if not prev_hiddens:
             # first time step, initialize previous states
-            prev_hiddens, prev_cells = self._init_prev_states(input_tokens, encoder_out)
+            prev_hiddens, prev_cells = self._init_prev_states(encoder_out)
             input_feed = Variable(x.data.new(bsz, embed_dim).zero_())
         else:
             # previous states are cached
@@ -276,7 +285,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         """Maximum output length supported by the decoder."""
         return int(1e5)  # an arbitrary large number
 
-    def _init_prev_states(self, input_tokens, encoder_out):
+    def _init_prev_states(self, encoder_out):
         _, encoder_hiddens, encoder_cells = encoder_out
         num_layers = len(self.layers)
         prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
@@ -290,8 +299,16 @@ def Embedding(num_embeddings, embedding_dim, padding_idx):
     return m
 
 
-def LSTMCell(input_dim, hidden_dim, **kwargs):
-    m = nn.LSTMCell(input_dim, hidden_dim, **kwargs)
+def LSTM(input_size, hidden_size, **kwargs):
+    m = nn.LSTM(input_size, hidden_size, **kwargs)
+    for name, param in m.named_parameters():
+        if 'weight' in name or 'bias' in name:
+            param.data.uniform_(-0.1, 0.1)
+    return m
+
+
+def LSTMCell(input_size, hidden_size, **kwargs):
+    m = nn.LSTMCell(input_size, hidden_size, **kwargs)
     for name, param in m.named_parameters():
         if 'weight' in name or 'bias' in name:
             param.data.uniform_(-0.1, 0.1)

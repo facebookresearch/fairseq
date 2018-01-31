@@ -50,8 +50,15 @@ class SequenceGenerator(object):
             model.cuda()
         return self
 
-    def generate_batched_itr(self, data_itr, beam_size=None, maxlen_a=0.0, maxlen_b=None,
-                             cuda_device=None, timer=None):
+    def generate_batched_itr(
+        self,
+        data_itr,
+        beam_size=None,
+        maxlen_a=0.0,
+        maxlen_b=None,
+        cuda_device=None,
+        timer=None,
+    ):
         """Iterate over a batched dataset and yield individual translations.
 
         Args:
@@ -70,8 +77,12 @@ class SequenceGenerator(object):
             if timer is not None:
                 timer.start()
             with utils.maybe_no_grad():
-                hypos = self.generate(input['src_tokens'], beam_size=beam_size,
-                                      maxlen=int(maxlen_a*srclen + maxlen_b))
+                hypos = self.generate(
+                    input['src_tokens'],
+                    input['src_lengths'],
+                    beam_size=beam_size,
+                    maxlen=int(maxlen_a*srclen + maxlen_b),
+                )
             if timer is not None:
                 timer.stop(s['ntokens'])
             for i, id in enumerate(s['id'].data):
@@ -80,15 +91,15 @@ class SequenceGenerator(object):
                 ref = utils.strip_pad(s['target'].data[i, :], self.pad)
                 yield id, src, ref, hypos[i]
 
-    def generate(self, src_tokens, beam_size=None, maxlen=None):
+    def generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None):
         """Generate a batch of translations."""
         with ExitStack() as stack:
             for model in self.models:
                 if isinstance(model.decoder, FairseqIncrementalDecoder):
                     stack.enter_context(model.decoder.incremental_inference())
-            return self._generate(src_tokens, beam_size, maxlen)
+            return self._generate(src_tokens, src_lengths, beam_size, maxlen)
 
-    def _generate(self, src_tokens, beam_size=None, maxlen=None):
+    def _generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None):
         bsz, srclen = src_tokens.size()
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
 
@@ -104,7 +115,10 @@ class SequenceGenerator(object):
                 model.decoder.set_beam_size(beam_size)
 
             # compute the encoder output for each beam
-            encoder_out = model.encoder(src_tokens.repeat(1, beam_size).view(-1, srclen))
+            encoder_out = model.encoder(
+                src_tokens.repeat(1, beam_size).view(-1, srclen),
+                src_lengths.repeat(beam_size),
+            )
             encoder_outs.append(encoder_out)
 
         # initialize buffers

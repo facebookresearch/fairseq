@@ -40,9 +40,9 @@ class FairseqModel(nn.Module):
         """Build a new model instance."""
         raise NotImplementedError
 
-    def forward(self, src_tokens, input_tokens):
-        encoder_out = self.encoder(src_tokens)
-        decoder_out, _ = self.decoder(input_tokens, encoder_out)
+    def forward(self, src_tokens, src_lengths, prev_output_tokens):
+        encoder_out = self.encoder(src_tokens, src_lengths)
+        decoder_out, _ = self.decoder(prev_output_tokens, encoder_out)
         return decoder_out.view(-1, decoder_out.size(-1))
 
     def get_normalized_probs(self, net_output, log_probs):

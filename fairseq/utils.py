@@ -237,20 +237,37 @@ def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dic
     return hypo_tokens, hypo_str, alignment
 
 
-def lstrip_pad(tensor, pad):
-    return tensor[tensor.eq(pad).long().sum():]
-
-
-def rstrip_pad(tensor, pad):
-    strip = tensor.eq(pad).long().sum()
-    if strip > 0:
-        return tensor[:-strip]
-    return tensor
-
-
 def strip_pad(tensor, pad):
-    if tensor[0] == pad:
-        tensor = lstrip_pad(tensor, pad)
-    if tensor[-1] == pad:
-        tensor = rstrip_pad(tensor, pad)
-    return tensor
+    return tensor[tensor.ne(pad)]
+
+
+def buffered_arange(max):
+    if not hasattr(buffered_arange, 'buf'):
+        buffered_arange.buf = torch.LongTensor()
+    if max > buffered_arange.buf.numel():
+        torch.arange(max, out=buffered_arange.buf)
+    return buffered_arange.buf[:max]
+
+
+def convert_padding_direction(
+    src_tokens,
+    src_lengths,
+    padding_idx,
+    right_to_left=False,
+    left_to_right=False,
+):
+    assert not isinstance(src_tokens, Variable)
+    assert not isinstance(src_lengths, Variable)
+    assert right_to_left ^ left_to_right
+    pad_mask = src_tokens.eq(padding_idx)
+    if pad_mask.max() == 0:
+        # no padding, return early
+        return src_tokens
+    max_len = src_tokens.size(1)
+    range = buffered_arange(max_len).type_as(src_tokens).expand_as(src_tokens)
+    num_pads = pad_mask.long().sum(dim=1, keepdim=True)
+    if right_to_left:
+        index = torch.remainder(range - num_pads, max_len)
+    else:
+        index = torch.remainder(range + num_pads, max_len)
+    return src_tokens.gather(1, index)
