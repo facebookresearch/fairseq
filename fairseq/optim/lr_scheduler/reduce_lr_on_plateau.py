@@ -35,5 +35,5 @@ class ReduceLROnPlateau(FairseqLRScheduler):
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""
-        self.lr_scheduler.step(epoch, val_loss)
+        self.lr_scheduler.step(val_loss, epoch)
         return self.optimizer.get_lr()
