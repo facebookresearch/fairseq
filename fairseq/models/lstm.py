@@ -115,7 +115,7 @@ class LSTMEncoder(FairseqEncoder):
         x = x.transpose(0, 1)
 
         # pack embedded source tokens into a PackedSequence
-        packed_x = nn.utils.rnn.pack_padded_sequence(x, src_lengths.tolist())
+        packed_x = nn.utils.rnn.pack_padded_sequence(x, src_lengths.data.tolist())
 
         # apply LSTM
         h0 = Variable(x.data.new(self.num_layers, bsz, embed_dim).zero_())
