@@ -27,13 +27,21 @@ class ReduceLROnPlateau(FairseqLRScheduler):
 
     def state_dict(self):
         """Return the LR scheduler state dict."""
-        return {'best': self.lr_scheduler.best}
+        return {
+            'best': self.lr_scheduler.best,
+            'last_epoch': self.lr_scheduler.last_epoch,
+        }
 
     def load_state_dict(self, state_dict):
         """Load an LR scheduler state dict."""
         self.lr_scheduler.best = state_dict['best']
+        if 'last_epoch' in state_dict:
+            self.lr_scheduler.last_epoch = state_dict['last_epoch']
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""
-        self.lr_scheduler.step(val_loss, epoch)
+        if val_loss is not None:
+            self.lr_scheduler.step(val_loss, epoch)
+        else:
+            self.lr_scheduler.last_epoch = epoch
         return self.optimizer.get_lr()
