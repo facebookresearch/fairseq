@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 -u
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -9,31 +9,31 @@
 
 import collections
 import os
+import sys
 import torch
 import math
+import torch.distributed
+import torch.cuda
+
 
 from fairseq import criterions, data, models, options, progress_bar
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
-from fairseq.multiprocessing_trainer import MultiprocessingTrainer
+from fairseq.trainer import Trainer
 
 
-def main():
-    parser = options.get_parser('Trainer')
-    options.add_dataset_args(parser, train=True)
-    options.add_optimization_args(parser)
-    options.add_checkpoint_args(parser)
-    options.add_model_args(parser)
-    args = options.parse_args_and_arch(parser)
-    print(args)
+def main(args=None):
+    if not torch.cuda.is_available():
+        raise NotImplementedError('Training on CPU is not supported')
+
+    if not args:
+        args = parse_train_args()
+        args.device_id = 0
+
+    os.makedirs(args.save_dir, exist_ok=True)
 
     if args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
 
-    if args.num_gpus == 0:
-        raise NotImplementedError('Training on CPU is not supported')
-
-    if not os.path.exists(args.save_dir):
-        os.makedirs(args.save_dir)
     torch.manual_seed(args.seed)
 
     # Load dataset
@@ -46,14 +46,13 @@ def main():
         # record inferred languages in args, so that it's saved in checkpoints
         args.source_lang, args.target_lang = dataset.src, dataset.dst
 
+    print(args)
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
     for split in splits:
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
-    print('| using {} GPUs (with max tokens per GPU = {} and max sentences per GPU = {})'.format(
-        args.num_gpus, args.max_tokens, args.max_sentences))
-
+    torch.cuda.set_device(args.device_id)
     # Build model and criterion
     model = models.build_model(args, dataset.src_dict, dataset.dst_dict)
     criterion = criterions.build_criterion(args, dataset.src_dict, dataset.dst_dict)
@@ -68,8 +67,12 @@ def main():
     )
     max_positions_valid = (model.max_encoder_positions(), model.max_decoder_positions())
 
+    gpus_str = '{} GPUs'.format(args.distributed_world_size)
+    print('| using {} (with max tokens per GPU = {} and max sentences per GPU = {})'.format(
+        gpus_str, args.max_tokens, args.max_sentences))
+
     # Start multiprocessing
-    trainer = MultiprocessingTrainer(args, model, criterion)
+    trainer = Trainer(args, model, criterion)
 
     # Load the latest checkpoint if one is available
     checkpoint_path = os.path.join(args.save_dir, args.restore_file)
@@ -79,13 +82,12 @@ def main():
         batch_offset = extra_state['batch_offset']
         print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
         if batch_offset == 0:
-            lr = trainer.lr_step(epoch)
+            trainer.lr_step(epoch)
             epoch += 1
     else:
         epoch, batch_offset = 1, 0
 
     # Train until the learning rate gets too small
-    val_loss = None
     max_epoch = args.max_epoch or math.inf
     lr = trainer.get_lr()
     train_meter = StopwatchMeter()
@@ -96,7 +98,8 @@ def main():
 
         # evaluate on validate set
         for k, subset in enumerate(args.valid_subset.split(',')):
-            val_loss = validate(args, epoch, trainer, dataset, max_positions_valid, subset)
+            val_loss = validate(args, epoch, trainer, dataset,
+                                max_positions_valid, subset)
             if k == 0:
                 # only use first validation loss to update the learning schedule
                 lr = trainer.lr_step(epoch, val_loss)
@@ -108,10 +111,18 @@ def main():
         epoch += 1
         batch_offset = 0
     train_meter.stop()
+
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
 
-    # Stop multiprocessing
-    trainer.stop()
+def parse_train_args():
+    parser = options.get_parser('Trainer')
+    options.add_dataset_args(parser, train=True)
+    options.add_optimization_args(parser)
+    options.add_checkpoint_args(parser)
+    options.add_model_args(parser)
+    options.add_distributed_training_args(parser)
+    args = options.parse_args_and_arch(parser)
+    return args
 
 
 def get_perplexity(loss):
@@ -129,11 +140,13 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
     trainer.set_seed(seed)
 
     itr = dataset.train_dataloader(
-        args.train_subset, num_workers=args.workers,
+        args.train_subset,
         max_tokens=args.max_tokens, max_sentences=args.max_sentences,
         max_positions=max_positions, seed=seed, epoch=epoch,
         sample_without_replacement=args.sample_without_replacement,
-        sort_by_source_size=(epoch <= args.curriculum))
+        sort_by_source_size=(epoch <= args.curriculum),
+        shard_id=args.distributed_rank, num_shards=args.distributed_world_size,
+    )
     loss_meter = AverageMeter()
     nll_loss_meter = AverageMeter()
     bsz_meter = AverageMeter()    # sentences per batch
@@ -146,22 +159,23 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
     num_updates = trainer.get_num_updates()
     with progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple') as t:
         for i, sample in enumerate(
-            data.skip_group_enumerator(t, args.num_gpus, batch_offset),
+            data.skip_group_enumerator(t, batch_offset),
             start=num_updates,
         ):
             loss_dict = trainer.train_step(sample)
             loss = loss_dict['loss']
             lr = loss_dict['lr']
+            ntokens = loss_dict['ntokens']
+            nsentences = loss_dict['nsentences']
             del loss_dict['loss']  # don't include in extra_meters or extra_postfix
             del loss_dict['lr']
-
-            ntokens = sum(s['ntokens'] for s in sample)
+            del loss_dict['ntokens']
+            del loss_dict['nsentences']
 
             if 'nll_loss' in loss_dict:
                 nll_loss = loss_dict['nll_loss']
                 nll_loss_meter.update(nll_loss, ntokens)
 
-            nsentences = sum(s['net_input']['src_tokens'].size(0) for s in sample)
             loss_meter.update(loss, nsentences if args.sentence_avg else ntokens)
             bsz_meter.update(nsentences)
             wpb_meter.update(ntokens)
@@ -187,7 +201,7 @@ def train(args, epoch, batch_offset, trainer, dataset, max_positions):
                 # ignore the first mini-batch in words-per-second calculation
                 wps_meter.reset()
             if args.save_interval > 0 and (i + 1) % args.save_interval == 0:
-                save_checkpoint(trainer, args, epoch, i + 1)
+                save_checkpoint(trainer, args, epoch, i + 1, 0)
 
         t.print(collections.OrderedDict([
             ('train loss', round(loss_meter.avg, 2)),
@@ -240,6 +254,7 @@ def validate(args, epoch, trainer, dataset, max_positions, subset):
         max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
         descending=True,  # largest batch first to warm the caching allocator
+        shard_id=args.distributed_rank, num_shards=args.distributed_world_size,
     )
     loss_meter = AverageMeter()
     nll_loss_meter = AverageMeter()
@@ -247,11 +262,13 @@ def validate(args, epoch, trainer, dataset, max_positions, subset):
 
     prefix = 'valid on \'{}\' subset'.format(subset)
     with progress_bar.build_progress_bar(args, itr, epoch, prefix, no_progress_bar='simple') as t:
-        for sample in data.skip_group_enumerator(t, args.num_gpus):
+        for sample in data.skip_group_enumerator(t):
             loss_dict = trainer.valid_step(sample)
-            ntokens = sum(s['ntokens'] for s in sample)
+            ntokens = loss_dict['ntokens']
             loss = loss_dict['loss']
             del loss_dict['loss']  # don't include in extra_meters or extra_postfix
+            del loss_dict['ntokens']
+            del loss_dict['nsentences']
 
             if 'nll_loss' in loss_dict:
                 nll_loss = loss_dict['nll_loss']

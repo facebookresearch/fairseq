@@ -172,13 +172,16 @@ def volatile_variable(*args, **kwargs):
         return Variable(*args, **kwargs, volatile=True)
 
 
-def make_variable(sample, volatile=False, cuda_device=None):
+def make_variable(sample, volatile=False, cuda=False):
     """Wrap input tensors in Variable class."""
+
+    if len(sample) == 0:
+        return {}
 
     def _make_variable(maybe_tensor):
         if torch.is_tensor(maybe_tensor):
-            if cuda_device is not None and torch.cuda.is_available():
-                maybe_tensor = maybe_tensor.cuda(async=True, device=cuda_device)
+            if cuda is not None and torch.cuda.is_available():
+                maybe_tensor = maybe_tensor.cuda(async=True)
             if volatile:
                 return volatile_variable(maybe_tensor)
             else:
