@@ -10,16 +10,17 @@
 Train a network on multiple GPUs using multiprocessing.
 """
 
-from itertools import cycle, islice
 import math
 import torch
+import torch.distributed
 
-from fairseq import optim, nccl, utils
-from fairseq.multiprocessing_event_loop import MultiprocessingEventLoop, Future
+from fairseq import optim
 from fairseq.optim import lr_scheduler
+from fairseq import utils
+from fairseq.tcp_connector import TcpConnector
 
 
-class MultiprocessingTrainer(MultiprocessingEventLoop):
+class Trainer(object):
     """Main class for multi-GPU training.
 
     Each GPU has a full copy of the model and is assigned to its own Python
@@ -31,35 +32,18 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
     (prefixed with `_async_`), which run on each process in parallel.
     """
 
-    def __init__(self, args, model, criterion, device_ids=None,
-                 multiprocessing_method='spawn'):
-        if device_ids is None:
-            device_ids = tuple(range(torch.cuda.device_count()))
-        super().__init__(device_ids, multiprocessing_method)
+    def __init__(self, args, model, criterion):
 
         if not torch.cuda.is_available():
             raise NotImplementedError('Training on CPU is not supported')
-        model = model.share_memory()
-        nccl_uid = nccl.get_unique_id()
+
+
         self.criterion = criterion
-
-        Future.gen_list([
-            self.call_async(rank, '_async_init', args=args, model=model,
-                            criterion=criterion, nccl_uid=nccl_uid)
-            for rank in range(self.num_replicas)
-        ])
-
-        self._grads_initialized = False
-
-    def _async_init(self, rank, device_id, args, model, criterion, nccl_uid):
-        """Initialize child processes."""
         self.args = args
+        self.rank = args.distributed_rank
+        self.world_size = args.distributed_world_size
 
-        # set CUDA device
-        torch.cuda.set_device(device_id)
-
-        # initialize NCCL
-        nccl.initialize(self.num_replicas, nccl_uid, device_id)
+        self._init_tcp_connector(args)
 
         # copy model and criterion to current device
         self.model = model.cuda()
@@ -73,34 +57,26 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         self._max_bsz_seen = 0
         self._num_updates = 0
 
+    def _init_tcp_connector(self, args):
+        """Discover rank of current host and hostnames of all other hosts."""
+        if args.distributed_world_size > 1:
+            self.tcp_connector = TcpConnector(
+                args.distributed_port, self.rank, self.world_size, args.distributed_master_host)
+
     def get_model(self):
         """Get one of the model replicas."""
         # just return the first model, since all replicas are the same
-        return self.call_async(0, '_async_get_model').gen()
-
-    def _async_get_model(self, rank, device_id):
         return self.model
 
     def save_checkpoint(self, filename, extra_state):
-        """Save a checkpoint for the current model."""
-        self.call_async(0, '_async_save_checkpoint', filename=filename, extra_state=extra_state).gen()
-
-    def _async_save_checkpoint(self, rank, device_id, filename, extra_state):
-        utils.save_state(filename, self.args, self.model, self.criterion, self.optimizer,
-                         self.lr_scheduler, self._num_updates, self._optim_history, extra_state)
+        if self.rank == 0:  # only save one checkpoint
+            utils.save_state(filename, self.args, self.model, self.criterion, self.optimizer,
+                             self.lr_scheduler, self._num_updates, self._optim_history, extra_state)
 
     def load_checkpoint(self, filename):
         """Load a checkpoint into the model replicas in each process."""
-        results = Future.gen_list([
-            self.call_async(rank, '_async_load_checkpoint', filename=filename)
-            for rank in range(self.num_replicas)
-        ])
-        extra_state = results[0]
-        return extra_state
-
-    def _async_load_checkpoint(self, rank, device_id, filename):
         extra_state, self._optim_history, last_optim_state = utils.load_model_state(
-            filename, self.model, cuda_device=device_id)
+            filename, self.model, cuda_device=torch.cuda.current_device())
 
         if last_optim_state is not None:
             # rebuild optimizer after loading model, since params may have changed
@@ -119,48 +95,38 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         return extra_state
 
     def set_seed(self, seed):
-        Future.gen_list([
-            self.call_async(rank, '_async_set_seed', seed=seed)
-            for rank in range(self.num_replicas)
-        ])
-
-    def _async_set_seed(self, rank, device_id, seed):
         torch.manual_seed(seed)
 
-    def train_step(self, samples):
+    def train_step(self, sample):
         """Do forward, backward and gradient step in parallel."""
-        # PyTorch initializes gradient buffers lazily, so the first
-        # train step needs to send non-empty samples to all replicas
-        replace_empty_samples = False
-        if not self._grads_initialized:
-            replace_empty_samples = True
-            self._grads_initialized = True
 
-        # scatter sample across GPUs
-        self._scatter_samples(samples, replace_empty_samples=replace_empty_samples)
+        self.prepare_sample(sample, volatile=False)
 
         # forward pass
-        sample_sizes, logging_outputs, ooms_fwd = Future.gen_tuple_list([
-            self.call_async(rank, '_async_forward')
-            for rank in range(self.num_replicas)
-        ])
+        sample_sizes, logging_outputs, ooms_fwd = self.forward()
+
+        if self.world_size > 1:
+            # synchronize logging outputs for multi-node training
+            sample_sizes, logging_outputs = zip(*list(self.tcp_connector.all_gather((sample_sizes, logging_outputs))))
+        else:
+            sample_sizes = [sample_sizes]
+            logging_outputs = [logging_outputs]
 
         # backward pass, all-reduce gradients and take an optimization step
         grad_denom = self.criterion.__class__.grad_denom(sample_sizes)
-        grad_norms, ooms_bwd, lrs = Future.gen_tuple_list([
-            self.call_async(rank, '_async_backward_and_opt', grad_denom=grad_denom)
-            for rank in range(self.num_replicas)
-        ])
+        grad_norm, ooms_bwd, lr = self.backward_and_opt(grad_denom=grad_denom)
 
         # aggregate logging output
         logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
-        logging_output['lr'] = lrs[0]
-        logging_output['gnorm'] = grad_norms[0]  # log the gradient norm
-        logging_output['oom'] = sum(ooms_fwd) + sum(ooms_bwd)
+        logging_output['lr'] = lr
+        logging_output['gnorm'] = grad_norm  # log the gradient norm
+        logging_output['oom'] = ooms_fwd + ooms_bwd
+        logging_output['ntokens'] = sum(log.get('ntokens', 0) for log in logging_outputs)
+        logging_output['nsentences'] = sum(log.get('nsentences', 0) for log in logging_outputs)
 
         return logging_output
 
-    def _async_forward(self, rank, device_id, eval=False):
+    def forward(self, eval=False):
         if eval:
             self.model.eval()
         else:
@@ -168,14 +134,18 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             self.optimizer.zero_grad()
 
         with utils.maybe_no_grad(eval):
-            sample_size, logging_output, oom = 0, {}, False
+            self.sample_size = 0
+            logging_output = {'ntokens': 0, 'nsentences': 0}
+            oom = False
             if self._sample is not None:
                 try:
                     # calculate loss and sample size
-                    self.loss, sample_size, logging_output = self.criterion(self.model, self._sample)
+                    self.loss, self.sample_size, logging_output = self.criterion(self.model, self._sample)
+                    logging_output['ntokens'] = self._sample['ntokens']
+                    logging_output['nsentences'] = self._sample['target'].size(0)
                 except RuntimeError as e:
                     if not eval and 'out of memory' in str(e):
-                        print('| WARNING: ran out of memory on GPU #{}, skipping batch'.format(device_id))
+                        print('| WARNING: ran out of memory, skipping batch')
                         oom = True
                         self.loss = None
                         if hasattr(torch.cuda, 'empty_cache'):
@@ -183,9 +153,9 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                     else:
                         raise e
 
-        return sample_size, logging_output, oom
+        return self.sample_size, logging_output, oom
 
-    def _async_backward_and_opt(self, rank, device_id, grad_denom):
+    def backward_and_opt(self, grad_denom):
         oom = False
         if self.loss is not None:
             try:
@@ -193,7 +163,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                 self.loss.backward()
             except RuntimeError as e:
                 if 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory on GPU #{}, skipping batch'.format(device_id))
+                    print('| WARNING: ran out of memory, skipping batch')
                     oom = True
                     if hasattr(torch.cuda, 'empty_cache'):
                         torch.cuda.empty_cache()
@@ -201,8 +171,13 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                 else:
                     raise e
 
-        # all-reduce grads and rescale by grad_denom
-        self._all_reduce_and_rescale_grads(grad_denom)
+        if self.world_size > 1:
+            # all-reduce grads and rescale by grad_denom
+            self._all_reduce_and_rescale_grads(grad_denom)
+        else:
+            for p in self.model.parameters():
+                if p.requires_grad:
+                    p.grad.data.div_(grad_denom)
 
         # clip grads
         if self.args.clip_norm > 0:
@@ -236,8 +211,9 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                 buffer_t[offset:offset+numel].copy_(g.view(-1))
                 offset += numel
             # all-reduce and rescale
-            nccl.all_reduce(buffer_t[:offset])
+            torch.distributed.all_reduce(buffer_t[:offset])
             buffer_t.div_(grad_denom)
+
             # copy all-reduced buffer back into grads
             offset = 0
             for g in buffer:
@@ -250,7 +226,7 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
             sz = g.numel() * g.element_size()
             if sz > buffer_size:
                 # grad is bigger than buffer, all-reduce and rescale directly
-                nccl.all_reduce(g)
+                torch.distributed.all_reduce(g)
                 g.div_(grad_denom)
             elif filled + sz > buffer_size:
                 # buffer is full, all-reduce and replace buffer with grad
@@ -264,64 +240,43 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
         if len(buffer) > 0:
             all_reduce_buffer()
 
-    def valid_step(self, samples):
+    def valid_step(self, sample):
         """Do forward pass in parallel."""
         # scatter sample across GPUs
-        self._scatter_samples(samples, volatile=True)
+        self.prepare_sample(sample, volatile=True)
 
         # forward pass
-        _sample_sizes, logging_outputs, ooms_fwd = Future.gen_tuple_list([
-            self.call_async(rank, '_async_forward', eval=True)
-            for rank in range(self.num_replicas)
-        ])
-        assert sum(ooms_fwd) == 0
+
+        _sample_sizes, logging_outputs, ooms_fwd = self.forward(eval=True)
+        assert not ooms_fwd
+
+        if self.world_size > 1:
+            logging_outputs = list(self.tcp_connector.all_gather(logging_outputs))
+        else:
+            logging_outputs = [logging_outputs]
 
         # aggregate logging output
         logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        logging_output['ntokens'] = sum(log.get('ntokens', 0) for log in logging_outputs)
+        logging_output['nsentences'] = sum(log.get('nsentences', 0) for log in logging_outputs)
 
         return logging_output
 
     def get_lr(self):
         """Get the current learning rate."""
-        return self.call_async(0, '_async_get_lr').gen()
-
-    def _async_get_lr(self, rank, device_id):
         return self.optimizer.get_lr()
 
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate based on the validation loss."""
-        lr = Future.gen_list([
-            self.call_async(rank, '_async_lr_step', epoch=epoch, val_loss=val_loss)
-            for rank in range(self.num_replicas)
-        ])
-        return lr[0]
-
-    def _async_lr_step(self, rank, device_id, epoch, val_loss):
         return self.lr_scheduler.step(epoch, val_loss)
 
     def get_num_updates(self):
         """Get the number of parameters updates."""
-        return self.call_async(0, '_async_get_num_updates').gen()
-
-    def _async_get_num_updates(self, rank, device_id):
         return self._num_updates
 
-    def _scatter_samples(self, samples, volatile=False, replace_empty_samples=False):
-        """Split and distribute a sample across GPUs."""
-        if not replace_empty_samples:
-            # pad with None until its size is equal to the number of replicas
-            samples = samples + [None]*(self.num_replicas - len(samples))
-        else:
-            # pad by cycling through the given samples
-            samples = list(islice(cycle(samples), self.num_replicas))
 
-        Future.gen_list([
-            self.call_async(rank, '_async_prepare_sample', sample=samples[rank], volatile=volatile)
-            for rank in range(self.num_replicas)
-        ])
-
-    def _async_prepare_sample(self, rank, device_id, sample, volatile):
-        if sample is None:
+    def prepare_sample(self, sample, volatile):
+        if sample is None or len(sample) == 0:
             self._sample = None
         else:
             if hasattr(torch.cuda, 'empty_cache'):
@@ -330,4 +285,5 @@ class MultiprocessingTrainer(MultiprocessingEventLoop):
                     self._max_bsz_seen = sample['target'].size(0)
                     torch.cuda.empty_cache()
 
-            self._sample = utils.make_variable(sample, volatile=volatile, cuda_device=device_id)
+            self._sample = utils.make_variable(sample, volatile=volatile, cuda=True)
+

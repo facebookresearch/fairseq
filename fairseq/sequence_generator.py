@@ -52,27 +52,27 @@ class SequenceGenerator(object):
         return self
 
     def generate_batched_itr(
-        self,
-        data_itr,
-        beam_size=None,
-        maxlen_a=0.0,
-        maxlen_b=None,
-        cuda_device=None,
-        timer=None,
+            self,
+            data_itr,
+            beam_size=None,
+            maxlen_a=0.0,
+            maxlen_b=None,
+            cuda=False,
+            timer=None,
     ):
         """Iterate over a batched dataset and yield individual translations.
 
         Args:
             maxlen_a/b: generate sequences of maximum length ax + b,
                 where x is the source sentence length.
-            cuda_device: GPU on which to do generation.
+            cuda: use GPU for generation
             timer: StopwatchMeter for timing generations.
         """
         if maxlen_b is None:
             maxlen_b = self.maxlen
 
         for sample in data_itr:
-            s = utils.make_variable(sample, volatile=True, cuda_device=cuda_device)
+            s = utils.make_variable(sample, volatile=True, cuda=cuda)
             input = s['net_input']
             srclen = input['src_tokens'].size(1)
             if timer is not None:

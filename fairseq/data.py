@@ -9,6 +9,7 @@
 import contextlib
 import itertools
 import glob
+import math
 import numbers
 import numpy as np
 import os
@@ -130,10 +131,10 @@ class LanguageDatasets(object):
         assert self.src_dict.eos() == self.dst_dict.eos()
         assert self.src_dict.unk() == self.dst_dict.unk()
 
-    def train_dataloader(self, split, num_workers=0, max_tokens=None,
+    def train_dataloader(self, split, max_tokens=None,
                          max_sentences=None, max_positions=(1024, 1024),
                          seed=None, epoch=1, sample_without_replacement=0,
-                         sort_by_source_size=False):
+                         sort_by_source_size=False, shard_id=0, num_shards=1):
         dataset = self.splits[split]
         with numpy_seed(seed):
             batch_sampler = shuffled_batches_by_size(
@@ -141,38 +142,33 @@ class LanguageDatasets(object):
                 max_sentences=max_sentences, epoch=epoch,
                 sample=sample_without_replacement, max_positions=max_positions,
                 sort_by_source_size=sort_by_source_size)
+            batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
         return torch.utils.data.DataLoader(
-            dataset, num_workers=num_workers, collate_fn=dataset.collater,
+            dataset, collate_fn=dataset.collater,
             batch_sampler=batch_sampler)
 
     def eval_dataloader(self, split, num_workers=0, max_tokens=None,
                         max_sentences=None, max_positions=(1024, 1024),
                         skip_invalid_size_inputs_valid_test=False,
-                        descending=False):
+                        descending=False, shard_id=0, num_shards=1):
         dataset = self.splits[split]
         batch_sampler = batches_by_size(
             dataset.src, dataset.dst, max_tokens, max_sentences,
             max_positions=max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs_valid_test,
             descending=descending)
+        batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
         return torch.utils.data.DataLoader(
             dataset, num_workers=num_workers, collate_fn=dataset.collater,
             batch_sampler=batch_sampler)
 
 
-def skip_group_enumerator(it, ngpus, offset=0):
-    res = []
+def skip_group_enumerator(it, offset=0):
     i = 0
     for sample in it:
-        res.append(sample)
-        if len(res) >= ngpus:
-            if i >= offset:
-                yield res
-            res = []
-            i += 1
-    if len(res) > 0:
-        yield res
-
+        if i >= offset:
+            yield sample
+        i += 1
 
 class sharded_iterator(object):
 
@@ -191,7 +187,7 @@ class sharded_iterator(object):
                 yield v
 
 
-class LanguagePairDataset(object):
+class LanguagePairDataset(torch.utils.data.Dataset):
 
     # padding constants
     LEFT_PAD_SOURCE = True
@@ -221,7 +217,8 @@ class LanguagePairDataset(object):
 
     @staticmethod
     def collate(samples, pad_idx, eos_idx):
-
+        if len(samples) == 0:
+            return {}
         def merge(key, left_pad, move_eos_to_beginning=False):
             return LanguagePairDataset.collate_tokens(
                 [s[key] for s in samples],
@@ -396,6 +393,18 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
         batches = result
 
     return batches
+
+
+def mask_batches(batch_sampler, shard_id, num_shards):
+    if num_shards == 1:
+        return batch_sampler
+    res = [
+        batch
+        for i, batch in enumerate(batch_sampler)
+        if i % num_shards == shard_id
+    ]
+    expected_length = int(math.ceil(len(batch_sampler) / num_shards))
+    return res + [[]] * (expected_length - len(res))
 
 
 @contextlib.contextmanager

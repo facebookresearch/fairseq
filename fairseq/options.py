@@ -7,6 +7,7 @@
 #
 
 import argparse
+import torch
 
 import torch.cuda
 
@@ -69,8 +70,6 @@ def add_dataset_args(parser, train=False, gen=False):
                        help='source language')
     group.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                        help='target language')
-    group.add_argument('-j', '--workers', default=1, type=int, metavar='N',
-                       help='number of data loading workers (default: 1)')
     group.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
                        help='max number of tokens in the source sequence')
     group.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
@@ -97,6 +96,25 @@ def add_dataset_args(parser, train=False, gen=False):
                            help='shard generation over N shards')
         group.add_argument('--shard-id', default=0, type=int, metavar='ID',
                            help='id of the shard to generate (id < num_shards)')
+    return group
+
+
+def add_distributed_training_args(parser):
+    group = parser.add_argument_group('Multi-GPU training')
+    group.add_argument('--distributed-world-size', default=1, type=int, metavar='N',
+                       help='total number of GPUs across all nodes, default: 1 GPU')
+    group.add_argument('--distributed-master-host', default='localhost', type=str,
+                       help='Master host used for synchronizing stats across nodes')
+    group.add_argument('--distributed-port', default=-1, type=int,
+                       help='TCP port number for synchronizing stats across nodes')
+    group.add_argument('--distributed-rank', default=0, type=int,
+                        help='rank of the current worker')
+    group.add_argument('--distributed-backend', default='nccl', type=str,
+                        help='distributed backend')
+    group.add_argument('--distributed-init-method', default=None, type=str,
+                       help='Typically tcp://hostname:port that will be used to '
+                            'establish initial connetion')
+
     return group
 
 
