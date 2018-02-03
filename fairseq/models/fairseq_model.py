@@ -43,7 +43,7 @@ class FairseqModel(nn.Module):
     def forward(self, src_tokens, src_lengths, prev_output_tokens):
         encoder_out = self.encoder(src_tokens, src_lengths)
         decoder_out, _ = self.decoder(prev_output_tokens, encoder_out)
-        return decoder_out.view(-1, decoder_out.size(-1))
+        return decoder_out
 
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""

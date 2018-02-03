@@ -123,7 +123,8 @@ class SequenceGenerator(object):
             encoder_outs.append(encoder_out)
 
         # initialize buffers
-        scores = encoder_outs[0][0].data.new(bsz * beam_size).fill_(0)
+        scores = src_tokens.data.new(bsz * beam_size, maxlen + 1).float().fill_(0)
+        scores_buf = scores.clone()
         tokens = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(self.pad)
         tokens_buf = tokens.clone()
         tokens[:, 0] = self.eos
@@ -133,7 +134,7 @@ class SequenceGenerator(object):
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
         finished = [False for i in range(bsz)]
-        worst_finalized = [{'idx': None, 'score': float('Inf')} for i in range(bsz)]
+        worst_finalized = [{'idx': None, 'score': -math.inf} for i in range(bsz)]
         num_remaining_sent = bsz
 
         # number of candidate hypos per step
@@ -150,7 +151,7 @@ class SequenceGenerator(object):
                 buffers[name] = type_of.new()
             return buffers[name]
 
-        def is_finished(sent):
+        def is_finished(sent, step, unfinalized_scores=None):
             """
             Check whether we've finished generation for a given sentence, by
             comparing the worst score among finalized hypotheses to the best
@@ -158,19 +159,18 @@ class SequenceGenerator(object):
             """
             assert len(finalized[sent]) <= beam_size
             if len(finalized[sent]) == beam_size:
-                if self.stop_early:
+                if self.stop_early or step == maxlen or unfinalized_scores is None:
                     return True
                 # stop if the best unfinalized score is worse than the worst
                 # finalized one
-                bbsz = sent*beam_size
-                best_unfinalized_score = scores[bbsz:bbsz+beam_size].max()
+                best_unfinalized_score = unfinalized_scores[sent].max()
                 if self.normalize_scores:
                     best_unfinalized_score /= maxlen
                 if worst_finalized[sent]['score'] >= best_unfinalized_score:
                     return True
             return False
 
-        def finalize_hypos(step, bbsz_idx, scores):
+        def finalize_hypos(step, bbsz_idx, eos_scores, unfinalized_scores=None):
             """
             Finalize the given hypotheses at this step, while keeping the total
             number of finalized hypotheses per sentence <= beam_size.
@@ -183,34 +183,51 @@ class SequenceGenerator(object):
                 step: current time step
                 bbsz_idx: A vector of indices in the range [0, bsz*beam_size),
                     indicating which hypotheses to finalize
-                scores: A vector of the same size as bbsz_idx containing scores
-                    for each hypothesis
+                eos_scores: A vector of the same size as bbsz_idx containing
+                    scores for each hypothesis
+                unfinalized_scores: A vector containing scores for all
+                    unfinalized hypotheses
             """
-            assert bbsz_idx.numel() == scores.numel()
-            norm_scores = scores/math.pow(step+1, self.len_penalty) if self.normalize_scores else scores
+            assert bbsz_idx.numel() == eos_scores.numel()
+
+            # clone relevant token and attention tensors
+            tokens_clone = tokens.index_select(0, bbsz_idx)
+            tokens_clone = tokens_clone[:, 1:step+2]  # skip the first index, which is EOS
+            tokens_clone[:, step] = self.eos
+            attn_clone = attn.index_select(0, bbsz_idx)[:, :, 1:step+2]
+
+            # compute scores per token position
+            pos_scores = scores.index_select(0, bbsz_idx)[:, :step+1]
+            pos_scores[:, step] = eos_scores
+            # convert from cumulative to per-position scores
+            pos_scores[:, 1:] = pos_scores[:, 1:] - pos_scores[:, :-1]
+
+            # normalize sentence-level scores
+            if self.normalize_scores:
+                eos_scores /= (step+1)**self.len_penalty
+
             sents_seen = set()
-            for idx, score in zip(bbsz_idx.cpu(), norm_scores.cpu()):
+            for i, (idx, score) in enumerate(zip(bbsz_idx.tolist(), eos_scores.tolist())):
                 sent = idx // beam_size
                 sents_seen.add(sent)
 
                 def get_hypo():
-                    hypo = tokens[idx, 1:step+2].clone()  # skip the first index, which is EOS
-                    hypo[step] = self.eos
-                    attention = attn[idx, :, 1:step+2].clone()
-                    _, alignment = attention.max(dim=0)
+                    _, alignment = attn_clone[i].max(dim=0)
                     return {
-                        'tokens': hypo,
+                        'tokens': tokens_clone[i],
                         'score': score,
-                        'attention': attention,
+                        'attention': attn_clone[i],  # src_len x tgt_len
                         'alignment': alignment,
+                        'positional_scores': pos_scores[i],
                     }
 
                 if len(finalized[sent]) < beam_size:
                     finalized[sent].append(get_hypo())
-                elif score > worst_finalized[sent]['score']:
+                elif not self.stop_early and score > worst_finalized[sent]['score']:
                     # replace worst hypo for this sentence with new/better one
                     worst_idx = worst_finalized[sent]['idx']
-                    finalized[sent][worst_idx] = get_hypo()
+                    if worst_idx is not None:
+                        finalized[sent][worst_idx] = get_hypo()
 
                     # find new worst finalized hypo for this sentence
                     idx, s = min(enumerate(finalized[sent]), key=lambda r: r[1]['score'])
@@ -223,7 +240,7 @@ class SequenceGenerator(object):
             num_finished = 0
             for sent in sents_seen:
                 # check termination conditions for this sentence
-                if not finished[sent] and is_finished(sent):
+                if not finished[sent] and is_finished(sent, step, unfinalized_scores):
                     finished[sent] = True
                     num_finished += 1
             return num_finished
@@ -243,23 +260,38 @@ class SequenceGenerator(object):
                 probs = probs.unfold(0, 1, beam_size).squeeze(2).contiguous()
             else:
                 # make probs contain cumulative scores for each hypothesis
-                probs.add_(scores.view(-1, 1))
+                probs.add_(scores[:, step-1].view(-1, 1))
             probs[:, self.pad] = -math.inf  # never select pad
             probs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             # Record attention scores
             attn[:, :, step+1].copy_(avg_attn_scores)
 
-            # take the best 2 x beam_size predictions. We'll choose the first
-            # beam_size of these which don't predict eos to continue with.
             cand_scores = buffer('cand_scores', type_of=scores)
             cand_indices = buffer('cand_indices')
             cand_beams = buffer('cand_beams')
-            probs.view(bsz, -1).topk(
-                min(cand_size, probs.view(bsz, -1).size(1) - 1),  # -1 so we never select pad
-                out=(cand_scores, cand_indices))
-            torch.div(cand_indices, self.vocab_size, out=cand_beams)
-            cand_indices.fmod_(self.vocab_size)
+            if step < maxlen:
+                # take the best 2 x beam_size predictions. We'll choose the first
+                # beam_size of these which don't predict eos to continue with.
+                torch.topk(
+                    probs.view(bsz, -1),
+                    k=min(cand_size, probs.view(bsz, -1).size(1) - 1),  # -1 so we never select pad
+                    out=(cand_scores, cand_indices),
+                )
+                torch.div(cand_indices, self.vocab_size, out=cand_beams)
+                cand_indices.fmod_(self.vocab_size)
+            else:
+                # finalize all active hypotheses once we hit maxlen
+                # pick the hypothesis with the highest prob of EOS right now
+                torch.sort(
+                    probs[:, self.eos],
+                    descending=True,
+                    out=(eos_scores, eos_bbsz_idx),
+                )
+                num_remaining_sent -= finalize_hypos(
+                    step, eos_bbsz_idx, eos_scores)
+                assert num_remaining_sent == 0
+                break
 
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
@@ -271,56 +303,87 @@ class SequenceGenerator(object):
             if step >= self.minlen:
                 eos_bbsz_idx = buffer('eos_bbsz_idx')
                 # only consider eos when it's among the top beam_size indices
-                cand_bbsz_idx[:, :beam_size].masked_select(eos_mask[:, :beam_size], out=eos_bbsz_idx)
+                torch.masked_select(
+                    cand_bbsz_idx[:, :beam_size],
+                    mask=eos_mask[:, :beam_size],
+                    out=eos_bbsz_idx,
+                )
                 if eos_bbsz_idx.numel() > 0:
                     eos_scores = buffer('eos_scores', type_of=scores)
-                    cand_scores[:, :beam_size].masked_select(eos_mask[:, :beam_size], out=eos_scores)
-                    num_remaining_sent -= finalize_hypos(step, eos_bbsz_idx, eos_scores)
+                    torch.masked_select(
+                        cand_scores[:, :beam_size],
+                        mask=eos_mask[:, :beam_size],
+                        out=eos_scores,
+                    )
+                    num_remaining_sent -= finalize_hypos(
+                        step, eos_bbsz_idx, eos_scores, cand_scores)
 
             assert num_remaining_sent >= 0
             if num_remaining_sent == 0:
                 break
+            assert step < maxlen
 
             # set active_mask so that values > cand_size indicate eos hypos
             # and values < cand_size indicate candidate active hypos.
             # After, the min values per row are the top candidate active hypos
             active_mask = buffer('active_mask')
-            torch.add(eos_mask.type_as(cand_offsets)*cand_size, cand_offsets[:eos_mask.size(1)],
-                      out=active_mask)
+            torch.add(
+                eos_mask.type_as(cand_offsets)*cand_size,
+                cand_offsets[:eos_mask.size(1)],
+                out=active_mask,
+            )
 
             # get the top beam_size active hypotheses, which are just the hypos
             # with the smallest values in active_mask
             active_hypos, _ignore = buffer('active_hypos'), buffer('_ignore')
-            active_mask.topk(beam_size, 1, largest=False, out=(_ignore, active_hypos))
+            active_mask.topk(
+                k=beam_size, dim=1, largest=False,
+                out=(_ignore, active_hypos),
+            )
             active_bbsz_idx = buffer('active_bbsz_idx')
-            cand_bbsz_idx.gather(1, active_hypos, out=active_bbsz_idx)
-            active_scores = cand_scores.gather(1, active_hypos,
-                                               out=scores.view(bsz, beam_size))
-
+            cand_bbsz_idx.gather(
+                dim=1, index=active_hypos,
+                out=active_bbsz_idx,
+            )
+            active_scores = cand_scores.gather(
+                dim=1, index=active_hypos,
+                out=scores[:, step].view(bsz, beam_size),
+            )
             active_bbsz_idx = active_bbsz_idx.view(-1)
             active_scores = active_scores.view(-1)
 
-            # finalize all active hypotheses once we hit maxlen
-            # finalize_hypos will take care of adding the EOS markers
-            if step == maxlen:
-                num_remaining_sent -= finalize_hypos(step, active_bbsz_idx, active_scores)
-                assert num_remaining_sent == 0
-                break
-
-            # copy tokens for active hypotheses
-            torch.index_select(tokens[:, :step+1], dim=0, index=active_bbsz_idx,
-                               out=tokens_buf[:, :step+1])
-            cand_indices.gather(1, active_hypos,
-                                out=tokens_buf.view(bsz, beam_size, -1)[:, :, step+1])
+            # copy tokens and scores for active hypotheses
+            torch.index_select(
+                tokens[:, :step+1], dim=0, index=active_bbsz_idx,
+                out=tokens_buf[:, :step+1],
+            )
+            torch.gather(
+                cand_indices, dim=1, index=active_hypos,
+                out=tokens_buf.view(bsz, beam_size, -1)[:, :, step+1],
+            )
+            if step > 0:
+                torch.index_select(
+                    scores[:, :step], dim=0, index=active_bbsz_idx,
+                    out=scores_buf[:, :step],
+                )
+            torch.gather(
+                cand_scores, dim=1, index=active_hypos,
+                out=scores_buf.view(bsz, beam_size, -1)[:, :, step],
+            )
 
             # copy attention for active hypotheses
-            torch.index_select(attn[:, :, :step+2], dim=0, index=active_bbsz_idx,
-                               out=attn_buf[:, :, :step+2])
+            torch.index_select(
+                attn[:, :, :step+2], dim=0, index=active_bbsz_idx,
+                out=attn_buf[:, :, :step+2],
+            )
 
             # swap buffers
             old_tokens = tokens
             tokens = tokens_buf
             tokens_buf = old_tokens
+            old_scores = scores
+            scores = scores_buf
+            scores_buf = old_scores
             old_attn = attn
             attn = attn_buf
             attn_buf = old_attn

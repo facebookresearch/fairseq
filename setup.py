@@ -61,6 +61,7 @@ setup(
     install_requires=reqs.strip().split('\n'),
     packages=find_packages(),
     ext_modules=[bleu],
+    test_suite='tests',
 
     # build and install PyTorch extensions
     package_data={
