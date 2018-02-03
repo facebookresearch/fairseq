@@ -180,8 +180,8 @@ def make_variable(sample, volatile=False, cuda=False):
 
     def _make_variable(maybe_tensor):
         if torch.is_tensor(maybe_tensor):
-            if cuda is not None and torch.cuda.is_available():
-                maybe_tensor = maybe_tensor.cuda(async=True)
+            if cuda and torch.cuda.is_available():
+                maybe_tensor = maybe_tensor.cuda()
             if volatile:
                 return volatile_variable(maybe_tensor)
             else:

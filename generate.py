@@ -12,6 +12,7 @@ import torch
 from fairseq import bleu, data, options, progress_bar, tokenizer, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_generator import SequenceGenerator
+from fairseq.sequence_scorer import SequenceScorer
 
 
 def main():
@@ -22,14 +23,25 @@ def main():
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
+    cuda_device = 0 if use_cuda else None
     if hasattr(torch, 'set_grad_enabled'):
         torch.set_grad_enabled(False)
 
     # Load dataset
     if args.replace_unk is None:
-        dataset = data.load_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+        dataset = data.load_dataset(
+            args.data,
+            [args.gen_subset],
+            args.source_lang,
+            args.target_lang,
+        )
     else:
-        dataset = data.load_raw_text_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+        dataset = data.load_raw_text_dataset(
+            args.data,
+            [args.gen_subset],
+            args.source_lang,
+            args.target_lang,
+        )
     if args.source_lang is None or args.target_lang is None:
         # record inferred languages in args
         args.source_lang, args.target_lang = dataset.src, dataset.dst
@@ -45,13 +57,22 @@ def main():
     # Optimize ensemble for generation
     for model in models:
         model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
+            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
+        )
 
     # Initialize generator
-    translator = SequenceGenerator(
-        models, beam_size=args.beam, stop_early=(not args.no_early_stop),
-        normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-        unk_penalty=args.unkpen)
+    if args.score_reference:
+        # just score the reference
+        translator = SequenceScorer(models)
+    else:
+        translator = SequenceGenerator(
+            models,
+            beam_size=args.beam,
+            stop_early=(not args.no_early_stop),
+            normalize_scores=(not args.unnormalized),
+            len_penalty=args.lenpen,
+            unk_penalty=args.unkpen,
+        )
     if use_cuda:
         translator.cuda()
 
@@ -59,23 +80,39 @@ def main():
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
 
-    # Generate and compute BLEU score
-    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
+    # Load dataset (possibly sharded)
     max_positions = min(model.max_encoder_positions() for model in models)
     itr = dataset.eval_dataloader(
-        args.gen_subset, max_sentences=args.max_sentences, max_positions=max_positions,
-        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
+        args.gen_subset,
+        max_sentences=args.max_sentences,
+        max_positions=max_positions,
+        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
+    )
     if args.num_shards > 1:
         if args.shard_id < 0 or args.shard_id >= args.num_shards:
             raise ValueError('--shard-id must be between 0 and num_shards')
         itr = data.sharded_iterator(itr, args.num_shards, args.shard_id)
+
+    # Generate and compute BLEU score
+    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     num_sentences = 0
     with progress_bar.build_progress_bar(args, itr) as t:
         wps_meter = TimeMeter()
         gen_timer = StopwatchMeter()
-        translations = translator.generate_batched_itr(
-            t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
-            cuda=use_cuda, timer=gen_timer)
+        if args.score_reference:
+            translations = translator.score_batched_itr(
+                t,
+                cuda=use_cuda,
+                timer=gen_timer,
+            )
+        else:
+            translations = translator.generate_batched_itr(
+                t,
+                maxlen_a=args.max_len_a,
+                maxlen_b=args.max_len_b,
+                cuda=use_cuda,
+                timer=gen_timer,
+            )
         for sample_id, src_tokens, target_tokens, hypos in translations:
             # Process input and ground truth
             target_tokens = target_tokens.int().cpu()
@@ -103,6 +140,13 @@ def main():
 
                 if not args.quiet:
                     print('H-{}\t{}\t{}'.format(sample_id, hypo['score'], hypo_str))
+                    print('P-{}\t{}'.format(
+                        sample_id,
+                        ' '.join(map(
+                            lambda x: '{:.4f}'.format(x),
+                            hypo['positional_scores'].tolist(),
+                        ))
+                    ))
                     print('A-{}\t{}'.format(sample_id, ' '.join(map(str, alignment))))
 
                 # Score only the top hypothesis
