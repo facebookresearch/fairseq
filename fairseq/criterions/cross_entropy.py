@@ -28,6 +28,7 @@ class CrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
+        lprobs = lprobs.view(-1, lprobs.size(-1))
         target = sample['target'].view(-1)
         loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx,
                           reduce=reduce)

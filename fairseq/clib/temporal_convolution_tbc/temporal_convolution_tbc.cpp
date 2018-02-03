@@ -20,6 +20,10 @@ at::Type& getDataType(const char* dtype) {
     return at::getType(at::kCUDA, at::kFloat);
   } else if (strcmp(dtype, "torch.FloatTensor") == 0) {
     return at::getType(at::kCPU, at::kFloat);
+  } else if (strcmp(dtype, "torch.cuda.DoubleTensor") == 0) {
+    return at::getType(at::kCUDA, at::kDouble);
+  } else if (strcmp(dtype, "torch.DoubleTensor") == 0) {
+    return at::getType(at::kCPU, at::kDouble);
   } else {
     throw std::runtime_error(std::string("Unsupported data type: ") + dtype);
   }
