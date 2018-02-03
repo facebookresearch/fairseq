@@ -205,7 +205,9 @@ def add_generation_args(parser):
     group.add_argument('--replace-unk', nargs='?', const=True, default=None,
                        help='perform unknown replacement (optionally with alignment dictionary)')
     group.add_argument('--quiet', action='store_true',
-                       help='Only print final scores')
+                       help='only print final scores')
+    group.add_argument('--score-reference', action='store_true',
+                       help='just score the reference translation')
     return group
 
 

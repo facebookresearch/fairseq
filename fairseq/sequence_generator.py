@@ -52,13 +52,13 @@ class SequenceGenerator(object):
         return self
 
     def generate_batched_itr(
-            self,
-            data_itr,
-            beam_size=None,
-            maxlen_a=0.0,
-            maxlen_b=None,
-            cuda=False,
-            timer=None,
+        self,
+        data_itr,
+        beam_size=None,
+        maxlen_a=0.0,
+        maxlen_b=None,
+        cuda=False,
+        timer=None,
     ):
         """Iterate over a batched dataset and yield individual translations.
 

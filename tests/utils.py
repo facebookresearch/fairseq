@@ -9,7 +9,7 @@
 import torch
 from torch.autograd import Variable
 
-from fairseq import dictionary
+from fairseq import data, dictionary
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
@@ -24,6 +24,49 @@ def dummy_dictionary(vocab_size, prefix='token_'):
         d.add_symbol(token)
     d.finalize()
     return d
+
+
+def dummy_dataloader(
+    samples,
+    padding_idx=1,
+    eos_idx=2,
+    batch_size=None,
+):
+    if batch_size is None:
+        batch_size = len(samples)
+
+    # add any missing data to samples
+    for i, sample in enumerate(samples):
+        if 'id' not in sample:
+            sample['id'] = i
+
+    # create dataloader
+    dataset = TestDataset(samples)
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        collate_fn=(
+            lambda samples: data.LanguagePairDataset.collate(
+                samples,
+                padding_idx,
+                eos_idx,
+            )
+        ),
+    )
+    return iter(dataloader)
+
+
+class TestDataset(torch.utils.data.Dataset):
+
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __len__(self):
+        return len(self.data)
 
 
 class TestModel(FairseqModel):
