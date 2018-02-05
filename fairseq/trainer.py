@@ -287,3 +287,6 @@ class Trainer(object):
 
             self._sample = utils.make_variable(sample, volatile=volatile, cuda=True)
 
+    def shutdown(self):
+        self.tcp_connector.shutdown()
+
