@@ -125,3 +125,9 @@ class TcpConnector(object):
             enc += stream.recv(size - len(enc))
         data = pickle.loads(enc)
         return data
+
+    def shutdown(self):
+        if self.socket:
+            TcpConnector.close(self.socket)
+        if self.host_idx == 0:
+            self.server.shutdown()

@@ -111,6 +111,7 @@ def main(args=None):
         epoch += 1
         batch_offset = 0
     train_meter.stop()
+    trainer.shutdown()
 
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
 
