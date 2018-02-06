@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import contextlib
 import itertools
@@ -163,13 +162,6 @@ class LanguageDatasets(object):
             batch_sampler=batch_sampler)
 
 
-def skip_group_enumerator(it, offset=0):
-    i = 0
-    for sample in it:
-        if i >= offset:
-            yield sample
-        i += 1
-
 class sharded_iterator(object):
 
     def __init__(self, itr, num_shards, shard_id):
@@ -219,6 +211,7 @@ class LanguagePairDataset(torch.utils.data.Dataset):
     def collate(samples, pad_idx, eos_idx):
         if len(samples) == 0:
             return {}
+
         def merge(key, left_pad, move_eos_to_beginning=False):
             return LanguagePairDataset.collate_tokens(
                 [s[key] for s in samples],

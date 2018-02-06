@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import contextlib
 import logging
@@ -66,7 +65,7 @@ def load_model_state(filename, model, cuda_device=None):
     # load model parameters
     try:
         model.load_state_dict(state['model'])
-    except:
+    except Exception:
         raise Exception('Cannot load model parameters from checkpoint, '
                         'please ensure that the architectures match')
 
@@ -207,8 +206,8 @@ def load_align_dict(replace_unk):
         align_dict = {}
         with open(replace_unk, 'r') as f:
             for line in f:
-                l = line.split()
-                align_dict[l[0]] = l[1]
+                cols = line.split()
+                align_dict[cols[0]] = cols[1]
     else:
         # No alignment dictionary provided but we still want to perform unknown word replacement by copying the
         # original source word.

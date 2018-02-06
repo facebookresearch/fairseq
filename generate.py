@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 -u
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import torch
 
@@ -16,14 +15,11 @@ from fairseq.sequence_scorer import SequenceScorer
 
 
 def main():
-    parser = options.get_parser('Generation')
-    options.add_dataset_args(parser, gen=True)
-    options.add_generation_args(parser)
+    parser = options.get_generation_parser()
     args = parser.parse_args()
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
-    cuda_device = 0 if use_cuda else None
     if hasattr(torch, 'set_grad_enabled'):
         torch.set_grad_enabled(False)
 
@@ -60,22 +56,6 @@ def main():
             beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
         )
 
-    # Initialize generator
-    if args.score_reference:
-        # just score the reference
-        translator = SequenceScorer(models)
-    else:
-        translator = SequenceGenerator(
-            models,
-            beam_size=args.beam,
-            stop_early=(not args.no_early_stop),
-            normalize_scores=(not args.unnormalized),
-            len_penalty=args.lenpen,
-            unk_penalty=args.unkpen,
-        )
-    if use_cuda:
-        translator.cuda()
-
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
@@ -93,26 +73,29 @@ def main():
             raise ValueError('--shard-id must be between 0 and num_shards')
         itr = data.sharded_iterator(itr, args.num_shards, args.shard_id)
 
+    # Initialize generator
+    gen_timer = StopwatchMeter()
+    if args.score_reference:
+        translator = SequenceScorer(models)
+    else:
+        translator = SequenceGenerator(
+            models, beam_size=args.beam, stop_early=(not args.no_early_stop),
+            normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
+            unk_penalty=args.unkpen)
+    if use_cuda:
+        translator.cuda()
+
     # Generate and compute BLEU score
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     num_sentences = 0
     with progress_bar.build_progress_bar(args, itr) as t:
-        wps_meter = TimeMeter()
-        gen_timer = StopwatchMeter()
         if args.score_reference:
-            translations = translator.score_batched_itr(
-                t,
-                cuda=use_cuda,
-                timer=gen_timer,
-            )
+            translations = translator.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
         else:
             translations = translator.generate_batched_itr(
-                t,
-                maxlen_a=args.max_len_a,
-                maxlen_b=args.max_len_b,
-                cuda=use_cuda,
-                timer=gen_timer,
-            )
+                t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
+                cuda=use_cuda, timer=gen_timer)
+        wps_meter = TimeMeter()
         for sample_id, src_tokens, target_tokens, hypos in translations:
             # Process input and ground truth
             target_tokens = target_tokens.int().cpu()
@@ -136,7 +119,8 @@ def main():
                     alignment=hypo['alignment'].int().cpu(),
                     align_dict=align_dict,
                     dst_dict=dataset.dst_dict,
-                    remove_bpe=args.remove_bpe)
+                    remove_bpe=args.remove_bpe,
+                )
 
                 if not args.quiet:
                     print('H-{}\t{}\t{}'.format(sample_id, hypo['score'], hypo_str))
@@ -153,9 +137,8 @@ def main():
                 if i == 0:
                     if align_dict is not None or args.remove_bpe is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
-                        target_tokens = tokenizer.Tokenizer.tokenize(target_str,
-                                                                     dataset.dst_dict,
-                                                                     add_if_not_exist=True)
+                        target_tokens = tokenizer.Tokenizer.tokenize(
+                            target_str, dataset.dst_dict, add_if_not_exist=True)
                     scorer.add(target_tokens, hypo_tokens)
 
             wps_meter.update(src_tokens.size(0))

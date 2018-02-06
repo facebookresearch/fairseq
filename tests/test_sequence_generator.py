@@ -31,8 +31,8 @@ class TestSequenceGenerator(unittest.TestCase):
 
         # construct source data
         self.src_tokens = Variable(torch.LongTensor([
-            [ self.w1, self.w2, self.eos ],
-            [ self.w1, self.w2, self.eos ],
+            [self.w1, self.w2, self.eos],
+            [self.w1, self.w2, self.eos],
         ]))
         self.src_lengths = Variable(torch.LongTensor([2, 2]))
 
@@ -41,48 +41,47 @@ class TestSequenceGenerator(unittest.TestCase):
         args.beam_probs = [
             # step 0:
             torch.FloatTensor([
-                # eos       w1   w2
+                # eos      w1   w2
                 # sentence 1:
-                [ 0.0, unk, 0.9, 0.1 ],  # beam 1
-                [ 0.0, unk, 0.9, 0.1 ],  # beam 2
+                [0.0, unk, 0.9, 0.1],  # beam 1
+                [0.0, unk, 0.9, 0.1],  # beam 2
                 # sentence 2:
-                [ 0.0, unk, 0.7, 0.3 ],
-                [ 0.0, unk, 0.7, 0.3 ],
+                [0.0, unk, 0.7, 0.3],
+                [0.0, unk, 0.7, 0.3],
             ]),
             # step 1:
             torch.FloatTensor([
-                # eos       w1   w2        prefix
+                # eos      w1   w2       prefix
                 # sentence 1:
-                [ 1.0, unk, 0.0, 0.0 ],  # w1: 0.9  (emit: w1 <eos>: 0.9*1.0)
-                [ 0.0, unk, 0.9, 0.1 ],  # w2: 0.1
+                [1.0, unk, 0.0, 0.0],  # w1: 0.9  (emit: w1 <eos>: 0.9*1.0)
+                [0.0, unk, 0.9, 0.1],  # w2: 0.1
                 # sentence 2:
-                [ 0.25, unk, 0.35, 0.4 ],  # w1: 0.7  (don't emit: w1 <eos>: 0.7*0.25)
-                [ 0.00, unk, 0.10, 0.9 ],  # w2: 0.3
+                [0.25, unk, 0.35, 0.4],  # w1: 0.7  (don't emit: w1 <eos>: 0.7*0.25)
+                [0.00, unk, 0.10, 0.9],  # w2: 0.3
             ]),
             # step 2:
             torch.FloatTensor([
-                # eos       w1   w2        prefix
+                # eos      w1   w2       prefix
                 # sentence 1:
-                [ 0.0, unk, 0.1, 0.9 ],  # w2 w1: 0.1*0.9
-                [ 0.6, unk, 0.2, 0.2 ],  # w2 w2: 0.1*0.1  (emit: w2 w2 <eos>: 0.1*0.1*0.6)
+                [0.0, unk, 0.1, 0.9],  # w2 w1: 0.1*0.9
+                [0.6, unk, 0.2, 0.2],  # w2 w2: 0.1*0.1  (emit: w2 w2 <eos>: 0.1*0.1*0.6)
                 # sentence 2:
-                [ 0.60, unk, 0.4, 0.00 ],  # w1 w2: 0.7*0.4  (emit: w1 w2 <eos>: 0.7*0.4*0.6)
-                [ 0.01, unk, 0.0, 0.99 ],  # w2 w2: 0.3*0.9
+                [0.60, unk, 0.4, 0.00],  # w1 w2: 0.7*0.4  (emit: w1 w2 <eos>: 0.7*0.4*0.6)
+                [0.01, unk, 0.0, 0.99],  # w2 w2: 0.3*0.9
             ]),
             # step 3:
             torch.FloatTensor([
-                # eos       w1   w2        prefix
+                # eos      w1   w2       prefix
                 # sentence 1:
-                [ 1.0, unk, 0.0, 0.0 ],  # w2 w1 w2: 0.1*0.9*0.9  (emit: w2 w1 w2 <eos>: 0.1*0.9*0.9*1.0)
-                [ 1.0, unk, 0.0, 0.0 ],  # w2 w1 w1: 0.1*0.9*0.1  (emit: w2 w1 w1 <eos>: 0.1*0.9*0.1*1.0)
+                [1.0, unk, 0.0, 0.0],  # w2 w1 w2: 0.1*0.9*0.9  (emit: w2 w1 w2 <eos>: 0.1*0.9*0.9*1.0)
+                [1.0, unk, 0.0, 0.0],  # w2 w1 w1: 0.1*0.9*0.1  (emit: w2 w1 w1 <eos>: 0.1*0.9*0.1*1.0)
                 # sentence 2:
-                [ 0.1, unk, 0.5, 0.4 ],  # w2 w2 w2: 0.3*0.9*0.99  (emit: w2 w2 w2 <eos>: 0.3*0.9*0.99*0.1)
-                [ 1.0, unk, 0.0, 0.0 ],  # w1 w2 w1: 0.7*0.4*0.4  (emit: w1 w2 w1 <eos>: 0.7*0.4*0.4*1.0)
+                [0.1, unk, 0.5, 0.4],  # w2 w2 w2: 0.3*0.9*0.99  (emit: w2 w2 w2 <eos>: 0.3*0.9*0.99*0.1)
+                [1.0, unk, 0.0, 0.0],  # w1 w2 w1: 0.7*0.4*0.4  (emit: w1 w2 w1 <eos>: 0.7*0.4*0.4*1.0)
             ]),
         ]
 
         self.model = test_utils.TestModel.build_model(args, d, d)
-
 
     def test_with_normalization(self):
         generator = SequenceGenerator([self.model])
