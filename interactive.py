@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 -u
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
+
 import sys
 import torch
 from torch.autograd import Variable
@@ -15,16 +15,13 @@ from fairseq.sequence_generator import SequenceGenerator
 
 
 def main():
-    parser = options.get_parser('Generation')
-    parser.add_argument('--path', metavar='FILE', required=True, action='append',
-                        help='path(s) to model file(s)')
-    options.add_dataset_args(parser)
-    options.add_generation_args(parser)
-
+    parser = options.get_generation_parser()
     args = parser.parse_args()
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
+    if hasattr(torch, 'set_grad_enabled'):
+        torch.set_grad_enabled(False)
 
     # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
@@ -37,7 +34,8 @@ def main():
     # Optimize ensemble for generation
     for model in models:
         model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
+            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
+        )
 
     # Initialize generator
     translator = SequenceGenerator(
@@ -69,7 +67,8 @@ def main():
                 alignment=hypo['alignment'].int().cpu(),
                 align_dict=align_dict,
                 dst_dict=dst_dict,
-                remove_bpe=args.remove_bpe)
+                remove_bpe=args.remove_bpe,
+            )
             print('H\t{}\t{}'.format(hypo['score'], hypo_str))
             print('A\t{}'.format(' '.join(map(str, alignment))))
 

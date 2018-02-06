@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 from contextlib import ExitStack
 import math
@@ -15,18 +14,8 @@ from fairseq.models import FairseqIncrementalDecoder
 
 
 class SequenceGenerator(object):
-    def __init__(
-        self,
-        models,
-        beam_size=1,
-        minlen=1,
-        maxlen=200,
-        stop_early=True,
-        normalize_scores=True,
-        len_penalty=1,
-        unk_penalty=0,
-        retain_dropout=False,
-    ):
+    def __init__(self, models, beam_size=1, minlen=1, maxlen=200, stop_early=True,
+                 normalize_scores=True, len_penalty=1, unk_penalty=0, retain_dropout=False):
         """Generates translations of a given source sentence.
 
         Args:
@@ -59,15 +48,8 @@ class SequenceGenerator(object):
             model.cuda()
         return self
 
-    def generate_batched_itr(
-        self,
-        data_itr,
-        beam_size=None,
-        maxlen_a=0.0,
-        maxlen_b=None,
-        cuda=False,
-        timer=None,
-    ):
+    def generate_batched_itr(self, data_itr, beam_size=None, maxlen_a=0.0, maxlen_b=None,
+                             cuda=False, timer=None):
         """Iterate over a batched dataset and yield individual translations.
 
         Args:
@@ -278,6 +260,8 @@ class SequenceGenerator(object):
             cand_scores = buffer('cand_scores', type_of=scores)
             cand_indices = buffer('cand_indices')
             cand_beams = buffer('cand_beams')
+            eos_bbsz_idx = buffer('eos_bbsz_idx')
+            eos_scores = buffer('eos_scores', type_of=scores)
             if step < maxlen:
                 # take the best 2 x beam_size predictions. We'll choose the first
                 # beam_size of these which don't predict eos to continue with.
@@ -309,7 +293,6 @@ class SequenceGenerator(object):
             # finalize hypotheses that end in eos
             eos_mask = cand_indices.eq(self.eos)
             if step >= self.minlen:
-                eos_bbsz_idx = buffer('eos_bbsz_idx')
                 # only consider eos when it's among the top beam_size indices
                 torch.masked_select(
                     cand_bbsz_idx[:, :beam_size],
@@ -317,7 +300,6 @@ class SequenceGenerator(object):
                     out=eos_bbsz_idx,
                 )
                 if eos_bbsz_idx.numel() > 0:
-                    eos_scores = buffer('eos_scores', type_of=scores)
                     torch.masked_select(
                         cand_scores[:, :beam_size],
                         mask=eos_mask[:, :beam_size],

@@ -4,17 +4,30 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import argparse
-import torch
-
-import torch.cuda
 
 from fairseq.criterions import CRITERION_REGISTRY
 from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
 from fairseq.optim import OPTIMIZER_REGISTRY
 from fairseq.optim.lr_scheduler import LR_SCHEDULER_REGISTRY
+
+
+def get_training_parser():
+    parser = get_parser('Trainer')
+    add_dataset_args(parser, train=True)
+    add_distributed_training_args(parser)
+    add_model_args(parser)
+    add_optimization_args(parser)
+    add_checkpoint_args(parser)
+    return parser
+
+
+def get_generation_parser():
+    parser = get_parser('Generation')
+    add_dataset_args(parser, gen=True)
+    add_generation_args(parser)
+    return parser
 
 
 def parse_args_and_arch(parser):
@@ -39,7 +52,11 @@ def parse_args_and_arch(parser):
 
     # Parse a second time.
     args = parser.parse_args()
+
+    # Post-process args.
     args.lr = list(map(float, args.lr.split(',')))
+    if args.max_sentences_valid is None:
+        args.max_sentences_valid = args.max_sentences
 
     # Apply architecture configuration.
     ARCH_CONFIG_REGISTRY[args.arch](args)
@@ -57,8 +74,6 @@ def get_parser(desc):
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
-    parser.add_argument('--num-gpus', default=torch.cuda.device_count(), type=int, metavar='N',
-                        help='number of GPUs available')
     return parser
 
 
@@ -88,7 +103,8 @@ def add_dataset_args(parser, train=False, gen=False):
                            help='comma separated list of data subsets to use for validation'
                                 ' (train, valid, valid1,test, test1)')
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
-                           help='maximum number of sentences in a validation batch')
+                           help='maximum number of sentences in a validation batch'
+                                ' (defaults to --max-sentences)')
     if gen:
         group.add_argument('--gen-subset', default='test', metavar='SPLIT',
                            help='data subset to generate (train, valid, test)')
@@ -100,21 +116,20 @@ def add_dataset_args(parser, train=False, gen=False):
 
 
 def add_distributed_training_args(parser):
-    group = parser.add_argument_group('Multi-GPU training')
+    group = parser.add_argument_group('Distributed training')
     group.add_argument('--distributed-world-size', default=1, type=int, metavar='N',
                        help='total number of GPUs across all nodes, default: 1 GPU')
-    group.add_argument('--distributed-master-host', default='localhost', type=str,
-                       help='Master host used for synchronizing stats across nodes')
-    group.add_argument('--distributed-port', default=-1, type=int,
-                       help='TCP port number for synchronizing stats across nodes')
     group.add_argument('--distributed-rank', default=0, type=int,
-                        help='rank of the current worker')
+                       help='rank of the current worker')
     group.add_argument('--distributed-backend', default='nccl', type=str,
-                        help='distributed backend')
+                       help='distributed backend')
     group.add_argument('--distributed-init-method', default=None, type=str,
-                       help='Typically tcp://hostname:port that will be used to '
+                       help='typically tcp://hostname:port that will be used to '
                             'establish initial connetion')
-
+    group.add_argument('--distributed-port', default=-1, type=int,
+                       help='port number (not required if using --distributed-init-method)')
+    group.add_argument('--device-id', default=0, type=int,
+                       help='which GPU to use (usually configured automatically)')
     return group
 
 

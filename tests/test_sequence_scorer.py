@@ -51,31 +51,31 @@ class TestSequenceScorer(unittest.TestCase):
         args.beam_probs = [
             # step 0:
             torch.FloatTensor([
-                # eos       w1   w2
-                [ 0.0, unk, 0.6, 0.4 ],  # sentence 1
-                [ 0.0, unk, 0.4, 0.6 ],  # sentence 2
-                [ 0.0, unk, 0.7, 0.3 ],  # sentence 3
+                # eos      w1   w2
+                [0.0, unk, 0.6, 0.4],  # sentence 1
+                [0.0, unk, 0.4, 0.6],  # sentence 2
+                [0.0, unk, 0.7, 0.3],  # sentence 3
             ]),
             # step 1:
             torch.FloatTensor([
-                # eos       w1   w2
-                [ 0.0, unk, 0.2, 0.7 ],  # sentence 1
-                [ 0.0, unk, 0.8, 0.2 ],  # sentence 2
-                [ 0.7, unk, 0.1, 0.2 ],  # sentence 3
+                # eos      w1   w2
+                [0.0, unk, 0.2, 0.7],  # sentence 1
+                [0.0, unk, 0.8, 0.2],  # sentence 2
+                [0.7, unk, 0.1, 0.2],  # sentence 3
             ]),
             # step 2:
             torch.FloatTensor([
-                # eos       w1   w2
-                [ 0.1, unk, 0.5, 0.4 ],  # sentence 1
-                [ 0.15, unk, 0.15, 0.7 ],  # sentence 2
-                [ 0.0, unk, 0.0, 0.0 ],  # sentence 3
+                # eos       w1    w2
+                [0.10, unk, 0.50, 0.4],  # sentence 1
+                [0.15, unk, 0.15, 0.7],  # sentence 2
+                [0.00, unk, 0.00, 0.0],  # sentence 3
             ]),
             # step 3:
             torch.FloatTensor([
-                # eos       w1   w2
-                [ 0.9, unk, 0.05, 0.05 ],  # sentence 1
-                [ 0.0, unk, 0.0, 0.0 ],  # sentence 2
-                [ 0.0, unk, 0.0, 0.0 ],  # sentence 3
+                # eos      w1    w2
+                [0.9, unk, 0.05, 0.05],  # sentence 1
+                [0.0, unk, 0.00, 0.0],  # sentence 2
+                [0.0, unk, 0.00, 0.0],  # sentence 3
             ]),
         ]
         expected_scores = [
