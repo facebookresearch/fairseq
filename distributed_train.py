@@ -25,6 +25,7 @@ def main(args):
                     host=hostnames.split()[0].decode('utf-8'),
                     port=args.distributed_port)
                 args.distributed_rank = int(os.environ.get('SLURM_PROCID'))
+                args.device_id = int(os.environ.get('SLURM_LOCALID'))
             except subprocess.CalledProcessError as e:  # scontrol failed
                 raise e
             except FileNotFoundError as e:  # Slurm is not installed
