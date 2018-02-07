@@ -43,8 +43,6 @@ def main(args):
 def run(args, error_queue):
     try:
         args.distributed_rank = distributed_utils.distributed_init(args)
-        if args.distributed_rank != 0:
-            distributed_utils.suppress_output()
         single_process_main(args)
     except KeyboardInterrupt:
         pass  # killed by parent, do nothing

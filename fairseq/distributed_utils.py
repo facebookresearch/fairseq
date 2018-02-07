@@ -26,7 +26,11 @@ def distributed_init(args):
             backend=args.distributed_backend, init_method=args.distributed_init_method,
             world_size=args.distributed_world_size)
 
-    return torch.distributed.get_rank()
+    args.distributed_rank = torch.distributed.get_rank()
+    if args.distributed_rank != 0:
+        suppress_output()
+
+    return args.distributed_rank
 
 
 def suppress_output():
