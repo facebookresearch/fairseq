@@ -44,7 +44,7 @@ class NAG(Optimizer):
                 buf = param_state['momentum_buffer']
 
                 if weight_decay != 0:
-                    p.data.mul_(1 - weight_decay)
+                    p.data.mul_(1 - lr * weight_decay)
                 p.data.add_(momentum * momentum * lr_correct, buf)
                 p.data.add_(-(1 + momentum) * lr, d_p)
 

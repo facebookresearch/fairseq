@@ -96,7 +96,7 @@ class Adam(Optimizer):
                 step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
 
                 if group['weight_decay'] != 0:
-                    p.data.add_(-group['weight_decay'], p.data)
+                    p.data.add_(-group['weight_decay'] * group['lr'], p.data)
 
                 p.data.addcdiv_(-step_size, exp_avg, denom)
 
