@@ -238,7 +238,7 @@ def get_valid_stats(trainer):
         nll_loss = trainer.get_meter('valid_nll_loss').avg
         stats['valid_nll_loss'] = nll_loss
     else:
-        nll_loss = trainer.get_meter('valid_nll_loss').avg
+        nll_loss = trainer.get_meter('valid_loss').avg
     stats['valid_ppl'] = get_perplexity(nll_loss)
     return stats
 
