@@ -17,7 +17,7 @@ from fairseq.models import FairseqIncrementalDecoder
 
 
 class SequenceGenerator(object):
-    def __init__(self, models, beam_size=1, minlen=1, maxlen=200,
+    def __init__(self, models, beam_size=1, minlen=1, maxlen=None,
                  stop_early=True, normalize_scores=True, len_penalty=1,
                  unk_penalty=0, retain_dropout=False):
         """Generates translations of a given source sentence.
@@ -40,7 +40,8 @@ class SequenceGenerator(object):
         self.vocab_size = len(models[0].dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        self.maxlen = min(maxlen, *[m.max_decoder_positions() for m in self.models])
+        max_decoder_len = min([m.max_decoder_positions() for m in self.models])
+        self.maxlen = max_decoder_len if maxlen is None else min(maxlen, max_decoder_len)
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
