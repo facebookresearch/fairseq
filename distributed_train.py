@@ -10,12 +10,12 @@ import os
 import socket
 import subprocess
 
-from train import main as single_process_main
+from singleprocess_train import main as single_process_main
 from fairseq import distributed_utils, options
 
 
 def main(args):
-    if args.distributed_init_method is None and args.distributed_port is not None:
+    if args.distributed_init_method is None and args.distributed_port > 0:
         # We can determine the init method automatically for Slurm.
         node_list = os.environ.get('SLURM_JOB_NODELIST')
         if node_list is not None:
