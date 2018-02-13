@@ -30,11 +30,11 @@ def get_generation_parser():
     return parser
 
 
-def parse_args_and_arch(parser):
+def parse_args_and_arch(parser, _args=None):
     # The parser doesn't know about model/criterion/optimizer-specific args, so
     # we parse twice. First we parse the model/criterion/optimizer, then we
     # parse a second time after adding the *-specific arguments.
-    args, _ = parser.parse_known_args()
+    args, _ = parser.parse_known_args(_args)
 
     # Add model-specific args to parser.
     model_specific_group = parser.add_argument_group(
@@ -51,7 +51,7 @@ def parse_args_and_arch(parser):
     LR_SCHEDULER_REGISTRY[args.lr_scheduler].add_args(parser)
 
     # Parse a second time.
-    args = parser.parse_args()
+    args = parser.parse_args(_args)
 
     # Post-process args.
     args.lr = list(map(float, args.lr.split(',')))

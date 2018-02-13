@@ -14,9 +14,7 @@ from fairseq import options, tokenizer, utils
 from fairseq.sequence_generator import SequenceGenerator
 
 
-def main():
-    parser = options.get_generation_parser()
-    args = parser.parse_args()
+def main(args):
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
@@ -55,7 +53,11 @@ def main():
         src_tokens = tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long()
         if use_cuda:
             src_tokens = src_tokens.cuda()
-        translations = translator.generate(Variable(src_tokens.view(1, -1)))
+        src_lengths = src_tokens.new([src_tokens.numel()])
+        translations = translator.generate(
+            Variable(src_tokens.view(1, -1)),
+            Variable(src_lengths.view(-1)),
+        )
         hypos = translations[0]
         print('O\t{}'.format(src_str))
 
@@ -74,4 +76,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = options.get_generation_parser()
+    args = parser.parse_args()
+    main(args)
