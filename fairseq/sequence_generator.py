@@ -250,6 +250,8 @@ class SequenceGenerator(object):
                 # at the first step all hypotheses are equally likely, so use
                 # only the first beam
                 probs = probs.unfold(0, 1, beam_size).squeeze(2).contiguous()
+                scores = scores.type_as(probs)
+                scores_buf = scores_buf.type_as(probs)
             else:
                 # make probs contain cumulative scores for each hypothesis
                 probs.add_(scores[:, step-1].view(-1, 1))

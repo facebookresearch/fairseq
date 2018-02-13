@@ -14,9 +14,7 @@ from fairseq.sequence_generator import SequenceGenerator
 from fairseq.sequence_scorer import SequenceScorer
 
 
-def main():
-    parser = options.get_generation_parser()
-    args = parser.parse_args()
+def main(args):
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
@@ -151,4 +149,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = options.get_generation_parser()
+    args = parser.parse_args()
+    main(args)

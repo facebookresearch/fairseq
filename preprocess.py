@@ -16,7 +16,7 @@ from fairseq import dictionary, indexed_dataset
 from fairseq.tokenizer import Tokenizer, tokenize_line
 
 
-def main():
+def get_parser():
     parser = argparse.ArgumentParser(
         description='Data pre-processing: Create dictionary and store data in binary format')
     parser.add_argument('-s', '--source-lang', default=None, metavar='SRC', help='source language')
@@ -37,8 +37,9 @@ def main():
     parser.add_argument('--output-format', metavar='FORMAT', default='binary', choices=['binary', 'raw'],
                         help='output format (optional)')
     parser.add_argument('--joined-dictionary', action='store_true', help='Generate joined dictionary')
+    return parser
 
-    args = parser.parse_args()
+def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
 
@@ -150,4 +151,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = get_parser()
+    args = parser.parse_args()
+    main(args)
