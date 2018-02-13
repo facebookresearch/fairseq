@@ -51,6 +51,7 @@ class Trainer(object):
         self.meters['ups'] = TimeMeter()      # updates per second
         self.meters['wpb'] = AverageMeter()   # words per batch
         self.meters['bsz'] = AverageMeter()   # sentences per batch
+        self.meters['gnorm'] = AverageMeter() # gradient norm
         self.meters['clip'] = AverageMeter()  # % of updates clipped
         self.meters['oom'] = AverageMeter()   # out of memory
 
@@ -106,6 +107,7 @@ class Trainer(object):
         self.meters['ups'].update(1.)
         self.meters['wpb'].update(ntokens)
         self.meters['bsz'].update(nsentences)
+        self.meters['gnorm'].update(grad_norm)
         self.meters['clip'].update(1. if grad_norm > self.args.clip_norm else 0.)
         self.meters['oom'].update(ooms_fwd + ooms_bwd)
 
