@@ -177,6 +177,7 @@ def get_training_stats(trainer):
     stats['lr'] = trainer.get_lr()
     stats['gnorm'] = '{:.3f}'.format(trainer.get_meter('gnorm').avg)
     stats['clip'] = '{:.0%}'.format(trainer.get_meter('clip').avg)
+    stats['oom'] = trainer.get_meter('oom').avg
     return stats
 
 
