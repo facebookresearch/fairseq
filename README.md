@@ -161,6 +161,44 @@ $ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
 BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 ```
 
+# Distributed version
+
+Distributed training in fairseq-py is implemented on top of [torch.distributed](http://pytorch.org/docs/master/distributed.html).
+In order to run it requires one process per GPU. In order for those processes to be able to discover each other
+they need to know a unique host and port that can be used to establish initial connection and each process
+needs to be assigned a rank, that is a unique number from 0 to n-1 where n is the total number of GPUs.
+
+Below is the example of training of a big En2Fr model on 16 nodes with 8 GPUs each (in total 128 GPUs):
+
+If you run on a cluster managed by [SLURM](https://slurm.schedmd.com/) you can train the WMT'14 En2Fr model with
+the following command:
+
+```
+$ DATA=... # path to the preprocessed dataset, must be visible from all nodes
+$ PORT=9218 # any available tcp port that can be used by the trained to establish initial connection
+$ sbatch --job-name fairseq-py --gres gpu:8 --nodes 16 --ntasks-per-node 8 \
+    --cpus-per-task 10 --no-requeue --wrap 'srun --output train.log.node%t \
+    --error train.stderr.node%t.%j python train.py $DATA --distributed-world-size 128 \
+    --distributed-port $PORT --force-anneal 50 --lr-scheduler fixed --max-epoch 55 \
+    --arch fconv_wmt_en_fr --optimizer nag --lr 0.1,4 --max-tokens 3000 \
+    --clip-norm 0.1 --dropout 0.1 --criterion label_smoothed_cross_entropy \
+    --label-smoothing 0.1 --wd 0.0001'
+```
+
+Alternatively you'll need to manually start one process per each GPU:
+```
+$ DATA=... # path to the preprocessed dataset, must be visible from all nodes
+$ HOST_PORT=your.devserver.com:9218 # has to be one of the hosts that will be used by the job \
+    and the port on that host has to be available
+$ RANK=... # the rank of this process, has to go from 0 to 127 in case of 128 GPUs
+$ python train.py $DATA --distributed-world-size 128 \
+      --force-anneal 50 --lr-scheduler fixed --max-epoch 55 \
+      --arch fconv_wmt_en_fr --optimizer nag --lr 0.1,4 --max-tokens 3000 \
+      --clip-norm 0.1 --dropout 0.1 --criterion label_smoothed_cross_entropy \
+      --label-smoothing 0.1 --wd 0.0001 \
+      --distributed-init-method='tcp://$HOST_PORT' --distributed-rank=$RANK
+```
+
 # Join the fairseq community
 
 * Facebook page: https://www.facebook.com/groups/fairseq.users
