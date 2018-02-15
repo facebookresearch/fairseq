@@ -11,7 +11,6 @@ import random
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 import torch
 
@@ -84,11 +83,10 @@ class TestBinaries(unittest.TestCase):
                 '--save-dir', data_dir,
                 '--max-epoch', '1',
                 '--no-progress-bar',
+                '--distributed-world-size', '1',
             ],
         )
-        with mock.patch('train.torch.cuda.device_count') as device_count:
-            device_count.return_value = 1
-            train.main(train_args)
+        train.main(train_args)
 
     def generate(self, data_dir):
         generate_parser = options.get_generation_parser()

@@ -18,8 +18,6 @@ def main(args):
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
-    if hasattr(torch, 'set_grad_enabled'):
-        torch.set_grad_enabled(False)
 
     # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
