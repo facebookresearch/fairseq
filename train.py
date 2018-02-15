@@ -14,6 +14,7 @@ from distributed_train import main as distributed_main
 from multiprocessing_train import main as multiprocessing_main
 from singleprocess_train import main as singleprocess_main
 
+
 def main(args):
     if args.distributed_port > 0 \
             or args.distributed_init_method is not None:
@@ -22,6 +23,7 @@ def main(args):
         multiprocessing_main(args)
     else:
         singleprocess_main(args)
+
 
 if __name__ == '__main__':
     parser = options.get_training_parser()
