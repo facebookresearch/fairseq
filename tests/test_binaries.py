@@ -11,12 +11,16 @@ import random
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import torch
 
 from fairseq import options
 
-import preprocess, train, generate, interactive
+import preprocess
+import train
+import generate
+import interactive
 
 
 class TestBinaries(unittest.TestCase):
@@ -82,7 +86,9 @@ class TestBinaries(unittest.TestCase):
                 '--no-progress-bar',
             ],
         )
-        train.main(train_args)
+        with mock.patch('train.torch.cuda.device_count') as device_count:
+            device_count.return_value = 1
+            train.main(train_args)
 
     def generate(self, data_dir):
         generate_parser = options.get_generation_parser()

@@ -39,6 +39,7 @@ def get_parser():
     parser.add_argument('--joined-dictionary', action='store_true', help='Generate joined dictionary')
     return parser
 
+
 def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
