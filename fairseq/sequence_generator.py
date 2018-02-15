@@ -90,7 +90,8 @@ class SequenceGenerator(object):
             for model in self.models:
                 if isinstance(model.decoder, FairseqIncrementalDecoder):
                     stack.enter_context(model.decoder.incremental_inference())
-            return self._generate(src_tokens, src_lengths, beam_size, maxlen)
+            with utils.maybe_no_grad():
+                return self._generate(src_tokens, src_lengths, beam_size, maxlen)
 
     def _generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None):
         bsz, srclen = src_tokens.size()

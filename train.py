@@ -19,7 +19,7 @@ def main(args):
     if args.distributed_port > 0 \
             or args.distributed_init_method is not None:
         distributed_main(args)
-    elif torch.cuda.device_count() > 1:
+    elif args.distributed_world_size > 1:
         multiprocessing_main(args)
     else:
         singleprocess_main(args)
