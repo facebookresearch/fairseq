@@ -226,6 +226,8 @@ def add_generation_args(parser):
                        help='only print final scores')
     group.add_argument('--score-reference', action='store_true',
                        help='just score the reference translation')
+    group.add_argument('--prefix-size', default=0, type=int, metavar='PS',
+                       help=('initialize generation by target prefix of given length'))
     return group
 
 
