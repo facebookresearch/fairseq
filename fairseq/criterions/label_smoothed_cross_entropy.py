@@ -7,6 +7,7 @@
 
 import math
 import torch
+from torch.autograd import Variable
 import torch.nn.functional as F
 
 from fairseq import utils
@@ -24,6 +25,8 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
 
         norm = grad_input.size(-1)
         if weights is not None:
+            if isinstance(grad_input, Variable) and not isinstance(weights, Variable):
+                weights = Variable(weights, requires_grad=False)
             norm = weights.sum()
             grad_input.mul(weights.view(1, weights.size(0)).expand_as(grad_input))
 
