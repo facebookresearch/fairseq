@@ -5,7 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from contextlib import ExitStack
 import math
 import torch
 
@@ -87,12 +86,8 @@ class SequenceGenerator(object):
 
     def generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
         """Generate a batch of translations."""
-        with ExitStack() as stack:
-            for model in self.models:
-                if isinstance(model.decoder, FairseqIncrementalDecoder):
-                    stack.enter_context(model.decoder.incremental_inference())
-            with utils.maybe_no_grad():
-                return self._generate(src_tokens, src_lengths, beam_size, maxlen, prefix_tokens)
+        with utils.maybe_no_grad():
+            return self._generate(src_tokens, src_lengths, beam_size, maxlen, prefix_tokens)
 
     def _generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
         bsz, srclen = src_tokens.size()
@@ -103,11 +98,14 @@ class SequenceGenerator(object):
         beam_size = min(beam_size, self.vocab_size - 1)
 
         encoder_outs = []
+        incremental_states = {}
         for model in self.models:
             if not self.retain_dropout:
                 model.eval()
             if isinstance(model.decoder, FairseqIncrementalDecoder):
-                model.decoder.set_beam_size(beam_size)
+                incremental_states[model] = {}
+            else:
+                incremental_states[model] = None
 
             # compute the encoder output for each beam
             encoder_out = model.encoder(
@@ -245,9 +243,11 @@ class SequenceGenerator(object):
             if reorder_state is not None:
                 for model in self.models:
                     if isinstance(model.decoder, FairseqIncrementalDecoder):
-                        model.decoder.reorder_incremental_state(reorder_state)
+                        model.decoder.reorder_incremental_state(
+                            incremental_states[model], reorder_state)
 
-            probs, avg_attn_scores = self._decode(tokens[:, :step+1], encoder_outs)
+            probs, avg_attn_scores = self._decode(
+                tokens[:, :step+1], encoder_outs, incremental_states)
             if step == 0:
                 # at the first step all hypotheses are equally likely, so use
                 # only the first beam
@@ -287,7 +287,6 @@ class SequenceGenerator(object):
                     )
                     torch.div(cand_indices, self.vocab_size, out=cand_beams)
                     cand_indices.fmod_(self.vocab_size)
-                
             else:
                 # finalize all active hypotheses once we hit maxlen
                 # pick the hypothesis with the highest prob of EOS right now
@@ -403,7 +402,7 @@ class SequenceGenerator(object):
 
         return finalized
 
-    def _decode(self, tokens, encoder_outs):
+    def _decode(self, tokens, encoder_outs, incremental_states):
         # wrap in Variable
         tokens = utils.volatile_variable(tokens)
 
@@ -411,7 +410,7 @@ class SequenceGenerator(object):
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
             with utils.maybe_no_grad():
-                decoder_out, attn = model.decoder(tokens, encoder_out)
+                decoder_out, attn = model.decoder(tokens, encoder_out, incremental_states[model])
             probs = model.get_normalized_probs(decoder_out[:, -1, :], log_probs=False).data
             if avg_probs is None:
                 avg_probs = probs

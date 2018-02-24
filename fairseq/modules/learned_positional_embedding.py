@@ -20,14 +20,10 @@ class LearnedPositionalEmbedding(nn.Embedding):
     def __init__(self, num_embeddings, embedding_dim, padding_idx, left_pad):
         super().__init__(num_embeddings, embedding_dim, padding_idx)
         self.left_pad = left_pad
-        self._is_incremental_eval = False
 
-    def incremental_eval(self, mode=True):
-        self._is_incremental_eval = mode
-
-    def forward(self, input):
+    def forward(self, input, incremental_state=None):
         """Input is expected to be of size [bsz x seqlen]."""
-        if self._is_incremental_eval:
+        if incremental_state is not None:
             # positions is the same for every token when decoding a single step
             positions = Variable(
                 input.data.new(1, 1).fill_(self.padding_idx + input.size(1)))

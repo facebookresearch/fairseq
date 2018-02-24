@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from fairseq import utils
 from fairseq.data import LanguagePairDataset
 from fairseq.modules import BeamableMM, GradMultiply, LearnedPositionalEmbedding, LinearizedConvolution
 
@@ -229,19 +230,13 @@ class FConvDecoder(FairseqIncrementalDecoder):
         else:
             self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-    def forward(self, prev_output_tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
         # split and transpose encoder outputs
-        encoder_a, encoder_b = self._split_encoder_out(encoder_out)
+        encoder_a, encoder_b = self._split_encoder_out(encoder_out, incremental_state)
 
-        # embed positions
-        positions = self.embed_positions(prev_output_tokens)
-
-        if self._is_incremental_eval:
-            # keep only the last token for incremental forward pass
-            prev_output_tokens = prev_output_tokens[:, -1:]
-
-        # embed tokens and positions
-        x = self.embed_tokens(prev_output_tokens) + positions
+        # embed tokens and combine with positional embeddings
+        x = self._embed_tokens(prev_output_tokens, incremental_state)
+        x += self.embed_positions(prev_output_tokens, incremental_state)
         x = F.dropout(x, p=self.dropout, training=self.training)
         target_embedding = x
 
@@ -249,7 +244,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
         x = self.fc1(x)
 
         # B x T x C -> T x B x C
-        x = self._transpose_unless_incremental_eval(x)
+        x = self._transpose_if_training(x, incremental_state)
 
         # temporal convolutions
         avg_attn_scores = None
@@ -258,13 +253,14 @@ class FConvDecoder(FairseqIncrementalDecoder):
             residual = x if proj is None else proj(x)
 
             x = F.dropout(x, p=self.dropout, training=self.training)
-            x = conv(x)
-            x = conv.remove_future_timesteps(x)
+            x = conv(x, incremental_state)
+            if incremental_state is None:
+                x = conv.remove_future_timesteps(x)
             x = F.glu(x, dim=2)
 
             # attention
             if attention is not None:
-                x = self._transpose_unless_incremental_eval(x)
+                x = self._transpose_if_training(x, incremental_state)
 
                 x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b))
                 attn_scores = attn_scores / num_attn_layers
@@ -273,13 +269,13 @@ class FConvDecoder(FairseqIncrementalDecoder):
                 else:
                     avg_attn_scores.add_(attn_scores)
 
-                x = self._transpose_unless_incremental_eval(x)
+                x = self._transpose_if_training(x, incremental_state)
 
             # residual
             x = (x + residual) * math.sqrt(0.5)
 
         # T x B x C -> B x T x C
-        x = self._transpose_unless_incremental_eval(x)
+        x = self._transpose_if_training(x, incremental_state)
 
         # project back to size of vocabulary
         x = self.fc2(x)
@@ -287,10 +283,6 @@ class FConvDecoder(FairseqIncrementalDecoder):
         x = self.fc3(x)
 
         return x, avg_attn_scores
-
-    def reorder_incremental_state(self, new_order):
-        """Reorder buffered internal state (for incremental generation)."""
-        super().reorder_incremental_state(new_order)
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
@@ -306,13 +298,19 @@ class FConvDecoder(FairseqIncrementalDecoder):
             state_dict['decoder.version'] = torch.Tensor([1])
         return state_dict
 
-    def _split_encoder_out(self, encoder_out):
+    def _embed_tokens(self, tokens, incremental_state):
+        if incremental_state is not None:
+            # keep only the last token for incremental forward pass
+            tokens = tokens[:, -1:]
+        return self.embed_tokens(tokens)
+
+    def _split_encoder_out(self, encoder_out, incremental_state):
         """Split and transpose encoder outputs.
 
         This is cached when doing incremental inference.
         """
-        cached_result = self.get_incremental_state('encoder_out')
-        if cached_result:
+        cached_result = utils.get_incremental_state(self, incremental_state, 'encoder_out')
+        if cached_result is not None:
             return cached_result
 
         # transpose only once to speed up attention layers
@@ -320,12 +318,14 @@ class FConvDecoder(FairseqIncrementalDecoder):
         encoder_a = encoder_a.transpose(1, 2).contiguous()
         result = (encoder_a, encoder_b)
 
-        return self.set_incremental_state('encoder_out', result)
+        if incremental_state is not None:
+            utils.set_incremental_state(self, incremental_state, 'encoder_out', result)
+        return result
 
-    def _transpose_unless_incremental_eval(self, x):
-        if self._is_incremental_eval:
-            return x
-        return x.transpose(0, 1)
+    def _transpose_if_training(self, x, incremental_state):
+        if incremental_state is None:
+            x = x.transpose(0, 1)
+        return x
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

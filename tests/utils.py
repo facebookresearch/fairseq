@@ -9,7 +9,7 @@
 import torch
 from torch.autograd import Variable
 
-from fairseq import data, dictionary
+from fairseq import data, dictionary, utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
@@ -96,24 +96,21 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
         args.max_decoder_positions = getattr(args, 'max_decoder_positions', 100)
         self.args = args
 
-    def forward(self, prev_output_tokens, encoder_out):
-        if self._is_incremental_eval:
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+        if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]
-        return self._forward(prev_output_tokens, encoder_out)
-
-    def _forward(self, prev_output_tokens, encoder_out):
         bbsz = prev_output_tokens.size(0)
         vocab = len(self.dictionary)
         src_len = encoder_out.size(1)
         tgt_len = prev_output_tokens.size(1)
 
         # determine number of steps
-        if self._is_incremental_eval:
+        if incremental_state is not None:
             # cache step number
-            step = self.get_incremental_state('step')
+            step = utils.get_incremental_state(self, incremental_state, 'step')
             if step is None:
                 step = 0
-            self.set_incremental_state('step', step + 1)
+            utils.set_incremental_state(self, incremental_state, 'step', step + 1)
             steps = [step]
         else:
             steps = list(range(tgt_len))

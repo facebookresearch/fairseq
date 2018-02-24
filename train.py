@@ -6,8 +6,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import torch
-
 from fairseq import options
 
 from distributed_train import main as distributed_main
