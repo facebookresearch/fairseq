@@ -41,7 +41,10 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad):
-        return utils.volatile_variable(ctx.grad_input) * grad, None, None, None, None, None
+        grad_input = ctx.grad_input
+        if not isinstance(grad_input, torch.autograd.Variable):
+            grad_input = utils.volatile_variable(grad_input)
+        return grad_input * grad, None, None, None, None, None
 
 
 @register_criterion('label_smoothed_cross_entropy')
