@@ -13,10 +13,10 @@ import os
 import shutil
 
 from fairseq import dictionary, indexed_dataset
-from fairseq.tokenizer import Tokenizer
+from fairseq.tokenizer import Tokenizer, tokenize_line
 
 
-def main():
+def get_parser():
     parser = argparse.ArgumentParser(
         description='Data pre-processing: Create dictionary and store data in binary format')
     parser.add_argument('-s', '--source-lang', default=None, metavar='SRC', help='source language')
@@ -36,22 +36,37 @@ def main():
     parser.add_argument('--alignfile', metavar='ALIGN', default=None, help='an alignment file (optional)')
     parser.add_argument('--output-format', metavar='FORMAT', default='binary', choices=['binary', 'raw'],
                         help='output format (optional)')
+    parser.add_argument('--joined-dictionary', action='store_true', help='Generate joined dictionary')
+    return parser
 
-    args = parser.parse_args()
+def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
 
-    if args.srcdict:
-        src_dict = dictionary.Dictionary.load(args.srcdict)
+    if args.joined_dictionary:
+        assert not args.srcdict, 'cannot combine --srcdict and --joined-dictionary'
+        assert not args.tgtdict, 'cannot combine --tgtdict and --joined-dictionary'
+        src_dict = dictionary.Dictionary()
+        for lang in [args.source_lang, args.target_lang]:
+            Tokenizer.add_file_to_dictionary(
+                filename='{}.{}'.format(args.trainpref, lang),
+                dict=src_dict,
+                tokenize=tokenize_line,
+            )
+        src_dict.finalize()
+        tgt_dict = src_dict
     else:
-        src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang))
+        if args.srcdict:
+            src_dict = dictionary.Dictionary.load(args.srcdict)
+        else:
+            src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang))
+        if args.tgtdict:
+            tgt_dict = dictionary.Dictionary.load(args.tgtdict)
+        else:
+            tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
+
     src_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)),
                   threshold=args.thresholdsrc, nwords=args.nwordssrc)
-
-    if args.tgtdict:
-        tgt_dict = dictionary.Dictionary.load(args.tgtdict)
-    else:
-        tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
     tgt_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)),
                   threshold=args.thresholdtgt, nwords=args.nwordstgt)
 
@@ -136,4 +151,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = get_parser()
+    args = parser.parse_args()
+    main(args)

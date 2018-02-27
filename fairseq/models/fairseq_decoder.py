@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,6 +15,9 @@ class FairseqDecoder(nn.Module):
     def __init__(self, dictionary):
         super().__init__()
         self.dictionary = dictionary
+
+    def forward(self, prev_output_tokens, encoder_out):
+        raise NotImplementedError
 
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""

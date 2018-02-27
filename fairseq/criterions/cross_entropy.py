@@ -4,18 +4,18 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import math
 import torch.nn.functional as F
 
-from .fairseq_criterion import FairseqCriterion
+from . import FairseqCriterion, register_criterion
 
 
+@register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, dst_dict):
-        super().__init__(args, dst_dict)
+    def __init__(self, args, src_dict, dst_dict):
+        super().__init__(args, src_dict, dst_dict)
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
@@ -27,6 +27,7 @@ class CrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
+        lprobs = lprobs.view(-1, lprobs.size(-1))
         target = sample['target'].view(-1)
         loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx,
                           reduce=reduce)

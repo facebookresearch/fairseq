@@ -54,13 +54,14 @@ class build_py_hook(build_py):
 
 setup(
     name='fairseq',
-    version='0.3.0',
+    version='0.4.0',
     description='Facebook AI Research Sequence-to-Sequence Toolkit',
     long_description=readme,
     license=license,
     install_requires=reqs.strip().split('\n'),
     packages=find_packages(),
     ext_modules=[bleu],
+    test_suite='tests',
 
     # build and install PyTorch extensions
     package_data={

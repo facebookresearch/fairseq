@@ -4,15 +4,47 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import math
 import torch
-from torch.optim.optimizer import Optimizer
+import torch.optim
+
+from . import FairseqOptimizer, register_optimizer
 
 
-class Adam(Optimizer):
+@register_optimizer('adam')
+class FairseqAdam(FairseqOptimizer):
+    def __init__(self, args, params):
+        super().__init__(args, params)
+        self._optimizer = Adam(params, **self.optimizer_config)
+
+    @staticmethod
+    def add_args(parser):
+        """Add optimizer-specific arguments to the parser."""
+        parser.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
+                            help='betas for Adam optimizer')
+
+    @property
+    def optimizer_config(self):
+        """
+        Return a kwarg dictionary that will be used to override optimizer
+        args stored in checkpoints. This allows us to load a checkpoint and
+        resume training using a different set of optimizer args, e.g., with a
+        different learning rate.
+        """
+        return {
+            'lr': self.args.lr[0],
+            'betas': eval(self.args.adam_betas),
+            'weight_decay': self.args.weight_decay,
+        }
+
+
+class Adam(torch.optim.Optimizer):
     """Implements Adam algorithm.
+
+    This implementation is modified from torch.optim.Adam based on:
+    `Fixed Weight Decay Regularization in Adam`
+    (see https://arxiv.org/abs/1711.05101)
 
     It has been proposed in `Adam: A Method for Stochastic Optimization`_.
 

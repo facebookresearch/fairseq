@@ -1,37 +1,20 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 -u
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import torch
 
-from fairseq import bleu, data, options, tokenizer, utils
+from fairseq import bleu, data, options, progress_bar, tokenizer, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_generator import SequenceGenerator
+from fairseq.sequence_scorer import SequenceScorer
 
 
-def main():
-    parser = options.get_parser('Generation')
-    parser.add_argument('--path', metavar='FILE', required=True, action='append',
-                        help='path(s) to model file(s)')
-    dataset_args = options.add_dataset_args(parser)
-    dataset_args.add_argument('--batch-size', default=32, type=int, metavar='N',
-                              help='batch size')
-    dataset_args.add_argument('--gen-subset', default='test', metavar='SPLIT',
-                              help='data subset to generate (train, valid, test)')
-    dataset_args.add_argument('--num-shards', default=1, type=int, metavar='N',
-                              help='shard generation over N shards')
-    dataset_args.add_argument('--shard-id', default=0, type=int, metavar='ID',
-                              help='id of the shard to generate (id < num_shards)')
-    options.add_generation_args(parser)
-
-    args = parser.parse_args()
-    if args.no_progress_bar and args.log_format is None:
-        args.log_format = 'none'
+def main(args):
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
@@ -40,9 +23,19 @@ def main():
 
     # Load dataset
     if args.replace_unk is None:
-        dataset = data.load_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+        dataset = data.load_dataset(
+            args.data,
+            [args.gen_subset],
+            args.source_lang,
+            args.target_lang,
+        )
     else:
-        dataset = data.load_raw_text_dataset(args.data, [args.gen_subset], args.source_lang, args.target_lang)
+        dataset = data.load_raw_text_dataset(
+            args.data,
+            [args.gen_subset],
+            args.source_lang,
+            args.target_lang,
+        )
     if args.source_lang is None or args.target_lang is None:
         # record inferred languages in args
         args.source_lang, args.target_lang = dataset.src, dataset.dst
@@ -58,37 +51,49 @@ def main():
     # Optimize ensemble for generation
     for model in models:
         model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
-
-    # Initialize generator
-    translator = SequenceGenerator(
-        models, beam_size=args.beam, stop_early=(not args.no_early_stop),
-        normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-        unk_penalty=args.unkpen)
-    if use_cuda:
-        translator.cuda()
+            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
+        )
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
 
-    # Generate and compute BLEU score
-    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
+    # Load dataset (possibly sharded)
     max_positions = min(model.max_encoder_positions() for model in models)
     itr = dataset.eval_dataloader(
-        args.gen_subset, max_sentences=args.batch_size, max_positions=max_positions,
-        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test)
+        args.gen_subset,
+        max_sentences=args.max_sentences,
+        max_positions=max_positions,
+        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
+    )
     if args.num_shards > 1:
         if args.shard_id < 0 or args.shard_id >= args.num_shards:
             raise ValueError('--shard-id must be between 0 and num_shards')
         itr = data.sharded_iterator(itr, args.num_shards, args.shard_id)
+
+    # Initialize generator
+    gen_timer = StopwatchMeter()
+    if args.score_reference:
+        translator = SequenceScorer(models)
+    else:
+        translator = SequenceGenerator(
+            models, beam_size=args.beam, stop_early=(not args.no_early_stop),
+            normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
+            unk_penalty=args.unkpen)
+    if use_cuda:
+        translator.cuda()
+
+    # Generate and compute BLEU score
+    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     num_sentences = 0
-    with utils.build_progress_bar(args, itr) as t:
+    with progress_bar.build_progress_bar(args, itr) as t:
+        if args.score_reference:
+            translations = translator.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
+        else:
+            translations = translator.generate_batched_itr(
+                t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
+                cuda=use_cuda, timer=gen_timer)
         wps_meter = TimeMeter()
-        gen_timer = StopwatchMeter()
-        translations = translator.generate_batched_itr(
-            t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
-            cuda_device=0 if use_cuda else None, timer=gen_timer)
         for sample_id, src_tokens, target_tokens, hypos in translations:
             # Process input and ground truth
             target_tokens = target_tokens.int().cpu()
@@ -112,19 +117,26 @@ def main():
                     alignment=hypo['alignment'].int().cpu(),
                     align_dict=align_dict,
                     dst_dict=dataset.dst_dict,
-                    remove_bpe=args.remove_bpe)
+                    remove_bpe=args.remove_bpe,
+                )
 
                 if not args.quiet:
                     print('H-{}\t{}\t{}'.format(sample_id, hypo['score'], hypo_str))
+                    print('P-{}\t{}'.format(
+                        sample_id,
+                        ' '.join(map(
+                            lambda x: '{:.4f}'.format(x),
+                            hypo['positional_scores'].tolist(),
+                        ))
+                    ))
                     print('A-{}\t{}'.format(sample_id, ' '.join(map(str, alignment))))
 
                 # Score only the top hypothesis
                 if i == 0:
                     if align_dict is not None or args.remove_bpe is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
-                        target_tokens = tokenizer.Tokenizer.tokenize(target_str,
-                                                                     dataset.dst_dict,
-                                                                     add_if_not_exist=True)
+                        target_tokens = tokenizer.Tokenizer.tokenize(
+                            target_str, dataset.dst_dict, add_if_not_exist=True)
                     scorer.add(target_tokens, hypo_tokens)
 
             wps_meter.update(src_tokens.size(0))
@@ -137,4 +149,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = options.get_generation_parser()
+    args = parser.parse_args()
+    main(args)

@@ -4,11 +4,11 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import contextlib
 import itertools
 import glob
+import math
 import numbers
 import numpy as np
 import os
@@ -130,10 +130,10 @@ class LanguageDatasets(object):
         assert self.src_dict.eos() == self.dst_dict.eos()
         assert self.src_dict.unk() == self.dst_dict.unk()
 
-    def train_dataloader(self, split, num_workers=0, max_tokens=None,
+    def train_dataloader(self, split, max_tokens=None,
                          max_sentences=None, max_positions=(1024, 1024),
                          seed=None, epoch=1, sample_without_replacement=0,
-                         sort_by_source_size=False):
+                         sort_by_source_size=False, shard_id=0, num_shards=1):
         dataset = self.splits[split]
         with numpy_seed(seed):
             batch_sampler = shuffled_batches_by_size(
@@ -141,38 +141,25 @@ class LanguageDatasets(object):
                 max_sentences=max_sentences, epoch=epoch,
                 sample=sample_without_replacement, max_positions=max_positions,
                 sort_by_source_size=sort_by_source_size)
+            batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
         return torch.utils.data.DataLoader(
-            dataset, num_workers=num_workers, collate_fn=dataset.collater,
+            dataset, collate_fn=dataset.collater,
             batch_sampler=batch_sampler)
 
     def eval_dataloader(self, split, num_workers=0, max_tokens=None,
                         max_sentences=None, max_positions=(1024, 1024),
                         skip_invalid_size_inputs_valid_test=False,
-                        descending=False):
+                        descending=False, shard_id=0, num_shards=1):
         dataset = self.splits[split]
-        batch_sampler = list(batches_by_size(
+        batch_sampler = batches_by_size(
             dataset.src, dataset.dst, max_tokens, max_sentences,
             max_positions=max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs_valid_test,
-            descending=descending))
+            descending=descending)
+        batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
         return torch.utils.data.DataLoader(
             dataset, num_workers=num_workers, collate_fn=dataset.collater,
             batch_sampler=batch_sampler)
-
-
-def skip_group_enumerator(it, ngpus, offset=0):
-    res = []
-    idx = 0
-    for i, sample in enumerate(it):
-        if i < offset:
-            continue
-        res.append(sample)
-        if len(res) >= ngpus:
-            yield (i, res)
-            res = []
-            idx = i + 1
-    if len(res) > 0:
-        yield (idx, res)
 
 
 class sharded_iterator(object):
@@ -192,7 +179,7 @@ class sharded_iterator(object):
                 yield v
 
 
-class LanguagePairDataset(object):
+class LanguagePairDataset(torch.utils.data.Dataset):
 
     # padding constants
     LEFT_PAD_SOURCE = True
@@ -222,26 +209,47 @@ class LanguagePairDataset(object):
 
     @staticmethod
     def collate(samples, pad_idx, eos_idx):
+        if len(samples) == 0:
+            return {}
 
         def merge(key, left_pad, move_eos_to_beginning=False):
             return LanguagePairDataset.collate_tokens(
-                [s[key] for s in samples], pad_idx, eos_idx, left_pad, move_eos_to_beginning)
+                [s[key] for s in samples],
+                pad_idx, eos_idx, left_pad, move_eos_to_beginning,
+            )
+
+        id = torch.LongTensor([s['id'] for s in samples])
+        src_tokens = merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE)
+        target = merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET)
+        # we create a shifted version of targets for feeding the
+        # previous output token(s) into the next decoder step
+        prev_output_tokens = merge(
+            'target',
+            left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+            move_eos_to_beginning=True,
+        )
+
+        # sort by descending source length
+        src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
+        src_lengths, sort_order = src_lengths.sort(descending=True)
+        id = id.index_select(0, sort_order)
+        src_tokens = src_tokens.index_select(0, sort_order)
+        prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
+        target = target.index_select(0, sort_order)
 
         return {
-            'id': torch.LongTensor([s['id'].item() for s in samples]),
+            'id': id,
             'ntokens': sum(len(s['target']) for s in samples),
             'net_input': {
-                'src_tokens': merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE),
-                # we create a shifted version of targets for feeding the
-                # previous output token(s) into the next decoder step
-                'input_tokens': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
-                                      move_eos_to_beginning=True),
+                'src_tokens': src_tokens,
+                'src_lengths': src_lengths,
+                'prev_output_tokens': prev_output_tokens,
             },
-            'target': merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET),
+            'target': target,
         }
 
     @staticmethod
-    def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning):
+    def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=False):
         size = max(v.size(0) for v in values)
         res = values[0].new(len(values), size).fill_(pad_idx)
 
@@ -292,7 +300,7 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
 
     sample_len = 0
     ignored = []
-    for idx in indices:
+    for idx in map(int, indices):
         if not _valid_size(src.sizes[idx], dst.sizes[idx], max_positions):
             if ignore_invalid_inputs:
                 ignored.append(idx)
@@ -332,9 +340,9 @@ def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
     indices = np.argsort(src.sizes, kind='mergesort')
     if descending:
         indices = np.flip(indices, 0)
-    return _make_batches(
+    return list(_make_batches(
         src, dst, indices, max_tokens, max_sentences, max_positions,
-        ignore_invalid_inputs, allow_different_src_lens=False)
+        ignore_invalid_inputs, allow_different_src_lens=False))
 
 
 def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
@@ -378,6 +386,18 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
         batches = result
 
     return batches
+
+
+def mask_batches(batch_sampler, shard_id, num_shards):
+    if num_shards == 1:
+        return batch_sampler
+    res = [
+        batch
+        for i, batch in enumerate(batch_sampler)
+        if i % num_shards == shard_id
+    ]
+    expected_length = int(math.ceil(len(batch_sampler) / num_shards))
+    return res + [[]] * (expected_length - len(res))
 
 
 @contextlib.contextmanager

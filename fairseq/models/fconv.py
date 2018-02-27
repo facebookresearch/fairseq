@@ -4,24 +4,67 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import math
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq.data import LanguagePairDataset
 from fairseq.modules import BeamableMM, GradMultiply, LearnedPositionalEmbedding, LinearizedConvolution
 
-from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel
+from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model, register_model_architecture
 
 
+@register_model('fconv')
 class FConvModel(FairseqModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
         self.encoder.num_attention_layers = sum(layer is not None for layer in decoder.attention)
+
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+                            help='dropout probability')
+        parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
+                            help='encoder embedding dimension')
+        parser.add_argument('--encoder-layers', type=str, metavar='EXPR',
+                            help='encoder layers [(dim, kernel_size), ...]')
+        parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
+                            help='decoder embedding dimension')
+        parser.add_argument('--decoder-layers', type=str, metavar='EXPR',
+                            help='decoder layers [(dim, kernel_size), ...]')
+        parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
+                            help='decoder output embedding dimension')
+        parser.add_argument('--decoder-attention', type=str, metavar='EXPR',
+                            help='decoder attention [True, ...]')
+        parser.add_argument('--share-input-output-embed', action='store_true',
+                            help='share input and output embeddings (requires'
+                                 ' --decoder-out-embed-dim and --decoder-embed-dim'
+                                 ' to be equal)')
+
+    @classmethod
+    def build_model(cls, args, src_dict, dst_dict):
+        """Build a new model instance."""
+        encoder = FConvEncoder(
+            src_dict,
+            embed_dim=args.encoder_embed_dim,
+            convolutions=eval(args.encoder_layers),
+            dropout=args.dropout,
+            max_positions=args.max_source_positions,
+        )
+        decoder = FConvDecoder(
+            dst_dict,
+            embed_dim=args.decoder_embed_dim,
+            convolutions=eval(args.decoder_layers),
+            out_embed_dim=args.decoder_out_embed_dim,
+            attention=eval(args.decoder_attention),
+            dropout=args.dropout,
+            max_positions=args.max_target_positions,
+            share_embed=args.share_input_output_embed
+        )
+        return FConvModel(encoder, decoder)
 
 
 class FConvEncoder(FairseqEncoder):
@@ -35,8 +78,12 @@ class FConvEncoder(FairseqEncoder):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = PositionalEmbedding(max_positions, embed_dim, padding_idx,
-                                                   left_pad=LanguagePairDataset.LEFT_PAD_SOURCE)
+        self.embed_positions = PositionalEmbedding(
+            max_positions,
+            embed_dim,
+            padding_idx,
+            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE,
+        )
 
         in_channels = convolutions[0][0]
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
@@ -52,7 +99,7 @@ class FConvEncoder(FairseqEncoder):
             in_channels = out_channels
         self.fc2 = Linear(in_channels, embed_dim)
 
-    def forward(self, src_tokens):
+    def forward(self, src_tokens, src_lengths):
         # embed tokens and positions
         x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -151,8 +198,12 @@ class FConvDecoder(FairseqIncrementalDecoder):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        self.embed_positions = PositionalEmbedding(max_positions, embed_dim, padding_idx,
-                                                   left_pad=LanguagePairDataset.LEFT_PAD_TARGET)
+        self.embed_positions = PositionalEmbedding(
+            max_positions,
+            embed_dim,
+            padding_idx,
+            left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+        )
 
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
         self.projections = nn.ModuleList()
@@ -178,19 +229,19 @@ class FConvDecoder(FairseqIncrementalDecoder):
         else:
             self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-    def forward(self, input_tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out):
         # split and transpose encoder outputs
         encoder_a, encoder_b = self._split_encoder_out(encoder_out)
 
         # embed positions
-        positions = self.embed_positions(input_tokens)
+        positions = self.embed_positions(prev_output_tokens)
 
         if self._is_incremental_eval:
             # keep only the last token for incremental forward pass
-            input_tokens = input_tokens[:, -1:]
+            prev_output_tokens = prev_output_tokens[:, -1:]
 
         # embed tokens and positions
-        x = self.embed_tokens(input_tokens) + positions
+        x = self.embed_tokens(prev_output_tokens) + positions
         x = F.dropout(x, p=self.dropout, training=self.training)
         target_embedding = x
 
@@ -316,63 +367,8 @@ def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
     return nn.utils.weight_norm(m, dim=2)
 
 
-def get_archs():
-    return [
-        'fconv', 'fconv_iwslt_de_en', 'fconv_wmt_en_ro', 'fconv_wmt_en_de', 'fconv_wmt_en_fr',
-    ]
-
-
-def _check_arch(args):
-    """Check that the specified architecture is valid and not ambiguous."""
-    if args.arch not in get_archs():
-        raise ValueError('Unknown fconv model architecture: {}'.format(args.arch))
-    if args.arch != 'fconv':
-        # check that architecture is not ambiguous
-        for a in ['encoder_embed_dim', 'encoder_layers', 'decoder_embed_dim', 'decoder_layers',
-                  'decoder_out_embed_dim']:
-            if hasattr(args, a):
-                raise ValueError('--{} cannot be combined with --arch={}'.format(a, args.arch))
-
-
-def parse_arch(args):
-    _check_arch(args)
-
-    if args.arch == 'fconv_iwslt_de_en':
-        args.encoder_embed_dim = 256
-        args.encoder_layers = '[(256, 3)] * 4'
-        args.decoder_embed_dim = 256
-        args.decoder_layers = '[(256, 3)] * 3'
-        args.decoder_out_embed_dim = 256
-    elif args.arch == 'fconv_wmt_en_ro':
-        args.encoder_embed_dim = 512
-        args.encoder_layers = '[(512, 3)] * 20'
-        args.decoder_embed_dim = 512
-        args.decoder_layers = '[(512, 3)] * 20'
-        args.decoder_out_embed_dim = 512
-    elif args.arch == 'fconv_wmt_en_de':
-        convs = '[(512, 3)] * 9'       # first 9 layers have 512 units
-        convs += ' + [(1024, 3)] * 4'  # next 4 layers have 1024 units
-        convs += ' + [(2048, 1)] * 2'  # final 2 layers use 1x1 convolutions
-        args.encoder_embed_dim = 768
-        args.encoder_layers = convs
-        args.decoder_embed_dim = 768
-        args.decoder_layers = convs
-        args.decoder_out_embed_dim = 512
-    elif args.arch == 'fconv_wmt_en_fr':
-        convs = '[(512, 3)] * 6'       # first 6 layers have 512 units
-        convs += ' + [(768, 3)] * 4'   # next 4 layers have 768 units
-        convs += ' + [(1024, 3)] * 3'  # next 3 layers have 1024 units
-        convs += ' + [(2048, 1)] * 1'  # next 1 layer uses 1x1 convolutions
-        convs += ' + [(4096, 1)] * 1'  # final 1 layer uses 1x1 convolutions
-        args.encoder_embed_dim = 768
-        args.encoder_layers = convs
-        args.decoder_embed_dim = 768
-        args.decoder_layers = convs
-        args.decoder_out_embed_dim = 512
-    else:
-        assert args.arch == 'fconv'
-
-    # default architecture
+@register_model_architecture('fconv', 'fconv')
+def base_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.encoder_layers = getattr(args, 'encoder_layers', '[(512, 3)] * 20')
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
@@ -380,25 +376,51 @@ def parse_arch(args):
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
     args.decoder_attention = getattr(args, 'decoder_attention', 'True')
     args.share_input_output_embed = getattr(args, 'share_input_output_embed', False)
-    return args
 
 
-def build_model(args, src_dict, dst_dict):
-    encoder = FConvEncoder(
-        src_dict,
-        embed_dim=args.encoder_embed_dim,
-        convolutions=eval(args.encoder_layers),
-        dropout=args.dropout,
-        max_positions=args.max_source_positions,
-    )
-    decoder = FConvDecoder(
-        dst_dict,
-        embed_dim=args.decoder_embed_dim,
-        convolutions=eval(args.decoder_layers),
-        out_embed_dim=args.decoder_out_embed_dim,
-        attention=eval(args.decoder_attention),
-        dropout=args.dropout,
-        max_positions=args.max_target_positions,
-        share_embed=args.share_input_output_embed
-    )
-    return FConvModel(encoder, decoder)
+@register_model_architecture('fconv', 'fconv_iwslt_de_en')
+def fconv_iwslt_de_en(args):
+    base_architecture(args)
+    args.encoder_embed_dim = 256
+    args.encoder_layers = '[(256, 3)] * 4'
+    args.decoder_embed_dim = 256
+    args.decoder_layers = '[(256, 3)] * 3'
+    args.decoder_out_embed_dim = 256
+
+
+@register_model_architecture('fconv', 'fconv_wmt_en_ro')
+def fconv_wmt_en_ro(args):
+    base_architecture(args)
+    args.encoder_embed_dim = 512
+    args.encoder_layers = '[(512, 3)] * 20'
+    args.decoder_embed_dim = 512
+    args.decoder_layers = '[(512, 3)] * 20'
+    args.decoder_out_embed_dim = 512
+
+
+@register_model_architecture('fconv', 'fconv_wmt_en_de')
+def fconv_wmt_en_de(args):
+    base_architecture(args)
+    convs = '[(512, 3)] * 9'       # first 9 layers have 512 units
+    convs += ' + [(1024, 3)] * 4'  # next 4 layers have 1024 units
+    convs += ' + [(2048, 1)] * 2'  # final 2 layers use 1x1 convolutions
+    args.encoder_embed_dim = 768
+    args.encoder_layers = convs
+    args.decoder_embed_dim = 768
+    args.decoder_layers = convs
+    args.decoder_out_embed_dim = 512
+
+
+@register_model_architecture('fconv', 'fconv_wmt_en_fr')
+def fconv_wmt_en_fr(args):
+    base_architecture(args)
+    convs = '[(512, 3)] * 6'       # first 6 layers have 512 units
+    convs += ' + [(768, 3)] * 4'   # next 4 layers have 768 units
+    convs += ' + [(1024, 3)] * 3'  # next 3 layers have 1024 units
+    convs += ' + [(2048, 1)] * 1'  # next 1 layer uses 1x1 convolutions
+    convs += ' + [(4096, 1)] * 1'  # final 1 layer uses 1x1 convolutions
+    args.encoder_embed_dim = 768
+    args.encoder_layers = convs
+    args.decoder_embed_dim = 768
+    args.decoder_layers = convs
+    args.decoder_out_embed_dim = 512

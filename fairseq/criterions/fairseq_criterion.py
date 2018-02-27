@@ -4,17 +4,21 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 from torch.nn.modules.loss import _Loss
 
 
 class FairseqCriterion(_Loss):
 
-    def __init__(self, args, dst_dict):
+    def __init__(self, args, src_dict, dst_dict):
         super().__init__()
         self.args = args
         self.padding_idx = dst_dict.pad()
+
+    @staticmethod
+    def add_args(parser):
+        """Add criterion-specific arguments to the parser."""
+        pass
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.

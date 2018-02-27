@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 from . import FairseqDecoder
 
@@ -17,7 +16,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         self._is_incremental_eval = False
         self._incremental_state = {}
 
-    def forward(self, tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out):
         if self._is_incremental_eval:
             raise NotImplementedError
         else:
