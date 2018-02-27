@@ -190,7 +190,7 @@ class Trainer(object):
 
         # clip grads
         if self.args.clip_norm > 0:
-            grad_norm = torch.nn.utils.clip_grad_norm(self.model.parameters(), self.args.clip_norm)
+            grad_norm = utils.item(torch.nn.utils.clip_grad_norm(self.model.parameters(), self.args.clip_norm))
         else:
             grad_norm = math.sqrt(sum(p.grad.data.norm()**2 for p in self.model.parameters()))
 

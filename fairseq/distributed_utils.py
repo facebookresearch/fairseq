@@ -116,7 +116,7 @@ def all_gather_list(data, max_size=4096):
     if len(enc) >= max_size:
         raise ValueError('encoded data exceeds max_size: {}'.format(len(enc)))
     in_buffer[0] = len(enc)
-    in_buffer[1:len(enc)+1] = torch.ByteTensor(enc)
+    in_buffer[1:len(enc)+1] = torch.ByteTensor(list(enc))
 
     torch.distributed.all_gather(out_buffers, in_buffer.cuda())
 

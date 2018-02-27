@@ -9,7 +9,7 @@ import math
 import torch.nn.functional as F
 
 from . import FairseqCriterion, register_criterion
-
+from fairseq import utils
 
 @register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):
@@ -33,7 +33,7 @@ class CrossEntropyCriterion(FairseqCriterion):
                           reduce=reduce)
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
-            'loss': loss.data[0] if reduce else loss.data,
+            'loss': utils.item(loss.data) if reduce else loss.data,
             'ntokens': sample['ntokens'],
             'sample_size': sample_size,
         }
