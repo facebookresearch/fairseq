@@ -47,13 +47,13 @@ class Trainer(object):
         self.meters['train_nll_loss'] = AverageMeter()
         self.meters['valid_loss'] = AverageMeter()
         self.meters['valid_nll_loss'] = AverageMeter()
-        self.meters['wps'] = TimeMeter()      # words per second
-        self.meters['ups'] = TimeMeter()      # updates per second
-        self.meters['wpb'] = AverageMeter()   # words per batch
-        self.meters['bsz'] = AverageMeter()   # sentences per batch
-        self.meters['gnorm'] = AverageMeter() # gradient norm
-        self.meters['clip'] = AverageMeter()  # % of updates clipped
-        self.meters['oom'] = AverageMeter()   # out of memory
+        self.meters['wps'] = TimeMeter()       # words per second
+        self.meters['ups'] = TimeMeter()       # updates per second
+        self.meters['wpb'] = AverageMeter()    # words per batch
+        self.meters['bsz'] = AverageMeter()    # sentences per batch
+        self.meters['gnorm'] = AverageMeter()  # gradient norm
+        self.meters['clip'] = AverageMeter()   # % of updates clipped
+        self.meters['oom'] = AverageMeter()    # out of memory
 
         self._max_bsz_seen = 0
         self._num_updates = 0
@@ -190,7 +190,7 @@ class Trainer(object):
 
         # clip grads
         if self.args.clip_norm > 0:
-            grad_norm = torch.nn.utils.clip_grad_norm(self.model.parameters(), self.args.clip_norm)
+            grad_norm = utils.item(torch.nn.utils.clip_grad_norm(self.model.parameters(), self.args.clip_norm))
         else:
             grad_norm = math.sqrt(sum(p.grad.data.norm()**2 for p in self.model.parameters()))
 

@@ -183,12 +183,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             self.additional_fc = Linear(embed_dim, out_embed_dim)
         self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, prev_output_tokens, encoder_out):
-        if self._is_incremental_eval:
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+        if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]
-        return self._forward(prev_output_tokens, encoder_out)
-
-    def _forward(self, prev_output_tokens, encoder_out):
         bsz, seqlen = prev_output_tokens.size()
 
         # get outputs from encoder
@@ -204,15 +201,15 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         x = x.transpose(0, 1)
 
         # initialize previous states (or get from cache during incremental generation)
-        prev_hiddens = self.get_incremental_state('prev_hiddens')
-        if not prev_hiddens:
-            # first time step, initialize previous states
-            prev_hiddens, prev_cells = self._init_prev_states(encoder_out)
-            input_feed = Variable(x.data.new(bsz, embed_dim).zero_())
+        cached_state = utils.get_incremental_state(self, incremental_state, 'cached_state')
+        if cached_state is not None:
+            prev_hiddens, prev_cells, input_feed = cached_state
         else:
-            # previous states are cached
-            prev_cells = self.get_incremental_state('prev_cells')
-            input_feed = self.get_incremental_state('input_feed')
+            _, encoder_hiddens, encoder_cells = encoder_out
+            num_layers = len(self.layers)
+            prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
+            prev_cells = [encoder_cells[i] for i in range(num_layers)]
+            input_feed = Variable(x.data.new(bsz, embed_dim).zero_())
 
         attn_scores = Variable(x.data.new(srclen, seqlen, bsz).zero_())
         outs = []
@@ -242,9 +239,8 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             outs.append(out)
 
         # cache previous states (no-op except during incremental generation)
-        self.set_incremental_state('prev_hiddens', prev_hiddens)
-        self.set_incremental_state('prev_cells', prev_cells)
-        self.set_incremental_state('input_feed', input_feed)
+        utils.set_incremental_state(
+            self, incremental_state, 'cached_state', (prev_hiddens, prev_cells, input_feed))
 
         # collect outputs across time steps
         x = torch.cat(outs, dim=0).view(seqlen, bsz, embed_dim)
@@ -263,33 +259,24 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
         return x, attn_scores
 
-    def reorder_incremental_state(self, new_order):
-        """Reorder buffered internal state (for incremental generation)."""
-        super().reorder_incremental_state(new_order)
-        new_order = Variable(new_order)
+    def reorder_incremental_state(self, incremental_state, new_order):
+        cached_state = utils.get_incremental_state(self, incremental_state, 'cached_state')
+        if cached_state is None:
+            return
 
-        def reorder_state(key):
-            old = self.get_incremental_state(key)
-            if isinstance(old, list):
-                new = [old_i.index_select(0, new_order) for old_i in old]
-            else:
-                new = old.index_select(0, new_order)
-            self.set_incremental_state(key, new)
+        def reorder_state(state):
+            if isinstance(state, list):
+                return [reorder_state(state_i) for state_i in state]
+            return state.index_select(0, new_order)
 
-        reorder_state('prev_hiddens')
-        reorder_state('prev_cells')
-        reorder_state('input_feed')
+        if not isinstance(new_order, Variable):
+            new_order = Variable(new_order)
+        new_state = tuple(map(reorder_state, cached_state))
+        utils.set_incremental_state(self, incremental_state, 'cached_state', new_state)
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return int(1e5)  # an arbitrary large number
-
-    def _init_prev_states(self, encoder_out):
-        _, encoder_hiddens, encoder_cells = encoder_out
-        num_layers = len(self.layers)
-        prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
-        prev_cells = [encoder_cells[i] for i in range(num_layers)]
-        return prev_hiddens, prev_cells
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

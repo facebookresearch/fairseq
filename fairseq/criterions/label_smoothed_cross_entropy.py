@@ -7,6 +7,7 @@
 
 import math
 import torch
+from torch.autograd import Variable
 import torch.nn.functional as F
 
 from fairseq import utils
@@ -24,6 +25,8 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
 
         norm = grad_input.size(-1)
         if weights is not None:
+            if isinstance(grad_input, Variable) and not isinstance(weights, Variable):
+                weights = Variable(weights, requires_grad=False)
             norm = weights.sum()
             grad_input.mul(weights.view(1, weights.size(0)).expand_as(grad_input))
 
@@ -41,7 +44,10 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad):
-        return utils.volatile_variable(ctx.grad_input) * grad, None, None, None, None, None
+        grad_input = ctx.grad_input
+        if not isinstance(grad_input, torch.autograd.Variable):
+            grad_input = utils.volatile_variable(grad_input)
+        return grad_input * grad, None, None, None, None, None
 
 
 @register_criterion('label_smoothed_cross_entropy')
@@ -73,8 +79,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         nll_loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
-            'loss': loss.data[0] if reduce else loss.data,
-            'nll_loss': nll_loss.data[0] if reduce else loss.data,
+            'loss': utils.item(loss.data) if reduce else loss.data,
+            'nll_loss': utils.item(nll_loss.data) if reduce else loss.data,
             'ntokens': sample['ntokens'],
             'sample_size': sample_size,
         }

@@ -18,8 +18,6 @@ def main(args):
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
-    if hasattr(torch, 'set_grad_enabled'):
-        torch.set_grad_enabled(False)
 
     # Load dataset
     if args.replace_unk is None:
@@ -92,7 +90,7 @@ def main(args):
         else:
             translations = translator.generate_batched_itr(
                 t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
-                cuda=use_cuda, timer=gen_timer)
+                cuda=use_cuda, timer=gen_timer, prefix_size=args.prefix_size)
         wps_meter = TimeMeter()
         for sample_id, src_tokens, target_tokens, hypos in translations:
             # Process input and ground truth

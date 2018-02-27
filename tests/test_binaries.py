@@ -16,7 +16,10 @@ import torch
 
 from fairseq import options
 
-import preprocess, train, generate, interactive
+import preprocess
+import train
+import generate
+import interactive
 
 
 class TestBinaries(unittest.TestCase):
@@ -80,6 +83,7 @@ class TestBinaries(unittest.TestCase):
                 '--save-dir', data_dir,
                 '--max-epoch', '1',
                 '--no-progress-bar',
+                '--distributed-world-size', '1',
             ],
         )
         train.main(train_args)
