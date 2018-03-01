@@ -91,12 +91,12 @@ class FConvEncoder(FairseqEncoder):
         self.projections = nn.ModuleList()
         self.convolutions = nn.ModuleList()
         for (out_channels, kernel_size) in convolutions:
-            pad = (kernel_size - 1) / 2
             self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
-                ConvTBC(in_channels, out_channels * 2, kernel_size, padding=pad,
-                        dropout=dropout))
+                ConvTBC(in_channels, out_channels * 2, kernel_size,
+                        dropout=dropout)
+            )
             in_channels = out_channels
         self.fc2 = Linear(in_channels, embed_dim)
 
@@ -116,6 +116,9 @@ class FConvEncoder(FairseqEncoder):
         for proj, conv in zip(self.projections, self.convolutions):
             residual = x if proj is None else proj(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
+            padding_l = (conv.kernel_size[0] - 1) // 2
+            padding_r = conv.kernel_size[0] // 2
+            x = F.pad(x, (0, 0, 0, 0, padding_l, padding_r))
             x = conv(x)
             x = F.glu(x, dim=2)
             x = (x + residual) * math.sqrt(0.5)
@@ -211,12 +214,12 @@ class FConvDecoder(FairseqIncrementalDecoder):
         self.convolutions = nn.ModuleList()
         self.attention = nn.ModuleList()
         for i, (out_channels, kernel_size) in enumerate(convolutions):
-            pad = kernel_size - 1
             self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             self.convolutions.append(
                 LinearizedConv1d(in_channels, out_channels * 2, kernel_size,
-                                 padding=pad, dropout=dropout))
+                                 padding=(kernel_size - 1), dropout=dropout)
+            )
             self.attention.append(AttentionLayer(out_channels, embed_dim)
                                   if attention[i] else None)
             in_channels = out_channels
@@ -254,8 +257,6 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = conv(x, incremental_state)
-            if incremental_state is None:
-                x = conv.remove_future_timesteps(x)
             x = F.glu(x, dim=2)
 
             # attention
