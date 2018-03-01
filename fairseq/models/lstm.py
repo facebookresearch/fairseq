@@ -96,9 +96,9 @@ class LSTMEncoder(FairseqEncoder):
     def forward(self, src_tokens, src_lengths):
         if LanguagePairDataset.LEFT_PAD_SOURCE:
             # convert left-padding to right-padding
-            src_tokens.data = utils.convert_padding_direction(
-                src_tokens.data,
-                src_lengths.data,
+            src_tokens = utils.convert_padding_direction(
+                src_tokens,
+                src_lengths,
                 self.padding_idx,
                 left_to_right=True,
             )
