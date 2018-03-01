@@ -289,8 +289,6 @@ def convert_padding_direction(
     right_to_left=False,
     left_to_right=False,
 ):
-    assert not isinstance(src_tokens, Variable)
-    assert not isinstance(src_lengths, Variable)
     assert right_to_left ^ left_to_right
     pad_mask = src_tokens.eq(padding_idx)
     if pad_mask.max() == 0:
