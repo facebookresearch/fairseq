@@ -61,7 +61,7 @@ class TestUtils(unittest.TestCase):
 
     def assertAlmostEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")
-        self.assertLess((t1 - t2).abs().max(), 1e-4)
+        self.assertLess(utils.item((t1 - t2).abs().max()), 1e-4)
 
 
 if __name__ == '__main__':
