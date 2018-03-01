@@ -4,11 +4,12 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import torch
-from torch.autograd import Variable, Function
+from torch.autograd import Function
 from torch.nn.modules.utils import _single
+
+from fairseq import utils
 
 try:
     from fairseq import temporal_convolution_tbc

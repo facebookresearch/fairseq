@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 """
 Wrapper around various loggers and progress bars (e.g., tqdm).
@@ -13,10 +12,31 @@ Wrapper around various loggers and progress bars (e.g., tqdm).
 from collections import OrderedDict
 import json
 from numbers import Number
+import sys
 
 from tqdm import tqdm
 
 from fairseq.meters import AverageMeter
+
+
+def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', no_progress_bar='none'):
+    if args.log_format is None:
+        args.log_format = no_progress_bar if args.no_progress_bar else default
+
+    if args.log_format == 'tqdm' and not sys.stderr.isatty():
+        args.log_format = 'simple'
+
+    if args.log_format == 'json':
+        bar = json_progress_bar(iterator, epoch, prefix, args.log_interval)
+    elif args.log_format == 'none':
+        bar = noop_progress_bar(iterator, epoch, prefix)
+    elif args.log_format == 'simple':
+        bar = simple_progress_bar(iterator, epoch, prefix, args.log_interval)
+    elif args.log_format == 'tqdm':
+        bar = tqdm_progress_bar(iterator, epoch, prefix)
+    else:
+        raise ValueError('Unknown log format: {}'.format(args.log_format))
+    return bar
 
 
 class progress_bar(object):

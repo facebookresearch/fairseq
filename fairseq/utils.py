@@ -4,54 +4,18 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
+from collections import defaultdict
+import contextlib
 import logging
 import os
 import torch
 import traceback
-import sys
 
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import criterions, data, models, progress_bar, tokenizer
-
-
-def parse_args_and_arch(parser):
-    args = parser.parse_args()
-    args.model = models.arch_model_map[args.arch]
-    args = getattr(models, args.model).parse_arch(args)
-    return args
-
-
-def build_model(args, src_dict, dst_dict):
-    assert hasattr(models, args.model), 'Missing model type'
-    return getattr(models, args.model).build_model(args, src_dict, dst_dict)
-
-
-def build_criterion(args, src_dict, dst_dict):
-    if args.label_smoothing > 0:
-        return criterions.LabelSmoothedCrossEntropyCriterion(args, dst_dict)
-    else:
-        return criterions.CrossEntropyCriterion(args, dst_dict)
-
-
-def build_progress_bar(args, iterator, epoch=None, prefix=None):
-    if args.log_format is None:
-        args.log_format = 'tqdm' if sys.stderr.isatty() else 'simple'
-
-    if args.log_format == 'json':
-        bar = progress_bar.json_progress_bar(iterator, epoch, prefix, args.log_interval)
-    elif args.log_format == 'none':
-        bar = progress_bar.noop_progress_bar(iterator, epoch, prefix)
-    elif args.log_format == 'simple':
-        bar = progress_bar.simple_progress_bar(iterator, epoch, prefix, args.log_interval)
-    elif args.log_format == 'tqdm':
-        bar = progress_bar.tqdm_progress_bar(iterator, epoch, prefix)
-    else:
-        raise ValueError('Unknown log format: {}'.format(args.log_format))
-    return bar
+from fairseq import tokenizer
 
 
 def torch_persistent_save(*args, **kwargs):
@@ -63,7 +27,8 @@ def torch_persistent_save(*args, **kwargs):
                 logging.error(traceback.format_exc())
 
 
-def save_state(filename, args, model, criterion, optimizer, lr_scheduler, optim_history=None, extra_state=None):
+def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
+               num_updates, optim_history=None, extra_state=None):
     if optim_history is None:
         optim_history = []
     if extra_state is None:
@@ -74,7 +39,9 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler, optim_
         'optimizer_history': optim_history + [
             {
                 'criterion_name': criterion.__class__.__name__,
-                'best_loss': lr_scheduler.best,
+                'optimizer_name': optimizer.__class__.__name__,
+                'lr_scheduler_state': lr_scheduler.state_dict(),
+                'num_updates': num_updates,
             }
         ],
         'last_optimizer_state': optimizer.state_dict(),
@@ -83,9 +50,9 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler, optim_
     torch_persistent_save(state_dict, filename)
 
 
-def load_state(filename, model, criterion, optimizer, lr_scheduler, cuda_device=None):
+def load_model_state(filename, model, cuda_device=None):
     if not os.path.exists(filename):
-        return None, []
+        return None, [], None
     if cuda_device is None:
         state = torch.load(filename)
     else:
@@ -94,18 +61,16 @@ def load_state(filename, model, criterion, optimizer, lr_scheduler, cuda_device=
             map_location=lambda s, l: default_restore_location(s, 'cuda:{}'.format(cuda_device))
         )
     state = _upgrade_state_dict(state)
+    state['model'] = model.upgrade_state_dict(state['model'])
 
     # load model parameters
-    model.load_state_dict(state['model'])
+    try:
+        model.load_state_dict(state['model'])
+    except Exception:
+        raise Exception('Cannot load model parameters from checkpoint, '
+                        'please ensure that the architectures match')
 
-    # only load optimizer and lr_scheduler if they match with the checkpoint
-    optim_history = state['optimizer_history']
-    last_optim = optim_history[-1]
-    if last_optim['criterion_name'] == criterion.__class__.__name__:
-        optimizer.load_state_dict(state['last_optimizer_state'])
-        lr_scheduler.best = last_optim['best_loss']
-
-    return state['extra_state'], optim_history
+    return state['extra_state'], state['optimizer_history'], state['last_optimizer_state']
 
 
 def _upgrade_state_dict(state):
@@ -114,7 +79,7 @@ def _upgrade_state_dict(state):
     if 'optimizer_history' not in state:
         state['optimizer_history'] = [
             {
-                'criterion_name': criterions.CrossEntropyCriterion.__name__,
+                'criterion_name': 'CrossEntropyCriterion',
                 'best_loss': state['best_loss'],
             },
         ]
@@ -136,6 +101,18 @@ def _upgrade_state_dict(state):
         state['last_optimizer_state'] = state['optimizer_history'][-1]['optimizer']
         for optim_hist in state['optimizer_history']:
             del optim_hist['optimizer']
+    # record the optimizer class name
+    if 'optimizer_name' not in state['optimizer_history'][-1]:
+        state['optimizer_history'][-1]['optimizer_name'] = 'FairseqNAG'
+    # move best_loss into lr_scheduler_state
+    if 'lr_scheduler_state' not in state['optimizer_history'][-1]:
+        state['optimizer_history'][-1]['lr_scheduler_state'] = {
+            'best': state['optimizer_history'][-1]['best_loss'],
+        }
+        del state['optimizer_history'][-1]['best_loss']
+    # keep track of number of updates
+    if 'num_updates' not in state['optimizer_history'][-1]:
+        state['optimizer_history'][-1]['num_updates'] = 0
     return state
 
 
@@ -145,6 +122,8 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     The source and target dictionaries can be given explicitly, or loaded from
     the `data_dir` directory.
     """
+    from fairseq import data, models
+
     # load model architectures and weights
     states = []
     for filename in filenames:
@@ -163,7 +142,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     # build ensemble
     ensemble = []
     for state in states:
-        model = build_model(args, src_dict, dst_dict)
+        model = models.build_model(args, src_dict, dst_dict)
         model.load_state_dict(state['model'])
         ensemble.append(model)
     return ensemble, args
@@ -173,26 +152,81 @@ def _upgrade_args(args):
     if not hasattr(args, 'max_source_positions'):
         args.max_source_positions = args.max_positions
         args.max_target_positions = args.max_positions
+    if not hasattr(args, 'share_input_output_embed'):
+        args.share_input_output_embed = False
     return args
 
 
-def prepare_sample(sample, volatile=False, cuda_device=None):
+def maybe_no_grad(condition=True):
+    if hasattr(torch, 'no_grad') and condition:
+        return torch.no_grad()
+    # no-op context manager
+    return contextlib.ExitStack()
+
+
+def volatile_variable(*args, **kwargs):
+    if hasattr(torch, 'no_grad'):
+        # volatile has been deprecated, use the no_grad context manager instead
+        return Variable(*args, **kwargs)
+    else:
+        return Variable(*args, **kwargs, volatile=True)
+
+
+def make_variable(sample, volatile=False, cuda=False):
     """Wrap input tensors in Variable class."""
 
-    def make_variable(tensor):
-        if cuda_device is not None and torch.cuda.is_available():
-            tensor = tensor.cuda(async=True, device=cuda_device)
-        return Variable(tensor, volatile=volatile)
+    if len(sample) == 0:
+        return {}
 
-    return {
-        'id': sample['id'],
-        'ntokens': sample['ntokens'],
-        'target': make_variable(sample['target']),
-        'net_input': {
-            key: make_variable(sample[key])
-            for key in ['src_tokens', 'input_tokens']
-        },
-    }
+    def _make_variable(maybe_tensor):
+        if torch.is_tensor(maybe_tensor):
+            if cuda and torch.cuda.is_available():
+                maybe_tensor = maybe_tensor.cuda()
+            if volatile:
+                return volatile_variable(maybe_tensor)
+            else:
+                return Variable(maybe_tensor)
+        elif isinstance(maybe_tensor, dict):
+            return {
+                key: _make_variable(value)
+                for key, value in maybe_tensor.items()
+            }
+        elif isinstance(maybe_tensor, list):
+            return [_make_variable(x) for x in maybe_tensor]
+        else:
+            return maybe_tensor
+
+    return _make_variable(sample)
+
+
+INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
+
+
+def _get_full_incremental_state_key(module_instance, key):
+    module_name = module_instance.__class__.__name__
+
+    # assign a unique ID to each module instance, so that incremental state is
+    # not shared across module instances
+    if not hasattr(module_instance, '_fairseq_instance_id'):
+        INCREMENTAL_STATE_INSTANCE_ID[module_name] += 1
+        module_instance._fairseq_instance_id = INCREMENTAL_STATE_INSTANCE_ID[module_name]
+
+    return '{}.{}.{}'.format(module_name, module_instance._fairseq_instance_id, key)
+
+
+def get_incremental_state(module, incremental_state, key):
+    """Helper for getting incremental state for an nn.Module."""
+    full_key = _get_full_incremental_state_key(module, key)
+    if incremental_state is None or full_key not in incremental_state:
+        return None
+    return incremental_state[full_key]
+
+
+def set_incremental_state(module, incremental_state, key, value):
+    """Helper for setting incremental state for an nn.Module."""
+    if incremental_state is not None:
+        full_key = _get_full_incremental_state_key(module, key)
+        incremental_state[full_key] = value
 
 
 def load_align_dict(replace_unk):
@@ -203,8 +237,8 @@ def load_align_dict(replace_unk):
         align_dict = {}
         with open(replace_unk, 'r') as f:
             for line in f:
-                l = line.split()
-                align_dict[l[0]] = l[1]
+                cols = line.split()
+                align_dict[cols[0]] = cols[1]
     else:
         # No alignment dictionary provided but we still want to perform unknown word replacement by copying the
         # original source word.
@@ -236,12 +270,42 @@ def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dic
     return hypo_tokens, hypo_str, alignment
 
 
-def lstrip_pad(tensor, pad):
-    return tensor[tensor.eq(pad).sum():]
+def strip_pad(tensor, pad):
+    return tensor[tensor.ne(pad)]
 
 
-def rstrip_pad(tensor, pad):
-    strip = tensor.eq(pad).sum()
-    if strip > 0:
-        return tensor[:-strip]
+def buffered_arange(max):
+    if not hasattr(buffered_arange, 'buf'):
+        buffered_arange.buf = torch.LongTensor()
+    if max > buffered_arange.buf.numel():
+        torch.arange(max, out=buffered_arange.buf)
+    return buffered_arange.buf[:max]
+
+
+def convert_padding_direction(
+    src_tokens,
+    src_lengths,
+    padding_idx,
+    right_to_left=False,
+    left_to_right=False,
+):
+    assert right_to_left ^ left_to_right
+    pad_mask = src_tokens.eq(padding_idx)
+    if pad_mask.max() == 0:
+        # no padding, return early
+        return src_tokens
+    max_len = src_tokens.size(1)
+    range = buffered_arange(max_len).type_as(src_tokens).expand_as(src_tokens)
+    num_pads = pad_mask.long().sum(dim=1, keepdim=True)
+    if right_to_left:
+        index = torch.remainder(range - num_pads, max_len)
+    else:
+        index = torch.remainder(range + num_pads, max_len)
+    return src_tokens.gather(1, index)
+
+def item(tensor):
+    if hasattr(tensor, 'item'):
+        return tensor.item()
+    if hasattr(tensor, '__getitem__'):
+        return tensor[0]
     return tensor
