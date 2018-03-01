@@ -271,8 +271,8 @@ class SequenceGenerator(object):
             if step < maxlen:
                 if prefix_tokens is not None and step < prefix_tokens.size(1):
                     probs_slice = probs.view(bsz, -1, probs.size(-1))[:, 0, :]
-                    cand_scores = probs_slice.gather(
-                        dim=1,
+                    cand_scores = torch.gather(
+                        probs_slice, dim=1,
                         index=prefix_tokens[:, step].view(-1, 1).data
                     ).expand(-1, cand_size)
                     cand_indices = prefix_tokens[:, step].view(-1, 1).expand(bsz, cand_size).data
@@ -341,17 +341,17 @@ class SequenceGenerator(object):
             # get the top beam_size active hypotheses, which are just the hypos
             # with the smallest values in active_mask
             active_hypos, _ignore = buffer('active_hypos'), buffer('_ignore')
-            active_mask.topk(
-                k=beam_size, dim=1, largest=False,
-                out=(_ignore, active_hypos),
+            torch.topk(
+                active_mask, k=beam_size, dim=1, largest=False,
+                out=(_ignore, active_hypos)
             )
             active_bbsz_idx = buffer('active_bbsz_idx')
-            cand_bbsz_idx.gather(
-                dim=1, index=active_hypos,
+            torch.gather(
+                cand_bbsz_idx, dim=1, index=active_hypos,
                 out=active_bbsz_idx,
             )
-            active_scores = cand_scores.gather(
-                dim=1, index=active_hypos,
+            active_scores = torch.gather(
+                cand_scores, dim=1, index=active_hypos,
                 out=scores[:, step].view(bsz, beam_size),
             )
             active_bbsz_idx = active_bbsz_idx.view(-1)

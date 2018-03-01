@@ -127,7 +127,10 @@ def main(args):
                             hypo['positional_scores'].tolist(),
                         ))
                     ))
-                    print('A-{}\t{}'.format(sample_id, ' '.join(map(str, alignment))))
+                    print('A-{}\t{}'.format(
+                        sample_id,
+                        ' '.join(map(lambda x: str(utils.item(x)), alignment))
+                    ))
 
                 # Score only the top hypothesis
                 if i == 0:
