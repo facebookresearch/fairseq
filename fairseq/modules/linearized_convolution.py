@@ -18,6 +18,7 @@ class LinearizedConvolution(ConvTBC):
     At training time, this module uses ConvTBC, which is an optimized version
     of Conv1d. At inference time, it optimizes incremental generation (i.e.,
     one time step at a time) by replacing the convolutions with linear layers.
+    Note that the input order changes from training to inference.
     """
 
     def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
@@ -27,14 +28,20 @@ class LinearizedConvolution(ConvTBC):
 
     def forward(self, input, incremental_state=None):
         """
-        Input: Time x Batch x Channel.
+        Input:
+            Time x Batch x Channel during training
+            Batch x Time x Channel during inference
         Args:
             incremental_state: Used to buffer signal; if not None, then input is
                 expected to contain a single frame. If the input order changes
                 between time steps, call reorder_incremental_state.
         """
         if incremental_state is None:
-            return super().forward(input)
+            output = super().forward(input)
+            if self.kernel_size[0] > 1 and self.padding[0] > 0:
+                # remove future timesteps added by padding
+                output = output[:-self.padding[0], :, :]
+            return output
 
         # reshape weight
         weight = self._get_linearized_weight()
@@ -56,12 +63,6 @@ class LinearizedConvolution(ConvTBC):
         with utils.maybe_no_grad():
             output = F.linear(input.view(bsz, -1), weight, self.bias)
         return output.view(bsz, 1, -1)
-
-    def remove_future_timesteps(self, x):
-        """Remove future time steps created by padding."""
-        if self.kernel_size[0] > 1 and self.padding[0] > 0:
-            x = x[:-self.padding[0], :, :]
-        return x
 
     def reorder_incremental_state(self, incremental_state, new_order):
         input_buffer = self._get_input_buffer(incremental_state)
