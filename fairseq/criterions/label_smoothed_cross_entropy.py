@@ -38,7 +38,7 @@ class LabelSmoothedNLLLoss(torch.autograd.Function):
 
         ctx.grad_input = grad_input
         if reduce:
-            return input.new([grad_input.view(-1).dot(input.view(-1))])
+            return grad_input.view(-1).dot(input.view(-1))
         else:
             return grad_input * input
 
