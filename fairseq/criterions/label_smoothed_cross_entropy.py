@@ -7,47 +7,11 @@
 
 import math
 import torch
-from torch.autograd import Variable
 import torch.nn.functional as F
 
 from fairseq import utils
 
 from . import FairseqCriterion, register_criterion
-
-
-class LabelSmoothedNLLLoss(torch.autograd.Function):
-
-    @staticmethod
-    def forward(ctx, input, target, eps, padding_idx, weights, reduce=True):
-        grad_input = input.new(input.size()).zero_()
-        target = target.view(target.size(0), 1)
-        grad_input = grad_input.scatter_(grad_input.dim() - 1, target, eps - 1)
-
-        norm = grad_input.size(-1)
-        if weights is not None:
-            if isinstance(grad_input, Variable) and not isinstance(weights, Variable):
-                weights = Variable(weights, requires_grad=False)
-            norm = weights.sum()
-            grad_input.mul(weights.view(1, weights.size(0)).expand_as(grad_input))
-
-        if padding_idx is not None:
-            norm -= 1 if weights is None else weights[padding_idx]
-            grad_input.select(grad_input.dim() - 1, padding_idx).fill_(0)
-
-        grad_input = grad_input.add(-eps / norm)
-
-        ctx.grad_input = grad_input
-        if reduce:
-            return grad_input.view(-1).dot(input.view(-1))
-        else:
-            return grad_input * input
-
-    @staticmethod
-    def backward(ctx, grad):
-        grad_input = ctx.grad_input
-        if not isinstance(grad_input, torch.autograd.Variable):
-            grad_input = utils.volatile_variable(grad_input)
-        return grad_input * grad, None, None, None, None, None
 
 
 @register_criterion('label_smoothed_cross_entropy')
@@ -73,10 +37,16 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
-        lprobs = lprobs.view(-1, lprobs.size(-1))
-        target = sample['target'].view(-1)
-        loss = LabelSmoothedNLLLoss.apply(lprobs, target, self.eps, self.padding_idx, None, reduce)
-        nll_loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
+        target = sample['target'].unsqueeze(-1)
+        non_pad_mask = target.ne(self.padding_idx)
+        nll_loss = -lprobs.gather(dim=-1, index=target)[non_pad_mask]
+        smooth_loss = -lprobs.sum(dim=-1, keepdim=True)[non_pad_mask]
+        if reduce:
+            nll_loss = nll_loss.sum()
+            smooth_loss = smooth_loss.sum()
+        eps_i = self.eps / lprobs.size(-1)
+        loss = (1. - self.eps) * nll_loss + eps_i * smooth_loss
+
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
