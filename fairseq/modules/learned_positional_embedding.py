@@ -5,9 +5,10 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import torch
 from torch.autograd import Variable
 import torch.nn as nn
+
+from fairseq import utils
 
 
 class LearnedPositionalEmbedding(nn.Embedding):
@@ -25,27 +26,11 @@ class LearnedPositionalEmbedding(nn.Embedding):
         """Input is expected to be of size [bsz x seqlen]."""
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step
-            positions = Variable(
-                input.data.new(1, 1).fill_(self.padding_idx + input.size(1)))
+            positions = input.data.new(1, 1).fill_(self.padding_idx + input.size(1))
         else:
-            positions = Variable(self.make_positions(input.data))
-        return super().forward(positions)
+            positions = utils.make_positions(input.data, self.padding_idx, self.left_pad)
+        return super().forward(Variable(positions))
 
     def max_positions(self):
         """Maximum number of supported positions."""
         return self.num_embeddings - self.padding_idx - 1
-
-    def make_positions(self, input):
-        """Replace non-padding symbols with their position numbers."""
-        if not hasattr(self, 'range_buf'):
-            self.range_buf = input.new()
-        seqlen = input.size(1)
-        if self.range_buf.numel() < seqlen:
-            # offset positions by the padding index
-            torch.arange(self.padding_idx + 1, self.padding_idx + 1 + seqlen,
-                         out=self.range_buf)
-        mask = input.ne(self.padding_idx)
-        positions = self.range_buf[:seqlen].expand_as(input)
-        if self.left_pad:
-            positions = positions - mask.size(1) + mask.long().sum(dim=1).unsqueeze(1)
-        return input.clone().masked_scatter_(mask, positions[mask])

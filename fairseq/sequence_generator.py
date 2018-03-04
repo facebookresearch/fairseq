@@ -411,7 +411,10 @@ class SequenceGenerator(object):
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
             with utils.maybe_no_grad():
-                decoder_out, attn = model.decoder(tokens, encoder_out, incremental_states[model])
+                if incremental_states[model] is not None:
+                    decoder_out, attn = model.decoder(tokens, encoder_out, incremental_states[model])
+                else:
+                    decoder_out, attn = model.decoder(tokens, encoder_out)
             probs = model.get_normalized_probs(decoder_out[:, -1, :], log_probs=False).data
             if avg_probs is None:
                 avg_probs = probs
