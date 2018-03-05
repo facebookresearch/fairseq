@@ -1,0 +1,146 @@
+# Copyright (c) 2017-present, Facebook, Inc.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the LICENSE file in
+# the root directory of this source tree. An additional grant of patent rights
+# can be found in the PATENTS file in the same directory.
+
+import math
+
+import torch
+from torch import nn
+from torch.nn import Parameter
+import torch.nn.functional as F
+
+
+class MultiheadAttention(nn.Module):
+    """Multi-headed attention.
+
+    See "Attention Is All You Need" for more details.
+    """
+    def __init__(self, embed_dim, num_heads, dropout=0., bias=True):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.dropout = dropout
+        self.head_dim = embed_dim // num_heads
+        assert self.head_dim * num_heads == self.embed_dim
+        self.scaling = self.head_dim**-0.5
+        self._mask = None
+
+        self.in_proj_weight = Parameter(torch.Tensor(3*self.embed_dim, self.embed_dim))
+        if bias:
+            self.in_proj_bias = Parameter(torch.Tensor(3*self.embed_dim))
+        else:
+            self.register_parameter('in_proj_bias', None)
+        self.out_proj = nn.Linear(self.embed_dim, embed_dim, bias=bias)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.xavier_uniform(self.in_proj_weight.data)
+        nn.init.xavier_uniform(self.out_proj.weight.data)
+        if self.in_proj_bias is not None:
+            self.in_proj_bias.data.zero_()
+
+    def forward(self, query, key, value, mask_future_timesteps=False,
+                key_padding_mask=None):
+        """Input shape: Time x Batch x Channel
+
+        Self-attention can be implemented by passing in the same arguments for
+        query, key and value. Future timesteps can be masked with the
+        `mask_future_timesteps` argument. Padding elements can be excluded from
+        the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
+        batch x src_len, where padding elements are indicated by 1s.
+        """
+        src_len, bsz, embed_dim = key.size()
+        tgt_len = query.size(0)
+        assert embed_dim == self.embed_dim
+        assert list(query.size()) == [tgt_len, bsz, embed_dim]
+        assert key.size() == value.size()
+
+        if key_padding_mask is not None:
+            assert key_padding_mask.size(0) == bsz
+            assert key_padding_mask.size(1) == src_len
+
+        if query.data_ptr() == key.data_ptr() == value.data_ptr():
+            # self-attention
+            q, k, v = self.in_proj_qkv(query)
+        elif key.data_ptr() == value.data_ptr():
+            # encoder-decoder attention
+            q = self.in_proj_q(query)
+            k, v = self.in_proj_kv(key)
+        else:
+            q = self.in_proj_q(query)
+            k = self.in_proj_k(key)
+            v = self.in_proj_v(value)
+        q *= self.scaling
+
+        q = q.contiguous().view(tgt_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
+        k = k.contiguous().view(src_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
+        v = v.contiguous().view(src_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
+
+        attn_weights = torch.bmm(q, k.transpose(1, 2))
+        assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
+        if mask_future_timesteps:
+            assert query.size() == key.size(), \
+                'mask_future_timesteps only applies to self-attention'
+            attn_weights += self.buffered_mask(attn_weights).unsqueeze(0)
+        if key_padding_mask is not None:
+            # don't attend to padding symbols
+            if key_padding_mask.max() > 0:
+                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+                attn_weights = attn_weights.masked_fill(
+                    key_padding_mask.unsqueeze(1).unsqueeze(2),
+                    -math.inf,
+                )
+                attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
+
+        attn = torch.bmm(attn_weights, v)
+        assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
+        attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        attn = self.out_proj(attn)
+
+        # average attention weights over heads
+        attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+        attn_weights = attn_weights.sum(dim=1) / self.num_heads
+
+        return attn, attn_weights
+
+    def in_proj_qkv(self, query):
+        return self._in_proj(query).chunk(3, dim=-1)
+
+    def in_proj_kv(self, key):
+        return self._in_proj(key, start=self.embed_dim).chunk(2, dim=-1)
+
+    def in_proj_q(self, query):
+        return self._in_proj(query, end=self.embed_dim)
+
+    def in_proj_k(self, key):
+        return self._in_proj(key, start=self.embed_dim, end=2*self.embed_dim)
+
+    def in_proj_v(self, value):
+        return self._in_proj(value, start=2*self.embed_dim)
+
+    def _in_proj(self, input, start=None, end=None):
+        weight = self.in_proj_weight
+        bias = self.in_proj_bias
+        if end is not None:
+            weight = weight[:end, :]
+            if bias is not None:
+                bias = bias[:end]
+        if start is not None:
+            weight = weight[start:, :]
+            if bias is not None:
+                bias = bias[start:]
+        return F.linear(input, weight, bias)
+
+    def buffered_mask(self, tensor):
+        dim = tensor.size(-1)
+        if self._mask is None:
+            self._mask = torch.triu(tensor.new(dim, dim).fill_(-math.inf), 1)
+        if self._mask.size(0) < dim:
+            self._mask = torch.triu(self._mask.resize_(dim, dim).fill_(-math.inf), 1)
+        return self._mask[:dim, :dim]
