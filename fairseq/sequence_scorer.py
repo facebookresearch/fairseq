@@ -46,7 +46,7 @@ class SequenceScorer(object):
                     'alignment': alignment,
                     'positional_scores': pos_scores_i,
                 }]
-                # return results in the same format as SequenceGenenerator
+                # return results in the same format as SequenceGenerator
                 yield id, src, ref, hypos
 
     def score(self, sample):

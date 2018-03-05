@@ -77,11 +77,11 @@ class SequenceGenerator(object):
                     prefix_tokens=s['target'][:, :prefix_size] if prefix_size > 0 else None,
                 )
             if timer is not None:
-                timer.stop(s['ntokens'])
+                timer.stop(sum([len(h[0]['tokens']) for h in hypos]))
             for i, id in enumerate(s['id'].data):
                 src = input['src_tokens'].data[i, :]
                 # remove padding from ref
-                ref = utils.strip_pad(s['target'].data[i, :], self.pad)
+                ref = utils.strip_pad(s['target'].data[i, :], self.pad) if s['target'] is not None else None
                 yield id, src, ref, hypos[i]
 
     def generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):

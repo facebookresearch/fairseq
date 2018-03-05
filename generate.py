@@ -84,6 +84,7 @@ def main(args):
     # Generate and compute BLEU score
     scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
     num_sentences = 0
+    has_target = True
     with progress_bar.build_progress_bar(args, itr) as t:
         if args.score_reference:
             translations = translator.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
@@ -94,18 +95,22 @@ def main(args):
         wps_meter = TimeMeter()
         for sample_id, src_tokens, target_tokens, hypos in translations:
             # Process input and ground truth
-            target_tokens = target_tokens.int().cpu()
+            has_target = target_tokens is not None
+            target_tokens = target_tokens.int().cpu() if has_target else None
             # Either retrieve the original sentences or regenerate them from tokens.
             if align_dict is not None:
                 src_str = dataset.splits[args.gen_subset].src.get_original_text(sample_id)
                 target_str = dataset.splits[args.gen_subset].dst.get_original_text(sample_id)
             else:
                 src_str = dataset.src_dict.string(src_tokens, args.remove_bpe)
-                target_str = dataset.dst_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+                target_str = dataset.dst_dict.string(target_tokens,
+                                                     args.remove_bpe,
+                                                     escape_unk=True) if has_target else ''
 
             if not args.quiet:
                 print('S-{}\t{}'.format(sample_id, src_str))
-                print('T-{}\t{}'.format(sample_id, target_str))
+                if has_target:
+                    print('T-{}\t{}'.format(sample_id, target_str))
 
             # Process top predictions
             for i, hypo in enumerate(hypos[:min(len(hypos), args.nbest)]):
@@ -133,7 +138,7 @@ def main(args):
                     ))
 
                 # Score only the top hypothesis
-                if i == 0:
+                if has_target and i == 0:
                     if align_dict is not None or args.remove_bpe is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tokenizer.Tokenizer.tokenize(
@@ -146,7 +151,8 @@ def main(args):
 
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(
         num_sentences, gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
-    print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
+    if has_target:
+        print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
 
 
 if __name__ == '__main__':

@@ -57,17 +57,17 @@ def load_dataset(path, load_splits, src=None, dst=None):
     dataset = LanguageDatasets(src, dst, src_dict, dst_dict)
 
     # Load dataset from binary files
-    def all_splits_exist(src, dst):
+    def all_splits_exist(src, dst, lang):
         for split in load_splits:
-            filename = '{0}.{1}-{2}.{1}.idx'.format(split, src, dst)
+            filename = '{0}.{1}-{2}.{3}.idx'.format(split, src, dst, lang)
             if not os.path.exists(os.path.join(path, filename)):
                 return False
         return True
 
     # infer langcode
-    if all_splits_exist(src, dst):
+    if all_splits_exist(src, dst, src):
         langcode = '{}-{}'.format(src, dst)
-    elif all_splits_exist(dst, src):
+    elif all_splits_exist(dst, src, src):
         langcode = '{}-{}'.format(dst, src)
     else:
         raise Exception('Dataset cannot be loaded from path: ' + path)
@@ -84,9 +84,13 @@ def load_dataset(path, load_splits, src=None, dst=None):
             if not IndexedInMemoryDataset.exists(src_path):
                 break
 
+            target_dataset = None
+            if IndexedInMemoryDataset.exists(dst_path):
+                target_dataset = IndexedInMemoryDataset(dst_path)
+
             dataset.splits[prefix] = LanguagePairDataset(
                 IndexedInMemoryDataset(src_path),
-                IndexedInMemoryDataset(dst_path),
+                target_dataset,
                 pad_idx=dataset.src_dict.pad(),
                 eos_idx=dataset.src_dict.eos(),
             )
@@ -194,21 +198,20 @@ class LanguagePairDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         # subtract 1 for 0-based indexing
         source = self.src[i].long() - 1
-        target = self.dst[i].long() - 1
-        return {
-            'id': i,
-            'source': source,
-            'target': target,
-        }
+        res = { 'id': i, 'source': source }
+        if self.dst:
+            res['target'] = self.dst[i].long() - 1
+
+        return res
 
     def __len__(self):
         return len(self.src)
 
     def collater(self, samples):
-        return LanguagePairDataset.collate(samples, self.pad_idx, self.eos_idx)
+        return LanguagePairDataset.collate(samples, self.pad_idx, self.eos_idx, self.dst is not None)
 
     @staticmethod
-    def collate(samples, pad_idx, eos_idx):
+    def collate(samples, pad_idx, eos_idx, has_target=True):
         if len(samples) == 0:
             return {}
 
@@ -220,26 +223,31 @@ class LanguagePairDataset(torch.utils.data.Dataset):
 
         id = torch.LongTensor([s['id'] for s in samples])
         src_tokens = merge('source', left_pad=LanguagePairDataset.LEFT_PAD_SOURCE)
-        target = merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET)
-        # we create a shifted version of targets for feeding the
-        # previous output token(s) into the next decoder step
-        prev_output_tokens = merge(
-            'target',
-            left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
-            move_eos_to_beginning=True,
-        )
-
         # sort by descending source length
         src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
         src_lengths, sort_order = src_lengths.sort(descending=True)
         id = id.index_select(0, sort_order)
         src_tokens = src_tokens.index_select(0, sort_order)
-        prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
-        target = target.index_select(0, sort_order)
+
+        prev_output_tokens = None
+        target = None
+        ntokens = None
+        if has_target:
+            target = merge('target', left_pad=LanguagePairDataset.LEFT_PAD_TARGET)
+            # we create a shifted version of targets for feeding the
+            # previous output token(s) into the next decoder step
+            prev_output_tokens = merge(
+                'target',
+                left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+                move_eos_to_beginning=True,
+            )
+            prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
+            target = target.index_select(0, sort_order)
+            ntokens = sum(len(s['target']) for s in samples)
 
         return {
             'id': id,
-            'ntokens': sum(len(s['target']) for s in samples),
+            'ntokens': ntokens,
             'net_input': {
                 'src_tokens': src_tokens,
                 'src_lengths': src_lengths,
@@ -301,21 +309,23 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
     sample_len = 0
     ignored = []
     for idx in map(int, indices):
-        if not _valid_size(src.sizes[idx], dst.sizes[idx], max_positions):
+        src_size = src.sizes[idx]
+        dst_size = dst.sizes[idx] if dst else src_size
+        if not _valid_size(src_size, dst_size, max_positions):
             if ignore_invalid_inputs:
                 ignored.append(idx)
                 continue
             raise Exception((
                 "Sample #{} has size (src={}, dst={}) but max size is {}."
                 " Skip this example with --skip-invalid-size-inputs-valid-test"
-            ).format(idx, src.sizes[idx], dst.sizes[idx], max_positions))
+            ).format(idx, src_size, dst_size, max_positions))
 
-        sample_len = max(sample_len, src.sizes[idx], dst.sizes[idx])
+        sample_len = max(sample_len, src_size, dst_size)
         num_tokens = (len(batch) + 1) * sample_len
         if yield_batch(idx, num_tokens):
             yield batch
             batch = []
-            sample_len = max(src.sizes[idx], dst.sizes[idx])
+            sample_len = max(src_size, dst_size)
 
         batch.append(idx)
 
@@ -332,7 +342,7 @@ def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
                     descending=False):
     """Returns batches of indices sorted by size. Sequences with different
     source lengths are not allowed in the same batch."""
-    assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
+    assert isinstance(src, IndexedDataset) and (dst is None or isinstance(dst, IndexedDataset))
     if max_tokens is None:
         max_tokens = float('Inf')
     if max_sentences is None:

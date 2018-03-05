@@ -92,7 +92,7 @@ class TestEncoder(FairseqEncoder):
 class TestIncrementalDecoder(FairseqIncrementalDecoder):
     def __init__(self, args, dictionary):
         super().__init__(dictionary)
-        assert hasattr(args, 'beam_probs')
+        assert hasattr(args, 'beam_probs') or hasattr(args, 'probs')
         args.max_decoder_positions = getattr(args, 'max_decoder_positions', 100)
         self.args = args
 
@@ -116,14 +116,19 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
             steps = list(range(tgt_len))
 
         # define output in terms of raw probs
-        probs = torch.FloatTensor(bbsz, len(steps), vocab).zero_()
-        for i, step in enumerate(steps):
-            # args.beam_probs gives the probability for every vocab element,
-            # starting with eos, then unknown, and then the rest of the vocab
-            if step < len(self.args.beam_probs):
-                probs[:, i, self.dictionary.eos():] = self.args.beam_probs[step]
-            else:
-                probs[:, i, self.dictionary.eos()] = 1.0
+        if hasattr(self.args, 'probs'):
+            assert self.args.probs.dim() == 3, \
+                'expected probs to have size bsz*steps*vocab'
+            probs = self.args.probs.index_select(1, torch.LongTensor(steps))
+        else:
+            probs = torch.FloatTensor(bbsz, len(steps), vocab).zero_()
+            for i, step in enumerate(steps):
+                # args.beam_probs gives the probability for every vocab element,
+                # starting with eos, then unknown, and then the rest of the vocab
+                if step < len(self.args.beam_probs):
+                    probs[:, i, self.dictionary.eos():] = self.args.beam_probs[step]
+                else:
+                    probs[:, i, self.dictionary.eos()] = 1.0
 
         # random attention
         attn = torch.rand(bbsz, src_len, tgt_len)

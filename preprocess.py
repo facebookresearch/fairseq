@@ -21,9 +21,9 @@ def get_parser():
         description='Data pre-processing: Create dictionary and store data in binary format')
     parser.add_argument('-s', '--source-lang', default=None, metavar='SRC', help='source language')
     parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET', help='target language')
-    parser.add_argument('--trainpref', metavar='FP', default='train', help='target language')
-    parser.add_argument('--validpref', metavar='FP', default='valid', help='comma separated, valid language prefixes')
-    parser.add_argument('--testpref', metavar='FP', default='test', help='comma separated, test language prefixes')
+    parser.add_argument('--trainpref', metavar='FP', default=None, help='target language')
+    parser.add_argument('--validpref', metavar='FP', default=None, help='comma separated, valid language prefixes')
+    parser.add_argument('--testpref', metavar='FP', default=None, help='comma separated, test language prefixes')
     parser.add_argument('--destdir', metavar='DIR', default='data-bin', help='destination dir')
     parser.add_argument('--thresholdtgt', metavar='N', default=0, type=int,
                         help='map words appearing less than threshold times to unknown')
@@ -37,12 +37,14 @@ def get_parser():
     parser.add_argument('--output-format', metavar='FORMAT', default='binary', choices=['binary', 'raw'],
                         help='output format (optional)')
     parser.add_argument('--joined-dictionary', action='store_true', help='Generate joined dictionary')
+    parser.add_argument('--only-source', action='store_true', help='Only process the source language')
     return parser
 
 
 def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
+    target = not args.only_source
 
     if args.joined_dictionary:
         assert not args.srcdict, 'cannot combine --srcdict and --joined-dictionary'
@@ -60,16 +62,20 @@ def main(args):
         if args.srcdict:
             src_dict = dictionary.Dictionary.load(args.srcdict)
         else:
+            assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
             src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang))
-        if args.tgtdict:
-            tgt_dict = dictionary.Dictionary.load(args.tgtdict)
-        else:
-            tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
+        if target:
+            if args.tgtdict:
+                tgt_dict = dictionary.Dictionary.load(args.tgtdict)
+            else:
+                assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
+                tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
 
     src_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)),
                   threshold=args.thresholdsrc, nwords=args.nwordssrc)
-    tgt_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)),
-                  threshold=args.thresholdtgt, nwords=args.nwordstgt)
+    if target:
+        tgt_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)),
+                      threshold=args.thresholdtgt, nwords=args.nwordstgt)
 
     def make_binary_dataset(input_prefix, output_prefix, lang):
         dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(lang)))
@@ -100,19 +106,26 @@ def main(args):
             output_text_file = os.path.join(args.destdir, '{}.{}'.format(output_prefix, lang))
             shutil.copyfile('{}.{}'.format(input_prefix, lang), output_text_file)
 
-    make_dataset(args.trainpref, 'train', args.source_lang, args.output_format)
-    make_dataset(args.trainpref, 'train', args.target_lang, args.output_format)
-    for k, validpref in enumerate(args.validpref.split(',')):
-        outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
-        make_dataset(validpref, outprefix, args.source_lang, args.output_format)
-        make_dataset(validpref, outprefix, args.target_lang, args.output_format)
-    for k, testpref in enumerate(args.testpref.split(',')):
-        outprefix = 'test{}'.format(k) if k > 0 else 'test'
-        make_dataset(testpref, outprefix, args.source_lang, args.output_format)
-        make_dataset(testpref, outprefix, args.target_lang, args.output_format)
+    def make_all(args, make_dataset, lang):
+        if args.trainpref:
+            make_dataset(args.trainpref, 'train', lang, args.output_format)
+        if args.validpref:
+            for k, validpref in enumerate(args.validpref.split(',')):
+                outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
+                make_dataset(validpref, outprefix, lang, args.output_format)
+        if args.testpref:
+            for k, testpref in enumerate(args.testpref.split(',')):
+                outprefix = 'test{}'.format(k) if k > 0 else 'test'
+                make_dataset(testpref, outprefix, lang, args.output_format)
+
+    make_all(args, make_dataset, args.source_lang)
+    if target:
+        make_all(args, make_dataset, args.target_lang)
+
     print('| Wrote preprocessed data to {}'.format(args.destdir))
 
     if args.alignfile:
+        assert args.trainpref, "--trainpref must be set if --alignfile is specified"
         src_file_name = '{}.{}'.format(args.trainpref, args.source_lang)
         tgt_file_name = '{}.{}'.format(args.trainpref, args.target_lang)
         src_dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)))
