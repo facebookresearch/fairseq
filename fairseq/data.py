@@ -371,8 +371,6 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
     # sort by sizes
     indices = indices[np.argsort(dst.sizes[indices], kind='mergesort')]
     indices = indices[np.argsort(src.sizes[indices], kind='mergesort')]
-    max_sizes = np.maximum(dst.sizes[indices], src.sizes[indices])
-    indices = indices[np.argsort(max_sizes[indices], kind='mergesort')]
 
     batches = list(_make_batches(
         src, dst, indices, max_tokens, max_sentences, max_positions,
