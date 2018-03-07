@@ -37,6 +37,7 @@ class SequenceGenerator(object):
         self.beam_size = beam_size
         self.minlen = minlen
         max_decoder_len = min([m.max_decoder_positions() for m in self.models])
+        max_decoder_len -= 1  # we define maxlen not including the EOS marker
         self.maxlen = max_decoder_len if maxlen is None else min(maxlen, max_decoder_len)
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
