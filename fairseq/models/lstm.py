@@ -65,7 +65,7 @@ class LSTMModel(FairseqModel):
             embed_dim=args.decoder_embed_dim,
             out_embed_dim=args.decoder_out_embed_dim,
             num_layers=args.decoder_layers,
-            attention=bool(args.decoder_attention),
+            attention=bool(eval(args.decoder_attention)),
             dropout_in=args.decoder_dropout_in,
             dropout_out=args.decoder_dropout_out,
         )
@@ -178,7 +178,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             LSTMCell(encoder_embed_dim + embed_dim if layer == 0 else embed_dim, embed_dim)
             for layer in range(num_layers)
         ])
-        self.attention = AttentionLayer(encoder_embed_dim, embed_dim)
+        self.attention = AttentionLayer(encoder_embed_dim, embed_dim) if attention else None
         if embed_dim != out_embed_dim:
             self.additional_fc = Linear(embed_dim, out_embed_dim)
         self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
@@ -229,7 +229,10 @@ class LSTMDecoder(FairseqIncrementalDecoder):
                 prev_cells[i] = cell
 
             # apply attention using the last layer's hidden state
-            out, attn_scores[:, j, :] = self.attention(hidden, encoder_outs)
+            if self.attention is not None:
+                out, attn_scores[:, j, :] = self.attention(hidden, encoder_outs)
+            else:
+                out = hidden
             out = F.dropout(out, p=self.dropout_out, training=self.training)
 
             # input feeding
