@@ -141,6 +141,8 @@ def add_optimization_args(parser):
     group = parser.add_argument_group('Optimization')
     group.add_argument('--max-epoch', '--me', default=0, type=int, metavar='N',
                        help='force stop training at specified epoch')
+    group.add_argument('--max-update', '--mu', default=0, type=int, metavar='N',
+                       help='force stop training at specified update')
     group.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
                        help='clip threshold of gradients')
     group.add_argument('--sentence-avg', action='store_true',

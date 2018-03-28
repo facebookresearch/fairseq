@@ -71,6 +71,7 @@ def main(args):
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
+    max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = StopwatchMeter()
     train_meter.start()
@@ -91,6 +92,9 @@ def main(args):
 
         epoch += 1
         batch_offset = 0
+
+        if trainer.get_num_updates() >= max_update:
+            break
     train_meter.stop()
 
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
@@ -134,6 +138,7 @@ def train(args, trainer, dataset, epoch, batch_offset):
             meter.reset()
 
     extra_meters = collections.defaultdict(lambda: AverageMeter())
+    max_update = args.max_update or math.inf
     for i, sample in enumerate(itr, start=batch_offset):
         log_output = trainer.train_step(sample)
 
@@ -153,8 +158,14 @@ def train(args, trainer, dataset, epoch, batch_offset):
         if i == batch_offset:
             # ignore the first mini-batch in words-per-second calculation
             trainer.get_meter('wps').reset()
-        if args.save_interval > 0 and trainer.get_num_updates() % args.save_interval == 0:
+
+        # save mid-epoch checkpoints
+        num_updates = trainer.get_num_updates()
+        if args.save_interval > 0 and num_updates > 0 and num_updates % args.save_interval == 0:
             save_checkpoint(trainer, args, epoch, i + 1)
+
+        if num_updates >= max_update:
+            break
 
     # log end-of-epoch stats
     stats = get_training_stats(trainer)
