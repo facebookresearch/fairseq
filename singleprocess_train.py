@@ -80,15 +80,18 @@ def main(args):
         train(args, trainer, dataset, epoch, batch_offset)
 
         # evaluate on validate set
-        for k, subset in enumerate(args.valid_subset.split(',')):
-            val_loss = validate(args, trainer, dataset, subset, epoch)
-            if k == 0:
-                # only use first validation loss to update the learning schedule
-                lr = trainer.lr_step(epoch, val_loss)
+        if epoch % args.validate_interval == 0:
+            for k, subset in enumerate(args.valid_subset.split(',')):
+                val_loss = validate(args, trainer, dataset, subset, epoch)
+                if k == 0:
+                    # only use first validation loss to update the learning schedule
+                    lr = trainer.lr_step(epoch, val_loss)
 
-                # save checkpoint
-                if not args.no_save:
-                    save_checkpoint(trainer, args, epoch, 0, val_loss)
+                    # save checkpoint
+                    if not args.no_save:
+                        save_checkpoint(trainer, args, epoch, 0, val_loss)
+        else:
+            lr = trainer.lr_step(epoch)
 
         epoch += 1
         batch_offset = 0
