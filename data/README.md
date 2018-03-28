@@ -20,9 +20,10 @@ $ python preprocess.py --source-lang de --target-lang en \
 
 # Train the model:
 $ mkdir -p checkpoints/fconv
-$ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
+$ python train.py data-bin/iwslt14.tokenized.de-en \
   --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
-  --label-smoothing 0.1 --force-anneal 200 \
+  --criterion label_smoothed_cross_entropy --label-smoothing 0.1 
+  --lr-scheduler fixed --force-anneal 200 \
   --arch fconv_iwslt_de_en --save-dir checkpoints/fconv
 
 # Generate:
@@ -61,7 +62,8 @@ $ python preprocess.py --source-lang en --target-lang de \
 $ mkdir -p checkpoints/fconv_wmt_en_de
 $ python train.py data-bin/wmt14_en_de \
   --lr 0.5 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
-  --label-smoothing 0.1 --force-anneal 50 \
+  --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
+  --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_de --save-dir checkpoints/fconv_wmt_en_de
 
 # Generate:
@@ -92,7 +94,8 @@ $ python preprocess.py --source-lang en --target-lang fr \
 $ mkdir -p checkpoints/fconv_wmt_en_fr
 $ python train.py data-bin/wmt14_en_fr \
   --lr 0.5 --clip-norm 0.1 --dropout 0.1 --max-tokens 3000 \
-  --label-smoothing 0.1 --force-anneal 50 \
+  --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
+  --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_fr --save-dir checkpoints/fconv_wmt_en_fr
 
 # Generate:
