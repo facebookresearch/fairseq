@@ -18,11 +18,12 @@ $ python preprocess.py --source-lang de --target-lang en \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/iwslt14.tokenized.de-en
 
-# Train the model:
+# Train the model (better for a single GPU setup):
 $ mkdir -p checkpoints/fconv
 $ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
   --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
-  --label-smoothing 0.1 --force-anneal 200 \
+  --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
+  --lr-scheduler fixed --force-anneal 200 \
   --arch fconv_iwslt_de_en --save-dir checkpoints/fconv
 
 # Generate:
@@ -37,7 +38,7 @@ $ python generate.py data-bin/iwslt14.tokenized.de-en \
 
 Provides an example of pre-processing for the WMT'14 English to German translation task. By default it will produce a dataset that was modeled after ["Attention Is All You Need" by Vaswani et al.](https://arxiv.org/abs/1706.03762) that includes news-commentary-v12 data.
 
-To use only data awailable in WMT'14 or to replicate results obtained in the original paper ["Convolutional Sequence to Sequence Learning" by Gehring et al.](https://arxiv.org/abs/1705.03122) run it with --icml17 instead:
+To use only data available in WMT'14 or to replicate results obtained in the original paper ["Convolutional Sequence to Sequence Learning" by Gehring et al.](https://arxiv.org/abs/1705.03122) run it with --icml17 instead:
 
 ```
 $ bash prepare-wmt14en2de.sh --icml17
@@ -61,7 +62,8 @@ $ python preprocess.py --source-lang en --target-lang de \
 $ mkdir -p checkpoints/fconv_wmt_en_de
 $ python train.py data-bin/wmt14_en_de \
   --lr 0.5 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
-  --label-smoothing 0.1 --force-anneal 50 \
+  --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
+  --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_de --save-dir checkpoints/fconv_wmt_en_de
 
 # Generate:
@@ -92,7 +94,8 @@ $ python preprocess.py --source-lang en --target-lang fr \
 $ mkdir -p checkpoints/fconv_wmt_en_fr
 $ python train.py data-bin/wmt14_en_fr \
   --lr 0.5 --clip-norm 0.1 --dropout 0.1 --max-tokens 3000 \
-  --label-smoothing 0.1 --force-anneal 50 \
+  --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
+  --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_fr --save-dir checkpoints/fconv_wmt_en_fr
 
 # Generate:
