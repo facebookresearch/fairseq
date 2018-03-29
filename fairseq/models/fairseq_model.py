@@ -41,12 +41,16 @@ class FairseqModel(nn.Module):
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens):
         encoder_out = self.encoder(src_tokens, src_lengths)
-        decoder_out, _ = self.decoder(prev_output_tokens, encoder_out)
+        decoder_out = self.decoder(prev_output_tokens, encoder_out)
         return decoder_out
 
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""
         return self.decoder.get_normalized_probs(net_output, log_probs)
+
+    def get_targets(self, sample, net_output):
+        """Get targets from either the sample or the net's output."""
+        return sample['target']
 
     def max_encoder_positions(self):
         """Maximum input length supported by the encoder."""

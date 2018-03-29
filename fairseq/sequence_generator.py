@@ -36,7 +36,7 @@ class SequenceGenerator(object):
         self.vocab_size = len(models[0].dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        max_decoder_len = min([m.max_decoder_positions() for m in self.models])
+        max_decoder_len = min(m.max_decoder_positions() for m in self.models)
         max_decoder_len -= 1  # we define maxlen not including the EOS marker
         self.maxlen = max_decoder_len if maxlen is None else min(maxlen, max_decoder_len)
         self.stop_early = stop_early
@@ -439,10 +439,12 @@ class SequenceGenerator(object):
         for model, encoder_out in zip(self.models, encoder_outs):
             with utils.maybe_no_grad():
                 if incremental_states[model] is not None:
-                    decoder_out, attn = model.decoder(tokens, encoder_out, incremental_states[model])
+                    decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
                 else:
-                    decoder_out, attn = model.decoder(tokens, encoder_out)
-            probs = model.get_normalized_probs(decoder_out[:, -1, :], log_probs=False).data
+                    decoder_out = list(model.decoder(tokens, encoder_out))
+                decoder_out[0] = decoder_out[0][:, -1, :]
+                attn = decoder_out[1]
+            probs = model.get_normalized_probs(decoder_out, log_probs=False).data
             if avg_probs is None:
                 avg_probs = probs
             else:

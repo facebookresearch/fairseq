@@ -142,7 +142,10 @@ def train(args, trainer, dataset, epoch, batch_offset):
         for k, v in log_output.items():
             if k in ['loss', 'nll_loss']:
                 continue  # these are already logged above
-            extra_meters[k].update(v)
+            if 'loss' in k:
+                extra_meters[k].update(v, log_output['sample_size'])
+            else:
+                extra_meters[k].update(v)
             stats[k] = extra_meters[k].avg
         progress.log(stats)
 

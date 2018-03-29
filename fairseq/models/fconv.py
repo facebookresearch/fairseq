@@ -48,6 +48,11 @@ class FConvModel(FairseqModel):
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
         """Build a new model instance."""
+        if not hasattr(args, 'max_source_positions'):
+            args.max_source_positions = args.max_positions
+            args.max_target_positions = args.max_positions
+        if not hasattr(args, 'share_input_output_embed'):
+            args.share_input_output_embed = False
         encoder = FConvEncoder(
             src_dict,
             embed_dim=args.encoder_embed_dim,

@@ -85,7 +85,7 @@ class TestSequenceScorer(unittest.TestCase):
 
         model = test_utils.TestModel.build_model(args, d, d)
         scorer = SequenceScorer([model])
-        for id, src, ref, hypos in scorer.score_batched_itr(data_itr):
+        for id, _src, _ref, hypos in scorer.score_batched_itr(data_itr):
             self.assertHypoTokens(hypos[0], data[id]['target'])
             self.assertHypoScore(hypos[0], expected_scores[id])
 
