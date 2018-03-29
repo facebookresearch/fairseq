@@ -107,10 +107,12 @@ class IndexedRawTextDataset(IndexedDataset):
     """Takes a text file as input and binarizes it in memory at instantiation.
     Original lines are also kept in memory"""
 
-    def __init__(self, path, dictionary):
+    def __init__(self, path, dictionary, append_eos=True, reverse_order=False):
         self.tokens_list = []
         self.lines = []
         self.sizes = []
+        self.append_eos = append_eos
+        self.reverse_order = reverse_order
         self.read_data(path, dictionary)
         self.size = len(self.tokens_list)
 
@@ -118,8 +120,10 @@ class IndexedRawTextDataset(IndexedDataset):
         with open(path, 'r') as f:
             for line in f:
                 self.lines.append(line.strip('\n'))
-                # +1 for Lua compatibility
-                tokens = Tokenizer.tokenize(line, dictionary, add_if_not_exist=False) + 1
+                tokens = Tokenizer.tokenize(
+                    line, dictionary, add_if_not_exist=False,
+                    append_eos=self.append_eos, reverse_order=self.reverse_order,
+                ) + 1  # +1 for Lua compatibility
                 self.tokens_list.append(tokens)
                 self.sizes.append(len(tokens))
         self.sizes = np.array(self.sizes)

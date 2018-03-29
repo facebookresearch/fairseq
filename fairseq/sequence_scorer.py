@@ -63,10 +63,11 @@ class SequenceScorer(object):
                     net_input['src_tokens'],
                     net_input['src_lengths'],
                 )
-                decoder_out, attn = model.decoder(
+                decoder_out = model.decoder(
                     net_input['prev_output_tokens'],
                     encoder_out,
                 )
+                attn = decoder_out[1]
             probs = model.get_normalized_probs(decoder_out, log_probs=False).data
             if avg_probs is None:
                 avg_probs = probs

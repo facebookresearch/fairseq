@@ -16,6 +16,7 @@ OPTIMIZER_CLASS_NAMES = set()
 
 
 def build_optimizer(args, params):
+    params = filter(lambda p: p.requires_grad, params)
     return OPTIMIZER_REGISTRY[args.optimizer](args, params)
 
 

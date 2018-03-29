@@ -114,11 +114,16 @@ def _upgrade_state_dict(state):
     return state
 
 
-def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_dir=None):
+def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
+                                data_dir=None, model_arg_overrides=None):
     """Load an ensemble of models for inference.
 
     The source and target dictionaries can be given explicitly, or loaded from
     the `data_dir` directory.
+
+    model_arg_overrides allows you to pass a dictionary model_arg_overrides --
+    {'arg_name': arg} -- to override model args that were used during model
+    training
     """
     from fairseq import data, models
 
@@ -131,7 +136,8 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
             torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
         )
     args = states[0]['args']
-    args = _upgrade_args(args)
+    if model_arg_overrides is not None:
+        args = _override_model_args(args, model_arg_overrides)
 
     if src_dict is None or dst_dict is None:
         assert data_dir is not None
@@ -146,12 +152,10 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     return ensemble, args
 
 
-def _upgrade_args(args):
-    if not hasattr(args, 'max_source_positions'):
-        args.max_source_positions = args.max_positions
-        args.max_target_positions = args.max_positions
-    if not hasattr(args, 'share_input_output_embed'):
-        args.share_input_output_embed = False
+def _override_model_args(args, model_arg_overrides):
+    # Uses model_arg_overrides {'arg_name': arg} to override model args
+    for arg_name, arg_val in model_arg_overrides.items():
+        setattr(args, arg_name, arg_val)
     return args
 
 

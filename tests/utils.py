@@ -136,10 +136,11 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
 
     def get_normalized_probs(self, net_output, log_probs):
         # the decoder returns probabilities directly
+        probs = net_output[0]
         if log_probs:
-            return net_output.log()
+            return probs.log()
         else:
-            return net_output
+            return probs
 
     def max_positions(self):
         return self.args.max_decoder_positions
