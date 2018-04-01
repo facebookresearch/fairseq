@@ -62,7 +62,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
         # recompute/expand embeddings if needed
         bsz, seq_len = input.size()
         max_pos = self.padding_idx + 1 + seq_len
-        if seq_len > self.weights.size(0):
+        if max_pos > self.weights.size(0):
             self.weights = SinusoidalPositionalEmbedding.get_embedding(
                 max_pos,
                 self.embedding_dim,

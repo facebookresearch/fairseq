@@ -12,6 +12,8 @@ from torch import nn
 from torch.nn import Parameter
 import torch.nn.functional as F
 
+from fairseq import utils
+
 
 class MultiheadAttention(nn.Module):
     """Multi-headed attention.
@@ -88,7 +90,7 @@ class MultiheadAttention(nn.Module):
             attn_weights += self.buffered_mask(attn_weights).unsqueeze(0)
         if key_padding_mask is not None:
             # don't attend to padding symbols
-            if key_padding_mask.max() > 0:
+            if utils.item(key_padding_mask.max()) > 0:
                 attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2),
