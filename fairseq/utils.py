@@ -328,6 +328,7 @@ def convert_padding_direction(
         index = torch.remainder(range + num_pads, max_len)
     return src_tokens.gather(1, index)
 
+
 def item(tensor):
     if hasattr(tensor, 'item'):
         return tensor.item()
