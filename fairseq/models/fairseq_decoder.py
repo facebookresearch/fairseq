@@ -22,11 +22,10 @@ class FairseqDecoder(nn.Module):
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""
         logits = net_output[0]
-        logits = logits.view(-1, logits.size(-1))
         if log_probs:
-            return F.log_softmax(logits, dim=1).view_as(logits)
+            return F.log_softmax(logits, dim=-1)
         else:
-            return F.softmax(logits, dim=1).view_as(logits)
+            return F.softmax(logits, dim=-1)
 
     def max_positions(self):
         """Maximum input length supported by the decoder."""

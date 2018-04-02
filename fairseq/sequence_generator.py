@@ -79,7 +79,7 @@ class SequenceGenerator(object):
                     prefix_tokens=s['target'][:, :prefix_size] if prefix_size > 0 else None,
                 )
             if timer is not None:
-                timer.stop(sum([len(h[0]['tokens']) for h in hypos]))
+                timer.stop(sum(len(h[0]['tokens']) for h in hypos))
             for i, id in enumerate(s['id'].data):
                 src = input['src_tokens'].data[i, :]
                 # remove padding from ref

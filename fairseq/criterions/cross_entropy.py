@@ -8,8 +8,10 @@
 import math
 import torch.nn.functional as F
 
-from . import FairseqCriterion, register_criterion
 from fairseq import utils
+
+from . import FairseqCriterion, register_criterion
+
 
 @register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):
@@ -27,6 +29,7 @@ class CrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
+        lprobs = lprobs.view(-1, lprobs.size(-1))
         target = model.get_targets(sample, net_output).view(-1)
         loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx,
                           reduce=reduce)

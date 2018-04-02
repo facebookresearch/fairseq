@@ -10,9 +10,7 @@ import copy
 import unittest
 
 import torch
-from torch.autograd import Variable
 
-from fairseq import utils
 from fairseq.criterions.cross_entropy import CrossEntropyCriterion
 from fairseq.criterions.label_smoothed_cross_entropy import LabelSmoothedCrossEntropyCriterion
 
@@ -29,7 +27,7 @@ class TestLabelSmoothing(unittest.TestCase):
         self.assertEqual(self.d.pad(), 1)
         self.assertEqual(self.d.eos(), 2)
         self.assertEqual(self.d.unk(), 3)
-        pad, eos, unk, w1, w2, w3 = 1, 2, 3, 4, 5, 6
+        pad, eos, unk, w1, w2, w3 = 1, 2, 3, 4, 5, 6  # noqa: F841
 
         # build dataset
         self.data = [

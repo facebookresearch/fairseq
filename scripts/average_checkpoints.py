@@ -23,7 +23,7 @@ def average_checkpoints(inputs):
         state = torch.load(
             f,
             map_location=(
-		lambda s, _: torch.serialization.default_restore_location(s, 'cpu')
+                lambda s, _: torch.serialization.default_restore_location(s, 'cpu')
             ),
         )
         # Copies over the settings from the first checkpoint

@@ -107,9 +107,9 @@ class json_progress_bar(progress_bar):
             yield obj
             if self.stats is not None and i > 0 and \
                     self.log_interval is not None and i % self.log_interval == 0:
-                update = self.epoch + float(i / size) if self.epoch is not None else None
+                update = self.epoch - 1 + float(i / size) if self.epoch is not None else None
                 stats = self._format_stats(self.stats, epoch=self.epoch, update=update)
-                print('sweep_log: ' + json.dumps(stats), flush=True)
+                print(json.dumps(stats), flush=True)
 
     def log(self, stats):
         """Log intermediate stats according to log_interval."""
