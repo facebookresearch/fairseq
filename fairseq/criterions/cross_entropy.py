@@ -8,8 +8,10 @@
 import math
 import torch.nn.functional as F
 
-from . import FairseqCriterion, register_criterion
 from fairseq import utils
+
+from . import FairseqCriterion, register_criterion
+
 
 @register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):

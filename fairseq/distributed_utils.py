@@ -13,6 +13,10 @@ import torch.distributed
 from fairseq import utils
 
 
+def is_master(args):
+    return args.distributed_rank == 0
+
+
 def distributed_init(args):
     if args.distributed_world_size == 1:
         raise ValueError('Cannot initialize distributed with distributed_world_size=1')
@@ -29,7 +33,7 @@ def distributed_init(args):
             world_size=args.distributed_world_size)
 
     args.distributed_rank = torch.distributed.get_rank()
-    if args.distributed_rank != 0:
+    if not is_master(args):
         suppress_output()
 
     return args.distributed_rank

@@ -8,8 +8,6 @@
 import torch
 from torch.nn.modules.utils import _single
 
-from fairseq import utils
-
 
 class ConvTBC(torch.nn.Module):
     """1D convolution over an input of shape (time x batch x channel)

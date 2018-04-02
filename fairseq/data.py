@@ -198,7 +198,7 @@ class LanguagePairDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         # subtract 1 for 0-based indexing
         source = self.src[i].long() - 1
-        res = { 'id': i, 'source': source }
+        res = {'id': i, 'source': source}
         if self.dst:
             res['target'] = self.dst[i].long() - 1
 

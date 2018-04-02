@@ -60,7 +60,7 @@ class Trainer(object):
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
-        if self.args.distributed_rank == 0:  # only save one checkpoint
+        if distributed_utils.is_master(self.args):  # only save one checkpoint
             utils.save_state(filename, self.args, self.model, self.criterion, self.optimizer,
                              self.lr_scheduler, self._num_updates, self._optim_history, extra_state)
 
