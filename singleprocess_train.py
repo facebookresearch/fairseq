@@ -71,6 +71,7 @@ def main(args):
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
+    max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = StopwatchMeter()
     train_meter.start()
@@ -79,18 +80,24 @@ def main(args):
         train(args, trainer, dataset, epoch, batch_offset)
 
         # evaluate on validate set
-        for k, subset in enumerate(args.valid_subset.split(',')):
-            val_loss = validate(args, trainer, dataset, subset, epoch)
-            if k == 0:
-                # only use first validation loss to update the learning schedule
-                lr = trainer.lr_step(epoch, val_loss)
+        if epoch % args.validate_interval == 0:
+            for k, subset in enumerate(args.valid_subset.split(',')):
+                val_loss = validate(args, trainer, dataset, subset, epoch)
+                if k == 0:
+                    # only use first validation loss to update the learning schedule
+                    lr = trainer.lr_step(epoch, val_loss)
 
-                # save checkpoint
-                if not args.no_save:
-                    save_checkpoint(trainer, args, epoch, 0, val_loss)
+                    # save checkpoint
+                    if not args.no_save:
+                        save_checkpoint(trainer, args, epoch, 0, val_loss)
+        else:
+            lr = trainer.lr_step(epoch)
 
         epoch += 1
         batch_offset = 0
+
+        if trainer.get_num_updates() >= max_update:
+            break
     train_meter.stop()
 
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
@@ -134,6 +141,7 @@ def train(args, trainer, dataset, epoch, batch_offset):
             meter.reset()
 
     extra_meters = collections.defaultdict(lambda: AverageMeter())
+    max_update = args.max_update or math.inf
     for i, sample in enumerate(itr, start=batch_offset):
         log_output = trainer.train_step(sample)
 
@@ -142,7 +150,10 @@ def train(args, trainer, dataset, epoch, batch_offset):
         for k, v in log_output.items():
             if k in ['loss', 'nll_loss']:
                 continue  # these are already logged above
-            extra_meters[k].update(v)
+            if 'loss' in k:
+                extra_meters[k].update(v, log_output['sample_size'])
+            else:
+                extra_meters[k].update(v)
             stats[k] = extra_meters[k].avg
         progress.log(stats)
 
@@ -150,8 +161,14 @@ def train(args, trainer, dataset, epoch, batch_offset):
         if i == batch_offset:
             # ignore the first mini-batch in words-per-second calculation
             trainer.get_meter('wps').reset()
-        if args.save_interval > 0 and trainer.get_num_updates() % args.save_interval == 0:
+
+        # save mid-epoch checkpoints
+        num_updates = trainer.get_num_updates()
+        if args.save_interval > 0 and num_updates > 0 and num_updates % args.save_interval == 0:
             save_checkpoint(trainer, args, epoch, i + 1)
+
+        if num_updates >= max_update:
+            break
 
     # log end-of-epoch stats
     stats = get_training_stats(trainer)

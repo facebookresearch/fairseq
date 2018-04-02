@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import torch
 from torch.autograd import Variable
@@ -137,10 +136,11 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
 
     def get_normalized_probs(self, net_output, log_probs):
         # the decoder returns probabilities directly
+        probs = net_output[0]
         if log_probs:
-            return net_output.log()
+            return probs.log()
         else:
-            return net_output
+            return probs
 
     def max_positions(self):
         return self.args.max_decoder_positions

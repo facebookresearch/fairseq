@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 import math
+import os
 import torch
 
 
@@ -22,6 +23,9 @@ class Dictionary(object):
         self.eos_index = self.add_symbol(eos)
         self.unk_index = self.add_symbol(unk)
         self.nspecial = len(self.symbols)
+
+    def __eq__(self, other):
+        return self.indices == other.indices
 
     def __getitem__(self, idx):
         if idx < len(self.symbols):
@@ -97,8 +101,8 @@ class Dictionary(object):
         """Helper to get index of unk symbol"""
         return self.unk_index
 
-    @staticmethod
-    def load(f):
+    @classmethod
+    def load(cls, f):
         """Loads the dictionary from a text file with the format:
 
         ```
@@ -111,14 +115,14 @@ class Dictionary(object):
         if isinstance(f, str):
             try:
                 with open(f, 'r', encoding='utf-8') as fd:
-                    return Dictionary.load(fd)
+                    return cls.load(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe
             except Exception:
                 raise Exception("Incorrect encoding detected in {}, please "
                                 "rebuild the dataset".format(f))
 
-        d = Dictionary()
+        d = cls()
         for line in f.readlines():
             idx = line.rfind(' ')
             word = line[:idx]
@@ -131,6 +135,7 @@ class Dictionary(object):
     def save(self, f, threshold=3, nwords=-1):
         """Stores dictionary into a text file"""
         if isinstance(f, str):
+            os.makedirs(os.path.dirname(f), exist_ok=True)
             with open(f, 'w', encoding='utf-8') as fd:
                 return self.save(fd, threshold, nwords)
         cnt = 0

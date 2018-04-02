@@ -32,11 +32,12 @@ def get_generation_parser():
     return parser
 
 
-def parse_args_and_arch(parser, _args=None):
+def parse_args_and_arch(parser, input_args=None):
     # The parser doesn't know about model/criterion/optimizer-specific args, so
     # we parse twice. First we parse the model/criterion/optimizer, then we
     # parse a second time after adding the *-specific arguments.
-    args, _ = parser.parse_known_args(_args)
+    # If input_args is given, we will parse those args instead of sys.argv.
+    args, _ = parser.parse_known_args(input_args)
 
     # Add model-specific args to parser.
     model_specific_group = parser.add_argument_group(
@@ -53,7 +54,7 @@ def parse_args_and_arch(parser, _args=None):
     LR_SCHEDULER_REGISTRY[args.lr_scheduler].add_args(parser)
 
     # Parse a second time.
-    args = parser.parse_args(_args)
+    args = parser.parse_args(input_args)
 
     # Post-process args.
     args.lr = list(map(float, args.lr.split(',')))
@@ -140,6 +141,8 @@ def add_optimization_args(parser):
     group = parser.add_argument_group('Optimization')
     group.add_argument('--max-epoch', '--me', default=0, type=int, metavar='N',
                        help='force stop training at specified epoch')
+    group.add_argument('--max-update', '--mu', default=0, type=int, metavar='N',
+                       help='force stop training at specified update')
     group.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
                        help='clip threshold of gradients')
     group.add_argument('--sentence-avg', action='store_true',
@@ -188,12 +191,14 @@ def add_checkpoint_args(parser):
                        help='don\'t save models and checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
                        help='only store last and best checkpoints')
+    group.add_argument('--validate-interval', type=int, default=1, metavar='N',
+                       help='validate every N epochs')
     return group
 
 
 def add_generation_args(parser):
     group = parser.add_argument_group('Generation')
-    group.add_argument('--path', metavar='FILE', required=True, action='append',
+    group.add_argument('--path', metavar='FILE', action='append',
                        help='path(s) to model file(s)')
     group.add_argument('--beam', default=5, type=int, metavar='N',
                        help='beam size')
@@ -228,6 +233,8 @@ def add_generation_args(parser):
                        help='just score the reference translation')
     group.add_argument('--prefix-size', default=0, type=int, metavar='PS',
                        help=('initialize generation by target prefix of given length'))
+    group.add_argument('--sampling', action='store_true',
+                       help='sample hypotheses instead of using beam search')
     return group
 
 

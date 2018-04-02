@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
 
 import unittest
 
@@ -47,6 +46,38 @@ class TestUtils(unittest.TestCase):
                 pad,
                 right_to_left=True,
             ),
+        )
+
+    def test_make_positions(self):
+        pad = 1
+        left_pad_input = torch.LongTensor([
+            [9, 9, 9, 9, 9],
+            [1, 9, 9, 9, 9],
+            [1, 1, 1, 9, 9],
+        ])
+        left_pad_output = torch.LongTensor([
+            [2, 3, 4, 5, 6],
+            [1, 2, 3, 4, 5],
+            [1, 1, 1, 2, 3],
+        ])
+        right_pad_input = torch.LongTensor([
+            [9, 9, 9, 9, 9],
+            [9, 9, 9, 9, 1],
+            [9, 9, 1, 1, 1],
+        ])
+        right_pad_output = torch.LongTensor([
+            [2, 3, 4, 5, 6],
+            [2, 3, 4, 5, 1],
+            [2, 3, 1, 1, 1],
+        ])
+
+        self.assertAlmostEqual(
+            left_pad_output,
+            utils.make_positions(left_pad_input, pad, left_pad=True),
+        )
+        self.assertAlmostEqual(
+            right_pad_output,
+            utils.make_positions(right_pad_input, pad, left_pad=False),
         )
 
     def test_make_variable(self):

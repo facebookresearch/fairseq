@@ -6,8 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 
 import math
-import torch
-import torch.nn.functional as F
 
 from fairseq import utils
 
@@ -37,7 +35,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
-        target = sample['target'].unsqueeze(-1)
+        lprobs = lprobs.view(-1, lprobs.size(-1))
+        target = model.get_targets(sample, net_output).view(-1, 1)
         non_pad_mask = target.ne(self.padding_idx)
         nll_loss = -lprobs.gather(dim=-1, index=target)[non_pad_mask]
         smooth_loss = -lprobs.sum(dim=-1, keepdim=True)[non_pad_mask]
@@ -64,4 +63,5 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         return {
             'loss': sum(log.get('loss', 0) for log in logging_outputs) / sample_size / math.log(2),
             'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
+            'sample_size': sample_size,
         }

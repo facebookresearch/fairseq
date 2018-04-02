@@ -10,6 +10,12 @@ import pickle
 
 import torch.distributed
 
+from fairseq import utils
+
+
+def is_master(args):
+    return args.distributed_rank == 0
+
 
 def distributed_init(args):
     if args.distributed_world_size == 1:
@@ -27,7 +33,7 @@ def distributed_init(args):
             world_size=args.distributed_world_size)
 
     args.distributed_rank = torch.distributed.get_rank()
-    if args.distributed_rank != 0:
+    if not is_master(args):
         suppress_output()
 
     return args.distributed_rank
@@ -104,7 +110,7 @@ def all_gather_list(data, max_size=4096):
     world_size = torch.distributed.get_world_size()
     if not hasattr(all_gather_list, '_in_buffer') or \
             max_size != all_gather_list._in_buffer.size():
-        all_gather_list._in_buffer = torch.ByteTensor(max_size)
+        all_gather_list._in_buffer = torch.cuda.ByteTensor(max_size)
         all_gather_list._out_buffers = [
             torch.cuda.ByteTensor(max_size)
             for i in range(world_size)
@@ -113,18 +119,21 @@ def all_gather_list(data, max_size=4096):
     out_buffers = all_gather_list._out_buffers
 
     enc = pickle.dumps(data)
-    if len(enc) >= max_size:
-        raise ValueError('encoded data exceeds max_size: {}'.format(len(enc)))
-    in_buffer[0] = len(enc)
-    in_buffer[1:len(enc)+1] = torch.ByteTensor(list(enc))
+    enc_size = len(enc)
+    if enc_size + 2 > max_size:
+        raise ValueError('encoded data exceeds max_size: {}'.format(enc_size + 2))
+    assert max_size < 255*256
+    in_buffer[0] = enc_size // 255  # this encoding works for max_size < 65k
+    in_buffer[1] = enc_size % 255
+    in_buffer[2:enc_size+2] = torch.ByteTensor(list(enc))
 
     torch.distributed.all_gather(out_buffers, in_buffer.cuda())
 
     result = []
     for i in range(world_size):
         out_buffer = out_buffers[i]
-        size = out_buffer[0]
+        size = (255 * utils.item(out_buffer[0])) + utils.item(out_buffer[1])
         result.append(
-            pickle.loads(bytes(out_buffer[1:size+1].tolist()))
+            pickle.loads(bytes(out_buffer[2:size+2].tolist()))
         )
     return result

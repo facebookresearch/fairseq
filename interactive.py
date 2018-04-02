@@ -16,6 +16,8 @@ from fairseq.sequence_generator import SequenceGenerator
 
 def main(args):
     print(args)
+    assert not args.sampling or args.nbest == args.beam, \
+        '--sampling requires --nbest to be equal to --beam'
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 

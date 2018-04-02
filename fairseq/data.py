@@ -198,7 +198,7 @@ class LanguagePairDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         # subtract 1 for 0-based indexing
         source = self.src[i].long() - 1
-        res = { 'id': i, 'source': source }
+        res = {'id': i, 'source': source}
         if self.dst:
             res['target'] = self.dst[i].long() - 1
 
@@ -283,9 +283,9 @@ def _valid_size(src_size, dst_size, max_positions):
         max_src_positions, max_dst_positions = max_positions, max_positions
     else:
         max_src_positions, max_dst_positions = max_positions
-    if src_size < 2 or src_size > max_src_positions:
+    if src_size < 1 or src_size > max_src_positions:
         return False
-    if dst_size is not None and (dst_size < 2 or dst_size > max_dst_positions):
+    if dst_size is not None and (dst_size < 1 or dst_size > max_dst_positions):
         return False
     return True
 

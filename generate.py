@@ -15,7 +15,10 @@ from fairseq.sequence_scorer import SequenceScorer
 
 
 def main(args):
+    assert args.path is not None, '--path required for generation!'
     print(args)
+    assert not args.sampling or args.nbest == args.beam, \
+        '--sampling requires --nbest to be equal to --beam'
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
@@ -77,7 +80,7 @@ def main(args):
         translator = SequenceGenerator(
             models, beam_size=args.beam, stop_early=(not args.no_early_stop),
             normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-            unk_penalty=args.unkpen)
+            unk_penalty=args.unkpen, sampling=args.sampling)
     if use_cuda:
         translator.cuda()
 

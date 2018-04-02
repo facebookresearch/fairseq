@@ -15,7 +15,7 @@ from fairseq.models import FairseqIncrementalDecoder
 class SequenceGenerator(object):
     def __init__(self, models, beam_size=1, minlen=1, maxlen=None,
                  stop_early=True, normalize_scores=True, len_penalty=1,
-                 unk_penalty=0, retain_dropout=False):
+                 unk_penalty=0, retain_dropout=False, sampling=False):
         """Generates translations of a given source sentence.
 
         Args:
@@ -36,7 +36,7 @@ class SequenceGenerator(object):
         self.vocab_size = len(models[0].dst_dict)
         self.beam_size = beam_size
         self.minlen = minlen
-        max_decoder_len = min([m.max_decoder_positions() for m in self.models])
+        max_decoder_len = min(m.max_decoder_positions() for m in self.models)
         max_decoder_len -= 1  # we define maxlen not including the EOS marker
         self.maxlen = max_decoder_len if maxlen is None else min(maxlen, max_decoder_len)
         self.stop_early = stop_early
@@ -44,6 +44,7 @@ class SequenceGenerator(object):
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
         self.retain_dropout = retain_dropout
+        self.sampling = sampling
 
     def cuda(self):
         for model in self.models:
@@ -78,7 +79,7 @@ class SequenceGenerator(object):
                     prefix_tokens=s['target'][:, :prefix_size] if prefix_size > 0 else None,
                 )
             if timer is not None:
-                timer.stop(sum([len(h[0]['tokens']) for h in hypos]))
+                timer.stop(sum(len(h[0]['tokens']) for h in hypos))
             for i, id in enumerate(s['id'].data):
                 src = input['src_tokens'].data[i, :]
                 # remove padding from ref
@@ -255,9 +256,10 @@ class SequenceGenerator(object):
                 probs = probs.unfold(0, 1, beam_size).squeeze(2).contiguous()
                 scores = scores.type_as(probs)
                 scores_buf = scores_buf.type_as(probs)
-            else:
+            elif not self.sampling:
                 # make probs contain cumulative scores for each hypothesis
                 probs.add_(scores[:, step-1].view(-1, 1))
+
             probs[:, self.pad] = -math.inf  # never select pad
             probs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
@@ -278,6 +280,31 @@ class SequenceGenerator(object):
                     ).expand(-1, cand_size)
                     cand_indices = prefix_tokens[:, step].view(-1, 1).expand(bsz, cand_size).data
                     cand_beams.resize_as_(cand_indices).fill_(0)
+                elif self.sampling:
+                    assert self.pad == 1, 'sampling assumes the first two symbols can be ignored'
+                    exp_probs = probs.exp_().view(-1, self.vocab_size)
+                    if step == 0:
+                        # we exclude the first two vocab items, one of which is pad
+                        torch.multinomial(exp_probs[:, 2:], beam_size, replacement=True, out=cand_indices)
+                        cand_indices.add_(2)
+                    else:
+                        torch.multinomial(exp_probs[:, 2:], 1, replacement=True, out=cand_indices)
+                        cand_indices.add_(2)
+                    torch.gather(exp_probs, dim=1, index=cand_indices, out=cand_scores)
+                    cand_scores.log_()
+                    cand_indices = cand_indices.view(bsz, -1).repeat(1, 2)
+                    cand_scores = cand_scores.view(bsz, -1).repeat(1, 2)
+                    if step == 0:
+                        cand_beams = torch.zeros(bsz, cand_size).type_as(cand_indices)
+                    else:
+                        cand_beams = torch.arange(0, beam_size).repeat(bsz, 2).type_as(cand_indices)
+                        # make scores cumulative
+                        cand_scores.add_(
+                            torch.gather(
+                                scores[:, step-1].view(bsz, beam_size), dim=1,
+                                index=cand_beams,
+                            )
+                        )
                 else:
                     # take the best 2 x beam_size predictions. We'll choose the first
                     # beam_size of these which don't predict eos to continue with.
@@ -411,8 +438,13 @@ class SequenceGenerator(object):
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
             with utils.maybe_no_grad():
-                decoder_out, attn = model.decoder(tokens, encoder_out, incremental_states[model])
-            probs = model.get_normalized_probs(decoder_out[:, -1, :], log_probs=False).data
+                if incremental_states[model] is not None:
+                    decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
+                else:
+                    decoder_out = list(model.decoder(tokens, encoder_out))
+                decoder_out[0] = decoder_out[0][:, -1, :]
+                attn = decoder_out[1]
+            probs = model.get_normalized_probs(decoder_out, log_probs=False).data
             if avg_probs is None:
                 avg_probs = probs
             else:

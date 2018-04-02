@@ -15,8 +15,6 @@ import traceback
 from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
-from fairseq import tokenizer
-
 
 def torch_persistent_save(*args, **kwargs):
     for i in range(3):
@@ -116,11 +114,16 @@ def _upgrade_state_dict(state):
     return state
 
 
-def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_dir=None):
+def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
+                                data_dir=None, model_arg_overrides=None):
     """Load an ensemble of models for inference.
 
     The source and target dictionaries can be given explicitly, or loaded from
     the `data_dir` directory.
+
+    model_arg_overrides allows you to pass a dictionary model_arg_overrides --
+    {'arg_name': arg} -- to override model args that were used during model
+    training
     """
     from fairseq import data, models
 
@@ -133,7 +136,8 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
             torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
         )
     args = states[0]['args']
-    args = _upgrade_args(args)
+    if model_arg_overrides is not None:
+        args = _override_model_args(args, model_arg_overrides)
 
     if src_dict is None or dst_dict is None:
         assert data_dir is not None
@@ -148,12 +152,10 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None, data_di
     return ensemble, args
 
 
-def _upgrade_args(args):
-    if not hasattr(args, 'max_source_positions'):
-        args.max_source_positions = args.max_positions
-        args.max_target_positions = args.max_positions
-    if not hasattr(args, 'share_input_output_embed'):
-        args.share_input_output_embed = False
+def _override_model_args(args, model_arg_overrides):
+    # Uses model_arg_overrides {'arg_name': arg} to override model args
+    for arg_name, arg_val in model_arg_overrides.items():
+        setattr(args, arg_name, arg_val)
     return args
 
 
@@ -247,6 +249,7 @@ def load_align_dict(replace_unk):
 
 
 def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
+    from fairseq import tokenizer
     # Tokens are strings here
     hypo_tokens = tokenizer.tokenize_line(hypo_str)
     # TODO: Very rare cases where the replacement is '<eos>' should be handled gracefully
@@ -260,6 +263,7 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
 
 
 def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dict, remove_bpe):
+    from fairseq import tokenizer
     hypo_str = dst_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
         hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, dst_dict.unk_string())
@@ -268,6 +272,27 @@ def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dic
         # Note that the dictionary can be modified inside the method.
         hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, dst_dict, add_if_not_exist=True)
     return hypo_tokens, hypo_str, alignment
+
+
+def make_positions(tensor, padding_idx, left_pad):
+    """Replace non-padding symbols with their position numbers.
+
+    Position numbers begin at padding_idx+1.
+
+    Padding symbols are ignored, but it is necessary to specify whether padding
+    is added on the left side (left_pad=True) or right side (left_pad=False).
+    """
+    max_pos = padding_idx + 1 + tensor.size(1)
+    if not hasattr(make_positions, 'range_buf'):
+        make_positions.range_buf = tensor.new()
+    make_positions.range_buf = make_positions.range_buf.type_as(tensor)
+    if make_positions.range_buf.numel() < max_pos:
+        torch.arange(padding_idx + 1, max_pos, out=make_positions.range_buf)
+    mask = tensor.ne(padding_idx)
+    positions = make_positions.range_buf[:tensor.size(1)].expand_as(tensor)
+    if left_pad:
+        positions = positions - mask.size(1) + mask.long().sum(dim=1).unsqueeze(1)
+    return tensor.clone().masked_scatter_(mask, positions[mask])
 
 
 def strip_pad(tensor, pad):
@@ -302,6 +327,7 @@ def convert_padding_direction(
     else:
         index = torch.remainder(range + num_pads, max_len)
     return src_tokens.gather(1, index)
+
 
 def item(tensor):
     if hasattr(tensor, 'item'):

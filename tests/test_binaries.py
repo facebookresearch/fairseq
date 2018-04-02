@@ -43,7 +43,7 @@ class TestBinaries(unittest.TestCase):
             data = 97 + torch.floor(26 * data).int()
             with open(os.path.join(data_dir, filename), 'w') as h:
                 offset = 0
-                for i in range(num_examples):
+                for _ in range(num_examples):
                     ex_len = random.randint(1, maxlen)
                     ex_str = ' '.join(map(chr, data[offset:offset+ex_len]))
                     print(ex_str, file=h)
