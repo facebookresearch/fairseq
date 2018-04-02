@@ -26,9 +26,6 @@ class SinusoidalPositionalEmbedding(nn.Module):
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx
         self.left_pad = left_pad
-        self.register_buffer('range_buf', None)
-        self._cache = {}
-
         self.register_buffer(
             'weights',
             SinusoidalPositionalEmbedding.get_embedding(
