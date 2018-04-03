@@ -150,6 +150,14 @@ class TransformerEncoder(FairseqEncoder):
         """Maximum input length supported by the encoder."""
         return self.embed_positions.max_positions()
 
+    def upgrade_state_dict(self, state_dict):
+        if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
+            if 'encoder.embed_positions.weights' in state_dict:
+                del state_dict['encoder.embed_positions.weights']
+            if 'encoder.embed_positions._float_tensor' not in state_dict:
+                state_dict['encoder.embed_positions._float_tensor'] = torch.FloatTensor()
+        return state_dict
+
 
 class TransformerDecoder(FairseqDecoder):
     """Transformer decoder."""
@@ -221,6 +229,14 @@ class TransformerDecoder(FairseqDecoder):
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return self.embed_positions.max_positions()
+
+    def upgrade_state_dict(self, state_dict):
+        if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
+            if 'decoder.embed_positions.weights' in state_dict:
+                del state_dict['decoder.embed_positions.weights']
+            if 'decoder.embed_positions._float_tensor' not in state_dict:
+                state_dict['decoder.embed_positions._float_tensor'] = torch.FloatTensor()
+        return state_dict
 
 
 class TransformerEncoderLayer(nn.Module):
