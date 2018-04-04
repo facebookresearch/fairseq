@@ -279,8 +279,11 @@ class FConvDecoder(FairseqIncrementalDecoder):
         encoder_a, encoder_b = self._split_encoder_out(encoder_out, incremental_state)
 
         # embed tokens and combine with positional embeddings
+        pos_embed = self.embed_positions(prev_output_tokens, incremental_state)
+        if incremental_state is not None:
+            prev_output_tokens = prev_output_tokens[:, -1:]
         x = self._embed_tokens(prev_output_tokens, incremental_state)
-        x += self.embed_positions(prev_output_tokens, incremental_state)
+        x += pos_embed
         x = F.dropout(x, p=self.dropout, training=self.training)
         target_embedding = x
 
