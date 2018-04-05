@@ -46,7 +46,8 @@ class MultiheadAttention(nn.Module):
             self.in_proj_bias.data.zero_()
 
     def forward(self, query, key, value, mask_future_timesteps=False,
-                key_padding_mask=None):
+                key_padding_mask=None, incremental_state=None,
+                need_weights=True, static_kv=False):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
@@ -55,28 +56,59 @@ class MultiheadAttention(nn.Module):
         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
         batch x src_len, where padding elements are indicated by 1s.
         """
-        src_len, bsz, embed_dim = key.size()
-        tgt_len = query.size(0)
+
+        qkv_same = query.data_ptr() == key.data_ptr() == value.data_ptr()
+        kv_same = key.data_ptr() == value.data_ptr()
+
+        tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
         assert key.size() == value.size()
 
-        if key_padding_mask is not None:
-            assert key_padding_mask.size(0) == bsz
-            assert key_padding_mask.size(1) == src_len
+        if incremental_state is not None:
+            saved_state = self._get_input_buffer(incremental_state)
+            if 'prev_key' in saved_state:
+                # previous time steps are cached - no need to recompute
+                # key and value if they are static
+                if static_kv:
+                    assert kv_same and not qkv_same
+                    key = value = None
+        else:
+            saved_state = None
 
-        if query.data_ptr() == key.data_ptr() == value.data_ptr():
+        if qkv_same:
             # self-attention
             q, k, v = self.in_proj_qkv(query)
-        elif key.data_ptr() == value.data_ptr():
+        elif kv_same:
             # encoder-decoder attention
             q = self.in_proj_q(query)
-            k, v = self.in_proj_kv(key)
+            if key is None:
+                assert value is None
+                # this will allow us to concat it with previous value and get
+                # just get the previous value
+                k = v = q.new(0)
+            else:
+                k, v = self.in_proj_kv(key)
         else:
             q = self.in_proj_q(query)
             k = self.in_proj_k(key)
             v = self.in_proj_v(value)
         q *= self.scaling
+
+        if saved_state is not None:
+            if 'prev_key' in saved_state:
+                k = torch.cat((saved_state['prev_key'], k), dim=0)
+            if 'prev_value' in saved_state:
+                v = torch.cat((saved_state['prev_value'], v), dim=0)
+            saved_state['prev_key'] = k
+            saved_state['prev_value'] = v
+            self._set_input_buffer(incremental_state, saved_state)
+
+        src_len = k.size(0)
+
+        if key_padding_mask is not None:
+            assert key_padding_mask.size(0) == bsz
+            assert key_padding_mask.size(1) == src_len
 
         q = q.contiguous().view(tgt_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
         k = k.contiguous().view(src_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
@@ -84,11 +116,13 @@ class MultiheadAttention(nn.Module):
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
-        if mask_future_timesteps:
+
+        # only apply masking at training time (when incremental state is None)
+        if mask_future_timesteps and incremental_state is None:
             assert query.size() == key.size(), \
                 'mask_future_timesteps only applies to self-attention'
             attn_weights += self.buffered_mask(attn_weights).unsqueeze(0)
-        if key_padding_mask is not None:
+        if key_padding_mask is not None and incremental_state is None:
             # don't attend to padding symbols
             if utils.item(key_padding_mask.max()) > 0:
                 attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
@@ -105,9 +139,12 @@ class MultiheadAttention(nn.Module):
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn = self.out_proj(attn)
 
-        # average attention weights over heads
-        attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-        attn_weights = attn_weights.sum(dim=1) / self.num_heads
+        if need_weights:
+            # average attention weights over heads
+            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+            attn_weights = attn_weights.sum(dim=1) / self.num_heads
+        else:
+            attn_weights = None
 
         return attn, attn_weights
 
@@ -146,3 +183,27 @@ class MultiheadAttention(nn.Module):
         if self._mask.size(0) < dim:
             self._mask = torch.triu(self._mask.resize_(dim, dim).fill_(-math.inf), 1)
         return self._mask[:dim, :dim]
+
+    def reorder_incremental_state(self, incremental_state, new_order):
+        """Reorder buffered internal state (for incremental generation)."""
+
+        input_buffer = self._get_input_buffer(incremental_state)
+        if input_buffer is not None:
+            for k in input_buffer.keys():
+                input_buffer[k] = input_buffer[k].index_select(1, new_order)
+            self._set_input_buffer(incremental_state, input_buffer)
+
+    def _get_input_buffer(self, incremental_state):
+        return utils.get_incremental_state(
+                    self,
+                    incremental_state,
+                    'attn_state',
+                ) or {}
+
+    def _set_input_buffer(self, incremental_state, buffer):
+        utils.set_incremental_state(
+            self,
+            incremental_state,
+            'attn_state',
+            buffer,
+        )

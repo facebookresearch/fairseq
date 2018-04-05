@@ -15,9 +15,10 @@ from fairseq.modules import (
     LayerNorm, LearnedPositionalEmbedding, MultiheadAttention,
     SinusoidalPositionalEmbedding,
 )
+from fairseq import utils
 
 from . import (
-    FairseqDecoder, FairseqEncoder, FairseqModel,
+    FairseqIncrementalDecoder, FairseqEncoder, FairseqModel,
     register_model, register_model_architecture,
 )
 
@@ -159,7 +160,7 @@ class TransformerEncoder(FairseqEncoder):
         return state_dict
 
 
-class TransformerDecoder(FairseqDecoder):
+class TransformerDecoder(FairseqIncrementalDecoder):
     """Transformer decoder."""
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
@@ -195,9 +196,16 @@ class TransformerDecoder(FairseqDecoder):
             elif name.endswith('bias'):
                 p.data.zero_()
 
-    def forward(self, prev_output_tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
         # embed positions
-        positions = self.embed_positions(prev_output_tokens)
+        positions = self.embed_positions(
+            prev_output_tokens,
+            incremental_state=incremental_state,
+        )
+
+        if incremental_state is not None:
+            prev_output_tokens = prev_output_tokens[:, -1:]
+            positions = positions[:, -1:]
 
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
@@ -209,7 +217,12 @@ class TransformerDecoder(FairseqDecoder):
 
         # decoder layers
         for layer in self.layers:
-            x, attn = layer(x, encoder_out['encoder_out'], encoder_out['encoder_padding_mask'])
+            x, attn = layer(
+                        x,
+                        encoder_out['encoder_out'],
+                        encoder_out['encoder_padding_mask'],
+                        incremental_state,
+                    )
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
@@ -221,10 +234,6 @@ class TransformerDecoder(FairseqDecoder):
             x = F.linear(x, self.embed_out)
 
         return x, attn
-
-    def reorder_incremental_state(self, new_order):
-        """Reorder buffered internal state (for incremental generation)."""
-        super().reorder_incremental_state(new_order)
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
@@ -310,17 +319,34 @@ class TransformerDecoderLayer(nn.Module):
         self.fc2 = nn.Linear(args.decoder_ffn_embed_dim, self.embed_dim)
         self.layer_norms = nn.ModuleList([LayerNorm(self.embed_dim) for i in range(3)])
 
-    def forward(self, x, encoder_out, encoder_padding_mask):
+    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state):
         residual = x
         x = self.maybe_layer_norm(0, x, before=True)
-        x, _ = self.self_attn(query=x, key=x, value=x, mask_future_timesteps=True)
+
+        x, _ = self.self_attn(
+                query=x,
+                key=x,
+                value=x,
+                mask_future_timesteps=True,
+                incremental_state=incremental_state,
+                need_weights=False,
+            )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(0, x, after=True)
 
         residual = x
         x = self.maybe_layer_norm(1, x, before=True)
-        x, attn = self.encoder_attn(query=x, key=encoder_out, value=encoder_out, key_padding_mask=encoder_padding_mask)
+
+        x, attn = self.encoder_attn(
+            query=x,
+            key=encoder_out,
+            value=encoder_out,
+            key_padding_mask=encoder_padding_mask,
+            incremental_state=incremental_state,
+            static_kv=True,
+        )
+
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(1, x, after=True)
