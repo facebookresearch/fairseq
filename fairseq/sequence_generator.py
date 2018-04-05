@@ -17,7 +17,8 @@ from fairseq import utils
 
 class SequenceGenerator(object):
     def __init__(self, models, beam_size=1, minlen=1, maxlen=200,
-                 stop_early=True, normalize_scores=True, len_penalty=1):
+                 stop_early=True, normalize_scores=True, len_penalty=1,
+                 unk_penalty=0, sampling=False):
         """Generates translations of a given source sentence.
 
         Args:
@@ -30,6 +31,7 @@ class SequenceGenerator(object):
         """
         self.models = models
         self.pad = models[0].dst_dict.pad()
+        self.unk = models[0].dst_dict.unk()
         self.eos = models[0].dst_dict.eos()
         assert all(m.dst_dict.pad() == self.pad for m in self.models[1:])
         assert all(m.dst_dict.eos() == self.eos for m in self.models[1:])
@@ -42,6 +44,8 @@ class SequenceGenerator(object):
         self.stop_early = stop_early
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
+        self.sampling = sampling
+        self.unk_penalty = unk_penalty
 
     def cuda(self):
         for model in self.models:
@@ -59,10 +63,6 @@ class SequenceGenerator(object):
             cuda_device: GPU on which to do generation.
             timer: StopwatchMeter for timing generations.
         """
-
-        def lstrip_pad(tensor):
-            return tensor[tensor.eq(self.pad).sum():]
-
         for sample in data_itr:
             s = utils.prepare_sample(sample, volatile=True, cuda_device=cuda_device)
             input = s['net_input']
@@ -75,8 +75,8 @@ class SequenceGenerator(object):
                 timer.stop(s['ntokens'])
             for i, id in enumerate(s['id']):
                 src = input['src_tokens'].data[i, :]
-                # remove padding from ref, which appears at the beginning
-                ref = lstrip_pad(s['target'].data[i, :])
+                # remove padding from ref
+                ref = utils.lstrip_pad(s['target'].data[i, :], self.pad)
                 yield id, src, ref, hypos[i]
 
     def generate(self, src_tokens, src_positions, beam_size=None, maxlen=None):
@@ -109,6 +109,9 @@ class SequenceGenerator(object):
         tokens = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(self.pad)
         tokens_buf = tokens.clone()
         tokens[:, 0] = self.eos
+        pos_scores = scores.new(bsz * beam_size, maxlen + 2).fill_(999)
+        pos_scores_buf = pos_scores.clone()
+        pos_scores[:, 0] = 999
         attn = scores.new(bsz * beam_size, src_tokens.size(1), maxlen + 2)
         attn_buf = attn.clone()
 
@@ -171,13 +174,18 @@ class SequenceGenerator(object):
             assert bbsz_idx.numel() == scores.numel()
             norm_scores = scores/math.pow(step+1, self.len_penalty) if self.normalize_scores else scores
             sents_seen = set()
-            for idx, score in zip(bbsz_idx.cpu(), norm_scores.cpu()):
+            for idx, score, raw_score in zip(bbsz_idx.cpu(), norm_scores.cpu(), scores.cpu()):
                 sent = idx // beam_size
                 sents_seen.add(sent)
 
                 def get_hypo():
                     hypo = tokens[idx, 1:step+2].clone()  # skip the first index, which is EOS
                     hypo[step] = self.eos
+                    hypo_pos_scores = pos_scores[idx, 1:step+2].clone()
+                    hypo_pos_scores[step] = raw_score
+                    if not self.sampling:
+                        # pos_scores contains cumulative scores, except when sampling
+                        hypo_pos_scores[1:] -= hypo_pos_scores[:-1]
                     attention = attn[idx, :, 1:step+2].clone()
                     _, alignment = attention.max(dim=0)
                     return {
@@ -185,6 +193,7 @@ class SequenceGenerator(object):
                         'score': score,
                         'attention': attention,
                         'alignment': alignment,
+                        'positional_scores': hypo_pos_scores,
                     }
 
                 if len(finalized[sent]) < beam_size:
@@ -224,8 +233,10 @@ class SequenceGenerator(object):
                 probs = probs.unfold(0, 1, beam_size).squeeze(2).contiguous()
             else:
                 # make probs contain cumulative scores for each hypothesis
-                probs.add_(scores.view(-1, 1))
+                if not self.sampling:
+                    probs.add_(scores.view(-1, 1))
             probs[:, self.pad] = -math.inf  # never select pad
+            probs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             # Record attention scores
             attn[:, :, step+1].copy_(avg_attn_scores)
@@ -235,11 +246,43 @@ class SequenceGenerator(object):
             cand_scores = buffer('cand_scores', type_of=scores)
             cand_indices = buffer('cand_indices')
             cand_beams = buffer('cand_beams')
-            probs.view(bsz, -1).topk(
-                min(cand_size, probs.view(bsz, -1).size(1) - 1),  # -1 so we never select pad
-                out=(cand_scores, cand_indices))
-            torch.div(cand_indices, self.vocab_size, out=cand_beams)
-            cand_indices.fmod_(self.vocab_size)
+            num_cands = min(cand_size, probs.view(bsz, -1).size(1) - 1)  # -1 so we never select pad
+            if not self.sampling:
+                probs.view(bsz, -1).topk(num_cands, out=(cand_scores, cand_indices))
+                torch.div(cand_indices, self.vocab_size, out=cand_beams)
+                cand_indices.fmod_(self.vocab_size)
+            else:
+                exp_probs = probs.exp_()
+                assert exp_probs.size(0) == bsz or exp_probs.size(0) == bsz*beam_size
+                assert exp_probs.dim() == 2
+
+                # set this to True for validating the sampling code
+                # it will make us always sample the max token, thus emulating greedy search
+                DEBUG_WITH_MAX = False
+                if step == 0:
+                    if DEBUG_WITH_MAX:
+                        _, cand_indices = exp_probs.max(dim=1, keepdim=True)
+                        cand_indices = cand_indices.repeat(1, beam_size).view(bsz, beam_size)
+                    else:
+                        exp_probs[:, 2:].multinomial(beam_size, replacement=True, out=cand_indices)
+                        cand_indices.add_(2)
+                else:
+                    if DEBUG_WITH_MAX:
+                        _, cand_indices = exp_probs.max(dim=1, keepdim=True)
+                        cand_indices = cand_indices.view(-1, 1)
+                    else:
+                        exp_probs[:, 2:].multinomial(1, replacement=True, out=cand_indices)
+                        cand_indices.add_(2)
+                cand_scores = exp_probs.view(-1, self.vocab_size).gather(1, cand_indices).log_()
+                assert cand_indices.eq(self.pad).sum() == 0
+                assert cand_indices.eq(0).sum() == 0
+
+                cand_indices = cand_indices.view(bsz, -1).repeat(1, 2)
+                cand_scores = cand_scores.view(bsz, -1).repeat(1, 2)
+                if step == 0:
+                    cand_beams = torch.zeros(bsz, cand_size).type_as(cand_indices)
+                else:
+                    cand_beams = torch.arange(0, beam_size).repeat(bsz, 2).type_as(cand_indices)
 
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
@@ -292,6 +335,10 @@ class SequenceGenerator(object):
                                out=tokens_buf[:, :step+1])
             cand_indices.gather(1, active_hypos,
                                 out=tokens_buf.view(bsz, beam_size, -1)[:, :, step+1])
+            torch.index_select(pos_scores[:, :step+1], dim=0, index=active_bbsz_idx,
+                               out=pos_scores_buf[:, :step+1])
+            cand_scores.gather(1, active_hypos,
+                               out=pos_scores_buf.view(bsz, beam_size, -1)[:, :, step+1])
 
             # copy attention for active hypotheses
             torch.index_select(attn[:, :, :step+2], dim=0, index=active_bbsz_idx,
@@ -301,6 +348,9 @@ class SequenceGenerator(object):
             old_tokens = tokens
             tokens = tokens_buf
             tokens_buf = old_tokens
+            old_pos_scores = pos_scores
+            pos_scores = pos_scores_buf
+            pos_scores_buf = old_pos_scores
             old_attn = attn
             attn = attn_buf
             attn_buf = old_attn
@@ -309,8 +359,9 @@ class SequenceGenerator(object):
             reorder_state = active_bbsz_idx
 
         # sort by score descending
-        for sent in range(bsz):
-            finalized[sent] = sorted(finalized[sent], key=lambda r: r['score'], reverse=True)
+        if not self.sampling:
+            for sent in range(bsz):
+                finalized[sent] = sorted(finalized[sent], key=lambda r: r['score'], reverse=True)
 
         return finalized
 
@@ -348,7 +399,7 @@ class SequenceGenerator(object):
             res.append(
                 # repeat beam_size times along second dimension
                 tensor.repeat(1, beam_size, *[1 for i in range(tensor.dim()-2)]) \
-                # then collapse into [bsz*beam, ...original dims...]
-                .view(-1, *tensor.size()[1:])
+                    # then collapse into [bsz*beam, ...original dims...]
+                    .view(-1, *tensor.size()[1:])
             )
         return tuple(res)

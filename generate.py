@@ -63,7 +63,8 @@ def main():
     # Initialize generator
     translator = SequenceGenerator(
         models, beam_size=args.beam, stop_early=(not args.no_early_stop),
-        normalize_scores=(not args.unnormalized), len_penalty=args.lenpen
+        normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
+        unk_penalty=args.unkpen
     )
     if use_cuda:
         translator.cuda()
@@ -145,7 +146,9 @@ def main():
             for id, src, ref, hypos in translations:
                 ref = ref.int().cpu()
                 top_hypo = hypos[0]['tokens'].int().cpu()
-                scorer.add(maybe_remove_bpe(ref, escape_unk=True), maybe_remove_bpe(top_hypo))
+                sref = maybe_remove_bpe(ref, escape_unk=True)
+                shypo = maybe_remove_bpe(top_hypo)
+                scorer.add(sref, shypo)
                 display_hypotheses(id, src, None, ref, hypos[:min(len(hypos), args.nbest)])
 
                 wps_meter.update(src.size(0))

@@ -8,7 +8,7 @@
 
 import argparse
 
-from fairseq import models
+from fairseq import criterions, models
 from fairseq.multiprocessing_trainer import MultiprocessingTrainer
 
 
@@ -110,6 +110,8 @@ def add_generation_args(parser):
                        help='don\'t use BeamableMM in attention layers')
     group.add_argument('--lenpen', default=1, type=float,
                        help='length penalty: <1.0 favors shorter, >1.0 favors longer sentences')
+    group.add_argument('--unkpen', default=0, type=float,
+                       help='unknown word penalty: <0 produces more unks, >0 produces fewer')
     group.add_argument('--unk-replace-dict', default='', type=str,
                        help='performs unk word replacement')
     group.add_argument('--quiet', action='store_true',
@@ -152,4 +154,42 @@ def add_model_args(parser):
                        help='dropout probability')
     group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
                        help='epsilon for label smoothing, 0 means no label smoothing')
+    return group
+
+
+def add_sequence_training_args(parser):
+    group = parser.add_argument_group('Sequence level training options')
+    group.add_argument('--seq-criterion', metavar='CRIT', choices=criterions.sequence_criterions,
+                       help='sequence-level criterion ({})'.format(', '.join(criterions.sequence_criterions)))
+    group.add_argument('--seq-beam', default=5, type=int, metavar='N',
+                       help='beam size for sequence training')
+    group.add_argument('--seq-keep-reference', action='store_true',
+                       help='keep the reference in the set of hypotheses')
+    group.add_argument('--seq-max-len-a', default=0, type=float, metavar='N',
+                       help=('generate sequences of maximum length ax + b, '
+                             'where x is the source length'))
+    group.add_argument('--seq-max-len-b', default=200, type=int, metavar='N',
+                       help=('generate sequences of maximum length ax + b, '
+                             'where x is the source length'))
+    group.add_argument('--seq-combined-loss-alpha', metavar='D', default=0, type=float,
+                       help='combined loss = \\alpha*token_loss + seq_loss')
+    group.add_argument('--seq-scorer', metavar='SCORER',
+                       help='Optimization metric for sequence level training', default='bleu')
+    group.add_argument('--seq-risk-normbleu', action='store_true',
+                       help='Normalize bleu')
+
+    group.add_argument('--seq-unkpen', default=0, type=float,
+                       help='unknown word penalty to be used in seq generation')
+
+    group.add_argument('--seq-hypos-dropout', action='store_true',
+                       help="Use dropout to generate hypos")
+
+    group.add_argument('--seq-sampling', action='store_true',
+                       help="Use sampling instead of beam search")
+
+    group.add_argument('--seq-margin-cost-scale-factor', type=float, default=1, metavar='D',
+                       help='Scale optimized metric with respect to token loss, '
+                            'only relevant for margin losses')
+
+
     return group

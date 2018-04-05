@@ -32,6 +32,7 @@ def main():
     options.add_optimization_args(parser)
     options.add_checkpoint_args(parser)
     options.add_model_args(parser)
+    options.add_sequence_training_args(parser)
 
     args = utils.parse_args_and_arch(parser)
     print(args)
@@ -87,6 +88,9 @@ def main():
     lr = trainer.get_lr()
     train_meter = StopwatchMeter()
     train_meter.start()
+    # Do one valid pass first to ensure model quality
+    for k, subset in enumerate(args.valid_subset.split(',')):
+        validate(args, epoch, trainer, dataset, subset, num_gpus)
     while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
         train(args, epoch, batch_offset, trainer, dataset, num_gpus)

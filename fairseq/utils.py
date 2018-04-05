@@ -31,6 +31,25 @@ def build_model(args, src_dict, dst_dict):
 
 def build_criterion(args, src_dict, dst_dict):
     padding_idx = dst_dict.pad()
+    # sequence-level training
+    if args.seq_criterion in criterions.sequence_criterions:
+        sequence_criterion = criterions.__dict__[args.seq_criterion](args, dst_dict)
+
+        # combine token-level and sequence-level training
+        if args.seq_combined_loss_alpha > 0:
+            sequence_criterion = criterions.CombinedSequenceCriterion(
+                args, dst_dict,
+                build_token_criterion(args, padding_idx),
+                sequence_criterion,
+                args.seq_combined_loss_alpha)
+
+        return sequence_criterion
+    else:
+        return build_token_criterion(args, padding_idx)
+
+
+def build_token_criterion(args, padding_idx):
+    # token-level training
     if args.label_smoothing > 0:
         return criterions.LabelSmoothedCrossEntropyCriterion(args.label_smoothing, padding_idx)
     else:
@@ -154,3 +173,14 @@ def prepare_sample(sample, volatile=False, cuda_device=None):
             for key in ['src_tokens', 'src_positions', 'input_tokens', 'input_positions']
         },
     }
+
+
+def lstrip_pad(tensor, pad):
+    return tensor[tensor.eq(pad).sum():]
+
+
+def rstrip_pad(tensor, pad):
+    strip = tensor.eq(pad).sum()
+    if strip > 0:
+        return tensor[:-strip]
+    return tensor
