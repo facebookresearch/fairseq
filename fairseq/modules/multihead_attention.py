@@ -122,15 +122,14 @@ class MultiheadAttention(nn.Module):
             assert query.size() == key.size(), \
                 'mask_future_timesteps only applies to self-attention'
             attn_weights += self.buffered_mask(attn_weights).unsqueeze(0)
-        if key_padding_mask is not None and incremental_state is None:
+        if key_padding_mask is not None:
             # don't attend to padding symbols
-            if utils.item(key_padding_mask.max()) > 0:
-                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-                attn_weights = attn_weights.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2),
-                    -math.inf,
-                )
-                attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+            attn_weights = attn_weights.masked_fill(
+                key_padding_mask.unsqueeze(1).unsqueeze(2),
+                -math.inf,
+            )
+            attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
         attn_weights = F.softmax(attn_weights, dim=-1)
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
 
