@@ -419,7 +419,7 @@ def base_architecture(args):
     args.decoder_hidden_size = getattr(args, 'decoder_hidden_size', 512)
     args.decoder_layers = getattr(args, 'decoder_layers', 1)
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 512)
-    args.decoder_attention = getattr(args, 'decoder_attention', True)
+    args.decoder_attention = getattr(args, 'decoder_attention', '1')
     args.decoder_dropout_in = getattr(args, 'decoder_dropout_in', args.dropout)
     args.decoder_dropout_out = getattr(args, 'decoder_dropout_out', args.dropout)
 
@@ -437,7 +437,7 @@ def lstm_wiseman_iwslt_de_en(args):
     args.decoder_hidden_size = 256
     args.decoder_layers = 1
     args.decoder_out_embed_dim = 256
-    args.decoder_attention = True
+    args.decoder_attention = '1'
     args.decoder_dropout_in = 0
 
 
@@ -453,5 +453,5 @@ def lstm_luong_wmt_en_de(args):
     args.decoder_hidden_size = 1000
     args.decoder_layers = 4
     args.decoder_out_embed_dim = 1000
-    args.decoder_attention = True
+    args.decoder_attention = '1'
     args.decoder_dropout_out = 0
