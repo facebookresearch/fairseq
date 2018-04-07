@@ -322,10 +322,13 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
 
         sample_len = max(sample_len, src_size, dst_size)
         num_tokens = (len(batch) + 1) * sample_len
-        if yield_batch(idx, num_tokens):
-            yield batch
-            batch = []
-            sample_len = max(src_size, dst_size)
+        while yield_batch(idx, num_tokens):
+            mod8_len = max(8 * (len(batch) // 8), len(batch) % 8)
+            yield batch[:mod8_len]
+            batch = batch[mod8_len:]
+            sample_len = max([max(src.sizes[id], dst.sizes[id]) for id in batch]) if len(batch) > 0 else 0
+            sample_len = max(sample_len, src_size, dst_size)
+            num_tokens = (len(batch) + 1) * sample_len
 
         batch.append(idx)
 
