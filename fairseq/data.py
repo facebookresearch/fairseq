@@ -134,21 +134,40 @@ class LanguageDatasets(object):
         assert self.src_dict.eos() == self.dst_dict.eos()
         assert self.src_dict.unk() == self.dst_dict.unk()
 
-    def train_dataloader(self, split, max_tokens=None,
-                         max_sentences=None, max_positions=(1024, 1024),
-                         seed=None, epoch=1, sample_without_replacement=0,
-                         sort_by_source_size=False, shard_id=0, num_shards=1):
+    def train_dataloader_generator(
+        self, split, max_tokens=None, max_sentences=None,
+        max_positions=(1024, 1024), seed=None, sample_without_replacement=0,
+        shard_id=0, num_shards=1
+    ):
         dataset = self.splits[split]
         with numpy_seed(seed):
-            batch_sampler = shuffled_batches_by_size(
+            batches = uneven_batches_by_size(
                 dataset.src, dataset.dst, max_tokens=max_tokens,
-                max_sentences=max_sentences, epoch=epoch,
-                sample=sample_without_replacement, max_positions=max_positions,
-                sort_by_source_size=sort_by_source_size)
-            batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
-        return torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collater,
-            batch_sampler=batch_sampler)
+                max_sentences=max_sentences, max_positions=max_positions)
+            frozen_batches = tuple(batches)  # freeze
+
+        def dataloader(b):
+            b = mask_batches(b, shard_id=shard_id, num_shards=num_shards)  # shard dataset
+            return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collater, batch_sampler=b)
+
+        for epoch in itertools.count(1):
+            # set seed based on the seed and epoch number so that we get
+            # reproducible results when resuming from checkpoints
+            with numpy_seed(seed + epoch):
+                batches = list(frozen_batches)  # copy
+                np.random.shuffle(batches)
+                if sample_without_replacement > 0:
+                    # emit sub-epoch dataloaders
+                    while len(batches) >= sample_without_replacement:
+                        sampled_batches = batches[:sample_without_replacement]
+                        remaining_batches = batches[sample_without_replacement:]
+                        yield dataloader(sampled_batches)
+                        batches = remaining_batches
+                    if len(batches) > 0:
+                        yield dataloader(batches)
+                else:
+                    # emit full dataloader
+                    yield dataloader(batches)
 
     def eval_dataloader(self, split, num_workers=0, max_tokens=None,
                         max_sentences=None, max_positions=(1024, 1024),
@@ -358,11 +377,9 @@ def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
         ignore_invalid_inputs, allow_different_src_lens=False))
 
 
-def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
-                             epoch=1, sample=0, max_positions=(1024, 1024),
-                             sort_by_source_size=False):
-    """Returns batches of indices, bucketed by size and then shuffled. Batches
-    may contain sequences of different lengths."""
+def uneven_batches_by_size(src, dst, max_tokens=None, max_sentences=None, max_positions=(1024, 1024)):
+    """Returns batches of indices bucketed by size. Batches may contain
+    sequences of different lengths."""
     assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
     if max_tokens is None:
         max_tokens = float('Inf')
@@ -378,26 +395,6 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
     batches = list(_make_batches(
         src, dst, indices, max_tokens, max_sentences, max_positions,
         ignore_invalid_inputs=True, allow_different_src_lens=True))
-
-    if not sort_by_source_size:
-        np.random.shuffle(batches)
-
-    if sample:
-        offset = (epoch - 1) * sample
-        while offset > len(batches):
-            np.random.shuffle(batches)
-            offset -= len(batches)
-
-        result = batches[offset:(offset + sample)]
-        while len(result) < sample:
-            np.random.shuffle(batches)
-            result += batches[:(sample - len(result))]
-
-        assert len(result) == sample, \
-            "batch length is not correct {}".format(len(result))
-
-        batches = result
-
     return batches
 
 

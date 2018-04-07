@@ -108,6 +108,10 @@ def add_dataset_args(parser, train=False, gen=False):
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
                            help='maximum number of sentences in a validation batch'
                                 ' (defaults to --max-sentences)')
+        group.add_argument('--sample-without-replacement', default=0, type=int, metavar='N',
+                           help='If bigger than 0, use that number of mini-batches for each epoch,'
+                                ' where each sample is drawn randomly without replacement from the'
+                                ' dataset')
     if gen:
         group.add_argument('--gen-subset', default='test', metavar='SPLIT',
                            help='data subset to generate (train, valid, test)')
@@ -170,12 +174,6 @@ def add_optimization_args(parser):
     group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
                        help='minimum learning rate')
 
-    group.add_argument('--sample-without-replacement', default=0, type=int, metavar='N',
-                       help='If bigger than 0, use that number of mini-batches for each epoch,'
-                            ' where each sample is drawn randomly without replacement from the'
-                            ' dataset')
-    group.add_argument('--curriculum', default=0, type=int, metavar='N',
-                       help='sort batches by source length for first N epochs')
     group.add_argument('--update-freq', default=1, type=int, metavar='N',
                        help='update parameters every N batches')
     return group
@@ -187,10 +185,10 @@ def add_checkpoint_args(parser):
                        help='path to save checkpoints')
     group.add_argument('--restore-file', default='checkpoint_last.pt',
                        help='filename in save-dir from which to load checkpoint')
-    group.add_argument('--save-interval', type=int, default=-1, metavar='N',
-                       help='save a checkpoint every N updates')
+    group.add_argument('--save-interval', type=int, default=1, metavar='N',
+                       help='save a checkpoint every N epochs')
     group.add_argument('--no-save', action='store_true',
-                       help='don\'t save models and checkpoints')
+                       help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
                        help='only store last and best checkpoints')
     group.add_argument('--validate-interval', type=int, default=1, metavar='N',
