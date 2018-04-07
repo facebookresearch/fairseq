@@ -176,6 +176,8 @@ def add_optimization_args(parser):
                             ' dataset')
     group.add_argument('--curriculum', default=0, type=int, metavar='N',
                        help='sort batches by source length for first N epochs')
+    group.add_argument('--update-freq', default=1, type=int, metavar='N',
+                       help='update parameters every N batches')
     return group
 
 

@@ -132,6 +132,7 @@ def train(args, trainer, dataset, epoch, batch_offset):
         num_shards=args.distributed_world_size,
     )
     progress = progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple')
+    epoch_size = len(itr)
     itr = itertools.islice(progress, batch_offset, None)
 
     # reset training meters
@@ -143,7 +144,12 @@ def train(args, trainer, dataset, epoch, batch_offset):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     max_update = args.max_update or math.inf
     for i, sample in enumerate(itr, start=batch_offset):
-        log_output = trainer.train_step(sample)
+        if i < epoch_size - 1 and (i + 1) % args.update_freq > 0:
+            # buffer updates according to --update-freq
+            trainer.train_step(sample, update_params=False)
+            continue
+        else:
+            log_output = trainer.train_step(sample, update_params=True)
 
         # log mid-epoch stats
         stats = get_training_stats(trainer)
@@ -157,9 +163,8 @@ def train(args, trainer, dataset, epoch, batch_offset):
             stats[k] = extra_meters[k].avg
         progress.log(stats)
 
-        # save mid-epoch checkpoints
+        # ignore the first mini-batch in words-per-second calculation
         if i == batch_offset:
-            # ignore the first mini-batch in words-per-second calculation
             trainer.get_meter('wps').reset()
 
         # save mid-epoch checkpoints
