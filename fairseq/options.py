@@ -58,6 +58,7 @@ def parse_args_and_arch(parser, input_args=None):
 
     # Post-process args.
     args.lr = list(map(float, args.lr.split(',')))
+    args.update_freq = list(map(float, args.update_freq.split(',')))
     if args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
 
@@ -152,6 +153,8 @@ def add_optimization_args(parser):
     group.add_argument('--sentence-avg', action='store_true',
                        help='normalize gradients by the number of sentences in a batch'
                             ' (default is to normalize by number of tokens)')
+    group.add_argument('--update-freq', default='1', metavar='N',
+                       help='update parameters every N_i batches, when in epoch i')
 
     # Optimizer definitions can be found under fairseq/optim/
     group.add_argument('--optimizer', default='nag', metavar='OPT',
@@ -174,8 +177,6 @@ def add_optimization_args(parser):
     group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
                        help='minimum learning rate')
 
-    group.add_argument('--update-freq', default=1, type=int, metavar='N',
-                       help='update parameters every N batches')
     return group
 
 

@@ -132,12 +132,18 @@ def train(args, trainer, itr, epoch):
         if meter is not None:
             meter.reset()
 
+    # update parameters every N batches
+    if epoch <= len(args.update_freq):
+        update_freq = args.update_freq[epoch - 1]
+    else:
+        update_freq = args.update_freq[-1]
+
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     max_update = args.max_update or math.inf
     num_batches = len(itr)
     progress = progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple')
     for i, sample in enumerate(progress):
-        if i < num_batches - 1 and (i + 1) % args.update_freq > 0:
+        if i < num_batches - 1 and (i + 1) % update_freq > 0:
             # buffer updates according to --update-freq
             trainer.train_step(sample, update_params=False)
             continue
