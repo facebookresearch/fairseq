@@ -57,13 +57,13 @@ class Trainer(object):
 
         self._max_bsz_seen = 0
         self._num_updates = 0
+        self._optim_history = None
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         if distributed_utils.is_master(self.args):  # only save one checkpoint
-            optim_history = self._optim_history if hasattr(self, '_optim_history') else None
             utils.save_state(filename, self.args, self.model, self.criterion, self.optimizer,
-                             self.lr_scheduler, self._num_updates, optim_history, extra_state)
+                             self.lr_scheduler, self._num_updates, self._optim_history, extra_state)
 
     def load_checkpoint(self, filename):
         """Load all training state from a checkpoint file."""
