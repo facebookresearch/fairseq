@@ -57,6 +57,7 @@ class Trainer(object):
 
         self._max_bsz_seen = 0
         self._num_updates = 0
+        self._optim_history = None
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
