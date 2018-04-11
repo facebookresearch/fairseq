@@ -13,8 +13,9 @@ import math
 import torch
 
 from fairseq import criterions, data, models, options, progress_bar
-from fairseq.meters import AverageMeter, StopwatchMeter
+from fairseq.fp16_trainer import FP16Trainer
 from fairseq.trainer import Trainer
+from fairseq.meters import AverageMeter, StopwatchMeter
 
 
 def main(args):
@@ -48,7 +49,10 @@ def main(args):
     print('| num. model params: {}'.format(sum(p.data.numel() for p in model.parameters())))
 
     # Build trainer
-    trainer = Trainer(args, model, criterion)
+    if args.fp16:
+        trainer = FP16Trainer(args, model, criterion)
+    else:
+        trainer = Trainer(args, model, criterion)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
@@ -83,6 +87,10 @@ def main(args):
             for i in range(epoch):
                 _ = next(train_dataloader)
             epoch += 1
+
+    # Send a dummy batch to warm the caching allocator
+    dummy_batch = data.get_dummy_batch(args.max_tokens, dataset.src_dict, dataset.dst_dict)
+    trainer.dummy_train_step(dummy_batch)
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
@@ -153,7 +161,7 @@ def train(args, trainer, itr, epoch):
         # log mid-epoch stats
         stats = get_training_stats(trainer)
         for k, v in log_output.items():
-            if k in ['loss', 'nll_loss']:
+            if k in ['loss', 'nll_loss', 'sample_size']:
                 continue  # these are already logged above
             if 'loss' in k:
                 extra_meters[k].update(v, log_output['sample_size'])
@@ -194,6 +202,9 @@ def get_training_stats(trainer):
     stats['gnorm'] = '{:.3f}'.format(trainer.get_meter('gnorm').avg)
     stats['clip'] = '{:.0%}'.format(trainer.get_meter('clip').avg)
     stats['oom'] = trainer.get_meter('oom').avg
+    if trainer.get_meter('loss_scale') is not None:
+        stats['loss_scale'] = '{:.3f}'.format(trainer.get_meter('loss_scale').avg)
+    stats['wall'] = round(trainer.get_meter('wall').elapsed_time)
     return stats
 
 
@@ -234,7 +245,7 @@ def validate(args, trainer, dataset, subset, epoch):
         # log mid-validation stats
         stats = get_valid_stats(trainer)
         for k, v in log_output.items():
-            if k in ['loss', 'nll_loss']:
+            if k in ['loss', 'nll_loss', 'sample_size']:
                 continue
             extra_meters[k].update(v)
             stats[k] = extra_meters[k].avg

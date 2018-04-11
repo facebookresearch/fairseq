@@ -12,7 +12,9 @@ import math
 import numbers
 import numpy as np
 import os
+
 import torch
+from torch.autograd import Variable
 import torch.utils.data
 
 from fairseq.dictionary import Dictionary
@@ -435,3 +437,21 @@ def numpy_seed(seed):
         yield
     finally:
         np.random.set_state(state)
+
+
+def get_dummy_batch(ntokens, src_dict, dst_dict, src_len=128, tgt_len=128):
+    bsz = int(ntokens / max(src_len, tgt_len))
+    bsz = (bsz // 8) * 8
+    assert src_dict.pad() == dst_dict.pad()
+    pad_idx = src_dict.pad()
+    src_vocab, dst_vocab = len(src_dict), len(dst_dict)
+    dummy_batch = {}
+    dummy_batch['id'] = Variable(torch.arange(bsz).long().cuda())
+    dummy_batch['ntokens'] = tgt_len * bsz
+    dummy_batch['target'] = Variable(torch.Tensor(bsz, tgt_len).uniform_(pad_idx + 1, dst_vocab - 1).long().cuda())
+    input = {}
+    input['prev_output_tokens'] = Variable(dummy_batch['target'].data.clone())
+    input['src_lengths'] = Variable(torch.LongTensor(bsz).fill_(src_len).cuda())
+    input['src_tokens'] = Variable(torch.Tensor(bsz, src_len).uniform_(pad_idx + 1, src_vocab - 1).long().cuda())
+    dummy_batch['net_input'] = input
+    return dummy_batch

@@ -53,58 +53,6 @@ def suppress_output():
     __builtin__.print = print
 
 
-def all_reduce_and_rescale_tensors(tensors, rescale_denom, buffer_size=10485760):
-    """All-reduce and rescale tensors in chunks of the specified size.
-
-    Args:
-        tensors: list of Tensors to all-reduce
-        rescale_denom: denominator for rescaling summed Tensors
-        buffer_size: all-reduce chunk size in bytes
-    """
-    # buffer size is in bytes, determine equiv. # of elements based on data type
-    buffer_t = tensors[0].new(math.ceil(buffer_size / tensors[0].element_size())).zero_()
-    buffer = []
-
-    def all_reduce_buffer():
-        # copy tensors into buffer_t
-        offset = 0
-        for t in buffer:
-            numel = t.numel()
-            buffer_t[offset:offset+numel].copy_(t.view(-1))
-            offset += numel
-
-        # all-reduce and rescale
-        torch.distributed.all_reduce(buffer_t[:offset])
-        buffer_t.div_(rescale_denom)
-
-        # copy all-reduced buffer back into tensors
-        offset = 0
-        for t in buffer:
-            numel = t.numel()
-            t.view(-1).copy_(buffer_t[offset:offset+numel])
-            offset += numel
-
-    filled = 0
-    for t in tensors:
-        sz = t.numel() * t.element_size()
-        if sz > buffer_size:
-            # tensor is bigger than buffer, all-reduce and rescale directly
-            torch.distributed.all_reduce(t)
-            t.div_(rescale_denom)
-        elif filled + sz > buffer_size:
-            # buffer is full, all-reduce and replace buffer with grad
-            all_reduce_buffer()
-            buffer = [t]
-            filled = sz
-        else:
-            # add tensor to buffer
-            buffer.append(t)
-            filled += sz
-
-    if len(buffer) > 0:
-        all_reduce_buffer()
-
-
 def all_gather_list(data, max_size=4096):
     """Gathers arbitrary data from all nodes into a list."""
     world_size = torch.distributed.get_world_size()
