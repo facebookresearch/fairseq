@@ -155,6 +155,9 @@ def add_optimization_args(parser):
                             ' (default is to normalize by number of tokens)')
     group.add_argument('--update-freq', default='1', metavar='N',
                        help='update parameters every N_i batches, when in epoch i')
+    has_tensor_cores = torch.cuda.device_count() > 0 and torch.cuda.get_device_capability(0)[0] >= 7
+    group.add_argument('--fp16', action='store_true', default=has_tensor_cores,
+                       help='use FP16 during training')
 
     # Optimizer definitions can be found under fairseq/optim/
     group.add_argument('--optimizer', default='nag', metavar='OPT',

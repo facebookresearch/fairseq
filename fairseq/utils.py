@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import contextlib
 import logging
 import os
@@ -25,6 +25,20 @@ def torch_persistent_save(*args, **kwargs):
                 logging.error(traceback.format_exc())
 
 
+def convert_state_dict_type(state_dict, ttype=torch.FloatTensor):
+    if isinstance(state_dict, dict):
+        cpu_dict = OrderedDict()
+        for k, v in state_dict.items():
+            cpu_dict[k] = convert_state_dict_type(v)
+        return cpu_dict
+    elif isinstance(state_dict, list):
+        return [convert_state_dict_type(v) for v in state_dict]
+    elif torch.is_tensor(state_dict):
+        return state_dict.type(ttype)
+    else:
+        return state_dict
+
+
 def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
                num_updates, optim_history=None, extra_state=None):
     if optim_history is None:
@@ -33,7 +47,7 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
         extra_state = {}
     state_dict = {
         'args': args,
-        'model': model.state_dict(),
+        'model': convert_state_dict_type(model.state_dict()),
         'optimizer_history': optim_history + [
             {
                 'criterion_name': criterion.__class__.__name__,
@@ -42,22 +56,16 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
                 'num_updates': num_updates,
             }
         ],
-        'last_optimizer_state': optimizer.state_dict(),
+        'last_optimizer_state': convert_state_dict_type(optimizer.state_dict()),
         'extra_state': extra_state,
     }
     torch_persistent_save(state_dict, filename)
 
 
-def load_model_state(filename, model, cuda_device=None):
+def load_model_state(filename, model):
     if not os.path.exists(filename):
         return None, [], None
-    if cuda_device is None:
-        state = torch.load(filename)
-    else:
-        state = torch.load(
-            filename,
-            map_location=lambda s, l: default_restore_location(s, 'cuda:{}'.format(cuda_device))
-        )
+    state = torch.load(filename)
     state = _upgrade_state_dict(state)
     state['model'] = model.upgrade_state_dict(state['model'])
 
@@ -375,6 +383,14 @@ def item(tensor):
     if hasattr(tensor, '__getitem__'):
         return tensor[0]
     return tensor
+
+
+def clip_grad_norm_(tensor, max_norm):
+    grad_norm = item(torch.norm(tensor))
+    if grad_norm > max_norm > 0:
+        clip_coef = max_norm / (grad_norm + 1e-6)
+        tensor.mul_(clip_coef)
+    return grad_norm
 
 
 def fill_with_neg_inf(t):
