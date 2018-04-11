@@ -72,7 +72,7 @@ def main(args):
                 remove_bpe=args.remove_bpe,
             )
             print('H\t{}\t{}'.format(hypo['score'], hypo_str))
-            print('A\t{}'.format(' '.join(map(str, alignment))))
+            print('A\t{}'.format(' '.join(map(lambda x: str(utils.item(x)), alignment))))
 
 
 if __name__ == '__main__':
