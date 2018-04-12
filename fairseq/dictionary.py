@@ -124,6 +124,7 @@ class Dictionary(object):
         ...
         ```
         """
+
         if isinstance(f, str):
             try:
                 if not ignore_utf_errors:
@@ -146,17 +147,6 @@ class Dictionary(object):
             d.indices[word] = len(d.symbols)
             d.symbols.append(word)
             d.count.append(count)
-
-        # apply padding so that the dictionary size is a nice round number
-        factor  = 8
-        padding = 0
-        while len(d.symbols) % factor != 0:
-            word = 'madeupword{:04d}'.format(padding)
-            d.indices[word] = len(d.symbols)
-            d.symbols.append(word)
-            d.count.append(0)
-        assert len(d.symbols) % factor == 0
-
         return d
 
     def save(self, f, threshold=3, nwords=-1):
