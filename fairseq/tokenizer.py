@@ -10,8 +10,6 @@ import re
 
 import torch
 
-from fairseq import dictionary
-
 
 SPACE_NORMALIZER = re.compile("\s+")
 

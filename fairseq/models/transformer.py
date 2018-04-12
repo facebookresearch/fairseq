@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,7 +16,6 @@ from fairseq.modules import (
     LearnedPositionalEmbedding, MultiheadAttention,
     SinusoidalPositionalEmbedding,
 )
-from fairseq import utils
 
 from . import (
     FairseqIncrementalDecoder, FairseqEncoder, FairseqModel,
@@ -220,6 +220,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         return x, attn
 
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        if encoder_out_dict['encoder_padding_mask'] is not None:
+            encoder_out_dict['encoder_padding_mask'] = \
+                encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
+        return encoder_out_dict
+
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return self.embed_positions.max_positions()
@@ -232,11 +238,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 state_dict['decoder.embed_positions._float_tensor'] = torch.FloatTensor()
         return state_dict
 
-
-    def reorder_encoder_out(self, encoder_out, new_order):
-        if encoder_out['encoder_padding_mask'] is not None:
-            encoder_out['encoder_padding_mask'] = encoder_out['encoder_padding_mask'].index_select(0, new_order)
-        return encoder_out
 
 class TransformerEncoderLayer(nn.Module):
     """Encoder layer block.
@@ -312,22 +313,20 @@ class TransformerDecoderLayer(nn.Module):
     def forward(self, x, encoder_out, encoder_padding_mask, incremental_state):
         residual = x
         x = self.maybe_layer_norm(0, x, before=True)
-
         x, _ = self.self_attn(
-                query=x,
-                key=x,
-                value=x,
-                mask_future_timesteps=True,
-                incremental_state=incremental_state,
-                need_weights=False,
-            )
+            query=x,
+            key=x,
+            value=x,
+            mask_future_timesteps=True,
+            incremental_state=incremental_state,
+            need_weights=False,
+        )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(0, x, after=True)
 
         residual = x
         x = self.maybe_layer_norm(1, x, before=True)
-
         x, attn = self.encoder_attn(
             query=x,
             key=encoder_out,
@@ -336,7 +335,6 @@ class TransformerDecoderLayer(nn.Module):
             incremental_state=incremental_state,
             static_kv=True,
         )
-
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(1, x, after=True)

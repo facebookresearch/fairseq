@@ -7,7 +7,6 @@
 # can be found in the PATENTS file in the same directory.
 
 import collections
-import itertools
 import os
 import math
 import torch

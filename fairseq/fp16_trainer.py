@@ -9,8 +9,6 @@
 Train a network on multiple GPUs.
 """
 
-import math
-
 import torch
 
 from fairseq import optim
