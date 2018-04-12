@@ -183,7 +183,8 @@ class LanguageDatasets(object):
             dataset.src, dataset.dst, max_tokens, max_sentences,
             max_positions=max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs_valid_test,
-            descending=descending)
+            descending=descending,
+            allow_different_src_lens=True)
         batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
         return torch.utils.data.DataLoader(
             dataset, num_workers=num_workers, collate_fn=dataset.collater,
@@ -369,7 +370,7 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
 
 def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
                     max_positions=(1024, 1024), ignore_invalid_inputs=False,
-                    descending=False, required_batch_size_multiple=1):
+                    descending=False, required_batch_size_multiple=1, allow_different_src_lens=False):
     """Returns batches of indices sorted by size. Sequences with different
     source lengths are not allowed in the same batch."""
     assert isinstance(src, IndexedDataset) and (dst is None or isinstance(dst, IndexedDataset))
@@ -382,7 +383,7 @@ def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
         indices = np.flip(indices, 0)
     return list(_make_batches(
         src, dst, indices, max_tokens, max_sentences, max_positions,
-        ignore_invalid_inputs, allow_different_src_lens=False,
+        ignore_invalid_inputs, allow_different_src_lens=allow_different_src_lens,
         required_batch_size_multiple=required_batch_size_multiple,
     ))
 

@@ -103,15 +103,12 @@ class FConvEncoder(FairseqEncoder):
         self.num_attention_layers = None
 
         num_embeddings = len(dictionary)
-        padding_idx = dictionary.pad()
-        self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        if embed_dict:
-            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
-
+        self.padding_idx = dictionary.pad()
+        self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
         self.embed_positions = PositionalEmbedding(
             max_positions,
             embed_dim,
-            padding_idx,
+            self.padding_idx,
             left_pad=LanguagePairDataset.LEFT_PAD_SOURCE,
         )
 
@@ -142,12 +139,21 @@ class FConvEncoder(FairseqEncoder):
         # project to size of convolution
         x = self.fc1(x)
 
+        # used to mask padding in input
+        encoder_padding_mask = src_tokens.eq(self.padding_idx).t()  # -> T x B
+        if not encoder_padding_mask.any():
+            encoder_padding_mask = None
+
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
         # temporal convolutions
         for proj, conv in zip(self.projections, self.convolutions):
             residual = x if proj is None else proj(x)
+
+            if encoder_padding_mask is not None:
+                x = x.masked_fill(encoder_padding_mask.unsqueeze(-1), 0)
+
             x = F.dropout(x, p=self.dropout, training=self.training)
             if conv.kernel_size[0] % 2 == 1:
                 # padding is implicit in the conv
@@ -166,13 +172,20 @@ class FConvEncoder(FairseqEncoder):
         # project back to size of embedding
         x = self.fc2(x)
 
+        if encoder_padding_mask is not None:
+            encoder_padding_mask = encoder_padding_mask.t()  # -> B x T
+            x = x.masked_fill(encoder_padding_mask.unsqueeze(-1), 0)
+
         # scale gradients (this only affects backward, not forward)
         x = GradMultiply.apply(x, 1.0 / (2.0 * self.num_attention_layers))
 
         # add output to input embedding for attention
         y = (x + input_embedding) * math.sqrt(0.5)
 
-        return x, y
+        return {
+            'encoder_out': (x, y),
+            'encoder_padding_mask': encoder_padding_mask,  # B x T
+        }
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
@@ -189,12 +202,19 @@ class AttentionLayer(nn.Module):
 
         self.bmm = bmm if bmm is not None else torch.bmm
 
-    def forward(self, x, target_embedding, encoder_out):
+    def forward(self, x, target_embedding, encoder_out, encoder_padding_mask):
         residual = x
 
         # attention
         x = (self.in_projection(x) + target_embedding) * math.sqrt(0.5)
         x = self.bmm(x, encoder_out[0])
+
+        # don't attend over padding
+        if encoder_padding_mask is not None:
+            x = x.float().masked_fill(
+                encoder_padding_mask.unsqueeze(1),
+                float('-inf')
+            ).type_as(x)  # FP16 support: cast to float and back
 
         # softmax over last dim
         sz = x.size()
@@ -204,9 +224,14 @@ class AttentionLayer(nn.Module):
 
         x = self.bmm(x, encoder_out[1])
 
-        # scale attention output
+        # scale attention output (respecting potentially different lengths)
         s = encoder_out[1].size(1)
-        x = x * (s * math.sqrt(1.0 / s))
+        if encoder_padding_mask is None:
+            x = x * (s * math.sqrt(1.0 / s))
+        else:
+            s = s - encoder_padding_mask.type_as(x).sum(dim=1, keepdim=True)  # exclude padding
+            s = s.unsqueeze(-1)
+            x = x * (s * s.rsqrt())
 
         # project back
         x = (self.out_projection(x) + residual) * math.sqrt(0.5)
@@ -274,7 +299,10 @@ class FConvDecoder(FairseqIncrementalDecoder):
         else:
             self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None):
+        encoder_out = encoder_out_dict['encoder_out']
+        encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
+
         # split and transpose encoder outputs
         encoder_a, encoder_b = self._split_encoder_out(encoder_out, incremental_state)
 
@@ -307,7 +335,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             if attention is not None:
                 x = self._transpose_if_training(x, incremental_state)
 
-                x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b))
+                x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b), encoder_padding_mask)
                 attn_scores = attn_scores / num_attn_layers
                 if avg_attn_scores is None:
                     avg_attn_scores = attn_scores
@@ -371,6 +399,23 @@ class FConvDecoder(FairseqIncrementalDecoder):
         if incremental_state is None:
             x = x.transpose(0, 1)
         return x
+
+
+    def reorder_incremental_state(self, incremental_state, new_order):
+        super().reorder_incremental_state(incremental_state, new_order)
+
+        encoder_out = utils.get_incremental_state(self, incremental_state, 'encoder_out')
+        if encoder_out is not None:
+            def update_enc_out(enc_out):
+                return enc_out.index_select(0, new_order)
+
+            encoder_out = tuple([update_enc_out(eo) for eo in encoder_out])
+            utils.set_incremental_state(self, incremental_state, 'encoder_out', encoder_out)
+
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        if encoder_out_dict['encoder_padding_mask'] is not None:
+            encoder_out_dict['encoder_padding_mask'] = encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
+        return encoder_out_dict
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

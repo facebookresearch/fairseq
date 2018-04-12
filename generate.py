@@ -63,7 +63,7 @@ def main(args):
     max_positions = min(model.max_encoder_positions() for model in models)
     itr = dataset.eval_dataloader(
         args.gen_subset,
-        max_sentences=args.max_sentences,
+        max_sentences=args.max_sentences or 128,
         max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
     )
