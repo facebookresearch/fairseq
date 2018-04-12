@@ -357,6 +357,19 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
         return x, avg_attn_scores
 
+    def reorder_incremental_state(self, incremental_state, new_order):
+        super().reorder_incremental_state(incremental_state, new_order)
+        encoder_out = utils.get_incremental_state(self, incremental_state, 'encoder_out')
+        if encoder_out is not None:
+            encoder_out = tuple(eo.index_select(0, new_order) for eo in encoder_out)
+            utils.set_incremental_state(self, incremental_state, 'encoder_out', encoder_out)
+
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        if encoder_out_dict['encoder_padding_mask'] is not None:
+            encoder_out_dict['encoder_padding_mask'] = \
+                encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
+        return encoder_out_dict
+
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return self.embed_positions.max_positions()
@@ -399,23 +412,6 @@ class FConvDecoder(FairseqIncrementalDecoder):
         if incremental_state is None:
             x = x.transpose(0, 1)
         return x
-
-
-    def reorder_incremental_state(self, incremental_state, new_order):
-        super().reorder_incremental_state(incremental_state, new_order)
-
-        encoder_out = utils.get_incremental_state(self, incremental_state, 'encoder_out')
-        if encoder_out is not None:
-            def update_enc_out(enc_out):
-                return enc_out.index_select(0, new_order)
-
-            encoder_out = tuple([update_enc_out(eo) for eo in encoder_out])
-            utils.set_incremental_state(self, incremental_state, 'encoder_out', encoder_out)
-
-    def reorder_encoder_out(self, encoder_out_dict, new_order):
-        if encoder_out_dict['encoder_padding_mask'] is not None:
-            encoder_out_dict['encoder_padding_mask'] = encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
-        return encoder_out_dict
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

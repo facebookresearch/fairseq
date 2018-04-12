@@ -11,7 +11,7 @@ Train a network across multiple GPUs.
 
 from collections import defaultdict, OrderedDict
 from itertools import chain
-import math
+
 import torch
 
 from fairseq import distributed_utils, optim, utils
