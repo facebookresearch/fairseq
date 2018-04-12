@@ -52,6 +52,8 @@ def main(args):
     if args.fp16:
         trainer = FP16Trainer(args, model, criterion)
     else:
+        if torch.cuda.get_device_capability(0)[0] >= 7:
+            print('| NOTICE: your device may support faster training with --fp16')
         trainer = Trainer(args, model, criterion)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
