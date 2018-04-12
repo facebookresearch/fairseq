@@ -233,6 +233,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         return state_dict
 
 
+    def reorder_encoder_out(self, encoder_out, new_order):
+        if encoder_out['encoder_padding_mask'] is not None:
+            encoder_out['encoder_padding_mask'] = encoder_out['encoder_padding_mask'].index_select(0, new_order)
+        return encoder_out
+
 class TransformerEncoderLayer(nn.Module):
     """Encoder layer block.
 

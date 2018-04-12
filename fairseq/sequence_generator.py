@@ -112,7 +112,7 @@ class SequenceGenerator(object):
             # compute the encoder output for each beam
             encoder_out = model.encoder(
                 src_tokens.repeat(1, beam_size).view(-1, srclen),
-                src_lengths.repeat(beam_size),
+                src_lengths.expand(beam_size, src_lengths.numel()).t().contiguous().view(-1),
             )
             encoder_outs.append(encoder_out)
 
@@ -200,10 +200,20 @@ class SequenceGenerator(object):
             if self.normalize_scores:
                 eos_scores /= (step+1)**self.len_penalty
 
+            cum_unfin = []
+            prev = 0
+            for f in finished:
+                if f:
+                    prev += 1
+                else:
+                    cum_unfin.append(prev)
+
             sents_seen = set()
             for i, (idx, score) in enumerate(zip(bbsz_idx.tolist(), eos_scores.tolist())):
-                sent = idx // beam_size
-                sents_seen.add(sent)
+                unfin_idx = idx // beam_size
+                sent = unfin_idx + cum_unfin[unfin_idx]
+
+                sents_seen.add((sent, unfin_idx))
 
                 def get_hypo():
                     _, alignment = attn_clone[i].max(dim=0)
@@ -230,23 +240,27 @@ class SequenceGenerator(object):
                         'idx': idx,
                     }
 
-            # return number of hypotheses finished this step
-            num_finished = 0
-            for sent in sents_seen:
+            newly_finished = []
+            for sent, unfin_idx in sents_seen:
                 # check termination conditions for this sentence
                 if not finished[sent] and is_finished(sent, step, unfinalized_scores):
                     finished[sent] = True
-                    num_finished += 1
-            return num_finished
+                    newly_finished.append(unfin_idx)
+            return newly_finished
 
         reorder_state = None
+        batch_idxs = None
         for step in range(maxlen + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
-                for model in self.models:
+                if batch_idxs is not None:
+                    # update beam indices to take into account removed sentences
+                    corr = batch_idxs - torch.arange(batch_idxs.numel()).type_as(batch_idxs)
+                    reorder_state.view(-1, beam_size).add_(corr.unsqueeze(-1) * beam_size)
+                for i, model in enumerate(self.models):
                     if isinstance(model.decoder, FairseqIncrementalDecoder):
-                        model.decoder.reorder_incremental_state(
-                            incremental_states[model], reorder_state)
+                        model.decoder.reorder_incremental_state(incremental_states[model], reorder_state)
+                        encoder_outs[i] = model.decoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
             probs, avg_attn_scores = self._decode(
                 tokens[:, :step+1], encoder_outs, incremental_states)
@@ -308,6 +322,7 @@ class SequenceGenerator(object):
                 else:
                     # take the best 2 x beam_size predictions. We'll choose the first
                     # beam_size of these which don't predict eos to continue with.
+
                     torch.topk(
                         probs.view(bsz, -1),
                         k=min(cand_size, probs.view(bsz, -1).size(1) - 1),  # -1 so we never select pad
@@ -323,18 +338,20 @@ class SequenceGenerator(object):
                     descending=True,
                     out=(eos_scores, eos_bbsz_idx),
                 )
-                num_remaining_sent -= finalize_hypos(
-                    step, eos_bbsz_idx, eos_scores)
+                num_remaining_sent -= len(finalize_hypos(
+                    step, eos_bbsz_idx, eos_scores))
                 assert num_remaining_sent == 0
                 break
 
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
             # and dimensions: [bsz, cand_size]
-            cand_bbsz_idx = cand_beams.add_(bbsz_offsets)
+            cand_bbsz_idx = cand_beams.add(bbsz_offsets)
 
             # finalize hypotheses that end in eos
             eos_mask = cand_indices.eq(self.eos)
+
+            finalized_sents = set()
             if step >= self.minlen:
                 # only consider eos when it's among the top beam_size indices
                 torch.masked_select(
@@ -348,13 +365,41 @@ class SequenceGenerator(object):
                         mask=eos_mask[:, :beam_size],
                         out=eos_scores,
                     )
-                    num_remaining_sent -= finalize_hypos(
+                    finalized_sents = finalize_hypos(
                         step, eos_bbsz_idx, eos_scores, cand_scores)
+                    num_remaining_sent -= len(finalized_sents)
 
             assert num_remaining_sent >= 0
             if num_remaining_sent == 0:
                 break
             assert step < maxlen
+
+            if len(finalized_sents) > 0:
+                # construct batch_idxs which holds indices of batches to keep for the next pass
+
+                new_bsz = bsz - len(finalized_sents)
+
+                batch_mask = torch.ones(bsz).type_as(cand_indices)
+                batch_mask[torch.LongTensor(finalized_sents)] = 0
+                batch_idxs = batch_mask.nonzero().squeeze(-1)
+
+                eos_mask = eos_mask[batch_idxs]
+                cand_beams = cand_beams[batch_idxs]
+                bbsz_offsets.resize_(new_bsz, 1)
+                cand_bbsz_idx = cand_beams.add(bbsz_offsets)
+
+                cand_scores = cand_scores[batch_idxs]
+                cand_indices = cand_indices[batch_idxs]
+
+                scores = scores.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
+                scores_buf.resize_as_(scores)
+                tokens = tokens.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
+                tokens_buf.resize_as_(tokens)
+                attn = attn.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, attn.size(1), -1)
+                attn_buf.resize_as_(attn)
+                bsz = new_bsz
+            else:
+                batch_idxs = None
 
             # set active_mask so that values > cand_size indicate eos hypos
             # and values < cand_size indicate candidate active hypos.
@@ -382,6 +427,7 @@ class SequenceGenerator(object):
                 cand_scores, dim=1, index=active_hypos,
                 out=scores[:, step].view(bsz, beam_size),
             )
+
             active_bbsz_idx = active_bbsz_idx.view(-1)
             active_scores = active_scores.view(-1)
 
@@ -425,7 +471,7 @@ class SequenceGenerator(object):
             reorder_state = active_bbsz_idx
 
         # sort by score descending
-        for sent in range(bsz):
+        for sent in range(len(finalized)):
             finalized[sent] = sorted(finalized[sent], key=lambda r: r['score'], reverse=True)
 
         return finalized
