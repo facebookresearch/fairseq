@@ -25,13 +25,6 @@ def tokenize_line(line):
 class Tokenizer:
 
     @staticmethod
-    def build_dictionary(filename, tokenize=tokenize_line):
-        dict = dictionary.Dictionary()
-        Tokenizer.add_file_to_dictionary(filename, dict, tokenize)
-        dict.finalize()
-        return dict
-
-    @staticmethod
     def add_file_to_dictionary(filename, dict, tokenize):
         with open(filename, 'r') as f:
             for line in f:
