@@ -245,7 +245,7 @@ class AttentionLayer(nn.Module):
                 float('-inf')
             ).type_as(attn_scores)  # FP16 support: cast to float and back
 
-        attn_scores = F.softmax(attn_scores.t(), dim=1).t()  # srclen x bsz
+        attn_scores = F.softmax(attn_scores, dim=0)  # srclen x bsz
 
         # sum weighted sources
         x = (attn_scores.unsqueeze(2) * source_hids).sum(dim=0)
