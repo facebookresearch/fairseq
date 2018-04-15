@@ -5,8 +5,9 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import math
+from collections import Counter
 import os
+
 import torch
 
 
@@ -81,13 +82,43 @@ class Dictionary(object):
             self.count.append(n)
             return idx
 
-    def finalize(self):
-        """Sort symbols by frequency in descending order, ignoring special ones."""
-        self.count, self.symbols = zip(
-            *sorted(zip(self.count, self.symbols),
-                    key=(lambda x: math.inf if self.indices[x[1]] < self.nspecial else x[0]),
-                    reverse=True)
-        )
+    def finalize(self, threshold=1, nwords=-1, padding_factor=8):
+        """Sort symbols by frequency in descending order, ignoring special ones.
+
+        Args:
+            - threshold defines the minimum word count
+            - nwords defines the total number of words in the final dictionary,
+                including special symbols
+            - padding_factor can be used to pad the dictionary size to be a
+                multiple of 8, which is important on some hardware (e.g., Nvidia
+                Tensor Cores).
+        """
+        if padding_factor > 1:
+            if nwords == -1:
+                nwords = len(self)
+            i = 0
+            while nwords % padding_factor != 0:
+                if nwords >= len(self):
+                    self.add_symbol('madeupword{:04d}'.format(i))
+                    i += 1
+                nwords += 1
+
+        new_symbols = self.symbols[:self.nspecial]
+        new_count = self.count[:self.nspecial]
+
+        c = Counter(dict(zip(self.symbols[self.nspecial:], self.count[self.nspecial:])))
+        for symbol, count in c.most_common(nwords - self.nspecial):
+            if count >= threshold:
+                new_symbols.append(symbol)
+                new_count.append(count)
+            else:
+                break
+        assert min(new_count[self.nspecial:]) >= threshold
+        assert len(new_symbols) <= nwords
+        assert len(new_symbols) % padding_factor == 0
+
+        self.count = tuple(new_count)
+        self.symbols = tuple(new_symbols)
 
     def pad(self):
         """Helper to get index of pad symbol"""
@@ -111,7 +142,6 @@ class Dictionary(object):
         ...
         ```
         """
-
         if isinstance(f, str):
             try:
                 with open(f, 'r', encoding='utf-8') as fd:
@@ -138,9 +168,5 @@ class Dictionary(object):
             os.makedirs(os.path.dirname(f), exist_ok=True)
             with open(f, 'w', encoding='utf-8') as fd:
                 return self.save(fd, threshold, nwords)
-        cnt = 0
-        for i, t in enumerate(zip(self.symbols, self.count)):
-            if i >= self.nspecial and t[1] >= threshold \
-                    and (nwords < 0 or cnt < nwords):
-                print('{} {}'.format(t[0], t[1]), file=f)
-                cnt += 1
+        for symbol, count in zip(self.symbols[self.nspecial:], self.count[self.nspecial:]):
+            print('{} {}'.format(symbol, count), file=f)

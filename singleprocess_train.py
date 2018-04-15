@@ -7,14 +7,14 @@
 # can be found in the PATENTS file in the same directory.
 
 import collections
-import itertools
 import os
 import math
 import torch
 
 from fairseq import criterions, data, models, options, progress_bar
-from fairseq.meters import AverageMeter, StopwatchMeter
+from fairseq.fp16_trainer import FP16Trainer
 from fairseq.trainer import Trainer
+from fairseq.meters import AverageMeter, StopwatchMeter
 
 
 def main(args):
@@ -48,26 +48,50 @@ def main(args):
     print('| num. model params: {}'.format(sum(p.data.numel() for p in model.parameters())))
 
     # Build trainer
-    trainer = Trainer(args, model, criterion)
+    if args.fp16:
+        trainer = FP16Trainer(args, model, criterion)
+    else:
+        if torch.cuda.get_device_capability(0)[0] >= 7:
+            print('| NOTICE: your device may support faster training with --fp16')
+        trainer = Trainer(args, model, criterion)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
         args.max_sentences,
     ))
 
+    # Initialize dataloader
+    train_dataloader = dataset.train_dataloader_generator(
+        args.train_subset,
+        max_tokens=args.max_tokens,
+        max_sentences=args.max_sentences,
+        max_positions=(
+            min(args.max_source_positions, trainer.get_model().max_encoder_positions()),
+            min(args.max_target_positions, trainer.get_model().max_decoder_positions())
+        ),
+        seed=args.seed,
+        sample_without_replacement=args.sample_without_replacement,
+        shard_id=args.distributed_rank,
+        num_shards=args.distributed_world_size,
+    )
+
     # Load the latest checkpoint if one is available
     os.makedirs(args.save_dir, exist_ok=True)
     checkpoint_path = os.path.join(args.save_dir, args.restore_file)
-    extra_state = trainer.load_checkpoint(checkpoint_path)
-    if extra_state is not None:
-        epoch = extra_state['epoch']
-        batch_offset = extra_state['batch_offset']
-        print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
-        if batch_offset == 0:
+    epoch = 1
+    if os.path.isfile(checkpoint_path):
+        extra_state = trainer.load_checkpoint(checkpoint_path)
+        if extra_state is not None:
+            epoch = extra_state['epoch']
+            print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
             trainer.lr_step(epoch)
+            for i in range(epoch):
+                _ = next(train_dataloader)
             epoch += 1
-    else:
-        epoch, batch_offset = 1, 0
+
+    # Send a dummy batch to warm the caching allocator
+    dummy_batch = data.get_dummy_batch(args.max_tokens, dataset.src_dict, dataset.dst_dict)
+    trainer.dummy_train_step(dummy_batch)
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
@@ -77,24 +101,24 @@ def main(args):
     train_meter.start()
     while lr > args.min_lr and epoch <= max_epoch:
         # train for one epoch
-        train(args, trainer, dataset, epoch, batch_offset)
+        train(args, trainer, next(train_dataloader), epoch)
 
         # evaluate on validate set
+        first_val_loss = None
         if epoch % args.validate_interval == 0:
             for k, subset in enumerate(args.valid_subset.split(',')):
                 val_loss = validate(args, trainer, dataset, subset, epoch)
                 if k == 0:
-                    # only use first validation loss to update the learning schedule
-                    lr = trainer.lr_step(epoch, val_loss)
+                    first_val_loss = val_loss
 
-                    # save checkpoint
-                    if not args.no_save:
-                        save_checkpoint(trainer, args, epoch, 0, val_loss)
-        else:
-            lr = trainer.lr_step(epoch)
+        # only use first validation loss to update the learning rate
+        lr = trainer.lr_step(epoch, first_val_loss)
+
+        # save checkpoint
+        if not args.no_save and epoch % args.save_interval == 0:
+            save_checkpoint(trainer, args, epoch, first_val_loss)
 
         epoch += 1
-        batch_offset = 0
 
         if trainer.get_num_updates() >= max_update:
             break
@@ -103,7 +127,7 @@ def main(args):
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
 
 
-def train(args, trainer, dataset, epoch, batch_offset):
+def train(args, trainer, itr, epoch):
     """Train the model for one epoch."""
 
     # Set seed based on args.seed and the epoch number so that we get
@@ -111,44 +135,34 @@ def train(args, trainer, dataset, epoch, batch_offset):
     seed = args.seed + epoch
     torch.manual_seed(seed)
 
-    # The max number of positions can be different for train and valid
-    # e.g., RNNs may support more positions at test time than seen in training
-    max_positions_train = (
-        min(args.max_source_positions, trainer.get_model().max_encoder_positions()),
-        min(args.max_target_positions, trainer.get_model().max_decoder_positions())
-    )
-
-    # Initialize dataloader, starting at batch_offset
-    itr = dataset.train_dataloader(
-        args.train_subset,
-        max_tokens=args.max_tokens,
-        max_sentences=args.max_sentences,
-        max_positions=max_positions_train,
-        seed=seed,
-        epoch=epoch,
-        sample_without_replacement=args.sample_without_replacement,
-        sort_by_source_size=(epoch <= args.curriculum),
-        shard_id=args.distributed_rank,
-        num_shards=args.distributed_world_size,
-    )
-    progress = progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple')
-    itr = itertools.islice(progress, batch_offset, None)
-
     # reset training meters
     for k in ['train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'clip']:
         meter = trainer.get_meter(k)
         if meter is not None:
             meter.reset()
 
+    # update parameters every N batches
+    if epoch <= len(args.update_freq):
+        update_freq = args.update_freq[epoch - 1]
+    else:
+        update_freq = args.update_freq[-1]
+
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     max_update = args.max_update or math.inf
-    for i, sample in enumerate(itr, start=batch_offset):
-        log_output = trainer.train_step(sample)
+    num_batches = len(itr)
+    progress = progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple')
+    for i, sample in enumerate(progress):
+        if i < num_batches - 1 and (i + 1) % update_freq > 0:
+            # buffer updates according to --update-freq
+            trainer.train_step(sample, update_params=False)
+            continue
+        else:
+            log_output = trainer.train_step(sample, update_params=True)
 
         # log mid-epoch stats
         stats = get_training_stats(trainer)
         for k, v in log_output.items():
-            if k in ['loss', 'nll_loss']:
+            if k in ['loss', 'nll_loss', 'sample_size']:
                 continue  # these are already logged above
             if 'loss' in k:
                 extra_meters[k].update(v, log_output['sample_size'])
@@ -157,17 +171,11 @@ def train(args, trainer, dataset, epoch, batch_offset):
             stats[k] = extra_meters[k].avg
         progress.log(stats)
 
-        # save mid-epoch checkpoints
-        if i == batch_offset:
-            # ignore the first mini-batch in words-per-second calculation
+        # ignore the first mini-batch in words-per-second calculation
+        if i == 0:
             trainer.get_meter('wps').reset()
 
-        # save mid-epoch checkpoints
-        num_updates = trainer.get_num_updates()
-        if args.save_interval > 0 and num_updates > 0 and num_updates % args.save_interval == 0:
-            save_checkpoint(trainer, args, epoch, i + 1)
-
-        if num_updates >= max_update:
+        if trainer.get_num_updates() >= max_update:
             break
 
     # log end-of-epoch stats
@@ -195,6 +203,9 @@ def get_training_stats(trainer):
     stats['gnorm'] = '{:.3f}'.format(trainer.get_meter('gnorm').avg)
     stats['clip'] = '{:.0%}'.format(trainer.get_meter('clip').avg)
     stats['oom'] = trainer.get_meter('oom').avg
+    if trainer.get_meter('loss_scale') is not None:
+        stats['loss_scale'] = '{:.3f}'.format(trainer.get_meter('loss_scale').avg)
+    stats['wall'] = round(trainer.get_meter('wall').elapsed_time)
     return stats
 
 
@@ -235,7 +246,7 @@ def validate(args, trainer, dataset, subset, epoch):
         # log mid-validation stats
         stats = get_valid_stats(trainer)
         for k, v in log_output.items():
-            if k in ['loss', 'nll_loss']:
+            if k in ['loss', 'nll_loss', 'sample_size']:
                 continue
             extra_meters[k].update(v)
             stats[k] = extra_meters[k].avg
@@ -269,27 +280,21 @@ def get_perplexity(loss):
         return float('inf')
 
 
-def save_checkpoint(trainer, args, epoch, batch_offset, val_loss=None):
+def save_checkpoint(trainer, args, epoch, val_loss=None):
     extra_state = {
         'epoch': epoch,
-        'batch_offset': batch_offset,
         'val_loss': val_loss,
     }
 
-    if batch_offset == 0:
-        if not args.no_epoch_checkpoints:
-            epoch_filename = os.path.join(args.save_dir, 'checkpoint{}.pt'.format(epoch))
-            trainer.save_checkpoint(epoch_filename, extra_state)
-
-        assert val_loss is not None
-        if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
-            save_checkpoint.best = val_loss
-            best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
-            trainer.save_checkpoint(best_filename, extra_state)
-    elif not args.no_epoch_checkpoints:
-        epoch_filename = os.path.join(
-            args.save_dir, 'checkpoint{}_{}.pt'.format(epoch, batch_offset))
+    if not args.no_epoch_checkpoints:
+        epoch_filename = os.path.join(args.save_dir, 'checkpoint{}.pt'.format(epoch))
         trainer.save_checkpoint(epoch_filename, extra_state)
+
+    assert val_loss is not None
+    if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
+        save_checkpoint.best = val_loss
+        best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
+        trainer.save_checkpoint(best_filename, extra_state)
 
     last_filename = os.path.join(args.save_dir, 'checkpoint_last.pt')
     trainer.save_checkpoint(last_filename, extra_state)

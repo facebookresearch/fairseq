@@ -10,6 +10,8 @@ from .conv_tbc import ConvTBC
 from .grad_multiply import GradMultiply
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .linearized_convolution import LinearizedConvolution
+from .multihead_attention import MultiheadAttention
+from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 
 __all__ = [
     'BeamableMM',
@@ -17,4 +19,6 @@ __all__ = [
     'GradMultiply',
     'LearnedPositionalEmbedding',
     'LinearizedConvolution',
+    'MultiheadAttention',
+    'SinusoidalPositionalEmbedding',
 ]

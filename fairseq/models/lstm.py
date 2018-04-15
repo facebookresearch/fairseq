@@ -129,7 +129,12 @@ class LSTMEncoder(FairseqEncoder):
         x = F.dropout(x, p=self.dropout_out, training=self.training)
         assert list(x.size()) == [seqlen, bsz, embed_dim]
 
-        return x, final_hiddens, final_cells
+        encoder_padding_mask = src_tokens.eq(self.padding_idx).t()
+
+        return {
+            'encoder_out': (x, final_hiddens, final_cells),
+            'encoder_padding_mask': encoder_padding_mask if encoder_padding_mask.any() else None
+        }
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
@@ -143,7 +148,7 @@ class AttentionLayer(nn.Module):
         self.input_proj = Linear(input_embed_dim, output_embed_dim, bias=False)
         self.output_proj = Linear(2*output_embed_dim, output_embed_dim, bias=False)
 
-    def forward(self, input, source_hids):
+    def forward(self, input, source_hids, encoder_padding_mask):
         # input: bsz x input_embed_dim
         # source_hids: srclen x bsz x output_embed_dim
 
@@ -152,7 +157,15 @@ class AttentionLayer(nn.Module):
 
         # compute attention
         attn_scores = (source_hids * x.unsqueeze(0)).sum(dim=2)
-        attn_scores = F.softmax(attn_scores.t(), dim=1).t()  # srclen x bsz
+
+        # don't attend over padding
+        if encoder_padding_mask is not None:
+            attn_scores = attn_scores.float().masked_fill_(
+                encoder_padding_mask,
+                float('-inf')
+            ).type_as(attn_scores)  # FP16 support: cast to float and back
+
+        attn_scores = F.softmax(attn_scores, dim=0)  # srclen x bsz
 
         # sum weighted sources
         x = (attn_scores.unsqueeze(2) * source_hids).sum(dim=0)
@@ -183,7 +196,10 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             self.additional_fc = Linear(embed_dim, out_embed_dim)
         self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None):
+        encoder_out = encoder_out_dict['encoder_out']
+        encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
+
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]
         bsz, seqlen = prev_output_tokens.size()
@@ -230,7 +246,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
             # apply attention using the last layer's hidden state
             if self.attention is not None:
-                out, attn_scores[:, j, :] = self.attention(hidden, encoder_outs)
+                out, attn_scores[:, j, :] = self.attention(hidden, encoder_outs, encoder_padding_mask)
             else:
                 out = hidden
             out = F.dropout(out, p=self.dropout_out, training=self.training)
@@ -263,6 +279,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         return x, attn_scores
 
     def reorder_incremental_state(self, incremental_state, new_order):
+        super().reorder_incremental_state(incremental_state, new_order)
         cached_state = utils.get_incremental_state(self, incremental_state, 'cached_state')
         if cached_state is None:
             return
@@ -272,10 +289,18 @@ class LSTMDecoder(FairseqIncrementalDecoder):
                 return [reorder_state(state_i) for state_i in state]
             return state.index_select(0, new_order)
 
-        if not isinstance(new_order, Variable):
-            new_order = Variable(new_order)
         new_state = tuple(map(reorder_state, cached_state))
         utils.set_incremental_state(self, incremental_state, 'cached_state', new_state)
+
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        encoder_out_dict['encoder_out'] = tuple(
+            eo.index_select(1, new_order)
+            for eo in encoder_out_dict['encoder_out']
+        )
+        if encoder_out_dict['encoder_padding_mask'] is not None:
+            encoder_out_dict['encoder_padding_mask'] = \
+                encoder_out_dict['encoder_padding_mask'].index_select(1, new_order)
+        return encoder_out_dict
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""

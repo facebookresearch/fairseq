@@ -12,7 +12,9 @@ import math
 import numbers
 import numpy as np
 import os
+
 import torch
+from torch.autograd import Variable
 import torch.utils.data
 
 from fairseq.dictionary import Dictionary
@@ -134,21 +136,43 @@ class LanguageDatasets(object):
         assert self.src_dict.eos() == self.dst_dict.eos()
         assert self.src_dict.unk() == self.dst_dict.unk()
 
-    def train_dataloader(self, split, max_tokens=None,
-                         max_sentences=None, max_positions=(1024, 1024),
-                         seed=None, epoch=1, sample_without_replacement=0,
-                         sort_by_source_size=False, shard_id=0, num_shards=1):
+    def train_dataloader_generator(
+        self, split, max_tokens=None, max_sentences=None,
+        max_positions=(1024, 1024), seed=None, sample_without_replacement=0,
+        shard_id=0, num_shards=1
+    ):
         dataset = self.splits[split]
         with numpy_seed(seed):
-            batch_sampler = shuffled_batches_by_size(
+            batches = uneven_batches_by_size(
                 dataset.src, dataset.dst, max_tokens=max_tokens,
-                max_sentences=max_sentences, epoch=epoch,
-                sample=sample_without_replacement, max_positions=max_positions,
-                sort_by_source_size=sort_by_source_size)
-            batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
-        return torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collater,
-            batch_sampler=batch_sampler)
+                max_sentences=max_sentences, max_positions=max_positions,
+                # FP16: during training keep the batch size a multiple of 8
+                required_batch_size_multiple=8,
+            )
+            frozen_batches = tuple(batches)  # freeze
+
+        def dataloader(b):
+            b = mask_batches(b, shard_id=shard_id, num_shards=num_shards)  # shard dataset
+            return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collater, batch_sampler=b)
+
+        for epoch in itertools.count(1):
+            # set seed based on the seed and epoch number so that we get
+            # reproducible results when resuming from checkpoints
+            with numpy_seed(seed + epoch):
+                batches = list(frozen_batches)  # copy
+                np.random.shuffle(batches)
+                if sample_without_replacement > 0:
+                    # emit sub-epoch dataloaders
+                    while len(batches) >= sample_without_replacement:
+                        sampled_batches = batches[:sample_without_replacement]
+                        remaining_batches = batches[sample_without_replacement:]
+                        yield dataloader(sampled_batches)
+                        batches = remaining_batches
+                    if len(batches) > 0:
+                        yield dataloader(batches)
+                else:
+                    # emit full dataloader
+                    yield dataloader(batches)
 
     def eval_dataloader(self, split, num_workers=0, max_tokens=None,
                         max_sentences=None, max_positions=(1024, 1024),
@@ -159,7 +183,8 @@ class LanguageDatasets(object):
             dataset.src, dataset.dst, max_tokens, max_sentences,
             max_positions=max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs_valid_test,
-            descending=descending)
+            descending=descending,
+            allow_different_src_lens=True)
         batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
         return torch.utils.data.DataLoader(
             dataset, num_workers=num_workers, collate_fn=dataset.collater,
@@ -291,8 +316,10 @@ def _valid_size(src_size, dst_size, max_positions):
 
 
 def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
-                  ignore_invalid_inputs=False, allow_different_src_lens=False):
+                  ignore_invalid_inputs=False, allow_different_src_lens=False,
+                  required_batch_size_multiple=1):
     batch = []
+    mult = required_batch_size_multiple
 
     def yield_batch(next_idx, num_tokens):
         if len(batch) == 0:
@@ -307,6 +334,7 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
         return False
 
     sample_len = 0
+    sample_lens = []
     ignored = []
     for idx in map(int, indices):
         src_size = src.sizes[idx]
@@ -320,12 +348,15 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
                 " Skip this example with --skip-invalid-size-inputs-valid-test"
             ).format(idx, src_size, dst_size, max_positions))
 
-        sample_len = max(sample_len, src_size, dst_size)
+        sample_lens.append(max(src_size, dst_size))
+        sample_len = max(sample_len, sample_lens[-1])
         num_tokens = (len(batch) + 1) * sample_len
         if yield_batch(idx, num_tokens):
-            yield batch
-            batch = []
-            sample_len = max(src_size, dst_size)
+            mod8_len = max(mult * (len(batch) // mult), len(batch) % mult)
+            yield batch[:mod8_len]
+            batch = batch[mod8_len:]
+            sample_lens = sample_lens[mod8_len:]
+            sample_len = max(sample_lens) if len(sample_lens) > 0 else 0
 
         batch.append(idx)
 
@@ -339,7 +370,7 @@ def _make_batches(src, dst, indices, max_tokens, max_sentences, max_positions,
 
 def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
                     max_positions=(1024, 1024), ignore_invalid_inputs=False,
-                    descending=False):
+                    descending=False, required_batch_size_multiple=1, allow_different_src_lens=False):
     """Returns batches of indices sorted by size. Sequences with different
     source lengths are not allowed in the same batch."""
     assert isinstance(src, IndexedDataset) and (dst is None or isinstance(dst, IndexedDataset))
@@ -352,14 +383,16 @@ def batches_by_size(src, dst, max_tokens=None, max_sentences=None,
         indices = np.flip(indices, 0)
     return list(_make_batches(
         src, dst, indices, max_tokens, max_sentences, max_positions,
-        ignore_invalid_inputs, allow_different_src_lens=False))
+        ignore_invalid_inputs, allow_different_src_lens=allow_different_src_lens,
+        required_batch_size_multiple=required_batch_size_multiple,
+    ))
 
 
-def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
-                             epoch=1, sample=0, max_positions=(1024, 1024),
-                             sort_by_source_size=False):
-    """Returns batches of indices, bucketed by size and then shuffled. Batches
-    may contain sequences of different lengths."""
+def uneven_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
+                           max_positions=(1024, 1024),
+                           required_batch_size_multiple=1):
+    """Returns batches of indices bucketed by size. Batches may contain
+    sequences of different lengths."""
     assert isinstance(src, IndexedDataset) and isinstance(dst, IndexedDataset)
     if max_tokens is None:
         max_tokens = float('Inf')
@@ -374,27 +407,9 @@ def shuffled_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
 
     batches = list(_make_batches(
         src, dst, indices, max_tokens, max_sentences, max_positions,
-        ignore_invalid_inputs=True, allow_different_src_lens=True))
-
-    if not sort_by_source_size:
-        np.random.shuffle(batches)
-
-    if sample:
-        offset = (epoch - 1) * sample
-        while offset > len(batches):
-            np.random.shuffle(batches)
-            offset -= len(batches)
-
-        result = batches[offset:(offset + sample)]
-        while len(result) < sample:
-            np.random.shuffle(batches)
-            result += batches[:(sample - len(result))]
-
-        assert len(result) == sample, \
-            "batch length is not correct {}".format(len(result))
-
-        batches = result
-
+        ignore_invalid_inputs=True, allow_different_src_lens=True,
+        required_batch_size_multiple=required_batch_size_multiple,
+    ))
     return batches
 
 
@@ -423,3 +438,21 @@ def numpy_seed(seed):
         yield
     finally:
         np.random.set_state(state)
+
+
+def get_dummy_batch(ntokens, src_dict, dst_dict, src_len=128, tgt_len=128):
+    bsz = int(ntokens / max(src_len, tgt_len))
+    bsz = (bsz // 8) * 8
+    assert src_dict.pad() == dst_dict.pad()
+    pad_idx = src_dict.pad()
+    src_vocab, dst_vocab = len(src_dict), len(dst_dict)
+    dummy_batch = {}
+    dummy_batch['id'] = Variable(torch.arange(bsz).long().cuda())
+    dummy_batch['ntokens'] = tgt_len * bsz
+    dummy_batch['target'] = Variable(torch.Tensor(bsz, tgt_len).uniform_(pad_idx + 1, dst_vocab - 1).long().cuda())
+    input = {}
+    input['prev_output_tokens'] = Variable(dummy_batch['target'].data.clone())
+    input['src_lengths'] = Variable(torch.LongTensor(bsz).fill_(src_len).cuda())
+    input['src_tokens'] = Variable(torch.Tensor(bsz, src_len).uniform_(pad_idx + 1, src_vocab - 1).long().cuda())
+    dummy_batch['net_input'] = input
+    return dummy_batch

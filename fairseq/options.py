@@ -58,6 +58,7 @@ def parse_args_and_arch(parser, input_args=None):
 
     # Post-process args.
     args.lr = list(map(float, args.lr.split(',')))
+    args.update_freq = list(map(float, args.update_freq.split(',')))
     if args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
 
@@ -108,6 +109,10 @@ def add_dataset_args(parser, train=False, gen=False):
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
                            help='maximum number of sentences in a validation batch'
                                 ' (defaults to --max-sentences)')
+        group.add_argument('--sample-without-replacement', default=0, type=int, metavar='N',
+                           help='If bigger than 0, use that number of mini-batches for each epoch,'
+                                ' where each sample is drawn randomly without replacement from the'
+                                ' dataset')
     if gen:
         group.add_argument('--gen-subset', default='test', metavar='SPLIT',
                            help='data subset to generate (train, valid, test)')
@@ -148,6 +153,10 @@ def add_optimization_args(parser):
     group.add_argument('--sentence-avg', action='store_true',
                        help='normalize gradients by the number of sentences in a batch'
                             ' (default is to normalize by number of tokens)')
+    group.add_argument('--update-freq', default='1', metavar='N',
+                       help='update parameters every N_i batches, when in epoch i')
+    group.add_argument('--fp16', action='store_true',
+                       help='use FP16 during training')
 
     # Optimizer definitions can be found under fairseq/optim/
     group.add_argument('--optimizer', default='nag', metavar='OPT',
@@ -170,12 +179,6 @@ def add_optimization_args(parser):
     group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
                        help='minimum learning rate')
 
-    group.add_argument('--sample-without-replacement', default=0, type=int, metavar='N',
-                       help='If bigger than 0, use that number of mini-batches for each epoch,'
-                            ' where each sample is drawn randomly without replacement from the'
-                            ' dataset')
-    group.add_argument('--curriculum', default=0, type=int, metavar='N',
-                       help='sort batches by source length for first N epochs')
     return group
 
 
@@ -185,10 +188,10 @@ def add_checkpoint_args(parser):
                        help='path to save checkpoints')
     group.add_argument('--restore-file', default='checkpoint_last.pt',
                        help='filename in save-dir from which to load checkpoint')
-    group.add_argument('--save-interval', type=int, default=-1, metavar='N',
-                       help='save a checkpoint every N updates')
+    group.add_argument('--save-interval', type=int, default=1, metavar='N',
+                       help='save a checkpoint every N epochs')
     group.add_argument('--no-save', action='store_true',
-                       help='don\'t save models and checkpoints')
+                       help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
                        help='only store last and best checkpoints')
     group.add_argument('--validate-interval', type=int, default=1, metavar='N',
