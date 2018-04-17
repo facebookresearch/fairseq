@@ -57,7 +57,8 @@ def parse_args_and_arch(parser, input_args=None):
     args = parser.parse_args(input_args)
 
     # Post-process args.
-    args.lr = list(map(float, args.lr.split(',')))
+    args.lr = eval(args.lr)
+    args.lr = [args.lr] if isinstance(args.lr, float) else list(args.lr)
     args.update_freq = list(map(float, args.update_freq.split(',')))
     if args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
