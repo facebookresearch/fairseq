@@ -51,6 +51,9 @@ class LSTMModel(FairseqModel):
 
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
+        # make sure that all args are properly defaulted (in case there are any new ones)
+        base_architecture(args)
+
         """Build a new model instance."""
         encoder = LSTMEncoder(
             src_dict,
@@ -355,26 +358,23 @@ def base_architecture(args):
 
 @register_model_architecture('lstm', 'lstm_wiseman_iwslt_de_en')
 def lstm_wiseman_iwslt_de_en(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 256)
+    args.encoder_dropout_in = getattr(args, 'encoder_dropout_in', 0)
+    args.encoder_dropout_out = getattr(args, 'encoder_dropout_out', 0)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 256)
+    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
+    args.decoder_dropout_in = getattr(args, 'decoder_dropout_in', 0)
+    args.decoder_dropout_out = getattr(args, 'decoder_dropout_out', args.dropout)
     base_architecture(args)
-    args.encoder_embed_dim = 256
-    args.encoder_layers = 1
-    args.encoder_dropout_in = 0
-    args.encoder_dropout_out = 0
-    args.decoder_embed_dim = 256
-    args.decoder_layers = 1
-    args.decoder_out_embed_dim = 256
-    args.decoder_attention = '1'
-    args.decoder_dropout_in = 0
 
 
 @register_model_architecture('lstm', 'lstm_luong_wmt_en_de')
 def lstm_luong_wmt_en_de(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1000)
+    args.encoder_layers = getattr(args, 'encoder_layers', 4)
+    args.encoder_dropout_out = getattr(args, 'encoder_dropout_out', 0)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 1000)
+    args.decoder_layers = getattr(args, 'decoder_layers', 4)
+    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 1000)
+    args.decoder_dropout_out = getattr(args, 'decoder_dropout_out', 0)
     base_architecture(args)
-    args.encoder_embed_dim = 1000
-    args.encoder_layers = 4
-    args.encoder_dropout_out = 0
-    args.decoder_embed_dim = 1000
-    args.decoder_layers = 4
-    args.decoder_out_embed_dim = 1000
-    args.decoder_attention = '1'
-    args.decoder_dropout_out = 0
