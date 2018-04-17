@@ -51,6 +51,9 @@ class FConvModel(FairseqModel):
 
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
+        # make sure that all args are properly defaulted (in case there are any new ones)
+        base_architecture(args)
+
         """Build a new model instance."""
         if not hasattr(args, 'max_source_positions'):
             args.max_source_positions = args.max_positions
@@ -468,47 +471,45 @@ def base_architecture(args):
 
 @register_model_architecture('fconv', 'fconv_iwslt_de_en')
 def fconv_iwslt_de_en(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 256)
+    args.encoder_layers = getattr(args, 'encoder_layers', '[(256, 3)] * 4')
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 256)
+    args.decoder_layers = getattr(args, 'decoder_layers', '[(256, 3)] * 3')
+    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
     base_architecture(args)
-    args.encoder_embed_dim = 256
-    args.encoder_layers = '[(256, 3)] * 4'
-    args.decoder_embed_dim = 256
-    args.decoder_layers = '[(256, 3)] * 3'
-    args.decoder_out_embed_dim = 256
 
 
 @register_model_architecture('fconv', 'fconv_wmt_en_ro')
 def fconv_wmt_en_ro(args):
+    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 512)
     base_architecture(args)
-    args.encoder_embed_dim = 512
-    args.encoder_layers = '[(512, 3)] * 20'
-    args.decoder_embed_dim = 512
-    args.decoder_layers = '[(512, 3)] * 20'
-    args.decoder_out_embed_dim = 512
 
 
 @register_model_architecture('fconv', 'fconv_wmt_en_de')
 def fconv_wmt_en_de(args):
-    base_architecture(args)
     convs = '[(512, 3)] * 9'       # first 9 layers have 512 units
     convs += ' + [(1024, 3)] * 4'  # next 4 layers have 1024 units
     convs += ' + [(2048, 1)] * 2'  # final 2 layers use 1x1 convolutions
-    args.encoder_embed_dim = 768
-    args.encoder_layers = convs
-    args.decoder_embed_dim = 768
-    args.decoder_layers = convs
-    args.decoder_out_embed_dim = 512
+
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 768)
+    args.encoder_layers = getattr(args, 'encoder_layers', convs)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 768)
+    args.decoder_layers = getattr(args, 'decoder_layers', convs)
+    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 512)
+    base_architecture(args)
 
 
 @register_model_architecture('fconv', 'fconv_wmt_en_fr')
 def fconv_wmt_en_fr(args):
-    base_architecture(args)
     convs = '[(512, 3)] * 6'       # first 6 layers have 512 units
     convs += ' + [(768, 3)] * 4'   # next 4 layers have 768 units
     convs += ' + [(1024, 3)] * 3'  # next 3 layers have 1024 units
     convs += ' + [(2048, 1)] * 1'  # next 1 layer uses 1x1 convolutions
     convs += ' + [(4096, 1)] * 1'  # final 1 layer uses 1x1 convolutions
-    args.encoder_embed_dim = 768
-    args.encoder_layers = convs
-    args.decoder_embed_dim = 768
-    args.decoder_layers = convs
-    args.decoder_out_embed_dim = 512
+
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 768)
+    args.encoder_layers = getattr(args, 'encoder_layers', convs)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 768)
+    args.decoder_layers = getattr(args, 'decoder_layers', convs)
+    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 512)
+    base_architecture(args)

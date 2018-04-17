@@ -96,6 +96,7 @@ class TransformerModel(FairseqModel):
 
 class TransformerEncoder(FairseqEncoder):
     """Transformer encoder."""
+
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
         self.dropout = args.dropout
@@ -155,6 +156,7 @@ class TransformerEncoder(FairseqEncoder):
 
 class TransformerDecoder(FairseqIncrementalDecoder):
     """Transformer decoder."""
+
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
         self.dropout = args.dropout
@@ -250,6 +252,7 @@ class TransformerEncoderLayer(nn.Module):
     We default to the approach in the paper, but the tensor2tensor approach can
     be enabled by setting `normalize_before=True`.
     """
+
     def __init__(self, args):
         super().__init__()
         self.embed_dim = args.encoder_embed_dim
@@ -292,6 +295,7 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransformerDecoderLayer(nn.Module):
     """Decoder layer block."""
+
     def __init__(self, args):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
@@ -399,56 +403,47 @@ def base_architecture(args):
 
 @register_model_architecture('transformer', 'transformer_iwslt_de_en')
 def transformer_iwslt_de_en(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 256)
+    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 512)
+    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 4)
+    args.encoder_layers = getattr(args, 'encoder_layers', 3)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 256)
+    args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 512)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 4)
+    args.decoder_layers = getattr(args, 'decoder_layers', 3)
     base_architecture(args)
-    args.encoder_embed_dim = 256
-    args.encoder_ffn_embed_dim = 512
-    args.encoder_layers = 3
-    args.encoder_attention_heads = 4
-    args.decoder_embed_dim = 256
-    args.decoder_ffn_embed_dim = 512
-    args.decoder_layers = 3
-    args.decoder_attention_heads = 4
 
 
 @register_model_architecture('transformer', 'transformer_wmt_en_de')
 def transformer_wmt_en_de(args):
     base_architecture(args)
-    args.encoder_embed_dim = 512
-    args.encoder_ffn_embed_dim = 2048
-    args.encoder_layers = 6
-    args.encoder_attention_heads = 8
-    args.decoder_embed_dim = 512
-    args.decoder_ffn_embed_dim = 2048
-    args.decoder_layers = 6
-    args.decoder_attention_heads = 8
 
 
 # parameters used in the "Attention Is All You Need" paper (Vaswani, et al, 2017)
 @register_model_architecture('transformer', 'transformer_vaswani_wmt_en_de_big')
 def transformer_vaswani_wmt_en_de_big(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
+    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
+    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
+    args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', False)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 1024)
+    args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 4096)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 16)
+    args.dropout = getattr(args, 'dropout', 0.3)
     base_architecture(args)
-    args.encoder_embed_dim = 1024
-    args.encoder_ffn_embed_dim = 4096
-    args.encoder_layers = 6
-    args.encoder_attention_heads = 16
-    args.decoder_embed_dim = 1024
-    args.decoder_ffn_embed_dim = 4096
-    args.decoder_layers = 6
-    args.decoder_attention_heads = 16
-    args.dropout = 0.3
 
 
 @register_model_architecture('transformer', 'transformer_wmt_en_de_big')
 def transformer_wmt_en_de_big(args):
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
     transformer_vaswani_wmt_en_de_big(args)
-    args.attention_dropout = 0.1
 
 
 # default parameters used in tensor2tensor implementation
 @register_model_architecture('transformer', 'transformer_wmt_en_de_big_t2t')
 def transformer_wmt_en_de_big_t2t(args):
+    args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', True)
+    args.encoder_normalize_before = getattr(args, 'decoder_normalize_before', True)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
+    args.relu_dropout = getattr(args, 'relu_dropout', 0.1)
     transformer_vaswani_wmt_en_de_big(args)
-    args.encoder_normalize_before = True
-    args.decoder_normalize_before = True
-    args.attention_dropout = 0.1
-    args.relu_dropout = 0.1
