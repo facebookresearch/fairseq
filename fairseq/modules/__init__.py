@@ -21,6 +21,7 @@ from .multihead_attention import MultiheadAttention
 from .bidirectional_multihead_attention import BidirectionalMultiheadSelfAttention
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
+from .relative_positional_embeddings import RelativePositionalEmbedding
 
 __all__ = [
     'AdaptiveInput',
@@ -38,4 +39,5 @@ __all__ = [
     'BidirectionalMultiheadSelfAttention',
     'ScalarBias',
     'SinusoidalPositionalEmbedding',
+    'RelativePositionalEmbedding',
 ]
