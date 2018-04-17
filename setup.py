@@ -7,8 +7,11 @@
 # can be found in the PATENTS file in the same directory.
 
 from setuptools import setup, find_packages, Extension
+import os
 import sys
 
+orig_base_dir = os.getcwd()
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 if sys.version_info < (3,):
     sys.exit('Sorry, Python3 is required for fairseq.')
@@ -44,3 +47,5 @@ setup(
     ext_modules=[bleu],
     test_suite='tests',
 )
+
+os.chdir(orig_base_dir)
