@@ -176,7 +176,7 @@ class MultiheadAttention(nn.Module):
         attn_weights = torch.bmm(q, k.transpose(1, 2))
 
         if qkv_same and self.pos_emb_k is not None:
-            pos_emb = self.position_embeddings(q, self.pos_emb_k, transpose=True)
+            pos_emb = self.position_embeddings(q, src_len, self.pos_emb_k, transpose=True)
             attn_weights += pos_emb
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
@@ -198,7 +198,7 @@ class MultiheadAttention(nn.Module):
         attn = torch.bmm(attn_weights, v)
 
         if qkv_same and self.pos_emb_v is not None:
-            pos_emb = self.position_embeddings(attn_weights, self.pos_emb_v, transpose=False)
+            pos_emb = self.position_embeddings(attn_weights, src_len, self.pos_emb_v, transpose=False)
             attn += pos_emb
 
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
