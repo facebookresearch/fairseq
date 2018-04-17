@@ -12,6 +12,25 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from .relative_positional_embeddings import RelativePositionalEmbedding
+from .learned_positional_embedding import LearnedPositionalEmbedding
+from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
+
+
+def PositionalEmbedding(type, num_embeddings, embedding_dim, padding_idx, left_pad):
+    if type == 'none' or num_embeddings is None or num_embeddings == 0:
+        return None
+    elif type == 'relative':
+        return RelativePositionalEmbedding(num_embeddings, embedding_dim)
+    elif type == 'learned':
+        m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
+        nn.init.normal(m.weight, mean=0, std=embedding_dim**-0.5)
+        return m
+    elif type == 'sinusoidal':
+        return SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, init_size=num_embeddings)
+    else:
+        raise Exception('Unknown positional embedding type \'{}\'. '
+                        'Supported types: relative, learned, sinusoidal, none'.format(type))
+
 
 class MultiheadAttention(nn.Module):
     """Multi-headed attention.
@@ -156,9 +175,9 @@ class MultiheadAttention(nn.Module):
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
 
-        if qkv_same and self.relative_pos_emb_k is not None:
-            rel_pos_emb = self.relative_positions(q, self.relative_pos_emb_k, transpose=True)
-            attn_weights += rel_pos_emb
+        if qkv_same and self.pos_emb_k is not None:
+            pos_emb = self.position_embeddings(q, self.pos_emb_k, transpose=True)
+            attn_weights += pos_emb
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
@@ -178,9 +197,9 @@ class MultiheadAttention(nn.Module):
 
         attn = torch.bmm(attn_weights, v)
 
-        if qkv_same and self.relative_pos_emb_v is not None:
-            rel_pos_emb = self.relative_positions(attn_weights, self.relative_pos_emb_v, transpose=False)
-            attn += rel_pos_emb
+        if qkv_same and self.pos_emb_v is not None:
+            pos_emb = self.position_embeddings(attn_weights, self.pos_emb_v, transpose=False)
+            attn += pos_emb
 
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
