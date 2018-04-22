@@ -10,7 +10,7 @@ import os
 import socket
 import subprocess
 
-from singleprocess_train import main as single_process_main
+from train import main as single_process_main
 from fairseq import distributed_utils, options
 
 
