@@ -21,12 +21,23 @@ class RelativePositionalEmbedding(nn.Embedding):
     def __init__(self, k, embedding_dim):
         super().__init__(k*2+1, embedding_dim)
         self.k = k
+        self.cache = self.weight.new().long()
 
-    def forward(self, length):
+    def cached_ids(self, length):
+        if self.cache.size(0) >= length:
+            return self.cache[:length, :length]
+
         x = torch.arange(length, out=self.weight.new().long()).expand(length, length)
+
         # make each cell index to relative position
         x = x - x.t()
         x = x.clamp(-self.k, self.k)
         x = x + self.k
 
-        return super().forward(Variable(x))
+        self.cache = x
+
+        return x
+
+    def forward(self, length):
+        ids = self.cached_ids(length)
+        return super().forward(Variable(ids))
