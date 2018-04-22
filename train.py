@@ -273,6 +273,7 @@ def save_checkpoint(trainer, args, epoch, val_loss=None):
     extra_state = {
         'epoch': epoch,
         'val_loss': val_loss,
+        'wall_time': trainer.get_meter('wall').elapsed_time,
     }
 
     if not args.no_epoch_checkpoints:
@@ -302,6 +303,7 @@ def load_checkpoint(args, trainer, train_dataloader):
             for i in range(epoch):
                 _ = next(train_dataloader)
             epoch += 1
+            trainer.get_meter('wall').reset(init=extra_state.get('wall_time', 0))
     return epoch
 
 
