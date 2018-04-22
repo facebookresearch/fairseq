@@ -18,18 +18,20 @@ from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 
 def PositionalEmbedding(type, num_embeddings, embedding_dim, padding_idx, left_pad):
     if type == 'none' or num_embeddings is None or num_embeddings == 0:
-        return None
+        m = None
     elif type == 'relative':
-        return RelativePositionalEmbedding(num_embeddings, embedding_dim)
+        m = RelativePositionalEmbedding(num_embeddings, embedding_dim)
+        nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
     elif type == 'learned':
         m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
         nn.init.normal(m.weight, mean=0, std=embedding_dim**-0.5)
         return m
     elif type == 'sinusoidal':
-        return SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, init_size=num_embeddings)
+        m = SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, init_size=num_embeddings)
     else:
         raise Exception('Unknown positional embedding type \'{}\'. '
                         'Supported types: relative, learned, sinusoidal, none'.format(type))
+    return m
 
 
 class MultiheadAttention(nn.Module):
