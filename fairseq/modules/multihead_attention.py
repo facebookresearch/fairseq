@@ -24,7 +24,7 @@ def PositionalEmbedding(type, num_embeddings, embedding_dim, padding_idx, left_p
         nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
     elif type == 'learned':
         m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
-        nn.init.normal(m.weight, mean=0, std=embedding_dim**-0.5)
+        nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
         return m
     elif type == 'sinusoidal':
         m = SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, init_size=num_embeddings)
@@ -177,9 +177,10 @@ class MultiheadAttention(nn.Module):
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
 
-        if self.pos_emb_k is not None:
+        if self.pos_emb_k is not None and self.pos_emb_q is None:
             assert qkv_same
-            pos_emb = self.position_embeddings(q, src_len, key_padding_mask, self.pos_emb_k, transpose=True)
+            assert self.pos_emb_type == 'relative'
+            pos_emb = self.relative_position_embeddings(q, src_len, self.pos_emb_k, transpose=True)
             attn_weights += pos_emb
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
@@ -200,9 +201,10 @@ class MultiheadAttention(nn.Module):
 
         attn = torch.bmm(attn_weights, v)
 
-        if self.pos_emb_v is not None:
+        if self.pos_emb_v is not None and self.pos_emb_q is None:
             assert qkv_same
-            pos_emb = self.position_embeddings(attn_weights, src_len, key_padding_mask, self.pos_emb_v, transpose=False)
+            assert self.pos_emb_type == 'relative'
+            pos_emb = self.relative_position_embeddings(attn_weights, src_len, self.pos_emb_v, transpose=False)
             attn += pos_emb
 
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
