@@ -13,7 +13,7 @@ import torch
 
 from fairseq import distributed_utils, options
 
-from singleprocess_train import main as single_process_main
+from train import main as single_process_main
 
 
 def main(args):
