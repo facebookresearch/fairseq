@@ -403,7 +403,8 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    m.weight.data.uniform_(-0.1, 0.1)
+    nn.init.uniform(m.weight, -0.1, 0.1)
+    nn.init.constant(m.weight[padding_idx], 0)
     return m
 
 

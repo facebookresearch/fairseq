@@ -416,13 +416,15 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    m.weight.data.normal_(0, 0.1)
+    nn.init.normal(m.weight, 0, 0.1)
+    nn.init.constant(m.weight[padding_idx], 0)
     return m
 
 
 def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad):
     m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
-    m.weight.data.normal_(0, 0.1)
+    nn.init.normal(m.weight, 0, 0.1)
+    nn.init.constant(m.weight[padding_idx], 0)
     return m
 
 

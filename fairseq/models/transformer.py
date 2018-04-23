@@ -379,6 +379,7 @@ def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad, le
     if learned:
         m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
         nn.init.normal(m.weight, mean=0, std=embedding_dim**-0.5)
+        nn.init.constant(m.weight[padding_idx], 0)
     else:
         m = SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, init_size=num_embeddings)
     return m
