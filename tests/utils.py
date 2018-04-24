@@ -21,7 +21,7 @@ def dummy_dictionary(vocab_size, prefix='token_'):
     for i in range(vocab_size):
         token = prefix + str(i)
         d.add_symbol(token)
-    d.finalize()
+    d.finalize(padding_factor=1)  # don't add extra padding symbols
     return d
 
 

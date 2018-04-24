@@ -44,7 +44,10 @@ def average_checkpoints(inputs):
         for k in params_keys:
             if k not in params_dict:
                 params_dict[k] = []
-            params_dict[k].append(model_params[k].float())
+            p = model_params[k]
+            if isinstance(p, torch.HalfTensor):
+                p = p.float()
+            params_dict[k].append(p)
 
     averaged_params = collections.OrderedDict()
     # v should be a list of torch Tensor.
