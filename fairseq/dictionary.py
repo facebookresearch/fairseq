@@ -93,9 +93,10 @@ class Dictionary(object):
                 multiple of 8, which is important on some hardware (e.g., Nvidia
                 Tensor Cores).
         """
+        if nwords == -1:
+            nwords = len(self)
+
         if padding_factor > 1:
-            if nwords == -1:
-                nwords = len(self)
             i = 0
             while nwords % padding_factor != 0:
                 if nwords >= len(self):

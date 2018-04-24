@@ -442,7 +442,7 @@ def numpy_seed(seed):
 
 def get_dummy_batch(ntokens, src_dict, dst_dict, src_len=128, tgt_len=128):
     bsz = int(ntokens / max(src_len, tgt_len))
-    bsz = (bsz // 8) * 8
+    bsz = math.ceil(bsz / 8) * 8
     assert src_dict.pad() == dst_dict.pad()
     pad_idx = src_dict.pad()
     src_vocab, dst_vocab = len(src_dict), len(dst_dict)
