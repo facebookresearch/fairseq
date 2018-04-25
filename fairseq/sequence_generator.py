@@ -81,8 +81,8 @@ class SequenceGenerator(object):
             if timer is not None:
                 timer.stop(sum(len(h[0]['tokens']) for h in hypos))
             for i, id in enumerate(s['id'].data):
-                src = input['src_tokens'].data[i, :]
-                # remove padding from ref
+                # remove padding
+                src = utils.strip_pad(input['src_tokens'].data[i, :], self.pad)
                 ref = utils.strip_pad(s['target'].data[i, :], self.pad) if s['target'] is not None else None
                 yield id, src, ref, hypos[i]
 
