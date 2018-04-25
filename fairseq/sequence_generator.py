@@ -380,7 +380,7 @@ class SequenceGenerator(object):
                 new_bsz = bsz - len(finalized_sents)
 
                 batch_mask = torch.ones(bsz).type_as(cand_indices)
-                batch_mask[torch.LongTensor(finalized_sents)] = 0
+                batch_mask[cand_indices.new(finalized_sents)] = 0
                 batch_idxs = batch_mask.nonzero().squeeze(-1)
 
                 eos_mask = eos_mask[batch_idxs]
