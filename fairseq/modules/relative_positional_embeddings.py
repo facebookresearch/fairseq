@@ -10,6 +10,7 @@ import torch.nn as nn
 
 from torch.autograd import Variable
 
+
 class RelativePositionalEmbedding(nn.Embedding):
     """This module learns relative positional embeddings up to a fixed maximum size (k).
 
@@ -19,7 +20,7 @@ class RelativePositionalEmbedding(nn.Embedding):
     """
 
     def __init__(self, k, embedding_dim):
-        super().__init__(k*2+1, embedding_dim)
+        super().__init__(k * 2 + 1, embedding_dim)
         self.k = k
 
     def forward(self, length):
