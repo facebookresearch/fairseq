@@ -236,7 +236,7 @@ def add_generation_args(parser):
     group.add_argument('--score-reference', action='store_true',
                        help='just score the reference translation')
     group.add_argument('--prefix-size', default=0, type=int, metavar='PS',
-                       help=('initialize generation by target prefix of given length'))
+                       help='initialize generation by target prefix of given length')
     group.add_argument('--sampling', action='store_true',
                        help='sample hypotheses instead of using beam search')
     return group
