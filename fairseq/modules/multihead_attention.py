@@ -12,25 +12,13 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from .relative_positional_embeddings import RelativePositionalEmbedding
-from .learned_positional_embedding import LearnedPositionalEmbedding
-from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 
 
-def PositionalEmbedding(type, num_embeddings, embedding_dim, padding_idx, left_pad):
-    if type == 'none' or num_embeddings is None or num_embeddings == 0:
-        m = None
-    elif type == 'relative':
-        m = RelativePositionalEmbedding(num_embeddings, embedding_dim)
-        nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
-    elif type == 'learned':
-        m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
-        nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
-        return m
-    elif type == 'sinusoidal':
-        m = SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, init_size=num_embeddings)
-    else:
-        raise Exception('Unknown positional embedding type \'{}\'. '
-                        'Supported types: relative, learned, sinusoidal, none'.format(type))
+def PositionalEmbedding(num_embeddings, embedding_dim):
+    if num_embeddings is None or num_embeddings == 0:
+        return None
+    m = RelativePositionalEmbedding(num_embeddings, embedding_dim)
+    nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
     return m
 
 
@@ -179,7 +167,6 @@ class MultiheadAttention(nn.Module):
 
         if self.pos_emb_k is not None and self.pos_emb_q is None:
             assert qkv_same
-            assert self.pos_emb_type == 'relative'
             pos_emb = self.relative_position_embeddings(q, src_len, self.pos_emb_k, transpose=True)
             attn_weights += pos_emb
 
@@ -201,9 +188,8 @@ class MultiheadAttention(nn.Module):
 
         attn = torch.bmm(attn_weights, v)
 
-        if self.pos_emb_v is not None and self.pos_emb_q is None:
+        if self.pos_emb_v is not None:
             assert qkv_same
-            assert self.pos_emb_type == 'relative'
             pos_emb = self.relative_position_embeddings(attn_weights, src_len, self.pos_emb_v, transpose=False)
             attn += pos_emb
 
