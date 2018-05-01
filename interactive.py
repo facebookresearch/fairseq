@@ -18,6 +18,8 @@ def main(args):
     print(args)
     assert not args.sampling or args.nbest == args.beam, \
         '--sampling requires --nbest to be equal to --beam'
+    assert not args.max_sentences, \
+        '--max-sentences/--batch-size is not supported in interactive mode'
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
