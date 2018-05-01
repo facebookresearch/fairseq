@@ -1,36 +1,29 @@
 # Introduction
-FAIR Sequence-to-Sequence Toolkit (PyTorch)
 
-This is a PyTorch version of [fairseq](https://github.com/facebookresearch/fairseq), a sequence-to-sequence learning toolkit from Facebook AI Research. The original authors of this reimplementation are (in no particular order) Sergey Edunov, Myle Ott, and Sam Gross. The toolkit implements the fully convolutional model described in [Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122) and features multi-GPU training on a single machine as well as fast beam search generation on both CPU and GPU. We provide pre-trained models for English to French and English to German translation.
+Fairseq(-py) is a sequence modeling toolkit that allows researchers and developers to train custom models for translation, summarization and other text generation tasks. It provides reference implementations of various sequence-to-sequence models, including:
+- **Convolutional Neural Networks (CNN)**
+  - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122)
+  - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
+- **Long Short-Term Memory (LSTM) networks**
+  - [Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation](https://arxiv.org/abs/1508.04025)
+  - [Wiseman and Rush (2016): Sequence-to-Sequence Learning as Beam-Search Optimization](https://arxiv.org/abs/1606.02960)
+ 
+Fairseq features multi-GPU (distributed) training on one machine or across multiple machines, fast beam search generation on both CPU and GPU, and includes pre-trained models for several benchmark translation datasets.
 
 ![Model](fairseq.gif)
 
-# Citation
-
-If you use the code in your paper, then please cite it as:
-
-```
-@inproceedings{gehring2017convs2s,
-  author    = {Gehring, Jonas, and Auli, Michael and Grangier, David and Yarats, Denis and Dauphin, Yann N},
-  title     = "{Convolutional Sequence to Sequence Learning}",
-  booktitle = {Proc. of ICML},
-  year      = 2017,
-}
-```
-
 # Requirements and Installation
-* A computer running macOS or Linux
-* For training new models, you'll also need a NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
-* Python version 3.6
 * A [PyTorch installation](http://pytorch.org/)
+* For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
+* Python version 3.6
 
-Currently fairseq-py requires PyTorch version >= 0.4.0.
+Currently fairseq requires PyTorch version >= 0.4.0.
 Please follow the instructions here: https://github.com/pytorch/pytorch#installation.
 
 If you use Docker make sure to increase the shared memory size either with `--ipc=host` or `--shm-size` as command line
 options to `nvidia-docker run`.
 
-After PyTorch is installed, you can install fairseq-py with:
+After PyTorch is installed, you can install fairseq with:
 ```
 pip install -r requirements.txt
 python setup.py build
@@ -39,7 +32,7 @@ python setup.py develop
 
 # Quick Start
 
-The following command-line tools are available:
+The following command-line tools are provided:
 * `python preprocess.py`: Data pre-processing: build vocabularies and binarize training data
 * `python train.py`: Train a new model on one or multiple GPUs
 * `python generate.py`: Translate pre-processed data with a trained model
@@ -82,9 +75,8 @@ Check [below](#pre-trained-models) for a full list of pre-trained models availab
 ## Training a New Model
 
 ### Data Pre-processing
-The fairseq-py source distribution contains an example pre-processing script for
-the IWSLT 2014 German-English corpus.
-Pre-process and binarize the data as follows:
+Fairseq contains example pre-processing scripts for several translation datasets: IWSLT 2014 (German-English), WMT 2014 (English-French) and WMT 2014 (English-German).
+To pre-process and binarize the IWSLT dataset:
 ```
 $ cd data/
 $ bash prepare-iwslt14.sh
@@ -143,7 +135,7 @@ In addition, we provide pre-processed and binarized test sets for the models abo
 * [wmt14.en-fr.ntst1213.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.ntst1213.tar.bz2): newstest2012 and newstest2013 test sets for WMT14 English-French
 * [wmt14.en-de.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-de.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-German
 
-Generation with the binarized test sets can be run in batch mode as follows, e.g. for English-French on a GTX-1080ti:
+Generation with the binarized test sets can be run in batch mode as follows, e.g. for WMT 2014 English-French on a GTX-1080ti:
 ```
 $ curl https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
 $ curl https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.newstest2014.tar.bz2 | tar xvjf - -C data-bin
@@ -163,15 +155,12 @@ BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=
 
 # Distributed version
 
-Distributed training in fairseq-py is implemented on top of [torch.distributed](http://pytorch.org/docs/master/distributed.html).
-In order to run it requires one process per GPU. In order for those processes to be able to discover each other
-they need to know a unique host and port that can be used to establish initial connection and each process
-needs to be assigned a rank, that is a unique number from 0 to n-1 where n is the total number of GPUs.
+Distributed training in fairseq is implemented on top of [torch.distributed](http://pytorch.org/docs/master/distributed.html).
+Training begins by launching one worker process per GPU.
+These workers discover each other via a unique host and port (required) that can be used to establish an initial connection.
+Additionally, each worker is given a rank, that is a unique number from 0 to n-1 where n is the total number of GPUs.
 
-Below is the example of training of a big En2Fr model on 16 nodes with 8 GPUs each (in total 128 GPUs):
-
-If you run on a cluster managed by [SLURM](https://slurm.schedmd.com/) you can train the WMT'14 En2Fr model with
-the following command:
+If you run on a cluster managed by [SLURM](https://slurm.schedmd.com/) you can train a large English-French model on the WMT 2014 dataset on 16 nodes with 8 GPUs each (in total 128 GPUs) using this command:
 
 ```
 $ DATA=... # path to the preprocessed dataset, must be visible from all nodes
@@ -204,7 +193,23 @@ $ python train.py $DATA --distributed-world-size 128 \
 * Facebook page: https://www.facebook.com/groups/fairseq.users
 * Google group: https://groups.google.com/forum/#!forum/fairseq-users
 
+# Citation
+
+If you use the code in your paper, then please cite it as:
+
+```
+@inproceedings{gehring2017convs2s,
+  author    = {Gehring, Jonas, and Auli, Michael and Grangier, David and Yarats, Denis and Dauphin, Yann N},
+  title     = "{Convolutional Sequence to Sequence Learning}",
+  booktitle = {Proc. of ICML},
+  year      = 2017,
+}
+```
+
 # License
-fairseq-py is BSD-licensed.
+fairseq(-py) is BSD-licensed.
 The license applies to the pre-trained models as well.
 We also provide an additional patent grant.
+
+# Credits
+This is a PyTorch version of [fairseq](https://github.com/facebookresearch/fairseq), a sequence-to-sequence learning toolkit from Facebook AI Research. The original authors of this reimplementation are (in no particular order) Sergey Edunov, Myle Ott, and Sam Gross.
