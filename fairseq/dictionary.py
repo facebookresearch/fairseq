@@ -96,14 +96,6 @@ class Dictionary(object):
         if nwords == -1:
             nwords = len(self)
 
-        if padding_factor > 1:
-            i = 0
-            while nwords % padding_factor != 0:
-                if nwords >= len(self):
-                    self.add_symbol('madeupword{:04d}'.format(i))
-                    i += 1
-                nwords += 1
-
         new_symbols = self.symbols[:self.nspecial]
         new_count = self.count[:self.nspecial]
 
@@ -114,8 +106,16 @@ class Dictionary(object):
                 new_count.append(count)
             else:
                 break
+
+        threshold_nwords = len(new_symbols)
+        if padding_factor > 1:
+            i = 0
+            while threshold_nwords % padding_factor != 0:
+                new_symbols.append('madeupword{:04d}'.format(i))
+                i += 1
+                threshold_nwords += 1
+
         assert min(new_count[self.nspecial:]) >= threshold
-        assert len(new_symbols) <= nwords
         assert len(new_symbols) % padding_factor == 0
 
         self.count = tuple(new_count)
