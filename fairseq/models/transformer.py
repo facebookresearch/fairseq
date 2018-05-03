@@ -423,31 +423,31 @@ def transformer_wmt_en_de(args):
     args.decoder_attention_heads = 8
 
 
+# parameters used in the "Attention Is All You Need" paper (Vaswani, et al, 2017)
+@register_model_architecture('transformer', 'transformer_vaswani_wmt_en_de_big')
+def transformer_vaswani_wmt_en_de_big(args):
+    base_architecture(args)
+    args.encoder_embed_dim = 1024
+    args.encoder_ffn_embed_dim = 4096
+    args.encoder_layers = 6
+    args.encoder_attention_heads = 16
+    args.decoder_embed_dim = 1024
+    args.decoder_ffn_embed_dim = 4096
+    args.decoder_layers = 6
+    args.decoder_attention_heads = 16
+
+
 @register_model_architecture('transformer', 'transformer_wmt_en_de_big')
 def transformer_wmt_en_de_big(args):
-    base_architecture(args)
-    args.encoder_embed_dim = 1024
-    args.encoder_ffn_embed_dim = 4096
-    args.encoder_layers = 6
-    args.encoder_attention_heads = 16
-    args.decoder_embed_dim = 1024
-    args.decoder_ffn_embed_dim = 4096
-    args.decoder_layers = 6
-    args.decoder_attention_heads = 16
+    transformer_vaswani_wmt_en_de_big(args)
+    args.attention_dropout = 0.1
 
 
+# default parameters used in tensor2tensor implementation
 @register_model_architecture('transformer', 'transformer_wmt_en_de_big_t2t')
 def transformer_wmt_en_de_big_t2t(args):
-    base_architecture(args)
-    args.encoder_embed_dim = 1024
-    args.encoder_ffn_embed_dim = 4096
-    args.encoder_layers = 6
-    args.encoder_attention_heads = 16
+    transformer_vaswani_wmt_en_de_big(args)
     args.encoder_normalize_before = True
-    args.decoder_embed_dim = 1024
-    args.decoder_ffn_embed_dim = 4096
-    args.decoder_layers = 6
-    args.decoder_attention_heads = 16
     args.decoder_normalize_before = True
     args.attention_dropout = 0.1
     args.relu_dropout = 0.1
