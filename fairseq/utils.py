@@ -8,6 +8,7 @@
 from collections import defaultdict
 import contextlib
 import logging
+import numpy as np
 import os
 import torch
 import traceback
@@ -247,6 +248,29 @@ def load_align_dict(replace_unk):
         align_dict = {}
     return align_dict
 
+
+def print_embed_overlap(embed_dict, vocab_dict):
+     embed_keys = set(embed_dict.keys())
+     vocab_keys = set(vocab_dict.symbols)
+     overlap = len(embed_keys & vocab_keys)
+     print("| Found {}/{} types in embedding file.".format(overlap, len(vocab_dict)))
+
+def parse_embedding(embed_path):
+    embed_dict = dict()
+    with open(embed_path) as f_embed:
+        for line in f_embed:
+            pieces = line.strip().split()
+            embed_dict[pieces[0]] = [float(weight) for weight in pieces[1:]]
+    return embed_dict
+
+def load_embedding(embed_dict, vocab, embedding):
+    embed_np = embedding.weight.data.numpy()
+    for idx in range(len(vocab)):
+        token = vocab[idx]
+        if token in embed_dict:
+            embed_np[idx] = np.array(embed_dict[token])
+    embedding.weight.data.copy_(torch.from_numpy(embed_np))
+    return embedding
 
 def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     from fairseq import tokenizer
