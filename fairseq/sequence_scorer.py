@@ -31,9 +31,9 @@ class SequenceScorer(object):
             if timer is not None:
                 timer.stop(s['ntokens'])
             for i, id in enumerate(s['id'].data):
-                src = s['net_input']['src_tokens'].data[i, :]
                 # remove padding from ref
-                ref = utils.strip_pad(s['target'].data[i, :], self.pad)
+                src = utils.strip_pad(s['net_input']['src_tokens'].data[i, :], self.pad)
+                ref = utils.strip_pad(s['target'].data[i, :], self.pad) if s['target'] is not None else None
                 tgt_len = ref.numel()
                 pos_scores_i = pos_scores[i][:tgt_len]
                 score_i = pos_scores_i.sum() / tgt_len
