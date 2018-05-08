@@ -301,7 +301,7 @@ class TransformerDecoderLayer(nn.Module):
         )
         self.dropout = args.dropout
         self.relu_dropout = args.relu_dropout
-        self.normalize_before = args.encoder_normalize_before
+        self.normalize_before = args.decoder_normalize_before
         self.encoder_attn = MultiheadAttention(
             self.embed_dim, args.decoder_attention_heads,
             dropout=args.attention_dropout,
