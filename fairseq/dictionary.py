@@ -59,7 +59,7 @@ class Dictionary(object):
 
         sent = ' '.join(token_string(i) for i in tensor if i != self.eos())
         if bpe_symbol is not None:
-            sent = sent.replace(bpe_symbol, '')
+            sent = (sent + ' ').replace(bpe_symbol, '').rstrip()
         return sent
 
     def unk_string(self, escape=False):
