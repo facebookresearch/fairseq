@@ -105,7 +105,7 @@ class LSTMModel(FairseqModel):
 class LSTMEncoder(FairseqEncoder):
     """LSTM encoder."""
     def __init__(self, dictionary, embed_dim=512, embed_dict=None,
-        num_layers=1, dropout_in=0.1, dropout_out=0.1):
+                 num_layers=1, dropout_in=0.1, dropout_out=0.1):
         super().__init__(dictionary)
         self.num_layers = num_layers
         self.dropout_in = dropout_in
@@ -117,8 +117,7 @@ class LSTMEncoder(FairseqEncoder):
         self.padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
         if embed_dict:
-            self.embed_tokens = utils.load_embedding(
-                embed_dict, self.dictionary, self.embed_tokens)
+            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
 
         self.lstm = LSTM(
             input_size=embed_dim,
@@ -233,7 +232,7 @@ class AttentionLayer(nn.Module):
 
 class LSTMDecoder(FairseqIncrementalDecoder):
     """LSTM decoder."""
-    def __init__(self, dictionary, encoder_embed_dim=512, 
+    def __init__(self, dictionary, encoder_embed_dim=512,
                  embed_dim=512, embed_dict=None,
                  out_embed_dim=512, num_layers=1, dropout_in=0.1,
                  dropout_out=0.1, attention=True):
@@ -246,9 +245,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
         if embed_dict:
-            self.embed_tokens = utils.load_embedding(
-                embed_dict, self.dictionary, self.embed_tokens)
-
+            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
 
         self.layers = nn.ModuleList([
             LSTMCell(
