@@ -122,9 +122,9 @@ class FConvEncoder(FairseqEncoder):
             self.projections.append(Linear(in_channels, out_channels)
                                     if in_channels != out_channels else None)
             if kernel_size % 2 == 1:
-               padding = kernel_size //2
+                padding = kernel_size // 2
             else:
-               padding = 0
+                padding = 0
             self.convolutions.append(
                 ConvTBC(in_channels, out_channels * 2, kernel_size,
                         dropout=dropout, padding=padding)
