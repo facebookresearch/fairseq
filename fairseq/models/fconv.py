@@ -37,7 +37,7 @@ class FConvModel(FairseqModel):
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
         parser.add_argument('--decoder-embed-path', default=None, type=str, metavar='STR',
-			                help='path to pre-trained decoder embedding')
+                            help='path to pre-trained decoder embedding')
         parser.add_argument('--decoder-layers', type=str, metavar='EXPR',
                             help='decoder layers [(dim, kernel_size), ...]')
         parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
@@ -93,7 +93,7 @@ class FConvModel(FairseqModel):
 class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
     def __init__(self, dictionary, embed_dim=512, embed_dict=None,
-		 max_positions=1024, convolutions=((512, 3),) * 20, dropout=0.1):
+                 max_positions=1024, convolutions=((512, 3),) * 20, dropout=0.1):
         super().__init__(dictionary)
         self.dropout = dropout
         self.num_attention_layers = None

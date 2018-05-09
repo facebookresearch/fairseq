@@ -35,7 +35,7 @@ class LSTMModel(FairseqModel):
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
         parser.add_argument('--decoder-embed-path', default=None, type=str, metavar='STR',
-			                help='path to pre-trained decoder embedding')
+                            help='path to pre-trained decoder embedding')
         parser.add_argument('--decoder-layers', type=int, metavar='N',
                             help='number of decoder layers')
         parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
