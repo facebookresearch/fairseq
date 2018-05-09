@@ -60,10 +60,6 @@ class FConvModel(FairseqModel):
             args.max_target_positions = args.max_positions
         if not hasattr(args, 'share_input_output_embed'):
             args.share_input_output_embed = False
-        if not hasattr(args, 'encoder_embed_path'):
-            args.encoder_embed_path = None
-        if not hasattr(args, 'decoder_embed_path'):
-            args.decoder_embed_path = None
 
         encoder_embed_dict = None
         if args.encoder_embed_path:
@@ -108,6 +104,9 @@ class FConvEncoder(FairseqEncoder):
         num_embeddings = len(dictionary)
         self.padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
+        if embed_dict:
+            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
+
         self.embed_positions = PositionalEmbedding(
             max_positions,
             embed_dim,
@@ -161,7 +160,7 @@ class FConvEncoder(FairseqEncoder):
             if conv.kernel_size[0] % 2 == 1:
                 # padding is implicit in the conv
                 x = conv(x)
-            else: 
+            else:
                 padding_l = (conv.kernel_size[0] - 1) // 2
                 padding_r = conv.kernel_size[0] // 2
                 x = F.pad(x, (0, 0, 0, 0, padding_l, padding_r))
