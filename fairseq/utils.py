@@ -248,6 +248,38 @@ def load_align_dict(replace_unk):
     return align_dict
 
 
+def print_embed_overlap(embed_dict, vocab_dict):
+     embed_keys = set(embed_dict.keys())
+     vocab_keys = set(vocab_dict.symbols)
+     overlap = len(embed_keys & vocab_keys)
+     print("| Found {}/{} types in embedding file.".format(overlap, len(vocab_dict)))
+
+def parse_embedding(embed_path):
+    """Parse embedding text file into a dictionary of word and embedding tensors.
+
+    The first line can have vocabulary size and dimension. The following lines
+    should contain word and embedding separated by spaces.
+
+    Example:
+        2 5
+        the -0.0230 -0.0264  0.0287  0.0171  0.1403
+        at -0.0395 -0.1286  0.0275  0.0254 -0.0932
+    """
+    embed_dict = dict()
+    with open(embed_path) as f_embed:
+        _ = next(f_embed) #skip header
+        for line in f_embed:
+            pieces = line.strip().split()
+            embed_dict[pieces[0]] = torch.Tensor([float(weight) for weight in pieces[1:]])
+    return embed_dict
+
+def load_embedding(embed_dict, vocab, embedding):
+    for idx in range(len(vocab)):
+        token = vocab[idx]
+        if token in embed_dict:
+            embedding.weight.data[idx] = embed_dict[token]
+    return embedding
+
 def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     from fairseq import tokenizer
     # Tokens are strings here

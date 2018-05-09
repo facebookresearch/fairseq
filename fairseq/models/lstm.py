@@ -28,10 +28,14 @@ class LSTMModel(FairseqModel):
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
                             help='encoder embedding dimension')
+        parser.add_argument('--encoder-embed-path', default=None, type=str, metavar='STR',
+                            help='path to pre-trained encoder embedding')
         parser.add_argument('--encoder-layers', type=int, metavar='N',
                             help='number of encoder layers')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
+        parser.add_argument('--decoder-embed-path', default=None, type=str, metavar='STR',
+                            help='path to pre-trained decoder embedding')
         parser.add_argument('--decoder-layers', type=int, metavar='N',
                             help='number of decoder layers')
         parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
@@ -52,9 +56,21 @@ class LSTMModel(FairseqModel):
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
         """Build a new model instance."""
+
+        encoder_embed_dict = None
+        if args.encoder_embed_path:
+            encoder_embed_dict = utils.parse_embedding(args.encoder_embed_path)
+            utils.print_embed_overlap(encoder_embed_dict, src_dict)
+
+        decoder_embed_dict = None
+        if args.decoder_embed_path:
+            decoder_embed_dict = utils.parse_embedding(args.decoder_embed_path)
+            utils.print_embed_overlap(decoder_embed_dict, dst_dict)
+
         encoder = LSTMEncoder(
             src_dict,
             embed_dim=args.encoder_embed_dim,
+            embed_dict=encoder_embed_dict,
             num_layers=args.encoder_layers,
             dropout_in=args.encoder_dropout_in,
             dropout_out=args.encoder_dropout_out,
@@ -63,6 +79,7 @@ class LSTMModel(FairseqModel):
             dst_dict,
             encoder_embed_dim=args.encoder_embed_dim,
             embed_dim=args.decoder_embed_dim,
+            embed_dict=decoder_embed_dict,
             out_embed_dim=args.decoder_out_embed_dim,
             num_layers=args.decoder_layers,
             attention=bool(eval(args.decoder_attention)),
@@ -74,8 +91,8 @@ class LSTMModel(FairseqModel):
 
 class LSTMEncoder(FairseqEncoder):
     """LSTM encoder."""
-    def __init__(self, dictionary, embed_dim=512, num_layers=1, dropout_in=0.1,
-                 dropout_out=0.1):
+    def __init__(self, dictionary, embed_dim=512, embed_dict=None,
+        num_layers=1, dropout_in=0.1, dropout_out=0.1):
         super().__init__(dictionary)
         self.num_layers = num_layers
         self.dropout_in = dropout_in
@@ -84,6 +101,9 @@ class LSTMEncoder(FairseqEncoder):
         num_embeddings = len(dictionary)
         self.padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
+        if embed_dict:
+            self.embed_tokens = utils.load_embedding(
+                embed_dict, self.dictionary, self.embed_tokens)
 
         self.lstm = LSTM(
             input_size=embed_dim,
@@ -163,7 +183,8 @@ class AttentionLayer(nn.Module):
 
 class LSTMDecoder(FairseqIncrementalDecoder):
     """LSTM decoder."""
-    def __init__(self, dictionary, encoder_embed_dim=512, embed_dim=512,
+    def __init__(self, dictionary, encoder_embed_dim=512, 
+                 embed_dim=512, embed_dict=None,
                  out_embed_dim=512, num_layers=1, dropout_in=0.1,
                  dropout_out=0.1, attention=True):
         super().__init__(dictionary)
@@ -173,6 +194,10 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
+        if embed_dict:
+            self.embed_tokens = utils.load_embedding(
+                embed_dict, self.dictionary, self.embed_tokens)
+
 
         self.layers = nn.ModuleList([
             LSTMCell(encoder_embed_dim + embed_dim if layer == 0 else embed_dim, embed_dim)
