@@ -30,10 +30,14 @@ class FConvModel(FairseqModel):
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
                             help='encoder embedding dimension')
+        parser.add_argument('--encoder-embed-path', default=None, type=str, metavar='STR',
+                            help='path to pre-trained encoder embedding')
         parser.add_argument('--encoder-layers', type=str, metavar='EXPR',
                             help='encoder layers [(dim, kernel_size), ...]')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
+        parser.add_argument('--decoder-embed-path', default=None, type=str, metavar='STR',
+                            help='path to pre-trained decoder embedding')
         parser.add_argument('--decoder-layers', type=str, metavar='EXPR',
                             help='decoder layers [(dim, kernel_size), ...]')
         parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
@@ -56,9 +60,21 @@ class FConvModel(FairseqModel):
             args.max_target_positions = args.max_positions
         if not hasattr(args, 'share_input_output_embed'):
             args.share_input_output_embed = False
+
+        encoder_embed_dict = None
+        if args.encoder_embed_path:
+            encoder_embed_dict = utils.parse_embedding(args.encoder_embed_path)
+            utils.print_embed_overlap(encoder_embed_dict, src_dict)
+
+        decoder_embed_dict = None
+        if args.decoder_embed_path:
+            decoder_embed_dict = utils.parse_embedding(args.decoder_embed_path)
+            utils.print_embed_overlap(decoder_embed_dict, dst_dict)
+
         encoder = FConvEncoder(
             src_dict,
             embed_dim=args.encoder_embed_dim,
+            embed_dict=encoder_embed_dict,
             convolutions=eval(args.encoder_layers),
             dropout=args.dropout,
             max_positions=args.max_source_positions,
@@ -66,6 +82,7 @@ class FConvModel(FairseqModel):
         decoder = FConvDecoder(
             dst_dict,
             embed_dim=args.decoder_embed_dim,
+            embed_dict=decoder_embed_dict,
             convolutions=eval(args.decoder_layers),
             out_embed_dim=args.decoder_out_embed_dim,
             attention=eval(args.decoder_attention),
@@ -78,8 +95,8 @@ class FConvModel(FairseqModel):
 
 class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
-    def __init__(self, dictionary, embed_dim=512, max_positions=1024,
-                 convolutions=((512, 3),) * 20, dropout=0.1):
+    def __init__(self, dictionary, embed_dim=512, embed_dict=None,
+                 max_positions=1024, convolutions=((512, 3),) * 20, dropout=0.1):
         super().__init__(dictionary)
         self.dropout = dropout
         self.num_attention_layers = None
@@ -87,6 +104,9 @@ class FConvEncoder(FairseqEncoder):
         num_embeddings = len(dictionary)
         self.padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
+        if embed_dict:
+            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
+
         self.embed_positions = PositionalEmbedding(
             max_positions,
             embed_dim,
@@ -140,7 +160,7 @@ class FConvEncoder(FairseqEncoder):
             if conv.kernel_size[0] % 2 == 1:
                 # padding is implicit in the conv
                 x = conv(x)
-            else: 
+            else:
                 padding_l = (conv.kernel_size[0] - 1) // 2
                 padding_r = conv.kernel_size[0] // 2
                 x = F.pad(x, (0, 0, 0, 0, padding_l, padding_r))
@@ -228,7 +248,8 @@ class AttentionLayer(nn.Module):
 
 class FConvDecoder(FairseqIncrementalDecoder):
     """Convolutional decoder"""
-    def __init__(self, dictionary, embed_dim=512, out_embed_dim=256,
+    def __init__(self, dictionary, embed_dim=512,
+                 embed_dict=None, out_embed_dim=256,
                  max_positions=1024, convolutions=((512, 3),) * 20,
                  attention=True, dropout=0.1, share_embed=False):
         super().__init__(dictionary)
@@ -246,6 +267,9 @@ class FConvDecoder(FairseqIncrementalDecoder):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
+        if embed_dict:
+            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
+
         self.embed_positions = PositionalEmbedding(
             max_positions,
             embed_dim,
