@@ -40,8 +40,8 @@ def main(args):
     for split in splits:
         print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
 
-    # Build model and criterion
     model = models.build_model(args, dataset.src_dict, dataset.dst_dict)
+
     criterion = criterions.build_criterion(args, dataset.src_dict, dataset.dst_dict)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
     print('| num. model params: {}'.format(sum(p.data.numel() for p in model.parameters())))
