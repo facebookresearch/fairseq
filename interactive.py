@@ -41,7 +41,7 @@ def main(args):
     translator = SequenceGenerator(
         models, beam_size=args.beam, stop_early=(not args.no_early_stop),
         normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-        unk_penalty=args.unkpen)
+        unk_penalty=args.unkpen, sampling=args.sampling)
     if use_cuda:
         translator.cuda()
 
