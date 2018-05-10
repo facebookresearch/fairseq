@@ -157,7 +157,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
     ensemble = []
     for state in states:
         model = models.build_model(args, src_dict, dst_dict)
-        model.load_state_dict(state['model'])
+        model.load_state_dict(state['model'], strict=True)
         ensemble.append(model)
     return ensemble, args
 

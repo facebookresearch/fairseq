@@ -15,9 +15,9 @@ from fairseq.models import FairseqIncrementalDecoder
 class SequenceGenerator(object):
     def __init__(self, models, beam_size=1, minlen=1, maxlen=None,
                  stop_early=True, normalize_scores=True, len_penalty=1,
-                 unk_penalty=0, retain_dropout=False, sampling=False):
+                 unk_penalty=0, retain_dropout=False, sampling=False, sampling_topk=-1,
+                 sampling_temperature=1):
         """Generates translations of a given source sentence.
-
         Args:
             min/maxlen: The length of the generated output will be bounded by
                 minlen and maxlen (not including the end-of-sentence marker).
@@ -45,6 +45,8 @@ class SequenceGenerator(object):
         self.unk_penalty = unk_penalty
         self.retain_dropout = retain_dropout
         self.sampling = sampling
+        self.sampling_topk = sampling_topk
+        self.sampling_temperature = sampling_temperature
 
     def cuda(self):
         for model in self.models:
@@ -54,7 +56,6 @@ class SequenceGenerator(object):
     def generate_batched_itr(self, data_itr, beam_size=None, maxlen_a=0.0, maxlen_b=None,
                              cuda=False, timer=None, prefix_size=0):
         """Iterate over a batched dataset and yield individual translations.
-
         Args:
             maxlen_a/b: generate sequences of maximum length ax + b,
                 where x is the source sentence length.
@@ -169,11 +170,9 @@ class SequenceGenerator(object):
             """
             Finalize the given hypotheses at this step, while keeping the total
             number of finalized hypotheses per sentence <= beam_size.
-
             Note: the input must be in the desired finalization order, so that
             hypotheses that appear earlier in the input are preferred to those
             that appear later.
-
             Args:
                 step: current time step
                 bbsz_idx: A vector of indices in the range [0, bsz*beam_size),
@@ -221,7 +220,6 @@ class SequenceGenerator(object):
                     # remove padding tokens from attn scores
                     nonpad_idxs = src_tokens[sent].ne(self.pad)
                     hypo_attn = attn_clone[i][nonpad_idxs]
-
                     _, alignment = hypo_attn.max(dim=0)
 
                     return {
@@ -267,7 +265,7 @@ class SequenceGenerator(object):
                 for i, model in enumerate(self.models):
                     if isinstance(model.decoder, FairseqIncrementalDecoder):
                         model.decoder.reorder_incremental_state(incremental_states[model], reorder_state)
-                        encoder_outs[i] = model.decoder.reorder_encoder_out(encoder_outs[i], reorder_state)
+                    encoder_outs[i] = model.decoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
             probs, avg_attn_scores = self._decode(
                 tokens[:, :step + 1], encoder_outs, incremental_states)
@@ -303,15 +301,29 @@ class SequenceGenerator(object):
                     cand_beams.resize_as_(cand_indices).fill_(0)
                 elif self.sampling:
                     assert self.pad == 1, 'sampling assumes the first two symbols can be ignored'
-                    exp_probs = probs.exp_().view(-1, self.vocab_size)
-                    if step == 0:
-                        # we exclude the first two vocab items, one of which is pad
-                        torch.multinomial(exp_probs[:, 2:], beam_size, replacement=True, out=cand_indices)
+
+                    if self.sampling_topk > 0:
+                        values, indices = probs[:, 2:].topk(self.sampling_topk)
+                        exp_probs = values.div_(self.sampling_temperature).exp()
+                        if step == 0:
+                            torch.multinomial(exp_probs, beam_size, replacement=True, out=cand_indices)
+                        else:
+                            torch.multinomial(exp_probs, 1, replacement=True, out=cand_indices)
+                        torch.gather(exp_probs, dim=1, index=cand_indices, out=cand_scores)
+                        torch.gather(indices, dim=1, index=cand_indices, out=cand_indices)
                         cand_indices.add_(2)
                     else:
-                        torch.multinomial(exp_probs[:, 2:], 1, replacement=True, out=cand_indices)
+                        exp_probs = probs.div_(self.sampling_temperature).exp_().view(-1, self.vocab_size)
+
+                        if step == 0:
+                            # we exclude the first two vocab items, one of which is pad
+                            torch.multinomial(exp_probs[:, 2:], beam_size, replacement=True, out=cand_indices)
+                        else:
+                            torch.multinomial(exp_probs[:, 2:], 1, replacement=True, out=cand_indices)
+
                         cand_indices.add_(2)
-                    torch.gather(exp_probs, dim=1, index=cand_indices, out=cand_scores)
+                        torch.gather(exp_probs, dim=1, index=cand_indices, out=cand_scores)
+
                     cand_scores.log_()
                     cand_indices = cand_indices.view(bsz, -1).repeat(1, 2)
                     cand_scores = cand_scores.view(bsz, -1).repeat(1, 2)
@@ -489,6 +501,7 @@ class SequenceGenerator(object):
 
         avg_probs = None
         avg_attn = None
+
         for model, encoder_out in zip(self.models, encoder_outs):
             with utils.maybe_no_grad():
                 if incremental_states[model] is not None:
@@ -497,6 +510,7 @@ class SequenceGenerator(object):
                     decoder_out = list(model.decoder(tokens, encoder_out))
                 decoder_out[0] = decoder_out[0][:, -1, :]
                 attn = decoder_out[1]
+
             probs = model.get_normalized_probs(decoder_out, log_probs=False).data
             if avg_probs is None:
                 avg_probs = probs

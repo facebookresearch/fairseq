@@ -12,6 +12,7 @@ from .fairseq_decoder import FairseqDecoder  # noqa: F401
 from .fairseq_encoder import FairseqEncoder  # noqa: F401
 from .fairseq_incremental_decoder import FairseqIncrementalDecoder  # noqa: F401
 from .fairseq_model import BaseFairseqModel, FairseqModel, FairseqLanguageModel  # noqa: F401
+from .composite_encoder import CompositeEncoder # noqa: F401
 
 MODEL_REGISTRY = {}
 ARCH_MODEL_REGISTRY = {}

@@ -64,8 +64,9 @@ def main(args):
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models, model_args = utils.load_ensemble_for_inference(args.path, data_dir=args.data)
+    print('| loading model(s) from {}'.format(args.path))
+    model_paths = args.path.split(',')
+    models, model_args = utils.load_ensemble_for_inference(model_paths, data_dir=args.data)
     src_dict, dst_dict = models[0].src_dict, models[0].dst_dict
 
     print('| [{}] dictionary: {} types'.format(model_args.source_lang, len(src_dict)))
@@ -81,7 +82,9 @@ def main(args):
     translator = SequenceGenerator(
         models, beam_size=args.beam, stop_early=(not args.no_early_stop),
         normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-        unk_penalty=args.unkpen, sampling=args.sampling)
+        unk_penalty=args.unkpen, sampling=args.sampling, sampling_topk=args.sampling_topk,
+        minlen=args.min_len)
+
     if use_cuda:
         translator.cuda()
 
