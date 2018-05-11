@@ -25,10 +25,12 @@ def get_training_parser():
     return parser
 
 
-def get_generation_parser():
+def get_generation_parser(interactive=False):
     parser = get_parser('Generation')
     add_dataset_args(parser, gen=True)
     add_generation_args(parser)
+    if interactive:
+        add_interactive_args(parser)
     return parser
 
 
@@ -240,6 +242,12 @@ def add_generation_args(parser):
     group.add_argument('--sampling', action='store_true',
                        help='sample hypotheses instead of using beam search')
     return group
+
+
+def add_interactive_args(parser):
+    group = parser.add_argument_group('Interactive')
+    group.add_argument('--buffer-size', default=0, type=int, metavar='N',
+                       help='read this many sentences into a buffer before processing them')
 
 
 def add_model_args(parser):
