@@ -34,6 +34,15 @@ def get_generation_parser(interactive=False):
     return parser
 
 
+def _eval_float_list(x):
+    if isinstance(x, str):
+        x = eval(x)
+    try:
+        return list(x)
+    except:
+        return [float(x)]
+
+
 def parse_args_and_arch(parser, input_args=None):
     # The parser doesn't know about model/criterion/optimizer-specific args, so
     # we parse twice. First we parse the model/criterion/optimizer, then we
@@ -59,9 +68,8 @@ def parse_args_and_arch(parser, input_args=None):
     args = parser.parse_args(input_args)
 
     # Post-process args.
-    args.lr = eval(args.lr)
-    args.lr = [args.lr] if isinstance(args.lr, float) else list(args.lr)
-    args.update_freq = list(map(float, args.update_freq.split(',')))
+    args.lr = _eval_float_list(args.lr)
+    args.update_freq = _eval_float_list(args.update_freq)
     if args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
 
