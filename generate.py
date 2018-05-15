@@ -16,6 +16,10 @@ from fairseq.sequence_scorer import SequenceScorer
 
 def main(args):
     assert args.path is not None, '--path required for generation!'
+
+    if args.max_tokens is None and args.max_sentences is None:
+        args.max_tokens = 12000
+
     print(args)
     assert not args.sampling or args.nbest == args.beam, \
         '--sampling requires --nbest to be equal to --beam'
@@ -58,12 +62,13 @@ def main(args):
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
-
     # Load dataset (possibly sharded)
     max_positions = min(model.max_encoder_positions() for model in models)
+
     itr = dataset.eval_dataloader(
         args.gen_subset,
-        max_sentences=args.max_sentences or 128,
+        max_tokens=args.max_tokens,
+        max_sentences=args.max_sentences,
         max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
     )

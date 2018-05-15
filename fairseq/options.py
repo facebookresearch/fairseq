@@ -106,7 +106,7 @@ def add_dataset_args(parser, train=False, gen=False):
                        help='max number of tokens in the target sequence')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
                        help='Ignore too long or too short lines in valid and test set')
-    group.add_argument('--max-tokens', default=6000, type=int, metavar='N',
+    group.add_argument('--max-tokens', type=int, metavar='N',
                        help='maximum number of tokens in a batch')
     group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
                        help='maximum number of sentences in a batch')
