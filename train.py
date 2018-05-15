@@ -18,6 +18,10 @@ from fairseq.meters import AverageMeter, StopwatchMeter
 
 
 def main(args):
+
+    if args.max_tokens is None:
+        args.max_tokens = 6000
+
     print(args)
 
     if not torch.cuda.is_available():
