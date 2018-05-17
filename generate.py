@@ -157,8 +157,8 @@ def main(args):
             t.log({'wps': round(wps_meter.avg)})
             num_sentences += 1
 
-    print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} tokens/s)'.format(
-        num_sentences, gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
+    print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
+        num_sentences, gen_timer.n, gen_timer.sum, num_sentences/ gen_timer.sum, 1. / gen_timer.avg))
     if has_target:
         print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
 
