@@ -435,6 +435,7 @@ def transformer_vaswani_wmt_en_de_big(args):
     args.decoder_ffn_embed_dim = 4096
     args.decoder_layers = 6
     args.decoder_attention_heads = 16
+    args.dropout = 0.3
 
 
 @register_model_architecture('transformer', 'transformer_wmt_en_de_big')
