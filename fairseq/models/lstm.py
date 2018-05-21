@@ -56,6 +56,10 @@ class LSTMModel(FairseqModel):
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
         """Build a new model instance."""
+        if not hasattr(args, 'encoder_embed_path'):
+            args.encoder_embed_path = None
+        if not hasattr(args, 'decoder_embed_path'):
+            args.decoder_embed_path = None
 
         encoder_embed_dict = None
         if args.encoder_embed_path:
