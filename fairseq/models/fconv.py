@@ -60,6 +60,10 @@ class FConvModel(FairseqModel):
             args.max_target_positions = args.max_positions
         if not hasattr(args, 'share_input_output_embed'):
             args.share_input_output_embed = False
+        if not hasattr(args, 'encoder_embed_path'):
+            args.encoder_embed_path = None
+        if not hasattr(args, 'decoder_embed_path'):
+            args.decoder_embed_path = None
 
         encoder_embed_dict = None
         if args.encoder_embed_path:
