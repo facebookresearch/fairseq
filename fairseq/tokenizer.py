@@ -40,7 +40,8 @@ class Tokenizer:
                 dict.add_symbol(dict.eos_word)
 
     @staticmethod
-    def binarize(filename, dict, consumer, tokenize=tokenize_line):
+    def binarize(filename, dict, consumer, tokenize=tokenize_line,
+                 append_eos=True, reverse_order=False):
         nseq, ntok = 0, 0
         replaced = Counter()
 
@@ -50,7 +51,15 @@ class Tokenizer:
 
         with open(filename, 'r') as f:
             for line in f:
-                ids = Tokenizer.tokenize(line, dict, tokenize, add_if_not_exist=False, consumer=replaced_consumer)
+                ids = Tokenizer.tokenize(
+                    line=line,
+                    dict=dict,
+                    tokenize=tokenize,
+                    add_if_not_exist=False,
+                    consumer=replaced_consumer,
+                    append_eos=append_eos,
+                    reverse_order=reverse_order,
+                )
                 nseq += 1
 
                 consumer(ids)

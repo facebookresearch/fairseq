@@ -40,11 +40,19 @@ def code(dtype):
             return k
 
 
+def index_file_path(prefix_path):
+    return prefix_path + '.idx'
+
+
+def data_file_path(prefix_path):
+    return prefix_path + '.bin'
+
+
 class IndexedDataset(object):
     """Loader for TorchNet IndexedDataset"""
 
     def __init__(self, path):
-        with open(path + '.idx', 'rb') as f:
+        with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
             assert magic == b'TNTIDX\x00\x00'
             version = f.read(8)
@@ -58,7 +66,7 @@ class IndexedDataset(object):
         self.read_data(path)
 
     def read_data(self, path):
-        self.data_file = open(path + '.bin', 'rb', buffering=0)
+        self.data_file = open(data_file_path(path), 'rb', buffering=0)
 
     def check_index(self, i):
         if i < 0 or i >= self.size:
@@ -80,14 +88,17 @@ class IndexedDataset(object):
 
     @staticmethod
     def exists(path):
-        return os.path.exists(path + '.idx')
+        return (
+            os.path.exists(index_file_path(path)) and
+            os.path.exists(data_file_path(path))
+        )
 
 
 class IndexedInMemoryDataset(IndexedDataset):
     """Loader for TorchNet IndexedDataset, keeps all the data in memory"""
 
     def read_data(self, path):
-        self.data_file = open(path + '.bin', 'rb')
+        self.data_file = open(data_file_path(path), 'rb')
         self.buffer = np.empty(self.data_offsets[-1], dtype=self.dtype)
         self.data_file.readinto(self.buffer)
         self.data_file.close()
