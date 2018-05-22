@@ -9,6 +9,7 @@ import numpy as np
 import os
 import struct
 import torch
+from tqdm import tqdm
 
 from fairseq.tokenizer import Tokenizer
 
@@ -107,18 +108,20 @@ class IndexedRawTextDataset(IndexedDataset):
     """Takes a text file as input and binarizes it in memory at instantiation.
     Original lines are also kept in memory"""
 
-    def __init__(self, path, dictionary, append_eos=True, reverse_order=False):
+    def __init__(self, path, dictionary, append_eos=True, reverse_order=False,
+                 no_progress_bar=False):
         self.tokens_list = []
         self.lines = []
         self.sizes = []
         self.append_eos = append_eos
         self.reverse_order = reverse_order
-        self.read_data(path, dictionary)
+        self.read_data(path, dictionary, no_progress_bar)
         self.size = len(self.tokens_list)
 
-    def read_data(self, path, dictionary):
+    def read_data(self, path, dictionary, no_progress_bar=False):
         with open(path, 'r') as f:
-            for line in f:
+            lines = f.readlines()
+            for line in tqdm(lines, total=len(lines)):
                 self.lines.append(line.strip('\n'))
                 tokens = Tokenizer.tokenize(
                     line, dictionary, add_if_not_exist=False,
