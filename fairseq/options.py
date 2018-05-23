@@ -201,6 +201,12 @@ def add_checkpoint_args(parser):
                        help='filename in save-dir from which to load checkpoint')
     group.add_argument('--save-interval', type=int, default=1, metavar='N',
                        help='save a checkpoint every N epochs')
+    group.add_argument('--save-interval-updates', type=int, metavar='N',
+                       help='if specified, saves best/last checkpoint every this many updates. '
+                            'will also validate before saving to determine if val loss is better')
+    group.add_argument('--keep-interval-updates', type=int, default=0, metavar='N',
+                       help='if --save-interval-updates is specified, keep the last this many checkpoints'
+                            ' created after specified number of updates (format is checkpoint_[epoch]_[numupd].pt')
     group.add_argument('--no-save', action='store_true',
                        help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',

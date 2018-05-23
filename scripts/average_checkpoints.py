@@ -62,10 +62,13 @@ def average_checkpoints(inputs):
     return new_state
 
 
-def last_n_checkpoints(paths, n):
+def last_n_checkpoints(paths, n, update_based):
     assert len(paths) == 1
     path = paths[0]
-    pt_regexp = re.compile(r'checkpoint(\d+)\.pt')
+    if update_based:
+        pt_regexp = re.compile(r'checkpoint_\d+_(\d+)\.pt')
+    else:
+        pt_regexp = re.compile(r'checkpoint(\d+)\.pt')
     files = os.listdir(path)
 
     entries = []
@@ -81,7 +84,7 @@ def last_n_checkpoints(paths, n):
 def main():
     parser = argparse.ArgumentParser(
         description='Tool to average the params of input checkpoints to '
-        'produce a new checkpoint',
+                    'produce a new checkpoint',
     )
 
     parser.add_argument(
@@ -95,7 +98,7 @@ def main():
         required=True,
         metavar='FILE',
         help='Write the new checkpoint containing the averaged weights to this '
-        'path.',
+             'path.',
     )
     parser.add_argument(
         '--num',
@@ -103,11 +106,16 @@ def main():
         help='if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, '
              'and average last num of those',
     )
+    parser.add_argument(
+        '--update-based-checkpoints',
+        action='store_true',
+        help='if set and used together with --num, averages update-based checkpoints instead of epoch-based checkpoints'
+    )
     args = parser.parse_args()
     print(args)
 
     if args.num is not None:
-        args.inputs = last_n_checkpoints(args.inputs, args.num)
+        args.inputs = last_n_checkpoints(args.inputs, args.num, args.update_based_checkpoints)
         print('averaging checkpoints: ', args.inputs)
 
     new_state = average_checkpoints(args.inputs)
