@@ -266,7 +266,7 @@ def parse_embedding(embed_path):
         the -0.0230 -0.0264  0.0287  0.0171  0.1403
         at -0.0395 -0.1286  0.0275  0.0254 -0.0932
     """
-    embed_dict = dict()
+    embed_dict = {}
     with open(embed_path) as f_embed:
         _ = next(f_embed)  # skip header
         for line in f_embed:
@@ -344,15 +344,20 @@ def buffered_arange(max):
 
 def convert_padding_direction(
     src_tokens,
-    src_lengths,
     padding_idx,
     right_to_left=False,
     left_to_right=False,
 ):
     assert right_to_left ^ left_to_right
     pad_mask = src_tokens.eq(padding_idx)
-    if pad_mask.max() == 0:
+    if not pad_mask.any():
         # no padding, return early
+        return src_tokens
+    if left_to_right and not pad_mask[:, 0].any():
+        # already right padded
+        return src_tokens
+    if right_to_left and not pad_mask[:, -1].any():
+        # already left padded
         return src_tokens
     max_len = src_tokens.size(1)
     range = buffered_arange(max_len).type_as(src_tokens).expand_as(src_tokens)

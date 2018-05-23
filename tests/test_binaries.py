@@ -103,6 +103,7 @@ class TestBinaries(unittest.TestCase):
         generate.main(generate_args)
 
         # evaluate model interactively
+        generate_args.max_sentences = None
         orig_stdin = sys.stdin
         sys.stdin = StringIO('h e l l o\n')
         interactive.main(generate_args)

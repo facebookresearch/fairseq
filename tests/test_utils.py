@@ -27,13 +27,11 @@ class TestUtils(unittest.TestCase):
             [7, 8, 9, 10, 1],
             [11, 12, 1, 1, 1],
         ])
-        lengths = torch.LongTensor([5, 4, 2])
 
         self.assertAlmostEqual(
             right_pad,
             utils.convert_padding_direction(
                 left_pad,
-                lengths,
                 pad,
                 left_to_right=True,
             ),
@@ -42,7 +40,6 @@ class TestUtils(unittest.TestCase):
             left_pad,
             utils.convert_padding_direction(
                 right_pad,
-                lengths,
                 pad,
                 right_to_left=True,
             ),
