@@ -82,6 +82,19 @@ class Dictionary(object):
             self.count.append(n)
             return idx
 
+    def update(self, new_dict):
+        """Updates counts from new dictionary."""
+        for word in new_dict.symbols:
+            idx2 = new_dict.indices[word]
+            if word in self.indices:
+                idx = self.indices[word]
+                self.count[idx] = self.count[idx] + new_dict.count[idx2]
+            else:
+                idx = len(self.symbols)
+                self.indices[word] = idx
+                self.symbols.append(word)
+                self.count.append(new_dict.count[idx2])
+
     def finalize(self, threshold=1, nwords=-1, padding_factor=8):
         """Sort symbols by frequency in descending order, ignoring special ones.
 

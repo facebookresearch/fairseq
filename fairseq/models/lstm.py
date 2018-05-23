@@ -30,6 +30,8 @@ class LSTMModel(FairseqModel):
                             help='encoder embedding dimension')
         parser.add_argument('--encoder-embed-path', default=None, type=str, metavar='STR',
                             help='path to pre-trained encoder embedding')
+        parser.add_argument('--encoder-hidden-size', type=int, metavar='N',
+                            help='encoder hidden size')
         parser.add_argument('--encoder-layers', type=int, metavar='N',
                             help='number of encoder layers')
         parser.add_argument('--encoder-bidirectional', action='store_true',
@@ -38,6 +40,8 @@ class LSTMModel(FairseqModel):
                             help='decoder embedding dimension')
         parser.add_argument('--decoder-embed-path', default=None, type=str, metavar='STR',
                             help='path to pre-trained decoder embedding')
+        parser.add_argument('--decoder-hidden-size', type=int, metavar='N',
+                            help='decoder hidden size')
         parser.add_argument('--decoder-layers', type=int, metavar='N',
                             help='number of decoder layers')
         parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
@@ -57,29 +61,31 @@ class LSTMModel(FairseqModel):
 
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
+        """Build a new model instance."""
         # make sure that all args are properly defaulted (in case there are any new ones)
         base_architecture(args)
 
-        """Build a new model instance."""
-        if not hasattr(args, 'encoder_embed_path'):
-            args.encoder_embed_path = None
-        if not hasattr(args, 'decoder_embed_path'):
-            args.decoder_embed_path = None
+        def load_pretrained_embedding_from_file(embed_path, dictionary, embed_dim):
+            num_embeddings = len(dictionary)
+            padding_idx = dictionary.pad()
+            embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
+            embed_dict = utils.parse_embedding(embed_path)
+            utils.print_embed_overlap(embed_dict, dictionary)
+            return utils.load_embedding(embed_dict, dictionary, embed_tokens)
 
-        encoder_embed_dict = None
+        pretrained_encoder_embed = None
         if args.encoder_embed_path:
-            encoder_embed_dict = utils.parse_embedding(args.encoder_embed_path)
-            utils.print_embed_overlap(encoder_embed_dict, src_dict)
-
-        decoder_embed_dict = None
+            pretrained_encoder_embed = load_pretrained_embedding_from_file(
+                args.encoder_embed_path, src_dict, args.encoder_embed_dim)
+        pretrained_decoder_embed = None
         if args.decoder_embed_path:
-            decoder_embed_dict = utils.parse_embedding(args.decoder_embed_path)
-            utils.print_embed_overlap(decoder_embed_dict, dst_dict)
+            pretrained_decoder_embed = load_pretrained_embedding_from_file(
+                args.decoder_embed_path, dst_dict, args.decoder_embed_dim)
 
         encoder = LSTMEncoder(
             dictionary=src_dict,
             embed_dim=args.encoder_embed_dim,
-            embed_dict=encoder_embed_dict,
+            hidden_size=args.encoder_hidden_size,
             num_layers=args.encoder_layers,
             dropout_in=args.encoder_dropout_in,
             dropout_out=args.encoder_dropout_out,
@@ -93,7 +99,7 @@ class LSTMModel(FairseqModel):
         decoder = LSTMDecoder(
             dictionary=dst_dict,
             embed_dim=args.decoder_embed_dim,
-            embed_dict=decoder_embed_dict,
+            hidden_size=args.decoder_hidden_size,
             out_embed_dim=args.decoder_out_embed_dim,
             num_layers=args.decoder_layers,
             dropout_in=args.decoder_dropout_in,
@@ -108,8 +114,13 @@ class LSTMModel(FairseqModel):
 
 class LSTMEncoder(FairseqEncoder):
     """LSTM encoder."""
-    def __init__(self, dictionary, embed_dim=512, embed_dict=None,
-                 num_layers=1, dropout_in=0.1, dropout_out=0.1):
+    def __init__(
+            self, dictionary, embed_dim=512, hidden_size=512, num_layers=1,
+            dropout_in=0.1, dropout_out=0.1, bidirectional=False,
+            left_pad_source=LanguagePairDataset.LEFT_PAD_SOURCE,
+            pretrained_embed=None,
+            padding_value=0.,
+    ):
         super().__init__(dictionary)
         self.num_layers = num_layers
         self.dropout_in = dropout_in
@@ -119,9 +130,10 @@ class LSTMEncoder(FairseqEncoder):
 
         num_embeddings = len(dictionary)
         self.padding_idx = dictionary.pad()
-        self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
-        if embed_dict:
-            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
+        if pretrained_embed is None:
+            self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
+        else:
+            self.embed_tokens = pretrained_embed
 
         self.lstm = LSTM(
             input_size=embed_dim,
@@ -236,10 +248,12 @@ class AttentionLayer(nn.Module):
 
 class LSTMDecoder(FairseqIncrementalDecoder):
     """LSTM decoder."""
-    def __init__(self, dictionary, encoder_embed_dim=512,
-                 embed_dim=512, embed_dict=None,
-                 out_embed_dim=512, num_layers=1, dropout_in=0.1,
-                 dropout_out=0.1, attention=True):
+    def __init__(
+            self, dictionary, embed_dim=512, hidden_size=512, out_embed_dim=512,
+            num_layers=1, dropout_in=0.1, dropout_out=0.1, attention=True,
+            encoder_embed_dim=512, encoder_output_units=512,
+            pretrained_embed=None,
+    ):
         super().__init__(dictionary)
         self.dropout_in = dropout_in
         self.dropout_out = dropout_out
@@ -247,9 +261,15 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
-        self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
-        if embed_dict:
-            self.embed_tokens = utils.load_embedding(embed_dict, self.dictionary, self.embed_tokens)
+        if pretrained_embed is None:
+            self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
+        else:
+            self.embed_tokens = pretrained_embed
+
+        self.encoder_output_units = encoder_output_units
+        assert encoder_output_units == hidden_size, \
+            '{} {}'.format(encoder_output_units, hidden_size)
+        # TODO another Linear layer if not equal
 
         self.layers = nn.ModuleList([
             LSTMCell(
@@ -408,13 +428,15 @@ def Linear(in_features, out_features, bias=True, dropout=0):
 @register_model_architecture('lstm', 'lstm')
 def base_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
-    args.encoder_hidden_size = getattr(args, 'encoder_hidden_size', 512)
+    args.encoder_embed_path = getattr(args, 'encoder_embed_path', None)
+    args.encoder_hidden_size = getattr(args, 'encoder_hidden_size', args.encoder_embed_dim)
     args.encoder_layers = getattr(args, 'encoder_layers', 1)
     args.encoder_bidirectional = getattr(args, 'encoder_bidirectional', False)
     args.encoder_dropout_in = getattr(args, 'encoder_dropout_in', args.dropout)
     args.encoder_dropout_out = getattr(args, 'encoder_dropout_out', args.dropout)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
-    args.decoder_hidden_size = getattr(args, 'decoder_hidden_size', 512)
+    args.decoder_embed_path = getattr(args, 'decoder_embed_path', None)
+    args.decoder_hidden_size = getattr(args, 'decoder_hidden_size', args.decoder_embed_dim)
     args.decoder_layers = getattr(args, 'decoder_layers', 1)
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 512)
     args.decoder_attention = getattr(args, 'decoder_attention', '1')

@@ -275,7 +275,7 @@ def parse_embedding(embed_path):
         the -0.0230 -0.0264  0.0287  0.0171  0.1403
         at -0.0395 -0.1286  0.0275  0.0254 -0.0932
     """
-    embed_dict = dict()
+    embed_dict = {}
     with open(embed_path) as f_embed:
         _ = next(f_embed)  # skip header
         for line in f_embed:
@@ -353,7 +353,6 @@ def buffered_arange(max):
 
 def convert_padding_direction(
         src_tokens,
-        src_lengths,
         padding_idx,
         right_to_left=False,
         left_to_right=False,

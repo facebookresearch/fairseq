@@ -51,19 +51,12 @@ class FConvModel(FairseqModel):
 
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
+        """Build a new model instance."""
         # make sure that all args are properly defaulted (in case there are any new ones)
         base_architecture(args)
-
-        """Build a new model instance."""
         if not hasattr(args, 'max_source_positions'):
             args.max_source_positions = args.max_positions
             args.max_target_positions = args.max_positions
-        if not hasattr(args, 'share_input_output_embed'):
-            args.share_input_output_embed = False
-        if not hasattr(args, 'encoder_embed_path'):
-            args.encoder_embed_path = None
-        if not hasattr(args, 'decoder_embed_path'):
-            args.decoder_embed_path = None
 
         encoder_embed_dict = None
         if args.encoder_embed_path:
@@ -464,8 +457,10 @@ def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
 @register_model_architecture('fconv', 'fconv')
 def base_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
+    args.encoder_embed_path = getattr(args, 'encoder_embed_path', None)
     args.encoder_layers = getattr(args, 'encoder_layers', '[(512, 3)] * 20')
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
+    args.decoder_embed_path = getattr(args, 'decoder_embed_path', None)
     args.decoder_layers = getattr(args, 'decoder_layers', '[(512, 3)] * 20')
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
     args.decoder_attention = getattr(args, 'decoder_attention', 'True')
