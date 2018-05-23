@@ -117,6 +117,7 @@ class json_progress_bar(progress_bar):
 
     def print(self, stats):
         """Print end-of-epoch stats."""
+        self.stats = stats
         stats = self._format_stats(self.stats, epoch=self.epoch)
         print(json.dumps(stats), flush=True)
 

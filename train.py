@@ -15,10 +15,10 @@ from fairseq import criterions, data, models, options, progress_bar
 from fairseq.fp16_trainer import FP16Trainer
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
+from fairseq.utils import checkpoint_paths
 
 
 def main(args):
-
     if args.max_tokens is None:
         args.max_tokens = 6000
 
@@ -82,26 +82,22 @@ def main(args):
     max_epoch = args.max_epoch or math.inf
     max_update = args.max_update or math.inf
     lr = trainer.get_lr()
+    first_val_loss = None
     train_meter = StopwatchMeter()
     train_meter.start()
     while lr > args.min_lr and epoch <= max_epoch and trainer.get_num_updates() < max_update:
         # train for one epoch
-        train(args, trainer, next(train_dataloader), epoch)
+        train(args, trainer, next(train_dataloader), epoch, dataset)
 
-        # evaluate on validate set
-        first_val_loss = None
         if epoch % args.validate_interval == 0:
-            for k, subset in enumerate(args.valid_subset.split(',')):
-                val_loss = validate(args, trainer, dataset, subset, epoch)
-                if k == 0:
-                    first_val_loss = val_loss
+            first_val_loss = val_loss(args, trainer, dataset, epoch)
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch, first_val_loss)
 
         # save checkpoint
         if not args.no_save and epoch % args.save_interval == 0:
-            save_checkpoint(trainer, args, epoch, first_val_loss)
+            save_checkpoint(trainer, args, epoch, end_of_epoch=True, val_loss=first_val_loss)
 
         epoch += 1
     train_meter.stop()
@@ -120,7 +116,7 @@ def load_dataset(args, splits):
     return dataset
 
 
-def train(args, trainer, itr, epoch):
+def train(args, trainer, itr, epoch, dataset):
     """Train the model for one epoch."""
 
     # Set seed based on args.seed and the epoch number so that we get
@@ -168,7 +164,12 @@ def train(args, trainer, itr, epoch):
         if i == 0:
             trainer.get_meter('wps').reset()
 
-        if trainer.get_num_updates() >= max_update:
+        num_updates = trainer.get_num_updates()
+        if not args.no_save and (args.save_interval_updates or 0) > 0 and num_updates % args.save_interval_updates == 0:
+            first_val_loss = val_loss(args, trainer, dataset, epoch, num_updates)
+            save_checkpoint(trainer, args, epoch, end_of_epoch=False, val_loss=first_val_loss)
+
+        if num_updates >= max_update:
             break
 
     # log end-of-epoch stats
@@ -202,7 +203,7 @@ def get_training_stats(trainer):
     return stats
 
 
-def validate(args, trainer, dataset, subset, epoch):
+def validate(args, trainer, dataset, subset, epoch, num_updates, verbose):
     """Evaluate the model on the validation set and return the average loss."""
 
     # Initialize dataloader
@@ -236,19 +237,24 @@ def validate(args, trainer, dataset, subset, epoch):
     for sample in progress:
         log_output = trainer.valid_step(sample)
 
-        # log mid-validation stats
-        stats = get_valid_stats(trainer)
-        for k, v in log_output.items():
-            if k in ['loss', 'nll_loss', 'sample_size']:
-                continue
-            extra_meters[k].update(v)
-            stats[k] = extra_meters[k].avg
-        progress.log(stats)
+        if verbose:
+            # log mid-validation stats
+            stats = get_valid_stats(trainer)
+            for k, v in log_output.items():
+                if k in ['loss', 'nll_loss', 'sample_size']:
+                    continue
+                extra_meters[k].update(v)
+                stats[k] = extra_meters[k].avg
+            progress.log(stats)
 
     # log validation stats
     stats = get_valid_stats(trainer)
     for k, meter in extra_meters.items():
         stats[k] = meter.avg
+
+    if num_updates is not None:
+        stats['num_updates'] = num_updates
+
     progress.print(stats)
 
     return stats['valid_loss']
@@ -273,16 +279,33 @@ def get_perplexity(loss):
         return float('inf')
 
 
-def save_checkpoint(trainer, args, epoch, val_loss=None):
+def val_loss(args, trainer, dataset, epoch, num_updates=None):
+    # evaluate on validate set
+    subsets = args.valid_subset.split(',')
+    # we want to validate all subsets so the results get printed out, but return only the first
+    losses = [validate(args, trainer, dataset, subset, epoch, num_updates, verbose=False) for subset in subsets]
+    return losses[0] if len(losses) > 0 else None
+
+
+def save_checkpoint(trainer, args, epoch, end_of_epoch, val_loss):
     extra_state = {
         'epoch': epoch,
         'val_loss': val_loss,
         'wall_time': trainer.get_meter('wall').elapsed_time,
     }
 
-    if not args.no_epoch_checkpoints:
+    if end_of_epoch and not args.no_epoch_checkpoints:
         epoch_filename = os.path.join(args.save_dir, 'checkpoint{}.pt'.format(epoch))
         trainer.save_checkpoint(epoch_filename, extra_state)
+    elif not end_of_epoch and args.keep_interval_updates > 0:
+        checkpoint_filename = os.path.join(args.save_dir,
+                                           'checkpoint_{}_{}.pt'.format(epoch, trainer.get_num_updates()))
+        trainer.save_checkpoint(checkpoint_filename, extra_state)
+        # remove old checkpoints
+        checkpoints = checkpoint_paths(args.save_dir, pattern=r'checkpoint_\d+_(\d+)\.pt')
+        # checkpoints are sorted in descending order
+        for old_chk in checkpoints[args.keep_interval_updates:]:
+            os.remove(old_chk)
 
     assert val_loss is not None
     if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
@@ -317,9 +340,11 @@ if __name__ == '__main__':
 
     if args.distributed_port > 0 or args.distributed_init_method is not None:
         from distributed_train import main as distributed_main
+
         distributed_main(args)
     elif args.distributed_world_size > 1:
         from multiprocessing_train import main as multiprocessing_main
+
         multiprocessing_main(args)
     else:
         main(args)

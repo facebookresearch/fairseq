@@ -9,6 +9,7 @@ from collections import defaultdict, OrderedDict
 import contextlib
 import logging
 import os
+import re
 import torch
 import traceback
 
@@ -351,10 +352,11 @@ def buffered_arange(max):
 
 
 def convert_padding_direction(
-    src_tokens,
-    padding_idx,
-    right_to_left=False,
-    left_to_right=False,
+        src_tokens,
+        src_lengths,
+        padding_idx,
+        right_to_left=False,
+        left_to_right=False,
 ):
     assert right_to_left ^ left_to_right
     pad_mask = src_tokens.eq(padding_idx)
@@ -396,3 +398,19 @@ def clip_grad_norm_(tensor, max_norm):
 def fill_with_neg_inf(t):
     """FP16-compatible function that fills a tensor with -inf."""
     return t.float().fill_(float('-inf')).type_as(t)
+
+
+def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
+    """ retrieves all checkpoints found in `path` directory. checkpoints are identified by matching filename to
+    the specified pattern. if the pattern contains groups, the result will be sorted by the first group in descending
+    order """
+    pt_regexp = re.compile(pattern)
+    files = os.listdir(path)
+
+    entries = []
+    for i, f in enumerate(files):
+        m = pt_regexp.fullmatch(f)
+        if m is not None:
+            idx = int(m.group(1)) if len(m.groups()) > 0 else i
+            entries.append((idx, m.group(0)))
+    return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
