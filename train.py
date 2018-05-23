@@ -203,7 +203,7 @@ def get_training_stats(trainer):
     return stats
 
 
-def validate(args, trainer, dataset, subset, epoch, num_updates, verbose):
+def validate(args, trainer, dataset, subset, epoch, num_updates):
     """Evaluate the model on the validation set and return the average loss."""
 
     # Initialize dataloader
@@ -236,16 +236,6 @@ def validate(args, trainer, dataset, subset, epoch, num_updates, verbose):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     for sample in progress:
         log_output = trainer.valid_step(sample)
-
-        if verbose:
-            # log mid-validation stats
-            stats = get_valid_stats(trainer)
-            for k, v in log_output.items():
-                if k in ['loss', 'nll_loss', 'sample_size']:
-                    continue
-                extra_meters[k].update(v)
-                stats[k] = extra_meters[k].avg
-            progress.log(stats)
 
     # log validation stats
     stats = get_valid_stats(trainer)
@@ -283,7 +273,7 @@ def val_loss(args, trainer, dataset, epoch, num_updates=None):
     # evaluate on validate set
     subsets = args.valid_subset.split(',')
     # we want to validate all subsets so the results get printed out, but return only the first
-    losses = [validate(args, trainer, dataset, subset, epoch, num_updates, verbose=False) for subset in subsets]
+    losses = [validate(args, trainer, dataset, subset, epoch, num_updates) for subset in subsets]
     return losses[0] if len(losses) > 0 else None
 
 

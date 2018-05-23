@@ -100,22 +100,32 @@ def main():
         help='Write the new checkpoint containing the averaged weights to this '
              'path.',
     )
-    parser.add_argument(
-        '--num',
+    num_group = parser.add_mutually_exclusive_group()
+    num_group.add_argument(
+        '--num-epoch-checkpoints',
         type=int,
         help='if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, '
-             'and average last num of those',
+             'and average last this many of them.',
     )
-    parser.add_argument(
-        '--update-based-checkpoints',
-        action='store_true',
-        help='if set and used together with --num, averages update-based checkpoints instead of epoch-based checkpoints'
+    num_group.add_argument(
+        '--num-update-checkpoints',
+        type=int,
+        help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, '
+             'and average last this many of them.',
     )
     args = parser.parse_args()
     print(args)
 
-    if args.num is not None:
-        args.inputs = last_n_checkpoints(args.inputs, args.num, args.update_based_checkpoints)
+    num = None
+    is_update_based = False
+    if args.num_update_checkpoints is not None:
+        num = args.num_update_checkpoints
+        is_update_based = True
+    elif args.num_epoch_checkpoints is not None:
+        num = args.num_epoch_checkpoints
+
+    if num is not None:
+        args.inputs = last_n_checkpoints(args.inputs, num, is_update_based)
         print('averaging checkpoints: ', args.inputs)
 
     new_state = average_checkpoints(args.inputs)
