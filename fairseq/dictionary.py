@@ -82,6 +82,19 @@ class Dictionary(object):
             self.count.append(n)
             return idx
 
+    def update(self, new_dict):
+        """Updates counts from new dictionary."""
+        for word in new_dict.symbols:
+            idx2 = new_dict.indices[word]
+            if word in self.indices:
+                idx = self.indices[word]
+                self.count[idx] = self.count[idx] + new_dict.count[idx2]
+            else:
+                idx = len(self.symbols)
+                self.indices[word] = idx
+                self.symbols.append(word)
+                self.count.append(new_dict.count[idx2])
+
     def finalize(self, threshold=1, nwords=-1, padding_factor=8):
         """Sort symbols by frequency in descending order, ignoring special ones.
 
@@ -134,7 +147,7 @@ class Dictionary(object):
         return self.unk_index
 
     @classmethod
-    def load(cls, f):
+    def load(cls, f, ignore_utf_errors=False):
         """Loads the dictionary from a text file with the format:
 
         ```
@@ -145,8 +158,12 @@ class Dictionary(object):
         """
         if isinstance(f, str):
             try:
-                with open(f, 'r', encoding='utf-8') as fd:
-                    return cls.load(fd)
+                if not ignore_utf_errors:
+                    with open(f, 'r', encoding='utf-8') as fd:
+                        return cls.load(fd)
+                else:
+                    with open(f, 'r', encoding='utf-8', errors='ignore') as fd:
+                        return cls.load(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe
             except Exception:
