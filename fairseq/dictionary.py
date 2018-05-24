@@ -81,6 +81,19 @@ class Dictionary(object):
             self.count.append(n)
             return idx
 
+    def update(self, new_dict):
+        """Updates counts from new dictionary."""
+        for word in new_dict.symbols:
+            idx2 = new_dict.indices[word]
+            if word in self.indices:
+                idx = self.indices[word]
+                self.count[idx] = self.count[idx] + new_dict.count[idx2]
+            else:
+                idx = len(self.symbols)
+                self.indices[word] = idx
+                self.symbols.append(word)
+                self.count.append(new_dict.count[idx2])
+
     def finalize(self):
         """Sort symbols by frequency in descending order, ignoring special ones."""
         self.count, self.symbols = zip(
@@ -102,7 +115,7 @@ class Dictionary(object):
         return self.unk_index
 
     @classmethod
-    def load(cls, f):
+    def load(cls, f, ignore_utf_errors=False):
         """Loads the dictionary from a text file with the format:
 
         ```
@@ -114,8 +127,12 @@ class Dictionary(object):
 
         if isinstance(f, str):
             try:
-                with open(f, 'r', encoding='utf-8') as fd:
-                    return cls.load(fd)
+                if not ignore_utf_errors:
+                    with open(f, 'r', encoding='utf-8') as fd:
+                        return cls.load(fd)
+                else:
+                    with open(f, 'r', encoding='utf-8', errors='ignore') as fd:
+                        return cls.load(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe
             except Exception:
@@ -141,6 +158,6 @@ class Dictionary(object):
         cnt = 0
         for i, t in enumerate(zip(self.symbols, self.count)):
             if i >= self.nspecial and t[1] >= threshold \
-                    and (nwords < 0 or cnt < nwords):
+                    and (nwords <= 0 or cnt < nwords):
                 print('{} {}'.format(t[0], t[1]), file=f)
                 cnt += 1
