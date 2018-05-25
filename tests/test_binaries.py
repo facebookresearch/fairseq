@@ -84,6 +84,8 @@ class TestBinaries(unittest.TestCase):
                 '--max-epoch', '1',
                 '--no-progress-bar',
                 '--distributed-world-size', '1',
+                '--source-lang', 'in',
+                '--target-lang', 'out',
             ],
         )
         train.main(train_args)

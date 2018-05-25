@@ -11,7 +11,8 @@ import os
 import math
 import torch
 
-from fairseq import criterions, data, models, options, progress_bar
+from fairseq import criterions, models, options, progress_bar
+from fairseq.data import data_utils, data_loaders, OffsetDataset
 from fairseq.fp16_trainer import FP16Trainer
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
@@ -72,10 +73,10 @@ def main(args):
     )
 
     # Load the latest checkpoint if one is available
-    epoch = load_checkpoint(args, trainer, train_dataloader)
+    epoch, next_ds = load_checkpoint(args, trainer, train_dataloader)
 
     # Send a dummy batch to warm the caching allocator
-    dummy_batch = data.get_dummy_batch(args.max_tokens, dataset.src_dict, dataset.dst_dict)
+    dummy_batch = data_utils.get_dummy_batch(args.max_tokens, dataset.src_dict, dataset.dst_dict)
     trainer.dummy_train_step(dummy_batch)
 
     # Train until the learning rate gets too small
@@ -87,7 +88,7 @@ def main(args):
     train_meter.start()
     while lr > args.min_lr and epoch <= max_epoch and trainer.get_num_updates() < max_update:
         # train for one epoch
-        train(args, trainer, next(train_dataloader), epoch, dataset)
+        train(args, trainer, next_ds, epoch, dataset)
 
         if epoch % args.validate_interval == 0:
             first_val_loss = val_loss(args, trainer, dataset, epoch)
@@ -100,19 +101,14 @@ def main(args):
             save_checkpoint(trainer, args, epoch, end_of_epoch=True, val_loss=first_val_loss)
 
         epoch += 1
+        next_ds = next(train_dataloader)
     train_meter.stop()
-
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
 
 
 def load_dataset(args, splits):
-    if data.has_binary_files(args.data, splits):
-        dataset = data.load_dataset(args.data, splits, args.source_lang, args.target_lang)
-    else:
-        dataset = data.load_raw_text_dataset(args.data, splits, args.source_lang, args.target_lang)
-    if args.source_lang is None or args.target_lang is None:
-        # record inferred languages in args, so that it's saved in checkpoints
-        args.source_lang, args.target_lang = dataset.src, dataset.dst
+    is_raw = not data_utils.has_binary_files(args.data, splits)
+    dataset = data_loaders.load_dataset(args, splits, is_raw)
     return dataset
 
 
@@ -311,17 +307,29 @@ def load_checkpoint(args, trainer, train_dataloader):
     os.makedirs(args.save_dir, exist_ok=True)
     checkpoint_path = os.path.join(args.save_dir, args.restore_file)
     epoch = 1
+    ds = None
     if os.path.isfile(checkpoint_path):
         extra_state = trainer.load_checkpoint(checkpoint_path)
         if extra_state is not None:
             epoch = extra_state['epoch']
-            print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
+            trainer_updates = trainer.get_num_updates()
+
+            print('| loaded checkpoint {} (epoch {} @ {} updates)'.format(checkpoint_path, epoch, trainer_updates))
+
             trainer.lr_step(epoch)
+            updates = 0
             for i in range(epoch):
-                _ = next(train_dataloader)
-            epoch += 1
+                ds = next(train_dataloader)
+                updates += len(ds)
+
+            if ds is not None and updates > trainer_updates:
+                ds = OffsetDataset(ds, updates - trainer_updates)
+            else:
+                ds = next(train_dataloader)
+                epoch += 1
+
             trainer.get_meter('wall').reset(init=extra_state.get('wall_time', 0))
-    return epoch
+    return epoch, ds or next(train_dataloader)
 
 
 if __name__ == '__main__':

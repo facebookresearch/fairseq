@@ -13,7 +13,8 @@ from collections import namedtuple
 from torch.autograd import Variable
 
 from fairseq import options, tokenizer, utils
-from fairseq.data import LanguagePairDataset
+from fairseq.data.data_utils import collate_tokens
+from fairseq.data.consts import LEFT_PAD_SOURCE
 from fairseq.sequence_generator import SequenceGenerator
 
 Batch = namedtuple('Batch', 'srcs tokens lengths')
@@ -41,9 +42,8 @@ def make_batches(lines, batch_size, src_dict):
     batches = np.array_split(indices, num_batches)
     for batch_idxs in batches:
         batch_toks = [tokens[i] for i in batch_idxs]
-        batch_toks = LanguagePairDataset.collate_tokens(batch_toks, src_dict.pad(), src_dict.eos(),
-                                                        LanguagePairDataset.LEFT_PAD_SOURCE,
-                                                        move_eos_to_beginning=False)
+        batch_toks = collate_tokens(batch_toks, src_dict.pad(), src_dict.eos(), LEFT_PAD_SOURCE,
+                                    move_eos_to_beginning=False)
         yield Batch(
             srcs=[lines[i] for i in batch_idxs],
             tokens=batch_toks,

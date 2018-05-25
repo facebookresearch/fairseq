@@ -68,7 +68,7 @@ def load_model_state(filename, model):
         return None, [], None
     state = torch.load(filename)
     state = _upgrade_state_dict(state)
-    state['model'] = model.upgrade_state_dict(state['model'])
+    model.upgrade_state_dict(state['model'])
 
     # load model parameters
     try:
@@ -134,7 +134,8 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
     {'arg_name': arg} -- to override model args that were used during model
     training
     """
-    from fairseq import data, models
+    from fairseq import models
+    from fairseq.data import data_utils
 
     # load model architectures and weights
     states = []
@@ -150,7 +151,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
 
     if src_dict is None or dst_dict is None:
         assert data_dir is not None
-        src_dict, dst_dict = data.load_dictionaries(data_dir, args.source_lang, args.target_lang)
+        src_dict, dst_dict = data_utils.load_dictionaries(data_dir, args.source_lang, args.target_lang)
 
     # build ensemble
     ensemble = []

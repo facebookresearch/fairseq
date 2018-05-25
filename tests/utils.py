@@ -8,7 +8,9 @@
 import torch
 from torch.autograd import Variable
 
-from fairseq import data, dictionary, utils
+from fairseq.data.language_pair_dataset import collate
+from fairseq import utils
+from fairseq.data import dictionary
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
@@ -45,10 +47,11 @@ def dummy_dataloader(
         dataset,
         batch_size=batch_size,
         collate_fn=(
-            lambda samples: data.LanguagePairDataset.collate(
+            lambda samples: collate(
                 samples,
                 padding_idx,
                 eos_idx,
+                has_target=True,
             )
         ),
     )
@@ -134,7 +137,7 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
 
         return Variable(probs), Variable(attn)
 
-    def get_normalized_probs(self, net_output, log_probs):
+    def get_normalized_probs(self, net_output, log_probs, _):
         # the decoder returns probabilities directly
         probs = net_output[0]
         if log_probs:

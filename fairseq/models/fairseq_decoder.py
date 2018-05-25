@@ -19,7 +19,7 @@ class FairseqDecoder(nn.Module):
     def forward(self, prev_output_tokens, encoder_out):
         raise NotImplementedError
 
-    def get_normalized_probs(self, net_output, log_probs):
+    def get_normalized_probs(self, net_output, log_probs, _):
         """Get normalized probabilities (or log probs) from a net's output."""
         logits = net_output[0].float()
         if log_probs:

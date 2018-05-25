@@ -12,7 +12,7 @@ from itertools import zip_longest
 import os
 import shutil
 
-from fairseq import dictionary, indexed_dataset
+from fairseq.data import indexed_dataset, dictionary
 from fairseq.tokenizer import Tokenizer, tokenize_line
 
 
@@ -54,33 +54,53 @@ def main(args):
             Tokenizer.add_file_to_dictionary(filename, d, tokenize_line)
         return d
 
+    def train_path(lang):
+        return '{}{}'.format(args.trainpref, ('.' + lang) if lang else '')
+
+    def file_name(prefix, lang):
+        fname = prefix
+        if lang is not None:
+            fname += f'.{lang}'
+        return fname
+
+    def dest_path(prefix, lang):
+        return os.path.join(args.destdir, file_name(prefix, lang))
+
+    def dict_path(lang):
+        return dest_path('dict', lang) + '.txt'
+
+    def dataset_dest_path(output_prefix, lang, extension):
+        base = f'{args.destdir}/{output_prefix}'
+        lang_part = f'.{args.source_lang}-{args.target_lang}.{lang}' if lang is not None else ''
+        return f'{base}{lang_part}.{extension}'
+
     if args.joined_dictionary:
         assert not args.srcdict, 'cannot combine --srcdict and --joined-dictionary'
         assert not args.tgtdict, 'cannot combine --tgtdict and --joined-dictionary'
-        src_dict = build_dictionary([
-            '{}.{}'.format(args.trainpref, lang)
+        src_dict = build_dictionary(set([
+            train_path(lang)
             for lang in [args.source_lang, args.target_lang]
-        ])
+        ]))
         tgt_dict = src_dict
     else:
         if args.srcdict:
             src_dict = dictionary.Dictionary.load(args.srcdict)
         else:
             assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
-            src_dict = build_dictionary(['{}.{}'.format(args.trainpref, args.source_lang)])
+            src_dict = build_dictionary([train_path(args.source_lang)])
         if target:
             if args.tgtdict:
                 tgt_dict = dictionary.Dictionary.load(args.tgtdict)
             else:
                 assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
-                tgt_dict = build_dictionary(['{}.{}'.format(args.trainpref, args.target_lang)])
+                tgt_dict = build_dictionary([train_path(args.target_lang)])
 
     src_dict.finalize(
         threshold=args.thresholdsrc,
         nwords=args.nwordssrc,
         padding_factor=args.padding_factor,
     )
-    src_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)))
+    src_dict.save(dict_path(args.source_lang))
     if target:
         if not args.joined_dictionary:
             tgt_dict.finalize(
@@ -88,36 +108,31 @@ def main(args):
                 nwords=args.nwordstgt,
                 padding_factor=args.padding_factor,
             )
-        tgt_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)))
+        tgt_dict.save(dict_path(args.target_lang))
 
     def make_binary_dataset(input_prefix, output_prefix, lang):
-        dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(lang)))
+        dict = dictionary.Dictionary.load(dict_path(lang))
         print('| [{}] Dictionary: {} types'.format(lang, len(dict) - 1))
 
-        ds = indexed_dataset.IndexedDatasetBuilder(
-            '{}/{}.{}-{}.{}.bin'.format(args.destdir, output_prefix, args.source_lang,
-                                        args.target_lang, lang)
-        )
+        ds = indexed_dataset.IndexedDatasetBuilder(dataset_dest_path(output_prefix, lang, 'bin'))
 
         def consumer(tensor):
             ds.add_item(tensor)
 
-        input_file = '{}.{}'.format(input_prefix, lang)
+        input_file = '{}{}'.format(input_prefix, ('.' + lang) if lang is not None else '')
         res = Tokenizer.binarize(input_file, dict, consumer)
         print('| [{}] {}: {} sents, {} tokens, {:.3}% replaced by {}'.format(
             lang, input_file, res['nseq'], res['ntok'],
             100 * res['nunk'] / res['ntok'], dict.unk_word))
-        ds.finalize('{}/{}.{}-{}.{}.idx'.format(
-            args.destdir, output_prefix,
-            args.source_lang, args.target_lang, lang))
+        ds.finalize(dataset_dest_path(output_prefix, lang, 'idx'))
 
     def make_dataset(input_prefix, output_prefix, lang, output_format='binary'):
         if output_format == 'binary':
             make_binary_dataset(input_prefix, output_prefix, lang)
         elif output_format == 'raw':
             # Copy original text file to destination folder
-            output_text_file = os.path.join(args.destdir, '{}.{}'.format(output_prefix, lang))
-            shutil.copyfile('{}.{}'.format(input_prefix, lang), output_text_file)
+            output_text_file = dest_path(output_prefix, lang)
+            shutil.copyfile(file_name(input_prefix, lang), output_text_file)
 
     def make_all(args, make_dataset, lang):
         if args.trainpref:
@@ -139,10 +154,10 @@ def main(args):
 
     if args.alignfile:
         assert args.trainpref, "--trainpref must be set if --alignfile is specified"
-        src_file_name = '{}.{}'.format(args.trainpref, args.source_lang)
-        tgt_file_name = '{}.{}'.format(args.trainpref, args.target_lang)
-        src_dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)))
-        tgt_dict = dictionary.Dictionary.load(os.path.join(args.destdir, 'dict.{}.txt'.format(args.target_lang)))
+        src_file_name = train_path(args.source_lang)
+        tgt_file_name = train_path(args.target_lang)
+        src_dict = dictionary.Dictionary.load(dict_path(args.source_lang))
+        tgt_dict = dictionary.Dictionary.load(dict_path(args.target_lang))
         freq_map = {}
         with open(args.alignfile, 'r') as align_file:
             with open(src_file_name, 'r') as src_file:
