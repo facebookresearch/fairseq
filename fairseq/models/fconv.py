@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq import utils
+from fairseq import options, utils
 from fairseq.data.consts import LEFT_PAD_SOURCE, LEFT_PAD_TARGET
 from fairseq.modules import BeamableMM, GradMultiply, LearnedPositionalEmbedding, LinearizedConvolution, AdaptiveSoftmax
 
@@ -139,8 +139,7 @@ class FConvLanguageModel(FairseqLanguageModel):
             max_positions=args.max_target_positions,
             share_embed=False,
             positional_embeddings=False,
-            adaptive_softmax_cutoff=list(
-                map(int, args.adaptive_softmax_cutoff.split(','))) if args.adaptive_softmax_cutoff else None,
+            adaptive_softmax_cutoff=options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
             normalization_constant=args.normalization_constant,
         )
         return FConvLanguageModel(decoder)
