@@ -614,6 +614,7 @@ def base_architecture(args):
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
     args.decoder_attention = getattr(args, 'decoder_attention', 'True')
     args.share_input_output_embed = getattr(args, 'share_input_output_embed', False)
+    args.normalization_constant = getattr(args, 'normalization_constant', 0.5)
 
 
 @register_model_architecture('fconv', 'fconv_iwslt_de_en')
