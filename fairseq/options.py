@@ -34,13 +34,15 @@ def get_generation_parser(interactive=False):
     return parser
 
 
-def _eval_float_list(x):
+def eval_str_list(x, type=float):
+    if x is None:
+        return None
     if isinstance(x, str):
         x = eval(x)
     try:
-        return list(x)
+        return list(map(type, x))
     except:
-        return [float(x)]
+        return [type(x)]
 
 
 def get_eval_lm_parser():
@@ -75,8 +77,8 @@ def parse_args_and_arch(parser, input_args=None):
     args = parser.parse_args(input_args)
 
     # Post-process args.
-    args.lr = _eval_float_list(args.lr)
-    args.update_freq = _eval_float_list(args.update_freq)
+    args.lr = eval_str_list(args.lr, type=float)
+    args.update_freq = eval_str_list(args.update_freq, type=int)
     if args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
 
