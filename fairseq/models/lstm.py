@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import utils
-from fairseq.data import LanguagePairDataset
+from fairseq.data import consts
 
 from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model, register_model_architecture
 
@@ -117,7 +117,7 @@ class LSTMEncoder(FairseqEncoder):
     def __init__(
             self, dictionary, embed_dim=512, hidden_size=512, num_layers=1,
             dropout_in=0.1, dropout_out=0.1, bidirectional=False,
-            left_pad_source=LanguagePairDataset.LEFT_PAD_SOURCE,
+            left_pad_source=consts.LEFT_PAD_SOURCE,
             pretrained_embed=None,
             padding_value=0.,
     ):

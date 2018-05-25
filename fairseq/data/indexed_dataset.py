@@ -9,6 +9,7 @@ import numpy as np
 import os
 import struct
 import torch
+import torch.utils.data
 
 from fairseq.tokenizer import Tokenizer
 
@@ -48,10 +49,20 @@ def data_file_path(prefix_path):
     return prefix_path + '.bin'
 
 
-class IndexedDataset(object):
+class SizedDataset(torch.utils.data.Dataset):
+    def __init__(self):
+        self._sizes = None
+
+    @property
+    def sizes(self):
+        return self._sizes
+
+
+class IndexedDataset(SizedDataset):
     """Loader for TorchNet IndexedDataset"""
 
     def __init__(self, path):
+        super().__init__()
         with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
             assert magic == b'TNTIDX\x00\x00'
@@ -62,7 +73,7 @@ class IndexedDataset(object):
             self.size, self.s = struct.unpack('<QQ', f.read(16))
             self.dim_offsets = read_longs(f, self.size + 1)
             self.data_offsets = read_longs(f, self.size + 1)
-            self.sizes = read_longs(f, self.s)
+            self._sizes = read_longs(f, self.s)
         self.read_data(path)
 
     def read_data(self, path):
@@ -121,7 +132,7 @@ class IndexedRawTextDataset(IndexedDataset):
     def __init__(self, path, dictionary, append_eos=True, reverse_order=False):
         self.tokens_list = []
         self.lines = []
-        self.sizes = []
+        self._sizes = []
         self.append_eos = append_eos
         self.reverse_order = reverse_order
         self.read_data(path, dictionary)
@@ -136,8 +147,8 @@ class IndexedRawTextDataset(IndexedDataset):
                     append_eos=self.append_eos, reverse_order=self.reverse_order,
                 ) + 1  # +1 for Lua compatibility
                 self.tokens_list.append(tokens)
-                self.sizes.append(len(tokens))
-        self.sizes = np.array(self.sizes)
+                self._sizes.append(len(tokens))
+        self._sizes = np.array(self._sizes)
 
     def __getitem__(self, i):
         self.check_index(i)
@@ -155,10 +166,9 @@ class IndexedRawTextDataset(IndexedDataset):
 
 
 class IndexedDatasetBuilder(object):
-
     element_sizes = {
         np.uint8: 1,
-        np.int8:  1,
+        np.int8: 1,
         np.int16: 2,
         np.int32: 4,
         np.int64: 8,

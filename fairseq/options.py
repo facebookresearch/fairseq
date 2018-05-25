@@ -43,6 +43,13 @@ def _eval_float_list(x):
         return [float(x)]
 
 
+def get_eval_lm_parser():
+    parser = get_parser('Evaluate Language Model')
+    add_dataset_args(parser, gen=True)
+    add_eval_lm_args(parser)
+    return parser
+
+
 def parse_args_and_arch(parser, input_args=None):
     # The parser doesn't know about model/criterion/optimizer-specific args, so
     # we parse twice. First we parse the model/criterion/optimizer, then we
@@ -102,7 +109,7 @@ def add_dataset_args(parser, train=False, gen=False):
                        help='target language')
     group.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
                        help='max number of tokens in the source sequence')
-    group.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
+    group.add_argument('--max-target-positions', '--tokens-per-sample', default=1024, type=int, metavar='N',
                        help='max number of tokens in the target sequence')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
                        help='Ignore too long or too short lines in valid and test set')
@@ -110,6 +117,12 @@ def add_dataset_args(parser, train=False, gen=False):
                        help='maximum number of tokens in a batch')
     group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
                        help='maximum number of sentences in a batch')
+    group.add_argument('--sample-break-mode', metavar='VAL',
+                       choices=['none', 'complete', 'eos'],
+                       help='Used only for LM datasets. If omitted or "none", fills each sample with tokens-per-sample '
+                            'tokens. If set to "complete", splits samples only at the end of sentence, but may include '
+                            'multiple sentences per sample. If set to "eos", includes only one sentence per sample')
+
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
                            choices=['train', 'valid', 'test'],
@@ -216,10 +229,24 @@ def add_checkpoint_args(parser):
     return group
 
 
-def add_generation_args(parser):
-    group = parser.add_argument_group('Generation')
+def add_common_eval_args(group):
     group.add_argument('--path', metavar='FILE', action='append',
                        help='path(s) to model file(s)')
+    group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
+                       help='remove BPE tokens before scoring')
+    group.add_argument('--cpu', action='store_true', help='generate on CPU')
+    group.add_argument('--quiet', action='store_true',
+                       help='only print final scores')
+
+
+def add_eval_lm_args(parser):
+    group = parser.add_argument_group('LM Evaluation')
+    add_common_eval_args(group)
+
+
+def add_generation_args(parser):
+    group = parser.add_argument_group('Generation')
+    add_common_eval_args(group)
     group.add_argument('--beam', default=5, type=int, metavar='N',
                        help='beam size')
     group.add_argument('--nbest', default=1, type=int, metavar='N',
@@ -230,15 +257,12 @@ def add_generation_args(parser):
     group.add_argument('--max-len-b', default=200, type=int, metavar='N',
                        help=('generate sequences of maximum length ax + b, '
                              'where x is the source length'))
-    group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
-                       help='remove BPE tokens before scoring')
     group.add_argument('--no-early-stop', action='store_true',
                        help=('continue searching even after finalizing k=beam '
                              'hypotheses; this is more correct, but increases '
                              'generation time by 50%%'))
     group.add_argument('--unnormalized', action='store_true',
                        help='compare unnormalized hypothesis scores')
-    group.add_argument('--cpu', action='store_true', help='generate on CPU')
     group.add_argument('--no-beamable-mm', action='store_true',
                        help='don\'t use BeamableMM in attention layers')
     group.add_argument('--lenpen', default=1, type=float,
@@ -247,8 +271,6 @@ def add_generation_args(parser):
                        help='unknown word penalty: <0 produces more unks, >0 produces fewer')
     group.add_argument('--replace-unk', nargs='?', const=True, default=None,
                        help='perform unknown replacement (optionally with alignment dictionary)')
-    group.add_argument('--quiet', action='store_true',
-                       help='only print final scores')
     group.add_argument('--score-reference', action='store_true',
                        help='just score the reference translation')
     group.add_argument('--prefix-size', default=0, type=int, metavar='PS',

@@ -28,8 +28,6 @@ class SequenceScorer(object):
             if timer is not None:
                 timer.start()
             pos_scores, attn = self.score(s)
-            if timer is not None:
-                timer.stop(s['ntokens'])
             for i, id in enumerate(s['id'].data):
                 # remove padding from ref
                 src = utils.strip_pad(s['net_input']['src_tokens'].data[i, :], self.pad)
@@ -37,8 +35,11 @@ class SequenceScorer(object):
                 tgt_len = ref.numel()
                 pos_scores_i = pos_scores[i][:tgt_len]
                 score_i = pos_scores_i.sum() / tgt_len
-                attn_i = attn[i]
-                _, alignment = attn_i.max(dim=0)
+                if attn is not None:
+                    attn_i = attn[i]
+                    _, alignment = attn_i.max(dim=0)
+                else:
+                    attn_i = alignment = None
                 hypos = [{
                     'tokens': ref,
                     'score': score_i,
@@ -46,6 +47,8 @@ class SequenceScorer(object):
                     'alignment': alignment,
                     'positional_scores': pos_scores_i,
                 }]
+                if timer is not None:
+                    timer.stop(s['ntokens'])
                 # return results in the same format as SequenceGenerator
                 yield id, src, ref, hypos
 
@@ -59,16 +62,10 @@ class SequenceScorer(object):
         for model in self.models:
             with utils.maybe_no_grad():
                 model.eval()
-                encoder_out = model.encoder(
-                    net_input['src_tokens'],
-                    net_input['src_lengths'],
-                )
-                decoder_out = model.decoder(
-                    net_input['prev_output_tokens'],
-                    encoder_out,
-                )
+                decoder_out = model.forward(**net_input)
                 attn = decoder_out[1]
-            probs = model.get_normalized_probs(decoder_out, log_probs=False).data
+
+            probs = model.get_normalized_probs(decoder_out, log_probs=False, sample=sample).data
             if avg_probs is None:
                 avg_probs = probs
             else:

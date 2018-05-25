@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from .adaptive_softmax import AdaptiveSoftmax
 from .beamable_mm import BeamableMM
 from .conv_tbc import ConvTBC
 from .grad_multiply import GradMultiply
@@ -14,6 +15,7 @@ from .multihead_attention import MultiheadAttention
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 
 __all__ = [
+    'AdaptiveSoftmax',
     'BeamableMM',
     'ConvTBC',
     'GradMultiply',

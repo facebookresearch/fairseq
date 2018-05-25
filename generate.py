@@ -8,7 +8,8 @@
 
 import torch
 
-from fairseq import bleu, data, options, progress_bar, tokenizer, utils
+from fairseq import bleu, options, progress_bar, tokenizer, utils
+from fairseq.data import data_utils, data_loaders
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_generator import SequenceGenerator
 from fairseq.sequence_scorer import SequenceScorer
@@ -27,23 +28,7 @@ def main(args):
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load dataset
-    if args.replace_unk is None:
-        dataset = data.load_dataset(
-            args.data,
-            [args.gen_subset],
-            args.source_lang,
-            args.target_lang,
-        )
-    else:
-        dataset = data.load_raw_text_dataset(
-            args.data,
-            [args.gen_subset],
-            args.source_lang,
-            args.target_lang,
-        )
-    if args.source_lang is None or args.target_lang is None:
-        # record inferred languages in args
-        args.source_lang, args.target_lang = dataset.src, dataset.dst
+    dataset = data_loaders.load_dataset(args, [args.gen_subset], args.replace_unk is not None)
 
     # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
@@ -75,7 +60,7 @@ def main(args):
     if args.num_shards > 1:
         if args.shard_id < 0 or args.shard_id >= args.num_shards:
             raise ValueError('--shard-id must be between 0 and num_shards')
-        itr = data.sharded_iterator(itr, args.num_shards, args.shard_id)
+        itr = data_utils.sharded_iterator(itr, args.num_shards, args.shard_id)
 
     # Initialize generator
     gen_timer = StopwatchMeter()

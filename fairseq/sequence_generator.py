@@ -9,7 +9,6 @@ import math
 import torch
 
 from fairseq import utils
-from fairseq.data import LanguagePairDataset
 from fairseq.models import FairseqIncrementalDecoder
 
 

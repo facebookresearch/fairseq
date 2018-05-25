@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.data import LanguagePairDataset
+from fairseq.data.consts import LEFT_PAD_SOURCE, LEFT_PAD_TARGET
 from fairseq.modules import (
     LearnedPositionalEmbedding, MultiheadAttention,
     SinusoidalPositionalEmbedding,
@@ -108,7 +108,7 @@ class TransformerEncoder(FairseqEncoder):
         self.embed_scale = math.sqrt(embed_dim)
         self.embed_positions = PositionalEmbedding(
             1024, embed_dim, self.padding_idx,
-            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE,
+            left_pad=LEFT_PAD_SOURCE,
             learned=args.encoder_learned_pos,
         )
 
@@ -169,7 +169,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.embed_scale = math.sqrt(embed_dim)
         self.embed_positions = PositionalEmbedding(
             1024, embed_dim, padding_idx,
-            left_pad=LanguagePairDataset.LEFT_PAD_TARGET,
+            left_pad=LEFT_PAD_TARGET,
             learned=args.decoder_learned_pos,
         )
 
@@ -181,7 +181,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         if not self.share_input_output_embed:
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
-            nn.init.normal(self.embed_out, mean=0, std=embed_dim**-0.5)
+            nn.init.normal(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
     def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
         # embed positions
@@ -363,7 +363,7 @@ class TransformerDecoderLayer(nn.Module):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal(m.weight, mean=0, std=embedding_dim**-0.5)
+    nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
     return m
 
 
@@ -382,7 +382,7 @@ def Linear(in_features, out_features, bias=True):
 def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad, learned=False):
     if learned:
         m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
-        nn.init.normal(m.weight, mean=0, std=embedding_dim**-0.5)
+        nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
         nn.init.constant(m.weight[padding_idx], 0)
     else:
         m = SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, init_size=num_embeddings)

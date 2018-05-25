@@ -11,7 +11,8 @@ import argparse
 import os
 import sys
 
-from fairseq import bleu, dictionary, tokenizer
+from fairseq import bleu, tokenizer
+from fairseq.data import dictionary
 
 
 def main():
