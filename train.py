@@ -11,8 +11,10 @@ import os
 import math
 import torch
 
+from itertools import islice
+
 from fairseq import criterions, models, options, progress_bar
-from fairseq.data import data_utils, data_loaders, OffsetDataset
+from fairseq.data import data_utils, data_loaders
 from fairseq.fp16_trainer import FP16Trainer
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
@@ -323,7 +325,12 @@ def load_checkpoint(args, trainer, train_dataloader):
                 updates += len(ds)
 
             if ds is not None and updates > trainer_updates:
-                ds = OffsetDataset(ds, updates - trainer_updates)
+                completed_batches = len(ds) - (updates - trainer_updates)
+                assert completed_batches >= 0
+                ds = iter(ds)
+
+                # consume completed batches
+                next(islice(ds, completed_batches, completed_batches), None)
             else:
                 ds = next(train_dataloader)
                 epoch += 1
