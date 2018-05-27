@@ -31,11 +31,11 @@ class TransformerModel(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
-        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+        parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
-        parser.add_argument('--attention-dropout', default=0., type=float, metavar='D',
+        parser.add_argument('--attention-dropout', type=float, metavar='D',
                             help='dropout probability for attention weights')
-        parser.add_argument('--relu-dropout', default=0., type=float, metavar='D',
+        parser.add_argument('--relu-dropout', type=float, metavar='D',
                             help='dropout probability after ReLU in FFN')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
                             help='encoder embedding dimension')
@@ -399,6 +399,9 @@ def base_architecture(args):
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', args.encoder_ffn_embed_dim)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.)
+    args.attention_dropout = getattr(args, 'relu_dropout', 0.)
+    args.attention_dropout = getattr(args, 'dropout', 0.1)
 
 
 @register_model_architecture('transformer', 'transformer_iwslt_de_en')

@@ -6,6 +6,8 @@
 # can be found in the PATENTS file in the same directory.
 
 import unittest
+
+import itertools
 from unittest.mock import MagicMock, patch
 
 import train
@@ -19,10 +21,8 @@ def mock_trainer(epoch, num_updates):
 
 
 def mock_loader(length):
-    ds = MagicMock()
-    ds.__len__.return_value = length
     loader = MagicMock()
-    loader.__next__.return_value = ds
+    loader.__next__.return_value = list(range(length))
     return loader
 
 
@@ -42,16 +42,14 @@ class TestLoadCheckpoint(unittest.TestCase):
         loader = mock_loader(150)
         epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
         self.assertEqual(epoch, 2)
-        self.assertEqual(len(ds), 50)
-        self.assertNotIsInstance(ds, MagicMock)
+        self.assertEqual(next(ds), 50)
 
     def test_load_full_checkpoint(self):
         trainer = mock_trainer(2, 150)
         loader = mock_loader(150)
         epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
         self.assertEqual(epoch, 2)
-        self.assertEqual(len(ds), 150)
-        self.assertIsInstance(ds, MagicMock)
+        self.assertEqual(next(iter(ds)), 0)
 
     def test_load_no_checkpoint(self):
         trainer = mock_trainer(0, 0)
@@ -60,8 +58,7 @@ class TestLoadCheckpoint(unittest.TestCase):
 
         epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
         self.assertEqual(epoch, 1)
-        self.assertEqual(len(ds), 150)
-        self.assertIsInstance(ds, MagicMock)
+        self.assertEqual(next(iter(ds)), 0)
 
     def tearDown(self):
         patch.stopall()
