@@ -13,9 +13,9 @@ from unittest.mock import MagicMock, patch
 import train
 
 
-def mock_trainer(epoch, num_updates):
+def mock_trainer(epoch, num_updates, end_of_epoch):
     trainer = MagicMock()
-    trainer.load_checkpoint.return_value = {'epoch': epoch}
+    trainer.load_checkpoint.return_value = {'epoch': epoch, 'end_of_epoch': end_of_epoch}
     trainer.get_num_updates.return_value = num_updates
     return trainer
 
@@ -38,21 +38,21 @@ class TestLoadCheckpoint(unittest.TestCase):
         [p.start() for p in self.applied_patches]
 
     def test_load_partial_checkpoint(self):
-        trainer = mock_trainer(2, 200)
+        trainer = mock_trainer(2, 200, False)
         loader = mock_loader(150)
         epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
         self.assertEqual(epoch, 2)
         self.assertEqual(next(ds), 50)
 
     def test_load_full_checkpoint(self):
-        trainer = mock_trainer(2, 150)
+        trainer = mock_trainer(2, 300, True)
         loader = mock_loader(150)
         epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
-        self.assertEqual(epoch, 2)
+        self.assertEqual(epoch, 3)
         self.assertEqual(next(iter(ds)), 0)
 
     def test_load_no_checkpoint(self):
-        trainer = mock_trainer(0, 0)
+        trainer = mock_trainer(0, 0, False)
         loader = mock_loader(150)
         self.patches['os.path.isfile'].return_value = False
 

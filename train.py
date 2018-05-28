@@ -280,6 +280,7 @@ def save_checkpoint(trainer, args, epoch, end_of_epoch, val_loss):
         'epoch': epoch,
         'val_loss': val_loss,
         'wall_time': trainer.get_meter('wall').elapsed_time,
+        'end_of_epoch': end_of_epoch,
     }
 
     if end_of_epoch and not args.no_epoch_checkpoints:
@@ -314,9 +315,10 @@ def load_checkpoint(args, trainer, train_dataloader):
         extra_state = trainer.load_checkpoint(checkpoint_path)
         if extra_state is not None:
             epoch = extra_state['epoch']
+            end_of_epoch = extra_state.get('end_of_epoch', True)
             trainer_updates = trainer.get_num_updates()
 
-            print('| loaded checkpoint {} (epoch {} @ {} updates)'.format(checkpoint_path, epoch, trainer_updates))
+            print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
 
             trainer.lr_step(epoch)
             updates = 0
@@ -324,14 +326,18 @@ def load_checkpoint(args, trainer, train_dataloader):
                 ds = next(train_dataloader)
                 updates += len(ds)
 
-            if ds is not None and updates > trainer_updates:
+            if not end_of_epoch and ds is not None and updates > trainer_updates:
                 completed_batches = len(ds) - (updates - trainer_updates)
                 assert completed_batches >= 0
                 ds = iter(ds)
 
+                print('| resuming from batch {}'.format(completed_batches + 1))
+
                 # consume completed batches
                 next(islice(ds, completed_batches, completed_batches), None)
             else:
+                if not end_of_epoch:
+                    print('| WARNING: checkpoint is not at end of epoch')
                 ds = next(train_dataloader)
                 epoch += 1
 
