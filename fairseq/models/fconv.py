@@ -139,7 +139,8 @@ class FConvLanguageModel(FairseqLanguageModel):
             max_positions=args.max_target_positions,
             share_embed=False,
             positional_embeddings=False,
-            adaptive_softmax_cutoff=options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
+            adaptive_softmax_cutoff=options.eval_str_list(args.adaptive_softmax_cutoff,
+                                                          type=int) if args.criterion == 'adaptive_loss' else None,
             normalization_constant=args.normalization_constant,
         )
         return FConvLanguageModel(decoder)
