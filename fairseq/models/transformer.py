@@ -400,8 +400,8 @@ def base_architecture(args):
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.)
-    args.attention_dropout = getattr(args, 'relu_dropout', 0.)
-    args.attention_dropout = getattr(args, 'dropout', 0.1)
+    args.relu_dropout = getattr(args, 'relu_dropout', 0.)
+    args.dropout = getattr(args, 'dropout', 0.1)
 
 
 @register_model_architecture('transformer', 'transformer_iwslt_de_en')
