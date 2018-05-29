@@ -31,8 +31,9 @@ def main(args):
     dataset = data_loaders.load_dataset(args, [args.gen_subset], args.replace_unk is not None)
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models, _ = utils.load_ensemble_for_inference(args.path, dataset.src_dict, dataset.dst_dict)
+    print('| loading model(s) from {}'.format(args.path))
+    model_paths = args.path.split(',')
+    models, _ = utils.load_ensemble_for_inference(model_paths, dataset.src_dict, dataset.dst_dict)
 
     print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
     print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
@@ -70,7 +71,9 @@ def main(args):
         translator = SequenceGenerator(
             models, beam_size=args.beam, stop_early=(not args.no_early_stop),
             normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-            unk_penalty=args.unkpen, sampling=args.sampling)
+            unk_penalty=args.unkpen, sampling=args.sampling, sampling_topk=args.sampling_topk,
+            minlen=args.min_len)
+
     if use_cuda:
         translator.cuda()
 

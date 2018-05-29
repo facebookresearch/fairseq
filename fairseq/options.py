@@ -232,8 +232,8 @@ def add_checkpoint_args(parser):
 
 
 def add_common_eval_args(group):
-    group.add_argument('--path', metavar='FILE', action='append',
-                       help='path(s) to model file(s)')
+    group.add_argument('--path', metavar='FILE',
+                       help='path(s) to model file(s), comma separated')
     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring')
     group.add_argument('--cpu', action='store_true', help='generate on CPU')
@@ -259,6 +259,8 @@ def add_generation_args(parser):
     group.add_argument('--max-len-b', default=200, type=int, metavar='N',
                        help=('generate sequences of maximum length ax + b, '
                              'where x is the source length'))
+    group.add_argument('--min-len', default=1, type=float, metavar='N',
+                       help=('minimum generation length'))
     group.add_argument('--no-early-stop', action='store_true',
                        help=('continue searching even after finalizing k=beam '
                              'hypotheses; this is more correct, but increases '
@@ -279,6 +281,10 @@ def add_generation_args(parser):
                        help='initialize generation by target prefix of given length')
     group.add_argument('--sampling', action='store_true',
                        help='sample hypotheses instead of using beam search')
+    group.add_argument('--sampling-topk', default=-1, type=int, metavar='PS',
+                       help='sample from top K likely next words instead of all words')
+    group.add_argument('--sampling-temperature', default=1, type=float, metavar='N',
+                       help='temperature for random sampling')
     return group
 
 
