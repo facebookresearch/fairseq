@@ -26,8 +26,8 @@ def main(args):
     dataset = data_loaders.load_dataset(args, [args.gen_subset], False)
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models, _ = utils.load_ensemble_for_inference(args.path, dataset.src_dict, dataset.dst_dict)
+    print('| loading model(s) from {}'.format(args.path))
+    models, _ = utils.load_ensemble_for_inference(args.path.split(','), dataset.src_dict, dataset.dst_dict)
 
     print('| Dictionary: {} types'.format(len(dataset.src_dict)))
     print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
