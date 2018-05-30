@@ -66,7 +66,7 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
 def load_model_state(filename, model):
     if not os.path.exists(filename):
         return None, [], None
-    state = torch.load(filename)
+    state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
     state = _upgrade_state_dict(state)
     model.upgrade_state_dict(state['model'])
 
@@ -142,9 +142,9 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
     for filename in filenames:
         if not os.path.exists(filename):
             raise IOError('Model file not found: {}'.format(filename))
-        states.append(
-            torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
-        )
+        state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
+        state = _upgrade_state_dict(state)
+        states.append(state)
     args = states[0]['args']
     if model_arg_overrides is not None:
         args = _override_model_args(args, model_arg_overrides)
@@ -157,6 +157,7 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
     ensemble = []
     for state in states:
         model = models.build_model(args, src_dict, dst_dict)
+        model.upgrade_state_dict(state['model'])
         model.load_state_dict(state['model'], strict=True)
         ensemble.append(model)
     return ensemble, args
@@ -278,7 +279,7 @@ def parse_embedding(embed_path):
     """
     embed_dict = {}
     with open(embed_path) as f_embed:
-        _ = next(f_embed)  # skip header
+        next(f_embed)  # skip header
         for line in f_embed:
             pieces = line.strip().split()
             embed_dict[pieces[0]] = torch.Tensor([float(weight) for weight in pieces[1:]])
@@ -352,12 +353,7 @@ def buffered_arange(max):
     return buffered_arange.buf[:max]
 
 
-def convert_padding_direction(
-        src_tokens,
-        padding_idx,
-        right_to_left=False,
-        left_to_right=False,
-):
+def convert_padding_direction(src_tokens, padding_idx, right_to_left=False, left_to_right=False):
     assert right_to_left ^ left_to_right
     pad_mask = src_tokens.eq(padding_idx)
     if not pad_mask.any():
@@ -401,9 +397,12 @@ def fill_with_neg_inf(t):
 
 
 def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
-    """ retrieves all checkpoints found in `path` directory. checkpoints are identified by matching filename to
-    the specified pattern. if the pattern contains groups, the result will be sorted by the first group in descending
-    order """
+    """Retrieves all checkpoints found in `path` directory.
+
+    Checkpoints are identified by matching filename to the specified pattern. If
+    the pattern contains groups, the result will be sorted by the first group in
+    descending order.
+    """
     pt_regexp = re.compile(pattern)
     files = os.listdir(path)
 

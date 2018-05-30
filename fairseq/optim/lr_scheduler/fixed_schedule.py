@@ -5,8 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import torch.optim.lr_scheduler
-
 from . import FairseqLRScheduler, register_lr_scheduler
 
 

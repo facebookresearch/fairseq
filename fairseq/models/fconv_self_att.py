@@ -7,16 +7,23 @@
 #
 
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.data import LanguagePairDataset
 from fairseq.data.consts import LEFT_PAD_SOURCE, LEFT_PAD_TARGET
-from fairseq.modules import GradMultiply, LearnedPositionalEmbedding, LinearizedConvolution, DownsampledMultiHeadAttention
+from fairseq.modules import (
+    DownsampledMultiHeadAttention, GradMultiply, LearnedPositionalEmbedding,
+    LinearizedConvolution,
+)
 from fairseq import utils
 
-from . import FairseqEncoder, CompositeEncoder, FairseqDecoder, FairseqModel, register_model, register_model_architecture
+from . import (
+    FairseqEncoder, CompositeEncoder, FairseqDecoder, FairseqModel,
+    register_model, register_model_architecture,
+)
+
 
 @register_model('fconv_self_att')
 class FConvModelSelfAtt(FairseqModel):
@@ -66,9 +73,9 @@ class FConvModelSelfAtt(FairseqModel):
         parser.add_argument('--downsample', type=str, metavar='EXPR', default='False',
                             help='Use downsampling in self-attention [True, ...]')
         parser.add_argument('--pretrained-checkpoint', metavar='DIR', default='',
-                           help='path to load checkpoint from pretrained model')
+                            help='path to load checkpoint from pretrained model')
         parser.add_argument('--pretrained', type=str, metavar='EXPR', default='False',
-                           help='use pretrained model when training [True, ...]')
+                            help='use pretrained model when training [True, ...]')
 
     @classmethod
     def build_model(cls, args, src_dict, dst_dict):
@@ -76,7 +83,6 @@ class FConvModelSelfAtt(FairseqModel):
         pretrained = eval(args.pretrained)
         if pretrained:
             print("| Loading pretrained model")
-            state = torch.load(args.pretrained_checkpoint)
             trained_model = utils.load_ensemble_for_inference(
                 # not actually for inference, but loads pretrained model parameters
                 filenames=[args.pretrained_checkpoint],
@@ -131,9 +137,11 @@ class FConvModelSelfAtt(FairseqModel):
 
 class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
-    def __init__(self, dictionary, embed_dim=512, max_positions=1024,
-                 convolutions=((512, 3),) * 20, dropout=0.1, attention=False,
-                 attention_nheads=1):
+    def __init__(
+        self, dictionary, embed_dim=512, max_positions=1024,
+        convolutions=((512, 3),) * 20, dropout=0.1, attention=False,
+        attention_nheads=1,
+    ):
         super().__init__(dictionary)
         self.dropout = dropout
         self.num_attention_layers = None
@@ -163,19 +171,19 @@ class FConvEncoder(FairseqEncoder):
         self.attention = nn.ModuleList()
         self.attproj = nn.ModuleList()
         for i, (out_channels, kernel_size) in enumerate(convolutions):
-            self.projections.append(Linear(in_channels, out_channels)
-                                    if in_channels != out_channels else None)
+            self.projections.append(
+                Linear(in_channels, out_channels) if in_channels != out_channels else None
+            )
             self.convolutions.append(
-                ConvTBC(in_channels, out_channels * 2, kernel_size,
-                        dropout=dropout))
+                ConvTBC(in_channels, out_channels * 2, kernel_size, dropout=dropout)
+            )
 
-            self.attention.append(SelfAttention(out_channels, embed_dim,
-                                                     attention_nheads)
-                                  if attention[i] else None)
+            self.attention.append(
+                SelfAttention(out_channels, embed_dim, attention_nheads) if attention[i] else None
+            )
             in_channels = out_channels
 
         self.fc2 = Linear(in_channels, embed_dim)
-
 
     def forward(self, src_tokens, src_lengths):
         # embed tokens and positions
@@ -226,18 +234,20 @@ class FConvEncoder(FairseqEncoder):
 
 class FConvDecoder(FairseqDecoder):
     """Convolutional decoder"""
-    def __init__(self, dictionary, embed_dim=512, out_embed_dim=256,
-                 max_positions=1024, convolutions=((512, 3),) * 8,
-                 attention=True, dropout=0.1, selfattention=False,
-                 attention_nheads=1, selfattention_nheads=1,
-                 project_input=False, gated_attention=False, downsample=False,
-                 pretrained=False, trained_decoder=None):
+    def __init__(
+        self, dictionary, embed_dim=512, out_embed_dim=256, max_positions=1024,
+        convolutions=((512, 3),) * 8, attention=True, dropout=0.1,
+        selfattention=False, attention_nheads=1, selfattention_nheads=1,
+        project_input=False, gated_attention=False, downsample=False,
+        pretrained=False, trained_decoder=None,
+    ):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
         self.pretrained = pretrained
         self.pretrained_decoder = trained_decoder
         self.dropout = dropout
         in_channels = convolutions[0][0]
+
         def expand_bool_array(val):
             if isinstance(val, bool):
                 # expand True into [True, True, ...] and do the same with False
@@ -269,27 +279,33 @@ class FConvDecoder(FairseqDecoder):
         self.selfattention = nn.ModuleList()
         self.attproj = nn.ModuleList()
         for i, (out_channels, kernel_size) in enumerate(convolutions):
-            pad = kernel_size - 1
-            self.projections.append(Linear(in_channels, out_channels)
-                                    if in_channels != out_channels else None)
+            self.projections.append(
+                Linear(in_channels, out_channels) if in_channels != out_channels else None
+            )
             self.convolutions.append(
-                LinearizedConv1d(in_channels, out_channels * 2, kernel_size,
-                                 padding=(kernel_size - 1), dropout=dropout))
+                LinearizedConv1d(
+                    in_channels, out_channels * 2, kernel_size,
+                    padding=(kernel_size - 1), dropout=dropout,
+                )
+            )
 
-            self.attention.append(DownsampledMultiHeadAttention(out_channels, embed_dim,
-                                                     attention_nheads,
-                                                     project_input=project_input,
-                                                     gated=False, downsample=False)
-                                  if attention[i] else None)
+            self.attention.append(
+                DownsampledMultiHeadAttention(
+                    out_channels, embed_dim, attention_nheads,
+                    project_input=project_input, gated=False, downsample=False,
+                ) if attention[i] else None
+            )
 
-            self.attproj.append(Linear(out_channels, embed_dim, dropout=dropout)
-                              if attention[i] else None)
-            self.selfattention.append(SelfAttention(out_channels, embed_dim,
-                                                         selfattention_nheads,
-                                                         project_input=project_input,
-                                                         gated=gated_attention,
-                                                         downsample=downsample)
-                                      if selfattention[i] else None)
+            self.attproj.append(
+                Linear(out_channels, embed_dim, dropout=dropout) if attention[i] else None
+            )
+            self.selfattention.append(
+                SelfAttention(
+                    out_channels, embed_dim, selfattention_nheads,
+                    project_input=project_input, gated=gated_attention,
+                    downsample=downsample,
+                ) if selfattention[i] else None
+            )
             in_channels = out_channels
 
         self.fc2 = Linear(in_channels, out_embed_dim)
@@ -301,24 +317,27 @@ class FConvDecoder(FairseqDecoder):
             self.gate1 = nn.Sequential(Linear(out_embed_dim*2, out_embed_dim), nn.Sigmoid())
             self.gate2 = nn.Sequential(Linear(out_embed_dim*2, out_embed_dim), nn.Sigmoid())
             # pretrained and trained models are joined
-            self.joining = nn.Sequential(Linear(out_embed_dim*2, out_embed_dim*2),
-                                        nn.LayerNorm(out_embed_dim*2),
-                                        nn.GLU(),
-                                        Linear(out_embed_dim, out_embed_dim*2),
-                                        nn.LayerNorm(out_embed_dim*2),
-                                        nn.GLU(),
-                                        Linear(out_embed_dim, out_embed_dim),
-                                        nn.LayerNorm(out_embed_dim))
+            self.joining = nn.Sequential(
+                Linear(out_embed_dim*2, out_embed_dim*2),
+                nn.LayerNorm(out_embed_dim*2),
+                nn.GLU(),
+                Linear(out_embed_dim, out_embed_dim*2),
+                nn.LayerNorm(out_embed_dim*2),
+                nn.GLU(),
+                Linear(out_embed_dim, out_embed_dim),
+                nn.LayerNorm(out_embed_dim)
+            )
             # pretrained model contains an output layer that is nhid -> vocab size
             # but the models are combined in their hidden state
             # the hook stores the output of the pretrained model forward
             self.pretrained_outputs = {}
+
             def save_output():
                 def hook(a, b, output):
                     self.pretrained_outputs["out"] = output
                 return hook
-            self.pretrained_decoder.fc2.register_forward_hook(save_output())
 
+            self.pretrained_decoder.fc2.register_forward_hook(save_output())
 
     def forward(self, prev_output_tokens, encoder_out_dict):
         encoder_out = encoder_out_dict['encoder']['encoder_out']
@@ -342,11 +361,9 @@ class FConvDecoder(FairseqDecoder):
 
         # temporal convolutions
         avg_attn_scores = None
-        for proj, conv, attention, selfattention, attproj in zip(self.projections,
-                                                self.convolutions,
-                                                self.attention,
-                                                self.selfattention,
-                                                self.attproj):
+        for proj, conv, attention, selfattention, attproj in zip(
+            self.projections, self.convolutions, self.attention, self.selfattention, self.attproj
+        ):
             residual = x if proj is None else proj(x)
 
             x = F.dropout(x, p=self.dropout, training=self.training)
@@ -398,11 +415,14 @@ class FConvDecoder(FairseqDecoder):
 
     def reorder_encoder_out(self, encoder_out_dict, new_order):
         encoder_out_dict['encoder']['encoder_out'] = tuple(
-            eo.index_select(0, new_order) for eo in encoder_out_dict['encoder']['encoder_out'])
+            eo.index_select(0, new_order) for eo in encoder_out_dict['encoder']['encoder_out']
+        )
 
         if 'pretrained' in encoder_out_dict:
             encoder_out_dict['pretrained']['encoder']['encoder_out'] = tuple(
-                eo.index_select(0, new_order) for eo in encoder_out_dict['pretrained']['encoder']['encoder_out'])
+                eo.index_select(0, new_order)
+                for eo in encoder_out_dict['pretrained']['encoder']['encoder_out']
+            )
 
         return encoder_out_dict
 
@@ -425,8 +445,10 @@ class SelfAttention(nn.Module):
 
     def __init__(self, out_channels, embed_dim, num_heads, project_input=False, gated=False, downsample=False):
         super().__init__()
-        self.attention = DownsampledMultiHeadAttention(out_channels, embed_dim, num_heads,
-                                            dropout=0, bias=True, project_input=project_input, gated=gated, downsample=downsample)
+        self.attention = DownsampledMultiHeadAttention(
+            out_channels, embed_dim, num_heads, dropout=0, bias=True,
+            project_input=project_input, gated=gated, downsample=downsample,
+        )
         self.in_proj_q = Linear(out_channels, embed_dim)
         self.in_proj_k = Linear(out_channels, embed_dim)
         self.in_proj_v = Linear(out_channels, embed_dim)
@@ -439,7 +461,6 @@ class SelfAttention(nn.Module):
         value = self.in_proj_v(x)
         x, _ = self.attention(query, key, value, mask_future_timesteps=True, use_scalar_bias=True)
         return self.ln(x + residual)
-
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
