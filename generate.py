@@ -58,10 +58,7 @@ def main(args):
         max_positions=max_positions,
         skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
     )
-    if args.num_shards > 1:
-        if args.shard_id < 0 or args.shard_id >= args.num_shards:
-            raise ValueError('--shard-id must be between 0 and num_shards')
-        itr = data_utils.sharded_iterator(itr, args.num_shards, args.shard_id)
+    itr = data_utils.ShardedIterator(itr, args.num_shards, args.shard_id)
 
     # Initialize generator
     gen_timer = StopwatchMeter()

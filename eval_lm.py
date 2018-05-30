@@ -44,11 +44,7 @@ def main(args):
         max_positions=args.max_target_positions or 1024,
         descending=True,
     )
-
-    if args.num_shards > 1:
-        if args.shard_id < 0 or args.shard_id >= args.num_shards:
-            raise ValueError('--shard-id must be between 0 and num_shards')
-        itr = data_utils.sharded_iterator(itr, args.num_shards, args.shard_id)
+    itr = data_utils.ShardedIterator(itr, args.num_shards, args.shard_id)
 
     gen_timer = StopwatchMeter()
     scorer = SequenceScorer(models)
