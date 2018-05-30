@@ -13,10 +13,11 @@ from fairseq.models import FairseqIncrementalDecoder
 
 
 class SequenceGenerator(object):
-    def __init__(self, models, beam_size=1, minlen=1, maxlen=None,
-                 stop_early=True, normalize_scores=True, len_penalty=1,
-                 unk_penalty=0, retain_dropout=False, sampling=False, sampling_topk=-1,
-                 sampling_temperature=1):
+    def __init__(
+        self, models, beam_size=1, minlen=1, maxlen=None, stop_early=True,
+        normalize_scores=True, len_penalty=1, unk_penalty=0, retain_dropout=False,
+        sampling=False, sampling_topk=-1, sampling_temperature=1,
+    ):
         """Generates translations of a given source sentence.
         Args:
             min/maxlen: The length of the generated output will be bounded by
@@ -53,8 +54,10 @@ class SequenceGenerator(object):
             model.cuda()
         return self
 
-    def generate_batched_itr(self, data_itr, beam_size=None, maxlen_a=0.0, maxlen_b=None,
-                             cuda=False, timer=None, prefix_size=0):
+    def generate_batched_itr(
+        self, data_itr, beam_size=None, maxlen_a=0.0, maxlen_b=None,
+        cuda=False, timer=None, prefix_size=0,
+    ):
         """Iterate over a batched dataset and yield individual translations.
         Args:
             maxlen_a/b: generate sequences of maximum length ax + b,

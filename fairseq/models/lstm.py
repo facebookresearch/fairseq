@@ -10,10 +10,13 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq import utils
+from fairseq import options, utils
 from fairseq.data import consts
 
-from . import FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model, register_model_architecture
+from . import (
+    FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model,
+    register_model_architecture,
+)
 
 
 @register_model('lstm')
@@ -92,10 +95,6 @@ class LSTMModel(FairseqModel):
             bidirectional=args.encoder_bidirectional,
             pretrained_embed=pretrained_encoder_embed,
         )
-        try:
-            attention = bool(eval(args.decoder_attention))
-        except TypeError:
-            attention = bool(args.decoder_attention)
         decoder = LSTMDecoder(
             dictionary=dst_dict,
             embed_dim=args.decoder_embed_dim,
@@ -104,7 +103,7 @@ class LSTMModel(FairseqModel):
             num_layers=args.decoder_layers,
             dropout_in=args.decoder_dropout_in,
             dropout_out=args.decoder_dropout_out,
-            attention=attention,
+            attention=options.eval_bool(args.decoder_attention),
             encoder_embed_dim=args.encoder_embed_dim,
             encoder_output_units=encoder.output_units,
             pretrained_embed=pretrained_decoder_embed,

@@ -20,64 +20,51 @@ class SingleHeadAttention(nn.Module):
     Single-head attention that supports Gating and Downsampling
     """
     def __init__(
-            self,
-            out_channels,
-            embed_dim,
-            head_dim,
-            head_index,
-            dropout=0.,
-            bias=True,
-            project_input=True,
-            gated=False,
-            downsample=False,
-            num_heads=1
+        self, out_channels, embed_dim, head_dim, head_index, dropout=0.,
+        bias=True, project_input=True, gated=False, downsample=False,
+        num_heads=1,
     ):
-            super().__init__()
-            self.embed_dim = embed_dim
-            self.dropout = dropout
-            self.head_index = head_index
-            self.head_dim = head_dim
-            self.project_input = project_input
-            self.gated = gated
-            self.downsample = downsample
-            self.num_heads = num_heads
-            self.projection = None
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.dropout = dropout
+        self.head_index = head_index
+        self.head_dim = head_dim
+        self.project_input = project_input
+        self.gated = gated
+        self.downsample = downsample
+        self.num_heads = num_heads
+        self.projection = None
 
-            k_layers = []
-            v_layers = []
-            if self.downsample:
-                k_layers.append(Downsample(self.head_index))
-                v_layers.append(Downsample(self.head_index))
-                out_proj_size = self.head_dim
-            else:
-                out_proj_size = self.head_dim * self.num_heads
-            if self.gated:
-                k_layers.append(GatedLinear(self.embed_dim, out_proj_size, bias=bias))
-                self.in_proj_q = GatedLinear(self.embed_dim, out_proj_size, bias=bias)
-                v_layers.append(GatedLinear(self.embed_dim, out_proj_size, bias=bias))
-            else:
-                k_layers.append(Linear(self.embed_dim, out_proj_size, bias=bias))
-                self.in_proj_q = Linear(self.embed_dim, out_proj_size, bias=bias)
-                v_layers.append(Linear(self.embed_dim, out_proj_size, bias=bias))
+        k_layers = []
+        v_layers = []
+        if self.downsample:
+            k_layers.append(Downsample(self.head_index))
+            v_layers.append(Downsample(self.head_index))
+            out_proj_size = self.head_dim
+        else:
+            out_proj_size = self.head_dim * self.num_heads
+        if self.gated:
+            k_layers.append(GatedLinear(self.embed_dim, out_proj_size, bias=bias))
+            self.in_proj_q = GatedLinear(self.embed_dim, out_proj_size, bias=bias)
+            v_layers.append(GatedLinear(self.embed_dim, out_proj_size, bias=bias))
+        else:
+            k_layers.append(Linear(self.embed_dim, out_proj_size, bias=bias))
+            self.in_proj_q = Linear(self.embed_dim, out_proj_size, bias=bias)
+            v_layers.append(Linear(self.embed_dim, out_proj_size, bias=bias))
 
-            self.in_proj_k = nn.Sequential(*k_layers)
-            self.in_proj_v = nn.Sequential(*v_layers)
+        self.in_proj_k = nn.Sequential(*k_layers)
+        self.in_proj_v = nn.Sequential(*v_layers)
 
-            if self.downsample:
-                self.out_proj = Linear(out_proj_size, self.head_dim, bias=bias)
-            else:
-                self.out_proj = Linear(out_proj_size, out_channels, bias=bias)
+        if self.downsample:
+            self.out_proj = Linear(out_proj_size, self.head_dim, bias=bias)
+        else:
+            self.out_proj = Linear(out_proj_size, out_channels, bias=bias)
 
-            self.scaling = self.head_dim**-0.5
+        self.scaling = self.head_dim**-0.5
 
     def forward(
-            self,
-            query,
-            key,
-            value,
-            mask_future_timesteps=False,
-            key_padding_mask=None,
-            use_scalar_bias=False
+        self, query, key, value, mask_future_timesteps=False,
+        key_padding_mask=None, use_scalar_bias=False,
     ):
         """Input shape: Time x Batch x Channel
         Self-attention can be implemented by passing in the same arguments for
@@ -168,15 +155,8 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
     Multi-headed attention with Gating and Downsampling
     """
     def __init__(
-            self,
-            out_channels,
-            embed_dim,
-            num_heads,
-            dropout=0.,
-            bias=True,
-            project_input=True,
-            gated=False,
-            downsample=False
+        self, out_channels, embed_dim, num_heads, dropout=0., bias=True,
+        project_input=True, gated=False, downsample=False,
     ):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -190,24 +170,27 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
         if self.downsample:
             attention_heads = []
             for index in range(self.num_heads):
-                attention_heads.append(SingleHeadAttention(out_channels, self.embed_dim, self.head_dim, index, self.dropout, bias, self.project_input, self.gated, self.downsample, self.num_heads))
+                attention_heads.append(
+                    SingleHeadAttention(
+                        out_channels, self.embed_dim, self.head_dim, index,
+                        self.dropout, bias, self.project_input, self.gated,
+                        self.downsample, self.num_heads,
+                    )
+                )
             super().__init__(modules=attention_heads)
             self.out_proj = Linear(embed_dim, out_channels, bias=bias)
         else:
             # either we have a list of attention heads, or just one attention head
             # if not being downsampled, we can do the heads with one linear layer instead of separate ones
             super().__init__()
-            self.attention_module = SingleHeadAttention(out_channels, self.embed_dim, self.head_dim, 1, self.dropout, bias, self.project_input, self.gated, self.downsample, self.num_heads)
-
+            self.attention_module = SingleHeadAttention(
+                out_channels, self.embed_dim, self.head_dim, 1, self.dropout,
+                bias, self.project_input, self.gated, self.downsample, self.num_heads,
+            )
 
     def forward(
-            self,
-            query,
-            key,
-            value,
-            mask_future_timesteps=False,
-            key_padding_mask=None,
-            use_scalar_bias=False
+        self, query, key, value, mask_future_timesteps=False,
+        key_padding_mask=None, use_scalar_bias=False,
     ):
         src_len, bsz, embed_dim = key.size()
         tgt_len = query.size(0)
@@ -224,14 +207,18 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
         if self.downsample:
             for attention_head_number in range(self.num_heads):
                 # call the forward of each attention head
-                _attn, _attn_weight = self[attention_head_number](query, key, value, mask_future_timesteps, key_padding_mask, use_scalar_bias)
+                _attn, _attn_weight = self[attention_head_number](
+                    query, key, value, mask_future_timesteps, key_padding_mask, use_scalar_bias,
+                )
                 attn.append(_attn)
                 attn_weights.append(_attn_weight)
             full_attn = torch.cat(attn, dim=2)
             full_attn = self.out_proj(full_attn)
             return full_attn, attn_weights[0].clone()
         else:
-            _attn, _attn_weight = self.attention_module(query, key, value, mask_future_timesteps, key_padding_mask, use_scalar_bias)
+            _attn, _attn_weight = self.attention_module(
+                query, key, value, mask_future_timesteps, key_padding_mask, use_scalar_bias,
+            )
             attn.append(_attn)
             attn_weights.append(_attn_weight)
             full_attn = torch.cat(attn, dim=2)
@@ -264,9 +251,9 @@ def Linear(in_features, out_features, dropout=0., bias=True):
 def GatedLinear(in_features, out_features, dropout=0., bias=True):
     """Weight-normalized Linear layer (input: B x T x C) with interspersed GLU units"""
     return nn.Sequential(
-            Linear(in_features, out_features*4, dropout, bias),
-            nn.GLU(),
-            Linear(out_features*2, out_features*2, dropout, bias),
-            nn.GLU(),
-            Linear(out_features, out_features, dropout, bias)
-        )
+        Linear(in_features, out_features*4, dropout, bias),
+        nn.GLU(),
+        Linear(out_features*2, out_features*2, dropout, bias),
+        nn.GLU(),
+        Linear(out_features, out_features, dropout, bias)
+    )

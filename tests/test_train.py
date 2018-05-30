@@ -7,7 +7,6 @@
 
 import unittest
 
-import itertools
 from unittest.mock import MagicMock, patch
 
 import train

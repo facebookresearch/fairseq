@@ -435,6 +435,7 @@ def transformer_vaswani_wmt_en_de_big(args):
     args.dropout = getattr(args, 'dropout', 0.3)
     base_architecture(args)
 
+
 @register_model_architecture('transformer', 'transformer_vaswani_wmt_en_fr_big')
 def transformer_vaswani_wmt_en_fr_big(args):
     args.dropout = getattr(args, 'dropout', 0.1)

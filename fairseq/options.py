@@ -34,6 +34,13 @@ def get_generation_parser(interactive=False):
     return parser
 
 
+def get_eval_lm_parser():
+    parser = get_parser('Evaluate Language Model')
+    add_dataset_args(parser, gen=True)
+    add_eval_lm_args(parser)
+    return parser
+
+
 def eval_str_list(x, type=float):
     if x is None:
         return None
@@ -41,15 +48,17 @@ def eval_str_list(x, type=float):
         x = eval(x)
     try:
         return list(map(type, x))
-    except:
+    except TypeError:
         return [type(x)]
 
 
-def get_eval_lm_parser():
-    parser = get_parser('Evaluate Language Model')
-    add_dataset_args(parser, gen=True)
-    add_eval_lm_args(parser)
-    return parser
+def eval_bool(x, default=False):
+    if x is None:
+        return default
+    try:
+        return bool(eval(x))
+    except TypeError:
+        return default
 
 
 def parse_args_and_arch(parser, input_args=None):
@@ -114,16 +123,17 @@ def add_dataset_args(parser, train=False, gen=False):
     group.add_argument('--max-target-positions', '--tokens-per-sample', default=1024, type=int, metavar='N',
                        help='max number of tokens in the target sequence')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
-                       help='Ignore too long or too short lines in valid and test set')
+                       help='ignore too long or too short lines in valid and test set')
     group.add_argument('--max-tokens', type=int, metavar='N',
                        help='maximum number of tokens in a batch')
     group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
                        help='maximum number of sentences in a batch')
     group.add_argument('--sample-break-mode', metavar='VAL',
                        choices=['none', 'complete', 'eos'],
-                       help='Used only for LM datasets. If omitted or "none", fills each sample with tokens-per-sample '
-                            'tokens. If set to "complete", splits samples only at the end of sentence, but may include '
-                            'multiple sentences per sample. If set to "eos", includes only one sentence per sample')
+                       help='If omitted or "none", fills each sample with tokens-per-sample'
+                            ' tokens. If set to "complete", splits samples only at the end'
+                            ' of sentence, but may include multiple sentences per sample.'
+                            ' If set to "eos", includes only one sentence per sample.')
 
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
@@ -131,7 +141,7 @@ def add_dataset_args(parser, train=False, gen=False):
                            help='data subset to use for training (train, valid, test)')
         group.add_argument('--valid-subset', default='valid', metavar='SPLIT',
                            help='comma separated list of data subsets to use for validation'
-                                ' (train, valid, valid1,test, test1)')
+                                ' (train, valid, valid1, test, test1)')
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
                            help='maximum number of sentences in a validation batch'
                                 ' (defaults to --max-sentences)')
@@ -216,12 +226,10 @@ def add_checkpoint_args(parser):
                        help='filename in save-dir from which to load checkpoint')
     group.add_argument('--save-interval', type=int, default=1, metavar='N',
                        help='save a checkpoint every N epochs')
-    group.add_argument('--save-interval-updates', type=int, metavar='N',
-                       help='if specified, saves best/last checkpoint every this many updates. '
-                            'will also validate before saving to determine if val loss is better')
-    group.add_argument('--keep-interval-updates', type=int, default=0, metavar='N',
-                       help='if --save-interval-updates is specified, keep the last this many checkpoints'
-                            ' created after specified number of updates (format is checkpoint_[epoch]_[numupd].pt')
+    group.add_argument('--save-interval-updates', type=int, default=0, metavar='N',
+                       help='save a checkpoint (and validate) every N updates')
+    group.add_argument('--keep-interval-updates', type=int, default=-1, metavar='N',
+                       help='keep last N checkpoints saved with --save-interval-updates')
     group.add_argument('--no-save', action='store_true',
                        help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',

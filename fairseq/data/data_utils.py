@@ -81,10 +81,7 @@ def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=Fal
             dst.copy_(src)
 
     for i, v in enumerate(values):
-        if left_pad:
-            copy_tensor(v, res[i][size - len(v):])
-        else:
-            copy_tensor(v, res[i][:len(v)])
+        copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
     return res
 
 

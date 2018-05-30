@@ -11,8 +11,11 @@ from torch import nn
 
 
 class AdaptiveSoftmax(nn.Module):
-    """This is an implementation of the efficient softmax approximation for graphical processing units (GPU),
-    described in the paper "Efficient softmax approximation for GPUs" (http://arxiv.org/abs/1609.04309)."""
+    """
+    This is an implementation of the efficient softmax approximation for
+    graphical processing units (GPU), described in the paper "Efficient softmax
+    approximation for GPUs" (http://arxiv.org/abs/1609.04309).
+    """
 
     def __init__(self, vocab_size, input_dim, cutoff, dropout):
         super().__init__()
@@ -46,9 +49,12 @@ class AdaptiveSoftmax(nn.Module):
         self.apply(init_weights)
 
     def adapt_target(self, target):
-        """In order to be efficient, the AdaptiveSoftMax does not compute the scores for all the word of the
-        vocabulary for all the examples.It is thus necessary to call the method adapt_target of the AdaptiveSoftMax
-        layer inside each forward pass."""
+        """
+        In order to be efficient, the AdaptiveSoftMax does not compute the
+        scores for all the word of the vocabulary for all the examples. It is
+        thus necessary to call the method adapt_target of the AdaptiveSoftMax
+        layer inside each forward pass.
+        """
 
         target = target.view(-1)
         new_target = [target.clone()]
@@ -68,12 +74,17 @@ class AdaptiveSoftmax(nn.Module):
         return new_target, target_idxs
 
     def forward(self, input, target):
-        """ accepts input (b x t x d) and target (b x t) and returns
-            2 lists: output for each cutoff section and new targets by cut off """
+        """
+        Args:
+            input: (b x t x d)
+            target: (b x t)
+        Returns:
+            2 lists: output for each cutoff section and new targets by cut off
+        """
 
         input = input.contiguous().view(-1, input.size(-1))
         input = F.dropout(input, p=self.dropout, training=self.training)
-        
+
         new_target, target_idxs = self.adapt_target(target)
         output = [self.head(input)]
 
@@ -86,7 +97,10 @@ class AdaptiveSoftmax(nn.Module):
         return output, new_target
 
     def get_log_prob(self, input, target):
-        """computes the log probabilities for all the words of the vocabulary, given a 2D tensor of hidden vectors"""
+        """
+        Computes the log probabilities for all the words of the vocabulary,
+        given a 2D tensor of hidden vectors.
+        """
 
         bsz, length, dim = input.size()
         input = input.contiguous().view(-1, dim)

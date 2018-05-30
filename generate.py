@@ -93,15 +93,15 @@ def main(args):
             # Process input and ground truth
             has_target = target_tokens is not None
             target_tokens = target_tokens.int().cpu() if has_target else None
+
             # Either retrieve the original sentences or regenerate them from tokens.
             if align_dict is not None:
                 src_str = dataset.splits[args.gen_subset].src.get_original_text(sample_id)
                 target_str = dataset.splits[args.gen_subset].dst.get_original_text(sample_id)
             else:
                 src_str = dataset.src_dict.string(src_tokens, args.remove_bpe)
-                target_str = dataset.dst_dict.string(target_tokens,
-                                                     args.remove_bpe,
-                                                     escape_unk=True) if has_target else ''
+                if has_target:
+                    target_str = dataset.dst_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
 
             if not args.quiet:
                 print('S-{}\t{}'.format(sample_id, src_str))
@@ -146,7 +146,7 @@ def main(args):
             num_sentences += 1
 
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
-        num_sentences, gen_timer.n, gen_timer.sum, num_sentences/ gen_timer.sum, 1. / gen_timer.avg))
+        num_sentences, gen_timer.n, gen_timer.sum, num_sentences / gen_timer.sum, 1. / gen_timer.avg))
     if has_target:
         print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
 

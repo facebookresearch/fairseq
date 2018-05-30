@@ -163,7 +163,8 @@ def train(args, trainer, itr, epoch, dataset):
             trainer.get_meter('wps').reset()
 
         num_updates = trainer.get_num_updates()
-        if not args.no_save and (args.save_interval_updates or 0) > 0 and num_updates % args.save_interval_updates == 0:
+        if not args.no_save and (args.save_interval_updates or 0) > 0 and \
+                num_updates % args.save_interval_updates == 0:
             first_val_loss = val_loss(args, trainer, dataset, epoch, num_updates)
             save_checkpoint(trainer, args, epoch, end_of_epoch=False, val_loss=first_val_loss)
 
@@ -235,17 +236,15 @@ def validate(args, trainer, dataset, subset, epoch, num_updates):
     for sample in progress:
         log_output = trainer.valid_step(sample)
 
+        for k, v in log_output.items():
+            if k in ['loss', 'nll_loss', 'sample_size']:
+                continue
+            extra_meters[k].update(v)
+
     # log validation stats
     stats = get_valid_stats(trainer)
     for k, meter in extra_meters.items():
         stats[k] = meter.avg
-
-    if num_updates is not None:
-        stats['num_updates'] = num_updates
-
-    if hasattr(save_checkpoint, 'best'):
-        stats['best'] = min(save_checkpoint.best, stats['valid_loss'])
-
     progress.print(stats)
 
     return stats['valid_loss']
@@ -260,6 +259,9 @@ def get_valid_stats(trainer):
     else:
         nll_loss = trainer.get_meter('valid_loss').avg
     stats['valid_ppl'] = get_perplexity(nll_loss)
+    stats['num_updates'] = trainer.get_num_updates()
+    if hasattr(save_checkpoint, 'best'):
+        stats['best'] = min(save_checkpoint.best, stats['valid_loss'])
     return stats
 
 
