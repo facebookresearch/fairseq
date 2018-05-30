@@ -10,7 +10,7 @@ import itertools
 import numpy as np
 import torch
 
-from fairseq.data.data_utils import numpy_seed, uneven_batches_by_size, mask_batches, batches_by_size
+from fairseq.data.data_utils import numpy_seed, uneven_batches_by_size, ShardedIterator, batches_by_size
 
 
 class LanguageDatasets(object):
@@ -41,7 +41,7 @@ class LanguageDatasets(object):
             frozen_batches = tuple(batches)  # freeze
 
         def dataloader(b):
-            b = mask_batches(b, shard_id=shard_id, num_shards=num_shards)  # shard dataset
+            b = ShardedIterator(b, num_shards, shard_id, fill_value=[])
             return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collater, batch_sampler=b)
 
         for epoch in itertools.count(1):
@@ -74,7 +74,7 @@ class LanguageDatasets(object):
             ignore_invalid_inputs=skip_invalid_size_inputs_valid_test,
             descending=descending,
             allow_different_src_lens=True)
-        batch_sampler = mask_batches(batch_sampler, shard_id=shard_id, num_shards=num_shards)
+        batch_sampler = ShardedIterator(batch_sampler, num_shards, shard_id, fill_value=[])
         return torch.utils.data.DataLoader(
             dataset, num_workers=num_workers, collate_fn=dataset.collater,
             batch_sampler=batch_sampler)

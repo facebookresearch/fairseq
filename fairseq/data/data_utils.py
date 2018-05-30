@@ -7,6 +7,7 @@
 
 import contextlib
 import glob
+import itertools
 import math
 import numbers
 import numpy as np
@@ -50,21 +51,31 @@ def fmt_path(path, fmt, *args):
     return os.path.join(path, fmt.format(*args))
 
 
-class sharded_iterator(object):
+class ShardedIterator(object):
+    """A sharded wrapper around an iterable (padded to length)."""
 
-    def __init__(self, itr, num_shards, shard_id):
-        assert shard_id >= 0 and shard_id < num_shards
-        self.itr = itr
-        self.num_shards = num_shards
-        self.shard_id = shard_id
+    def __init__(self, iterable, num_shards, shard_id, fill_value=None):
+        if shard_id < 0 or shard_id >= num_shards:
+            raise ValueError('shard_id must be between 0 and num_shards')
+
+        self._sharded_len = len(iterable) // num_shards
+        if len(iterable) % num_shards > 0:
+            self._sharded_len += 1
+
+        self.itr = itertools.zip_longest(
+            range(self._sharded_len),
+            itertools.islice(iterable, shard_id, len(iterable), num_shards),
+            fillvalue=fill_value,
+        )
 
     def __len__(self):
-        return len(self.itr)
+        return self._sharded_len
 
     def __iter__(self):
-        for i, v in enumerate(self.itr):
-            if i % self.num_shards == self.shard_id:
-                yield v
+        return self
+
+    def __next__(self):
+        return next(self.itr)[1]
 
 
 def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=False):
@@ -193,18 +204,6 @@ def uneven_batches_by_size(src, dst, max_tokens=None, max_sentences=None,
         required_batch_size_multiple=required_batch_size_multiple,
     ))
     return batches
-
-
-def mask_batches(batch_sampler, shard_id, num_shards):
-    if num_shards == 1:
-        return batch_sampler
-    res = [
-        batch
-        for i, batch in enumerate(batch_sampler)
-        if i % num_shards == shard_id
-    ]
-    expected_length = int(math.ceil(len(batch_sampler) / num_shards))
-    return res + [[]] * (expected_length - len(res))
 
 
 @contextlib.contextmanager
