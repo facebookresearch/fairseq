@@ -243,6 +243,9 @@ def validate(args, trainer, dataset, subset, epoch, num_updates):
     if num_updates is not None:
         stats['num_updates'] = num_updates
 
+    if hasattr(save_checkpoint, 'best'):
+        stats['best'] = min(save_checkpoint.best, stats['valid_loss'])
+
     progress.print(stats)
 
     return stats['valid_loss']
@@ -300,8 +303,10 @@ def save_checkpoint(trainer, args, epoch, end_of_epoch, val_loss):
     if not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best:
         save_checkpoint.best = val_loss
         best_filename = os.path.join(args.save_dir, 'checkpoint_best.pt')
+        extra_state['best'] = val_loss
         trainer.save_checkpoint(best_filename, extra_state)
 
+    extra_state['best'] = save_checkpoint.best
     last_filename = os.path.join(args.save_dir, 'checkpoint_last.pt')
     trainer.save_checkpoint(last_filename, extra_state)
 
@@ -317,6 +322,9 @@ def load_checkpoint(args, trainer, train_dataloader):
             epoch = extra_state['epoch']
             end_of_epoch = extra_state.get('end_of_epoch', True)
             trainer_updates = trainer.get_num_updates()
+
+            if 'best' in extra_state:
+                save_checkpoint.best = extra_state['best']
 
             print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
 
