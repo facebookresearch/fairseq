@@ -80,5 +80,5 @@ def main(args):
 
 if __name__ == '__main__':
     parser = options.get_eval_lm_parser()
-    args = parser.parse_args()
+    args = options.parse_args_and_arch(parser)
     main(args)
