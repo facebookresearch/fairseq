@@ -8,9 +8,9 @@ Provides an example of pre-processing for IWSLT'14 German to English translation
 
 Example usage:
 ```
-$ cd data/
+$ cd examples/translation/
 $ bash prepare-iwslt14.sh
-$ cd ..
+$ cd ../..
 
 # Binarize the dataset:
 $ TEXT=data/iwslt14.tokenized.de-en
@@ -47,9 +47,9 @@ $ bash prepare-wmt14en2de.sh --icml17
 Example usage:
 
 ```
-$ cd data/
+$ cd examples/translation/
 $ bash prepare-wmt14en2de.sh
-$ cd ..
+$ cd ../..
 
 # Binarize the dataset:
 $ TEXT=data/wmt14_en_de
@@ -79,9 +79,9 @@ Provides an example of pre-processing for the WMT'14 English to French translati
 Example usage:
 
 ```
-$ cd data/
+$ cd examples/translation/
 $ bash prepare-wmt14en2fr.sh
-$ cd ..
+$ cd ../..
 
 # Binarize the dataset:
 $ TEXT=data/wmt14_en_fr
