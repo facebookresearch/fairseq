@@ -4,10 +4,11 @@ Fairseq(-py) is a sequence modeling toolkit that allows researchers and develope
 - **Convolutional Neural Networks (CNN)**
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122)
   - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
+  - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](https://arxiv.org/abs/1612.08083.pdf)
 - **Long Short-Term Memory (LSTM) networks**
   - [Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation](https://arxiv.org/abs/1508.04025)
   - [Wiseman and Rush (2016): Sequence-to-Sequence Learning as Beam-Search Optimization](https://arxiv.org/abs/1606.02960)
- 
+
 Fairseq features multi-GPU (distributed) training on one machine or across multiple machines, fast beam search generation on both CPU and GPU, and includes pre-trained models for several benchmark translation datasets.
 
 ![Model](fairseq.gif)
@@ -38,6 +39,7 @@ The following command-line tools are provided:
 * `python generate.py`: Translate pre-processed data with a trained model
 * `python interactive.py`: Translate raw text with a trained model
 * `python score.py`: BLEU scoring of generated translations against reference translations
+* `python eval_lm.py`: Language model evaluation
 
 ## Evaluating Pre-trained Models
 First, download a pre-trained model along with its vocabularies:
@@ -74,13 +76,16 @@ Check [below](#pre-trained-models) for a full list of pre-trained models availab
 
 ## Training a New Model
 
+The following tutorial is for machine translation. For an example of how to use Fairseq for language modeling, please see the [language modeling example README](examples/language_model/README.md).
+
 ### Data Pre-processing
+
 Fairseq contains example pre-processing scripts for several translation datasets: IWSLT 2014 (German-English), WMT 2014 (English-French) and WMT 2014 (English-German).
 To pre-process and binarize the IWSLT dataset:
 ```
-$ cd data/
+$ cd examples/translation/
 $ bash prepare-iwslt14.sh
-$ cd ..
+$ cd ../..
 $ TEXT=data/iwslt14.tokenized.de-en
 $ python preprocess.py --source-lang de --target-lang en \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
