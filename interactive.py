@@ -25,7 +25,10 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(', '.join(args.path)))
-    models, model_args = utils.load_ensemble_for_inference(args.path, data_dir=args.data)
+    models, model_args = utils.load_ensemble_for_inference(args.path, data_dir=args.data, model_arg_overrides={
+                'encoder_embed_path': None,
+                'decoder_embed_path': None
+            })
     src_dict, dst_dict = models[0].src_dict, models[0].dst_dict
 
     print('| [{}] dictionary: {} types'.format(model_args.source_lang, len(src_dict)))
