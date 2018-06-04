@@ -5,6 +5,8 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import contextlib
+from io import StringIO
 import unittest
 
 from unittest.mock import MagicMock, patch
@@ -37,27 +39,30 @@ class TestLoadCheckpoint(unittest.TestCase):
         [p.start() for p in self.applied_patches]
 
     def test_load_partial_checkpoint(self):
-        trainer = mock_trainer(2, 200, False)
-        loader = mock_loader(150)
-        epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
-        self.assertEqual(epoch, 2)
-        self.assertEqual(next(ds), 50)
+        with contextlib.redirect_stdout(StringIO()):
+            trainer = mock_trainer(2, 200, False)
+            loader = mock_loader(150)
+            epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
+            self.assertEqual(epoch, 2)
+            self.assertEqual(next(ds), 50)
 
     def test_load_full_checkpoint(self):
-        trainer = mock_trainer(2, 300, True)
-        loader = mock_loader(150)
-        epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
-        self.assertEqual(epoch, 3)
-        self.assertEqual(next(iter(ds)), 0)
+        with contextlib.redirect_stdout(StringIO()):
+            trainer = mock_trainer(2, 300, True)
+            loader = mock_loader(150)
+            epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
+            self.assertEqual(epoch, 3)
+            self.assertEqual(next(iter(ds)), 0)
 
     def test_load_no_checkpoint(self):
-        trainer = mock_trainer(0, 0, False)
-        loader = mock_loader(150)
-        self.patches['os.path.isfile'].return_value = False
+        with contextlib.redirect_stdout(StringIO()):
+            trainer = mock_trainer(0, 0, False)
+            loader = mock_loader(150)
+            self.patches['os.path.isfile'].return_value = False
 
-        epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
-        self.assertEqual(epoch, 1)
-        self.assertEqual(next(iter(ds)), 0)
+            epoch, ds = train.load_checkpoint(MagicMock(), trainer, loader)
+            self.assertEqual(epoch, 1)
+            self.assertEqual(next(iter(ds)), 0)
 
     def tearDown(self):
         patch.stopall()
