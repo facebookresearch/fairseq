@@ -38,8 +38,7 @@ class Trainer(object):
         self.model = model.cuda()
         self.criterion = criterion.cuda()
 
-        # initialize optimizer and LR scheduler
-        self._build_optimizer()
+        self.optimizer = None
 
         # initialize meters
         self.meters = OrderedDict()
@@ -95,6 +94,10 @@ class Trainer(object):
 
     def train_step(self, sample, update_params=True):
         """Do forward, backward and parameter update."""
+
+        if self.optimizer is None:
+            # initialize optimizer and LR scheduler if hasn't been loaded from the checkpoint
+            self._build_optimizer()
 
         sample = self._prepare_sample(sample, volatile=False)
 
