@@ -606,6 +606,7 @@ def base_lm_architecture(args):
     args.decoder_layers = getattr(args, 'decoder_layers', '[(1268, 4)] * 13')
     args.decoder_attention = getattr(args, 'decoder_attention', 'False')
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.normalization_constant = getattr(args, 'normalization_constant', 0.5)
 
 
 @register_model_architecture('fconv', 'fconv')
