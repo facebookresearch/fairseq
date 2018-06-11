@@ -164,7 +164,7 @@ class SequenceGenerator(object):
                 # finalized one
                 best_unfinalized_score = unfinalized_scores[sent].max()
                 if self.normalize_scores:
-                    best_unfinalized_score /= maxlen
+                    best_unfinalized_score /= maxlen ** self.len_penalty
                 if worst_finalized[sent]['score'] >= best_unfinalized_score:
                     return True
             return False
@@ -479,15 +479,9 @@ class SequenceGenerator(object):
             )
 
             # swap buffers
-            old_tokens = tokens
-            tokens = tokens_buf
-            tokens_buf = old_tokens
-            old_scores = scores
-            scores = scores_buf
-            scores_buf = old_scores
-            old_attn = attn
-            attn = attn_buf
-            attn_buf = old_attn
+            tokens, tokens_buf = tokens_buf, tokens
+            scores, scores_buf = scores_buf, scores
+            attn, attn_buf = attn_buf, attn
 
             # reorder incremental state in decoder
             reorder_state = active_bbsz_idx
