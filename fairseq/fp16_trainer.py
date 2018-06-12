@@ -49,8 +49,8 @@ class FP16Trainer(Trainer):
     We do forward/backward with FP16 and compute the loss + optimize with FP32.
     """
 
-    def __init__(self, args, model, criterion):
-        super().__init__(args, model, criterion)
+    def __init__(self, args, task, model, criterion):
+        super().__init__(args, task, model, criterion)
 
         # convert model to FP16 (but keep criterion FP32)
         self.model.half()

@@ -148,6 +148,7 @@ def train_translation_model(data_dir, arch, extra_flags=None):
     train_args = options.parse_args_and_arch(
         train_parser,
         [
+            '--task', 'translation',
             data_dir,
             '--save-dir', data_dir,
             '--arch', arch,
@@ -166,15 +167,18 @@ def train_translation_model(data_dir, arch, extra_flags=None):
 
 def generate_main(data_dir):
     generate_parser = options.get_generation_parser()
-    generate_args = generate_parser.parse_args([
-        data_dir,
-        '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
-        '--beam', '3',
-        '--batch-size', '64',
-        '--max-len-b', '5',
-        '--gen-subset', 'valid',
-        '--no-progress-bar',
-    ])
+    generate_args = options.parse_args_and_arch(
+        generate_parser,
+        [
+            data_dir,
+            '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--beam', '3',
+            '--batch-size', '64',
+            '--max-len-b', '5',
+            '--gen-subset', 'valid',
+            '--no-progress-bar',
+        ],
+    )
 
     # evaluate model in batch mode
     generate.main(generate_args)
@@ -205,6 +209,7 @@ def train_language_model(data_dir, arch):
     train_args = options.parse_args_and_arch(
         train_parser,
         [
+            '--task', 'language_modeling',
             data_dir,
             '--arch', arch,
             '--optimizer', 'nag',
@@ -214,7 +219,7 @@ def train_language_model(data_dir, arch):
             '--decoder-layers', '[(850, 3)] * 2 + [(1024,4)]',
             '--decoder-embed-dim', '280',
             '--max-tokens', '500',
-            '--max-target-positions', '500',
+            '--tokens-per-sample', '500',
             '--save-dir', data_dir,
             '--max-epoch', '1',
             '--no-progress-bar',
@@ -226,11 +231,14 @@ def train_language_model(data_dir, arch):
 
 def eval_lm_main(data_dir):
     eval_lm_parser = options.get_eval_lm_parser()
-    eval_lm_args = eval_lm_parser.parse_args([
-        data_dir,
-        '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
-        '--no-progress-bar',
-    ])
+    eval_lm_args = options.parse_args_and_arch(
+        eval_lm_parser,
+        [
+            data_dir,
+            '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--no-progress-bar',
+        ],
+    )
     eval_lm.main(eval_lm_args)
 
 

@@ -23,9 +23,26 @@ class BaseFairseqModel(nn.Module):
         """Add model-specific arguments to the parser."""
         pass
 
+    @classmethod
+    def build_model(cls, args, task):
+        """Build a new model instance."""
+        raise NotImplementedError
+
     def get_targets(self, sample, net_output):
         """Get targets from either the sample or the net's output."""
         return sample['target']
+
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        return self.decoder.get_normalized_probs(net_output, log_probs, sample)
+
+    def max_positions(self):
+        """Maximum length supported by the model."""
+        raise NotImplementedError
+
+    def max_decoder_positions(self):
+        """Maximum length supported by the decoder."""
+        return self.decoder.max_positions()
 
     def load_state_dict(self, state_dict, strict=True):
         """Copies parameters and buffers from state_dict into this module and
@@ -87,33 +104,14 @@ class FairseqModel(BaseFairseqModel):
         assert isinstance(self.encoder, FairseqEncoder)
         assert isinstance(self.decoder, FairseqDecoder)
 
-        self.src_dict = encoder.dictionary
-        self.dst_dict = decoder.dictionary
-        assert self.src_dict.pad() == self.dst_dict.pad()
-        assert self.src_dict.eos() == self.dst_dict.eos()
-        assert self.src_dict.unk() == self.dst_dict.unk()
-
-    @classmethod
-    def build_model(cls, args, src_dict, dst_dict):
-        """Build a new model instance."""
-        raise NotImplementedError
-
     def forward(self, src_tokens, src_lengths, prev_output_tokens):
         encoder_out = self.encoder(src_tokens, src_lengths)
         decoder_out = self.decoder(prev_output_tokens, encoder_out)
         return decoder_out
 
-    def get_normalized_probs(self, net_output, log_probs, sample=None):
-        """Get normalized probabilities (or log probs) from a net's output."""
-        return self.decoder.get_normalized_probs(net_output, log_probs, sample)
-
-    def max_encoder_positions(self):
-        """Maximum input length supported by the encoder."""
-        return self.encoder.max_positions()
-
-    def max_decoder_positions(self):
-        """Maximum output length supported by the decoder."""
-        return self.decoder.max_positions()
+    def max_positions(self):
+        """Maximum length supported by the model."""
+        return (self.encoder.max_positions(), self.decoder.max_positions())
 
 
 class FairseqLanguageModel(BaseFairseqModel):
@@ -124,16 +122,9 @@ class FairseqLanguageModel(BaseFairseqModel):
         self.decoder = decoder
         assert isinstance(self.decoder, FairseqDecoder)
 
-    def forward(self, src_tokens, **unused):
+    def forward(self, src_tokens):
         return self.decoder(src_tokens)
 
-    def get_normalized_probs(self, net_output, log_probs, sample=None):
-        """Get normalized probabilities (or log probs) from a net's output."""
-        return self.decoder.get_normalized_probs(net_output, log_probs, sample)
-
-    def max_decoder_positions(self):
-        """Maximum output length supported by the decoder."""
+    def max_positions(self):
+        """Maximum length supported by the model."""
         return self.decoder.max_positions()
-
-    def max_encoder_positions(self):
-        return self.max_decoder_positions()

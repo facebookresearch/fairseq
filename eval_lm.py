@@ -9,45 +9,43 @@
 import numpy as np
 import torch
 
-from fairseq import options, utils, progress_bar
-from fairseq.data import data_utils, data_loaders
+from fairseq import data, options, progress_bar, tasks, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
 
 
 def main(args):
     assert args.path is not None, '--path required for evaluation!'
+
+    if args.tokens_per_sample is None:
+        args.tokens_per_sample = 1024
     print(args)
 
-    if args.max_target_positions is None:
-        args.max_target_positions = 1024
-
     use_cuda = torch.cuda.is_available() and not args.cpu
-    dataset = data_loaders.load_dataset(args, [args.gen_subset], False)
+
+    # Load dataset splits
+    task = tasks.setup_task(args)
+    task.load_dataset(args.gen_subset)
+    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    models, _ = utils.load_ensemble_for_inference(args.path.split(','), dataset.src_dict, dataset.dst_dict)
-
-    print('| Dictionary: {} types'.format(len(dataset.src_dict)))
-    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
+    models, _ = utils.load_ensemble_for_inference(args.path.split(','), task)
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
         model.make_generation_fast_()
-        model.src_dict = dataset.src_dict
-        model.dst_dict = dataset.dst_dict
 
-    itr = dataset.eval_dataloader(
-        args.gen_subset,
+    itr = data.EpochBatchIterator(
+        dataset=task.dataset(args.gen_subset),
         max_sentences=args.max_sentences or 4,
-        max_positions=args.max_target_positions or 1024,
-        descending=True,
-    )
-    itr = data_utils.ShardedIterator(itr, args.num_shards, args.shard_id)
+        max_positions=model.max_positions(),
+        num_shards=args.num_shards,
+        shard_id=args.shard_id,
+    ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
-    scorer = SequenceScorer(models)
+    scorer = SequenceScorer(models, task.target_dictionary)
     if use_cuda:
         scorer.cuda()
 
@@ -62,7 +60,7 @@ def main(args):
                 inf_scores = pos_scores.eq(float('inf')) | pos_scores.eq(float('-inf'))
                 if inf_scores.any():
                     print('| Skipping tokens with inf scores:',
-                          dataset.src_dict.string(hypo['tokens'][inf_scores.nonzero()]))
+                          task.target_dictionary.string(hypo['tokens'][inf_scores.nonzero()]))
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
                 score_sum += pos_scores.sum()
                 count += pos_scores.numel()

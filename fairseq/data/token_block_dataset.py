@@ -5,47 +5,49 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-
 import math
 
 import numpy as np
 import torch
 
-from fairseq.data.indexed_dataset import SizedDataset
 
+class TokenBlockDataset(torch.utils.data.Dataset):
+    """Break a 1d tensor of tokens into blocks.
 
-class TokenBlockDataset(SizedDataset):
-    """Given a 1d tensor of tokens, this dataset will break tokens into blocks based on parameters. The blocks are
-    fetched from the original tensor so no additional memory is allocated"""
+    The blocks are fetched from the original tensor so no additional memory is allocated.
 
-    def __init__(self, tokens, block_size, sizes, offset=0, break_mode=None):
-        """
-        Args:
-            tokens: torch tensor of tokens to break into blocks
-            block_size: An integer. the maximum size of each block (note this has no effect in 'eos' break mode)
-            sizes: A list of integers. sizes of sentences in the block. the sum of the sizes should add up to the
-                   length of tokens
-            offset: An integer. rotates the tokens by this much before computing blocks. useful for language model targets
-            break_mode: A boolean if None/'none' then breaks tokens into equally sized blocks of size block_size
-                        if 'complete' then breaks tokens into block sizes of up to block_size such that each block
-                        contains complete sentences. block_size may be exceeded if some sentences exceed block_size
-                        if 'eos' then each block contains a single sentence. does not respect block_size"""
+    Args:
+        tokens: 1d tensor of tokens to break into blocks
+        sizes: sentence lengths (required for 'complete' and 'eos')
+        block_size: maximum block size (ignored in 'eos' break mode)
+        break_mode: Mode used for breaking tokens. Values can be one of:
+            - 'none': break tokens into equally sized blocks (up to block_size)
+            - 'complete': break tokens into blocks (up to block_size) such that
+                blocks contains complete sentences, although block_size may be
+                exceeded if some sentences exceed block_size
+            - 'eos': each block contains one sentence (block_size is ignored)
+        include_targets: return next tokens as targets
+    """
+
+    def __init__(self, tokens, sizes, block_size, break_mode=None, include_targets=False):
         super().__init__()
 
         self.tokens = tokens
-        self.offset = offset
+        self.total_size = len(tokens)
+        self.include_targets = include_targets
         self.slice_indices = []
 
         if break_mode is None or break_mode == 'none':
-            length = math.ceil(tokens.numel() / block_size)
+            length = math.ceil(len(tokens) / block_size)
 
             def block_at(i):
                 start = i * block_size
                 end = min(start + block_size, len(tokens))
                 return (start, end)
 
-            self.slice_indices = [block_at(i) for i in np.arange(length)]
+            self.slice_indices = [block_at(i) for i in range(length)]
         elif break_mode == 'complete':
+            assert sizes is not None and sum(sizes) == len(tokens)
             tok_idx = 0
             sz_idx = 0
             curr_size = 0
@@ -60,6 +62,7 @@ class TokenBlockDataset(SizedDataset):
             if curr_size > 0:
                 self.slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'eos':
+            assert sizes is not None and sum(sizes) == len(tokens)
             curr = 0
             for sz in sizes:
                 # skip samples with just 1 example (which would be just the eos token)
@@ -67,19 +70,20 @@ class TokenBlockDataset(SizedDataset):
                     self.slice_indices.append((curr, curr + sz))
                 curr += sz
         else:
-            raise Exception('invalid break_mode. Supported values: none, complete, eos')
+            raise ValueError('Invalid break_mode: ' + break_mode)
 
-        self._sizes = np.array([e - s for s, e in self.slice_indices])
+        self.sizes = np.array([e - s for s, e in self.slice_indices])
 
-    def _slice(self, s, e):
-        # this will copy only the first block if offset > 0, instead of all blocks if we just rotated
-        # the tensor with torch.cat()
-        if s < self.offset:
-            return torch.cat([self.tokens[s - self.offset:], self.tokens[s:e - self.offset]])
-        return self.tokens[s - self.offset:e - self.offset]
-
-    def __getitem__(self, i):
-        return self._slice(*self.slice_indices[i])
+    def __getitem__(self, index):
+        s, e = self.slice_indices[index]
+        item = torch.LongTensor(self.tokens[s:e])
+        if self.include_targets:
+            if e == self.total_size:
+                return item[:-1], item[1:]
+            else:
+                return item, torch.LongTensor(self.tokens[s + 1:e + 1])
+        else:
+            return item
 
     def __len__(self):
         return len(self.slice_indices)

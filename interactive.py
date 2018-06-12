@@ -6,16 +6,16 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from collections import namedtuple
 import numpy as np
 import sys
+
 import torch
-from collections import namedtuple
 from torch.autograd import Variable
 
-from fairseq import options, tokenizer, utils
-from fairseq.data.data_utils import collate_tokens
-from fairseq.data.consts import LEFT_PAD_SOURCE
+from fairseq import data, options, tasks, tokenizer, utils
 from fairseq.sequence_generator import SequenceGenerator
+
 
 Batch = namedtuple('Batch', 'srcs tokens lengths')
 Translation = namedtuple('Translation', 'src_str hypos alignments')
@@ -33,44 +33,52 @@ def buffered_read(buffer_size):
         yield buffer
 
 
-def make_batches(lines, batch_size, src_dict):
-    tokens = [tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long() for src_str in lines]
-    lengths = [t.numel() for t in tokens]
-
-    indices = np.argsort(lengths)
-    num_batches = np.ceil(len(indices) / batch_size)
-    batches = np.array_split(indices, num_batches)
-    for batch_idxs in batches:
-        batch_toks = [tokens[i] for i in batch_idxs]
-        batch_toks = collate_tokens(batch_toks, src_dict.pad(), src_dict.eos(), LEFT_PAD_SOURCE,
-                                    move_eos_to_beginning=False)
+def make_batches(lines, args, src_dict, max_positions):
+    tokens = [
+        tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long()
+        for src_str in lines
+    ]
+    lengths = np.array([t.numel() for t in tokens])
+    itr = data.EpochBatchIterator(
+        dataset=data.LanguagePairDataset(tokens, lengths, src_dict),
+        max_tokens=args.max_tokens,
+        max_sentences=args.max_sentences,
+        max_positions=max_positions,
+    ).next_epoch_itr(shuffle=False)
+    for batch in itr:
         yield Batch(
-            srcs=[lines[i] for i in batch_idxs],
-            tokens=batch_toks,
-            lengths=tokens[0].new([lengths[i] for i in batch_idxs]),
-        ), batch_idxs
+            srcs=[lines[i] for i in batch['id']],
+            tokens=batch['net_input']['src_tokens'],
+            lengths=batch['net_input']['src_lengths'],
+        ), batch['id']
 
 
 def main(args):
-    print(args)
+    if args.buffer_size < 1:
+        args.buffer_size = 1
+    if args.max_tokens is None and args.max_sentences is None:
+        args.max_sentences = 1
+
     assert not args.sampling or args.nbest == args.beam, \
         '--sampling requires --nbest to be equal to --beam'
     assert not args.max_sentences or args.max_sentences <= args.buffer_size, \
         '--max-sentences/--batch-size cannot be larger than --buffer-size'
 
-    if args.buffer_size < 1:
-        args.buffer_size = 1
+    print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
+
+    # Setup task, e.g., translation
+    task = tasks.setup_task(args)
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
     model_paths = args.path.split(',')
-    models, model_args = utils.load_ensemble_for_inference(model_paths, data_dir=args.data)
-    src_dict, dst_dict = models[0].src_dict, models[0].dst_dict
+    models, model_args = utils.load_ensemble_for_inference(model_paths, task)
 
-    print('| [{}] dictionary: {} types'.format(model_args.source_lang, len(src_dict)))
-    print('| [{}] dictionary: {} types'.format(model_args.target_lang, len(dst_dict)))
+    # Set dictionaries
+    src_dict = task.source_dictionary
+    tgt_dict = task.target_dictionary
 
     # Optimize ensemble for generation
     for model in models:
@@ -80,10 +88,11 @@ def main(args):
 
     # Initialize generator
     translator = SequenceGenerator(
-        models, beam_size=args.beam, stop_early=(not args.no_early_stop),
+        models, tgt_dict, beam_size=args.beam, stop_early=(not args.no_early_stop),
         normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
         unk_penalty=args.unkpen, sampling=args.sampling, sampling_topk=args.sampling_topk,
-        minlen=args.min_len)
+        minlen=args.min_len,
+    )
 
     if use_cuda:
         translator.cuda()
@@ -106,7 +115,7 @@ def main(args):
                 src_str=src_str,
                 alignment=hypo['alignment'].int().cpu(),
                 align_dict=align_dict,
-                dst_dict=dst_dict,
+                tgt_dict=tgt_dict,
                 remove_bpe=args.remove_bpe,
             )
             result.hypos.append('H\t{}\t{}'.format(hypo['score'], hypo_str))
@@ -135,7 +144,7 @@ def main(args):
     for inputs in buffered_read(args.buffer_size):
         indices = []
         results = []
-        for batch, batch_indices in make_batches(inputs, max(1, args.max_sentences or 1), src_dict):
+        for batch, batch_indices in make_batches(inputs, args, src_dict, models[0].max_positions()):
             indices.extend(batch_indices)
             results += process_batch(batch)
 

@@ -103,4 +103,3 @@ $ python generate.py data-bin/fconv_wmt_en_fr \
   --path checkpoints/fconv_wmt_en_fr/checkpoint_best.pt --beam 5 --remove-bpe
 
 ```
-

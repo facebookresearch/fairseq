@@ -10,7 +10,6 @@ import struct
 
 import numpy as np
 import torch
-import torch.utils.data
 
 from fairseq.tokenizer import Tokenizer
 
@@ -50,16 +49,7 @@ def data_file_path(prefix_path):
     return prefix_path + '.bin'
 
 
-class SizedDataset(torch.utils.data.Dataset):
-    def __init__(self):
-        self._sizes = None
-
-    @property
-    def sizes(self):
-        return self._sizes
-
-
-class IndexedDataset(SizedDataset):
+class IndexedDataset(torch.utils.data.Dataset):
     """Loader for TorchNet IndexedDataset"""
 
     def __init__(self, path):
@@ -74,7 +64,7 @@ class IndexedDataset(SizedDataset):
             self.size, self.s = struct.unpack('<QQ', f.read(16))
             self.dim_offsets = read_longs(f, self.size + 1)
             self.data_offsets = read_longs(f, self.size + 1)
-            self._sizes = read_longs(f, self.s)
+            self.sizes = read_longs(f, self.s)
         self.read_data(path)
 
     def read_data(self, path):
@@ -93,7 +83,7 @@ class IndexedDataset(SizedDataset):
         a = np.empty(tensor_size, dtype=self.dtype)
         self.data_file.seek(self.data_offsets[i] * self.element_size)
         self.data_file.readinto(a)
-        return torch.from_numpy(a)
+        return torch.from_numpy(a).long() - 1  # subtract 1 for 0-based indexing
 
     def __len__(self):
         return self.size
@@ -114,6 +104,7 @@ class IndexedInMemoryDataset(IndexedDataset):
         self.buffer = np.empty(self.data_offsets[-1], dtype=self.dtype)
         self.data_file.readinto(self.buffer)
         self.data_file.close()
+        self.buffer -= 1  # subtract 1 for 0-based indexing
 
     def __del__(self):
         pass
@@ -123,7 +114,7 @@ class IndexedInMemoryDataset(IndexedDataset):
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
         a = np.empty(tensor_size, dtype=self.dtype)
         np.copyto(a, self.buffer[self.data_offsets[i]:self.data_offsets[i + 1]])
-        return torch.from_numpy(a)
+        return torch.from_numpy(a).long()
 
 
 class IndexedRawTextDataset(IndexedDataset):
@@ -133,7 +124,7 @@ class IndexedRawTextDataset(IndexedDataset):
     def __init__(self, path, dictionary, append_eos=True, reverse_order=False):
         self.tokens_list = []
         self.lines = []
-        self._sizes = []
+        self.sizes = []
         self.append_eos = append_eos
         self.reverse_order = reverse_order
         self.read_data(path, dictionary)
@@ -146,10 +137,10 @@ class IndexedRawTextDataset(IndexedDataset):
                 tokens = Tokenizer.tokenize(
                     line, dictionary, add_if_not_exist=False,
                     append_eos=self.append_eos, reverse_order=self.reverse_order,
-                ) + 1  # +1 for Lua compatibility
+                ).long()
                 self.tokens_list.append(tokens)
-                self._sizes.append(len(tokens))
-        self._sizes = np.array(self._sizes)
+                self.sizes.append(len(tokens))
+        self.sizes = np.array(self.sizes)
 
     def __getitem__(self, i):
         self.check_index(i)
@@ -164,6 +155,10 @@ class IndexedRawTextDataset(IndexedDataset):
 
     def __len__(self):
         return self.size
+
+    @staticmethod
+    def exists(path):
+        return os.path.exists(path)
 
 
 class IndexedDatasetBuilder(object):

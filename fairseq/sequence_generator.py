@@ -14,7 +14,7 @@ from fairseq.models import FairseqIncrementalDecoder
 
 class SequenceGenerator(object):
     def __init__(
-        self, models, beam_size=1, minlen=1, maxlen=None, stop_early=True,
+        self, models, tgt_dict, beam_size=1, minlen=1, maxlen=None, stop_early=True,
         normalize_scores=True, len_penalty=1, unk_penalty=0, retain_dropout=False,
         sampling=False, sampling_topk=-1, sampling_temperature=1,
     ):
@@ -28,13 +28,10 @@ class SequenceGenerator(object):
             normalize_scores: Normalize scores by the length of the output.
         """
         self.models = models
-        self.pad = models[0].dst_dict.pad()
-        self.unk = models[0].dst_dict.unk()
-        self.eos = models[0].dst_dict.eos()
-        assert all(m.dst_dict.pad() == self.pad for m in self.models[1:])
-        assert all(m.dst_dict.unk() == self.unk for m in self.models[1:])
-        assert all(m.dst_dict.eos() == self.eos for m in self.models[1:])
-        self.vocab_size = len(models[0].dst_dict)
+        self.pad = tgt_dict.pad()
+        self.unk = tgt_dict.unk()
+        self.eos = tgt_dict.eos()
+        self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
         self.minlen = minlen
         max_decoder_len = min(m.max_decoder_positions() for m in self.models)
@@ -70,6 +67,8 @@ class SequenceGenerator(object):
 
         for sample in data_itr:
             s = utils.make_variable(sample, volatile=True, cuda=cuda)
+            if 'net_input' not in s:
+                continue
             input = s['net_input']
             srclen = input['src_tokens'].size(1)
             if timer is not None:

@@ -15,13 +15,14 @@ from .fairseq_model import BaseFairseqModel, FairseqModel, FairseqLanguageModel 
 
 from .composite_encoder import CompositeEncoder  # noqa: F401
 
+
 MODEL_REGISTRY = {}
 ARCH_MODEL_REGISTRY = {}
 ARCH_CONFIG_REGISTRY = {}
 
 
-def build_model(args, src_dict, dst_dict):
-    return ARCH_MODEL_REGISTRY[args.arch].build_model(args, src_dict, dst_dict)
+def build_model(args, task):
+    return ARCH_MODEL_REGISTRY[args.arch].build_model(args, task)
 
 
 def register_model(name):

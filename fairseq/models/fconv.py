@@ -11,7 +11,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import options, utils
-from fairseq.data.consts import LEFT_PAD_SOURCE, LEFT_PAD_TARGET
 from fairseq.modules import (
     AdaptiveSoftmax, BeamableMM, GradMultiply, LearnedPositionalEmbedding,
     LinearizedConvolution,
@@ -58,26 +57,23 @@ class FConvModel(FairseqModel):
                                  ' to be equal)')
 
     @classmethod
-    def build_model(cls, args, src_dict, dst_dict):
+    def build_model(cls, args, task):
         """Build a new model instance."""
         # make sure that all args are properly defaulted (in case there are any new ones)
         base_architecture(args)
-        if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = args.max_positions
-            args.max_target_positions = args.max_positions
 
         encoder_embed_dict = None
         if args.encoder_embed_path:
             encoder_embed_dict = utils.parse_embedding(args.encoder_embed_path)
-            utils.print_embed_overlap(encoder_embed_dict, src_dict)
+            utils.print_embed_overlap(encoder_embed_dict, task.source_dictionary)
 
         decoder_embed_dict = None
         if args.decoder_embed_path:
             decoder_embed_dict = utils.parse_embedding(args.decoder_embed_path)
-            utils.print_embed_overlap(decoder_embed_dict, dst_dict)
+            utils.print_embed_overlap(decoder_embed_dict, task.target_dictionary)
 
         encoder = FConvEncoder(
-            src_dict,
+            dictionary=task.source_dictionary,
             embed_dim=args.encoder_embed_dim,
             embed_dict=encoder_embed_dict,
             convolutions=eval(args.encoder_layers),
@@ -86,7 +82,7 @@ class FConvModel(FairseqModel):
             normalization_constant=args.normalization_constant,
         )
         decoder = FConvDecoder(
-            dst_dict,
+            dictionary=task.target_dictionary,
             embed_dim=args.decoder_embed_dim,
             embed_dict=decoder_embed_dict,
             convolutions=eval(args.decoder_layers),
@@ -125,27 +121,28 @@ class FConvLanguageModel(FairseqLanguageModel):
                             help='multiplies the result of the residual block by sqrt(value)')
 
     @classmethod
-    def build_model(cls, args, dict, *_):
+    def build_model(cls, args, task):
         """Build a new model instance."""
-        if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = args.max_positions
-            args.max_target_positions = args.max_positions
-
         # make sure all arguments are present in older models
         base_lm_architecture(args)
 
+        if hasattr(args, 'max_target_positions'):
+            args.tokens_per_sample = args.max_target_positions
+
         decoder = FConvDecoder(
-            dict,
+            dictionary=task.target_dictionary,
             embed_dim=args.decoder_embed_dim,
             convolutions=eval(args.decoder_layers),
             out_embed_dim=args.decoder_embed_dim,
             attention=eval(args.decoder_attention),
             dropout=args.dropout,
-            max_positions=args.max_target_positions,
+            max_positions=args.tokens_per_sample,
             share_embed=False,
             positional_embeddings=False,
-            adaptive_softmax_cutoff=options.eval_str_list(args.adaptive_softmax_cutoff,
-                                                          type=int) if args.criterion == 'adaptive_loss' else None,
+            adaptive_softmax_cutoff=(
+                options.eval_str_list(args.adaptive_softmax_cutoff, type=int)
+                if args.criterion == 'adaptive_loss' else None
+            ),
             normalization_constant=args.normalization_constant,
         )
         return FConvLanguageModel(decoder)
@@ -154,12 +151,15 @@ class FConvLanguageModel(FairseqLanguageModel):
 class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
 
-    def __init__(self, dictionary, embed_dim=512, embed_dict=None,
-                 max_positions=1024, convolutions=((512, 3),) * 20, dropout=0.1,
-                 normalization_constant=0.5):
+    def __init__(
+        self, dictionary, embed_dim=512, embed_dict=None, max_positions=1024,
+        convolutions=((512, 3),) * 20, dropout=0.1, normalization_constant=0.5,
+        left_pad=True,
+    ):
         super().__init__(dictionary)
         self.dropout = dropout
         self.normalization_constant = normalization_constant
+        self.left_pad = left_pad
         self.num_attention_layers = None
 
         num_embeddings = len(dictionary)
@@ -172,7 +172,7 @@ class FConvEncoder(FairseqEncoder):
             max_positions,
             embed_dim,
             self.padding_idx,
-            left_pad=LEFT_PAD_SOURCE,
+            left_pad=self.left_pad,
         )
 
         convolutions = extend_conv_spec(convolutions)
@@ -329,14 +329,18 @@ class AttentionLayer(nn.Module):
 class FConvDecoder(FairseqIncrementalDecoder):
     """Convolutional decoder"""
 
-    def __init__(self, dictionary, embed_dim=512, embed_dict=None, out_embed_dim=256,
-                 max_positions=1024, convolutions=((512, 3),) * 20,
-                 attention=True, dropout=0.1, share_embed=False, positional_embeddings=True,
-                 adaptive_softmax_cutoff=None, normalization_constant=0.5):
+    def __init__(
+        self, dictionary, embed_dim=512, embed_dict=None, out_embed_dim=256,
+        max_positions=1024, convolutions=((512, 3),) * 20, attention=True,
+        dropout=0.1, share_embed=False, positional_embeddings=True,
+        adaptive_softmax_cutoff=None, normalization_constant=0.5,
+        left_pad=False,
+    ):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
         self.dropout = dropout
         self.normalization_constant = normalization_constant
+        self.left_pad = left_pad
 
         convolutions = extend_conv_spec(convolutions)
         in_channels = convolutions[0][0]
@@ -357,7 +361,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             max_positions,
             embed_dim,
             padding_idx,
-            left_pad=LEFT_PAD_TARGET,
+            left_pad=self.left_pad,
         ) if positional_embeddings else None
 
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
@@ -607,6 +611,22 @@ def base_lm_architecture(args):
     args.decoder_attention = getattr(args, 'decoder_attention', 'False')
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
     args.normalization_constant = getattr(args, 'normalization_constant', 0.5)
+
+
+@register_model_architecture('fconv_lm', 'fconv_lm_dauphin_wikitext103')
+def fconv_lm_dauphin_wikitext103(args):
+    layers = '[(850, 6)] * 3'
+    layers += ' + [(850, 1)] * 1'
+    layers += ' + [(850, 5)] * 4'
+    layers += ' + [(850, 1)] * 1'
+    layers += ' + [(850, 4)] * 3'
+    layers += ' + [(1024, 4)] * 1'
+    layers += ' + [(2048, 4)] * 1'
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 280)
+    args.decoder_layers = getattr(args, 'decoder_layers', layers)
+    args.decoder_attention = getattr(args, 'decoder_attention', 'False')
+    args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '10000,20000,200000')
+    base_lm_architecture(args)
 
 
 @register_model_architecture('fconv', 'fconv')

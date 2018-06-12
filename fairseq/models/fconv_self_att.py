@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.data.consts import LEFT_PAD_SOURCE, LEFT_PAD_TARGET
 from fairseq.modules import (
     DownsampledMultiHeadAttention, GradMultiply, LearnedPositionalEmbedding,
     LinearizedConvolution,
@@ -78,7 +77,7 @@ class FConvModelSelfAtt(FairseqModel):
                             help='use pretrained model when training [True, ...]')
 
     @classmethod
-    def build_model(cls, args, src_dict, dst_dict):
+    def build_model(cls, args, task):
         trained_encoder, trained_decoder = None, None
         pretrained = eval(args.pretrained)
         if pretrained:
@@ -86,8 +85,7 @@ class FConvModelSelfAtt(FairseqModel):
             trained_model = utils.load_ensemble_for_inference(
                 # not actually for inference, but loads pretrained model parameters
                 filenames=[args.pretrained_checkpoint],
-                src_dict=src_dict,
-                dst_dict=dst_dict,
+                task=task,
             )[0][0]
             trained_decoder = list(trained_model.children())[1]
             trained_encoder = list(trained_model.children())[0]
@@ -100,7 +98,7 @@ class FConvModelSelfAtt(FairseqModel):
 
         """Build a new model instance."""
         encoder = FConvEncoder(
-            src_dict,
+            task.source_dictionary,
             embed_dim=args.encoder_embed_dim,
             convolutions=eval(args.encoder_layers),
             dropout=args.dropout,
@@ -110,7 +108,7 @@ class FConvModelSelfAtt(FairseqModel):
         )
 
         decoder = FConvDecoder(
-            dst_dict,
+            task.target_dictionary,
             embed_dim=args.decoder_embed_dim,
             convolutions=eval(args.decoder_layers),
             out_embed_dim=args.decoder_out_embed_dim,
@@ -140,11 +138,12 @@ class FConvEncoder(FairseqEncoder):
     def __init__(
         self, dictionary, embed_dim=512, max_positions=1024,
         convolutions=((512, 3),) * 20, dropout=0.1, attention=False,
-        attention_nheads=1,
+        attention_nheads=1, left_pad=True,
     ):
         super().__init__(dictionary)
         self.dropout = dropout
         self.num_attention_layers = None
+        self.left_pad = left_pad
 
         num_embeddings = len(dictionary)
         self.padding_idx = dictionary.pad()
@@ -153,7 +152,7 @@ class FConvEncoder(FairseqEncoder):
             max_positions,
             embed_dim,
             self.padding_idx,
-            left_pad=LEFT_PAD_SOURCE,
+            left_pad=self.left_pad,
         )
 
         def expand_bool_array(val):
@@ -239,13 +238,14 @@ class FConvDecoder(FairseqDecoder):
         convolutions=((512, 3),) * 8, attention=True, dropout=0.1,
         selfattention=False, attention_nheads=1, selfattention_nheads=1,
         project_input=False, gated_attention=False, downsample=False,
-        pretrained=False, trained_decoder=None,
+        pretrained=False, trained_decoder=None, left_pad=False,
     ):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
         self.pretrained = pretrained
         self.pretrained_decoder = trained_decoder
         self.dropout = dropout
+        self.left_pad = left_pad
         in_channels = convolutions[0][0]
 
         def expand_bool_array(val):
@@ -269,7 +269,7 @@ class FConvDecoder(FairseqDecoder):
             max_positions,
             embed_dim,
             padding_idx,
-            left_pad=LEFT_PAD_TARGET,
+            left_pad=self.left_pad,
         )
 
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)

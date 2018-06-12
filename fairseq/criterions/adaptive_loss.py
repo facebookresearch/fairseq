@@ -19,8 +19,8 @@ class AdaptiveLoss(FairseqCriterion):
     graphical processing units (GPU), described in the paper "Efficient softmax approximation for GPUs"
     (http://arxiv.org/abs/1609.04309)."""
 
-    def __init__(self, args, src_dict, dst_dict):
-        super().__init__(args, src_dict, dst_dict)
+    def __init__(self, args, task):
+        super().__init__(args, task)
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.

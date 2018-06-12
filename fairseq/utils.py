@@ -72,7 +72,7 @@ def load_model_state(filename, model):
 
     # load model parameters
     try:
-        model.load_state_dict(state['model'])
+        model.load_state_dict(state['model'], strict=True)
     except Exception:
         raise Exception('Cannot load model parameters from checkpoint, '
                         'please ensure that the architectures match')
@@ -120,23 +120,26 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if 'num_updates' not in state['optimizer_history'][-1]:
         state['optimizer_history'][-1]['num_updates'] = 0
+    # old model checkpoints may not have separate source/target positions
+    if hasattr(state['args'], 'max_positions') and not hasattr(state['args'], 'max_source_positions'):
+        state['args'].max_source_positions = state['args'].max_positions
+        state['args'].max_target_positions = state['args'].max_positions
+    # use stateful training data iterator
+    if 'train_iterator' not in state['extra_state']:
+        state['extra_state']['train_iterator'] = {
+            'epoch': state['extra_state']['epoch'],
+            'iterations_in_epoch': 0,
+        }
     return state
 
 
-def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
-                                data_dir=None, model_arg_overrides=None):
+def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     """Load an ensemble of models for inference.
-
-    The source and target dictionaries can be given explicitly, or loaded from
-    the `data_dir` directory.
 
     model_arg_overrides allows you to pass a dictionary model_arg_overrides --
     {'arg_name': arg} -- to override model args that were used during model
     training
     """
-    from fairseq import models
-    from fairseq.data import data_utils
-
     # load model architectures and weights
     states = []
     for filename in filenames:
@@ -149,14 +152,10 @@ def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
     if model_arg_overrides is not None:
         args = _override_model_args(args, model_arg_overrides)
 
-    if src_dict is None or dst_dict is None:
-        assert data_dir is not None
-        src_dict, dst_dict = data_utils.load_dictionaries(data_dir, args.source_lang, args.target_lang)
-
     # build ensemble
     ensemble = []
     for state in states:
-        model = models.build_model(args, src_dict, dst_dict)
+        model = task.build_model(args)
         model.upgrade_state_dict(state['model'])
         model.load_state_dict(state['model'], strict=True)
         ensemble.append(model)
@@ -308,15 +307,15 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     return ' '.join(hypo_tokens)
 
 
-def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dict, remove_bpe):
+def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe):
     from fairseq import tokenizer
-    hypo_str = dst_dict.string(hypo_tokens, remove_bpe)
+    hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
-        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, dst_dict.unk_string())
+        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string())
     if align_dict is not None or remove_bpe is not None:
         # Convert back to tokens for evaluating with unk replacement or without BPE
         # Note that the dictionary can be modified inside the method.
-        hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, dst_dict, add_if_not_exist=True)
+        hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, tgt_dict, add_if_not_exist=True)
     return hypo_tokens, hypo_str, alignment
 
 

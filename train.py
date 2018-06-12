@@ -7,14 +7,12 @@
 # can be found in the PATENTS file in the same directory.
 
 import collections
+import itertools
 import os
 import math
 import torch
 
-from itertools import islice
-
-from fairseq import criterions, models, options, progress_bar, utils
-from fairseq.data import data_utils, data_loaders
+from fairseq import data, distributed_utils, options, progress_bar, tasks, utils
 from fairseq.fp16_trainer import FP16Trainer
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
@@ -23,7 +21,6 @@ from fairseq.meters import AverageMeter, StopwatchMeter
 def main(args):
     if args.max_tokens is None:
         args.max_tokens = 6000
-
     print(args)
 
     if not torch.cuda.is_available():
@@ -31,27 +28,25 @@ def main(args):
     torch.cuda.set_device(args.device_id)
     torch.manual_seed(args.seed)
 
-    # Load dataset
-    splits = ['train', 'valid']
-    dataset = load_dataset(args, splits)
-    print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
-    print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-    for split in splits:
-        print('| {} {} {} examples'.format(args.data, split, len(dataset.splits[split])))
+    # Setup task, e.g., translation, language modeling, etc.
+    task = tasks.setup_task(args)
 
-    model = models.build_model(args, dataset.src_dict, dataset.dst_dict)
+    # Load dataset splits
+    load_dataset_splits(args, task, ['train', 'valid'])
 
-    criterion = criterions.build_criterion(args, dataset.src_dict, dataset.dst_dict)
+    # Build model and criterion
+    model = task.build_model(args)
+    criterion = task.build_criterion(args)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
-    print('| num. model params: {}'.format(sum(p.data.numel() for p in model.parameters())))
+    print('| num. model params: {}'.format(sum(p.numel() for p in model.parameters())))
 
     # Build trainer
     if args.fp16:
-        trainer = FP16Trainer(args, model, criterion)
+        trainer = FP16Trainer(args, task, model, criterion)
     else:
         if torch.cuda.get_device_capability(0)[0] >= 7:
             print('| NOTICE: your device may support faster training with --fp16')
-        trainer = Trainer(args, model, criterion)
+        trainer = Trainer(args, task, model, criterion)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
@@ -59,25 +54,24 @@ def main(args):
     ))
 
     # Initialize dataloader
-    train_dataloader = dataset.train_dataloader_generator(
-        args.train_subset,
+    max_positions = trainer.get_model().max_positions()
+    epoch_itr = data.EpochBatchIterator(
+        dataset=task.dataset(args.train_subset),
         max_tokens=args.max_tokens,
-        max_sentences=args.max_sentences,
-        max_positions=(
-            min(args.max_source_positions, trainer.get_model().max_encoder_positions()),
-            min(args.max_target_positions, trainer.get_model().max_decoder_positions())
-        ),
+        max_sentences=args.max_sentences_valid,
+        max_positions=max_positions,
+        ignore_invalid_inputs=True,
+        required_batch_size_multiple=8,
         seed=args.seed,
-        sample_without_replacement=args.sample_without_replacement,
-        shard_id=args.distributed_rank,
         num_shards=args.distributed_world_size,
+        shard_id=args.distributed_rank,
     )
 
     # Load the latest checkpoint if one is available
-    epoch, next_ds = load_checkpoint(args, trainer, train_dataloader)
+    load_checkpoint(args, trainer, epoch_itr)
 
     # Send a dummy batch to warm the caching allocator
-    dummy_batch = data_utils.get_dummy_batch(args.max_tokens, dataset.src_dict, dataset.dst_dict)
+    dummy_batch = task.dataset('train').get_dummy_batch(args.max_tokens, max_positions)
     trainer.dummy_train_step(dummy_batch)
 
     # Train until the learning rate gets too small
@@ -88,58 +82,41 @@ def main(args):
     train_meter.start()
     valid_losses = [None]
     valid_subsets = args.valid_subset.split(',')
-    while lr > args.min_lr and epoch <= max_epoch and trainer.get_num_updates() < max_update:
+    while lr > args.min_lr and epoch_itr.epoch <= max_epoch and trainer.get_num_updates() < max_update:
         # train for one epoch
-        train(args, trainer, next_ds, epoch, dataset)
+        train(args, trainer, task, epoch_itr)
 
-        if epoch % args.validate_interval == 0:
-            valid_losses = validate(args, trainer, dataset, valid_subsets, epoch)
+        if epoch_itr.epoch % args.validate_interval == 0:
+            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
 
         # only use first validation loss to update the learning rate
-        lr = trainer.lr_step(epoch, valid_losses[0])
+        lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
 
         # save checkpoint
-        if epoch % args.save_interval == 0:
-            save_checkpoint(args, trainer, epoch, end_of_epoch=True, val_loss=valid_losses[0])
-
-        epoch += 1
-        next_ds = next(train_dataloader)
+        if epoch_itr.epoch % args.save_interval == 0:
+            save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
     train_meter.stop()
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
 
 
-def load_dataset(args, splits):
-    is_raw = not data_utils.has_binary_files(args.data, splits)
-    dataset = data_loaders.load_dataset(args, splits, is_raw)
-    return dataset
-
-
-def train(args, trainer, itr, epoch, dataset):
+def train(args, trainer, task, epoch_itr):
     """Train the model for one epoch."""
 
-    # Set seed based on args.seed and the epoch number so that we get
-    # reproducible results when resuming from checkpoints
-    seed = args.seed + epoch
-    torch.manual_seed(seed)
-
-    # reset training meters
-    for k in ['train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'clip']:
-        meter = trainer.get_meter(k)
-        if meter is not None:
-            meter.reset()
+    # Initialize data iterator
+    itr = epoch_itr.next_epoch_itr()
+    progress = progress_bar.build_progress_bar(args, itr, epoch_itr.epoch, no_progress_bar='simple')
 
     # update parameters every N batches
-    if epoch <= len(args.update_freq):
-        update_freq = args.update_freq[epoch - 1]
+    if epoch_itr.epoch <= len(args.update_freq):
+        update_freq = args.update_freq[epoch_itr.epoch - 1]
     else:
         update_freq = args.update_freq[-1]
 
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     first_valid = args.valid_subset.split(',')[0]
     max_update = args.max_update or math.inf
-    num_batches = len(itr)
-    progress = progress_bar.build_progress_bar(args, itr, epoch, no_progress_bar='simple')
-    for i, sample in enumerate(progress):
+    num_batches = len(epoch_itr)
+    for i, sample in enumerate(progress, start=epoch_itr.iterations_in_epoch):
         if i < num_batches - 1 and (i + 1) % update_freq > 0:
             # buffer updates according to --update-freq
             trainer.train_step(sample, update_params=False)
@@ -165,8 +142,8 @@ def train(args, trainer, itr, epoch, dataset):
 
         num_updates = trainer.get_num_updates()
         if args.save_interval_updates > 0 and num_updates % args.save_interval_updates == 0:
-            valid_losses = validate(args, trainer, dataset, [first_valid], epoch)
-            save_checkpoint(args, trainer, epoch, end_of_epoch=False, val_loss=valid_losses[0])
+            valid_losses = validate(args, trainer, task, epoch_itr, [first_valid])
+            save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
         if num_updates >= max_update:
             break
@@ -176,6 +153,12 @@ def train(args, trainer, itr, epoch, dataset):
     for k, meter in extra_meters.items():
         stats[k] = meter.avg
     progress.print(stats)
+
+    # reset training meters
+    for k in ['train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'clip']:
+        meter = trainer.get_meter(k)
+        if meter is not None:
+            meter.reset()
 
 
 def get_training_stats(trainer):
@@ -202,27 +185,24 @@ def get_training_stats(trainer):
     return stats
 
 
-def validate(args, trainer, dataset, subsets, epoch):
+def validate(args, trainer, task, epoch_itr, subsets):
     """Evaluate the model on the validation set(s) and return the losses."""
     valid_losses = []
     for subset in subsets:
-        # Initialize dataloader
-        max_positions_valid = (
-            trainer.get_model().max_encoder_positions(),
-            trainer.get_model().max_decoder_positions(),
-        )
-        itr = dataset.eval_dataloader(
-            subset,
+        # Initialize data iterator
+        itr = data.EpochBatchIterator(
+            dataset=task.dataset(subset),
             max_tokens=args.max_tokens,
             max_sentences=args.max_sentences_valid,
-            max_positions=max_positions_valid,
-            skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
-            descending=True,  # largest batch first to warm the caching allocator
-            shard_id=args.distributed_rank,
+            max_positions=trainer.get_model().max_positions(),
+            ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
+            required_batch_size_multiple=8,
+            seed=args.seed,
             num_shards=args.distributed_world_size,
-        )
+            shard_id=args.distributed_rank,
+        ).next_epoch_itr(shuffle=False)
         progress = progress_bar.build_progress_bar(
-            args, itr, epoch,
+            args, itr, epoch_itr.epoch,
             prefix='valid on \'{}\' subset'.format(subset),
             no_progress_bar='simple'
         )
@@ -232,8 +212,8 @@ def validate(args, trainer, dataset, subsets, epoch):
             meter = trainer.get_meter(k)
             if meter is not None:
                 meter.reset()
-
         extra_meters = collections.defaultdict(lambda: AverageMeter())
+
         for sample in progress:
             log_output = trainer.valid_step(sample)
 
@@ -274,9 +254,11 @@ def get_perplexity(loss):
         return float('inf')
 
 
-def save_checkpoint(args, trainer, epoch, end_of_epoch, val_loss):
-    if args.no_save or args.distributed_rank > 0:
+def save_checkpoint(args, trainer, epoch_itr, val_loss):
+    if args.no_save or not distributed_utils.is_master(args):
         return
+    epoch = epoch_itr.epoch
+    end_of_epoch = epoch_itr.end_of_epoch()
     updates = trainer.get_num_updates()
 
     checkpoint_conds = collections.OrderedDict()
@@ -298,11 +280,9 @@ def save_checkpoint(args, trainer, epoch, end_of_epoch, val_loss):
     if val_loss is not None:
         save_checkpoint.best = min(val_loss, prev_best)
     extra_state = {
-        'best': prev_best,
-        'end_of_epoch': end_of_epoch,
-        'epoch': epoch,
+        'best': save_checkpoint.best,
+        'train_iterator': epoch_itr.state_dict(),
         'val_loss': val_loss,
-        'wall_time': trainer.get_meter('wall').elapsed_time,
     }
 
     checkpoints = [os.path.join(args.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond]
@@ -325,46 +305,36 @@ def save_checkpoint(args, trainer, epoch, end_of_epoch, val_loss):
             os.remove(old_chk)
 
 
-def load_checkpoint(args, trainer, train_dataloader):
+def load_checkpoint(args, trainer, epoch_itr):
+    """Load a checkpoint and replay dataloader to match."""
     os.makedirs(args.save_dir, exist_ok=True)
     checkpoint_path = os.path.join(args.save_dir, args.restore_file)
-    epoch = 1
-    ds = None
     if os.path.isfile(checkpoint_path):
         extra_state = trainer.load_checkpoint(checkpoint_path)
         if extra_state is not None:
-            epoch = extra_state['epoch']
-            end_of_epoch = extra_state.get('end_of_epoch', True)
-            trainer_updates = trainer.get_num_updates()
+            # replay train iterator to match checkpoint
+            epoch_itr.load_state_dict(extra_state['train_iterator'])
 
+            print('| loaded checkpoint {} (epoch {} @ {} updates)'.format(
+                checkpoint_path, epoch_itr.epoch, trainer.get_num_updates()))
+
+            trainer.lr_step(epoch_itr.epoch)
+            trainer.lr_step_update(trainer.get_num_updates())
             if 'best' in extra_state:
                 save_checkpoint.best = extra_state['best']
 
-            print('| loaded checkpoint {} (epoch {})'.format(checkpoint_path, epoch))
 
-            trainer.lr_step(epoch)
-            updates = 0
-            for i in range(epoch):
-                ds = next(train_dataloader)
-                updates += len(ds)
-
-            if not end_of_epoch and ds is not None and updates > trainer_updates:
-                completed_batches = len(ds) - (updates - trainer_updates)
-                assert completed_batches >= 0
-                ds = iter(ds)
-
-                print('| resuming from batch {}'.format(completed_batches + 1))
-
-                # consume completed batches
-                next(islice(ds, completed_batches, completed_batches), None)
-            else:
-                if not end_of_epoch:
-                    print('| WARNING: checkpoint is not at end of epoch')
-                ds = next(train_dataloader)
-                epoch += 1
-
-            trainer.get_meter('wall').reset(init=extra_state.get('wall_time', 0))
-    return epoch, ds or next(train_dataloader)
+def load_dataset_splits(args, task, splits):
+    for split in splits:
+        for k in itertools.count():
+            split_k = split + (str(k) if k > 0 else '')
+            try:
+                task.load_dataset(split_k)
+                print('| {} {} {} examples'.format(args.data, split_k, len(task.dataset(split_k))))
+            except FileNotFoundError as e:
+                if k > 0:
+                    break
+                raise e
 
 
 if __name__ == '__main__':

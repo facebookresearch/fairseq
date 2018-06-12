@@ -8,8 +8,7 @@
 
 import torch
 
-from fairseq import bleu, options, progress_bar, tokenizer, utils
-from fairseq.data import data_utils, data_loaders
+from fairseq import bleu, data, options, progress_bar, tasks, tokenizer, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_generator import SequenceGenerator
 from fairseq.sequence_scorer import SequenceScorer
@@ -17,65 +16,67 @@ from fairseq.sequence_scorer import SequenceScorer
 
 def main(args):
     assert args.path is not None, '--path required for generation!'
+    assert not args.sampling or args.nbest == args.beam, \
+        '--sampling requires --nbest to be equal to --beam'
+    assert args.replace_unk is None or args.raw_text, \
+        '--replace-unk requires a raw text dataset (--raw-text)'
 
     if args.max_tokens is None and args.max_sentences is None:
         args.max_tokens = 12000
-
     print(args)
-    assert not args.sampling or args.nbest == args.beam, \
-        '--sampling requires --nbest to be equal to --beam'
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-    # Load dataset
-    dataset = data_loaders.load_dataset(args, [args.gen_subset], args.replace_unk is not None)
+    # Load dataset splits
+    task = tasks.setup_task(args)
+    task.load_dataset(args.gen_subset)
+    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
+
+    # Set dictionaries
+    src_dict = task.source_dictionary
+    tgt_dict = task.target_dictionary
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    model_paths = args.path.split(',')
-    models, _ = utils.load_ensemble_for_inference(model_paths, dataset.src_dict, dataset.dst_dict)
-
-    print('| [{}] dictionary: {} types'.format(dataset.src, len(dataset.src_dict)))
-    print('| [{}] dictionary: {} types'.format(dataset.dst, len(dataset.dst_dict)))
-    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset.splits[args.gen_subset])))
+    models, _ = utils.load_ensemble_for_inference([args.path], task)
 
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
-        )
+        model.make_generation_fast_(beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
-    # Load dataset (possibly sharded)
-    max_positions = min(model.max_encoder_positions() for model in models)
 
-    itr = dataset.eval_dataloader(
-        args.gen_subset,
+    # Load dataset (possibly sharded)
+    itr = data.EpochBatchIterator(
+        dataset=task.dataset(args.gen_subset),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
-        max_positions=max_positions,
-        skip_invalid_size_inputs_valid_test=args.skip_invalid_size_inputs_valid_test,
-    )
-    itr = data_utils.ShardedIterator(itr, args.num_shards, args.shard_id)
+        max_positions=models[0].max_positions(),
+        ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
+        required_batch_size_multiple=8,
+        num_shards=args.num_shards,
+        shard_id=args.shard_id,
+    ).next_epoch_itr(shuffle=False)
 
     # Initialize generator
     gen_timer = StopwatchMeter()
     if args.score_reference:
-        translator = SequenceScorer(models)
+        translator = SequenceScorer(models, task.target_dictionary)
     else:
         translator = SequenceGenerator(
-            models, beam_size=args.beam, stop_early=(not args.no_early_stop),
-            normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-            unk_penalty=args.unkpen, sampling=args.sampling, sampling_topk=args.sampling_topk,
-            minlen=args.min_len)
+            models, task.target_dictionary, beam_size=args.beam,
+            stop_early=(not args.no_early_stop), normalize_scores=(not args.unnormalized),
+            len_penalty=args.lenpen, unk_penalty=args.unkpen,
+            sampling=args.sampling, sampling_topk=args.sampling_topk, minlen=args.min_len,
+        )
 
     if use_cuda:
         translator.cuda()
 
     # Generate and compute BLEU score
-    scorer = bleu.Scorer(dataset.dst_dict.pad(), dataset.dst_dict.eos(), dataset.dst_dict.unk())
+    scorer = bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
     num_sentences = 0
     has_target = True
     with progress_bar.build_progress_bar(args, itr) as t:
@@ -84,7 +85,9 @@ def main(args):
         else:
             translations = translator.generate_batched_itr(
                 t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
-                cuda=use_cuda, timer=gen_timer, prefix_size=args.prefix_size)
+                cuda=use_cuda, timer=gen_timer, prefix_size=args.prefix_size,
+            )
+
         wps_meter = TimeMeter()
         for sample_id, src_tokens, target_tokens, hypos in translations:
             # Process input and ground truth
@@ -93,12 +96,12 @@ def main(args):
 
             # Either retrieve the original sentences or regenerate them from tokens.
             if align_dict is not None:
-                src_str = dataset.splits[args.gen_subset].src.get_original_text(sample_id)
-                target_str = dataset.splits[args.gen_subset].dst.get_original_text(sample_id)
+                src_str = task.dataset(args.gen_subset).src.get_original_text(sample_id)
+                target_str = task.dataset(args.gen_subset).tgt.get_original_text(sample_id)
             else:
-                src_str = dataset.src_dict.string(src_tokens, args.remove_bpe)
+                src_str = src_dict.string(src_tokens, args.remove_bpe)
                 if has_target:
-                    target_str = dataset.dst_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+                    target_str = tgt_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
 
             if not args.quiet:
                 print('S-{}\t{}'.format(sample_id, src_str))
@@ -112,7 +115,7 @@ def main(args):
                     src_str=src_str,
                     alignment=hypo['alignment'].int().cpu(),
                     align_dict=align_dict,
-                    dst_dict=dataset.dst_dict,
+                    tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
                 )
 
@@ -135,7 +138,7 @@ def main(args):
                     if align_dict is not None or args.remove_bpe is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tokenizer.Tokenizer.tokenize(
-                            target_str, dataset.dst_dict, add_if_not_exist=True)
+                            target_str, tgt_dict, add_if_not_exist=True)
                     scorer.add(target_tokens, hypo_tokens)
 
             wps_meter.update(src_tokens.size(0))

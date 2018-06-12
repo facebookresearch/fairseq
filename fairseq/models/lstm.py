@@ -11,7 +11,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import options, utils
-from fairseq.data import consts
 
 from . import (
     FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model,
@@ -63,7 +62,7 @@ class LSTMModel(FairseqModel):
                             help='dropout probability for decoder output')
 
     @classmethod
-    def build_model(cls, args, src_dict, dst_dict):
+    def build_model(cls, args, task):
         """Build a new model instance."""
         # make sure that all args are properly defaulted (in case there are any new ones)
         base_architecture(args)
@@ -79,14 +78,14 @@ class LSTMModel(FairseqModel):
         pretrained_encoder_embed = None
         if args.encoder_embed_path:
             pretrained_encoder_embed = load_pretrained_embedding_from_file(
-                args.encoder_embed_path, src_dict, args.encoder_embed_dim)
+                args.encoder_embed_path, task.source_dictionary, args.encoder_embed_dim)
         pretrained_decoder_embed = None
         if args.decoder_embed_path:
             pretrained_decoder_embed = load_pretrained_embedding_from_file(
-                args.decoder_embed_path, dst_dict, args.decoder_embed_dim)
+                args.decoder_embed_path, task.target_dictionary, args.decoder_embed_dim)
 
         encoder = LSTMEncoder(
-            dictionary=src_dict,
+            dictionary=task.source_dictionary,
             embed_dim=args.encoder_embed_dim,
             hidden_size=args.encoder_hidden_size,
             num_layers=args.encoder_layers,
@@ -96,7 +95,7 @@ class LSTMModel(FairseqModel):
             pretrained_embed=pretrained_encoder_embed,
         )
         decoder = LSTMDecoder(
-            dictionary=dst_dict,
+            dictionary=task.target_dictionary,
             embed_dim=args.decoder_embed_dim,
             hidden_size=args.decoder_hidden_size,
             out_embed_dim=args.decoder_out_embed_dim,
@@ -114,11 +113,9 @@ class LSTMModel(FairseqModel):
 class LSTMEncoder(FairseqEncoder):
     """LSTM encoder."""
     def __init__(
-            self, dictionary, embed_dim=512, hidden_size=512, num_layers=1,
-            dropout_in=0.1, dropout_out=0.1, bidirectional=False,
-            left_pad_source=consts.LEFT_PAD_SOURCE,
-            pretrained_embed=None,
-            padding_value=0.,
+        self, dictionary, embed_dim=512, hidden_size=512, num_layers=1,
+        dropout_in=0.1, dropout_out=0.1, bidirectional=False,
+        left_pad=True, pretrained_embed=None, padding_value=0.,
     ):
         super().__init__(dictionary)
         self.num_layers = num_layers
@@ -141,7 +138,7 @@ class LSTMEncoder(FairseqEncoder):
             dropout=self.dropout_out,
             bidirectional=bidirectional,
         )
-        self.left_pad_source = left_pad_source
+        self.left_pad = left_pad
         self.padding_value = padding_value
 
         self.output_units = hidden_size
@@ -149,7 +146,7 @@ class LSTMEncoder(FairseqEncoder):
             self.output_units *= 2
 
     def forward(self, src_tokens, src_lengths):
-        if self.left_pad_source:
+        if self.left_pad:
             # convert left-padding to right-padding
             src_tokens = utils.convert_padding_direction(
                 src_tokens,
@@ -248,10 +245,9 @@ class AttentionLayer(nn.Module):
 class LSTMDecoder(FairseqIncrementalDecoder):
     """LSTM decoder."""
     def __init__(
-            self, dictionary, embed_dim=512, hidden_size=512, out_embed_dim=512,
-            num_layers=1, dropout_in=0.1, dropout_out=0.1, attention=True,
-            encoder_embed_dim=512, encoder_output_units=512,
-            pretrained_embed=None,
+        self, dictionary, embed_dim=512, hidden_size=512, out_embed_dim=512,
+        num_layers=1, dropout_in=0.1, dropout_out=0.1, attention=True,
+        encoder_embed_dim=512, encoder_output_units=512, pretrained_embed=None,
     ):
         super().__init__(dictionary)
         self.dropout_in = dropout_in
