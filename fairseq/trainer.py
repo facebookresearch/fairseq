@@ -27,7 +27,7 @@ class Trainer(object):
     torch.distributed.all_reduce.
     """
 
-    def __init__(self, args, model, criterion):
+    def __init__(self, args, task, model, criterion):
 
         if not torch.cuda.is_available():
             raise NotImplementedError('Training on CPU is not supported')
@@ -35,6 +35,7 @@ class Trainer(object):
         self.args = args
 
         # copy model and criterion to current device
+        self.task = task
         self.model = model.cuda()
         self.criterion = criterion.cuda()
 
@@ -67,6 +68,7 @@ class Trainer(object):
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         if distributed_utils.is_master(self.args):  # only save one checkpoint
+            extra_state['train_meters'] = self.meters
             utils.save_state(
                 filename, self.args, self.model, self.criterion, self.optimizer,
                 self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
@@ -90,6 +92,10 @@ class Trainer(object):
 
             self._num_updates = last_optim['num_updates']
 
+        if 'train_meters' in extra_state:
+            self.meters = extra_state['train_meters']
+            del extra_state['train_meters']
+
         return extra_state
 
     def train_step(self, sample, update_params=True):
@@ -99,9 +105,14 @@ class Trainer(object):
             # initialize optimizer and LR scheduler if hasn't been loaded from the checkpoint
             self._build_optimizer()
 
-        sample = self._prepare_sample(sample, volatile=False)
+        # Set seed based on args.seed and the update number so that we get
+        # reproducible results when resuming from checkpoints
+        seed = self.args.seed + self.get_num_updates()
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
 
         # forward and backward pass
+        sample = self._prepare_sample(sample, volatile=False)
         loss, sample_size, logging_output, oom_fwd = self._forward(sample)
         oom_bwd = self._backward(loss)
 
@@ -182,7 +193,7 @@ class Trainer(object):
             try:
                 with utils.maybe_no_grad(eval):
                     # calculate loss and sample size
-                    loss, sample_size, logging_output_ = self.criterion(self.model, sample)
+                    loss, sample_size, logging_output_ = self.task.get_loss(self.model, self.criterion, sample)
                     logging_output.update(logging_output_)
             except RuntimeError as e:
                 if not eval and 'out of memory' in str(e):
@@ -310,6 +321,10 @@ class Trainer(object):
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate based on the validation loss."""
         return self.lr_scheduler.step(epoch, val_loss)
+
+    def lr_step_update(self, num_updates):
+        """Update the learning rate after each update."""
+        return self.lr_scheduler.step_update(num_updates)
 
     def get_lr(self):
         """Get the current learning rate."""

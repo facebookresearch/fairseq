@@ -10,10 +10,10 @@ from torch.nn.modules.loss import _Loss
 
 class FairseqCriterion(_Loss):
 
-    def __init__(self, args, src_dict, dst_dict):
+    def __init__(self, args, task):
         super().__init__()
         self.args = args
-        self.padding_idx = dst_dict.pad()
+        self.padding_idx = task.target_dictionary.pad()
 
     @staticmethod
     def add_args(parser):

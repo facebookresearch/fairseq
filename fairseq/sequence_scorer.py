@@ -11,10 +11,9 @@ from fairseq import utils
 class SequenceScorer(object):
     """Scores the target for a given source sentence."""
 
-    def __init__(self, models):
+    def __init__(self, models, tgt_dict):
         self.models = models
-        self.pad = models[0].dst_dict.pad()
-        assert all(m.dst_dict.pad() == self.pad for m in self.models[1:])
+        self.pad = tgt_dict.pad()
 
     def cuda(self):
         for model in self.models:

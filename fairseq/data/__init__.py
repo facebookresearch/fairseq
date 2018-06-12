@@ -6,7 +6,10 @@
 # can be found in the PATENTS file in the same directory.
 
 from .dictionary import Dictionary
-from .token_block_dataset import TokenBlockDataset
-from .language_dataset import LanguageDatasets
+from .fairseq_dataset import FairseqDataset
+from .indexed_dataset import IndexedInMemoryDataset, IndexedRawTextDataset
 from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
+from .token_block_dataset import TokenBlockDataset
+
+from .data_utils import EpochBatchIterator

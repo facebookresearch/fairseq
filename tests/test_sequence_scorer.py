@@ -83,8 +83,9 @@ class TestSequenceScorer(unittest.TestCase):
             [0.3, 0.7],  # sentence 3
         ]
 
-        model = test_utils.TestModel.build_model(args, d, d)
-        scorer = SequenceScorer([model])
+        task = test_utils.TestTranslationTask.setup_task(args, d, d)
+        model = task.build_model(args)
+        scorer = SequenceScorer([model], task.target_dictionary)
         for id, _src, _ref, hypos in scorer.score_batched_itr(data_itr):
             self.assertHypoTokens(hypos[0], data[id]['target'])
             self.assertHypoScore(hypos[0], expected_scores[id])

@@ -13,10 +13,11 @@ from fairseq.criterions import CRITERION_REGISTRY
 from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
 from fairseq.optim import OPTIMIZER_REGISTRY
 from fairseq.optim.lr_scheduler import LR_SCHEDULER_REGISTRY
+from fairseq.tasks import TASK_REGISTRY
 
 
-def get_training_parser():
-    parser = get_parser('Trainer')
+def get_training_parser(default_task='translation'):
+    parser = get_parser('Trainer', default_task)
     add_dataset_args(parser, train=True)
     add_distributed_training_args(parser)
     add_model_args(parser)
@@ -25,8 +26,8 @@ def get_training_parser():
     return parser
 
 
-def get_generation_parser(interactive=False):
-    parser = get_parser('Generation')
+def get_generation_parser(interactive=False, default_task='translation'):
+    parser = get_parser('Generation', default_task)
     add_dataset_args(parser, gen=True)
     add_generation_args(parser)
     if interactive:
@@ -34,8 +35,8 @@ def get_generation_parser(interactive=False):
     return parser
 
 
-def get_eval_lm_parser():
-    parser = get_parser('Evaluate Language Model')
+def get_eval_lm_parser(default_task='language_modeling'):
+    parser = get_parser('Evaluate Language Model', default_task)
     add_dataset_args(parser, gen=True)
     add_eval_lm_args(parser)
     return parser
@@ -85,6 +86,8 @@ def parse_args_and_arch(parser, input_args=None):
         OPTIMIZER_REGISTRY[args.optimizer].add_args(parser)
     if hasattr(args, 'lr_scheduler'):
         LR_SCHEDULER_REGISTRY[args.lr_scheduler].add_args(parser)
+    if hasattr(args, 'task'):
+        TASK_REGISTRY[args.task].add_args(parser)
 
     # Parse a second time.
     args = parser.parse_args(input_args)
@@ -104,7 +107,7 @@ def parse_args_and_arch(parser, input_args=None):
     return args
 
 
-def get_parser(desc):
+def get_parser(desc, default_task='translation'):
     parser = argparse.ArgumentParser(
         description='Facebook AI Research Sequence-to-Sequence Toolkit -- ' + desc)
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
@@ -114,34 +117,24 @@ def get_parser(desc):
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
+
+    # Task definitions can be found under fairseq/tasks/
+    parser.add_argument(
+        '--task', metavar='TASK', default=default_task, choices=TASK_REGISTRY.keys(),
+        help='task: {} (default: {})'.format(', '.join(TASK_REGISTRY.keys()), default_task)
+    )
+
     return parser
 
 
 def add_dataset_args(parser, train=False, gen=False):
     group = parser.add_argument_group('Dataset and data loading')
-    group.add_argument('data', metavar='DIR',
-                       help='path to data directory')
-    group.add_argument('-s', '--source-lang', default=None, metavar='SRC',
-                       help='source language')
-    group.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
-                       help='target language')
-    group.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
-                       help='max number of tokens in the source sequence')
-    group.add_argument('--max-target-positions', '--tokens-per-sample', default=1024, type=int, metavar='N',
-                       help='max number of tokens in the target sequence')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
                        help='ignore too long or too short lines in valid and test set')
     group.add_argument('--max-tokens', type=int, metavar='N',
                        help='maximum number of tokens in a batch')
     group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
                        help='maximum number of sentences in a batch')
-    group.add_argument('--sample-break-mode', metavar='VAL',
-                       choices=['none', 'complete', 'eos'],
-                       help='If omitted or "none", fills each sample with tokens-per-sample'
-                            ' tokens. If set to "complete", splits samples only at the end'
-                            ' of sentence, but may include multiple sentences per sample.'
-                            ' If set to "eos", includes only one sentence per sample.')
-
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
                            choices=['train', 'valid', 'test'],
@@ -152,10 +145,6 @@ def add_dataset_args(parser, train=False, gen=False):
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
                            help='maximum number of sentences in a validation batch'
                                 ' (defaults to --max-sentences)')
-        group.add_argument('--sample-without-replacement', default=0, type=int, metavar='N',
-                           help='If bigger than 0, use that number of mini-batches for each epoch,'
-                                ' where each sample is drawn randomly without replacement from the'
-                                ' dataset')
     if gen:
         group.add_argument('--gen-subset', default='test', metavar='SPLIT',
                            help='data subset to generate (train, valid, test)')

@@ -11,7 +11,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.data.consts import LEFT_PAD_SOURCE, LEFT_PAD_TARGET
 from fairseq.modules import (
     LearnedPositionalEmbedding, MultiheadAttention,
     SinusoidalPositionalEmbedding,
@@ -68,8 +67,9 @@ class TransformerModel(FairseqModel):
                                  ' (requires shared dictionary and embed dim)')
 
     @classmethod
-    def build_model(cls, args, src_dict, dst_dict):
+    def build_model(cls, args, task):
         """Build a new model instance."""
+        src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
         def build_embedding(dictionary, embed_dim):
             num_embeddings = len(dictionary)
@@ -77,7 +77,7 @@ class TransformerModel(FairseqModel):
             return Embedding(num_embeddings, embed_dim, padding_idx)
 
         if args.share_all_embeddings:
-            if src_dict != dst_dict:
+            if src_dict != tgt_dict:
                 raise RuntimeError('--share-all-embeddings requires a joined dictionary')
             if args.encoder_embed_dim != args.decoder_embed_dim:
                 raise RuntimeError(
@@ -87,17 +87,17 @@ class TransformerModel(FairseqModel):
             args.share_decoder_input_output_embed = True
         else:
             encoder_embed_tokens = build_embedding(src_dict, args.encoder_embed_dim)
-            decoder_embed_tokens = build_embedding(dst_dict, args.decoder_embed_dim)
+            decoder_embed_tokens = build_embedding(tgt_dict, args.decoder_embed_dim)
 
         encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens)
-        decoder = TransformerDecoder(args, dst_dict, decoder_embed_tokens)
+        decoder = TransformerDecoder(args, tgt_dict, decoder_embed_tokens)
         return TransformerModel(encoder, decoder)
 
 
 class TransformerEncoder(FairseqEncoder):
     """Transformer encoder."""
 
-    def __init__(self, args, dictionary, embed_tokens):
+    def __init__(self, args, dictionary, embed_tokens, left_pad=True):
         super().__init__(dictionary)
         self.dropout = args.dropout
 
@@ -108,7 +108,7 @@ class TransformerEncoder(FairseqEncoder):
         self.embed_scale = math.sqrt(embed_dim)
         self.embed_positions = PositionalEmbedding(
             1024, embed_dim, self.padding_idx,
-            left_pad=LEFT_PAD_SOURCE,
+            left_pad=left_pad,
             learned=args.encoder_learned_pos,
         )
 
@@ -157,7 +157,7 @@ class TransformerEncoder(FairseqEncoder):
 class TransformerDecoder(FairseqIncrementalDecoder):
     """Transformer decoder."""
 
-    def __init__(self, args, dictionary, embed_tokens):
+    def __init__(self, args, dictionary, embed_tokens, left_pad=False):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
@@ -169,7 +169,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.embed_scale = math.sqrt(embed_dim)
         self.embed_positions = PositionalEmbedding(
             1024, embed_dim, padding_idx,
-            left_pad=LEFT_PAD_TARGET,
+            left_pad=left_pad,
             learned=args.decoder_learned_pos,
         )
 
