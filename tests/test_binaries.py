@@ -55,7 +55,23 @@ class TestTranslation(unittest.TestCase):
             with tempfile.TemporaryDirectory('test_lstm') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
-                train_translation_model(data_dir, 'lstm_wiseman_iwslt_de_en')
+                train_translation_model(data_dir, 'lstm_wiseman_iwslt_de_en', [
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                ])
+                generate_main(data_dir)
+
+    def test_lstm_bidirectional(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_lstm_bidirectional') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'lstm', [
+                    '--encoder-layers', '2',
+                    '--encoder-bidirectional',
+                    '--encoder-hidden-size', '256',
+                    '--decoder-layers', '2',
+                ])
                 generate_main(data_dir)
 
     def test_transformer(self):
