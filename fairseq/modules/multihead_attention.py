@@ -11,15 +11,6 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 
 from fairseq import utils
-from .relative_positional_embeddings import RelativePositionalEmbedding
-
-
-def PositionalEmbedding(num_embeddings, embedding_dim):
-    if num_embeddings is None or num_embeddings == 0:
-        return None
-    m = RelativePositionalEmbedding(num_embeddings, embedding_dim)
-    nn.init.normal(m.weight, mean=0, std=embedding_dim ** -0.5)
-    return m
 
 
 class MultiheadAttention(nn.Module):
@@ -37,9 +28,9 @@ class MultiheadAttention(nn.Module):
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
+        self.in_proj_weight = Parameter(torch.Tensor(3*embed_dim, embed_dim))
         if bias:
-            self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
+            self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
@@ -150,9 +141,9 @@ class MultiheadAttention(nn.Module):
             assert key_padding_mask.size(0) == bsz
             assert key_padding_mask.size(1) == src_len
 
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
-        k = k.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
-        v = v.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        q = q.contiguous().view(tgt_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
+        k = k.contiguous().view(src_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
+        v = v.contiguous().view(src_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
 
         if self.add_zero_attn:
             src_len += 1
@@ -187,12 +178,6 @@ class MultiheadAttention(nn.Module):
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
 
         attn = torch.bmm(attn_weights, v)
-
-        if self.pos_emb_v is not None:
-            assert qkv_same
-            pos_emb = self.relative_position_embeddings(attn_weights, src_len, self.pos_emb_v, transpose=False)
-            attn += pos_emb
-
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn = self.out_proj(attn)
@@ -216,10 +201,10 @@ class MultiheadAttention(nn.Module):
         return self._in_proj(query, end=self.embed_dim)
 
     def in_proj_k(self, key):
-        return self._in_proj(key, start=self.embed_dim, end=2 * self.embed_dim)
+        return self._in_proj(key, start=self.embed_dim, end=2*self.embed_dim)
 
     def in_proj_v(self, value):
-        return self._in_proj(value, start=2 * self.embed_dim)
+        return self._in_proj(value, start=2*self.embed_dim)
 
     def _in_proj(self, input, start=0, end=None):
         weight = self.in_proj_weight
