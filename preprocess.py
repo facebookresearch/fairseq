@@ -29,6 +29,7 @@ def get_parser():
                         help='map words appearing less than threshold times to unknown')
     parser.add_argument('--thresholdsrc', metavar='N', default=0, type=int,
                         help='map words appearing less than threshold times to unknown')
+    parser.add_argument('--workers', metavar='N', default=1, type=int, help='the number of parallel workers')
     parser.add_argument('--tgtdict', metavar='FP', help='reuse given target dictionary')
     parser.add_argument('--srcdict', metavar='FP', help='reuse given source dictionary')
     parser.add_argument('--nwordstgt', metavar='N', default=-1, type=int, help='number of target words to retain')
@@ -90,7 +91,7 @@ def main(args):
             ds.add_item(tensor)
 
         input_file = '{}.{}'.format(input_prefix, lang)
-        res = Tokenizer.binarize(input_file, dict, consumer)
+        res = Tokenizer.binarize(input_file, dict, consumer, args.workers)
         print('| [{}] {}: {} sents, {} tokens, {:.3}% replaced by {}'.format(
             lang, input_file, res['nseq'], res['ntok'],
             100 * res['nunk'] / res['ntok'], dict.unk_word))

@@ -7,6 +7,9 @@
 
 from collections import Counter
 import re
+import multiprocessing
+import pickle
+import tempfile
 
 import torch
 
@@ -40,8 +43,16 @@ class Tokenizer:
                 dict.add_symbol(dict.eos_word)
 
     @staticmethod
-    def binarize(filename, dict, consumer, tokenize=tokenize_line,
+    def binarize(filename, dict, consumer, worker_cnt=1, tokenize=tokenize_line,
                  append_eos=True, reverse_order=False):
+        if worker_cnt == 1:
+            return Tokenizer.binarize_sequential(filename, dict, consumer, tokenize, append_eos, reverse_order)
+        else:
+            return Tokenizer.binarize_parallel(filename, dict, consumer, worker_cnt, tokenize, append_eos, reverse_order)
+
+    @staticmethod
+    def binarize_sequential(filename, dict, consumer, tokenize=tokenize_line,
+            append_eos=True, reverse_order=False):
         nseq, ntok = 0, 0
         replaced = Counter()
 
@@ -65,6 +76,65 @@ class Tokenizer:
                 consumer(ids)
                 ntok += len(ids)
         return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': len(replaced)}
+
+
+    @staticmethod
+    def binarize_parallel(filename, dict, consumer, worker_cnt, tokenize=tokenize_line,
+            append_eos=True, reverse_order=False):
+
+        def binarize_worker(worker_id, tempfile):
+            replaced = Counter()
+
+            def replaced_consumer(word, idx):
+                if idx == dict.unk_index and word != dict.unk_word:
+                    replaced.update([word])
+
+            ids_list = []
+            nseq, ntok = 0, 0
+            with open(filename, 'r') as f:
+                for line_idx, line in enumerate(f):
+                    if line_idx % worker_cnt == worker_id:
+                        ids = Tokenizer.tokenize(
+                            line=line,
+                            dict=dict,
+                            tokenize=tokenize,
+                            add_if_not_exist=False,
+                            consumer=replaced_consumer,
+                            append_eos=append_eos,
+                            reverse_order=reverse_order,
+                        )
+                        nseq += 1
+                        ntok += len(ids)
+                        ids_list.append(ids)
+
+            ret = {'nseq': nseq, 'ntok': ntok, 'replaced': replaced, 'ids': ids_list}
+            with open(tempfile, 'wb') as f:
+                pickle.dump(ret, f)
+
+        with tempfile.TemporaryDirectory() as temp_folder:
+            temp_files = ['%s/%d' % (temp_folder, i) for i in range(worker_cnt)]
+            thread_pool = [multiprocessing.Process(target=binarize_worker, args=(i, temp_files[i])) for i in range(worker_cnt)]
+            for t in thread_pool:
+                t.start()
+            for t in thread_pool:
+                t.join()
+
+            worker_result = [pickle.load(open(temp_files[i], 'rb')) for i in range(worker_cnt)]
+
+        nseq, ntok = 0, 0
+        replaced = Counter()
+        for r in worker_result:
+            nseq += r['nseq']
+            ntok += r['ntok']
+            replaced.update(r['replaced'])
+
+        for i in range(len(worker_result[0]['ids'])):
+            for r in worker_result:
+                if i < len(r['ids']):
+                    consumer(r['ids'][i])
+
+        return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': len(replaced)}
+
 
     @staticmethod
     def tokenize(line, dict, tokenize=tokenize_line, add_if_not_exist=True,
