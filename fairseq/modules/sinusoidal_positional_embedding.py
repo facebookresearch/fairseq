@@ -8,7 +8,6 @@
 import math
 
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
 
 from fairseq import utils
@@ -64,14 +63,13 @@ class SinusoidalPositionalEmbedding(nn.Module):
                 self.padding_idx,
             ).type_as(self.weights)
         self.weights = self.weights.type_as(self._float_tensor)
-        weights = Variable(self.weights)
 
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step
-            return weights[self.padding_idx + seq_len, :].expand(bsz, 1, -1)
+            return self.weights[self.padding_idx + seq_len, :].expand(bsz, 1, -1)
 
-        positions = Variable(utils.make_positions(input.data, self.padding_idx, self.left_pad))
-        return weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1)
+        positions = utils.make_positions(input.data, self.padding_idx, self.left_pad)
+        return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1)
 
     def max_positions(self):
         """Maximum number of supported positions."""

@@ -13,7 +13,6 @@ class GradMultiply(torch.autograd.Function):
     def forward(ctx, x, scale):
         ctx.scale = scale
         res = x.new(x)
-        ctx.mark_shared_storage((x, res))
         return res
 
     @staticmethod

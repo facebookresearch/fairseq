@@ -38,11 +38,11 @@ class MultiheadAttention(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.xavier_uniform(self.in_proj_weight)
-        nn.init.xavier_uniform(self.out_proj.weight)
+        nn.init.xavier_uniform_(self.in_proj_weight)
+        nn.init.xavier_uniform_(self.out_proj.weight)
         if self.in_proj_bias is not None:
-            nn.init.constant(self.in_proj_bias, 0.)
-            nn.init.constant(self.out_proj.bias, 0.)
+            nn.init.constant_(self.in_proj_bias, 0.)
+            nn.init.constant_(self.out_proj.bias, 0.)
 
     def forward(self, query, key, value, mask_future_timesteps=False,
                 key_padding_mask=None, incremental_state=None,

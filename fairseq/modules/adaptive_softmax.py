@@ -44,7 +44,7 @@ class AdaptiveSoftmax(nn.Module):
 
         def init_weights(m):
             if hasattr(m, 'weight'):
-                nn.init.xavier_uniform(m.weight)
+                nn.init.xavier_uniform_(m.weight)
 
         self.apply(init_weights)
 

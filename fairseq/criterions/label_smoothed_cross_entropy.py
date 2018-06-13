@@ -29,7 +29,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
-        1) the loss, as a Variable
+        1) the loss
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """

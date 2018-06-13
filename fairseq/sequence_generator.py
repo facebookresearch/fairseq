@@ -66,14 +66,14 @@ class SequenceGenerator(object):
             maxlen_b = self.maxlen
 
         for sample in data_itr:
-            s = utils.make_variable(sample, volatile=True, cuda=cuda)
+            s = utils.move_to_cuda(sample) if cuda else sample
             if 'net_input' not in s:
                 continue
             input = s['net_input']
             srclen = input['src_tokens'].size(1)
             if timer is not None:
                 timer.start()
-            with utils.maybe_no_grad():
+            with torch.no_grad():
                 hypos = self.generate(
                     input['src_tokens'],
                     input['src_lengths'],
@@ -91,7 +91,7 @@ class SequenceGenerator(object):
 
     def generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
         """Generate a batch of translations."""
-        with utils.maybe_no_grad():
+        with torch.no_grad():
             return self._generate(src_tokens, src_lengths, beam_size, maxlen, prefix_tokens)
 
     def _generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
@@ -492,14 +492,11 @@ class SequenceGenerator(object):
         return finalized
 
     def _decode(self, tokens, encoder_outs, incremental_states):
-        # wrap in Variable
-        tokens = utils.volatile_variable(tokens)
-
         avg_probs = None
         avg_attn = None
 
         for model, encoder_out in zip(self.models, encoder_outs):
-            with utils.maybe_no_grad():
+            with torch.no_grad():
                 if incremental_states[model] is not None:
                     decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
                 else:
