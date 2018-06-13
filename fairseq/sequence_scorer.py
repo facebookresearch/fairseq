@@ -23,7 +23,7 @@ class SequenceScorer(object):
     def score_batched_itr(self, data_itr, cuda=False, timer=None):
         """Iterate over a batched dataset and yield scored translations."""
         for sample in data_itr:
-            s = utils.make_variable(sample, volatile=True, cuda=cuda)
+            s = utils.move_to_cuda(sample) if cuda else sample
             if timer is not None:
                 timer.start()
             pos_scores, attn = self.score(s)
@@ -59,7 +59,7 @@ class SequenceScorer(object):
         avg_probs = None
         avg_attn = None
         for model in self.models:
-            with utils.maybe_no_grad():
+            with torch.no_grad():
                 model.eval()
                 decoder_out = model.forward(**net_input)
                 attn = decoder_out[1]

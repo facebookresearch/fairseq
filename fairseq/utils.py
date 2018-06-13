@@ -6,14 +6,12 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import defaultdict, OrderedDict
-import contextlib
 import logging
 import os
 import re
 import torch
 import traceback
 
-from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
 
@@ -169,46 +167,24 @@ def _override_model_args(args, model_arg_overrides):
     return args
 
 
-def maybe_no_grad(condition=True):
-    if hasattr(torch, 'no_grad') and condition:
-        return torch.no_grad()
-    # no-op context manager
-    return contextlib.ExitStack()
-
-
-def volatile_variable(*args, **kwargs):
-    if hasattr(torch, 'no_grad'):
-        # volatile has been deprecated, use the no_grad context manager instead
-        return Variable(*args, **kwargs)
-    else:
-        return Variable(*args, **kwargs, volatile=True)
-
-
-def make_variable(sample, volatile=False, cuda=False):
-    """Wrap input tensors in Variable class."""
-
+def move_to_cuda(sample):
     if len(sample) == 0:
         return {}
 
-    def _make_variable(maybe_tensor):
+    def _move_to_cuda(maybe_tensor):
         if torch.is_tensor(maybe_tensor):
-            if cuda and torch.cuda.is_available():
-                maybe_tensor = maybe_tensor.cuda()
-            if volatile:
-                return volatile_variable(maybe_tensor)
-            else:
-                return Variable(maybe_tensor)
+            return maybe_tensor.cuda()
         elif isinstance(maybe_tensor, dict):
             return {
-                key: _make_variable(value)
+                key: _move_to_cuda(value)
                 for key, value in maybe_tensor.items()
             }
         elif isinstance(maybe_tensor, list):
-            return [_make_variable(x) for x in maybe_tensor]
+            return [_move_to_cuda(x) for x in maybe_tensor]
         else:
             return maybe_tensor
 
-    return _make_variable(sample)
+    return _move_to_cuda(sample)
 
 
 INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)

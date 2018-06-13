@@ -6,7 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -171,8 +170,8 @@ class LSTMEncoder(FairseqEncoder):
             state_size = 2 * self.num_layers, bsz, self.hidden_size
         else:
             state_size = self.num_layers, bsz, self.hidden_size
-        h0 = Variable(x.data.new(*state_size).zero_())
-        c0 = Variable(x.data.new(*state_size).zero_())
+        h0 = x.data.new(*state_size).zero_()
+        c0 = x.data.new(*state_size).zero_()
         packed_outs, (final_hiddens, final_cells) = self.lstm(
             packed_x,
             (h0, c0),
@@ -306,9 +305,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             num_layers = len(self.layers)
             prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
             prev_cells = [encoder_cells[i] for i in range(num_layers)]
-            input_feed = Variable(x.data.new(bsz, self.encoder_output_units).zero_())
+            input_feed = x.data.new(bsz, self.encoder_output_units).zero_()
 
-        attn_scores = Variable(x.data.new(srclen, seqlen, bsz).zero_())
+        attn_scores = x.data.new(srclen, seqlen, bsz).zero_()
         outs = []
         for j in range(seqlen):
             # input feeding: concatenate context vector from previous time step
@@ -390,8 +389,8 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.uniform(m.weight, -0.1, 0.1)
-    nn.init.constant(m.weight[padding_idx], 0)
+    nn.init.uniform_(m.weight, -0.1, 0.1)
+    nn.init.constant_(m.weight[padding_idx], 0)
     return m
 
 

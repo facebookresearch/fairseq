@@ -10,6 +10,7 @@ Train a network across multiple GPUs.
 """
 
 from collections import defaultdict, OrderedDict
+import contextlib
 from itertools import chain
 
 import torch
@@ -112,7 +113,7 @@ class Trainer(object):
         torch.cuda.manual_seed(seed)
 
         # forward and backward pass
-        sample = self._prepare_sample(sample, volatile=False)
+        sample = self._prepare_sample(sample)
         loss, sample_size, logging_output, oom_fwd = self._forward(sample)
         oom_bwd = self._backward(loss)
 
@@ -191,7 +192,7 @@ class Trainer(object):
         oom = 0
         if sample is not None:
             try:
-                with utils.maybe_no_grad(eval):
+                with torch.no_grad() if eval else contextlib.ExitStack():
                     # calculate loss and sample size
                     loss, sample_size, logging_output_ = self.task.get_loss(self.model, self.criterion, sample)
                     logging_output.update(logging_output_)
@@ -276,10 +277,8 @@ class Trainer(object):
 
     def valid_step(self, sample):
         """Do forward pass in evaluation mode."""
-
-        sample = self._prepare_sample(sample, volatile=True)
-
         # forward pass
+        sample = self._prepare_sample(sample)
         _loss, sample_size, logging_output, oom_fwd = self._forward(sample, eval=True)
         assert not oom_fwd, 'Ran out of memory during validation'
 
@@ -344,7 +343,7 @@ class Trainer(object):
         """Get the number of parameters updates."""
         return self._num_updates
 
-    def _prepare_sample(self, sample, volatile):
+    def _prepare_sample(self, sample):
         if sample is None or len(sample) == 0:
             return None
-        return utils.make_variable(sample, volatile=volatile, cuda=True)
+        return utils.move_to_cuda(sample)

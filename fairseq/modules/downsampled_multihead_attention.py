@@ -11,7 +11,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 from fairseq.modules.scalar_bias import scalar_bias
 
 
@@ -110,14 +109,14 @@ class SingleHeadAttention(nn.Module):
         if mask_future_timesteps:
             assert query.size() == key.size(), \
                 'mask_future_timesteps only applies to self-attention'
-            attn_weights *= Variable(torch.tril(
+            attn_weights *= torch.tril(
                 attn_weights.data.new([1]).expand(tgt_len, tgt_len).clone(),
                 diagonal=-1,
-            )[:, ::self.head_index + 1 if self.downsample else 1].unsqueeze(0))
-            attn_weights += Variable(torch.triu(
+            )[:, ::self.head_index + 1 if self.downsample else 1].unsqueeze(0)
+            attn_weights += torch.triu(
                 attn_weights.data.new([-math.inf]).expand(tgt_len, tgt_len).clone(),
                 diagonal=0
-            )[:, ::self.head_index + 1 if self.downsample else 1].unsqueeze(0))
+            )[:, ::self.head_index + 1 if self.downsample else 1].unsqueeze(0)
         tgt_size = tgt_len
         if use_scalar_bias:
             attn_weights = scalar_bias(attn_weights, 2)
