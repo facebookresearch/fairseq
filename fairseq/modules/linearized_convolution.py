@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import torch
 import torch.nn.functional as F
 
 from fairseq import utils
