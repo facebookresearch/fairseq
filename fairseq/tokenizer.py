@@ -68,7 +68,6 @@ class Tokenizer:
                 t.start()
             for t in thread_pool:
                 t.join()
-
             worker_result = [pickle.load(open(temp_files[i], 'rb')) for i in range(worker_cnt)]
 
         for r in worker_result:
@@ -140,9 +139,7 @@ class Tokenizer:
                         nseq += 1
                         ntok += len(ids)
                         ids_list.append(ids)
-
             ret = {'nseq': nseq, 'ntok': ntok, 'replaced': replaced, 'ids': ids_list}
-
             with open(tempfile, 'wb') as f:
                 pickle.dump(ret, f)
 
@@ -166,7 +163,6 @@ class Tokenizer:
             for r in worker_result:
                 if i < len(r['ids']):
                     consumer(r['ids'][i])
-
         return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': len(replaced)}
 
 
