@@ -493,25 +493,18 @@ class SequenceGenerator(object):
         return finalized
 
     def _decode(self, tokens, encoder_outs, incremental_states):
+        if len(self.models) == 1:
+            return self._decode_one(tokens, self.models[0], encoder_outs[0], incremental_states, log_probs=True)
+
         avg_probs = None
         avg_attn = None
-
         for model, encoder_out in zip(self.models, encoder_outs):
-            with torch.no_grad():
-                if incremental_states[model] is not None:
-                    decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
-                else:
-                    decoder_out = list(model.decoder(tokens, encoder_out))
-                decoder_out[0] = decoder_out[0][:, -1, :]
-                attn = decoder_out[1]
-
-            probs = model.get_normalized_probs(decoder_out, log_probs=False).data
+            probs, attn = self._decode_one(tokens, model, encoder_out, incremental_states, log_probs=False)
             if avg_probs is None:
                 avg_probs = probs
             else:
                 avg_probs.add_(probs)
             if attn is not None:
-                attn = attn[:, -1, :].data
                 if avg_attn is None:
                     avg_attn = attn
                 else:
@@ -520,5 +513,17 @@ class SequenceGenerator(object):
         avg_probs.log_()
         if avg_attn is not None:
             avg_attn.div_(len(self.models))
-
         return avg_probs, avg_attn
+
+    def _decode_one(self, tokens, model, encoder_out, incremental_states, log_probs):
+        with torch.no_grad():
+            if incremental_states[model] is not None:
+                decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
+            else:
+                decoder_out = list(model.decoder(tokens, encoder_out))
+            decoder_out[0] = decoder_out[0][:, -1, :]
+            attn = decoder_out[1]
+            if attn is not None:
+                attn = attn[:, -1, :]
+        probs = model.get_normalized_probs(decoder_out, log_probs=log_probs)
+        return probs, attn
