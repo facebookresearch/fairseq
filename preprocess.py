@@ -64,13 +64,13 @@ def main(args):
             src_dict = dictionary.Dictionary.load(args.srcdict)
         else:
             assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
-            src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang))
+            src_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.source_lang), worker_cnt=args.workers)
         if target:
             if args.tgtdict:
                 tgt_dict = dictionary.Dictionary.load(args.tgtdict)
             else:
                 assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
-                tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang))
+                tgt_dict = Tokenizer.build_dictionary(filename='{}.{}'.format(args.trainpref, args.target_lang), worker_cnt=args.workers)
 
     src_dict.save(os.path.join(args.destdir, 'dict.{}.txt'.format(args.source_lang)),
                   threshold=args.thresholdsrc, nwords=args.nwordssrc)

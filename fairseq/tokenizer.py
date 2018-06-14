@@ -28,9 +28,12 @@ def tokenize_line(line):
 class Tokenizer:
 
     @staticmethod
-    def build_dictionary(filename, tokenize=tokenize_line):
+    def build_dictionary(filename, worker_cnt=1, tokenize=tokenize_line):
         dict = dictionary.Dictionary()
-        Tokenizer.add_file_to_dictionary(filename, dict, tokenize)
+        if worker_cnt == 1:
+            Tokenizer.add_file_to_dictionary(filename, dict, tokenize)
+        else:
+            Tokenizer.add_file_to_dictionary_parallel(filename, dict, worker_cnt, tokenize)
         dict.finalize()
         return dict
 
@@ -41,6 +44,37 @@ class Tokenizer:
                 for word in tokenize(line):
                     dict.add_symbol(word)
                 dict.add_symbol(dict.eos_word)
+
+    @staticmethod
+    def add_file_to_dictionary_parallel(filename, dict, worker_cnt, tokenize):
+
+        def add_file_to_dictionary_worker(worker_id, tempfile):
+            d = {}
+            with open(filename, 'r') as f:
+                for line_idx, line in enumerate(f):
+                    if line_idx % worker_cnt == worker_id:
+                        for word in tokenize(line):
+                            if word not in d:
+                                d[word] = 1
+                            else:
+                                d[word] += 1
+            with open(tempfile, 'wb') as f:
+                pickle.dump(d, f)
+
+        with tempfile.TemporaryDirectory() as temp_folder:
+            temp_files = ['%s/%d' % (temp_folder, i) for i in range(worker_cnt)]
+            thread_pool = [multiprocessing.Process(target=add_file_to_dictionary_worker, args=(i, temp_files[i])) for i in range(worker_cnt)]
+            for t in thread_pool:
+                t.start()
+            for t in thread_pool:
+                t.join()
+
+            worker_result = [pickle.load(open(temp_files[i], 'rb')) for i in range(worker_cnt)]
+
+        for r in worker_result:
+            for word, count in r.items():
+                dict.add_symbol(word, count)
+        dict.add_symbol(dict.eos_word)
 
     @staticmethod
     def binarize(filename, dict, consumer, worker_cnt=1, tokenize=tokenize_line,
@@ -108,6 +142,7 @@ class Tokenizer:
                         ids_list.append(ids)
 
             ret = {'nseq': nseq, 'ntok': ntok, 'replaced': replaced, 'ids': ids_list}
+
             with open(tempfile, 'wb') as f:
                 pickle.dump(ret, f)
 
@@ -118,7 +153,6 @@ class Tokenizer:
                 t.start()
             for t in thread_pool:
                 t.join()
-
             worker_result = [pickle.load(open(temp_files[i], 'rb')) for i in range(worker_cnt)]
 
         nseq, ntok = 0, 0
