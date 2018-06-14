@@ -73,7 +73,7 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    model_paths = args.path.split(',')
+    model_paths = args.path.split(':')
     models, model_args = utils.load_ensemble_for_inference(model_paths, task)
 
     # Set dictionaries

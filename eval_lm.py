@@ -30,7 +30,7 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    models, _ = utils.load_ensemble_for_inference(args.path.split(','), task)
+    models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task)
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
