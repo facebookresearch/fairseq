@@ -628,6 +628,19 @@ def fconv_lm_dauphin_wikitext103(args):
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '10000,20000,200000')
     base_lm_architecture(args)
 
+@register_model_architecture('fconv_lm', 'fconv_lm_dauphin_gbw')
+def fconv_lm_dauphin_gbw(args):
+    layers = '[(512, 5)]'
+    layers += ' + [(128, 1, 0), (128, 5, 0), (512, 1, 3)] * 3'
+    layers += ' + [(512, 1, 0), (512, 5, 0), (1024, 1, 3)] * 3'
+    layers += ' + [(1024, 1, 0), (1024, 5, 0), (2048, 1, 3)] * 6'
+    layers += ' + [(1024, 1, 0), (1024, 5, 0), (4096, 1, 3)]'
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 128)
+    args.decoder_layers = getattr(args, 'decoder_layers', layers)
+    args.decoder_attention = getattr(args, 'decoder_attention', 'False')
+    args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '10000,50000,200000')
+    base_lm_architecture(args)
+
 
 @register_model_architecture('fconv', 'fconv')
 def base_architecture(args):
