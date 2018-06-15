@@ -5,14 +5,13 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from collections import defaultdict
-import contextlib
+from collections import defaultdict, OrderedDict
 import logging
 import os
+import re
 import torch
 import traceback
 
-from torch.autograd import Variable
 from torch.serialization import default_restore_location
 
 
@@ -25,6 +24,20 @@ def torch_persistent_save(*args, **kwargs):
                 logging.error(traceback.format_exc())
 
 
+def convert_state_dict_type(state_dict, ttype=torch.FloatTensor):
+    if isinstance(state_dict, dict):
+        cpu_dict = OrderedDict()
+        for k, v in state_dict.items():
+            cpu_dict[k] = convert_state_dict_type(v)
+        return cpu_dict
+    elif isinstance(state_dict, list):
+        return [convert_state_dict_type(v) for v in state_dict]
+    elif torch.is_tensor(state_dict):
+        return state_dict.type(ttype)
+    else:
+        return state_dict
+
+
 def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
                num_updates, optim_history=None, extra_state=None):
     if optim_history is None:
@@ -33,7 +46,7 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
         extra_state = {}
     state_dict = {
         'args': args,
-        'model': model.state_dict(),
+        'model': convert_state_dict_type(model.state_dict()),
         'optimizer_history': optim_history + [
             {
                 'criterion_name': criterion.__class__.__name__,
@@ -42,28 +55,22 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
                 'num_updates': num_updates,
             }
         ],
-        'last_optimizer_state': optimizer.state_dict(),
+        'last_optimizer_state': convert_state_dict_type(optimizer.state_dict()),
         'extra_state': extra_state,
     }
     torch_persistent_save(state_dict, filename)
 
 
-def load_model_state(filename, model, cuda_device=None):
+def load_model_state(filename, model):
     if not os.path.exists(filename):
         return None, [], None
-    if cuda_device is None:
-        state = torch.load(filename)
-    else:
-        state = torch.load(
-            filename,
-            map_location=lambda s, l: default_restore_location(s, 'cuda:{}'.format(cuda_device))
-        )
+    state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
     state = _upgrade_state_dict(state)
-    state['model'] = model.upgrade_state_dict(state['model'])
+    model.upgrade_state_dict(state['model'])
 
     # load model parameters
     try:
-        model.load_state_dict(state['model'])
+        model.load_state_dict(state['model'], strict=True)
     except Exception:
         raise Exception('Cannot load model parameters from checkpoint, '
                         'please ensure that the architectures match')
@@ -111,43 +118,44 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if 'num_updates' not in state['optimizer_history'][-1]:
         state['optimizer_history'][-1]['num_updates'] = 0
+    # old model checkpoints may not have separate source/target positions
+    if hasattr(state['args'], 'max_positions') and not hasattr(state['args'], 'max_source_positions'):
+        state['args'].max_source_positions = state['args'].max_positions
+        state['args'].max_target_positions = state['args'].max_positions
+    # use stateful training data iterator
+    if 'train_iterator' not in state['extra_state']:
+        state['extra_state']['train_iterator'] = {
+            'epoch': state['extra_state']['epoch'],
+            'iterations_in_epoch': 0,
+        }
     return state
 
 
-def load_ensemble_for_inference(filenames, src_dict=None, dst_dict=None,
-                                data_dir=None, model_arg_overrides=None):
+def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     """Load an ensemble of models for inference.
-
-    The source and target dictionaries can be given explicitly, or loaded from
-    the `data_dir` directory.
 
     model_arg_overrides allows you to pass a dictionary model_arg_overrides --
     {'arg_name': arg} -- to override model args that were used during model
     training
     """
-    from fairseq import data, models
-
     # load model architectures and weights
     states = []
     for filename in filenames:
         if not os.path.exists(filename):
             raise IOError('Model file not found: {}'.format(filename))
-        states.append(
-            torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
-        )
+        state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
+        state = _upgrade_state_dict(state)
+        states.append(state)
     args = states[0]['args']
     if model_arg_overrides is not None:
         args = _override_model_args(args, model_arg_overrides)
 
-    if src_dict is None or dst_dict is None:
-        assert data_dir is not None
-        src_dict, dst_dict = data.load_dictionaries(data_dir, args.source_lang, args.target_lang)
-
     # build ensemble
     ensemble = []
     for state in states:
-        model = models.build_model(args, src_dict, dst_dict)
-        model.load_state_dict(state['model'])
+        model = task.build_model(args)
+        model.upgrade_state_dict(state['model'])
+        model.load_state_dict(state['model'], strict=True)
         ensemble.append(model)
     return ensemble, args
 
@@ -159,46 +167,24 @@ def _override_model_args(args, model_arg_overrides):
     return args
 
 
-def maybe_no_grad(condition=True):
-    if hasattr(torch, 'no_grad') and condition:
-        return torch.no_grad()
-    # no-op context manager
-    return contextlib.ExitStack()
-
-
-def volatile_variable(*args, **kwargs):
-    if hasattr(torch, 'no_grad'):
-        # volatile has been deprecated, use the no_grad context manager instead
-        return Variable(*args, **kwargs)
-    else:
-        return Variable(*args, **kwargs, volatile=True)
-
-
-def make_variable(sample, volatile=False, cuda=False):
-    """Wrap input tensors in Variable class."""
-
+def move_to_cuda(sample):
     if len(sample) == 0:
         return {}
 
-    def _make_variable(maybe_tensor):
+    def _move_to_cuda(maybe_tensor):
         if torch.is_tensor(maybe_tensor):
-            if cuda and torch.cuda.is_available():
-                maybe_tensor = maybe_tensor.cuda()
-            if volatile:
-                return volatile_variable(maybe_tensor)
-            else:
-                return Variable(maybe_tensor)
+            return maybe_tensor.cuda()
         elif isinstance(maybe_tensor, dict):
             return {
-                key: _make_variable(value)
+                key: _move_to_cuda(value)
                 for key, value in maybe_tensor.items()
             }
         elif isinstance(maybe_tensor, list):
-            return [_make_variable(x) for x in maybe_tensor]
+            return [_move_to_cuda(x) for x in maybe_tensor]
         else:
             return maybe_tensor
 
-    return _make_variable(sample)
+    return _move_to_cuda(sample)
 
 
 INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
@@ -268,7 +254,7 @@ def parse_embedding(embed_path):
     """
     embed_dict = {}
     with open(embed_path) as f_embed:
-        _ = next(f_embed)  # skip header
+        next(f_embed)  # skip header
         for line in f_embed:
             pieces = line.strip().split()
             embed_dict[pieces[0]] = torch.Tensor([float(weight) for weight in pieces[1:]])
@@ -297,15 +283,15 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     return ' '.join(hypo_tokens)
 
 
-def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, dst_dict, remove_bpe):
+def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe):
     from fairseq import tokenizer
-    hypo_str = dst_dict.string(hypo_tokens, remove_bpe)
+    hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
-        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, dst_dict.unk_string())
+        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string())
     if align_dict is not None or remove_bpe is not None:
         # Convert back to tokens for evaluating with unk replacement or without BPE
         # Note that the dictionary can be modified inside the method.
-        hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, dst_dict, add_if_not_exist=True)
+        hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, tgt_dict, add_if_not_exist=True)
     return hypo_tokens, hypo_str, alignment
 
 
@@ -342,12 +328,7 @@ def buffered_arange(max):
     return buffered_arange.buf[:max]
 
 
-def convert_padding_direction(
-    src_tokens,
-    padding_idx,
-    right_to_left=False,
-    left_to_right=False,
-):
+def convert_padding_direction(src_tokens, padding_idx, right_to_left=False, left_to_right=False):
     assert right_to_left ^ left_to_right
     pad_mask = src_tokens.eq(padding_idx)
     if not pad_mask.any():
@@ -375,3 +356,35 @@ def item(tensor):
     if hasattr(tensor, '__getitem__'):
         return tensor[0]
     return tensor
+
+
+def clip_grad_norm_(tensor, max_norm):
+    grad_norm = item(torch.norm(tensor))
+    if grad_norm > max_norm > 0:
+        clip_coef = max_norm / (grad_norm + 1e-6)
+        tensor.mul_(clip_coef)
+    return grad_norm
+
+
+def fill_with_neg_inf(t):
+    """FP16-compatible function that fills a tensor with -inf."""
+    return t.float().fill_(float('-inf')).type_as(t)
+
+
+def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
+    """Retrieves all checkpoints found in `path` directory.
+
+    Checkpoints are identified by matching filename to the specified pattern. If
+    the pattern contains groups, the result will be sorted by the first group in
+    descending order.
+    """
+    pt_regexp = re.compile(pattern)
+    files = os.listdir(path)
+
+    entries = []
+    for i, f in enumerate(files):
+        m = pt_regexp.fullmatch(f)
+        if m is not None:
+            idx = int(m.group(1)) if len(m.groups()) > 0 else i
+            entries.append((idx, m.group(0)))
+    return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]

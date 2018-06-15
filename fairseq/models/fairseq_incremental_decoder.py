@@ -26,8 +26,14 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         """
         def apply_reorder_incremental_state(module):
             if module != self and hasattr(module, 'reorder_incremental_state'):
-                module.reorder_incremental_state(incremental_state, new_order)
+                module.reorder_incremental_state(
+                    incremental_state,
+                    new_order,
+                )
         self.apply(apply_reorder_incremental_state)
+
+    def reorder_encoder_out(self, encoder_out, new_order):
+        return encoder_out
 
     def set_beam_size(self, beam_size):
         """Sets the beam size in the decoder and all children."""

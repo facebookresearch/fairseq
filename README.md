@@ -1,14 +1,25 @@
 # Introduction
 
-Fairseq(-py) is a sequence modeling toolkit that allows researchers and developers to train custom models for translation, summarization and other text generation tasks. It provides reference implementations of various sequence-to-sequence models, including:
+Fairseq(-py) is a sequence modeling toolkit that allows researchers and developers to train custom models for translation, summarization, language modeling and other text generation tasks. It provides reference implementations of various sequence-to-sequence models, including:
 - **Convolutional Neural Networks (CNN)**
+  - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](https://arxiv.org/abs/1612.08083)
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122)
-  - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
+  - **_New_** [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
+  - **_New_** [Fan et al. (2018): Hierarchical Neural Story Generation](https://arxiv.org/abs/1805.04833)
 - **Long Short-Term Memory (LSTM) networks**
   - [Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation](https://arxiv.org/abs/1508.04025)
   - [Wiseman and Rush (2016): Sequence-to-Sequence Learning as Beam-Search Optimization](https://arxiv.org/abs/1606.02960)
- 
-Fairseq features multi-GPU (distributed) training on one machine or across multiple machines, fast beam search generation on both CPU and GPU, and includes pre-trained models for several benchmark translation datasets.
+- **Transformer (self-attention) networks**
+  - [Vaswani et al. (2017): Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+  - **_New_** [Ott et al. (2018): Scaling Neural Machine Translation](https://arxiv.org/abs/1806.00187)
+
+Fairseq features:
+- multi-GPU (distributed) training on one machine or across multiple machines
+- fast beam search generation on both CPU and GPU
+- large mini-batch training (even on a single GPU) via delayed updates
+- fast half-precision floating point (FP16) training
+
+We also provide [pre-trained models](#pre-trained-models) for several benchmark translation datasets.
 
 ![Model](fairseq.gif)
 
@@ -38,6 +49,7 @@ The following command-line tools are provided:
 * `python generate.py`: Translate pre-processed data with a trained model
 * `python interactive.py`: Translate raw text with a trained model
 * `python score.py`: BLEU scoring of generated translations against reference translations
+* `python eval_lm.py`: Language model evaluation
 
 ## Evaluating Pre-trained Models
 First, download a pre-trained model along with its vocabularies:
@@ -71,16 +83,19 @@ This generation script produces four types of outputs: a line prefixed with *S* 
 
 Check [below](#pre-trained-models) for a full list of pre-trained models available.
 
-
 ## Training a New Model
 
+The following tutorial is for machine translation.
+For an example of how to use Fairseq for other tasks, such as [language modeling](examples/language_model/README.md), please see the `examples/` directory.
+
 ### Data Pre-processing
+
 Fairseq contains example pre-processing scripts for several translation datasets: IWSLT 2014 (German-English), WMT 2014 (English-French) and WMT 2014 (English-German).
 To pre-process and binarize the IWSLT dataset:
 ```
-$ cd data/
+$ cd examples/translation/
 $ bash prepare-iwslt14.sh
-$ cd ..
+$ cd ../..
 $ TEXT=data/iwslt14.tokenized.de-en
 $ python preprocess.py --source-lang de --target-lang en \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
@@ -125,15 +140,25 @@ BPE continuation markers can be removed with the `--remove-bpe` flag.
 
 # Pre-trained Models
 
-We provide the following pre-trained fully convolutional sequence-to-sequence models:
+We provide the following pre-trained models and pre-processed, binarized test sets:
 
-* [wmt14.en-fr.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
-* [wmt14.en-de.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-de.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
+### Translation
 
-In addition, we provide pre-processed and binarized test sets for the models above:
-* [wmt14.en-fr.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-French
-* [wmt14.en-fr.ntst1213.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.ntst1213.tar.bz2): newstest2012 and newstest2013 test sets for WMT14 English-French
-* [wmt14.en-de.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-de.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-German
+Description | Dataset | Model | Test set(s)
+---|---|---|---
+Convolutional <br> ([Gehring et al., 2017](https://arxiv.org/abs/1705.03122)) | [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2) | newstest2014: <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.newstest2014.tar.bz2) <br> newstest2012/2013: <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.ntst1213.tar.bz2)
+Convolutional <br> ([Gehring et al., 2017](https://arxiv.org/abs/1705.03122)) | [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-de.fconv-py.tar.bz2) | newstest2014: <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-de.newstest2014.tar.bz2)
+Transformer <br> ([Ott et al., 2018](https://arxiv.org/abs/1806.00187)) | [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.joined-dict.transformer.tar.bz2) | newstest2014 (shared vocab): <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.joined-dict.transformer.tar.bz2)
+Transformer <br> ([Ott et al., 2018](https://arxiv.org/abs/1806.00187)) | [WMT16 English-German](https://drive.google.com/uc?export=download&id=0B_bZck-ksdkpM25jRUN2X2UxMm8) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt16.en-de.joined-dict.transformer.tar.bz2) | newstest2014 (shared vocab): <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt16.en-de.joined-dict.newstest2014.tar.bz2)
+
+### Language models
+
+Description | Dataset | Model | Test set(s)
+---|---|---|---
+Convolutional <br> ([Dauphin et al., 2017](https://arxiv.org/abs/1612.08083)) | [Google Billion Words](https://github.com/ciprian-chelba/1-billion-word-language-modeling-benchmark) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/gbw_fconv_lm.tar.bz2) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/gbw_test_lm.tar.bz2)
+Convolutional <br> ([Dauphin et al., 2017](https://arxiv.org/abs/1612.08083)) | [WikiText-103](https://einstein.ai/research/the-wikitext-long-term-dependency-language-modeling-dataset) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wiki103_fconv_lm.tar.bz2) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/wiki103_test_lm.tar.bz2)
+
+### Usage
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for WMT 2014 English-French on a GTX-1080ti:
 ```
@@ -153,39 +178,66 @@ $ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
 BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 ```
 
-# Distributed version
+# Large mini-batch training with delayed updates
+
+The `--update-freq` option can be used to accumulate gradients from multiple mini-batches and delay updating,
+creating a larger effective batch size.
+Delayed updates can also improve training speed by reducing inter-GPU communication costs and by saving idle time caused by variance in workload across GPUs.
+See [Ott et al. (2018)](https://arxiv.org/abs/1806.00187) for more details.
+
+To train on a single GPU with an effective batch size that is equivalent to training on 8 GPUs:
+```
+CUDA_VISIBLE_DEVICES=0 python train.py --update-freq 8 (...)
+```
+
+# Training with half precision floating point (FP16)
+
+> Note: FP16 training requires a Volta GPU and CUDA 9.1 or greater
+
+Recent GPUs enable efficient half precision floating point computation, e.g., using [Nvidia Tensor Cores](https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html).
+
+Fairseq supports FP16 training with the `--fp16` flag:
+```
+python train.py --fp16 (...)
+```
+
+# Distributed training
 
 Distributed training in fairseq is implemented on top of [torch.distributed](http://pytorch.org/docs/master/distributed.html).
 Training begins by launching one worker process per GPU.
 These workers discover each other via a unique host and port (required) that can be used to establish an initial connection.
-Additionally, each worker is given a rank, that is a unique number from 0 to n-1 where n is the total number of GPUs.
+Additionally, each worker has a rank, that is a unique number from 0 to n-1 where n is the total number of GPUs.
 
 If you run on a cluster managed by [SLURM](https://slurm.schedmd.com/) you can train a large English-French model on the WMT 2014 dataset on 16 nodes with 8 GPUs each (in total 128 GPUs) using this command:
 
 ```
-$ DATA=... # path to the preprocessed dataset, must be visible from all nodes
-$ PORT=9218 # any available tcp port that can be used by the trained to establish initial connection
-$ sbatch --job-name fairseq-py --gres gpu:8 --nodes 16 --ntasks-per-node 8 \
-    --cpus-per-task 10 --no-requeue --wrap 'srun --output train.log.node%t \
-    --error train.stderr.node%t.%j python train.py $DATA --distributed-world-size 128 \
-    --distributed-port $PORT --force-anneal 50 --lr-scheduler fixed --max-epoch 55 \
+$ DATA=...   # path to the preprocessed dataset, must be visible from all nodes
+$ PORT=9218  # any available TCP port that can be used by the trainer to establish initial connection
+$ sbatch --job-name fairseq-py --gres gpu:8 --cpus-per-task 10 \
+    --nodes 16 --ntasks-per-node 8 \
+    --wrap 'srun --output train.log.node%t --error train.stderr.node%t.%j \
+    python train.py $DATA \
+    --distributed-world-size 128 \
+    --distributed-port $PORT \
+    --force-anneal 50 --lr-scheduler fixed --max-epoch 55 \
     --arch fconv_wmt_en_fr --optimizer nag --lr 0.1,4 --max-tokens 3000 \
     --clip-norm 0.1 --dropout 0.1 --criterion label_smoothed_cross_entropy \
     --label-smoothing 0.1 --wd 0.0001'
 ```
 
-Alternatively you'll need to manually start one process per each GPU:
+Alternatively you can manually start one process per GPU:
 ```
-$ DATA=... # path to the preprocessed dataset, must be visible from all nodes
-$ HOST_PORT=your.devserver.com:9218 # has to be one of the hosts that will be used by the job \
-    and the port on that host has to be available
-$ RANK=... # the rank of this process, has to go from 0 to 127 in case of 128 GPUs
-$ python train.py $DATA --distributed-world-size 128 \
-      --force-anneal 50 --lr-scheduler fixed --max-epoch 55 \
-      --arch fconv_wmt_en_fr --optimizer nag --lr 0.1,4 --max-tokens 3000 \
-      --clip-norm 0.1 --dropout 0.1 --criterion label_smoothed_cross_entropy \
-      --label-smoothing 0.1 --wd 0.0001 \
-      --distributed-init-method='tcp://$HOST_PORT' --distributed-rank=$RANK
+$ DATA=...  # path to the preprocessed dataset, must be visible from all nodes
+$ HOST_PORT=master.devserver.com:9218  # one of the hosts used by the job
+$ RANK=...  # the rank of this process, from 0 to 127 in case of 128 GPUs
+$ python train.py $DATA \
+    --distributed-world-size 128 \
+    --distributed-init-method 'tcp://$HOST_PORT' \
+    --distributed-rank $RANK \
+    --force-anneal 50 --lr-scheduler fixed --max-epoch 55 \
+    --arch fconv_wmt_en_fr --optimizer nag --lr 0.1,4 --max-tokens 3000 \
+    --clip-norm 0.1 --dropout 0.1 --criterion label_smoothed_cross_entropy \
+    --label-smoothing 0.1 --wd 0.0001
 ```
 
 # Join the fairseq community

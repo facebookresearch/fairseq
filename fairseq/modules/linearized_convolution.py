@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import torch
 import torch.nn.functional as F
 
 from fairseq import utils
@@ -59,8 +60,8 @@ class LinearizedConvolution(ConvTBC):
                 input_buffer[:, :-1, :] = input_buffer[:, 1:, :].clone()
             # append next input
             input_buffer[:, -1, :] = input[:, -1, :]
-            input = utils.volatile_variable(input_buffer)
-        with utils.maybe_no_grad():
+            input = input_buffer
+        with torch.no_grad():
             output = F.linear(input.view(bsz, -1), weight, self.bias)
         return output.view(bsz, 1, -1)
 

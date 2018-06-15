@@ -16,14 +16,14 @@ from . import FairseqCriterion, register_criterion
 @register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, src_dict, dst_dict):
-        super().__init__(args, src_dict, dst_dict)
+    def __init__(self, args, task):
+        super().__init__(args, task)
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
-        1) the loss, as a Variable
+        1) the loss
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """

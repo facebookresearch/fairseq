@@ -5,16 +5,17 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import torch
+
 from fairseq import utils
 
 
 class SequenceScorer(object):
     """Scores the target for a given source sentence."""
 
-    def __init__(self, models):
+    def __init__(self, models, tgt_dict):
         self.models = models
-        self.pad = models[0].dst_dict.pad()
-        assert all(m.dst_dict.pad() == self.pad for m in self.models[1:])
+        self.pad = tgt_dict.pad()
 
     def cuda(self):
         for model in self.models:
@@ -24,21 +25,22 @@ class SequenceScorer(object):
     def score_batched_itr(self, data_itr, cuda=False, timer=None):
         """Iterate over a batched dataset and yield scored translations."""
         for sample in data_itr:
-            s = utils.make_variable(sample, volatile=True, cuda=cuda)
+            s = utils.move_to_cuda(sample) if cuda else sample
             if timer is not None:
                 timer.start()
             pos_scores, attn = self.score(s)
-            if timer is not None:
-                timer.stop(s['ntokens'])
             for i, id in enumerate(s['id'].data):
-                src = s['net_input']['src_tokens'].data[i, :]
                 # remove padding from ref
-                ref = utils.strip_pad(s['target'].data[i, :], self.pad)
+                src = utils.strip_pad(s['net_input']['src_tokens'].data[i, :], self.pad)
+                ref = utils.strip_pad(s['target'].data[i, :], self.pad) if s['target'] is not None else None
                 tgt_len = ref.numel()
                 pos_scores_i = pos_scores[i][:tgt_len]
                 score_i = pos_scores_i.sum() / tgt_len
-                attn_i = attn[i]
-                _, alignment = attn_i.max(dim=0)
+                if attn is not None:
+                    attn_i = attn[i]
+                    _, alignment = attn_i.max(dim=0)
+                else:
+                    attn_i = alignment = None
                 hypos = [{
                     'tokens': ref,
                     'score': score_i,
@@ -46,6 +48,8 @@ class SequenceScorer(object):
                     'alignment': alignment,
                     'positional_scores': pos_scores_i,
                 }]
+                if timer is not None:
+                    timer.stop(s['ntokens'])
                 # return results in the same format as SequenceGenerator
                 yield id, src, ref, hypos
 
@@ -57,18 +61,12 @@ class SequenceScorer(object):
         avg_probs = None
         avg_attn = None
         for model in self.models:
-            with utils.maybe_no_grad():
+            with torch.no_grad():
                 model.eval()
-                encoder_out = model.encoder(
-                    net_input['src_tokens'],
-                    net_input['src_lengths'],
-                )
-                decoder_out = model.decoder(
-                    net_input['prev_output_tokens'],
-                    encoder_out,
-                )
+                decoder_out = model.forward(**net_input)
                 attn = decoder_out[1]
-            probs = model.get_normalized_probs(decoder_out, log_probs=False).data
+
+            probs = model.get_normalized_probs(decoder_out, log_probs=False, sample=sample).data
             if avg_probs is None:
                 avg_probs = probs
             else:

@@ -10,10 +10,10 @@ from torch.nn.modules.loss import _Loss
 
 class FairseqCriterion(_Loss):
 
-    def __init__(self, args, src_dict, dst_dict):
+    def __init__(self, args, task):
         super().__init__()
         self.args = args
-        self.padding_idx = dst_dict.pad()
+        self.padding_idx = task.target_dictionary.pad()
 
     @staticmethod
     def add_args(parser):
@@ -24,7 +24,7 @@ class FairseqCriterion(_Loss):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
-        1) the loss, as a Variable
+        1) the loss
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """

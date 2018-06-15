@@ -5,7 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from torch.autograd import Variable
 import torch.nn as nn
 
 from fairseq import utils
@@ -29,7 +28,7 @@ class LearnedPositionalEmbedding(nn.Embedding):
             positions = input.data.new(1, 1).fill_(self.padding_idx + input.size(1))
         else:
             positions = utils.make_positions(input.data, self.padding_idx, self.left_pad)
-        return super().forward(Variable(positions))
+        return super().forward(positions)
 
     def max_positions(self):
         """Maximum number of supported positions."""

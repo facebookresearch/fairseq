@@ -46,12 +46,13 @@ class TestLabelSmoothing(unittest.TestCase):
             [0.05, 0.10, 0.2, 0.05, 0.2, 0.3, 0.10],
             [0.05, 0.15, 0.3, 0.05, 0.1, 0.2, 0.15],
         ]).unsqueeze(0).expand(2, 3, 7)  # add batch dimension
-        self.model = test_utils.TestModel.build_model(self.args, self.d, self.d)
+        self.task = test_utils.TestTranslationTask.setup_task(self.args, self.d, self.d)
+        self.model = self.task.build_model(self.args)
 
     def test_nll_loss(self):
         self.args.label_smoothing = 0.1
-        nll_crit = CrossEntropyCriterion(self.args, self.d, self.d)
-        smooth_crit = LabelSmoothedCrossEntropyCriterion(self.args, self.d, self.d)
+        nll_crit = CrossEntropyCriterion(self.args, self.task)
+        smooth_crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
         nll_loss, nll_sample_size, nll_logging_output = nll_crit(self.model, self.sample)
         smooth_loss, smooth_sample_size, smooth_logging_output = smooth_crit(self.model, self.sample)
         self.assertLess(abs(nll_loss - nll_logging_output['loss']), 1e-6)
@@ -59,7 +60,7 @@ class TestLabelSmoothing(unittest.TestCase):
 
     def test_padding(self):
         self.args.label_smoothing = 0.1
-        crit = LabelSmoothedCrossEntropyCriterion(self.args, self.d, self.d)
+        crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
         loss, _, logging_output = crit(self.model, self.sample)
 
         def get_one_no_padding(idx):
@@ -68,7 +69,7 @@ class TestLabelSmoothing(unittest.TestCase):
             sample1 = next(test_utils.dummy_dataloader([self.data[idx]]))
             args1 = copy.copy(self.args)
             args1.probs = args1.probs[idx, :, :].unsqueeze(0)
-            model1 = test_utils.TestModel.build_model(args1, self.d, self.d)
+            model1 = self.task.build_model(args1)
             loss1, _, _ = crit(model1, sample1)
             return loss1
 
@@ -78,15 +79,15 @@ class TestLabelSmoothing(unittest.TestCase):
 
     def test_reduction(self):
         self.args.label_smoothing = 0.1
-        crit = LabelSmoothedCrossEntropyCriterion(self.args, self.d, self.d)
+        crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
         loss, _, logging_output = crit(self.model, self.sample, reduce=True)
         unreduced_loss, _, _ = crit(self.model, self.sample, reduce=False)
         self.assertAlmostEqual(loss, unreduced_loss.sum())
 
     def test_zero_eps(self):
         self.args.label_smoothing = 0.0
-        nll_crit = CrossEntropyCriterion(self.args, self.d, self.d)
-        smooth_crit = LabelSmoothedCrossEntropyCriterion(self.args, self.d, self.d)
+        nll_crit = CrossEntropyCriterion(self.args, self.task)
+        smooth_crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
         nll_loss, nll_sample_size, nll_logging_output = nll_crit(self.model, self.sample)
         smooth_loss, smooth_sample_size, smooth_logging_output = smooth_crit(self.model, self.sample)
         self.assertAlmostEqual(nll_loss, smooth_loss)
