@@ -140,15 +140,21 @@ BPE continuation markers can be removed with the `--remove-bpe` flag.
 
 # Pre-trained Models
 
-We provide the following pre-trained fully convolutional sequence-to-sequence models:
+We provide the following pre-trained fully convolutional sequence-to-sequence translation models:
 
 * [wmt14.en-fr.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) including vocabularies
 * [wmt14.en-de.fconv-py.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-de.fconv-py.tar.bz2): Pre-trained model for [WMT14 English-German](https://nlp.stanford.edu/projects/nmt) including vocabularies
+
+We also provide pre-trained language models:
+* [gbw_fconv_lm.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/gbw_fconv_lm.tar.bz2): Pre-trained model for [Google Billion Words](https://github.com/ciprian-chelba/1-billion-word-language-modeling-benchmark) including vocabularies
+* [wiki103_fconv_lm.tar.bz2](https://s3.amazonaws.com/fairseq-py/models/wiki103_fconv_lm.tar.bz2): Pre-trained model for [WikiText-103](https://einstein.ai/research/the-wikitext-long-term-dependency-language-modeling-dataset) including vocabularies
 
 In addition, we provide pre-processed and binarized test sets for the models above:
 * [wmt14.en-fr.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-French
 * [wmt14.en-fr.ntst1213.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-fr.ntst1213.tar.bz2): newstest2012 and newstest2013 test sets for WMT14 English-French
 * [wmt14.en-de.newstest2014.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wmt14.v2.en-de.newstest2014.tar.bz2): newstest2014 test set for WMT14 English-German
+* [wiki103_test_lm.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/wiki103_test_lm.tar.bz2)
+* [gbw_test_lm.tar.bz2](https://s3.amazonaws.com/fairseq-py/data/gbw_test_lm.tar.bz2) 
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for WMT 2014 English-French on a GTX-1080ti:
 ```
