@@ -210,6 +210,8 @@ def add_optimization_args(parser):
                        help='learning rate shrink factor for annealing, lr_new = (lr * lr_shrink)')
     group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
                        help='minimum learning rate')
+    group.add_argument('--min-loss-scale', default=1e-4, type=float, metavar='D',
+                       help='minimum loss scale (for FP16 training)')
 
     return group
 
