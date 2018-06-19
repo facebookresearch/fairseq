@@ -38,10 +38,12 @@ def main(args):
 
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
+        max_tokens=args.max_tokens,
         max_sentences=args.max_sentences or 4,
         max_positions=model.max_positions(),
         num_shards=args.num_shards,
         shard_id=args.shard_id,
+        ignore_invalid_inputs=True,
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
