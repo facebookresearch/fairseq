@@ -125,6 +125,7 @@ class Dictionary(object):
             i = 0
             while threshold_nwords % padding_factor != 0:
                 new_symbols.append('madeupword{:04d}'.format(i))
+                new_count.append(0)
                 i += 1
                 threshold_nwords += 1
 
