@@ -35,6 +35,8 @@ def main(args):
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
         model.make_generation_fast_()
+        if args.fp16:
+            model.half()
 
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
