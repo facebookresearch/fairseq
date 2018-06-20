@@ -82,9 +82,9 @@ def main(args):
 
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
-        )
+        model.make_generation_fast_(beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
+        if args.fp16:
+            model.half()
 
     # Initialize generator
     translator = SequenceGenerator(
