@@ -56,12 +56,12 @@ class SinusoidalPositionalEmbedding(nn.Module):
         # recompute/expand embeddings if needed
         bsz, seq_len = input.size()
         max_pos = self.padding_idx + 1 + seq_len
-        if max_pos > self.weights.size(0):
+        if self.weights is None or max_pos > self.weights.size(0):
             self.weights = SinusoidalPositionalEmbedding.get_embedding(
                 max_pos,
                 self.embedding_dim,
                 self.padding_idx,
-            ).type_as(self.weights)
+            )
         self.weights = self.weights.type_as(self._float_tensor)
 
         if incremental_state is not None:
@@ -69,7 +69,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
             return self.weights[self.padding_idx + seq_len, :].expand(bsz, 1, -1)
 
         positions = utils.make_positions(input.data, self.padding_idx, self.left_pad)
-        return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1)
+        return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
 
     def max_positions(self):
         """Maximum number of supported positions."""
