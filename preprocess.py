@@ -126,29 +126,32 @@ def main(args):
             100 * res['nunk'] / res['ntok'], dict.unk_word))
         ds.finalize(dataset_dest_path(output_prefix, lang, 'idx'))
 
-    def make_dataset(input_prefix, output_prefix, lang, output_format='binary'):
-        if output_format == 'binary':
+    def make_dataset(input_prefix, output_prefix, lang):
+        if args.output_format == 'binary':
             make_binary_dataset(input_prefix, output_prefix, lang)
-        elif output_format == 'raw':
+        elif args.output_format == 'raw':
             # Copy original text file to destination folder
-            output_text_file = dest_path(output_prefix, lang)
+            output_text_file = dest_path(
+                output_prefix + '.{}-{}'.format(args.source_lang, args.target_lang),
+                lang,
+            )
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
 
-    def make_all(args, make_dataset, lang):
+    def make_all(lang):
         if args.trainpref:
-            make_dataset(args.trainpref, 'train', lang, args.output_format)
+            make_dataset(args.trainpref, 'train', lang)
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(',')):
                 outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
-                make_dataset(validpref, outprefix, lang, args.output_format)
+                make_dataset(validpref, outprefix, lang)
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(',')):
                 outprefix = 'test{}'.format(k) if k > 0 else 'test'
-                make_dataset(testpref, outprefix, lang, args.output_format)
+                make_dataset(testpref, outprefix, lang)
 
-    make_all(args, make_dataset, args.source_lang)
+    make_all(args.source_lang)
     if target:
-        make_all(args, make_dataset, args.target_lang)
+        make_all(args.target_lang)
 
     print('| Wrote preprocessed data to {}'.format(args.destdir))
 

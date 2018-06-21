@@ -34,6 +34,14 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'fconv_iwslt_de_en')
                 generate_main(data_dir)
 
+    def test_raw(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_fconv_raw') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir, ['--output-format', 'raw'])
+                train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--raw-text'])
+                generate_main(data_dir, ['--raw-text'])
+
     def test_fp16(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_fp16') as data_dir:
@@ -144,18 +152,20 @@ def create_dummy_data(data_dir, num_examples=1000, maxlen=20):
     _create_dummy_data('test.out')
 
 
-def preprocess_translation_data(data_dir):
+def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess_parser = preprocess.get_parser()
-    preprocess_args = preprocess_parser.parse_args([
-        '--source-lang', 'in',
-        '--target-lang', 'out',
-        '--trainpref', os.path.join(data_dir, 'train'),
-        '--validpref', os.path.join(data_dir, 'valid'),
-        '--testpref', os.path.join(data_dir, 'test'),
-        '--thresholdtgt', '0',
-        '--thresholdsrc', '0',
-        '--destdir', data_dir,
-    ])
+    preprocess_args = preprocess_parser.parse_args(
+        [
+            '--source-lang', 'in',
+            '--target-lang', 'out',
+            '--trainpref', os.path.join(data_dir, 'train'),
+            '--validpref', os.path.join(data_dir, 'valid'),
+            '--testpref', os.path.join(data_dir, 'test'),
+            '--thresholdtgt', '0',
+            '--thresholdsrc', '0',
+            '--destdir', data_dir,
+        ] + (extra_flags or []),
+    )
     preprocess.main(preprocess_args)
 
 
@@ -181,7 +191,7 @@ def train_translation_model(data_dir, arch, extra_flags=None):
     train.main(train_args)
 
 
-def generate_main(data_dir):
+def generate_main(data_dir, extra_flags=None):
     generate_parser = options.get_generation_parser()
     generate_args = options.parse_args_and_arch(
         generate_parser,
@@ -193,7 +203,7 @@ def generate_main(data_dir):
             '--max-len-b', '5',
             '--gen-subset', 'valid',
             '--no-progress-bar',
-        ],
+        ] + (extra_flags or []),
     )
 
     # evaluate model in batch mode
