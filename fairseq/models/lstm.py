@@ -197,6 +197,16 @@ class LSTMEncoder(FairseqEncoder):
             'encoder_padding_mask': encoder_padding_mask if encoder_padding_mask.any() else None
         }
 
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        encoder_out_dict['encoder_out'] = tuple(
+            eo.index_select(1, new_order)
+            for eo in encoder_out_dict['encoder_out']
+        )
+        if encoder_out_dict['encoder_padding_mask'] is not None:
+            encoder_out_dict['encoder_padding_mask'] = \
+                encoder_out_dict['encoder_padding_mask'].index_select(1, new_order)
+        return encoder_out_dict
+
     def max_positions(self):
         """Maximum input length supported by the encoder."""
         return int(1e5)  # an arbitrary large number
@@ -365,16 +375,6 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
         new_state = tuple(map(reorder_state, cached_state))
         utils.set_incremental_state(self, incremental_state, 'cached_state', new_state)
-
-    def reorder_encoder_out(self, encoder_out_dict, new_order):
-        encoder_out_dict['encoder_out'] = tuple(
-            eo.index_select(1, new_order)
-            for eo in encoder_out_dict['encoder_out']
-        )
-        if encoder_out_dict['encoder_padding_mask'] is not None:
-            encoder_out_dict['encoder_padding_mask'] = \
-                encoder_out_dict['encoder_padding_mask'].index_select(1, new_order)
-        return encoder_out_dict
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""

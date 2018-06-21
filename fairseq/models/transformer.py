@@ -164,6 +164,15 @@ class TransformerEncoder(FairseqEncoder):
             'encoder_padding_mask': encoder_padding_mask,  # B x T
         }
 
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        if encoder_out_dict['encoder_out'] is not None:
+            encoder_out_dict['encoder_out'] = \
+                encoder_out_dict['encoder_out'].index_select(1, new_order)
+        if encoder_out_dict['encoder_padding_mask'] is not None:
+            encoder_out_dict['encoder_padding_mask'] = \
+                encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
+        return encoder_out_dict
+
     def max_positions(self):
         """Maximum input length supported by the encoder."""
         return self.embed_positions.max_positions()
@@ -244,12 +253,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             x = F.linear(x, self.embed_out)
 
         return x, attn
-
-    def reorder_encoder_out(self, encoder_out_dict, new_order):
-        if encoder_out_dict['encoder_padding_mask'] is not None:
-            encoder_out_dict['encoder_padding_mask'] = \
-                encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
-        return encoder_out_dict
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
