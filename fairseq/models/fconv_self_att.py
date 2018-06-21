@@ -226,6 +226,19 @@ class FConvEncoder(FairseqEncoder):
             'encoder_out': (x, y),
         }
 
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        encoder_out_dict['encoder_out'] = tuple(
+            eo.index_select(0, new_order) for eo in encoder_out_dict['encoder_out']
+        )
+
+        if 'pretrained' in encoder_out_dict:
+            encoder_out_dict['pretrained']['encoder_out'] = tuple(
+                eo.index_select(0, new_order)
+                for eo in encoder_out_dict['pretrained']['encoder_out']
+            )
+
+        return encoder_out_dict
+
     def max_positions(self):
         """Maximum input length supported by the encoder."""
         return self.embed_positions.max_positions()
@@ -409,30 +422,12 @@ class FConvDecoder(FairseqDecoder):
         else:
             return x, avg_attn_scores
 
-    def reorder_incremental_state(self, incremental_state, new_order):
-        """Reorder buffered internal state (for incremental generation)."""
-        super().reorder_incremental_state(incremental_state, new_order)
-
-    def reorder_encoder_out(self, encoder_out_dict, new_order):
-        encoder_out_dict['encoder']['encoder_out'] = tuple(
-            eo.index_select(0, new_order) for eo in encoder_out_dict['encoder']['encoder_out']
-        )
-
-        if 'pretrained' in encoder_out_dict:
-            encoder_out_dict['pretrained']['encoder']['encoder_out'] = tuple(
-                eo.index_select(0, new_order)
-                for eo in encoder_out_dict['pretrained']['encoder']['encoder_out']
-            )
-
-        return encoder_out_dict
-
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return self.embed_positions.max_positions()
 
     def _split_encoder_out(self, encoder_out):
-        """Split and transpose encoder outputs.
-        """
+        """Split and transpose encoder outputs."""
         # transpose only once to speed up attention layers
         encoder_a, encoder_b = encoder_out
         encoder_a = encoder_a.transpose(0, 1).contiguous()
