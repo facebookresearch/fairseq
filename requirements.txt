@@ -2,3 +2,4 @@ cffi
 numpy
 torch
 tqdm
+nltk

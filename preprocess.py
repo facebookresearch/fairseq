@@ -15,6 +15,7 @@ import shutil
 from fairseq.data import indexed_dataset, dictionary
 from fairseq.tokenizer import Tokenizer, tokenize_line
 
+from nltk import word_tokenize
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -40,6 +41,16 @@ def get_parser():
     parser.add_argument('--only-source', action='store_true', help='Only process the source language')
     parser.add_argument('--padding-factor', metavar='N', default=8, type=int,
                         help='Pad dictionary size to be multiple of N')
+    parser.add_argument('--tokenize_number', metavar='N', default=0, type=int, choices=range(2),
+                        help="Which tokenization algorithm to use. 0 is tokenize_line, 1 is nltk's word tokenize. Default is 0.")
+    parser.add_argument('--max_source_length', metavar='N', default=-1, type=int,
+                        help="The maximum length of the source. If a sequence is longer it will be truncated to this length. " 
+                             "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will"
+                             " be used to build the dictionary. Default is no truncation.")
+    parser.add_argument('--max_target_length', metavar='N', default=-1, type=int,
+                        help="The maximum length of the source. If a sequence is longer it will be truncated to this length. " 
+                             "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will"
+                             " be used to build the dictionary. Default is no truncation.")
     return parser
 
 
@@ -47,11 +58,13 @@ def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
+    tokenize_algorithms = [tokenize_line, word_tokenize]
+    tokenize_algorithm = tokenize_algorithms[args.tokenize_number]
 
-    def build_dictionary(filenames):
+    def build_dictionary(filenames, max_length=-1):
         d = dictionary.Dictionary()
         for filename in filenames:
-            Tokenizer.add_file_to_dictionary(filename, d, tokenize_line)
+            Tokenizer.add_file_to_dictionary(filename, d, tokenize_algorithm, max_length=max_length)
         return d
 
     def train_path(lang):
@@ -77,23 +90,25 @@ def main(args):
     if args.joined_dictionary:
         assert not args.srcdict, 'cannot combine --srcdict and --joined-dictionary'
         assert not args.tgtdict, 'cannot combine --tgtdict and --joined-dictionary'
+        max_length = -1 if args.max_source_length == -1 or args.max_target_length == -1 else max(args.max_source_length, args.max_target_length)
+
         src_dict = build_dictionary(set([
             train_path(lang)
             for lang in [args.source_lang, args.target_lang]
-        ]))
+        ]), max_length=max_length)
         tgt_dict = src_dict
     else:
         if args.srcdict:
             src_dict = dictionary.Dictionary.load(args.srcdict)
         else:
             assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
-            src_dict = build_dictionary([train_path(args.source_lang)])
+            src_dict = build_dictionary([train_path(args.source_lang)], max_length=args.max_source_length)
         if target:
             if args.tgtdict:
                 tgt_dict = dictionary.Dictionary.load(args.tgtdict)
             else:
                 assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
-                tgt_dict = build_dictionary([train_path(args.target_lang)])
+                tgt_dict = build_dictionary([train_path(args.target_lang)], max_length=args.max_target_length)
 
     src_dict.finalize(
         threshold=args.thresholdsrc,
@@ -110,7 +125,7 @@ def main(args):
             )
         tgt_dict.save(dict_path(args.target_lang))
 
-    def make_binary_dataset(input_prefix, output_prefix, lang):
+    def make_binary_dataset(input_prefix, output_prefix, lang, max_length=-1):
         dict = dictionary.Dictionary.load(dict_path(lang))
         print('| [{}] Dictionary: {} types'.format(lang, len(dict) - 1))
 
@@ -120,35 +135,35 @@ def main(args):
             ds.add_item(tensor)
 
         input_file = '{}{}'.format(input_prefix, ('.' + lang) if lang is not None else '')
-        res = Tokenizer.binarize(input_file, dict, consumer)
+        res = Tokenizer.binarize(input_file, dict, consumer, tokenize=tokenize_algorithm, max_length=max_length)
         print('| [{}] {}: {} sents, {} tokens, {:.3}% replaced by {}'.format(
             lang, input_file, res['nseq'], res['ntok'],
             100 * res['nunk'] / res['ntok'], dict.unk_word))
         ds.finalize(dataset_dest_path(output_prefix, lang, 'idx'))
 
-    def make_dataset(input_prefix, output_prefix, lang, output_format='binary'):
+    def make_dataset(input_prefix, output_prefix, lang, output_format='binary', max_length=-1):
         if output_format == 'binary':
-            make_binary_dataset(input_prefix, output_prefix, lang)
+            make_binary_dataset(input_prefix, output_prefix, lang, max_length=max_length)
         elif output_format == 'raw':
             # Copy original text file to destination folder
             output_text_file = dest_path(output_prefix, lang)
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
 
-    def make_all(args, make_dataset, lang):
+    def make_all(args, make_dataset, lang, max_length=-1):
         if args.trainpref:
-            make_dataset(args.trainpref, 'train', lang, args.output_format)
+            make_dataset(args.trainpref, 'train', lang, args.output_format, max_length=max_length)
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(',')):
                 outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
-                make_dataset(validpref, outprefix, lang, args.output_format)
+                make_dataset(validpref, outprefix, lang, args.output_format, max_length=max_length)
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(',')):
                 outprefix = 'test{}'.format(k) if k > 0 else 'test'
-                make_dataset(testpref, outprefix, lang, args.output_format)
+                make_dataset(testpref, outprefix, lang, args.output_format, max_length=max_length)
 
-    make_all(args, make_dataset, args.source_lang)
+    make_all(args, make_dataset, args.source_lang, max_length=args.max_source_length)
     if target:
-        make_all(args, make_dataset, args.target_lang)
+        make_all(args, make_dataset, args.target_lang, max_length=args.max_target_length)
 
     print('| Wrote preprocessed data to {}'.format(args.destdir))
 
@@ -163,8 +178,8 @@ def main(args):
             with open(src_file_name, 'r') as src_file:
                 with open(tgt_file_name, 'r') as tgt_file:
                     for a, s, t in zip_longest(align_file, src_file, tgt_file):
-                        si = Tokenizer.tokenize(s, src_dict, add_if_not_exist=False)
-                        ti = Tokenizer.tokenize(t, tgt_dict, add_if_not_exist=False)
+                        si = Tokenizer.tokenize(s, src_dict, tokenize=tokenize_algorithm, add_if_not_exist=False, max_length=args.max_source_length)
+                        ti = Tokenizer.tokenize(t, tgt_dict, tokenize=tokenize_algorithm, add_if_not_exist=False, max_length=args.max_target_length)
                         ai = list(map(lambda x: tuple(x.split('-')), a.split()))
                         for sai, tai in ai:
                             srcidx = si[int(sai)]

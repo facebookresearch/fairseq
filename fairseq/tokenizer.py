@@ -23,16 +23,21 @@ def tokenize_line(line):
 class Tokenizer:
 
     @staticmethod
-    def add_file_to_dictionary(filename, dict, tokenize):
+    def add_file_to_dictionary(filename, dict, tokenize, max_length=-1):
         with open(filename, 'r') as f:
             for line in f:
-                for word in tokenize(line):
+                words = tokenize(line)
+
+                if max_length != -1:
+                    words = words[0:max_length]
+
+                for word in words:
                     dict.add_symbol(word)
                 dict.add_symbol(dict.eos_word)
 
     @staticmethod
     def binarize(filename, dict, consumer, tokenize=tokenize_line,
-                 append_eos=True, reverse_order=False):
+                 append_eos=True, reverse_order=False, max_length=-1):
         nseq, ntok = 0, 0
         replaced = Counter()
 
@@ -50,6 +55,7 @@ class Tokenizer:
                     consumer=replaced_consumer,
                     append_eos=append_eos,
                     reverse_order=reverse_order,
+		    max_length=max_length
                 )
                 nseq += 1
 
@@ -59,8 +65,11 @@ class Tokenizer:
 
     @staticmethod
     def tokenize(line, dict, tokenize=tokenize_line, add_if_not_exist=True,
-                 consumer=None, append_eos=True, reverse_order=False):
+                 consumer=None, append_eos=True, reverse_order=False, max_length=-1):
         words = tokenize(line)
+        if max_length != -1:
+            words = words[0:max_length]
+
         if reverse_order:
             words = list(reversed(words))
         nwords = len(words)
