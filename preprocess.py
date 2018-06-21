@@ -141,29 +141,32 @@ def main(args):
             100 * res['nunk'] / res['ntok'], dict.unk_word))
         ds.finalize(dataset_dest_path(output_prefix, lang, 'idx'))
 
-    def make_dataset(input_prefix, output_prefix, lang, output_format='binary', max_length=-1):
-        if output_format == 'binary':
+    def make_dataset(input_prefix, output_prefix, lang, max_length=-1):
+        if args.output_format == 'binary':
             make_binary_dataset(input_prefix, output_prefix, lang, max_length=max_length)
-        elif output_format == 'raw':
+        elif args.output_format == 'raw':
             # Copy original text file to destination folder
-            output_text_file = dest_path(output_prefix, lang)
+            output_text_file = dest_path(
+                output_prefix + '.{}-{}'.format(args.source_lang, args.target_lang),
+                lang,
+            )
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
 
-    def make_all(args, make_dataset, lang, max_length=-1):
+    def make_all(lang, max_length=-1):
         if args.trainpref:
-            make_dataset(args.trainpref, 'train', lang, args.output_format, max_length=max_length)
+            make_dataset(args.trainpref, 'train', lang, max_length=max_length)
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(',')):
                 outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
-                make_dataset(validpref, outprefix, lang, args.output_format, max_length=max_length)
+                make_dataset(validpref, outprefix, lang, max_length=max_length)
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(',')):
                 outprefix = 'test{}'.format(k) if k > 0 else 'test'
-                make_dataset(testpref, outprefix, lang, args.output_format, max_length=max_length)
+                make_dataset(testpref, outprefix, lang, max_length=max_length)
 
-    make_all(args, make_dataset, args.source_lang, max_length=args.max_source_length)
+    make_all(args.source_lang, max_length=args.max_source_length)
     if target:
-        make_all(args, make_dataset, args.target_lang, max_length=args.max_target_length)
+        make_all(args.target_lang, max_length=args.max_target_length)
 
     print('| Wrote preprocessed data to {}'.format(args.destdir))
 
