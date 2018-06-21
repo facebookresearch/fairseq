@@ -382,6 +382,15 @@ def fill_with_neg_inf(t):
     return t.float().fill_(float('-inf')).type_as(t)
 
 
+# flips a tensor in a given dimension
+# from https://github.com/pytorch/pytorch/issues/229
+def flip(x, dim):
+    indices = [slice(None)] * x.dim()
+    indices[dim] = torch.arange(x.size(dim) - 1, -1, -1,
+                                dtype=torch.long, device=x.device)
+    return x[tuple(indices)]
+
+
 def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
     """Retrieves all checkpoints found in `path` directory.
 
