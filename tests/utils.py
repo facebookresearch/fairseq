@@ -108,6 +108,9 @@ class TestEncoder(FairseqEncoder):
     def forward(self, src_tokens, src_lengths):
         return src_tokens
 
+    def reorder_encoder_out(self, encoder_out, new_order):
+        return encoder_out.index_select(0, new_order)
+
 
 class TestIncrementalDecoder(FairseqIncrementalDecoder):
     def __init__(self, args, dictionary):
