@@ -41,13 +41,17 @@ def get_parser():
     parser.add_argument('--only-source', action='store_true', help='Only process the source language')
     parser.add_argument('--padding-factor', metavar='N', default=8, type=int,
                         help='Pad dictionary size to be multiple of N')
-    parser.add_argument('--tokenize_number', metavar='N', default=0, type=int, choices=range(2),
-                        help="Which tokenization algorithm to use. 0 is tokenize_line, 1 is nltk's word tokenize. Default is 0.")
-    parser.add_argument('--max_source_length', metavar='N', default=-1, type=int,
+    parser.add_argument('--tokenize_name', metavar='N', default='default', choices=['default', 'nltk'],
+                        help="Which tokenization algorithm to use. Choices are default, nltk. default tokenizes by splitting on white space. nltk uses"
+                             " nltk's word_tokenize which better takes into account punctuation. As an example "
+                             "'Hello, how's your day today?' would be tokenized as"
+                             " ['Hello,' , 'how's', 'your', 'day', 'today?'] when using the default, but would instead be tokenized as "
+                             " ['Hello', ',', 'how', ''s', 'your', 'day', 'today', '?']")
+    parser.add_argument('--max_source_length', metavar='N', type=int,
                         help="The maximum length of the source. If a sequence is longer it will be truncated to this length. " 
                              "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will"
                              " be used to build the dictionary. Default is no truncation.")
-    parser.add_argument('--max_target_length', metavar='N', default=-1, type=int,
+    parser.add_argument('--max_target_length', metavar='N', type=int,
                         help="The maximum length of the source. If a sequence is longer it will be truncated to this length. " 
                              "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will"
                              " be used to build the dictionary. Default is no truncation.")
@@ -58,10 +62,10 @@ def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
-    tokenize_algorithms = [tokenize_line, word_tokenize]
-    tokenize_algorithm = tokenize_algorithms[args.tokenize_number]
+    tokenize_algorithms = {'default': tokenize_line, 'nltk': word_tokenize}
+    tokenize_algorithm = tokenize_algorithms[args.tokenize_name]
 
-    def build_dictionary(filenames, max_length=-1):
+    def build_dictionary(filenames, max_length=None):
         d = dictionary.Dictionary()
         for filename in filenames:
             Tokenizer.add_file_to_dictionary(filename, d, tokenize_algorithm, max_length=max_length)
@@ -90,7 +94,7 @@ def main(args):
     if args.joined_dictionary:
         assert not args.srcdict, 'cannot combine --srcdict and --joined-dictionary'
         assert not args.tgtdict, 'cannot combine --tgtdict and --joined-dictionary'
-        max_length = -1 if args.max_source_length == -1 or args.max_target_length == -1 else max(args.max_source_length, args.max_target_length)
+        max_length = None if args.max_source_length is None or args.max_target_length is None else max(args.max_source_length, args.max_target_length)
 
         src_dict = build_dictionary(set([
             train_path(lang)
@@ -125,7 +129,7 @@ def main(args):
             )
         tgt_dict.save(dict_path(args.target_lang))
 
-    def make_binary_dataset(input_prefix, output_prefix, lang, max_length=-1):
+    def make_binary_dataset(input_prefix, output_prefix, lang, max_length=None):
         dict = dictionary.Dictionary.load(dict_path(lang))
         print('| [{}] Dictionary: {} types'.format(lang, len(dict) - 1))
 
@@ -141,7 +145,7 @@ def main(args):
             100 * res['nunk'] / res['ntok'], dict.unk_word))
         ds.finalize(dataset_dest_path(output_prefix, lang, 'idx'))
 
-    def make_dataset(input_prefix, output_prefix, lang, max_length=-1):
+    def make_dataset(input_prefix, output_prefix, lang, max_length=None):
         if args.output_format == 'binary':
             make_binary_dataset(input_prefix, output_prefix, lang, max_length=max_length)
         elif args.output_format == 'raw':
@@ -152,7 +156,7 @@ def main(args):
             )
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
 
-    def make_all(lang, max_length=-1):
+    def make_all(lang, max_length=None):
         if args.trainpref:
             make_dataset(args.trainpref, 'train', lang, max_length=max_length)
         if args.validpref:
