@@ -268,7 +268,7 @@ class SequenceGenerator(object):
                 for i, model in enumerate(self.models):
                     if isinstance(model.decoder, FairseqIncrementalDecoder):
                         model.decoder.reorder_incremental_state(incremental_states[model], reorder_state)
-                    encoder_outs[i] = model.decoder.reorder_encoder_out(encoder_outs[i], reorder_state)
+                    encoder_outs[i] = model.encoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
             probs, avg_attn_scores = self._decode(
                 tokens[:, :step + 1], encoder_outs, incremental_states)

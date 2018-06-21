@@ -18,6 +18,10 @@ class FairseqEncoder(nn.Module):
     def forward(self, src_tokens, src_lengths):
         raise NotImplementedError
 
+    def reorder_encoder_out(self, encoder_out, new_order):
+        """Reorder encoder output according to new_order."""
+        raise NotImplementedError
+
     def max_positions(self):
         """Maximum input length supported by the encoder."""
         raise NotImplementedError

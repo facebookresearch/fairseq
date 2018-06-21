@@ -117,6 +117,7 @@ def get_parser(desc, default_task='translation'):
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
+    parser.add_argument('--fp16', action='store_true', help='use FP16')
 
     # Task definitions can be found under fairseq/tasks/
     parser.add_argument(
@@ -187,8 +188,6 @@ def add_optimization_args(parser):
                             ' (default is to normalize by number of tokens)')
     group.add_argument('--update-freq', default='1', metavar='N',
                        help='update parameters every N_i batches, when in epoch i')
-    group.add_argument('--fp16', action='store_true',
-                       help='use FP16 during training')
 
     # Optimizer definitions can be found under fairseq/optim/
     group.add_argument('--optimizer', default='nag', metavar='OPT',
@@ -210,6 +209,8 @@ def add_optimization_args(parser):
                        help='learning rate shrink factor for annealing, lr_new = (lr * lr_shrink)')
     group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
                        help='minimum learning rate')
+    group.add_argument('--min-loss-scale', default=1e-4, type=float, metavar='D',
+                       help='minimum loss scale (for FP16 training)')
 
     return group
 

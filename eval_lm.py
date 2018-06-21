@@ -17,8 +17,7 @@ from fairseq.sequence_scorer import SequenceScorer
 def main(args):
     assert args.path is not None, '--path required for evaluation!'
 
-    if args.tokens_per_sample is None:
-        args.tokens_per_sample = 1024
+    args.tokens_per_sample = getattr(args, 'tokens_per_sample', 1024)
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
@@ -35,13 +34,17 @@ def main(args):
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
         model.make_generation_fast_()
+        if args.fp16:
+            model.half()
 
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
+        max_tokens=args.max_tokens,
         max_sentences=args.max_sentences or 4,
         max_positions=model.max_positions(),
         num_shards=args.num_shards,
         shard_id=args.shard_id,
+        ignore_invalid_inputs=True,
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()

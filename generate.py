@@ -43,6 +43,8 @@ def main(args):
     # Optimize ensemble for generation
     for model in models:
         model.make_generation_fast_(beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
+        if args.fp16:
+            model.half()
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)

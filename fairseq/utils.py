@@ -256,7 +256,7 @@ def parse_embedding(embed_path):
     with open(embed_path) as f_embed:
         next(f_embed)  # skip header
         for line in f_embed:
-            pieces = line.strip().split()
+            pieces = line.rstrip().split(" ")
             embed_dict[pieces[0]] = torch.Tensor([float(weight) for weight in pieces[1:]])
     return embed_dict
 
