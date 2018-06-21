@@ -17,7 +17,8 @@ from fairseq.sequence_scorer import SequenceScorer
 def main(args):
     assert args.path is not None, '--path required for evaluation!'
 
-    args.tokens_per_sample = getattr(args, 'tokens_per_sample', 1024)
+    if args.tokens_per_sample is None:
+        args.tokens_per_sample = 1024
     print(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
