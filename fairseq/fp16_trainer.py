@@ -130,6 +130,12 @@ class FP16Trainer(Trainer):
         overflow = DynamicLossScaler.has_overflow(grad_norm)
         self.scaler.update_scale(overflow)
         if overflow:
+            if self.scaler.loss_scale <= self.args.min_loss_scale:
+                raise Exception((
+                    'Minimum loss scale reached ({}). Your loss is probably exploding. '
+                    'Try lowering the learning rate, using gradient clipping or '
+                    'increasing the batch size.'
+                ).format(self.args.min_loss_scale))
             raise OverflowError('setting loss scale to: ' + str(self.scaler.loss_scale))
 
         return grad_norm

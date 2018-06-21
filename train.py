@@ -287,16 +287,8 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
     checkpoints = [os.path.join(args.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond]
     if len(checkpoints) > 0:
-        for fn in checkpoints:
-            if os.path.exists(fn):
-                os.remove(fn)
-        if not end_of_epoch and args.keep_interval_updates > 0:
-            for cp in checkpoints:
-                trainer.save_checkpoint(cp, extra_state)
-        else:
-            trainer.save_checkpoint(checkpoints[0], extra_state)
-            for fn in checkpoints[1:]:
-                os.symlink(os.path.basename(checkpoints[0]), fn)
+        for cp in checkpoints:
+            trainer.save_checkpoint(cp, extra_state)
 
     if not end_of_epoch and args.keep_interval_updates > 0:
         # remove old checkpoints; checkpoints are sorted in descending order
