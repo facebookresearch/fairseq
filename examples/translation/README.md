@@ -1,8 +1,11 @@
-Sample data processing scripts for the FAIR Sequence-to-Sequence Toolkit
+# Example usage for Neural Machine Translation
 
-These scripts provide an example of pre-processing data for the NMT task.
+These scripts provide an example of pre-processing data for the NMT task
+and instructions for how to replicate the results from the paper [Scaling Neural Machine Translation (Ott et al., 2018)](https://arxiv.org/abs/1806.00187).
 
-# prepare-iwslt14.sh
+## Preprocessing
+
+### prepare-iwslt14.sh
 
 Provides an example of pre-processing for IWSLT'14 German to English translation task: ["Report on the 11th IWSLT evaluation campaign" by Cettolo et al.](http://workshop2014.iwslt.org/downloads/proceeding.pdf)
 
@@ -34,7 +37,7 @@ $ python generate.py data-bin/iwslt14.tokenized.de-en \
 ```
 
 
-# prepare-wmt14en2de.sh
+### prepare-wmt14en2de.sh
 
 Provides an example of pre-processing for the WMT'14 English to German translation task. By default it will produce a dataset that was modeled after ["Attention Is All You Need" by Vaswani et al.](https://arxiv.org/abs/1706.03762) that includes news-commentary-v12 data.
 
@@ -52,7 +55,7 @@ $ bash prepare-wmt14en2de.sh
 $ cd ../..
 
 # Binarize the dataset:
-$ TEXT=data/wmt14_en_de
+$ TEXT=examples/translation/wmt14_en_de
 $ python preprocess.py --source-lang en --target-lang de \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/wmt14_en_de --thresholdtgt 0 --thresholdsrc 0
@@ -72,7 +75,7 @@ $ python generate.py data-bin/wmt14_en_de \
 
 ```
 
-# prepare-wmt14en2fr.sh
+### prepare-wmt14en2fr.sh
 
 Provides an example of pre-processing for the WMT'14 English to French translation task.
 
@@ -84,7 +87,7 @@ $ bash prepare-wmt14en2fr.sh
 $ cd ../..
 
 # Binarize the dataset:
-$ TEXT=data/wmt14_en_fr
+$ TEXT=examples/translation/wmt14_en_fr
 $ python preprocess.py --source-lang en --target-lang fr \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/wmt14_en_fr --thresholdtgt 0 --thresholdsrc 0
@@ -103,3 +106,39 @@ $ python generate.py data-bin/fconv_wmt_en_fr \
   --path checkpoints/fconv_wmt_en_fr/checkpoint_best.pt --beam 5 --remove-bpe
 
 ```
+
+## Replicating results from "Scaling Neural Machine Translation"
+
+To replicate results from the paper [Scaling Neural Machine Translation (Ott et al., 2018)](https://arxiv.org/abs/1806.00187):
+
+1. Prepare the WMT'14 En-De data with a BPE vocab of 32k:
+```
+$ BPE_TOKENS=32764 bash prepare-wmt14en2de.sh
+$ cd ../..
+```
+2. Preprocess the dataset with a joined dictionary:
+```
+$ TEXT=examples/translation/wmt14_en_de
+$ python preprocess.py --source-lang en --target-lang de \
+  --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
+  --destdir data-bin/wmt14_en_de_joined_dict \
+  --nwordssrc 32768 --nwordstgt 32768 \
+  --joined-dictionary
+```
+3. Train a model:
+```
+$ python train.py data-bin/wmt14_en_de_joined_dict \
+  --arch transformer_vaswani_wmt_en_de_big --share-all-embeddings \
+  --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
+  --lr-scheduler inverse_sqrt --warmup-init-lr 1e-07 --warmup-updates 4000 \
+  --lr 0.0005 --min-lr 1e-09 \
+  --dropout 0.3 --weight-decay 0.0 --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
+  --max-tokens 3584 \
+  --fp16
+```
+
+Note that the `--fp16` flag requires you have CUDA 9.1 or greater and a Volta GPU.
+
+If you want to train the above model with big batches (assuming your machine has 8 GPUs):
+- add `--update-freq 16` to simulate training on 8*16=128 GPUs
+- increase the learning rate; 0.001 works well for big batches
