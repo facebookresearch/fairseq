@@ -6,7 +6,9 @@
 # can be found in the PATENTS file in the same directory.
 
 import math
+import torch
 import torch.nn.functional as F
+import torch.nn as nn
 
 from fairseq import utils
 
@@ -18,10 +20,15 @@ class CrossEntropyCriterion(FairseqCriterion):
 
     def __init__(self, args, task):
         super().__init__(args, task)
-        self.relu = torch.nn.ReLU()
-	self.eta = torch.nn.Parameter()
+        self.relu = nn.ReLU()
+        self.eta = nn.Parameter(torch.Tensor([0.0]))
+        self.alpha = args.dro_alpha
 
-    def forward(self, model, sample, reduce = True, robust = True):
+    @staticmethod
+    def add_args(parser):
+        parser.add_argument('--dro-alpha', default=1., type=float, help='alpha value for the DRO loss.')
+
+    def forward(self, model, sample, reduce=True, robust=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
@@ -35,12 +42,11 @@ class CrossEntropyCriterion(FairseqCriterion):
         target = model.get_targets(sample, net_output).view(-1)
 
         # Compute loss. If robust is true, then use the alternate DRO loss.
-	reduce = False if robust else reduce
-	loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
-	if robust:
-                residual = loss - eta
-                relu 	 = self.relu(residual) 
-                loss = torch.mean(residual)
+        reduce = False if robust else reduce
+        loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
+        if robust:
+                residual = loss - self.eta
+                loss = torch.mean(self.relu(residual) / self.alpha + self.eta)
 
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
