@@ -17,6 +17,10 @@ from fairseq.tokenizer import Tokenizer, tokenize_line
 
 from nltk import word_tokenize
 
+# punkt is necessary to use word_tokenize.
+if not nltk.downloader.Downloader().is_installed('punkt'):
+    nltk.download('punkt')
+
 def get_parser():
     parser = argparse.ArgumentParser(
         description='Data pre-processing: Create dictionary and store data in binary format')
