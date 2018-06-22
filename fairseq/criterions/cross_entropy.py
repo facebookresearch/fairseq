@@ -21,7 +21,6 @@ class CrossEntropyCriterion(FairseqCriterion):
     def __init__(self, args, task):
         super().__init__(args, task)
         self.relu = nn.ReLU()
-        self.eta = nn.Parameter(torch.Tensor([0.0]))
         self.alpha = args.dro_alpha
 
     @staticmethod
@@ -45,8 +44,8 @@ class CrossEntropyCriterion(FairseqCriterion):
         reduce = False if robust else reduce
         loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
         if robust:
-                residual = loss - self.eta
-                loss = torch.mean(self.relu(residual) / self.alpha + self.eta)
+                residual = loss - model.eta
+                loss = torch.mean(self.relu(residual) / self.alpha + model.eta)
 
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
