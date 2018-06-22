@@ -56,6 +56,7 @@ class Trainer(object):
         self.meters['clip'] = AverageMeter()   # % of updates clipped
         self.meters['oom'] = AverageMeter()    # out of memory
         self.meters['wall'] = TimeMeter()      # wall time in seconds
+        self.meters['eta'] = AverageMeter()
 
         self._buffered_stats = defaultdict(lambda: [])
         self._flat_grads = None
@@ -160,6 +161,7 @@ class Trainer(object):
                     self.meters['gnorm'].update(grad_norm)
                     self.meters['clip'].update(1. if grad_norm > self.args.clip_norm else 0.)
                 self.meters['oom'].update(ooms_fwd + ooms_bwd)
+                self.meters['eta'].update(self.model.eta)
 
                 # update loss meters for training
                 if 'loss' in agg_logging_output:
