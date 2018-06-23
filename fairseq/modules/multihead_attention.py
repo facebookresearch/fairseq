@@ -249,16 +249,16 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.dropout = dropout
-        self.head_dim = 2 * embed_dim // num_heads
-        assert self.embed_dim * 2 % num_heads == 0, "embed_dim must be divisible by num_heads"
+        self.head_dim = embed_dim // num_heads
+        assert self.embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight = Parameter(torch.Tensor(2 * 3 * embed_dim, 2 * embed_dim))
+        self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
         if bias:
-            self.in_proj_bias = Parameter(torch.Tensor(2 * 3 * embed_dim))
+            self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
-        self.out_proj = nn.Linear(2 * embed_dim, embed_dim, bias=bias)
+        self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         self.reset_parameters()
 
@@ -281,27 +281,29 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
 
         assert fwd_x.size() == bwd_x.size()
 
-        src_len, bsz, embed_dim = fwd_x.size()
+        tgt_len, bsz, embed_dim = fwd_x.size()
         assert embed_dim == self.embed_dim
 
-        fwd_x = torch.cat([fwd_x.new_zeros(1, bsz, embed_dim), fwd_x])
-        bwd_x = torch.cat([bwd_x, bwd_x.new_zeros(1, bsz, embed_dim)])
+        padded_fwd_x = torch.cat([fwd_x.new_zeros(1, bsz, embed_dim), fwd_x])
+        padded_bwd_x = torch.cat([bwd_x, bwd_x.new_zeros(1, bsz, embed_dim)])
 
-        fwd_idxs = torch.arange(src_len, out=fwd_x.new().long())
-        bwd_idxs = torch.arange(1, src_len + 1, out=fwd_x.new().long())
+        fwd_idxs = torch.arange(tgt_len, out=fwd_x.new().long())
+        bwd_idxs = torch.arange(1, tgt_len + 1, out=fwd_x.new().long())
 
-        x = torch.cat([fwd_x[fwd_idxs], bwd_x[bwd_idxs]], dim=-1)
+        q = padded_fwd_x[fwd_idxs] + padded_bwd_x[bwd_idxs]
+        kv = torch.cat([fwd_x, bwd_x], dim=0)
 
-        embed_dim *= 2
+        src_len = tgt_len * 2
 
-        q, k, v = self.in_proj_qkv(x)
+        q = self.in_proj_q(q)
+        k, v = self.in_proj_kv(kv)
 
-        q = q.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
         k = k.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
         v = v.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-        assert list(attn_weights.size()) == [bsz * self.num_heads, src_len, src_len]
+        assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
         attn_weights += self.mask(attn_weights).unsqueeze(0)
 
@@ -309,18 +311,21 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
 
         attn = torch.bmm(attn_weights, v)
-        assert list(attn.size()) == [bsz * self.num_heads, src_len, self.head_dim]
-        attn = attn.transpose(0, 1).contiguous().view(src_len, bsz, embed_dim)
+        assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
+        attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
 
         attn = self.out_proj(attn)
 
         # average attention weights over heads
-        attn_weights = attn_weights.view(bsz, self.num_heads, src_len, src_len)
+        attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
         attn_weights = attn_weights.sum(dim=1) / self.num_heads
         return attn, attn_weights
 
-    def in_proj_qkv(self, query):
-        return self._in_proj(query).chunk(3, dim=-1)
+    def in_proj_q(self, query):
+        return self._in_proj(query, end=self.embed_dim)
+
+    def in_proj_kv(self, key):
+        return self._in_proj(key, start=self.embed_dim).chunk(2, dim=-1)
 
     def _in_proj(self, input, start=None, end=None):
         weight = self.in_proj_weight
@@ -340,6 +345,5 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         half_dim = dim // 2
         ones = tensor.new_ones(half_dim, dim).byte()
         mask = ones.triu(half_dim + 1) + ones.tril(-1)
-        mask = mask.repeat(2, 1)
-        mask = utils.fill_with_neg_inf(tensor.new(dim, dim)).masked_fill_(mask, 0)
+        mask = utils.fill_with_neg_inf(tensor.new(mask.size())).masked_fill_(mask, 0)
         return mask
