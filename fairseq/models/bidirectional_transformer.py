@@ -234,7 +234,7 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
         x, attn = self.self_attn(
             fwd_x=fwd_x,
             bwd_x=bwd_x,
-            #attn_mask=attn_mask,
+            # attn_mask=attn_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.maybe_layer_norm(self.fwd_layer_norm, x, after=True)
@@ -266,3 +266,11 @@ def base_bi_lm_architecture(args):
     args.decoder_learned_pos = not getattr(args, 'decoder_fixed_pos', False)
     args.decoder_normalize_before = True
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+
+
+@register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_big')
+def bi_transformer_lm_big(args):
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 1024)
+    args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 4096)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 16)
+    base_bi_lm_architecture(args)
