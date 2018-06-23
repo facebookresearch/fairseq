@@ -153,7 +153,6 @@ class BiTransformerDecoder(FairseqDecoder):
         x, attn = self.full_attn_layer(
             fwd_x,
             bwd_x,
-            attn_mask=self.buffered_now_mask(fwd_x),
         )
 
         # T x B x C -> B x T x C
@@ -183,12 +182,6 @@ class BiTransformerDecoder(FairseqDecoder):
         if self._past_mask.size(0) < dim:
             self._past_mask = torch.tril(utils.fill_with_neg_inf(self._past_mask.resize_(dim, dim)), -1)
         return self._past_mask[:dim, :dim]
-
-    def buffered_now_mask(self, tensor):
-        dim = tensor.size(0)
-        if not hasattr(self, '_now_mask') or self._now_mask is None or self._now_mask.size(0) < dim:
-            self._now_mask = torch.diag(utils.fill_with_neg_inf(tensor.new(dim)))
-        return self._now_mask[:dim, :dim]
 
     def reorder_encoder_out(self, encoder_out_dict, new_order):
         if encoder_out_dict['encoder_padding_mask'] is not None:
@@ -228,13 +221,12 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
 
         self.final_layer_norm = LayerNorm(self.embed_dim)
 
-    def forward(self, fwd_x, bwd_x, attn_mask=None):
+    def forward(self, fwd_x, bwd_x):
         fwd_x = self.maybe_layer_norm(self.fwd_layer_norm, fwd_x, before=True)
         bwd_x = self.maybe_layer_norm(self.bwd_layer_norm, bwd_x, before=True)
         x, attn = self.self_attn(
             fwd_x=fwd_x,
             bwd_x=bwd_x,
-            # attn_mask=attn_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.maybe_layer_norm(self.fwd_layer_norm, x, after=True)
