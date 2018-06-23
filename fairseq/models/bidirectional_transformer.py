@@ -91,13 +91,13 @@ class BiTransformerDecoder(FairseqDecoder):
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
         embed_dim = embed_tokens.embedding_dim
-        padding_idx = embed_tokens.padding_idx
+        self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = args.max_target_positions
 
         self.embed_tokens = embed_tokens
         self.embed_scale = math.sqrt(embed_dim)
         self.embed_positions = PositionalEmbedding(
-            args.max_target_positions, embed_dim, padding_idx,
+            args.max_target_positions, embed_dim, self.padding_idx,
             left_pad=left_pad,
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
@@ -121,6 +121,12 @@ class BiTransformerDecoder(FairseqDecoder):
             nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
     def forward(self, source_tokens, encoder_out=None):
+
+        # compute padding mask
+        padding_mask = source_tokens.eq(self.padding_idx)
+        if not padding_mask.any():
+            padding_mask = None
+
         # embed positions
         positions = self.embed_positions(source_tokens) if self.embed_positions is not None else None
 
@@ -133,6 +139,9 @@ class BiTransformerDecoder(FairseqDecoder):
         # B x T x C -> T x B x C
         fwd_x = bwd_x = x.transpose(0, 1)
 
+        future_mask = self.buffered_future_mask(fwd_x)
+        past_mask = self.buffered_past_mask(bwd_x)
+
         # decoder layers
         for fwd, back in zip(self.forward_layers, self.backward_layers):
             fwd_x, _ = fwd(
@@ -140,19 +149,22 @@ class BiTransformerDecoder(FairseqDecoder):
                 encoder_out['encoder_out'] if encoder_out is not None else None,
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 incremental_state=None,
-                self_attn_mask=self.buffered_future_mask(fwd_x),
+                self_attn_mask=future_mask,
+                self_attn_padding_mask=padding_mask,
             )
             bwd_x, _ = back(
                 bwd_x,
                 encoder_out['encoder_out'] if encoder_out is not None else None,
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 incremental_state=None,
-                self_attn_mask=self.buffered_past_mask(bwd_x),
+                self_attn_mask=past_mask,
+                self_attn_padding_mask=padding_mask,
             )
 
         x, attn = self.full_attn_layer(
             fwd_x,
             bwd_x,
+            padding_mask,
         )
 
         # T x B x C -> B x T x C
@@ -182,12 +194,6 @@ class BiTransformerDecoder(FairseqDecoder):
         if self._past_mask.size(0) < dim:
             self._past_mask = torch.tril(utils.fill_with_neg_inf(self._past_mask.resize_(dim, dim)), -1)
         return self._past_mask[:dim, :dim]
-
-    def reorder_encoder_out(self, encoder_out_dict, new_order):
-        if encoder_out_dict['encoder_padding_mask'] is not None:
-            encoder_out_dict['encoder_padding_mask'] = \
-                encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
-        return encoder_out_dict
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
@@ -221,12 +227,13 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
 
         self.final_layer_norm = LayerNorm(self.embed_dim)
 
-    def forward(self, fwd_x, bwd_x):
+    def forward(self, fwd_x, bwd_x, key_padding_mask):
         fwd_x = self.maybe_layer_norm(self.fwd_layer_norm, fwd_x, before=True)
         bwd_x = self.maybe_layer_norm(self.bwd_layer_norm, bwd_x, before=True)
         x, attn = self.self_attn(
             fwd_x=fwd_x,
             bwd_x=bwd_x,
+            key_padding_mask=key_padding_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.maybe_layer_norm(self.fwd_layer_norm, x, after=True)
