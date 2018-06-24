@@ -50,7 +50,7 @@ class LanguageModelingTask(FairseqTask):
             ds = IndexedRawTextDataset(path, self.dictionary)
             tokens = ds.tokens_list
         elif not self.args.raw_text and IndexedInMemoryDataset.exists(path):
-            ds = IndexedInMemoryDataset(path)
+            ds = IndexedInMemoryDataset(path, fix_lua_indexing=True)
             tokens = ds.buffer
         else:
             raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
