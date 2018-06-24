@@ -95,7 +95,7 @@ class Dictionary(object):
                 self.symbols.append(word)
                 self.count.append(new_dict.count[idx2])
 
-    def finalize(self, threshold=1, nwords=-1, padding_factor=8):
+    def finalize(self, threshold=-1, nwords=-1, padding_factor=8):
         """Sort symbols by frequency in descending order, ignoring special ones.
 
         Args:
@@ -109,12 +109,14 @@ class Dictionary(object):
         if nwords == -1:
             nwords = len(self)
 
+        new_indices = dict(zip(self.symbols[:self.nspecial], range(self.nspecial)))
         new_symbols = self.symbols[:self.nspecial]
         new_count = self.count[:self.nspecial]
 
         c = Counter(dict(zip(self.symbols[self.nspecial:], self.count[self.nspecial:])))
         for symbol, count in c.most_common(nwords - self.nspecial):
             if count >= threshold:
+                new_indices[symbol] = len(new_symbols)
                 new_symbols.append(symbol)
                 new_count.append(count)
             else:
@@ -124,16 +126,20 @@ class Dictionary(object):
         if padding_factor > 1:
             i = 0
             while threshold_nwords % padding_factor != 0:
-                new_symbols.append('madeupword{:04d}'.format(i))
+                symbol = 'madeupword{:04d}'.format(i)
+                new_indices[symbol] = len(new_symbols)
+                new_symbols.append(symbol)
                 new_count.append(0)
                 i += 1
                 threshold_nwords += 1
 
         assert min(new_count[self.nspecial:]) >= threshold
         assert len(new_symbols) % padding_factor == 0
+        assert len(new_symbols) == len(new_indices)
 
-        self.count = tuple(new_count)
-        self.symbols = tuple(new_symbols)
+        self.count = list(new_count)
+        self.symbols = list(new_symbols)
+        self.indices = new_indices
 
     def pad(self):
         """Helper to get index of pad symbol"""
