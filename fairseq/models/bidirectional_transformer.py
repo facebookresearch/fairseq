@@ -19,11 +19,11 @@ from fairseq import options
 from fairseq import utils
 
 from fairseq.models.transformer import (
-    Embedding, LayerNorm, Linear, PositionalEmbedding, TransformerDecoderLayer,
+    Embedding, LayerNorm, Linear, PositionalEmbedding,
 )
 
 from fairseq.modules import (
-    AdaptiveSoftmax, BidirectionalMultiheadSelfAttention
+    AdaptiveSoftmax, BidirectionalMultiheadSelfAttention, MultiheadAttention
 )
 
 
@@ -78,14 +78,14 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
 
         embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
 
-        decoder = BiTransformerDecoder(args, task.dictionary, embed_tokens, no_encoder_attn=True)
+        decoder = BiTransformerDecoder(args, task.dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
 
 
 class BiTransformerDecoder(FairseqDecoder):
     """Transformer decoder."""
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, left_pad=False):
+    def __init__(self, args, dictionary, embed_tokens, left_pad=False):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
@@ -102,9 +102,9 @@ class BiTransformerDecoder(FairseqDecoder):
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
-        self.forward_layers = nn.ModuleList([TransformerDecoderLayer(args, no_encoder_attn)
+        self.forward_layers = nn.ModuleList([TransformerDecoderLayer(args)
                                              for _ in range(args.decoder_layers)])
-        self.backward_layers = nn.ModuleList([TransformerDecoderLayer(args, no_encoder_attn)
+        self.backward_layers = nn.ModuleList([TransformerDecoderLayer(args)
                                               for _ in range(args.decoder_layers)])
         self.full_attn_layer = BidirectionalTransformerDecoderLayer(args)
 
@@ -146,17 +146,11 @@ class BiTransformerDecoder(FairseqDecoder):
         for fwd, back in zip(self.forward_layers, self.backward_layers):
             fwd_x, _ = fwd(
                 fwd_x,
-                encoder_out['encoder_out'] if encoder_out is not None else None,
-                encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
-                incremental_state=None,
                 self_attn_mask=future_mask,
                 self_attn_padding_mask=padding_mask,
             )
             bwd_x, _ = back(
                 bwd_x,
-                encoder_out['encoder_out'] if encoder_out is not None else None,
-                encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
-                incremental_state=None,
                 self_attn_mask=past_mask,
                 self_attn_padding_mask=padding_mask,
             )
@@ -203,6 +197,60 @@ class BiTransformerDecoder(FairseqDecoder):
 
     def upgrade_state_dict(self, state_dict):
         pass
+
+
+class TransformerDecoderLayer(nn.Module):
+    """Decoder layer block."""
+
+    def __init__(self, args):
+        super().__init__()
+        self.embed_dim = args.decoder_embed_dim
+        self.self_attn = MultiheadAttention(
+            self.embed_dim, args.decoder_attention_heads,
+            dropout=args.attention_dropout, add_bias_kv=True,
+        )
+        self.dropout = args.dropout
+        self.relu_dropout = args.relu_dropout
+        self.normalize_before = args.decoder_normalize_before
+
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim)
+
+        self.fc1 = Linear(self.embed_dim, args.decoder_ffn_embed_dim)
+        self.fc2 = Linear(args.decoder_ffn_embed_dim, self.embed_dim)
+
+        self.final_layer_norm = LayerNorm(self.embed_dim)
+
+    def forward(self, x, self_attn_mask=None, self_attn_padding_mask=None):
+        residual = x
+        x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
+        x, attn = self.self_attn(
+            query=x,
+            key=x,
+            value=x,
+            key_padding_mask=self_attn_padding_mask,
+            need_weights=False,
+            attn_mask=self_attn_mask,
+        )
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = residual + x
+        x = self.maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
+
+        residual = x
+        x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
+        x = F.relu(self.fc1(x))
+        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.fc2(x)
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = residual + x
+        x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
+        return x, attn
+
+    def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
+        assert before ^ after
+        if after ^ self.normalize_before:
+            return layer_norm(x)
+        else:
+            return x
 
 
 class BidirectionalTransformerDecoderLayer(nn.Module):
