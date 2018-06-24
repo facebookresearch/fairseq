@@ -89,7 +89,7 @@ class TranslationTask(FairseqTask):
             if self.args.raw_text:
                 return IndexedRawTextDataset(path, dictionary)
             elif IndexedInMemoryDataset.exists(path):
-                return IndexedInMemoryDataset(path)
+                return IndexedInMemoryDataset(path, fix_lua_indexing=True)
             return None
 
         src_dataset = indexed_dataset(prefix + src, self.src_dict)

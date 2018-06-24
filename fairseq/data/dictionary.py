@@ -106,7 +106,7 @@ class Dictionary(object):
                 multiple of 8, which is important on some hardware (e.g., Nvidia
                 Tensor Cores).
         """
-        if nwords == -1:
+        if nwords <= 0:
             nwords = len(self)
 
         new_indices = dict(zip(self.symbols[:self.nspecial], range(self.nspecial)))
@@ -133,7 +133,7 @@ class Dictionary(object):
                 i += 1
                 threshold_nwords += 1
 
-        assert min(new_count[self.nspecial:]) >= threshold
+        assert len(new_count) == self.nspecial or min(new_count[self.nspecial:]) >= threshold
         assert len(new_symbols) % padding_factor == 0
         assert len(new_symbols) == len(new_indices)
 
@@ -187,12 +187,12 @@ class Dictionary(object):
             d.count.append(count)
         return d
 
-    def save(self, f, threshold=3, nwords=-1):
+    def save(self, f):
         """Stores dictionary into a text file"""
         if isinstance(f, str):
             os.makedirs(os.path.dirname(f), exist_ok=True)
             with open(f, 'w', encoding='utf-8') as fd:
-                return self.save(fd, threshold, nwords)
+                return self.save(fd)
         for symbol, count in zip(self.symbols[self.nspecial:], self.count[self.nspecial:]):
             print('{} {}'.format(symbol, count), file=f)
 
