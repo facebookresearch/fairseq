@@ -9,7 +9,6 @@ import torch
 import unittest
 from fairseq.modules import ConvTBC
 import torch.nn as nn
-from torch.autograd import Variable
 
 
 class TestConvTBC(unittest.TestCase):
@@ -23,8 +22,9 @@ class TestConvTBC(unittest.TestCase):
         conv_tbc.weight.data.copy_(conv1d.weight.data.transpose(0, 2))
         conv_tbc.bias.data.copy_(conv1d.bias.data)
 
-        input_tbc = Variable(torch.randn(7, 2, 4), requires_grad=True)
-        input1d = Variable(input_tbc.data.transpose(0, 1).transpose(1, 2), requires_grad=True)
+        input_tbc = torch.randn(7, 2, 4, requires_grad=True)
+        input1d = input_tbc.data.transpose(0, 1).transpose(1, 2)
+        input1d.requires_grad = True
 
         output_tbc = conv_tbc(input_tbc)
         output1d = conv1d(input1d)
