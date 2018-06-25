@@ -154,7 +154,7 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
                     probs[:, i, self.dictionary.eos()] = 1.0
 
         # random attention
-        attn = torch.rand(bbsz, src_len, tgt_len)
+        attn = torch.rand(bbsz, tgt_len, src_len)
 
         return Variable(probs), Variable(attn)
 
