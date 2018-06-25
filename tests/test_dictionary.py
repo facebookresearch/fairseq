@@ -11,7 +11,7 @@ import unittest
 import torch
 
 from fairseq.data import Dictionary
-from fairseq.tokenizer import Tokenizer, tokenize_line
+from fairseq.tokenizer import Tokenizer
 
 
 class TestDictionary(unittest.TestCase):

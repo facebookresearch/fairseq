@@ -633,6 +633,7 @@ def fconv_lm_dauphin_wikitext103(args):
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '10000,20000,200000')
     base_lm_architecture(args)
 
+
 @register_model_architecture('fconv_lm', 'fconv_lm_dauphin_gbw')
 def fconv_lm_dauphin_gbw(args):
     layers = '[(512, 5)]'

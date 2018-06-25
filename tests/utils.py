@@ -6,7 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 
 import torch
-from torch.autograd import Variable
 
 from fairseq import utils
 from fairseq.data import Dictionary
@@ -156,7 +155,7 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
         # random attention
         attn = torch.rand(bbsz, tgt_len, src_len)
 
-        return Variable(probs), Variable(attn)
+        return probs, attn
 
     def get_normalized_probs(self, net_output, log_probs, _):
         # the decoder returns probabilities directly
