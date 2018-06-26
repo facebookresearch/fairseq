@@ -133,7 +133,6 @@ class Dictionary(object):
                 i += 1
                 threshold_nwords += 1
 
-        assert len(new_count) == self.nspecial or min(new_count[self.nspecial:]) >= threshold
         assert len(new_symbols) % padding_factor == 0
         assert len(new_symbols) == len(new_indices)
 
