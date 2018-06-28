@@ -47,7 +47,6 @@ class CrossEntropyCriterion(FairseqCriterion):
         if robust:
                 residual = loss - model.eta
                 loss = torch.sum(self.relu(residual) / self.alpha + model.eta)
-
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
