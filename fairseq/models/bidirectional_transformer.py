@@ -120,7 +120,24 @@ class BiTransformerDecoder(FairseqDecoder):
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
             nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
-    def forward(self, source_tokens, encoder_out=None):
+    def forward(self, source_tokens, **unused):
+        """ Forward pass for the bidirectional transformer
+
+        Args:
+            - source tokens: B x T matrix representing sentences
+
+        Returns:
+            - a tuple of the following:
+                - logits for predictions in format B x T x C to be used in softmax afterwards
+                - a dictionary of additional data, where 'attn' contains the attention over the final
+                  states (concatenated from forward and backward towers) and 'inner_states' is a list
+                  of internal model states used to compute the predictions (for example to use in ELMO).
+                  The first element is the token embeddings (with the positional embeddings added).
+                  The next n elements are tuples of the hidden states for the forward and backward towers.
+                  The last element is the output of the final full layer on top of the towers and would be
+                  equivalent to the logits if adaptive softmax is used.
+                  NOTE: unlike the logits, the format for all hidden states is T x B x C
+        """
 
         # compute padding mask
         padding_mask = source_tokens.eq(self.padding_idx)
@@ -139,6 +156,8 @@ class BiTransformerDecoder(FairseqDecoder):
         # B x T x C -> T x B x C
         fwd_x = bwd_x = x.transpose(0, 1)
 
+        inner_states = [fwd_x]
+
         future_mask = self.buffered_future_mask(fwd_x)
         past_mask = self.buffered_past_mask(bwd_x)
 
@@ -154,12 +173,15 @@ class BiTransformerDecoder(FairseqDecoder):
                 self_attn_mask=past_mask,
                 self_attn_padding_mask=padding_mask,
             )
+            inner_states.append((fwd_x, bwd_x))
 
         x, attn = self.full_attn_layer(
             fwd_x,
             bwd_x,
             padding_mask,
         )
+
+        inner_states.append(x)
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
@@ -171,7 +193,7 @@ class BiTransformerDecoder(FairseqDecoder):
             else:
                 x = F.linear(x, self.embed_out)
 
-        return x, attn
+        return x, {'attn': attn, 'inner_states': inner_states}
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
