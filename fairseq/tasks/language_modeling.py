@@ -73,6 +73,8 @@ class LanguageModelingTask(FairseqTask):
 
     def __init__(self, args, dictionary, output_dictionary, targets=None):
         super().__init__(args)
+
+        args.right_to_left = getattr(args, 'right_to_left', False)
         self.dictionary = dictionary
         self.output_dictionary = output_dictionary
 
