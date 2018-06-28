@@ -41,11 +41,12 @@ class CrossEntropyCriterion(FairseqCriterion):
         target = model.get_targets(sample, net_output).view(-1)
 
         # Compute loss. If robust is true, then use the alternate DRO loss.
-        reduce = False if robust else reduce
+        if robust:
+            reduce = False
         loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx, reduce=reduce)
         if robust:
                 residual = loss - model.eta
-                loss = torch.mean(self.relu(residual) / self.alpha + model.eta)
+                loss = torch.sum(self.relu(residual) / self.alpha + model.eta)
 
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
