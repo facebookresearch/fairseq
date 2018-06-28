@@ -48,7 +48,7 @@ class LanguageModelingTask(FairseqTask):
         path = os.path.join(self.args.data, split)
         if self.args.raw_text and IndexedRawTextDataset.exists(path):
             ds = IndexedRawTextDataset(path, self.dictionary)
-            tokens = ds.tokens_list
+            tokens = [t for l in ds.tokens_list for t in l]
         elif not self.args.raw_text and IndexedInMemoryDataset.exists(path):
             ds = IndexedInMemoryDataset(path, fix_lua_indexing=True)
             tokens = ds.buffer

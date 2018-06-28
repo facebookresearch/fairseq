@@ -47,7 +47,7 @@ class TokenBlockDataset(torch.utils.data.Dataset):
 
             self.slice_indices = [block_at(i) for i in range(length)]
         elif break_mode == 'complete':
-            assert sizes is not None and sum(sizes) == len(tokens)
+            assert sizes is not None and sum(sizes) == len(tokens), '{} != {}'.format(sum(sizes), len(tokens))
             tok_idx = 0
             sz_idx = 0
             curr_size = 0
@@ -62,7 +62,7 @@ class TokenBlockDataset(torch.utils.data.Dataset):
             if curr_size > 0:
                 self.slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'eos':
-            assert sizes is not None and sum(sizes) == len(tokens)
+            assert sizes is not None and sum(sizes) == len(tokens), '{} != {}'.format(sum(sizes), len(tokens))
             curr = 0
             for sz in sizes:
                 # skip samples with just 1 example (which would be just the eos token)
