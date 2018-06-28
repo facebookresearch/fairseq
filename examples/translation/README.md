@@ -113,7 +113,7 @@ To replicate results from the paper [Scaling Neural Machine Translation (Ott et 
 
 1. Prepare the WMT'14 En-De data with a BPE vocab of 32k:
 ```
-$ BPE_TOKENS=32764 bash prepare-wmt14en2de.sh
+$ bash prepare-wmt14en2de.sh --scaling18
 $ cd ../..
 ```
 2. Preprocess the dataset with a joined dictionary:
