@@ -13,18 +13,20 @@ CLEAN=$SCRIPTS/training/clean-corpus-n.perl
 NORM_PUNC=$SCRIPTS/tokenizer/normalize-punctuation.perl
 REM_NON_PRINT_CHAR=$SCRIPTS/tokenizer/remove-non-printing-char.perl
 BPEROOT=subword-nmt
-BPE_TOKENS="${BPE_TOKENS:-40000}"
+BPE_TOKENS=40000
 
 URLS=(
     "http://statmt.org/wmt13/training-parallel-europarl-v7.tgz"
     "http://statmt.org/wmt13/training-parallel-commoncrawl.tgz"
     "http://data.statmt.org/wmt17/translation-task/training-parallel-nc-v12.tgz"
+    "http://data.statmt.org/wmt17/translation-task/dev.tgz"
     "http://statmt.org/wmt14/test-full.tgz"
 )
 FILES=(
     "training-parallel-europarl-v7.tgz"
     "training-parallel-commoncrawl.tgz"
     "training-parallel-nc-v12.tgz"
+    "dev.tgz"
     "test-full.tgz"
 )
 CORPORA=(
@@ -41,6 +43,12 @@ if [ "$1" == "--icml17" ]; then
     CORPORA[2]="training/news-commentary-v9.de-en"
 fi
 
+# This will make the dataset comparable to the one used in "Scaling Neural Machine Translation"
+# https://arxiv.org/abs/1806.00187
+if [ "$1" == "--scaling18" ]; then
+    BPE_TOKENS=32764
+fi
+
 if [ ! -d "$SCRIPTS" ]; then
     echo "Please set SCRIPTS variable correctly to point to Moses scripts."
     exit
@@ -52,6 +60,7 @@ lang=en-de
 prep=wmt14_en_de
 tmp=$prep/tmp
 orig=orig
+dev=dev/newstest2013
 
 mkdir -p $orig $tmp $prep
 
@@ -105,11 +114,26 @@ for l in $src $tgt; do
     echo ""
 done
 
-echo "splitting train and valid..."
-for l in $src $tgt; do
-    awk '{if (NR%100 == 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/valid.$l
-    awk '{if (NR%100 != 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/train.$l
-done
+if [ "$1" == "--scaling18" ]; then
+    # apply length filtering before BPE for --scaling18
+    perl $CLEAN $tmp/train.tags.$lang.tok $src $tgt $tmp/train 1 80
+
+    # use newstest2013 for valid
+    echo "pre-processing valid data..."
+    for l in $src $tgt; do
+        rm $tmp/valid.$l
+        cat $orig/$dev.$l | \
+            perl $NORM_PUNC $l | \
+            perl $REM_NON_PRINT_CHAR | \
+            perl $TOKENIZER -threads 8 -a -l $l >> $tmp/valid.$l
+    done
+else
+    echo "splitting train and valid..."
+    for l in $src $tgt; do
+        awk '{if (NR%100 == 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/valid.$l
+        awk '{if (NR%100 != 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/train.$l
+    done
+fi
 
 TRAIN=$tmp/train.de-en
 BPE_CODE=$prep/code
@@ -128,8 +152,15 @@ for L in $src $tgt; do
     done
 done
 
-perl $CLEAN -ratio 1.5 $tmp/bpe.train $src $tgt $prep/train 1 250
-perl $CLEAN -ratio 1.5 $tmp/bpe.valid $src $tgt $prep/valid 1 250
+if [ "$1" == "--scaling18" ]; then
+    for L in $src $tgt; do
+        cp $tmp/bpe.train.$L $prep/train.$L
+        cp $tmp/bpe.valid.$L $prep/valid.$L
+    done
+else
+    perl $CLEAN -ratio 1.5 $tmp/bpe.train $src $tgt $prep/train 1 250
+    perl $CLEAN -ratio 1.5 $tmp/bpe.valid $src $tgt $prep/valid 1 250
+fi
 
 for L in $src $tgt; do
     cp $tmp/bpe.test.$L $prep/test.$L
