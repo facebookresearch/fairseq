@@ -36,6 +36,10 @@ def main(args):
     for model in models:
         model.make_generation_fast_()
 
+    # Reset eta
+    for model in models:
+        model.eta.data = torch.zeros(model.eta.size())
+
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
         max_sentences=args.max_sentences or 4,
