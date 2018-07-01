@@ -26,7 +26,7 @@ class CrossEntropyDROCriterion(FairseqCriterion):
     def add_args(parser):
         parser.add_argument('--dro-alpha', default=1., type=float, help='alpha value for the DRO loss.')
 
-    def forward(self, model, sample):
+    def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
