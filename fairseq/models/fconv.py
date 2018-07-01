@@ -196,7 +196,7 @@ class FConvDROLanguageModel(FairseqDROLanguageModel):
             ),
             normalization_constant=args.normalization_constant,
         )
-        return FConvLanguageModel(decoder)
+        return FConvDROLanguageModel(decoder)
 
 class FConvEncoder(FairseqEncoder):
     """Convolutional encoder"""
