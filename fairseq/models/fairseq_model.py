@@ -133,7 +133,7 @@ class FairseqDROLanguageModel(FairseqLanguageModel):
     """Base class for DRO LM."""
 
     def __init__(self, decoder):
-        super(decoder).__init__()
+        super().__init__(decoder)
         self.eta = nn.Parameter(torch.Tensor([0.0]))
 
     
