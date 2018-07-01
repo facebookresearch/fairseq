@@ -52,7 +52,7 @@ def main(args):
     score_sum = 0.
     count = 0
     with progress_bar.build_progress_bar(args, itr) as t:
-        results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
+        results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer, temperature=args.evaluation_temperature)
         wps_meter = TimeMeter()
         for _, src_tokens, __, hypos in results:
             for hypo in hypos:
