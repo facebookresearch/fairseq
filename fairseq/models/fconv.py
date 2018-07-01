@@ -148,7 +148,7 @@ class FConvLanguageModel(FairseqLanguageModel):
         return FConvLanguageModel(decoder)
 
 @register_model('fconv_dro_lm')
-class FConvLanguageModel(FairseqDROLanguageModel):
+class FConvDROLanguageModel(FairseqDROLanguageModel):
     def __init__(self, decoder):
         super().__init__(decoder)
 
@@ -669,7 +669,7 @@ def base_lm_architecture(args):
     args.decoder_attention = getattr(args, 'decoder_attention', 'False')
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
     args.normalization_constant = getattr(args, 'normalization_constant', 0.5)
-    
+
 @register_model_architecture('fconv_lm', 'fconv_lm_dauphin_wikitext103')
 def fconv_lm_dauphin_wikitext103(args):
     layers = '[(850, 6)] * 3'
