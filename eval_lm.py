@@ -38,7 +38,8 @@ def main(args):
 
     # Reset eta
     for model in models:
-        model.eta.data = torch.zeros(model.eta.size())
+        if hasattr(model, 'eta'):
+            model.eta.data = torch.zeros(model.eta.size())
 
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
