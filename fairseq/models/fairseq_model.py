@@ -17,7 +17,6 @@ class BaseFairseqModel(nn.Module):
     def __init__(self):
         super().__init__()
         self._is_generation_fast = False
-        self.eta = nn.Parameter(torch.Tensor([0.0]))
 	
     @staticmethod
     def add_args(parser):
@@ -129,3 +128,14 @@ class FairseqLanguageModel(BaseFairseqModel):
     def max_positions(self):
         """Maximum length supported by the model."""
         return self.decoder.max_positions()
+
+class FairseqDROLanguageModel(FairseqLanguageModel):
+    """Base class for DRO LM."""
+
+    def __init__(self, decoder):
+        super().__init__()
+        self.decoder = decoder
+        assert isinstance(self.decoder, FairseqDecoder)
+        self.eta = nn.Parameter(torch.Tensor([0.0]))
+
+    
