@@ -173,7 +173,7 @@ class BiTransformerDecoder(FairseqDecoder):
                 self_attn_mask=past_mask,
                 self_attn_padding_mask=padding_mask,
             )
-            inner_states.append((fwd_x, bwd_x))
+            inner_states.extend((fwd_x, bwd_x))
 
         x, attn = self.full_attn_layer(
             fwd_x,
