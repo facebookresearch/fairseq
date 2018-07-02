@@ -37,11 +37,13 @@ def main(args):
         if args.fp16:
             model.half()
 
+    assert len(models) > 0
+
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences or 4,
-        max_positions=model.max_positions(),
+        max_positions=models[0].max_positions(),
         num_shards=args.num_shards,
         shard_id=args.shard_id,
         ignore_invalid_inputs=True,
