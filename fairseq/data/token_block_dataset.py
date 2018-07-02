@@ -76,14 +76,18 @@ class TokenBlockDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         s, e = self.slice_indices[index]
+
         item = torch.LongTensor(self.tokens[s:e])
         if self.include_targets:
-            if e == self.total_size:
-                return item[:-1], item[1:]
+            # target is the sentence, for source, rotate item one token to the left (would start with eos)
+            if s == 0:
+                source = np.concatenate([self.tokens[-1:], self.tokens[0:e - 1]])
             else:
-                return item, torch.LongTensor(self.tokens[s + 1:e + 1])
-        else:
-            return item
+                source = self.tokens[s - 1:e - 1]
+
+            return torch.LongTensor(source), item
+
+        return item
 
     def __len__(self):
         return len(self.slice_indices)
