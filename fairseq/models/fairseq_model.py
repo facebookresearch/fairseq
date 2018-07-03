@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-
+import torch
 import torch.nn as nn
 
 from . import FairseqDecoder, FairseqEncoder
@@ -17,7 +17,7 @@ class BaseFairseqModel(nn.Module):
     def __init__(self):
         super().__init__()
         self._is_generation_fast = False
-
+	
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
@@ -128,3 +128,12 @@ class FairseqLanguageModel(BaseFairseqModel):
     def max_positions(self):
         """Maximum length supported by the model."""
         return self.decoder.max_positions()
+
+class FairseqDROLanguageModel(FairseqLanguageModel):
+    """Base class for DRO LM."""
+
+    def __init__(self, decoder):
+        super().__init__(decoder)
+        self.eta = nn.Parameter(torch.Tensor([0.0]))
+
+    

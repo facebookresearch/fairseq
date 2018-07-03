@@ -22,13 +22,13 @@ class SequenceScorer(object):
             model.cuda()
         return self
 
-    def score_batched_itr(self, data_itr, cuda=False, timer=None):
+    def score_batched_itr(self, data_itr, cuda=False, timer=None, temperature=1.0):
         """Iterate over a batched dataset and yield scored translations."""
         for sample in data_itr:
             s = utils.move_to_cuda(sample) if cuda else sample
             if timer is not None:
                 timer.start()
-            pos_scores, attn = self.score(s)
+            pos_scores, attn = self.score(s, temperature=temperature)
             for i, id in enumerate(s['id'].data):
                 # remove padding from ref
                 src = utils.strip_pad(s['net_input']['src_tokens'].data[i, :], self.pad)
@@ -53,7 +53,7 @@ class SequenceScorer(object):
                 # return results in the same format as SequenceGenerator
                 yield id, src, ref, hypos
 
-    def score(self, sample):
+    def score(self, sample, temperature=1.0):
         """Score a batch of translations."""
         net_input = sample['net_input']
 
@@ -66,6 +66,7 @@ class SequenceScorer(object):
                 decoder_out = model.forward(**net_input)
                 attn = decoder_out[1]
 
+            decoder_out[0].div_(temperature) # divide the input to the softmax by the temperature 
             probs = model.get_normalized_probs(decoder_out, log_probs=False, sample=sample).data
             if avg_probs is None:
                 avg_probs = probs

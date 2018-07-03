@@ -9,6 +9,7 @@
 import collections
 import itertools
 import os
+import sys
 import math
 import torch
 
@@ -117,6 +118,12 @@ def train(args, trainer, task, epoch_itr):
     max_update = args.max_update or math.inf
     num_batches = len(epoch_itr)
     for i, sample in enumerate(progress, start=epoch_itr.iterations_in_epoch):
+        if (i + 1) % 100 == 0:
+            valid_losses = validate(args, trainer, task, epoch_itr, [first_valid])
+            valid_stats = get_valid_stats(trainer)
+            train_stats = get_training_stats(trainer)
+            print("eta: ", trainer.model.eta.item(), valid_stats['valid_loss'].item(), valid_stats['valid_ppl'], train_stats['loss'], train_stats['ppl']) 
+            sys.stdout.flush()
         if i < num_batches - 1 and (i + 1) % update_freq > 0:
             # buffer updates according to --update-freq
             trainer.train_step(sample, update_params=False)

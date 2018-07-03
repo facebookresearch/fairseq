@@ -37,6 +37,11 @@ def main(args):
         if args.fp16:
             model.half()
 
+    # Reset eta
+    for model in models:
+        if hasattr(model, 'eta'):
+            model.eta.data = torch.zeros(model.eta.size())
+
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
         max_tokens=args.max_tokens,
@@ -55,7 +60,7 @@ def main(args):
     score_sum = 0.
     count = 0
     with progress_bar.build_progress_bar(args, itr) as t:
-        results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
+        results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer, temperature=args.evaluation_temperature)
         wps_meter = TimeMeter()
         for _, src_tokens, __, hypos in results:
             for hypo in hypos:
