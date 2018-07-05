@@ -11,7 +11,6 @@ import numpy as np
 import sys
 
 import torch
-from torch.autograd import Variable
 
 from fairseq import data, options, tasks, tokenizer, utils
 from fairseq.sequence_generator import SequenceGenerator
@@ -131,8 +130,8 @@ def main(args):
             lengths = lengths.cuda()
 
         translations = translator.generate(
-            Variable(tokens),
-            Variable(lengths),
+            tokens,
+            lengths,
             maxlen=int(args.max_len_a * tokens.size(1) + args.max_len_b),
         )
 

@@ -15,6 +15,9 @@ class FixedSchedule(FairseqLRScheduler):
     def __init__(self, args, optimizer):
         super().__init__(args, optimizer)
 
+        # set defaults
+        args.warmup_updates = getattr(args, 'warmup_updates', 0)
+
         self.lr = args.lr[0]
         if args.warmup_updates > 0:
             self.warmup_factor = 1. / args.warmup_updates

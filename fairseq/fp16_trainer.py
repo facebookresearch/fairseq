@@ -73,7 +73,7 @@ class FP16Trainer(Trainer):
         self.fp32_params.grad = self.fp32_params.data.new(total_param_size)
 
         # create optimizer using the copied FP32 params
-        self.optimizer = optim.build_optimizer(self.args, [self.fp32_params])
+        self._optimizer = optim.build_optimizer(self.args, [self.fp32_params])
         self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
 
     def save_checkpoint(self, filename, extra_state):

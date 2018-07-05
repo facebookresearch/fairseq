@@ -40,8 +40,6 @@ class Trainer(object):
         self.model = model.cuda()
         self.criterion = criterion.cuda()
 
-        self.optimizer = None
-
         # initialize meters
         self.meters = OrderedDict()
         self.meters['train_loss'] = AverageMeter()
@@ -61,10 +59,17 @@ class Trainer(object):
         self._flat_grads = None
         self._num_updates = 0
         self._optim_history = None
+        self._optimizer = None
+
+    @property
+    def optimizer(self):
+        if self._optimizer is None:
+            self._build_optimizer()
+        return self._optimizer
 
     def _build_optimizer(self):
-        self.optimizer = optim.build_optimizer(self.args, self.model.parameters())
-        self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+        self._optimizer = optim.build_optimizer(self.args, self.model.parameters())
+        self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self._optimizer)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
@@ -93,7 +98,7 @@ class Trainer(object):
 
             self._num_updates = last_optim['num_updates']
 
-        if 'train_meters' in extra_state:
+        if extra_state is not None and 'train_meters' in extra_state:
             self.meters = extra_state['train_meters']
             del extra_state['train_meters']
 
@@ -101,11 +106,6 @@ class Trainer(object):
 
     def train_step(self, sample, update_params=True):
         """Do forward, backward and parameter update."""
-
-        if self.optimizer is None:
-            # initialize optimizer and LR scheduler if hasn't been loaded from the checkpoint
-            self._build_optimizer()
-
         # Set seed based on args.seed and the update number so that we get
         # reproducible results when resuming from checkpoints
         seed = self.args.seed + self.get_num_updates()
