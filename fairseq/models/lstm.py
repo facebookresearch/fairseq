@@ -25,11 +25,11 @@ class LSTMModel(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
-        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+        parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
                             help='encoder embedding dimension')
-        parser.add_argument('--encoder-embed-path', default=None, type=str, metavar='STR',
+        parser.add_argument('--encoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained encoder embedding')
         parser.add_argument('--encoder-hidden-size', type=int, metavar='N',
                             help='encoder hidden size')
@@ -39,7 +39,7 @@ class LSTMModel(FairseqModel):
                             help='make all layers of encoder bidirectional')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
-        parser.add_argument('--decoder-embed-path', default=None, type=str, metavar='STR',
+        parser.add_argument('--decoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained decoder embedding')
         parser.add_argument('--decoder-hidden-size', type=int, metavar='N',
                             help='decoder hidden size')
@@ -415,6 +415,7 @@ def Linear(in_features, out_features, bias=True, dropout=0):
 
 @register_model_architecture('lstm', 'lstm')
 def base_architecture(args):
+    args.dropout = getattr(args, 'dropout', 0.1)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.encoder_embed_path = getattr(args, 'encoder_embed_path', None)
     args.encoder_hidden_size = getattr(args, 'encoder_hidden_size', args.encoder_embed_dim)
@@ -434,6 +435,7 @@ def base_architecture(args):
 
 @register_model_architecture('lstm', 'lstm_wiseman_iwslt_de_en')
 def lstm_wiseman_iwslt_de_en(args):
+    args.dropout = getattr(args, 'dropout', 0.1)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 256)
     args.encoder_dropout_in = getattr(args, 'encoder_dropout_in', 0)
     args.encoder_dropout_out = getattr(args, 'encoder_dropout_out', 0)
