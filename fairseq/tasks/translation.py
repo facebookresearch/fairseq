@@ -90,7 +90,7 @@ class TranslationTask(FairseqTask):
                 tokenizer_tool = tokenizer.build_tokenizer(self.args)
                 return IndexedRawTextDataset(tokenizer_tool, path, dictionary)
             elif IndexedInMemoryDataset.exists(path):
-                return IndexedInMemoryDataset(path)
+                return IndexedInMemoryDataset(path, fix_lua_indexing=True)
             return None
 
         src_dataset = indexed_dataset(prefix + src, self.src_dict)

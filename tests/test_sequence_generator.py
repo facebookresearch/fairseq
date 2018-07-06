@@ -9,7 +9,6 @@ import argparse
 import unittest
 
 import torch
-from torch.autograd import Variable
 
 from fairseq.sequence_generator import SequenceGenerator
 
@@ -29,11 +28,11 @@ class TestSequenceGenerator(unittest.TestCase):
         self.w2 = 5
 
         # construct source data
-        self.src_tokens = Variable(torch.LongTensor([
+        self.src_tokens = torch.LongTensor([
             [self.w1, self.w2, self.eos],
             [self.w1, self.w2, self.eos],
-        ]))
-        self.src_lengths = Variable(torch.LongTensor([2, 2]))
+        ])
+        self.src_lengths = torch.LongTensor([2, 2])
 
         args = argparse.Namespace()
         unk = 0.
