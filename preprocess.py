@@ -13,13 +13,7 @@ import os
 import shutil
 
 from fairseq.data import indexed_dataset, dictionary
-from fairseq.tokenizer import Tokenizer, tokenize_line
-
-from nltk import word_tokenize
-
-# punkt is necessary to use word_tokenize.
-if not nltk.downloader.Downloader().is_installed('punkt'):
-    nltk.download('punkt')
+from fairseq.tokenizer import build_tokenizer
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -67,8 +61,8 @@ def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
-    source_tokenizer = tokenizer.build_tokenizer(args, args.max_source_length)
-    target_tokenizer = tokenizer.build_tokenizer(args, args.max_target_length)
+    source_tokenizer = build_tokenizer(args, args.max_source_length)
+    target_tokenizer = build_tokenizer(args, args.max_target_length)
 
     def build_dictionary(tokenizer, filenames, max_length=None):
         d = dictionary.Dictionary()
@@ -117,13 +111,13 @@ def main(args):
             src_dict = dictionary.Dictionary.load(args.srcdict)
         else:
             assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
-            src_dict = build_dictionary([train_path(args.source_lang)], max_length=args.max_source_length)
+            src_dict = build_dictionary(source_tokenizer, [train_path(args.source_lang)])
         if target:
             if args.tgtdict:
                 tgt_dict = dictionary.Dictionary.load(args.tgtdict)
             else:
                 assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
-                tgt_dict = build_dictionary([train_path(args.target_lang)], max_length=args.max_target_length)
+                tgt_dict = build_dictionary(target_tokenizer, [train_path(args.target_lang)])
 
     src_dict.finalize(
         threshold=args.thresholdsrc,

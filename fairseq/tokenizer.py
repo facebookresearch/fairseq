@@ -36,7 +36,7 @@ class Tokenizer(object):
         self.tokenize_fn = tokenize_line
         self.max_length = max_length
 
-    def add_file_to_dictionary(filename, dict):
+    def add_file_to_dictionary(self, filename, dict):
         with open(filename, 'r') as f:
             for line in f:
                 words = self.tokenize_line(line)
@@ -45,7 +45,7 @@ class Tokenizer(object):
                     dict.add_symbol(word)
                 dict.add_symbol(dict.eos_word)
 
-    def binarize(filename, dict, consumer, append_eos=True, reverse_order=False):
+    def binarize(self, filename, dict, consumer, append_eos=True, reverse_order=False):
         nseq, ntok = 0, 0
         replaced = Counter()
 
@@ -69,7 +69,7 @@ class Tokenizer(object):
                 ntok += len(ids)
         return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': len(replaced)}
 
-    def tokenize(line, dict, add_if_not_exist=True, consumer=None, 
+    def tokenize(self, line, dict, add_if_not_exist=True, consumer=None, 
                  append_eos=True, reverse_order=False):
         words = self.tokenize_line(line)
 
@@ -90,7 +90,7 @@ class Tokenizer(object):
             ids[nwords] = dict.eos_index
         return ids
 
-    def tokenize_line(line):
+    def tokenize_line(self, line):
         return self.tokenize_fn(line)[:self.max_length]
 
 
@@ -112,7 +112,7 @@ class NLTKTokenizer(Tokenizer):
 
 
 def SacreMosesTokenizer(Tokenizer):
-    def __init__(self):
+    def __init__(self, max_length=None):
         super().__init__(max_length)
 
         try:
