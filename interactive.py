@@ -33,9 +33,9 @@ def buffered_read(buffer_size):
         yield buffer
 
 
-def make_batches(lines, args, src_dict, max_positions):
+def make_batches(tokenizer_tool, lines, args, src_dict, max_positions):
     tokens = [
-        tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long()
+        tokenizer_tool.tokenize(src_str, src_dict, add_if_not_exist=False).long()
         for src_str in lines
     ]
     lengths = np.array([t.numel() for t in tokens])
@@ -80,6 +80,9 @@ def main(args):
     src_dict = task.source_dictionary
     tgt_dict = task.target_dictionary
 
+    # Build tokenizer
+    tokenizer_tool = tokenizer.build_tokenizer(args)
+
     # Optimize ensemble for generation
     for model in models:
         model.make_generation_fast_(beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
@@ -111,6 +114,7 @@ def main(args):
         # Process top predictions
         for hypo in hypos[:min(len(hypos), args.nbest)]:
             hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                tokenizer_tool=tokenizer_tool,
                 hypo_tokens=hypo['tokens'].int().cpu(),
                 src_str=src_str,
                 alignment=hypo['alignment'].int().cpu(),
@@ -144,7 +148,7 @@ def main(args):
     for inputs in buffered_read(args.buffer_size):
         indices = []
         results = []
-        for batch, batch_indices in make_batches(inputs, args, src_dict, models[0].max_positions()):
+        for batch, batch_indices in make_batches(tokenizer_tool, inputs, args, src_dict, models[0].max_positions()):
             indices.extend(batch_indices)
             results += process_batch(batch)
 

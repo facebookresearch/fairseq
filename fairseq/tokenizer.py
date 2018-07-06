@@ -11,6 +11,17 @@ import re
 import torch
 
 
+def build_tokenizer(args, max_length=None):
+    if args.tokenizer_name == 'default':
+        tokenizer_tool = Tokenizer(max_length)
+    elif args.tokenizer_name == 'nltk':
+        tokenizer_tool = NLTKTokenizer(max_length)
+    elif args.tokenizer_name == 'sacremoses':
+        tokenizer_tool = SacreMosesTokenizer(max_length)
+    else:
+        raise ValueError('Unknown tokenizer name: {}'.format(args.tokenizer_name))
+    return tokenizer_tool
+
 SPACE_NORMALIZER = re.compile("\s+")
 
 
@@ -20,21 +31,21 @@ def tokenize_line(line):
     return line.split()
 
 
-class Tokenizer:
+class Tokenizer(object):
+    def __init__(self, max_length=None):
+        self.tokenize_fn = tokenize_line
+        self.max_length = max_length
 
-    @staticmethod
-    def add_file_to_dictionary(filename, dict, tokenize, max_length=None):
+    def add_file_to_dictionary(filename, dict):
         with open(filename, 'r') as f:
             for line in f:
-                words = tokenize(line)[:max_length]
+                words = self.tokenize_line(line)
 
                 for word in words:
                     dict.add_symbol(word)
                 dict.add_symbol(dict.eos_word)
 
-    @staticmethod
-    def binarize(filename, dict, consumer, tokenize=tokenize_line,
-                 append_eos=True, reverse_order=False, max_length=None):
+    def binarize(filename, dict, consumer, append_eos=True, reverse_order=False):
         nseq, ntok = 0, 0
         replaced = Counter()
 
@@ -44,15 +55,13 @@ class Tokenizer:
 
         with open(filename, 'r') as f:
             for line in f:
-                ids = Tokenizer.tokenize(
+                ids = self.tokenize(
                     line=line,
                     dict=dict,
-                    tokenize=tokenize,
                     add_if_not_exist=False,
                     consumer=replaced_consumer,
                     append_eos=append_eos,
                     reverse_order=reverse_order,
-                    max_length=max_length,
                 )
                 nseq += 1
 
@@ -60,10 +69,9 @@ class Tokenizer:
                 ntok += len(ids)
         return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': len(replaced)}
 
-    @staticmethod
-    def tokenize(line, dict, tokenize=tokenize_line, add_if_not_exist=True,
-                 consumer=None, append_eos=True, reverse_order=False, max_length=None):
-        words = tokenize(line)[:max_length]
+    def tokenize(line, dict, add_if_not_exist=True, consumer=None, 
+                 append_eos=True, reverse_order=False):
+        words = self.tokenize_line(line)
 
         if reverse_order:
             words = list(reversed(words))
@@ -81,3 +89,36 @@ class Tokenizer:
         if append_eos:
             ids[nwords] = dict.eos_index
         return ids
+
+    def tokenize_line(line):
+        return self.tokenize_fn(line)[:self.max_length]
+
+
+class NLTKTokenizer(Tokenizer):
+  def __init__(self, max_length=None):
+    super().__init__(max_length)
+
+    try:
+      import nltk
+      self.tokenize_fn = nltk.word_tokenize
+    except ImportError as e:
+      import sys
+      sys.stderr.write('ERROR: Please install nltk to use.')
+      raise e
+
+    # punkt is necessary to use word_tokenize.
+    if not nltk.downloader.Downloader().is_installed('punkt'):
+      nltk.download('punkt')
+
+
+def SacreMosesTokenizer(Tokenizer):
+    def __init__(self):
+        super().__init__(max_length)
+
+        try:
+            import sacremoses
+            self.tokenize_fn = sacremoses.MosesTokenizer().tokenize
+        except ImportError as e:
+            import sys
+            sys.stderr.write('ERROR: Please install sacremoses to use.')
+            raise e

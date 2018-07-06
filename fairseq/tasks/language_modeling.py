@@ -7,6 +7,7 @@
 
 import os
 
+from fairseq import tokenizer
 from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
     MonolingualDataset, TokenBlockDataset,
@@ -47,7 +48,8 @@ class LanguageModelingTask(FairseqTask):
         """Load a dataset split."""
         path = os.path.join(self.args.data, split)
         if self.args.raw_text and IndexedRawTextDataset.exists(path):
-            ds = IndexedRawTextDataset(path, self.dictionary)
+            tokenizer_tool = tokenizer.build_tokenizer(self.args)
+            ds = IndexedRawTextDataset(tokenizer_tool, path, self.dictionary)
             tokens = ds.tokens_list
         elif not self.args.raw_text and IndexedInMemoryDataset.exists(path):
             ds = IndexedInMemoryDataset(path)

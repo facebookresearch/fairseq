@@ -45,20 +45,21 @@ def get_parser():
     parser.add_argument('--only-source', action='store_true', help='Only process the source language')
     parser.add_argument('--padding-factor', metavar='N', default=8, type=int,
                         help='Pad dictionary size to be multiple of N')
-    parser.add_argument('--tokenize_name', metavar='N', default='default', choices=['default', 'nltk'],
-                        help="Which tokenization algorithm to use. Choices are default, nltk. default tokenizes by splitting on white space. nltk uses"
-                             " nltk's word_tokenize which better takes into account punctuation. As an example "
-                             "'Hello, how's your day today?' would be tokenized as"
-                             " ['Hello,' , 'how's', 'your', 'day', 'today?'] when using the default, but would instead be tokenized as "
-                             " ['Hello', ',', 'how', ''s', 'your', 'day', 'today', '?']")
+    parser.add_argument('--tokenizer_name', metavar='N', default='default', choices=['default', 'nltk', 'sacremoses'],
+                        help="Which tokenizer to use. Choices are default, nltk, sacremoses. default tokenizes by splitting on white space. nltk uses "
+                             "nltk's word_tokenize which better takes into account punctuation. As an example "
+                             "'Hello, how's your day today?' would be tokenized as "
+                             "['Hello,' , 'how's', 'your', 'day', 'today?'] when using the default, but would instead be tokenized as "
+                             "['Hello', ',', 'how', ''s', 'your', 'day', 'today', '?'] when using nltk. The sacremoses tokenizer is from this package, "
+                             "https://github.com/alvations/sacremoses.")
     parser.add_argument('--max_source_length', metavar='N', type=int,
                         help="The maximum length of the source. If a sequence is longer it will be truncated to this length. " 
-                             "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will"
+                             "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will "
                              " be used to build the dictionary. Default is no truncation.")
     parser.add_argument('--max_target_length', metavar='N', type=int,
-                        help="The maximum length of the source. If a sequence is longer it will be truncated to this length. " 
-                             "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will"
-                             " be used to build the dictionary. Default is no truncation.")
+                        help="The maximum length of the target. If a sequence is longer it will be truncated to this length. " 
+                             "If -1, then no truncation occurs. For joined_dictionary's the maximum of the source/target max length will "
+                             "be used to build the dictionary. Default is no truncation.")
     return parser
 
 
@@ -66,13 +67,13 @@ def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
-    tokenize_algorithms = {'default': tokenize_line, 'nltk': word_tokenize}
-    tokenize_algorithm = tokenize_algorithms[args.tokenize_name]
+    source_tokenizer = tokenizer.build_tokenizer(args, args.max_source_length)
+    target_tokenizer = tokenizer.build_tokenizer(args, args.max_target_length)
 
-    def build_dictionary(filenames, max_length=None):
+    def build_dictionary(tokenizer, filenames, max_length=None):
         d = dictionary.Dictionary()
         for filename in filenames:
-            Tokenizer.add_file_to_dictionary(filename, d, tokenize_algorithm, max_length=max_length)
+            tokenizer.add_file_to_dictionary(filename, d)
         return d
 
     def train_path(lang):
@@ -98,12 +99,18 @@ def main(args):
     if args.joined_dictionary:
         assert not args.srcdict, 'cannot combine --srcdict and --joined-dictionary'
         assert not args.tgtdict, 'cannot combine --tgtdict and --joined-dictionary'
-        max_length = None if args.max_source_length is None or args.max_target_length is None else max(args.max_source_length, args.max_target_length)
 
-        src_dict = build_dictionary(set([
+        if args.max_source_length is None or args.max_target_length is None:
+            tokenizer = source_tokenizer
+        elif args.max_source_length > args.max_target_length:
+            tokenizer = source_tokenizer
+        else:
+            tokenizer = target_tokenizer
+
+        src_dict = build_dictionary(tokenizer, set([
             train_path(lang)
             for lang in [args.source_lang, args.target_lang]
-        ]), max_length=max_length)
+        ]))
         tgt_dict = src_dict
     else:
         if args.srcdict:
@@ -133,7 +140,7 @@ def main(args):
             )
         tgt_dict.save(dict_path(args.target_lang))
 
-    def make_binary_dataset(input_prefix, output_prefix, lang, max_length=None):
+    def make_binary_dataset(tokenizer, input_prefix, output_prefix, lang):
         dict = dictionary.Dictionary.load(dict_path(lang))
         print('| [{}] Dictionary: {} types'.format(lang, len(dict) - 1))
 
@@ -143,15 +150,15 @@ def main(args):
             ds.add_item(tensor)
 
         input_file = '{}{}'.format(input_prefix, ('.' + lang) if lang is not None else '')
-        res = Tokenizer.binarize(input_file, dict, consumer, tokenize=tokenize_algorithm, max_length=max_length)
+        res = tokenizer.binarize(input_file, dict, consumer)
         print('| [{}] {}: {} sents, {} tokens, {:.3}% replaced by {}'.format(
             lang, input_file, res['nseq'], res['ntok'],
             100 * res['nunk'] / res['ntok'], dict.unk_word))
         ds.finalize(dataset_dest_path(output_prefix, lang, 'idx'))
 
-    def make_dataset(input_prefix, output_prefix, lang, max_length=None):
+    def make_dataset(tokenizer, input_prefix, output_prefix, lang):
         if args.output_format == 'binary':
-            make_binary_dataset(input_prefix, output_prefix, lang, max_length=max_length)
+            make_binary_dataset(tokenizer, input_prefix, output_prefix, lang)
         elif args.output_format == 'raw':
             # Copy original text file to destination folder
             output_text_file = dest_path(
@@ -160,21 +167,21 @@ def main(args):
             )
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
 
-    def make_all(lang, max_length=None):
+    def make_all(tokenizer, lang):
         if args.trainpref:
-            make_dataset(args.trainpref, 'train', lang, max_length=max_length)
+            make_dataset(tokenizer, args.trainpref, 'train', lang)
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(',')):
                 outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
-                make_dataset(validpref, outprefix, lang, max_length=max_length)
+                make_dataset(tokenizer, validpref, outprefix, lang)
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(',')):
                 outprefix = 'test{}'.format(k) if k > 0 else 'test'
-                make_dataset(testpref, outprefix, lang, max_length=max_length)
+                make_dataset(tokenizer, testpref, outprefix, lang)
 
-    make_all(args.source_lang, max_length=args.max_source_length)
+    make_all(source_tokenizer, args.source_lang)
     if target:
-        make_all(args.target_lang, max_length=args.max_target_length)
+        make_all(target_tokenizer, args.target_lang)
 
     print('| Wrote preprocessed data to {}'.format(args.destdir))
 
@@ -189,8 +196,8 @@ def main(args):
             with open(src_file_name, 'r') as src_file:
                 with open(tgt_file_name, 'r') as tgt_file:
                     for a, s, t in zip_longest(align_file, src_file, tgt_file):
-                        si = Tokenizer.tokenize(s, src_dict, tokenize=tokenize_algorithm, add_if_not_exist=False, max_length=args.max_source_length)
-                        ti = Tokenizer.tokenize(t, tgt_dict, tokenize=tokenize_algorithm, add_if_not_exist=False, max_length=args.max_target_length)
+                        si = source_tokenizer.tokenize(s, src_dict, add_if_not_exist=False)
+                        ti = target_tokenizer.tokenize(t, tgt_dict, add_if_not_exist=False)
                         ai = list(map(lambda x: tuple(x.split('-')), a.split()))
                         for sai, tai in ai:
                             srcidx = si[int(sai)]

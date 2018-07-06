@@ -118,6 +118,13 @@ def get_parser(desc, default_task='translation'):
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--fp16', action='store_true', help='use FP16')
+    parser.add_argument('--tokenizer_name', metavar='N', default='default', choices=['default', 'nltk', 'sacremoses'],
+                       help="Which tokenizer to use. Choices are default, nltk, sacremoses. default tokenizes by splitting on white space. nltk uses "
+                            "nltk's word_tokenize which better takes into account punctuation. As an example "
+                            "'Hello, how's your day today?' would be tokenized as "
+                            "['Hello,' , 'how's', 'your', 'day', 'today?'] when using the default, but would instead be tokenized as "
+                            "['Hello', ',', 'how', ''s', 'your', 'day', 'today', '?'] when using nltk. The sacremoses tokenizer is from this package, "
+                            "https://github.com/alvations/sacremoses.")
 
     # Task definitions can be found under fairseq/tasks/
     parser.add_argument(

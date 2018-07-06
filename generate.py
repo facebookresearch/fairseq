@@ -36,6 +36,9 @@ def main(args):
     src_dict = task.source_dictionary
     tgt_dict = task.target_dictionary
 
+    # Build tokenizer
+    tokenizer_tool = tokenizer.build_tokenizer(args)
+
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
     models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task)
@@ -113,6 +116,7 @@ def main(args):
             # Process top predictions
             for i, hypo in enumerate(hypos[:min(len(hypos), args.nbest)]):
                 hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                    tokenizer_tool=tokenizer_tool,
                     hypo_tokens=hypo['tokens'].int().cpu(),
                     src_str=src_str,
                     alignment=hypo['alignment'].int().cpu(),
@@ -139,8 +143,7 @@ def main(args):
                 if has_target and i == 0:
                     if align_dict is not None or args.remove_bpe is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
-                        target_tokens = tokenizer.Tokenizer.tokenize(
-                            target_str, tgt_dict, add_if_not_exist=True)
+                        target_tokens = tokenizer_tool.tokenize(target_str, tgt_dict, add_if_not_exist=True)
                     scorer.add(target_tokens, hypo_tokens)
 
             wps_meter.update(src_tokens.size(0))

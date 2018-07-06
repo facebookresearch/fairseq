@@ -23,7 +23,13 @@ def main():
                         type=int, help='consider ngrams up to this order')
     parser.add_argument('--ignore-case', action='store_true',
                         help='case-insensitive scoring')
-
+    parser.add_argument('--tokenizer_name', metavar='N', default='default', choices=['default', 'nltk', 'sacremoses'],
+                        help="Which tokenizer to use. Choices are default, nltk, sacremoses. default tokenizes by splitting on white space. nltk uses "
+                             "nltk's word_tokenize which better takes into account punctuation. As an example "
+                             "'Hello, how's your day today?' would be tokenized as "
+                             "['Hello,' , 'how's', 'your', 'day', 'today?'] when using the default, but would instead be tokenized as "
+                             "['Hello', ',', 'how', ''s', 'your', 'day', 'today', '?'] when using nltk. The sacremoses tokenizer is from this package, "
+                             "https://github.com/alvations/sacremoses.")
     args = parser.parse_args()
     print(args)
 
@@ -33,6 +39,7 @@ def main():
         "Reference file {} does not exist".format(args.ref)
 
     dict = dictionary.Dictionary()
+    tokenizer_tool = tokenizer.build_tokenizer(args)
 
     def readlines(fd):
         for line in fd.readlines():
@@ -44,8 +51,8 @@ def main():
         with open(args.ref) as fdref:
             scorer = bleu.Scorer(dict.pad(), dict.eos(), dict.unk())
             for sys_tok, ref_tok in zip(readlines(fdsys), readlines(fdref)):
-                sys_tok = tokenizer.Tokenizer.tokenize(sys_tok, dict)
-                ref_tok = tokenizer.Tokenizer.tokenize(ref_tok, dict)
+                sys_tok = tokenizer_tool.tokenize(sys_tok, dict)
+                ref_tok = tokenizer_tool.tokenize(ref_tok, dict)
                 scorer.add(ref_tok, sys_tok)
             print(scorer.result_string(args.order))
 

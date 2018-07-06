@@ -7,7 +7,7 @@
 
 import os
 
-from fairseq import options
+from fairseq import options, tokenizer
 from fairseq.data import (
     data_utils, Dictionary, LanguagePairDataset, IndexedInMemoryDataset,
     IndexedRawTextDataset,
@@ -87,7 +87,8 @@ class TranslationTask(FairseqTask):
 
         def indexed_dataset(path, dictionary):
             if self.args.raw_text:
-                return IndexedRawTextDataset(path, dictionary)
+                tokenizer_tool = tokenizer.build_tokenizer(self.args)
+                return IndexedRawTextDataset(tokenizer_tool, path, dictionary)
             elif IndexedInMemoryDataset.exists(path):
                 return IndexedInMemoryDataset(path)
             return None

@@ -121,20 +121,20 @@ class IndexedRawTextDataset(IndexedDataset):
     """Takes a text file as input and binarizes it in memory at instantiation.
     Original lines are also kept in memory"""
 
-    def __init__(self, path, dictionary, append_eos=True, reverse_order=False):
+    def __init__(self, tokenizer_tool, path, dictionary, append_eos=True, reverse_order=False):
         self.tokens_list = []
         self.lines = []
         self.sizes = []
         self.append_eos = append_eos
         self.reverse_order = reverse_order
-        self.read_data(path, dictionary)
+        self.read_data(tokenizer_tool, path, dictionary)
         self.size = len(self.tokens_list)
 
-    def read_data(self, path, dictionary):
+    def read_data(self, tokenizer_tool, path, dictionary):
         with open(path, 'r') as f:
             for line in f:
                 self.lines.append(line.strip('\n'))
-                tokens = Tokenizer.tokenize(
+                tokens = tokenizer_tool.tokenize(
                     line, dictionary, add_if_not_exist=False,
                     append_eos=self.append_eos, reverse_order=self.reverse_order,
                 ).long()

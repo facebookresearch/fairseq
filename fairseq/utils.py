@@ -269,12 +269,11 @@ def load_embedding(embed_dict, vocab, embedding):
     return embedding
 
 
-def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
-    from fairseq import tokenizer
+def replace_unk(tokenizer_tool, hypo_str, src_str, alignment, align_dict, unk):
     # Tokens are strings here
-    hypo_tokens = tokenizer.tokenize_line(hypo_str)
+    hypo_tokens = tokenizer_tool.tokenize_line(hypo_str)
     # TODO: Very rare cases where the replacement is '<eos>' should be handled gracefully
-    src_tokens = tokenizer.tokenize_line(src_str) + ['<eos>']
+    src_tokens = tokenizer_tool.tokenize_line(src_str) + ['<eos>']
     for i, ht in enumerate(hypo_tokens):
         if ht == unk:
             src_token = src_tokens[alignment[i]]
@@ -283,15 +282,14 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     return ' '.join(hypo_tokens)
 
 
-def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe):
-    from fairseq import tokenizer
+def post_process_prediction(tokenizer_tool, hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe):
     hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
-        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string())
+        hypo_str = replace_unk(tokenizer_tool, hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string())
     if align_dict is not None or remove_bpe is not None:
         # Convert back to tokens for evaluating with unk replacement or without BPE
         # Note that the dictionary can be modified inside the method.
-        hypo_tokens = tokenizer.Tokenizer.tokenize(hypo_str, tgt_dict, add_if_not_exist=True)
+        hypo_tokens = tokenizer_tool.tokenize(hypo_str, tgt_dict, add_if_not_exist=True)
     return hypo_tokens, hypo_str, alignment
 
 
