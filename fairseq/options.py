@@ -290,6 +290,8 @@ def add_generation_args(parser):
                        help='sample from top K likely next words instead of all words')
     group.add_argument('--sampling-temperature', default=1, type=float, metavar='N',
                        help='temperature for random sampling')
+    group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
+                       help='a dictionary used to override model args at generation that were used during model training')
     return group
 
 

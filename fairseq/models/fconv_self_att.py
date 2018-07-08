@@ -81,7 +81,7 @@ class FConvModelSelfAtt(FairseqModel):
         trained_encoder, trained_decoder = None, None
         pretrained = eval(args.pretrained)
         if pretrained:
-            print("| Loading pretrained model")
+            print("| loading pretrained model")
             trained_model = utils.load_ensemble_for_inference(
                 # not actually for inference, but loads pretrained model parameters
                 filenames=[args.pretrained_checkpoint],

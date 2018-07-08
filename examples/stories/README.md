@@ -1,6 +1,6 @@
 FAIR Sequence-to-Sequence Toolkit for Story Generation
 
-The following commands provide an example of pre-processing data, training a model, and generating text for story generation with the WritingPrompts dataset. 
+The following commands provide an example of pre-processing data, training a model, and generating text for story generation with the WritingPrompts dataset.
 
 The dataset can be downloaded like this:
 
@@ -8,7 +8,7 @@ The dataset can be downloaded like this:
 curl https://s3.amazonaws.com/fairseq-py/data/writingPrompts.tar.gz | tar xvzf -
 ```
 
-and contains a train, test, and valid split. The dataset is described here: https://arxiv.org/abs/1805.04833. We model only the first 1000 words of each story, including one newLine token. 
+and contains a train, test, and valid split. The dataset is described here: https://arxiv.org/abs/1805.04833. We model only the first 1000 words of each story, including one newLine token.
 
 
 Example usage:
@@ -26,5 +26,7 @@ $ python train.py data-bin/writingPrompts -a fconv_self_att_wp --lr 0.25 --clip-
 # add the arguments: --pretrained True --pretrained-checkpoint path/to/checkpoint
 
 # Generate:
-$ python generate.py data-bin/writingPrompts --path /path/to/trained/model/checkpoint_best.pt --batch-size 32 --beam 1 --sampling --sampling-topk 10 --sampling-temperature 0.8 --nbest 1 
+# Note: to load the pretrained model at generation time, you need to pass in a model-override argument to communicate to the fusion model at generation time where you have placed the pretrained checkpoint. By default, it will load the exact path of the fusion model's pretrained model from training time. You should use model-override if you have moved the pretrained model (or are using our provided models). If you are generating from a non-fusion model, the model-override argument is not necessary.
+
+$ python generate.py data-bin/writingPrompts --path /path/to/trained/model/checkpoint_best.pt --batch-size 32 --beam 1 --sampling --sampling-topk 10 --sampling-temperature 0.8 --nbest 1 --model-overrides "{'pretrained_checkpoint':'/path/to/pretrained/model/checkpoint'}"
 ```

@@ -38,7 +38,7 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task)
+    models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task, model_arg_overrides=eval(args.model_overrides))
 
     # Optimize ensemble for generation
     for model in models:
