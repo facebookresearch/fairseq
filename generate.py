@@ -88,6 +88,7 @@ def main(args):
             translations = translator.generate_batched_itr(
                 t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
                 cuda=use_cuda, timer=gen_timer, prefix_size=args.prefix_size,
+                with_attention=args.print_alignment,
             )
 
         wps_meter = TimeMeter()
@@ -115,7 +116,7 @@ def main(args):
                 hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
                     hypo_tokens=hypo['tokens'].int().cpu(),
                     src_str=src_str,
-                    alignment=hypo['alignment'].int().cpu(),
+                    alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
@@ -130,10 +131,12 @@ def main(args):
                             hypo['positional_scores'].tolist(),
                         ))
                     ))
-                    print('A-{}\t{}'.format(
-                        sample_id,
-                        ' '.join(map(lambda x: str(utils.item(x)), alignment))
-                    ))
+
+                    if args.print_alignment:
+                        print('A-{}\t{}'.format(
+                            sample_id,
+                            ' '.join(map(lambda x: str(utils.item(x)), alignment))
+                        ))
 
                 # Score only the top hypothesis
                 if has_target and i == 0:

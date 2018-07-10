@@ -14,7 +14,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
     def __init__(self, dictionary):
         super().__init__(dictionary)
 
-    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None, need_attn=False):
         raise NotImplementedError
 
     def reorder_incremental_state(self, incremental_state, new_order):

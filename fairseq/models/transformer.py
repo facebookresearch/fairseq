@@ -215,7 +215,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
             nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
-    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None, need_attn=False):
         # embed positions
         positions = self.embed_positions(
             prev_output_tokens,
@@ -340,7 +340,7 @@ class TransformerDecoderLayer(nn.Module):
         self.fc2 = Linear(args.decoder_ffn_embed_dim, self.embed_dim)
         self.layer_norms = nn.ModuleList([LayerNorm(self.embed_dim) for i in range(3)])
 
-    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state):
+    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state, need_attn=False):
         residual = x
         x = self.maybe_layer_norm(0, x, before=True)
         x, _ = self.self_attn(
@@ -364,6 +364,7 @@ class TransformerDecoderLayer(nn.Module):
             key_padding_mask=encoder_padding_mask,
             incremental_state=incremental_state,
             static_kv=True,
+            need_weights=need_attn,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
