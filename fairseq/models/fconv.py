@@ -417,7 +417,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             else:
                 self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-    def forward(self, prev_output_tokens, encoder_out_dict=None, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out_dict=None, incremental_state=None, need_attn=False):
         if encoder_out_dict is not None:
             encoder_out = encoder_out_dict['encoder_out']
             encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
@@ -466,11 +466,13 @@ class FConvDecoder(FairseqIncrementalDecoder):
                 x = self._transpose_if_training(x, incremental_state)
 
                 x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b), encoder_padding_mask)
-                attn_scores = attn_scores / num_attn_layers
-                if avg_attn_scores is None:
-                    avg_attn_scores = attn_scores
-                else:
-                    avg_attn_scores.add_(attn_scores)
+
+                if need_attn:
+                    attn_scores = attn_scores / num_attn_layers
+                    if avg_attn_scores is None:
+                        avg_attn_scores = attn_scores
+                    else:
+                        avg_attn_scores.add_(attn_scores)
 
                 x = self._transpose_if_training(x, incremental_state)
 

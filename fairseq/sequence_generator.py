@@ -54,7 +54,7 @@ class SequenceGenerator(object):
 
     def generate_batched_itr(
         self, data_itr, beam_size=None, maxlen_a=0.0, maxlen_b=None,
-        cuda=False, timer=None, prefix_size=0,
+        cuda=False, timer=None, prefix_size=0, with_attention=False,
     ):
         """Iterate over a batched dataset and yield individual translations.
         Args:
@@ -81,6 +81,7 @@ class SequenceGenerator(object):
                     beam_size=beam_size,
                     maxlen=int(maxlen_a*srclen + maxlen_b),
                     prefix_tokens=s['target'][:, :prefix_size] if prefix_size > 0 else None,
+                    with_attention=with_attention,
                 )
             if timer is not None:
                 timer.stop(sum(len(h[0]['tokens']) for h in hypos))
@@ -90,12 +91,12 @@ class SequenceGenerator(object):
                 ref = utils.strip_pad(s['target'].data[i, :], self.pad) if s['target'] is not None else None
                 yield id, src, ref, hypos[i]
 
-    def generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
+    def generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None, with_attention=False):
         """Generate a batch of translations."""
         with torch.no_grad():
-            return self._generate(src_tokens, src_lengths, beam_size, maxlen, prefix_tokens)
+            return self._generate(src_tokens, src_lengths, beam_size, maxlen, prefix_tokens, with_attention)
 
-    def _generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
+    def _generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None, with_attention=False):
         bsz, srclen = src_tokens.size()
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
 
@@ -128,6 +129,7 @@ class SequenceGenerator(object):
         tokens[:, 0] = self.eos
         attn = scores.new(bsz * beam_size, src_tokens.size(1), maxlen + 2)
         attn_buf = attn.clone()
+        nonpad_idxs = src_tokens.ne(self.pad) if with_attention else None
 
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
@@ -220,10 +222,13 @@ class SequenceGenerator(object):
 
                 def get_hypo():
 
-                    # remove padding tokens from attn scores
-                    nonpad_idxs = src_tokens[sent].ne(self.pad)
-                    hypo_attn = attn_clone[i][nonpad_idxs]
-                    _, alignment = hypo_attn.max(dim=0)
+                    if with_attention:
+                        # remove padding tokens from attn scores
+                        hypo_attn = attn_clone[i][nonpad_idxs[sent]]
+                        _, alignment = hypo_attn.max(dim=0)
+                    else:
+                        hypo_attn = None
+                        alignment = None
 
                     return {
                         'tokens': tokens_clone[i],
@@ -271,7 +276,7 @@ class SequenceGenerator(object):
                     encoder_outs[i] = model.encoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
             probs, avg_attn_scores = self._decode(
-                tokens[:, :step + 1], encoder_outs, incremental_states)
+                tokens[:, :step + 1], encoder_outs, incremental_states, with_attention)
             if step == 0:
                 # at the first step all hypotheses are equally likely, so use
                 # only the first beam
@@ -286,7 +291,8 @@ class SequenceGenerator(object):
             probs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             # Record attention scores
-            attn[:, :, step + 1].copy_(avg_attn_scores)
+            if avg_attn_scores is not None:
+                attn[:, :, step + 1].copy_(avg_attn_scores)
 
             cand_scores = buffer('cand_scores', type_of=scores)
             cand_indices = buffer('cand_indices')
@@ -492,14 +498,16 @@ class SequenceGenerator(object):
 
         return finalized
 
-    def _decode(self, tokens, encoder_outs, incremental_states):
+    def _decode(self, tokens, encoder_outs, incremental_states, with_attention):
         if len(self.models) == 1:
-            return self._decode_one(tokens, self.models[0], encoder_outs[0], incremental_states, log_probs=True)
+            return self._decode_one(tokens, self.models[0], encoder_outs[0], incremental_states, log_probs=True,
+                                    with_attention=with_attention, )
 
         avg_probs = None
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
-            probs, attn = self._decode_one(tokens, model, encoder_out, incremental_states, log_probs=False)
+            probs, attn = self._decode_one(tokens, model, encoder_out, incremental_states, log_probs=False,
+                                           with_attention=with_attention, )
             if avg_probs is None:
                 avg_probs = probs
             else:
@@ -515,12 +523,13 @@ class SequenceGenerator(object):
             avg_attn.div_(len(self.models))
         return avg_probs, avg_attn
 
-    def _decode_one(self, tokens, model, encoder_out, incremental_states, log_probs):
+    def _decode_one(self, tokens, model, encoder_out, incremental_states, log_probs, with_attention):
         with torch.no_grad():
             if incremental_states[model] is not None:
-                decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
+                decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=incremental_states[model],
+                                                 need_attn=with_attention))
             else:
-                decoder_out = list(model.decoder(tokens, encoder_out))
+                decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=None, need_attn=with_attention))
             decoder_out[0] = decoder_out[0][:, -1, :]
             attn = decoder_out[1]
             if attn is not None:

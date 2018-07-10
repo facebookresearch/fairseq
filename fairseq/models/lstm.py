@@ -320,7 +320,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         if not self.share_input_output_embed:
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None, need_attn=False):
         encoder_out = encoder_out_dict['encoder_out']
         encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
 
@@ -391,7 +391,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         x = x.transpose(1, 0)
 
         # srclen x tgtlen x bsz -> bsz x tgtlen x srclen
-        attn_scores = attn_scores.transpose(0, 2)
+        attn_scores = attn_scores.transpose(0, 2) if need_attn else None
 
         # project back to size of vocabulary
         if hasattr(self, 'additional_fc'):
