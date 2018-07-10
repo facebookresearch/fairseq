@@ -104,7 +104,7 @@ class FairseqModel(BaseFairseqModel):
         assert isinstance(self.encoder, FairseqEncoder)
         assert isinstance(self.decoder, FairseqDecoder)
 
-    def forward(self, src_tokens, src_lengths, prev_output_tokens, need_attn):
+    def forward(self, src_tokens, src_lengths, prev_output_tokens, need_attn=False):
         encoder_out = self.encoder(src_tokens, src_lengths)
         decoder_out = self.decoder(prev_output_tokens, encoder_out, need_attn=need_attn)
         return decoder_out
