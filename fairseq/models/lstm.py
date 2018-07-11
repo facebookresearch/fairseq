@@ -80,10 +80,14 @@ class LSTMModel(FairseqModel):
             utils.print_embed_overlap(embed_dict, dictionary)
             return utils.load_embedding(embed_dict, dictionary, embed_tokens)
 
-        pretrained_encoder_embed = None
         if args.encoder_embed_path:
             pretrained_encoder_embed = load_pretrained_embedding_from_file(
                 args.encoder_embed_path, task.source_dictionary, args.encoder_embed_dim)
+        else:
+            num_embeddings = len(task.source_dictionary)
+            pretrained_encoder_embed = Embedding(
+                num_embeddings, args.encoder_embed_dim, task.source_dictionary.pad()
+            )
 
         if args.share_all_embeddings:
             # double check all parameters combinations are valid
