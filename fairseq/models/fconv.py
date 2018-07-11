@@ -31,17 +31,17 @@ class FConvModel(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
-        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+        parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
                             help='encoder embedding dimension')
-        parser.add_argument('--encoder-embed-path', default=None, type=str, metavar='STR',
+        parser.add_argument('--encoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained encoder embedding')
         parser.add_argument('--encoder-layers', type=str, metavar='EXPR',
                             help='encoder layers [(dim, kernel_size), ...]')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
-        parser.add_argument('--decoder-embed-path', default=None, type=str, metavar='STR',
+        parser.add_argument('--decoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained decoder embedding')
         parser.add_argument('--decoder-layers', type=str, metavar='EXPR',
                             help='decoder layers [(dim, kernel_size), ...]')
@@ -49,7 +49,7 @@ class FConvModel(FairseqModel):
                             help='decoder output embedding dimension')
         parser.add_argument('--decoder-attention', type=str, metavar='EXPR',
                             help='decoder attention [True, ...]')
-        parser.add_argument('--normalization-constant', type=float, default=0.5, metavar='D',
+        parser.add_argument('--normalization-constant', type=float, metavar='D',
                             help='multiplies the result of the residual block by sqrt(value)')
         parser.add_argument('--share-input-output-embed', action='store_true',
                             help='share input and output embeddings (requires'
@@ -104,7 +104,7 @@ class FConvLanguageModel(FairseqLanguageModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
-        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+        parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
@@ -117,7 +117,7 @@ class FConvLanguageModel(FairseqLanguageModel):
                                  'Must be used with adaptive_loss criterion')
         parser.add_argument('--decoder-attention', type=str, metavar='EXPR',
                             help='decoder attention [True, ...]')
-        parser.add_argument('--normalization-constant', type=float, default=0.5, metavar='D',
+        parser.add_argument('--normalization-constant', type=float, metavar='D',
                             help='multiplies the result of the residual block by sqrt(value)')
 
     @classmethod
@@ -611,6 +611,7 @@ def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
 
 @register_model_architecture('fconv_lm', 'fconv_lm')
 def base_lm_architecture(args):
+    args.dropout = getattr(args, 'dropout', 0.1)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 128)
     args.decoder_layers = getattr(args, 'decoder_layers', '[(1268, 4)] * 13')
     args.decoder_attention = getattr(args, 'decoder_attention', 'False')
@@ -650,6 +651,7 @@ def fconv_lm_dauphin_gbw(args):
 
 @register_model_architecture('fconv', 'fconv')
 def base_architecture(args):
+    args.dropout = getattr(args, 'dropout', 0.1)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.encoder_embed_path = getattr(args, 'encoder_embed_path', None)
     args.encoder_layers = getattr(args, 'encoder_layers', '[(512, 3)] * 20')

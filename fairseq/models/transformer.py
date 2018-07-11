@@ -48,9 +48,9 @@ class TransformerModel(FairseqModel):
                             help='num encoder layers')
         parser.add_argument('--encoder-attention-heads', type=int, metavar='N',
                             help='num encoder attention heads')
-        parser.add_argument('--encoder-normalize-before', default=False, action='store_true',
+        parser.add_argument('--encoder-normalize-before', action='store_true',
                             help='apply layernorm before each encoder block')
-        parser.add_argument('--encoder-learned-pos', default=False, action='store_true',
+        parser.add_argument('--encoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the encoder')
         parser.add_argument('--decoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained decoder embedding')
@@ -62,13 +62,13 @@ class TransformerModel(FairseqModel):
                             help='num decoder layers')
         parser.add_argument('--decoder-attention-heads', type=int, metavar='N',
                             help='num decoder attention heads')
-        parser.add_argument('--decoder-learned-pos', default=False, action='store_true',
+        parser.add_argument('--decoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the decoder')
-        parser.add_argument('--decoder-normalize-before', default=False, action='store_true',
+        parser.add_argument('--decoder-normalize-before', action='store_true',
                             help='apply layernorm before each decoder block')
-        parser.add_argument('--share-decoder-input-output-embed', default=False, action='store_true',
+        parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
-        parser.add_argument('--share-all-embeddings', default=False, action='store_true',
+        parser.add_argument('--share-all-embeddings', action='store_true',
                             help='share encoder, decoder and output embeddings'
                                  ' (requires shared dictionary and embed dim)')
 
@@ -422,14 +422,20 @@ def base_architecture(args):
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 2048)
     args.encoder_layers = getattr(args, 'encoder_layers', 6)
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 8)
+    args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', False)
+    args.encoder_learned_pos = getattr(args, 'encoder_learned_pos', False)
     args.decoder_embed_path = getattr(args, 'decoder_embed_path', None)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', args.encoder_embed_dim)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', args.encoder_ffn_embed_dim)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
+    args.decoder_normalize_before = getattr(args, 'decoder_normalize_before', False)
+    args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.)
     args.relu_dropout = getattr(args, 'relu_dropout', 0.)
     args.dropout = getattr(args, 'dropout', 0.1)
+    args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
+    args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
 
 
 @register_model_architecture('transformer', 'transformer_iwslt_de_en')

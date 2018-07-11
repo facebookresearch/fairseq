@@ -41,7 +41,7 @@ class FConvModelSelfAtt(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
-        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+        parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
                             help='encoder embedding dimension')
@@ -55,25 +55,25 @@ class FConvModelSelfAtt(FairseqModel):
                             help='decoder output embedding dimension')
         parser.add_argument('--decoder-attention', type=str, metavar='EXPR',
                             help='decoder attention [True, ...]')
-        parser.add_argument('--self-attention', default='False', type=str, metavar='EXPR',
+        parser.add_argument('--self-attention', type=str, metavar='EXPR',
                             help='decoder self-attention layers, ex: [True] + [False]*5')
-        parser.add_argument('--multihead-attention-nheads', default=1, type=int,
+        parser.add_argument('--multihead-attention-nheads', type=int,
                             help='Number of heads to use in attention')
-        parser.add_argument('--multihead-self-attention-nheads', default=1, type=int,
+        parser.add_argument('--multihead-self-attention-nheads', type=int,
                             help='Number of heads to use in self-attention')
-        parser.add_argument('--encoder-attention', type=str, metavar='EXPR', default='False',
+        parser.add_argument('--encoder-attention', type=str, metavar='EXPR',
                             help='encoder attention [True, ...]')
-        parser.add_argument('--encoder-attention-nheads', default=1, type=int,
+        parser.add_argument('--encoder-attention-nheads', type=int,
                             help='Number of heads to use in encoder attention')
-        parser.add_argument('--project-input', type=str, metavar='EXPR', default='False',
+        parser.add_argument('--project-input', type=str, metavar='EXPR',
                             help='Use projections in self-attention [True, ...]')
-        parser.add_argument('--gated-attention', type=str, metavar='EXPR', default='False',
+        parser.add_argument('--gated-attention', type=str, metavar='EXPR',
                             help='Use GLU layers in self-attention projections [True, ...]')
-        parser.add_argument('--downsample', type=str, metavar='EXPR', default='False',
+        parser.add_argument('--downsample', type=str, metavar='EXPR',
                             help='Use downsampling in self-attention [True, ...]')
-        parser.add_argument('--pretrained-checkpoint', metavar='DIR', default='',
+        parser.add_argument('--pretrained-checkpoint', metavar='DIR',
                             help='path to load checkpoint from pretrained model')
-        parser.add_argument('--pretrained', type=str, metavar='EXPR', default='False',
+        parser.add_argument('--pretrained', type=str, metavar='EXPR',
                             help='use pretrained model when training [True, ...]')
 
     @classmethod
@@ -499,22 +499,34 @@ def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
 
 @register_model_architecture('fconv_self_att', 'fconv_self_att')
 def base_architecture(args):
+    args.dropout = getattr(args, 'dropout', 0.1)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.encoder_layers = getattr(args, 'encoder_layers', '[(512, 3)] * 3')
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_layers = getattr(args, 'decoder_layers', '[(512, 3)] * 8')
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
     args.decoder_attention = getattr(args, 'decoder_attention', 'True')
-
+    args.self_attention = getattr(args, 'self_attention', 'False')
+    args.encoder_attention = getattr(args, 'encoder_attention', 'False')
+    args.multihead_attention_nheads = getattr(args, 'multihead_attention_nheads', 1)
+    args.multihead_self_attention_nheads = getattr(args, 'multihead_self_attention_nheads', 1)
+    args.encoder_attention_nheads = getattr(args, 'encoder_attention_nheads', 1)
+    args.project_input = getattr(args, 'project_input', 'False')
+    args.gated_attention = getattr(args, 'gated_attention', 'False')
+    args.downsample = getattr(args, 'downsample', 'False')
+    args.pretrained_checkpoint = getattr(args, 'pretrained_checkpoint', '')
+    args.pretrained = getattr(args, 'pretrained', 'False')
 
 @register_model_architecture('fconv_self_att', 'fconv_self_att_wp')
 def fconv_self_att_wp(args):
-    base_architecture(args)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 256)
     args.encoder_layers = getattr(args, 'encoder_layers', '[(128, 3)] * 2 + [(512,3)] * 1')
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 256)
     args.decoder_layers = getattr(args, 'decoder_layers', '[(512, 4)] * 4 + [(768, 4)] * 2 + [(1024, 4)] * 1')
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 256)
-    args.multihead_attention_nheads = getattr(args, 'multihead_attention_nheads', 1)
-    args.encoder_attention_nheads = getattr(args, 'encoder_attention_nheads', 1)
+    args.self_attention = getattr(args, 'self_attention', 'True')
     args.multihead_self_attention_nheads = getattr(args, 'multihead_self_attention_nheads', 4)
+    args.project_input = getattr(args, 'project_input', 'True')
+    args.gated_attention = getattr(args, 'gated_attention', 'True')
+    args.downsample = getattr(args, 'downsample', 'True')
+    base_architecture(args)
