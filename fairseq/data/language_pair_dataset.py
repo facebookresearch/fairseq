@@ -139,6 +139,10 @@ class LanguagePairDataset(FairseqDataset):
     def _get_max_positions(self, max_positions):
         if max_positions is None:
             return self.max_source_positions, self.max_target_positions
+        # If max_position is not a sequence (possibly from a monolingual model)
+        # then use the same upper bound for source & target
+        if not hasattr(max_positions, '__len__'):
+            max_positions = (max_positions, max_positions)
         assert len(max_positions) == 2
         max_src_pos, max_tgt_pos = max_positions
         return min(self.max_source_positions, max_src_pos), min(self.max_target_positions, max_tgt_pos)

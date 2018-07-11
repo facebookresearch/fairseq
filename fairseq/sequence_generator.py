@@ -114,10 +114,14 @@ class SequenceGenerator(object):
                 incremental_states[model] = None
 
             # compute the encoder output for each beam
-            encoder_out = model.encoder(
-                src_tokens.repeat(1, beam_size).view(-1, srclen),
-                src_lengths.expand(beam_size, src_lengths.numel()).t().contiguous().view(-1),
-            )
+            # Check if the model has an encoder, e.g. the language model has no encoder
+            if hasattr(model, 'encoder'):
+                encoder_out = model.encoder(
+                    src_tokens.repeat(1, beam_size).view(-1, srclen),
+                    src_lengths.expand(beam_size, src_lengths.numel()).t().contiguous().view(-1),
+                )
+            else:
+                encoder_out = None
             encoder_outs.append(encoder_out)
 
         # initialize buffers
@@ -268,7 +272,7 @@ class SequenceGenerator(object):
                 for i, model in enumerate(self.models):
                     if isinstance(model.decoder, FairseqIncrementalDecoder):
                         model.decoder.reorder_incremental_state(incremental_states[model], reorder_state)
-                    encoder_outs[i] = model.encoder.reorder_encoder_out(encoder_outs[i], reorder_state)
+                    encoder_outs[i] = model.decoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
             probs, avg_attn_scores = self._decode(
                 tokens[:, :step + 1], encoder_outs, incremental_states)
@@ -286,7 +290,8 @@ class SequenceGenerator(object):
             probs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             # Record attention scores
-            attn[:, :, step + 1].copy_(avg_attn_scores)
+            if avg_attn_scores is not None:
+                attn[:, :, step + 1].copy_(avg_attn_scores)
 
             cand_scores = buffer('cand_scores', type_of=scores)
             cand_indices = buffer('cand_indices')
@@ -521,9 +526,10 @@ class SequenceGenerator(object):
                 decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
             else:
                 decoder_out = list(model.decoder(tokens, encoder_out))
-            decoder_out[0] = decoder_out[0][:, -1, :]
             attn = decoder_out[1]
             if attn is not None:
                 attn = attn[:, -1, :]
         probs = model.get_normalized_probs(decoder_out, log_probs=log_probs)
+        probs = probs[:, -1, :]
         return probs, attn
+

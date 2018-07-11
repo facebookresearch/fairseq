@@ -269,7 +269,7 @@ class FConvEncoder(FairseqEncoder):
         }
 
     def reorder_encoder_out(self, encoder_out_dict, new_order):
-        if encoder_out_dict['encoder_out'] is not None:
+        if encoder_out_dict is not None and encoder_out_dict['encoder_out'] is not None:
             encoder_out_dict['encoder_out'] = (
                 encoder_out_dict['encoder_out'][0].index_select(0, new_order),
                 encoder_out_dict['encoder_out'][1].index_select(0, new_order),
@@ -494,8 +494,13 @@ class FConvDecoder(FairseqIncrementalDecoder):
         """Get normalized probabilities (or log probs) from a net's output."""
 
         if self.adaptive_softmax is not None:
-            assert sample is not None and 'target' in sample
-            out = self.adaptive_softmax.get_log_prob(net_output[0], sample['target'])
+            if sample is not None:
+                # Assert enforced only at training time
+                assert 'target' in sample
+                out = self.adaptive_softmax.get_log_prob(net_output[0], sample['target'])
+            else:
+                # No target was provided, setting to None
+                out = self.adaptive_softmax.get_log_prob(net_output[0], target=None)
             return out.exp_() if not log_probs else out
         else:
             return super().get_normalized_probs(net_output, log_probs, sample)
