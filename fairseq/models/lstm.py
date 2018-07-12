@@ -298,6 +298,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         self.dropout_out = dropout_out
         self.hidden_size = hidden_size
         self.share_input_output_embed = share_input_output_embed
+        self.need_attn = True
 
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
@@ -324,7 +325,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         if not self.share_input_output_embed:
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None, need_attn=False):
+    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None):
         encoder_out = encoder_out_dict['encoder_out']
         encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
 
@@ -395,7 +396,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         x = x.transpose(1, 0)
 
         # srclen x tgtlen x bsz -> bsz x tgtlen x srclen
-        attn_scores = attn_scores.transpose(0, 2) if need_attn else None
+        attn_scores = attn_scores.transpose(0, 2) if self.need_attn else None
 
         # project back to size of vocabulary
         if hasattr(self, 'additional_fc'):
@@ -425,6 +426,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return int(1e5)  # an arbitrary large number
+
+    def make_generation_fast_(self, need_attn=False, **kwargs):
+        self.need_attn = need_attn
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

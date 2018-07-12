@@ -42,7 +42,10 @@ def main(args):
 
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
+        model.make_generation_fast_(
+            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
+            need_attn=args.print_alignment,
+        )
         if args.fp16:
             model.half()
 
@@ -88,7 +91,6 @@ def main(args):
             translations = translator.generate_batched_itr(
                 t, maxlen_a=args.max_len_a, maxlen_b=args.max_len_b,
                 cuda=use_cuda, timer=gen_timer, prefix_size=args.prefix_size,
-                with_attention=args.print_alignment,
             )
 
         wps_meter = TimeMeter()
