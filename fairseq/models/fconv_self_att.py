@@ -259,6 +259,7 @@ class FConvDecoder(FairseqDecoder):
         self.pretrained_decoder = trained_decoder
         self.dropout = dropout
         self.left_pad = left_pad
+        self.need_attn = True
         in_channels = convolutions[0][0]
 
         def expand_bool_array(val):
@@ -352,7 +353,7 @@ class FConvDecoder(FairseqDecoder):
 
             self.pretrained_decoder.fc2.register_forward_hook(save_output())
 
-    def forward(self, prev_output_tokens, encoder_out_dict, need_attn=False):
+    def forward(self, prev_output_tokens, encoder_out_dict):
         encoder_out = encoder_out_dict['encoder']['encoder_out']
         trained_encoder_out = encoder_out_dict['pretrained'] if self.pretrained else None
 
@@ -388,7 +389,7 @@ class FConvDecoder(FairseqDecoder):
                 r = x
                 x, attn_scores = attention(attproj(x) + target_embedding, encoder_a, encoder_b)
                 x = x + r
-                if need_attn:
+                if self.need_attn:
                     if avg_attn_scores is None:
                         avg_attn_scores = attn_scores
                     else:
@@ -426,6 +427,9 @@ class FConvDecoder(FairseqDecoder):
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         return self.embed_positions.max_positions()
+
+    def make_generation_fast_(self, need_attn=False, **kwargs):
+        self.need_attn = need_attn
 
     def _split_encoder_out(self, encoder_out):
         """Split and transpose encoder outputs."""

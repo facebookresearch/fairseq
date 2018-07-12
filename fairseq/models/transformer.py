@@ -193,6 +193,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
+        self.need_attn = True
 
         embed_dim = embed_tokens.embedding_dim
         padding_idx = embed_tokens.padding_idx
@@ -215,7 +216,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
             nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
-    def forward(self, prev_output_tokens, encoder_out, incremental_state=None, need_attn=False):
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
         # embed positions
         positions = self.embed_positions(
             prev_output_tokens,
@@ -265,6 +266,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             if 'decoder.embed_positions._float_tensor' not in state_dict:
                 state_dict['decoder.embed_positions._float_tensor'] = torch.FloatTensor()
         return state_dict
+
+    def make_generation_fast_(self, need_attn=False, **kwargs):
+        self.need_attn = need_attn
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -339,8 +343,9 @@ class TransformerDecoderLayer(nn.Module):
         self.fc1 = Linear(self.embed_dim, args.decoder_ffn_embed_dim)
         self.fc2 = Linear(args.decoder_ffn_embed_dim, self.embed_dim)
         self.layer_norms = nn.ModuleList([LayerNorm(self.embed_dim) for i in range(3)])
+        self.need_attn = True
 
-    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state, need_attn=False):
+    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state):
         residual = x
         x = self.maybe_layer_norm(0, x, before=True)
         x, _ = self.self_attn(
@@ -364,7 +369,7 @@ class TransformerDecoderLayer(nn.Module):
             key_padding_mask=encoder_padding_mask,
             incremental_state=incremental_state,
             static_kv=True,
-            need_weights=need_attn,
+            need_weights=self.need_attn,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
@@ -386,6 +391,9 @@ class TransformerDecoderLayer(nn.Module):
             return self.layer_norms[i](x)
         else:
             return x
+
+    def make_generation_fast_(self, need_attn=False, **kwargs):
+        self.need_attn = need_attn
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

@@ -352,6 +352,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
         self.dropout = dropout
         self.normalization_constant = normalization_constant
         self.left_pad = left_pad
+        self.need_attn = True
 
         convolutions = extend_conv_spec(convolutions)
         in_channels = convolutions[0][0]
@@ -417,7 +418,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             else:
                 self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-    def forward(self, prev_output_tokens, encoder_out_dict=None, incremental_state=None, need_attn=False):
+    def forward(self, prev_output_tokens, encoder_out_dict=None, incremental_state=None):
         if encoder_out_dict is not None:
             encoder_out = encoder_out_dict['encoder_out']
             encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
@@ -467,7 +468,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
                 x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b), encoder_padding_mask)
 
-                if need_attn:
+                if self.need_attn:
                     attn_scores = attn_scores / num_attn_layers
                     if avg_attn_scores is None:
                         avg_attn_scores = attn_scores
@@ -522,6 +523,9 @@ class FConvDecoder(FairseqIncrementalDecoder):
                 self.convolutions[i] = nn.utils.weight_norm(conv, dim=0)
             state_dict['decoder.version'] = torch.Tensor([1])
         return state_dict
+
+    def make_generation_fast_(self, need_attn=False, **kwargs):
+        self.need_attn = need_attn
 
     def _embed_tokens(self, tokens, incremental_state):
         if incremental_state is not None:
