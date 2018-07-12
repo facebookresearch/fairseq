@@ -389,7 +389,7 @@ class FConvDecoder(FairseqDecoder):
                 r = x
                 x, attn_scores = attention(attproj(x) + target_embedding, encoder_a, encoder_b)
                 x = x + r
-                if self.need_attn:
+                if not self.training and self.need_attn:
                     if avg_attn_scores is None:
                         avg_attn_scores = attn_scores
                     else:
