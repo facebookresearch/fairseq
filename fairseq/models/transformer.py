@@ -193,7 +193,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
-        self.need_attn = True
 
         embed_dim = embed_tokens.embedding_dim
         padding_idx = embed_tokens.padding_idx
@@ -266,9 +265,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             if 'decoder.embed_positions._float_tensor' not in state_dict:
                 state_dict['decoder.embed_positions._float_tensor'] = torch.FloatTensor()
         return state_dict
-
-    def make_generation_fast_(self, need_attn=False, **kwargs):
-        self.need_attn = need_attn
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -369,7 +365,7 @@ class TransformerDecoderLayer(nn.Module):
             key_padding_mask=encoder_padding_mask,
             incremental_state=incremental_state,
             static_kv=True,
-            need_weights=self.need_attn,
+            need_weights=(not self.training and self.need_attn),
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x

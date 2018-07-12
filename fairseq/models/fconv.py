@@ -468,7 +468,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
                 x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b), encoder_padding_mask)
 
-                if self.need_attn:
+                if not self.training and self.need_attn:
                     attn_scores = attn_scores / num_attn_layers
                     if avg_attn_scores is None:
                         avg_attn_scores = attn_scores
