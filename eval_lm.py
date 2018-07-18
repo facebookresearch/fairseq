@@ -41,8 +41,8 @@ def main(args):
 
     itr = data.EpochBatchIterator(
         dataset=task.dataset(args.gen_subset),
-        max_tokens=args.max_tokens,
-        max_sentences=args.max_sentences or 4,
+        max_tokens=args.max_tokens or 36000,
+        max_sentences=args.max_sentences,
         max_positions=models[0].max_positions(),
         num_shards=args.num_shards,
         shard_id=args.shard_id,
@@ -56,19 +56,35 @@ def main(args):
 
     score_sum = 0.
     count = 0
+
+    if args.remove_bpe is not None:
+        bpe_cont = args.remove_bpe.rstrip()
+        bpe_toks = set(i for i in range(len(task.dictionary)) if task.dictionary[i].endswith(bpe_cont))
+    else:
+        bpe_toks = None
+
     with progress_bar.build_progress_bar(args, itr) as t:
         results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
         wps_meter = TimeMeter()
         for _, src_tokens, __, hypos in results:
             for hypo in hypos:
                 pos_scores = hypo['positional_scores']
+
+                skipped_toks = 0
+                if bpe_toks is not None:
+                    for i in range(len(hypo['tokens']) - 1):
+                        if hypo['tokens'][i].item() in bpe_toks:
+                            skipped_toks += 1
+                            pos_scores[i + 1] += pos_scores[i]
+                            pos_scores[i] = 0
+
                 inf_scores = pos_scores.eq(float('inf')) | pos_scores.eq(float('-inf'))
                 if inf_scores.any():
                     print('| Skipping tokens with inf scores:',
                           task.target_dictionary.string(hypo['tokens'][inf_scores.nonzero()]))
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
                 score_sum += pos_scores.sum()
-                count += pos_scores.numel()
+                count += pos_scores.numel() - skipped_toks
             wps_meter.update(src_tokens.size(0))
             t.log({'wps': round(wps_meter.avg)})
 
