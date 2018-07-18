@@ -28,7 +28,7 @@ class FairseqTask(object):
     def setup_task(cls, args, **kwargs):
         raise NotImplementedError
 
-    def load_dataset(self, split):
+    def load_dataset(self, split, combine=False):
         raise NotImplementedError
 
     def dataset(self, split):

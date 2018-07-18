@@ -493,16 +493,6 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
         return x, avg_attn_scores
 
-    def get_normalized_probs(self, net_output, log_probs, sample):
-        """Get normalized probabilities (or log probs) from a net's output."""
-
-        if self.adaptive_softmax is not None:
-            assert sample is not None and 'target' in sample
-            out = self.adaptive_softmax.get_log_prob(net_output[0], sample['target'])
-            return out.exp_() if not log_probs else out
-        else:
-            return super().get_normalized_probs(net_output, log_probs, sample)
-
     def reorder_incremental_state(self, incremental_state, new_order):
         super().reorder_incremental_state(incremental_state, new_order)
         encoder_out = utils.get_incremental_state(self, incremental_state, 'encoder_out')

@@ -32,7 +32,7 @@ def main(args):
     task = tasks.setup_task(args)
 
     # Load dataset splits
-    load_dataset_splits(args, task, ['train', 'valid'])
+    load_dataset_splits(task, ['train', 'valid'])
 
     # Build model and criterion
     model = task.build_model(args)
@@ -263,16 +263,16 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
     checkpoint_conds = collections.OrderedDict()
     checkpoint_conds['checkpoint{}.pt'.format(epoch)] = (
-        end_of_epoch and not args.no_epoch_checkpoints and
-        epoch % args.save_interval == 0
+            end_of_epoch and not args.no_epoch_checkpoints and
+            epoch % args.save_interval == 0
     )
     checkpoint_conds['checkpoint_{}_{}.pt'.format(epoch, updates)] = (
-        not end_of_epoch and args.save_interval_updates > 0 and
-        updates % args.save_interval_updates == 0
+            not end_of_epoch and args.save_interval_updates > 0 and
+            updates % args.save_interval_updates == 0
     )
     checkpoint_conds['checkpoint_best.pt'] = (
-        val_loss is not None and
-        (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
+            val_loss is not None and
+            (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
     )
     checkpoint_conds['checkpoint_last.pt'] = True  # keep this last so that it's a symlink
 
@@ -316,17 +316,19 @@ def load_checkpoint(args, trainer, epoch_itr):
                 save_checkpoint.best = extra_state['best']
 
 
-def load_dataset_splits(args, task, splits):
+def load_dataset_splits(task, splits):
     for split in splits:
-        for k in itertools.count():
-            split_k = split + (str(k) if k > 0 else '')
-            try:
-                task.load_dataset(split_k)
-                print('| {} {} {} examples'.format(args.data, split_k, len(task.dataset(split_k))))
-            except FileNotFoundError as e:
-                if k > 0:
-                    break
-                raise e
+        if split == 'train':
+            task.load_dataset(split, combine=True)
+        else:
+            for k in itertools.count():
+                split_k = split + (str(k) if k > 0 else '')
+                try:
+                    task.load_dataset(split_k, combine=False)
+                except FileNotFoundError as e:
+                    if k > 0:
+                        break
+                    raise e
 
 
 if __name__ == '__main__':
