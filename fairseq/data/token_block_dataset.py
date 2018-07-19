@@ -29,13 +29,12 @@ class TokenBlockDataset(torch.utils.data.Dataset):
         include_targets: return next tokens as targets
     """
 
-    def __init__(self, tokens, sizes, block_size, break_mode=None, include_targets=False, reverse=False):
+    def __init__(self, tokens, sizes, block_size, break_mode=None, include_targets=False):
         super().__init__()
 
         self.tokens = tokens
         self.total_size = len(tokens)
         self.include_targets = include_targets
-        self.reverse = reverse
         self.slice_indices = []
 
         if break_mode is None or break_mode == 'none':
@@ -78,19 +77,9 @@ class TokenBlockDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         s, e = self.slice_indices[index]
 
-        if self.reverse:
-            item = torch.LongTensor(np.flip(self.tokens[s:e], 0).copy())
-        else:
-            item = torch.LongTensor(self.tokens[s:e])
+        item = torch.LongTensor(self.tokens[s:e])
 
         if self.include_targets:
-            if self.reverse:
-                if s == 0:
-                    target = np.concatenate([self.tokens[-1:], item.numpy()[1:]])
-                else:
-                    target = np.concatenate([self.tokens[s - 1:s], item.numpy()[:-1]])
-                return item, torch.LongTensor(target)
-
             # target is the sentence, for source, rotate item one token to the left (would start with eos)
             if s == 0:
                 source = np.concatenate([self.tokens[-1:], self.tokens[0:e - 1]])
