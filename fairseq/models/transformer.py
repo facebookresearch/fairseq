@@ -533,6 +533,7 @@ def base_lm_architecture(args):
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
 
     # The model training is not stable without this
     args.decoder_normalize_before = True
