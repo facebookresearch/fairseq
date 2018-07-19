@@ -36,13 +36,9 @@ class LanguageModelingTask(FairseqTask):
                             help='max number of tokens per sample for LM dataset')
         parser.add_argument('--raw-text', default=False, action='store_true',
                             help='load raw text dataset')
-        parser.add_argument('--right-to-left', default=False, action='store_true',
-                            help='if set, trains a language model right-to-left (instead of left-to-right)')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
-
-        args.right_to_left = getattr(args, 'right_to_left', False)
         self.dictionary = dictionary
 
     @classmethod
@@ -75,7 +71,7 @@ class LanguageModelingTask(FairseqTask):
             loaded_datasets.append(
                 TokenBlockDataset(
                     tokens, ds.sizes, self.args.tokens_per_sample, self.args.sample_break_mode,
-                    include_targets=True, reverse=self.args.right_to_left,
+                    include_targets=True
                 ))
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
