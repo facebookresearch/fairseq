@@ -60,8 +60,10 @@ def main(args):
     if args.remove_bpe is not None:
         bpe_cont = args.remove_bpe.rstrip()
         bpe_toks = set(i for i in range(len(task.dictionary)) if task.dictionary[i].endswith(bpe_cont))
+        bpe_len = len(bpe_cont)
     else:
         bpe_toks = None
+        bpe_len = 0
 
     with progress_bar.build_progress_bar(args, itr) as t:
         results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
@@ -85,6 +87,20 @@ def main(args):
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
                 score_sum += pos_scores.sum()
                 count += pos_scores.numel() - skipped_toks
+
+                if args.output_word_probs:
+                    w = ''
+                    word_prob = []
+                    for i in range(len(hypo['tokens'])):
+                        w_ind = hypo['tokens'][i].item()
+                        w += task.dictionary[w_ind]
+                        if bpe_toks is not None and w_ind in bpe_toks:
+                            w = w[:-bpe_len]
+                        else:
+                            word_prob.append((w, pos_scores[i].item()))
+                            w = ''
+                    print('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
+
             wps_meter.update(src_tokens.size(0))
             t.log({'wps': round(wps_meter.avg)})
 

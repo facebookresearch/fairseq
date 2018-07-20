@@ -249,6 +249,8 @@ def add_common_eval_args(group):
 def add_eval_lm_args(parser):
     group = parser.add_argument_group('LM Evaluation')
     add_common_eval_args(group)
+    group.add_argument('--output-word-probs', action='store_true',
+                       help='if set, outputs words and their predicted log probabilities to standard output')
 
 
 def add_generation_args(parser):
