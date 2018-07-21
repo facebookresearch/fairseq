@@ -23,7 +23,7 @@ from fairseq.models.transformer import (
 )
 
 from fairseq.modules import (
-    AdaptiveSoftmax, BidirectionalMultiheadSelfAttention, MultiheadAttention
+    AdaptiveSoftmax, BidirectionalMultiheadSelfAttention, CharacterTokenEmbedder, MultiheadAttention
 )
 
 
@@ -49,17 +49,22 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='num decoder layers')
         parser.add_argument('--decoder-attention-heads', type=int, metavar='N',
                             help='num decoder attention heads')
-        parser.add_argument('--decoder-fixed-pos', default=False, action='store_true',
-                            help='use fixed positional embeddings in the decoder')
-        parser.add_argument('--decoder-normalize-before', default=False, action='store_true',
-                            help='apply layernorm before each decoder block')
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
-        parser.add_argument('--share-decoder-input-output-embed', default=False, action='store_true',
+        parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
-        parser.add_argument('--no-token-positional-embeddings', default=False, action='store_true',
+        parser.add_argument('--no-token-positional-embeddings', action='store_true',
                             help='if set, disables positional embeddings (outside self attention)')
+        parser.add_argument('--character-embeddings', action='store_true',
+                            help='if set, uses character embedding convolutions to produce token embeddings')
+        parser.add_argument('--character-filters', type=str, metavar='LIST',
+                            default='[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]',
+                            help='size of character embeddings')
+        parser.add_argument('--character-embedding-dim', type=int, metavar='N', default=4,
+                            help='size of character embeddings')
+        parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
+                            help='number of highway layers for character token embeddder')
 
     @classmethod
     def build_model(cls, args, task):
@@ -76,7 +81,14 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         if not hasattr(args, 'max_target_positions'):
             args.max_target_positions = args.tokens_per_sample
 
-        embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
+        if args.character_embeddings:
+            embed_tokens = CharacterTokenEmbedder(task.dictionary, eval(args.character_filters),
+                                                  args.character_embedding_dim,
+                                                  args.decoder_embed_dim,
+                                                  args.char_embedder_highway_layers,
+                                                  )
+        else:
+            embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
 
         decoder = BiTransformerDecoder(args, task.dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
@@ -332,9 +344,18 @@ def base_bi_lm_architecture(args):
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
-    args.decoder_learned_pos = not getattr(args, 'decoder_fixed_pos', False)
-    args.decoder_normalize_before = True
+    args.decoder_learned_pos = not getattr(args, 'decoder_learned_pos', False)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
+    args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
+    args.character_embeddings = getattr(args, 'character_embeddings', False)
+    args.character_filters = getattr(args, 'character_filters',
+                                        '[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]')
+    args.character_embedding_dim = getattr(args, 'character_embedding_dim', 128)
+    args.char_embedder_highway_layers = getattr(args, 'char_embedder_highway_layers', 2)
+
+    # otherwise model training is unstable
+    args.decoder_normalize_before = True
 
 
 @register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_big')
