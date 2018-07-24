@@ -217,7 +217,7 @@ class AttentionLayer(nn.Module):
         super().__init__()
 
         self.input_proj = Linear(input_embed_dim, output_embed_dim, bias=False)
-        self.output_proj = Linear(2*output_embed_dim, output_embed_dim, bias=False)
+        self.output_proj = Linear(input_embed_dim + output_embed_dim, output_embed_dim, bias=False)
 
     def forward(self, input, source_hids, encoder_padding_mask):
         # input: bsz x input_embed_dim
