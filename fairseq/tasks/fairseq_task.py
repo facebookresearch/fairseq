@@ -5,9 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from fairseq import criterions, models
-from fairseq.data import FairseqDataset
-
 
 class FairseqTask(object):
     """
@@ -28,11 +25,12 @@ class FairseqTask(object):
     def setup_task(cls, args, **kwargs):
         raise NotImplementedError
 
-    def load_dataset(self, split):
+    def load_dataset(self, split, combine=False):
         raise NotImplementedError
 
     def dataset(self, split):
         """Return a dataset split."""
+        from fairseq.data import FairseqDataset
         if split not in self.datasets:
             raise KeyError('Dataset not loaded: ' + split)
         if not isinstance(self.datasets[split], FairseqDataset):
@@ -40,9 +38,11 @@ class FairseqTask(object):
         return self.datasets[split]
 
     def build_model(self, args):
+        from fairseq import models
         return models.build_model(args, self)
 
     def build_criterion(self, args):
+        from fairseq import criterions
         return criterions.build_criterion(args, self)
 
     def get_loss(self, model, criterion, sample):

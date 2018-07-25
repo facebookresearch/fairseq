@@ -47,7 +47,7 @@ class TokenBlockDataset(torch.utils.data.Dataset):
 
             self.slice_indices = [block_at(i) for i in range(length)]
         elif break_mode == 'complete':
-            assert sizes is not None and sum(sizes) == len(tokens)
+            assert sizes is not None and sum(sizes) == len(tokens), '{} != {}'.format(sum(sizes), len(tokens))
             tok_idx = 0
             sz_idx = 0
             curr_size = 0
@@ -62,7 +62,7 @@ class TokenBlockDataset(torch.utils.data.Dataset):
             if curr_size > 0:
                 self.slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'eos':
-            assert sizes is not None and sum(sizes) == len(tokens)
+            assert sizes is not None and sum(sizes) == len(tokens), '{} != {}'.format(sum(sizes), len(tokens))
             curr = 0
             for sz in sizes:
                 # skip samples with just 1 example (which would be just the eos token)
@@ -76,14 +76,18 @@ class TokenBlockDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         s, e = self.slice_indices[index]
+
         item = torch.LongTensor(self.tokens[s:e])
+
         if self.include_targets:
-            if e == self.total_size:
-                return item[:-1], item[1:]
+            # target is the sentence, for source, rotate item one token to the left (would start with eos)
+            if s == 0:
+                source = np.concatenate([self.tokens[-1:], self.tokens[0:e - 1]])
             else:
-                return item, torch.LongTensor(self.tokens[s + 1:e + 1])
-        else:
-            return item
+                source = self.tokens[s - 1:e - 1]
+
+            return torch.LongTensor(source), item
+        return item
 
     def __len__(self):
         return len(self.slice_indices)
