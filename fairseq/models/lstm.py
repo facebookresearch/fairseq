@@ -458,7 +458,7 @@ def LSTMCell(input_size, hidden_size, **kwargs):
 
 
 def Linear(in_features, out_features, bias=True, dropout=0):
-    """Weight-normalized Linear layer (input: N x T x C)"""
+    """Linear layer (input: N x T x C)"""
     m = nn.Linear(in_features, out_features, bias=bias)
     m.weight.data.uniform_(-0.1, 0.1)
     if bias:
