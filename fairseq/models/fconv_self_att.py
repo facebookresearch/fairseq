@@ -226,18 +226,18 @@ class FConvEncoder(FairseqEncoder):
             'encoder_out': (x, y),
         }
 
-    def reorder_encoder_out(self, encoder_out_dict, new_order):
-        encoder_out_dict['encoder_out'] = tuple(
-            eo.index_select(0, new_order) for eo in encoder_out_dict['encoder_out']
+    def reorder_encoder_out(self, encoder_out, new_order):
+        encoder_out['encoder_out'] = tuple(
+            eo.index_select(0, new_order) for eo in encoder_out['encoder_out']
         )
 
-        if 'pretrained' in encoder_out_dict:
-            encoder_out_dict['pretrained']['encoder_out'] = tuple(
+        if 'pretrained' in encoder_out:
+            encoder_out['pretrained']['encoder_out'] = tuple(
                 eo.index_select(0, new_order)
-                for eo in encoder_out_dict['pretrained']['encoder_out']
+                for eo in encoder_out['pretrained']['encoder_out']
             )
 
-        return encoder_out_dict
+        return encoder_out
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""

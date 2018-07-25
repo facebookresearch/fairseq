@@ -62,7 +62,7 @@ def eval_bool(x, default=False):
         return default
 
 
-def parse_args_and_arch(parser, input_args=None):
+def parse_args_and_arch(parser, input_args=None, parse_known=False):
     # The parser doesn't know about model/criterion/optimizer-specific args, so
     # we parse twice. First we parse the model/criterion/optimizer, then we
     # parse a second time after adding the *-specific arguments.
@@ -90,7 +90,11 @@ def parse_args_and_arch(parser, input_args=None):
         TASK_REGISTRY[args.task].add_args(parser)
 
     # Parse a second time.
-    args = parser.parse_args(input_args)
+    if parse_known:
+        args, extra = parser.parse_known_args(input_args)
+    else:
+        args = parser.parse_args(input_args)
+        extra = None
 
     # Post-process args.
     if hasattr(args, 'lr'):
@@ -104,7 +108,10 @@ def parse_args_and_arch(parser, input_args=None):
     if hasattr(args, 'arch'):
         ARCH_CONFIG_REGISTRY[args.arch](args)
 
-    return args
+    if parse_known:
+        return args, extra
+    else:
+        return args
 
 
 def get_parser(desc, default_task='translation'):
