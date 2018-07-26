@@ -23,7 +23,8 @@ from fairseq.models.transformer import (
 )
 
 from fairseq.modules import (
-    AdaptiveSoftmax, BidirectionalMultiheadSelfAttention, CharacterTokenEmbedder, MultiheadAttention
+    AdaptiveSoftmax, BidirectionalMultiheadSelfAttention, CharacterTokenEmbedder, MultiheadAttention,
+    SinusoidalPositionalEmbedding
 )
 
 
@@ -231,7 +232,9 @@ class BiTransformerDecoder(FairseqDecoder):
         return min(self.max_target_positions, self.embed_positions.max_positions())
 
     def upgrade_state_dict(self, state_dict):
-        pass
+        if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
+            state_dict['decoder.embed_positions._float_tensor'] = torch.FloatTensor(1)
+        return state_dict
 
 
 class TransformerDecoderLayer(nn.Module):
@@ -351,7 +354,7 @@ def base_bi_lm_architecture(args):
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
     args.character_filters = getattr(args, 'character_filters',
-                                        '[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]')
+                                     '[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]')
     args.character_embedding_dim = getattr(args, 'character_embedding_dim', 128)
     args.char_embedder_highway_layers = getattr(args, 'char_embedder_highway_layers', 2)
 
