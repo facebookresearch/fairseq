@@ -108,6 +108,7 @@ class BiTransformerDecoder(FairseqDecoder):
 
         self.embed_tokens = embed_tokens
         self.embed_scale = math.sqrt(embed_dim)
+
         self.embed_positions = PositionalEmbedding(
             args.max_target_positions, embed_dim, self.padding_idx,
             left_pad=left_pad,
@@ -344,7 +345,7 @@ def base_bi_lm_architecture(args):
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
-    args.decoder_learned_pos = not getattr(args, 'decoder_learned_pos', False)
+    args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
