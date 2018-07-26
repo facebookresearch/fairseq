@@ -57,11 +57,19 @@ class BaseFairseqModel(nn.Module):
     def upgrade_state_dict(self, state_dict):
         assert state_dict is not None
 
-        def do_upgrade(m):
-            if m != self and hasattr(m, 'upgrade_state_dict'):
-                m.upgrade_state_dict(state_dict)
+        def do_upgrade(m, prefix):
+            if len(prefix) > 0:
+                prefix += '.'
 
-        self.apply(do_upgrade)
+            for n, c in m.named_children():
+                name = prefix + n
+                if hasattr(c, 'upgrade_state_dict_named'):
+                    c.upgrade_state_dict_named(state_dict, name)
+                elif hasattr(c, 'upgrade_state_dict'):
+                    c.upgrade_state_dict(state_dict)
+                do_upgrade(c, name)
+
+        do_upgrade(self, '')
 
     def make_generation_fast_(self, **kwargs):
         """Optimize model for faster generation."""
