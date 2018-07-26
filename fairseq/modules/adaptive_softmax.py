@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 
+import torch
 import torch.nn.functional as F
 from torch import nn
 
@@ -51,6 +52,16 @@ class AdaptiveSoftmax(nn.Module):
 
         self.apply(init_weights)
 
+        self.register_buffer('version', torch.LongTensor([1]))
+        # versions prior to 1 had a bug that offset indices on the head by 1
+        self.buggy_offset = 0
+
+    def upgrade_state_dict_named(self, state_dict, name):
+        version_name = name + '.version'
+        if version_name not in state_dict:
+            self.buggy_offset = 1
+            state_dict[version_name] = torch.LongTensor([1])
+
     def adapt_target(self, target):
         """
         In order to be efficient, the AdaptiveSoftMax does not compute the
@@ -65,7 +76,7 @@ class AdaptiveSoftmax(nn.Module):
 
         for i in range(len(self.cutoff) - 1):
             mask = target.ge(self.cutoff[i]).mul(target.lt(self.cutoff[i + 1]))
-            new_target[0][mask] = self.cutoff[0] + i - 1
+            new_target[0][mask] = self.cutoff[0] + i - self.buggy_offset
 
             if mask.any():
                 target_idxs.append(mask.nonzero().squeeze(1))
@@ -118,7 +129,7 @@ class AdaptiveSoftmax(nn.Module):
 
         head_sz = self.cutoff[0] + len(self.tail)
         log_probs[:, :head_sz] = self.lsm(head_y)
-        tail_priors = log_probs[:, self.cutoff[0] - 1: head_sz - 1].clone()
+        tail_priors = log_probs[:, self.cutoff[0] - self.buggy_offset: head_sz - self.buggy_offset].clone()
 
         for i in range(len(self.tail)):
             start = self.cutoff[i]
