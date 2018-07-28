@@ -75,6 +75,8 @@ class TransformerModel(FairseqModel):
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion'),
+        parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
+                            help='sets adaptive softmax dropout for the tail projections')
 
     @classmethod
     def build_model(cls, args, task):
@@ -154,6 +156,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
+        parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
+                            help='sets adaptive softmax dropout for the tail projections')
         parser.add_argument('--no-token-positional-embeddings', default=False, action='store_true',
                             help='if set, disables positional embeddings (outside self attention)')
         parser.add_argument('--share-decoder-input-output-embed', default=False, action='store_true',
@@ -309,7 +313,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary), args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
-                dropout=args.dropout,
+                dropout=args.adaptive_softmax_dropout,
             )
         elif not self.share_input_output_embed:
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
@@ -573,6 +577,7 @@ def base_lm_architecture(args):
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
 
     args.character_embeddings = getattr(args, 'character_embeddings', False)
@@ -623,6 +628,7 @@ def base_architecture(args):
     args.relu_dropout = getattr(args, 'relu_dropout', 0.)
     args.dropout = getattr(args, 'dropout', 0.1)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
