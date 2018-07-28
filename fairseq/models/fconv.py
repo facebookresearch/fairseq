@@ -115,8 +115,6 @@ class FConvLanguageModel(FairseqLanguageModel):
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
-        parser.add_argument('--adaptive-softmax-half-size', action='store_true',
-                            help='if set, halves the dimensionality of adaptive softmax (as in original impl)')
         parser.add_argument('--decoder-attention', type=str, metavar='EXPR',
                             help='decoder attention [True, ...]')
         parser.add_argument('--normalization-constant', type=float, metavar='D',
@@ -145,7 +143,6 @@ class FConvLanguageModel(FairseqLanguageModel):
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int)
                 if args.criterion == 'adaptive_loss' else None
             ),
-            adaptive_softmax_half_size=args.adaptive_softmax_half_size,
             normalization_constant=args.normalization_constant,
         )
         return FConvLanguageModel(decoder)
@@ -347,7 +344,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             self, dictionary, embed_dim=512, embed_dict=None, out_embed_dim=256,
             max_positions=1024, convolutions=((512, 3),) * 20, attention=True,
             dropout=0.1, share_embed=False, positional_embeddings=True,
-            adaptive_softmax_cutoff=None, adaptive_softmax_half_size=False, normalization_constant=0.5,
+            adaptive_softmax_cutoff=None, normalization_constant=0.5,
             left_pad=False,
     ):
         super().__init__(dictionary)
@@ -409,7 +406,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
         if adaptive_softmax_cutoff is not None:
             assert not share_embed
             self.adaptive_softmax = AdaptiveSoftmax(num_embeddings, in_channels, adaptive_softmax_cutoff,
-                                                    dropout=dropout, half_size=adaptive_softmax_half_size)
+                                                    dropout=dropout)
         else:
             self.fc2 = Linear(in_channels, out_embed_dim)
             if share_embed:
@@ -616,7 +613,6 @@ def base_lm_architecture(args):
     args.decoder_attention = getattr(args, 'decoder_attention', 'False')
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
     args.normalization_constant = getattr(args, 'normalization_constant', 0.5)
-    args.adaptive_softmax_half_size = getattr(args, 'adaptive_softmax_half_size', False)
 
 
 @register_model_architecture('fconv_lm', 'fconv_lm_dauphin_wikitext103')
