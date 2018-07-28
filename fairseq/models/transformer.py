@@ -73,7 +73,9 @@ class TransformerModel(FairseqModel):
                                  ' (requires shared dictionary and embed dim)')
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
-                                 'Must be used with adaptive_loss criterion')
+                                 'Must be used with adaptive_loss criterion'),
+        parser.add_argument('--adaptive-softmax-half-size', action='store_true',
+                            help='if set, halves the dimensionality of adaptive softmax (as in original impl)')
 
     @classmethod
     def build_model(cls, args, task):
@@ -153,6 +155,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
+        parser.add_argument('--adaptive-softmax-half-size', action='store_true',
+                            help='if set, halves the dimensionality of adaptive softmax (as in original impl)')
         parser.add_argument('--no-token-positional-embeddings', default=False, action='store_true',
                             help='if set, disables positional embeddings (outside self attention)')
         parser.add_argument('--share-decoder-input-output-embed', default=False, action='store_true',
@@ -292,7 +296,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary), args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
-                dropout=args.dropout
+                dropout=args.dropout,
+                half_size=args.adaptive_softmax_half_size,
             )
         elif not self.share_input_output_embed:
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
@@ -557,6 +562,7 @@ def base_lm_architecture(args):
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
+    args.adaptive_softmax_half_size = getattr(args, 'adaptive_softmax_half_size', False)
 
     # The model training is not stable without this
     args.decoder_normalize_before = True
@@ -604,6 +610,7 @@ def base_architecture(args):
     args.relu_dropout = getattr(args, 'relu_dropout', 0.)
     args.dropout = getattr(args, 'dropout', 0.1)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.adaptive_softmax_half_size = getattr(args, 'adaptive_softmax_half_size', False)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
