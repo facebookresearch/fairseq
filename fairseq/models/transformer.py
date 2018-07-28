@@ -15,7 +15,8 @@ from fairseq import options
 from fairseq import utils
 
 from fairseq.modules import (
-    AdaptiveSoftmax, LearnedPositionalEmbedding, MultiheadAttention, SinusoidalPositionalEmbedding
+    AdaptiveSoftmax, CharacterTokenEmbedder, LearnedPositionalEmbedding, MultiheadAttention,
+    SinusoidalPositionalEmbedding
 )
 
 from . import (
@@ -161,6 +162,15 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='if set, disables positional embeddings (outside self attention)')
         parser.add_argument('--share-decoder-input-output-embed', default=False, action='store_true',
                             help='share decoder input and output embeddings')
+        parser.add_argument('--character-embeddings', default=False, action='store_true',
+                            help='if set, uses character embedding convolutions to produce token embeddings')
+        parser.add_argument('--character-filters', type=str, metavar='LIST',
+                            default='[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]',
+                            help='size of character embeddings')
+        parser.add_argument('--character-embedding-dim', type=int, metavar='N', default=4,
+                            help='size of character embeddings')
+        parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
+                            help='number of highway layers for character token embeddder')
 
     @classmethod
     def build_model(cls, args, task):
@@ -174,7 +184,19 @@ class TransformerLanguageModel(FairseqLanguageModel):
         if not hasattr(args, 'max_target_positions'):
             args.max_target_positions = args.tokens_per_sample
 
-        embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
+        if args.character_embeddings:
+            if not hasattr(args, 'char_embedder_highway_layers'):
+                args.char_embedder_highway_layers = 0
+            if not hasattr(args, 'character_filters'):
+                args.character_filters = '[(1, 4), (2, 8), (3, 16), (4, 32), (5, 64)]'
+
+            embed_tokens = CharacterTokenEmbedder(task.dictionary, eval(args.character_filters),
+                                                  args.character_embedding_dim,
+                                                  args.decoder_embed_dim,
+                                                  args.char_embedder_highway_layers,
+                                                  )
+        else:
+            embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
 
         decoder = TransformerDecoder(args, task.dictionary, embed_tokens, no_encoder_attn=True)
         return TransformerLanguageModel(decoder)
