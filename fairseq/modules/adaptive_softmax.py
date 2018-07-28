@@ -18,7 +18,7 @@ class AdaptiveSoftmax(nn.Module):
     approximation for GPUs" (http://arxiv.org/abs/1609.04309).
     """
 
-    def __init__(self, vocab_size, input_dim, cutoff, dropout):
+    def __init__(self, vocab_size, input_dim, cutoff, dropout, half_size=False):
         super().__init__()
 
         if vocab_size > cutoff[-1]:
@@ -37,12 +37,14 @@ class AdaptiveSoftmax(nn.Module):
         self.head = nn.Linear(input_dim, output_dim, bias=False)
         self.tail = nn.ModuleList()
 
+        extra_denom = 1 if half_size else 0
+
         for i in range(len(cutoff) - 1):
             self.tail.append(
                 nn.Sequential(
-                    nn.Linear(input_dim, input_dim // 4 ** i, bias=False),
+                    nn.Linear(input_dim, input_dim // 4 ** (i + extra_denom), bias=False),
                     nn.Dropout(dropout),
-                    nn.Linear(input_dim // 4 ** i, cutoff[i + 1] - cutoff[i], bias=False)
+                    nn.Linear(input_dim // 4 ** (i + extra_denom), cutoff[i + 1] - cutoff[i], bias=False)
                 )
             )
 
