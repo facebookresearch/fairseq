@@ -185,11 +185,6 @@ class TransformerLanguageModel(FairseqLanguageModel):
             args.max_target_positions = args.tokens_per_sample
 
         if args.character_embeddings:
-            if not hasattr(args, 'char_embedder_highway_layers'):
-                args.char_embedder_highway_layers = 0
-            if not hasattr(args, 'character_filters'):
-                args.character_filters = '[(1, 4), (2, 8), (3, 16), (4, 32), (5, 64)]'
-
             embed_tokens = CharacterTokenEmbedder(task.dictionary, eval(args.character_filters),
                                                   args.character_embedding_dim,
                                                   args.decoder_embed_dim,
