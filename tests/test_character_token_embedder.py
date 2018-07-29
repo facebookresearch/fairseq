@@ -18,11 +18,11 @@ class TestCharacterTokenEmbedder(unittest.TestCase):
         vocab.add_symbol('hello')
         vocab.add_symbol('there')
 
-        embedder = CharacterTokenEmbedder(vocab, [(2, 16), (4, 32), (8, 64), (16, 2)], 64, 5)
+        embedder = CharacterTokenEmbedder(vocab, [(2, 16), (4, 32), (8, 64), (16, 2)], 64, 5, 2)
 
         test_sents = [['hello', 'unk', 'there'], ['there'], ['hello', 'there']]
         max_len = max(len(s) for s in test_sents)
-        input = torch.LongTensor(len(test_sents), max_len + 2)
+        input = torch.LongTensor(len(test_sents), max_len + 2).fill_(vocab.pad())
         for i in range(len(test_sents)):
             input[i][0] = vocab.eos()
             for j in range(len(test_sents[i])):
