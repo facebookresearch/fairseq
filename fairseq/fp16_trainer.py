@@ -81,9 +81,9 @@ class FP16Trainer(Trainer):
         extra_state['loss_scale'] = self.scaler.loss_scale
         super().save_checkpoint(filename, extra_state)
 
-    def load_checkpoint(self, filename):
+    def load_checkpoint(self, filename, reset_optimizer=False, reset_lr_scheduler=False, optimizer_overrides=None):
         """Load all training state from a checkpoint file."""
-        extra_state = super().load_checkpoint(filename)
+        extra_state = super().load_checkpoint(filename, reset_optimizer, reset_lr_scheduler, optimizer_overrides)
         if extra_state is not None and 'loss_scale' in extra_state:
             self.scaler.loss_scale = extra_state['loss_scale']
         return extra_state

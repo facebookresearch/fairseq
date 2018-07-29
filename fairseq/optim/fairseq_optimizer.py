@@ -52,7 +52,7 @@ class FairseqOptimizer(object):
         """Return the optimizer's state dict."""
         return self.optimizer.state_dict()
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict(self, state_dict, optimizer_overrides=None):
         """Load an optimizer state dict.
 
         In general we should prefer the configuration of the existing optimizer
@@ -62,9 +62,10 @@ class FairseqOptimizer(object):
         """
         self.optimizer.load_state_dict(state_dict)
 
-        # override learning rate, momentum, etc. with latest values
-        for group in self.optimizer.param_groups:
-            group.update(self.optimizer_config)
+        if optimizer_overrides is not None and len(optimizer_overrides) > 0:
+            # override learning rate, momentum, etc. with latest values
+            for group in self.optimizer.param_groups:
+                group.update(optimizer_overrides)
 
     def step(self, closure=None):
         """Performs a single optimization step."""
