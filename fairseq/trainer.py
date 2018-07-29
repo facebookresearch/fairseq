@@ -80,25 +80,30 @@ class Trainer(object):
                 self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
             )
 
-    def load_checkpoint(self, filename, load_optim=True):
+    def load_checkpoint(self, filename, reset_optimizer=False, reset_lr_scheduler=False, optimizer_overrides=None):
         """Load all training state from a checkpoint file."""
-        extra_state, optim_history, last_optim_state = \
+        extra_state, self._optim_history, last_optim_state = \
             utils.load_model_state(filename, self.model)
 
-        if last_optim_state is not None:
+        if last_optim_state is not None and not reset_optimizer:
             # rebuild optimizer after loading model, since params may have changed
             self._build_optimizer()
 
-            if load_optim:
-                self._optim_history = optim_history
-                # only reload optimizer and lr_scheduler if they match
-                last_optim = self._optim_history[-1]
-                if last_optim['criterion_name'] == self.criterion.__class__.__name__:
-                    self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
-                    if last_optim['optimizer_name'] == self.optimizer.__class__.__name__:
-                        self.optimizer.load_state_dict(last_optim_state)
+            # only reload optimizer and lr_scheduler if they match
+            last_optim = self._optim_history[-1]
 
-                self._num_updates = last_optim['num_updates']
+            assert last_optim['criterion_name'] == self.criterion.__class__.__name__, \
+                'criterion does not match; please reset the optimizer (--reset-optimizer)'
+
+            assert last_optim['optimizer_name'] == self.optimizer.__class__.__name__, \
+                'optimizer does not match; please reset the optimizer (--reset-optimizer)'
+
+            if not reset_lr_scheduler:
+                self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
+
+            self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
+
+            self._num_updates = last_optim['num_updates']
 
         if extra_state is not None and 'train_meters' in extra_state:
             self.meters = extra_state['train_meters']
