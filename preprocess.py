@@ -21,9 +21,9 @@ def get_parser():
         description='Data pre-processing: Create dictionary and store data in binary format')
     parser.add_argument('-s', '--source-lang', default=None, metavar='SRC', help='source language')
     parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET', help='target language')
-    parser.add_argument('--trainpref', metavar='FP', default=None, help='target language')
-    parser.add_argument('--validpref', metavar='FP', default=None, help='comma separated, valid language prefixes')
-    parser.add_argument('--testpref', metavar='FP', default=None, help='comma separated, test language prefixes')
+    parser.add_argument('--trainpref', metavar='FP', default=None, help='train file prefix')
+    parser.add_argument('--validpref', metavar='FP', default=None, help='comma separated, valid file prefixes')
+    parser.add_argument('--testpref', metavar='FP', default=None, help='comma separated, test file prefixes')
     parser.add_argument('--destdir', metavar='DIR', default='data-bin', help='destination dir')
     parser.add_argument('--thresholdtgt', metavar='N', default=0, type=int,
                         help='map words appearing less than threshold times to unknown')
