@@ -198,7 +198,6 @@ class Trainer(object):
                 self.model.eval()
             else:
                 self.model.train()
-                self.optimizer.zero_grad()
 
             if sample is not None:
                 with torch.no_grad() if eval else contextlib.ExitStack():
