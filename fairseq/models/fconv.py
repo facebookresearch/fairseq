@@ -268,16 +268,16 @@ class FConvEncoder(FairseqEncoder):
             'encoder_padding_mask': encoder_padding_mask,  # B x T
         }
 
-    def reorder_encoder_out(self, encoder_out_dict, new_order):
-        if encoder_out_dict['encoder_out'] is not None:
-            encoder_out_dict['encoder_out'] = (
-                encoder_out_dict['encoder_out'][0].index_select(0, new_order),
-                encoder_out_dict['encoder_out'][1].index_select(0, new_order),
+    def reorder_encoder_out(self, encoder_out, new_order):
+        if encoder_out['encoder_out'] is not None:
+            encoder_out['encoder_out'] = (
+                encoder_out['encoder_out'][0].index_select(0, new_order),
+                encoder_out['encoder_out'][1].index_select(0, new_order),
             )
-        if encoder_out_dict['encoder_padding_mask'] is not None:
-            encoder_out_dict['encoder_padding_mask'] = \
-                encoder_out_dict['encoder_padding_mask'].index_select(0, new_order)
-        return encoder_out_dict
+        if encoder_out['encoder_padding_mask'] is not None:
+            encoder_out['encoder_padding_mask'] = \
+                encoder_out['encoder_padding_mask'].index_select(0, new_order)
+        return encoder_out
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
@@ -352,6 +352,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
         self.dropout = dropout
         self.normalization_constant = normalization_constant
         self.left_pad = left_pad
+        self.need_attn = True
 
         convolutions = extend_conv_spec(convolutions)
         in_channels = convolutions[0][0]
@@ -466,11 +467,13 @@ class FConvDecoder(FairseqIncrementalDecoder):
                 x = self._transpose_if_training(x, incremental_state)
 
                 x, attn_scores = attention(x, target_embedding, (encoder_a, encoder_b), encoder_padding_mask)
-                attn_scores = attn_scores / num_attn_layers
-                if avg_attn_scores is None:
-                    avg_attn_scores = attn_scores
-                else:
-                    avg_attn_scores.add_(attn_scores)
+
+                if not self.training and self.need_attn:
+                    attn_scores = attn_scores / num_attn_layers
+                    if avg_attn_scores is None:
+                        avg_attn_scores = attn_scores
+                    else:
+                        avg_attn_scores.add_(attn_scores)
 
                 x = self._transpose_if_training(x, incremental_state)
 
@@ -489,16 +492,6 @@ class FConvDecoder(FairseqIncrementalDecoder):
             x = self.fc3(x)
 
         return x, avg_attn_scores
-
-    def get_normalized_probs(self, net_output, log_probs, sample):
-        """Get normalized probabilities (or log probs) from a net's output."""
-
-        if self.adaptive_softmax is not None:
-            assert sample is not None and 'target' in sample
-            out = self.adaptive_softmax.get_log_prob(net_output[0], sample['target'])
-            return out.exp_() if not log_probs else out
-        else:
-            return super().get_normalized_probs(net_output, log_probs, sample)
 
     def reorder_incremental_state(self, incremental_state, new_order):
         super().reorder_incremental_state(incremental_state, new_order)
@@ -520,6 +513,9 @@ class FConvDecoder(FairseqIncrementalDecoder):
                 self.convolutions[i] = nn.utils.weight_norm(conv, dim=0)
             state_dict['decoder.version'] = torch.Tensor([1])
         return state_dict
+
+    def make_generation_fast_(self, need_attn=False, **kwargs):
+        self.need_attn = need_attn
 
     def _embed_tokens(self, tokens, incremental_state):
         if incremental_state is not None:

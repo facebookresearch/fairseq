@@ -16,7 +16,7 @@ class FixedSchedule(FairseqLRScheduler):
         super().__init__(args, optimizer)
 
         # set defaults
-        args.warmup_updates = getattr(args, 'warmup_updates', 0)
+        args.warmup_updates = getattr(args, 'warmup_updates', 0) or 0
 
         self.lr = args.lr[0]
         if args.warmup_updates > 0:

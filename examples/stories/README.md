@@ -17,7 +17,7 @@ Example usage:
 $ TEXT=examples/stories/writingPrompts
 $ python preprocess.py --source-lang wp_source --target-lang wp_target \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
-  --destdir data-bin/writingPrompts --thresholdtgt 10 --thresholdsrc 10
+  --destdir data-bin/writingPrompts --padding-factor 1 --thresholdtgt 10 --thresholdsrc 10
 
 # Train the model:
 $ python train.py data-bin/writingPrompts -a fconv_self_att_wp --lr 0.25 --clip-norm 0.1 --max-tokens 1500 --lr-scheduler reduce_lr_on_plateau --decoder-attention True --encoder-attention False --criterion label_smoothed_cross_entropy --weight-decay .0000001 --label-smoothing 0 --source-lang wp_source --target-lang wp_target --gated-attention True --self-attention True --project-input True --pretrained False

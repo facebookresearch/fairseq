@@ -5,7 +5,11 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import itertools
+import numpy as np
 import os
+
+from torch.utils.data import ConcatDataset
 
 from fairseq import options
 from fairseq.data import (
@@ -65,25 +69,16 @@ class TranslationTask(FairseqTask):
 
         return cls(args, src_dict, tgt_dict)
 
-    def load_dataset(self, split):
+    def load_dataset(self, split, combine=False):
         """Load a dataset split."""
 
-        def split_exists(src, tgt, lang):
+        def split_exists(split, src, tgt, lang):
             filename = os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, lang))
             if self.args.raw_text and IndexedRawTextDataset.exists(filename):
                 return True
             elif not self.args.raw_text and IndexedInMemoryDataset.exists(filename):
                 return True
             return False
-
-        # infer langcode
-        src, tgt = self.args.source_lang, self.args.target_lang
-        if split_exists(src, tgt, src):
-            prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, src, tgt))
-        elif split_exists(tgt, src, src):
-            prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, tgt, src))
-        else:
-            raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
 
         def indexed_dataset(path, dictionary):
             if self.args.raw_text:
@@ -92,11 +87,48 @@ class TranslationTask(FairseqTask):
                 return IndexedInMemoryDataset(path, fix_lua_indexing=True)
             return None
 
-        src_dataset = indexed_dataset(prefix + src, self.src_dict)
-        tgt_dataset = indexed_dataset(prefix + tgt, self.tgt_dict)
+        src_datasets = []
+        tgt_datasets = []
+
+        for k in itertools.count():
+            split_k = split + (str(k) if k > 0 else '')
+
+            # infer langcode
+            src, tgt = self.args.source_lang, self.args.target_lang
+            if split_exists(split_k, src, tgt, src):
+                prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split_k, src, tgt))
+            elif split_exists(split_k, tgt, src, src):
+                prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split_k, tgt, src))
+            else:
+                if k > 0:
+                    break
+                else:
+                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
+
+            src_datasets.append(indexed_dataset(prefix + src, self.src_dict))
+            tgt_datasets.append(indexed_dataset(prefix + tgt, self.tgt_dict))
+
+            print('| {} {} {} examples'.format(self.args.data, split_k, len(src_datasets[-1])))
+
+            if not combine:
+                break
+
+        assert len(src_datasets) == len(tgt_datasets)
+
+        if len(src_datasets) == 1:
+            src_dataset, tgt_dataset = src_datasets[0], tgt_datasets[0]
+            src_sizes = src_dataset.sizes
+            tgt_sizes = tgt_dataset.sizes
+        else:
+            src_dataset = ConcatDataset(src_datasets)
+            tgt_dataset = ConcatDataset(tgt_datasets)
+            src_sizes = np.concatenate([ds.sizes for ds in src_datasets])
+            tgt_sizes = np.concatenate([ds.sizes for ds in tgt_datasets])
+
+
         self.datasets[split] = LanguagePairDataset(
-            src_dataset, src_dataset.sizes, self.src_dict,
-            tgt_dataset, tgt_dataset.sizes, self.tgt_dict,
+            src_dataset, src_sizes, self.src_dict,
+            tgt_dataset, tgt_sizes, self.tgt_dict,
             left_pad_source=self.args.left_pad_source,
             left_pad_target=self.args.left_pad_target,
             max_source_positions=self.args.max_source_positions,
