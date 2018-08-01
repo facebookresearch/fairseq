@@ -302,7 +302,8 @@ def load_checkpoint(args, trainer, epoch_itr):
     os.makedirs(args.save_dir, exist_ok=True)
     checkpoint_path = os.path.join(args.save_dir, args.restore_file)
     if os.path.isfile(checkpoint_path):
-        extra_state = trainer.load_checkpoint(checkpoint_path)
+        extra_state = trainer.load_checkpoint(checkpoint_path, args.reset_optimizer, args.reset_lr_scheduler,
+                                              eval(args.optimizer_overrides))
         if extra_state is not None:
             # replay train iterator to match checkpoint
             epoch_itr.load_state_dict(extra_state['train_iterator'])

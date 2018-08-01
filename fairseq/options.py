@@ -228,6 +228,12 @@ def add_checkpoint_args(parser):
                        help='path to save checkpoints')
     group.add_argument('--restore-file', default='checkpoint_last.pt',
                        help='filename in save-dir from which to load checkpoint')
+    group.add_argument('--reset-optimizer', action='store_true',
+                       help='if set, does not load optimizer state from the checkpoint')
+    group.add_argument('--reset-lr-scheduler', action='store_true',
+                       help='if set, does not load lr scheduler state from the checkpoint')
+    group.add_argument('--optimizer-overrides', default="{}", type=str, metavar='DICT',
+                       help='a dictionary used to override optimizer args when loading a checkpoint')
     group.add_argument('--save-interval', type=int, default=1, metavar='N',
                        help='save a checkpoint every N epochs')
     group.add_argument('--save-interval-updates', type=int, default=0, metavar='N',
