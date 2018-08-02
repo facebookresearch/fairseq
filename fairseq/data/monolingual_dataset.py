@@ -63,8 +63,7 @@ class MonolingualDataset(FairseqDataset):
 
     def num_tokens(self, index):
         """Return an example's length (number of tokens), used for batching."""
-        source, target = self.dataset[index]
-        return len(source)
+        return self.sizes[index]
 
     def ordered_indices(self):
         """Ordered indices for batching."""
