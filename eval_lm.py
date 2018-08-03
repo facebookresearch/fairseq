@@ -14,22 +14,27 @@ from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
 
 
-def main(args):
-    assert args.path is not None, '--path required for evaluation!'
+def main(parsed_args):
+    assert parsed_args.path is not None, '--path required for evaluation!'
 
-    args.tokens_per_sample = getattr(args, 'tokens_per_sample', 1024)
-    print(args)
+    print(parsed_args)
 
-    use_cuda = torch.cuda.is_available() and not args.cpu
+    use_cuda = torch.cuda.is_available() and not parsed_args.cpu
 
-    # Load dataset splits
-    task = tasks.setup_task(args)
-    task.load_dataset(args.gen_subset)
-    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
+    task = tasks.setup_task(parsed_args)
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(args.path))
-    models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task)
+    print('| loading model(s) from {}'.format(parsed_args.path))
+    models, args = utils.load_ensemble_for_inference(parsed_args.path.split(':'), task)
+
+    args.__dict__.update(parsed_args.__dict__)
+    print(args)
+
+    task.args = args
+
+    # Load dataset splits
+    task.load_dataset(args.gen_subset)
+    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:

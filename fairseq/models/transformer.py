@@ -193,6 +193,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
 
+        print(args)
+
         decoder = TransformerDecoder(args, task.dictionary, embed_tokens, no_encoder_attn=True)
         return TransformerLanguageModel(decoder)
 
