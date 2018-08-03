@@ -53,6 +53,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
+        parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
+                            help='sets adaptive softmax dropout for the tail projections')
         parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
         parser.add_argument('--no-token-positional-embeddings', action='store_true',
@@ -66,6 +68,11 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='size of character embeddings')
         parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
                             help='number of highway layers for character token embeddder')
+        parser.add_argument('--linear-final-layer', action='store_true',
+                            help='if set, uses a simple linear layer for the final prediction that combines the '
+                                 'forward and backward tower instead of an attentional layer')
+        parser.add_argument('--linear-final-layer-bias', action='store_true',
+                            help='if set, has a bias on the final linear layer')
 
     @classmethod
     def build_model(cls, args, task):
@@ -90,6 +97,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                                                   )
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
+
+        print("Model args: ", args)
 
         decoder = BiTransformerDecoder(args, task.dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
@@ -120,7 +129,13 @@ class BiTransformerDecoder(FairseqDecoder):
                                              for _ in range(args.decoder_layers)])
         self.backward_layers = nn.ModuleList([TransformerDecoderLayer(args)
                                               for _ in range(args.decoder_layers)])
-        self.full_attn_layer = BidirectionalTransformerDecoderLayer(args)
+
+        if args.linear_final_layer:
+            self.full_linear_layer = Linear(embed_dim * 2, embed_dim, args.linear_final_layer_bias)
+            self.full_attn_layer = None
+        else:
+            self.full_linear_layer = None
+            self.full_attn_layer = BidirectionalTransformerDecoderLayer(args)
 
         self.adaptive_softmax = None
 
@@ -128,7 +143,7 @@ class BiTransformerDecoder(FairseqDecoder):
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary), args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
-                dropout=args.dropout
+                dropout=args.adaptive_softmax_dropout,
             )
         elif not self.share_input_output_embed:
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
@@ -189,13 +204,21 @@ class BiTransformerDecoder(FairseqDecoder):
             )
             inner_states.extend((fwd_x, bwd_x))
 
-        x, attn = self.full_attn_layer(
-            fwd_x,
-            bwd_x,
-            padding_mask,
-        )
-
-        inner_states.append(x)
+        if self.full_attn_layer is not None:
+            x, attn = self.full_attn_layer(
+                fwd_x,
+                bwd_x,
+                padding_mask,
+            )
+            inner_states.append(x)
+        elif self.full_linear_layer is not None:
+            zeros = x.new_zeros(1, fwd_x.size(1), fwd_x.size(2))
+            fwd_x = torch.cat([zeros, fwd_x[:-1]], dim=0)
+            bwd_x = torch.cat([bwd_x[1:], zeros], dim=0)
+            x = torch.cat([fwd_x, bwd_x], dim=-1)
+            x = self.full_linear_layer(x)
+            attn = None
+            inner_states.append(x)
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
@@ -350,6 +373,7 @@ def base_bi_lm_architecture(args):
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', args.dropout)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
@@ -357,6 +381,8 @@ def base_bi_lm_architecture(args):
                                      '[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]')
     args.character_embedding_dim = getattr(args, 'character_embedding_dim', 128)
     args.char_embedder_highway_layers = getattr(args, 'char_embedder_highway_layers', 2)
+    args.linear_final_layer = getattr(args, 'linear_final_layer', False)
+    args.linear_final_layer_bias = getattr(args, 'linear_final_layer_bias', False)
 
     # otherwise model training is unstable
     args.decoder_normalize_before = True
