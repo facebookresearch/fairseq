@@ -283,6 +283,9 @@ def add_eval_lm_args(parser):
                        help='if set, outputs words and their predicted log probabilities to standard output')
     group.add_argument('--output-word-stats', action='store_true',
                        help='if set, outputs word statistics such as word count, average probability, etc')
+    group.add_argument('--target-idx', type=int, default=0,
+                       help='if set and the language model has multiple targets, evaluates language model '
+                            'for this particular target')
 
 
 def add_generation_args(parser):

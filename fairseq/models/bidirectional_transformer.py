@@ -68,6 +68,12 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='size of character embeddings')
         parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
                             help='number of highway layers for character token embeddder')
+        parser.add_argument('--exclude-self-target', action='store_true',
+                            help='exclude self target')
+        parser.add_argument('--future-target', action='store_true',
+                            help='include future target')
+        parser.add_argument('--past-target', action='store_true',
+                            help='include past target')
         parser.add_argument('--linear-final-layer', action='store_true',
                             help='if set, uses a simple linear layer for the final prediction that combines the '
                                  'forward and backward tower instead of an attentional layer')
@@ -78,11 +84,17 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
     def build_model(cls, args, task):
         """Build a new model instance."""
 
-        for ds in task.datasets.values():
-            ds.target_is_source = True
-
         # make sure all arguments are present in older models
         base_bi_lm_architecture(args)
+
+        targets = ['self'] if not args.exclude_self_target else []
+        if args.future_target:
+            targets.append('future')
+        if args.past_target:
+            targets.append('past')
+
+        for ds in task.datasets.values():
+            ds.set_targets(targets)
 
         if not hasattr(args, 'max_source_positions'):
             args.max_source_positions = args.tokens_per_sample
@@ -119,6 +131,10 @@ class BiTransformerDecoder(FairseqDecoder):
         self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = args.max_target_positions
 
+        self.exclude_self_target = args.exclude_self_target
+        self.future_target = args.future_target
+        self.past_target = args.past_target
+
         self.embed_tokens = embed_tokens
         self.embed_scale = math.sqrt(embed_dim)
 
@@ -133,12 +149,14 @@ class BiTransformerDecoder(FairseqDecoder):
         self.backward_layers = nn.ModuleList([TransformerDecoderLayer(args)
                                               for _ in range(args.decoder_layers)])
 
-        if args.linear_final_layer:
-            self.full_linear_layer = Linear(embed_dim * 2, embed_dim, args.linear_final_layer_bias)
-            self.full_attn_layer = None
-        else:
-            self.full_linear_layer = None
-            self.full_attn_layer = BidirectionalTransformerDecoderLayer(args)
+        self.full_attn_layer = None
+        self.full_linear_layer = None
+
+        if not self.exclude_self_target:
+            if args.linear_final_layer:
+                self.full_linear_layer = Linear(embed_dim * 2, embed_dim, args.linear_final_layer_bias)
+            else:
+                self.full_attn_layer = BidirectionalTransformerDecoderLayer(args)
 
         self.embed_out = None
         self.adaptive_softmax = None
@@ -208,31 +226,44 @@ class BiTransformerDecoder(FairseqDecoder):
             )
             inner_states.extend((fwd_x, bwd_x))
 
-        if self.full_attn_layer is not None:
-            x, attn = self.full_attn_layer(
-                fwd_x,
-                bwd_x,
-                padding_mask,
-            )
-            inner_states.append(x)
-        elif self.full_linear_layer is not None:
-            zeros = x.new_zeros(1, fwd_x.size(1), fwd_x.size(2))
-            fwd_x = torch.cat([zeros, fwd_x[:-1]], dim=0)
-            bwd_x = torch.cat([bwd_x[1:], zeros], dim=0)
-            x = torch.cat([fwd_x, bwd_x], dim=-1)
-            x = self.full_linear_layer(x)
+        if not self.exclude_self_target:
+            if self.full_attn_layer is not None:
+                x, attn = self.full_attn_layer(
+                    fwd_x,
+                    bwd_x,
+                    padding_mask,
+                )
+                inner_states.append(x)
+            elif self.full_linear_layer is not None:
+                zeros = x.new_zeros(1, fwd_x.size(1), fwd_x.size(2))
+                fwd_x = torch.cat([zeros, fwd_x[:-1]], dim=0)
+                bwd_x = torch.cat([bwd_x[1:], zeros], dim=0)
+                x = torch.cat([fwd_x, bwd_x], dim=-1)
+                x = self.full_linear_layer(x)
+                attn = None
+                inner_states.append(x)
+            x = [x]
+        else:
+            x = []
             attn = None
-            inner_states.append(x)
+
+        if self.future_target:
+            x.append(fwd_x)
+        if self.past_target:
+            x.append(bwd_x)
 
         # T x B x C -> B x T x C
-        x = x.transpose(0, 1)
+        x = [z.transpose(0, 1) for z in x]
 
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
             if self.share_input_output_embed and hasattr(self.embed_tokens, 'weight'):
-                x = F.linear(x, self.embed_tokens.weight)
+                x = [F.linear(x, self.embed_tokens.weight) for x in x]
             elif self.embed_out is not None:
-                x = F.linear(x, self.embed_out)
+                x = [F.linear(x, self.embed_out) for x in x]
+
+        if len(x) == 1:
+            x = x[0]
 
         return x, {'attn': attn, 'inner_states': inner_states}
 
@@ -397,6 +428,10 @@ def base_bi_lm_architecture(args):
     args.char_embedder_highway_layers = getattr(args, 'char_embedder_highway_layers', 2)
     args.linear_final_layer = getattr(args, 'linear_final_layer', False)
     args.linear_final_layer_bias = getattr(args, 'linear_final_layer_bias', False)
+
+    args.exclude_self_target = getattr(args, 'exclude_self_target', False)
+    args.future_target = getattr(args, 'future_target', False)
+    args.past_target = getattr(args, 'past_target', False)
 
     # otherwise model training is unstable
     args.decoder_normalize_before = True

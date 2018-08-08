@@ -90,6 +90,12 @@ class ElmoTokenEmbedder(nn.Module):
         if self.softmax is None:
             nn.init.constant_(self.weights, 1 / (self.num_layers * 2))
 
+    def reset_parameters(self):
+        if self.projection:
+            nn.init.xavier_normal_(self.projection.weight)
+        if self.softmax is None:
+            nn.init.constant_(self.weights, 1 / (self.num_layers * 2))
+
     def _lm_states(self, input):
         if self.tune_lm:
             _, model_out = self.language_model(input)
@@ -113,7 +119,7 @@ class ElmoTokenEmbedder(nn.Module):
             states.insert(-1, s1)
             states.insert(-1, s2)
 
-        if not self.add_final_predictive:
+        if not self.add_final_predictive and len(states) % 2 == 0:
             states = states[:-1]
 
         if self.combine_tower_states:
@@ -124,7 +130,7 @@ class ElmoTokenEmbedder(nn.Module):
             for i in range(1, len(states) - 2 + missing_states, 2):
                 new_states.append(torch.cat([states[i], states[i + 1]], dim=-1))
 
-            if self.add_final_predictive:
+            if self.add_final_predictive and len(states) % 2 == 0:
                 new_states.append(torch.cat([states[-1], states[-1]], dim=-1))
 
             states = new_states

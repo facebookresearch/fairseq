@@ -89,7 +89,7 @@ def main(parsed_args):
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
-    scorer = SequenceScorer(models, task.target_dictionary)
+    scorer = SequenceScorer(models, task.target_dictionary, target_idx=args.target_idx)
     if use_cuda:
         scorer.cuda()
 
