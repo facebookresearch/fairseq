@@ -141,7 +141,7 @@ def train(args, trainer, task, epoch_itr):
             trainer.get_meter('wps').reset()
 
         num_updates = trainer.get_num_updates()
-        if args.save_interval_updates > 0 and num_updates % args.save_interval_updates == 0:
+        if args.save_interval_updates > 0 and num_updates % args.save_interval_updates == 0 and num_updates > 0:
             valid_losses = validate(args, trainer, task, epoch_itr, [first_valid])
             save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
