@@ -11,8 +11,11 @@ import unittest
 
 import torch
 
+from fairseq.criterions.adaptive_loss import AdaptiveLoss
 from fairseq.criterions.cross_entropy import CrossEntropyCriterion
+from fairseq.criterions.label_smoothed_adaptive_loss import LabelSmoothedAdaptiveLoss
 from fairseq.criterions.label_smoothed_cross_entropy import LabelSmoothedCrossEntropyCriterion
+from fairseq.modules.adaptive_softmax import AdaptiveSoftmax
 
 import tests.utils as test_utils
 
@@ -91,6 +94,36 @@ class TestLabelSmoothing(unittest.TestCase):
         nll_loss, nll_sample_size, nll_logging_output = nll_crit(self.model, self.sample)
         smooth_loss, smooth_sample_size, smooth_logging_output = smooth_crit(self.model, self.sample)
         self.assertAlmostEqual(nll_loss, smooth_loss)
+
+    def test_label_smoothed_adaptive_loss(self):
+        args_adaptive_softmax = copy.copy(self.args)
+        args_adaptive_softmax.share_all_embeddings = True
+        args_adaptive_softmax.label_smoothing = 0.1
+        decoder_embed_dim = 7
+        adaptive_softmax_cutoff = [2]
+        model = self.task.build_model(args_adaptive_softmax)
+        model.decoder.adaptive_softmax = AdaptiveSoftmax(
+            len(self.d), decoder_embed_dim,
+            adaptive_softmax_cutoff,
+            dropout=0.0
+        )
+        adaptive_loss = AdaptiveLoss(args_adaptive_softmax, self.task)
+        label_smoothed_adaptive_loss = LabelSmoothedAdaptiveLoss(args_adaptive_softmax, self.task)
+        (
+            adaptive_loss,
+            adaptive_loss_sample_size,
+            adaptive_loss_logging_output
+        ) = adaptive_loss(model, self.sample)
+        (
+            smooth_adaptive_loss,
+            smooth_adaptive_loss_sample_size,
+            smooth_adaptive_loss_logging_output
+        ) = label_smoothed_adaptive_loss(model, self.sample)
+
+        self.assertLess(abs(adaptive_loss - adaptive_loss_logging_output['loss']), 1e-6)
+        self.assertLess(
+            abs(adaptive_loss - smooth_adaptive_loss_logging_output['cross_entropy']), 1e-6
+        )
 
     def assertAlmostEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")

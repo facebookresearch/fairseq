@@ -32,13 +32,26 @@ class AdaptiveLoss(FairseqCriterion):
         """
 
         assert hasattr(model.decoder, 'adaptive_softmax') and model.decoder.adaptive_softmax is not None
-        adaptive_softmax = model.decoder.adaptive_softmax
 
         net_output = model(**sample['net_input'])
+
+        loss = self.compute_cross_entropy_loss(model, net_output, sample, reduce)
+
+        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        logging_output = {
+            'loss': utils.item(loss.data) if reduce else loss.data,
+            'ntokens': sample['ntokens'],
+            'sample_size': sample_size,
+        }
+        return loss, sample_size, logging_output
+
+    def compute_cross_entropy_loss(self, model, net_output, sample, reduce=True):
+        """Compute the cross_entropy loss from the net_output."""
         target = model.get_targets(sample, net_output).view(-1)
 
         bsz = target.size(0)
 
+        adaptive_softmax = model.decoder.adaptive_softmax
         logits, target = adaptive_softmax(net_output[0], target)
         assert len(target) == len(logits)
 
@@ -49,14 +62,7 @@ class AdaptiveLoss(FairseqCriterion):
                 assert (target[i].min() >= 0 and target[i].max() <= logits[i].size(1))
                 loss += F.cross_entropy(logits[i], target[i], size_average=False, ignore_index=self.padding_idx,
                                         reduce=reduce)
-
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
-        logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
-            'ntokens': sample['ntokens'],
-            'sample_size': sample_size,
-        }
-        return loss, sample_size, logging_output
+        return loss
 
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
