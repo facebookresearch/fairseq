@@ -59,8 +59,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         loss = (1. - self.eps) * nll_loss + eps_i * smooth_loss
         return loss, nll_loss
 
-    @staticmethod
-    def aggregate_logging_outputs(logging_outputs):
+    def aggregate_logging_outputs(self, logging_outputs):
         """Aggregate logging outputs from data parallel training."""
         ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
         nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
