@@ -103,6 +103,9 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         decoder = BiTransformerDecoder(args, task.dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
 
+    def remove_head(self):
+        self.decoder.remove_head()
+
 
 class BiTransformerDecoder(FairseqDecoder):
     """Transformer decoder."""
@@ -137,6 +140,7 @@ class BiTransformerDecoder(FairseqDecoder):
             self.full_linear_layer = None
             self.full_attn_layer = BidirectionalTransformerDecoderLayer(args)
 
+        self.embed_out = None
         self.adaptive_softmax = None
 
         if args.adaptive_softmax_cutoff is not None:
@@ -225,16 +229,26 @@ class BiTransformerDecoder(FairseqDecoder):
 
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
-            if self.share_input_output_embed:
+            if self.share_input_output_embed and hasattr(self.embed_tokens, 'weight'):
                 x = F.linear(x, self.embed_tokens.weight)
-            else:
+            elif self.embed_out is not None:
                 x = F.linear(x, self.embed_out)
 
         return x, {'attn': attn, 'inner_states': inner_states}
 
+    def remove_head(self):
+        if hasattr(self, 'adaptive_softmax') and self.adaptive_softmax is not None:
+            del self.adaptive_softmax
+            self.adaptive_softmax = None
+        if hasattr(self, 'embed_out') and self.embed_out is not None:
+            del self.embed_out
+            self.embed_out = None
+
+        self.share_input_output_embed = False
+
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
-        if not hasattr(self, '_future_mask') or self._future_mask is None:
+        if not hasattr(self, '_future_mask') or self._future_mask is None or self._future_mask.device != tensor.device:
             self._future_mask = torch.triu(utils.fill_with_neg_inf(tensor.new(dim, dim)), 1)
         if self._future_mask.size(0) < dim:
             self._future_mask = torch.triu(utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1)
@@ -242,7 +256,7 @@ class BiTransformerDecoder(FairseqDecoder):
 
     def buffered_past_mask(self, tensor):
         dim = tensor.size(0)
-        if not hasattr(self, '_past_mask') or self._past_mask is None:
+        if not hasattr(self, '_past_mask') or self._past_mask is None or self._past_mask.device != tensor.device:
             self._past_mask = torch.tril(utils.fill_with_neg_inf(tensor.new(dim, dim)), -1)
         if self._past_mask.size(0) < dim:
             self._past_mask = torch.tril(utils.fill_with_neg_inf(self._past_mask.resize_(dim, dim)), -1)

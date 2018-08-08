@@ -11,6 +11,7 @@ from .beamable_mm import BeamableMM
 from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
+from .elmo_token_embedder import ElmoTokenEmbedder
 from .grad_multiply import GradMultiply
 from .highway import Highway
 from .learned_positional_embedding import LearnedPositionalEmbedding
@@ -26,6 +27,7 @@ __all__ = [
     'CharacterTokenEmbedder',
     'ConvTBC',
     'DownsampledMultiHeadAttention',
+    'ElmoTokenEmbedder',
     'GradMultiply',
     'Highway',
     'LearnedPositionalEmbedding',
