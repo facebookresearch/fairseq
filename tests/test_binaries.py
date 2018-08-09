@@ -58,6 +58,26 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--update-freq', '3'])
                 generate_main(data_dir)
 
+    def test_generation(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_sampling') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'fconv_iwslt_de_en')
+                generate_main(data_dir, [
+                    '--sampling',
+                    '--sampling-temperature', '2',
+                    '--beam', '2',
+                    '--nbest', '2',
+                ])
+                generate_main(data_dir, [
+                    '--sampling',
+                    '--sampling-topk', '3',
+                    '--beam', '2',
+                    '--nbest', '2',
+                ])
+                generate_main(data_dir, ['--prefix-size', '2'])
+
     def test_lstm(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_lstm') as data_dir:
