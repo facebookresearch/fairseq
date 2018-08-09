@@ -200,6 +200,9 @@ class TransformerEncoder(FairseqEncoder):
             TransformerEncoderLayer(args)
             for i in range(args.encoder_layers)
         ])
+        self.normalize = args.encoder_normalize_before
+        if self.normalize:
+           self.layer_norm = LayerNorm(embed_dim)
 
     def forward(self, src_tokens, src_lengths):
         # embed tokens and positions
@@ -219,6 +222,9 @@ class TransformerEncoder(FairseqEncoder):
         # encoder layers
         for layer in self.layers:
             x = layer(x, encoder_padding_mask)
+
+        if self.normalize:
+            x = self.layer_norm(x)
 
         return {
             'encoder_out': x,  # T x B x C
@@ -285,6 +291,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         elif not self.share_input_output_embed:
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
             nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
+        self.normalize = args.decoder_normalize_before
+        if self.normalize:
+           self.layer_norm = LayerNorm(embed_dim)
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
         # embed positions
@@ -316,6 +325,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 incremental_state,
             )
+
+        if self.normalize:
+            x = self.layer_norm(x)
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
