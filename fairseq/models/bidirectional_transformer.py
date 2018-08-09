@@ -119,9 +119,6 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         for ds in task.datasets.values():
             ds.set_targets(targets)
 
-    def remove_head(self):
-        self.decoder.remove_head()
-
 
 class BiTransformerDecoder(FairseqDecoder):
     """Transformer decoder."""
@@ -162,18 +159,20 @@ class BiTransformerDecoder(FairseqDecoder):
             else:
                 self.full_attn_layer = BidirectionalTransformerDecoderLayer(args)
 
+        self.load_softmax = not getattr(args, 'remove_head', False)
         self.embed_out = None
         self.adaptive_softmax = None
 
-        if args.adaptive_softmax_cutoff is not None:
-            self.adaptive_softmax = AdaptiveSoftmax(
-                len(dictionary), args.decoder_embed_dim,
-                options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
-                dropout=args.adaptive_softmax_dropout,
-            )
-        elif not self.share_input_output_embed:
-            self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
-            nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
+        if self.load_softmax:
+            if args.adaptive_softmax_cutoff is not None:
+                self.adaptive_softmax = AdaptiveSoftmax(
+                    len(dictionary), args.decoder_embed_dim,
+                    options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
+                    dropout=args.adaptive_softmax_dropout,
+                )
+            elif not self.share_input_output_embed:
+                self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
+                nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
     def forward(self, source_tokens, **unused):
         """ Forward pass for the bidirectional transformer
@@ -271,15 +270,6 @@ class BiTransformerDecoder(FairseqDecoder):
 
         return x, {'attn': attn, 'inner_states': inner_states}
 
-    def remove_head(self):
-        if hasattr(self, 'adaptive_softmax') and self.adaptive_softmax is not None:
-            del self.adaptive_softmax
-            self.adaptive_softmax = None
-        if hasattr(self, 'embed_out') and self.embed_out is not None:
-            del self.embed_out
-            self.embed_out = None
-
-        self.share_input_output_embed = False
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
@@ -303,9 +293,13 @@ class BiTransformerDecoder(FairseqDecoder):
             return self.max_target_positions
         return min(self.max_target_positions, self.embed_positions.max_positions())
 
-    def upgrade_state_dict(self, state_dict):
+    def upgrade_state_dict_named(self, state_dict, name):
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
-            state_dict['decoder.embed_positions._float_tensor'] = torch.FloatTensor(1)
+            state_dict[name + '.embed_positions._float_tensor'] = torch.FloatTensor(1)
+        if not self.load_softmax:
+            for k in list(state_dict.keys()):
+                if k.startswith(name + '.adaptive_softmax.') or k.startswith(name + '.embed_out'):
+                    del state_dict[k]
         return state_dict
 
 
