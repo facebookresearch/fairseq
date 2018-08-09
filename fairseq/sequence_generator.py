@@ -9,7 +9,7 @@ import math
 
 import torch
 
-from fairseq import utils
+from fairseq import search, utils
 from fairseq.models import FairseqIncrementalDecoder
 
 
@@ -43,9 +43,13 @@ class SequenceGenerator(object):
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
         self.retain_dropout = retain_dropout
-        self.sampling = sampling
-        self.sampling_topk = sampling_topk
-        self.sampling_temperature = sampling_temperature
+
+        assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
+
+        if sampling:
+            self.search = search.Sampling(tgt_dict, sampling_topk, sampling_temperature)
+        else:
+            self.search = search.BeamSearch(tgt_dict)
 
     def cuda(self):
         for model in self.models:
@@ -273,19 +277,10 @@ class SequenceGenerator(object):
                         model.decoder.reorder_incremental_state(incremental_states[model], reorder_state)
                     encoder_outs[i] = model.encoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
-            probs, avg_attn_scores = self._decode(tokens[:, :step + 1], encoder_outs, incremental_states)
-            if step == 0:
-                # at the first step all hypotheses are equally likely, so use
-                # only the first beam
-                probs = probs.unfold(0, 1, beam_size).squeeze(2).contiguous()
-                scores = scores.type_as(probs)
-                scores_buf = scores_buf.type_as(probs)
-            elif not self.sampling:
-                # make probs contain cumulative scores for each hypothesis
-                probs.add_(scores[:, step - 1].view(-1, 1))
+            lprobs, avg_attn_scores = self._decode(tokens[:, :step + 1], encoder_outs, incremental_states)
 
-            probs[:, self.pad] = -math.inf  # never select pad
-            probs[:, self.unk] -= self.unk_penalty  # apply unk penalty
+            lprobs[:, self.pad] = -math.inf  # never select pad
+            lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             # Record attention scores
             if avg_attn_scores is not None:
@@ -295,74 +290,33 @@ class SequenceGenerator(object):
                     nonpad_idxs = src_tokens.ne(self.pad)
                 attn[:, :, step + 1].copy_(avg_attn_scores)
 
-            cand_scores = buffer('cand_scores', type_of=scores)
-            cand_indices = buffer('cand_indices')
-            cand_beams = buffer('cand_beams')
+            scores = scores.type_as(lprobs)
+            scores_buf = scores_buf.type_as(lprobs)
             eos_bbsz_idx = buffer('eos_bbsz_idx')
             eos_scores = buffer('eos_scores', type_of=scores)
             if step < maxlen:
                 if prefix_tokens is not None and step < prefix_tokens.size(1):
-                    probs_slice = probs.view(bsz, -1, probs.size(-1))[:, 0, :]
+                    probs_slice = lprobs.view(bsz, -1, lprobs.size(-1))[:, 0, :]
                     cand_scores = torch.gather(
                         probs_slice, dim=1,
                         index=prefix_tokens[:, step].view(-1, 1).data
                     ).expand(-1, cand_size)
                     cand_indices = prefix_tokens[:, step].view(-1, 1).expand(bsz, cand_size).data
-                    cand_beams.resize_as_(cand_indices).fill_(0)
-                elif self.sampling:
-                    assert self.pad == 1, 'sampling assumes the first two symbols can be ignored'
-
-                    if self.sampling_topk > 0:
-                        values, indices = probs[:, 2:].topk(self.sampling_topk)
-                        exp_probs = values.div_(self.sampling_temperature).exp()
-                        if step == 0:
-                            torch.multinomial(exp_probs, beam_size, replacement=True, out=cand_indices)
-                        else:
-                            torch.multinomial(exp_probs, 1, replacement=True, out=cand_indices)
-                        torch.gather(exp_probs, dim=1, index=cand_indices, out=cand_scores)
-                        torch.gather(indices, dim=1, index=cand_indices, out=cand_indices)
-                        cand_indices.add_(2)
-                    else:
-                        exp_probs = probs.div_(self.sampling_temperature).exp_().view(-1, self.vocab_size)
-
-                        if step == 0:
-                            # we exclude the first two vocab items, one of which is pad
-                            torch.multinomial(exp_probs[:, 2:], beam_size, replacement=True, out=cand_indices)
-                        else:
-                            torch.multinomial(exp_probs[:, 2:], 1, replacement=True, out=cand_indices)
-
-                        cand_indices.add_(2)
-                        torch.gather(exp_probs, dim=1, index=cand_indices, out=cand_scores)
-
-                    cand_scores.log_()
-                    cand_indices = cand_indices.view(bsz, -1).repeat(1, 2)
-                    cand_scores = cand_scores.view(bsz, -1).repeat(1, 2)
-                    if step == 0:
-                        cand_beams = torch.zeros(bsz, cand_size).type_as(cand_indices)
-                    else:
-                        cand_beams = torch.arange(0, beam_size).repeat(bsz, 2).type_as(cand_indices)
-                        # make scores cumulative
-                        cand_scores.add_(
-                            torch.gather(
-                                scores[:, step - 1].view(bsz, beam_size), dim=1,
-                                index=cand_beams,
-                            )
-                        )
+                    cand_beams = torch.zeros_like(cand_indices)
                 else:
-                    # take the best 2 x beam_size predictions. We'll choose the first
-                    # beam_size of these which don't predict eos to continue with.
-                    torch.topk(
-                        probs.view(bsz, -1),
-                        k=min(cand_size, probs.view(bsz, -1).size(1) - 1),  # -1 so we never select pad
-                        out=(cand_scores, cand_indices),
+                    cand_scores, cand_indices, cand_beams = self.search.step(
+                        step,
+                        lprobs.view(bsz, -1, self.vocab_size),
+                        scores.view(bsz, beam_size, -1)[:, :, :step],
                     )
-                    torch.div(cand_indices, self.vocab_size, out=cand_beams)
-                    cand_indices.fmod_(self.vocab_size)
             else:
+                # make probs contain cumulative scores for each hypothesis
+                lprobs.add_(scores[:, step - 1].unsqueeze(-1))
+
                 # finalize all active hypotheses once we hit maxlen
                 # pick the hypothesis with the highest prob of EOS right now
                 torch.sort(
-                    probs[:, self.eos],
+                    lprobs[:, self.eos],
                     descending=True,
                     out=(eos_scores, eos_bbsz_idx),
                 )
@@ -406,7 +360,7 @@ class SequenceGenerator(object):
                 new_bsz = bsz - len(finalized_sents)
 
                 # construct batch_idxs which holds indices of batches to keep for the next pass
-                batch_mask = torch.ones(bsz).type_as(cand_indices)
+                batch_mask = cand_indices.new_ones(bsz)
                 batch_mask[cand_indices.new(finalized_sents)] = 0
                 batch_idxs = batch_mask.nonzero().squeeze(-1)
 
