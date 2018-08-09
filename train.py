@@ -155,7 +155,7 @@ def train(args, trainer, task, epoch_itr):
     progress.print(stats)
 
     # reset training meters
-    for k in ['train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'clip']:
+    for k in ['train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'clip', 'gnorm']:
         meter = trainer.get_meter(k)
         if meter is not None:
             meter.reset()
