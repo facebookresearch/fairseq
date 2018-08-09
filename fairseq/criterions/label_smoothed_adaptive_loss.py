@@ -46,7 +46,7 @@ class LabelSmoothedAdaptiveLoss(AdaptiveLoss):
         return loss, sample_size, logging_output
 
     def compute_smooth_loss(self, model, net_output, sample, reduce=True):
-        "Helper function to compute the smoothed loss"
+        """Helper function to compute the smoothed loss."""
         target = model.get_targets(sample, net_output).view(-1, 1)
         non_pad_mask = target.ne(self.padding_idx)
 

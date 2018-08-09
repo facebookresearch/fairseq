@@ -15,6 +15,7 @@ from fairseq.criterions.adaptive_loss import AdaptiveLoss
 from fairseq.criterions.cross_entropy import CrossEntropyCriterion
 from fairseq.criterions.label_smoothed_adaptive_loss import LabelSmoothedAdaptiveLoss
 from fairseq.criterions.label_smoothed_cross_entropy import LabelSmoothedCrossEntropyCriterion
+from fairseq.models.transformer import TransformerModel
 from fairseq.modules.adaptive_softmax import AdaptiveSoftmax
 
 import tests.utils as test_utils
@@ -124,6 +125,24 @@ class TestLabelSmoothing(unittest.TestCase):
         self.assertLess(
             abs(adaptive_loss - smooth_adaptive_loss_logging_output['cross_entropy']), 1e-6
         )
+        smooth_adaptive_loss.backward()
+        adaptive_loss.backward()
+
+   def test_label_smoothed_adaptive_loss_on_transformer_model(self):
+        trans_args = copy.copy(self.args)
+        trans_args.share_all_embeddings = True
+        trans_args.encoder_embed_dim = 8
+        trans_args.decoder_embed_dim = 8
+        trans_args.adaptive_softmax_cutoff = '2,3'
+        trans_args.label_smoothing = 0.1
+        transformer_model = TransformerModel.build_model(trans_args, self.task)
+        label_smoothed_adaptive_loss = LabelSmoothedAdaptiveLoss(trans_args, self.task)
+        (
+            smooth_adaptive_loss,
+            smooth_adaptive_loss_sample_size,
+            smooth_adaptive_loss_logging_output
+        ) = label_smoothed_adaptive_loss(transformer_model, self.sample)
+        smooth_adaptive_loss.backward()
 
     def assertAlmostEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")

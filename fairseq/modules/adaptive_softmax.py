@@ -127,12 +127,12 @@ class AdaptiveSoftmax(nn.Module):
             if target_idxs is None:
                 tail_out = log_probs[:, start:end]
                 tail_out.copy_(self.tail[i](input))
-                log_probs[:, start:end] = self.lsm(tail_out).add_(tail_priors[:, i, None])
+                log_probs[:, start:end] = self.lsm(tail_out).add(tail_priors[:, i, None])
             elif target_idxs[i] is not None:
                 idxs = target_idxs[i]
                 tail_out = log_probs[idxs, start:end]
                 tail_out.copy_(self.tail[i](input[idxs]))
-                log_probs[idxs, start:end] = self.lsm(tail_out).add_(tail_priors[idxs, i, None])
+                log_probs[idxs, start:end] = self.lsm(tail_out).add(tail_priors[idxs, i, None])
 
         log_probs = log_probs.view(bsz, length, -1)
         return log_probs
