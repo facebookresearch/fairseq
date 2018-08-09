@@ -108,32 +108,38 @@ class ElmoTokenEmbedder(nn.Module):
         # TBC -> BTC
         states = [s.transpose(0, 1) for s in model_out['inner_states']]
 
+        has_final_predictive = len(states) % 2 == 0
+
         if self.add_final_context:
             zeros = states[-1].new_zeros(states[-1].size(0), 1, states[-1].size(2))
             if states[-1].size(1) == 1:
-                s1 = torch.cat([zeros, zeros], dim=1)
-                s2 = torch.cat([zeros, zeros], dim=1)
+                s1 = s2 = zeros
             else:
                 s1 = torch.cat([zeros, states[-1][:, :-1, :]], dim=1)
                 s2 = torch.cat([states[-1][:, 1:, :], zeros], dim=1)
-            states.insert(-1, s1)
-            states.insert(-1, s2)
-
-        if not self.add_final_predictive and len(states) % 2 == 0:
-            states = states[:-1]
+            if has_final_predictive:
+                states.insert(-1, s1)
+                states.insert(-1, s2)
+            else:
+                states.extend([s1, s2])
 
         if self.combine_tower_states:
             new_states = [torch.cat([states[0], states[0]], dim=-1)]
 
-            missing_states = 1 if not self.add_final_predictive else 0
+            start = 1  # first element is the token embeddings
+            end = len(states)
+            if has_final_predictive:
+                end -= 1
 
-            for i in range(1, len(states) - 2 + missing_states, 2):
+            for i in range(start, end, 2):
                 new_states.append(torch.cat([states[i], states[i + 1]], dim=-1))
 
-            if self.add_final_predictive and len(states) % 2 == 0:
+            if self.add_final_predictive and has_final_predictive:
                 new_states.append(torch.cat([states[-1], states[-1]], dim=-1))
 
             states = new_states
+        elif not self.add_final_predictive and has_final_predictive:
+                states = states[:-1]
 
         return states
 
