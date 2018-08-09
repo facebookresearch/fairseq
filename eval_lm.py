@@ -71,6 +71,8 @@ def main(parsed_args):
         model.make_generation_fast_()
         if args.fp16:
             model.half()
+        if hasattr(model, 'set_targets'):
+            model.set_targets(args, task)
 
     assert len(models) > 0
 

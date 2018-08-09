@@ -87,14 +87,7 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         # make sure all arguments are present in older models
         base_bi_lm_architecture(args)
 
-        targets = ['self'] if not args.exclude_self_target else []
-        if args.future_target:
-            targets.append('future')
-        if args.past_target:
-            targets.append('past')
-
-        for ds in task.datasets.values():
-            ds.set_targets(targets)
+        cls.set_targets(args, task)
 
         if not hasattr(args, 'max_source_positions'):
             args.max_source_positions = args.tokens_per_sample
@@ -114,6 +107,17 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
 
         decoder = BiTransformerDecoder(args, task.dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
+
+    @classmethod
+    def set_targets(cls, args, task):
+        targets = ['self'] if not args.exclude_self_target else []
+        if args.future_target:
+            targets.append('future')
+        if args.past_target:
+            targets.append('past')
+
+        for ds in task.datasets.values():
+            ds.set_targets(targets)
 
     def remove_head(self):
         self.decoder.remove_head()
