@@ -80,6 +80,69 @@ class BeamSearch(Search):
         return self.scores_buf, self.indices_buf, self.beams_buf
 
 
+class DiverseBeamSearch(Search):
+    """Diverse Beam Search.
+
+    See "Diverse Beam Search: Decoding Diverse Solutions from Neural Sequence
+    Models" for details.
+
+    We only implement the Hamming Diversity penalty here, which performed best
+    in the original paper.
+    """
+
+    def __init__(self, tgt_dict, num_groups, diversity_strength):
+        super().__init__(tgt_dict)
+        self.num_groups = num_groups
+        self.diversity_strength = -diversity_strength
+        self.diversity_buf = None
+        self.beam = BeamSearch(tgt_dict)
+
+    def step(self, step, lprobs, scores):
+        super()._init_buffers(lprobs)
+        bsz, beam_size, vocab_size = lprobs.size()
+        if beam_size % self.num_groups != 0:
+            raise ValueError(
+                'DiverseBeamSearch requires --beam to be divisible by the number of groups'
+            )
+        group_size = beam_size // self.num_groups
+
+        # initialize diversity penalty
+        if self.diversity_buf is None:
+            self.diversity_buf = lprobs.new()
+        torch.zeros(lprobs[:, 0, :].size(), out=self.diversity_buf)
+
+        scores_G, indices_G, beams_G = [], [], []
+        for g in range(self.num_groups):
+            lprobs_g = lprobs[:, g::self.num_groups, :]
+            scores_g = scores[:, g::self.num_groups, :] if step > 0 else None
+
+            # apply diversity penalty
+            if g > 0:
+                lprobs_g = torch.add(lprobs_g, self.diversity_strength, self.diversity_buf.unsqueeze(1))
+            else:
+                lprobs_g = lprobs_g.contiguous()
+
+            scores_buf, indices_buf, beams_buf = self.beam.step(step, lprobs_g, scores_g)
+            beams_buf.mul_(self.num_groups).add_(g)
+
+            scores_G.append(scores_buf.clone())
+            indices_G.append(indices_buf.clone())
+            beams_G.append(beams_buf.clone())
+
+            # update diversity penalty
+            self.diversity_buf.scatter_add_(
+                1,
+                indices_buf,
+                self.diversity_buf.new_ones(indices_buf.size())
+            )
+
+        # interleave results from different groups
+        self.scores_buf = torch.stack(scores_G, dim=2, out=self.scores_buf).view(bsz, -1)
+        self.indices_buf = torch.stack(indices_G, dim=2, out=self.indices_buf).view(bsz, -1)
+        self.beams_buf = torch.stack(beams_G, dim=2, out=self.beams_buf).view(bsz, -1)
+        return self.scores_buf, self.indices_buf, self.beams_buf
+
+
 class Sampling(Search):
 
     def __init__(self, tgt_dict, sampling_topk=-1, sampling_temperature=1.):

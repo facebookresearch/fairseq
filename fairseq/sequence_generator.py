@@ -18,6 +18,7 @@ class SequenceGenerator(object):
         self, models, tgt_dict, beam_size=1, minlen=1, maxlen=None, stop_early=True,
         normalize_scores=True, len_penalty=1, unk_penalty=0, retain_dropout=False,
         sampling=False, sampling_topk=-1, sampling_temperature=1,
+        diverse_beam_groups=-1, diverse_beam_strength=0.5,
     ):
         """Generates translations of a given source sentence.
         Args:
@@ -48,6 +49,8 @@ class SequenceGenerator(object):
 
         if sampling:
             self.search = search.Sampling(tgt_dict, sampling_topk, sampling_temperature)
+        elif diverse_beam_groups > 0:
+            self.search = search.DiverseBeamSearch(tgt_dict, diverse_beam_groups, diverse_beam_strength)
         else:
             self.search = search.BeamSearch(tgt_dict)
 
@@ -402,6 +405,7 @@ class SequenceGenerator(object):
                 active_mask, k=beam_size, dim=1, largest=False,
                 out=(_ignore, active_hypos)
             )
+
             active_bbsz_idx = buffer('active_bbsz_idx')
             torch.gather(
                 cand_bbsz_idx, dim=1, index=active_hypos,
