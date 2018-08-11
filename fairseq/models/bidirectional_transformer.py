@@ -79,6 +79,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                                  'forward and backward tower instead of an attentional layer')
         parser.add_argument('--linear-final-layer-bias', action='store_true',
                             help='if set, has a bias on the final linear layer')
+        parser.add_argument('--no-bias-kv', action='store_true',
+                            help='if set, pads attn with zero instead of adding a learnable bias kv')
 
     @classmethod
     def build_model(cls, args, task):
@@ -311,7 +313,7 @@ class TransformerDecoderLayer(nn.Module):
         self.embed_dim = args.decoder_embed_dim
         self.self_attn = MultiheadAttention(
             self.embed_dim, args.decoder_attention_heads,
-            dropout=args.attention_dropout, add_bias_kv=True,
+            dropout=args.attention_dropout, add_bias_kv=not args.no_bias_kv, add_zero_attn=args.no_bias_kv,
         )
         self.dropout = args.dropout
         self.relu_dropout = args.relu_dropout
@@ -430,6 +432,8 @@ def base_bi_lm_architecture(args):
     args.exclude_self_target = getattr(args, 'exclude_self_target', False)
     args.future_target = getattr(args, 'future_target', False)
     args.past_target = getattr(args, 'past_target', False)
+
+    args.no_bias_kv = getattr(args, 'no_bias_kv', False)
 
     # otherwise model training is unstable
     args.decoder_normalize_before = True
