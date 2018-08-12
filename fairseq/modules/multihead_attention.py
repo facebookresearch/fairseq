@@ -173,11 +173,7 @@ class MultiheadAttention(nn.Module):
             ).type_as(attn_weights)  # FP16 support: cast to float and back
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        if self.add_zero_attn:
-            attn_weights = torch.cat([attn_weights, attn_weights.new_zeros(attn_weights.size()[:-1] + (1,))], dim=-1)
         attn_weights = F.softmax(attn_weights.float(), dim=-1).type_as(attn_weights)
-        if self.add_zero_attn:
-            attn_weights = attn_weights[:,:,:-1]
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
 
         attn = torch.bmm(attn_weights, v)
