@@ -52,7 +52,7 @@ def suppress_output():
     __builtin__.print = print
 
 
-def all_gather_list(data, max_size=4096):
+def all_gather_list(data, max_size=16384):
     """Gathers arbitrary data from all nodes into a list."""
     world_size = torch.distributed.get_world_size()
     if not hasattr(all_gather_list, '_in_buffer') or \
