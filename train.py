@@ -42,6 +42,9 @@ def main(args):
 
     # Build trainer
     if args.fp16:
+        if torch.cuda.get_device_capability(0)[0] < 7:
+            print('| WARNING: your device does NOT support faster training with --fp16,'
+                  ' please switch to FP32 which is likely to be faster')
         trainer = FP16Trainer(args, task, model, criterion)
     else:
         if torch.cuda.get_device_capability(0)[0] >= 7:
