@@ -222,10 +222,7 @@ class LSTMEncoder(FairseqEncoder):
         if self.bidirectional:
 
             def combine_bidir(outs):
-                return torch.cat([
-                    torch.cat([outs[2 * i], outs[2 * i + 1]], dim=0).view(1, bsz, self.output_units)
-                    for i in range(self.num_layers)
-                ], dim=0)
+                return outs.view(self.num_layers, 2, bsz, -1).transpose(1, 2).contiguous().view(self.num_layers, bsz, -1)
 
             final_hiddens = combine_bidir(final_hiddens)
             final_cells = combine_bidir(final_cells)
