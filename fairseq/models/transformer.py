@@ -253,7 +253,7 @@ class TransformerEncoder(FairseqEncoder):
                 del state_dict['encoder.embed_positions.weights']
             state_dict['encoder.embed_positions._float_tensor'] = torch.FloatTensor(1)
         if state_dict.get('encoder.version', torch.Tensor([1]))[0] < 2:
-#earlier checkpoints did not normalize after the stack of layers
+            # earlier checkpoints did not normalize after the stack of layers
             self.layer_norm = None
             self.normalize = False
             state_dict['encoder.version'] = torch.Tensor([1])
@@ -374,7 +374,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                         state_dict['decoder.layers.{}.{}.{}'.format(i, new, m)] = state_dict[k]
                         del state_dict[k]
         if state_dict.get('decoder.version', torch.Tensor([1]))[0] < 2:
-#earlier checkpoints did not normalize after the stack of layers
+            # earlier checkpoints did not normalize after the stack of layers
             self.layer_norm = None
             self.normalize = False
             state_dict['decoder.version'] = torch.Tensor([1])
