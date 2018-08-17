@@ -71,11 +71,11 @@ def main(args):
         translator = SequenceScorer(models, task.target_dictionary)
     else:
         translator = SequenceGenerator(
-            models, task.target_dictionary, beam_size=args.beam,
+            models, task.target_dictionary, beam_size=args.beam, minlen=args.min_len,
             stop_early=(not args.no_early_stop), normalize_scores=(not args.unnormalized),
             len_penalty=args.lenpen, unk_penalty=args.unkpen,
-            sampling=args.sampling, sampling_topk=args.sampling_topk, minlen=args.min_len,
-            sampling_temperature=args.sampling_temperature,
+            sampling=args.sampling, sampling_topk=args.sampling_topk, sampling_temperature=args.sampling_temperature,
+            diverse_beam_groups=args.diverse_beam_groups, diverse_beam_strength=args.diverse_beam_strength,
         )
 
     if use_cuda:
