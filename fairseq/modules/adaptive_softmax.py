@@ -25,7 +25,7 @@ class AdaptiveSoftmax(nn.Module):
             cutoff = cutoff + [vocab_size]
         else:
             assert vocab_size == cutoff[
-                -1], 'cannot specify cutoff smaller than vocab size'
+                -1], 'cannot specify cutoff larger than vocab size'
 
         output_dim = cutoff[0] + len(cutoff) - 1
 
