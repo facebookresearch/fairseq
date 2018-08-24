@@ -107,7 +107,7 @@ class Trainer(object):
             self._num_updates = last_optim['num_updates']
 
         if extra_state is not None and 'train_meters' in extra_state:
-            self.meters = extra_state['train_meters']
+            self.meters.update(extra_state['train_meters'])
             del extra_state['train_meters']
 
             # reset TimeMeters, since their start times don't make sense anymore
