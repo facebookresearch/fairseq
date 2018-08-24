@@ -185,6 +185,7 @@ def get_training_stats(trainer):
     if trainer.get_meter('loss_scale') is not None:
         stats['loss_scale'] = '{:.3f}'.format(trainer.get_meter('loss_scale').avg)
     stats['wall'] = round(trainer.get_meter('wall').elapsed_time)
+    stats['train_wall'] = round(trainer.get_meter('train_wall').sum)
     return stats
 
 
