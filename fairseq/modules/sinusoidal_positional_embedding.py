@@ -30,7 +30,11 @@ class SinusoidalPositionalEmbedding(nn.Module):
             embedding_dim,
             padding_idx,
         )
+        self.onnx_trace = False
         self.register_buffer('_float_tensor', torch.FloatTensor(1))
+
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True
 
     @staticmethod
     def get_embedding(num_embeddings, embedding_dim, padding_idx=None):
@@ -68,7 +72,14 @@ class SinusoidalPositionalEmbedding(nn.Module):
             # positions is the same for every token when decoding a single step
             return self.weights[self.padding_idx + seq_len, :].expand(bsz, 1, -1)
 
-        positions = utils.make_positions(input.data, self.padding_idx, self.left_pad)
+        positions = utils.make_positions(input, self.padding_idx, self.left_pad, self.onnx_trace)
+        if self.onnx_trace:
+            bsz = torch.onnx.operators.shape_as_tensor(input)[0]
+            seq_len = torch.onnx.operators.shape_as_tensor(input)[1]
+            flat_embeddings = self.weights.detach().index_select(0, positions.view(-1))
+            embedding_shape = torch.cat((bsz.view(1), seq_len.view(1), torch.LongTensor([-1])))
+            embeddings = torch.onnx.operators.reshape_from_tensor_shape(flat_embeddings, embedding_shape)
+            return embeddings
         return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
 
     def max_positions(self):

@@ -34,6 +34,17 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(**sample['net_input'])
+        loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
+        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        logging_output = {
+            'loss': utils.item(loss.data) if reduce else loss.data,
+            'nll_loss': utils.item(nll_loss.data) if reduce else nll_loss.data,
+            'ntokens': sample['ntokens'],
+            'sample_size': sample_size,
+        }
+        return loss, sample_size, logging_output
+
+    def compute_loss(self, model, net_output, sample, reduce=True):
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
         lprobs = lprobs.view(-1, lprobs.size(-1))
         target = model.get_targets(sample, net_output).view(-1, 1)
@@ -45,15 +56,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             smooth_loss = smooth_loss.sum()
         eps_i = self.eps / lprobs.size(-1)
         loss = (1. - self.eps) * nll_loss + eps_i * smooth_loss
+        return loss, nll_loss
 
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
-        logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
-            'nll_loss': utils.item(nll_loss.data) if reduce else nll_loss.data,
-            'ntokens': sample['ntokens'],
-            'sample_size': sample_size,
-        }
-        return loss, sample_size, logging_output
 
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
