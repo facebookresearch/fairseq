@@ -497,7 +497,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
         return self.embed_positions.max_positions() if self.embed_positions is not None else float('inf')
 
     def upgrade_state_dict(self, state_dict):
-        if state_dict.get('decoder.version', torch.Tensor([1]))[0] < 2:
+        if utils.item(state_dict.get('decoder.version', torch.Tensor([1]))[0]) < 2:
             # old models use incorrect weight norm dimension
             for i, conv in enumerate(self.convolutions):
                 # reconfigure weight norm
