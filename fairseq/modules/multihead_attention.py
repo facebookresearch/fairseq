@@ -161,17 +161,12 @@ class MultiheadAttention(nn.Module):
     def in_proj_v(self, value):
         return self._in_proj(value, start=2*self.embed_dim)
 
-    def _in_proj(self, input, start=None, end=None):
+    def _in_proj(self, input, start=0, end=None):
         weight = self.in_proj_weight
         bias = self.in_proj_bias
-        if end is not None:
-            weight = weight[:end, :]
-            if bias is not None:
-                bias = bias[:end]
-        if start is not None:
-            weight = weight[start:, :]
-            if bias is not None:
-                bias = bias[start:]
+        weight = weight[start:end, :]
+        if bias is not None:
+            bias = bias[start:end]
         return F.linear(input, weight, bias)
 
     def buffered_mask(self, tensor):

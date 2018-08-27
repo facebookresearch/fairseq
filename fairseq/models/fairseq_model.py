@@ -100,6 +100,14 @@ class BaseFairseqModel(nn.Module):
         self.eval()
         self.train = train
 
+    def prepare_for_onnx_export_(self, **kwargs):
+        """Make model exportable via ONNX trace."""
+        def apply_prepare_for_onnx_export_(module):
+            if module != self and hasattr(module, 'prepare_for_onnx_export_'):
+                module.prepare_for_onnx_export_(**kwargs)
+
+        self.apply(apply_prepare_for_onnx_export_)
+
 
 class FairseqModel(BaseFairseqModel):
     """Base class for encoder-decoder models."""
