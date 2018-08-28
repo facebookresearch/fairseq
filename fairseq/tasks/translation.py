@@ -41,6 +41,8 @@ class TranslationTask(FairseqTask):
                             help='max number of tokens in the source sequence')
         parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
                             help='max number of tokens in the target sequence')
+        parser.add_argument('--upsample-primary', default=1, type=int,
+                            help='amount to upsample primary dataset')
 
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args)
@@ -120,11 +122,13 @@ class TranslationTask(FairseqTask):
             src_sizes = src_dataset.sizes
             tgt_sizes = tgt_dataset.sizes
         else:
+            if self.args.upsample_primary > 1:
+                src_datasets.extend([src_datasets[0]] * (self.args.upsample_primary - 1))
+                tgt_datasets.extend([tgt_datasets[0]] * (self.args.upsample_primary - 1))
             src_dataset = ConcatDataset(src_datasets)
             tgt_dataset = ConcatDataset(tgt_datasets)
             src_sizes = np.concatenate([ds.sizes for ds in src_datasets])
             tgt_sizes = np.concatenate([ds.sizes for ds in tgt_datasets])
-
 
         self.datasets[split] = LanguagePairDataset(
             src_dataset, src_sizes, self.src_dict,
