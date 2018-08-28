@@ -71,11 +71,10 @@ def main(args):
     )
 
     # Load the latest checkpoint if one is available
-    load_checkpoint(args, trainer, epoch_itr)
-
-    # Send a dummy batch to warm the caching allocator
-    dummy_batch = task.dataset('train').get_dummy_batch(args.max_tokens, max_positions)
-    trainer.dummy_train_step(dummy_batch)
+    if not load_checkpoint(args, trainer, epoch_itr):
+        # Send a dummy batch to warm the caching allocator
+        dummy_batch = task.dataset('train').get_dummy_batch(args.max_tokens, max_positions)
+        trainer.dummy_train_step(dummy_batch)
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
@@ -319,6 +318,8 @@ def load_checkpoint(args, trainer, epoch_itr):
             trainer.lr_step_update(trainer.get_num_updates())
             if 'best' in extra_state:
                 save_checkpoint.best = extra_state['best']
+        return True
+    return False
 
 
 def load_dataset_splits(task, splits):
