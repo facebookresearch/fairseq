@@ -271,9 +271,11 @@ class Trainer(object):
             if not p.requires_grad:
                 continue
             if p.grad is None:
-                raise RuntimeError('Model parameter did not receive gradient: ' + name + '. '
-                                   'Use the param in the forward pass or set requires_grad=False')
-            grads.append(p.grad.data)
+                print('WARNING: model parameter did not receive gradient: ' + name + '. '
+                      'Check that you\'re using the param in the forward pass or set requires_grad=False')
+                grads.append(p.new_zeros(p.shape))
+            else:
+                grads.append(p.grad.data)
         return grads
 
     def _get_flat_grads(self, out=None):
