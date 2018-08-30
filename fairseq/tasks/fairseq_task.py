@@ -45,7 +45,7 @@ class FairseqTask(object):
         seed=1, num_shards=1, shard_id=0,
     ):
         """
-        Generate batches of indices.
+        Get an iterator that yields batches of data from the given dataset.
 
         Args:
             dataset (FairseqDataset): dataset to batch
