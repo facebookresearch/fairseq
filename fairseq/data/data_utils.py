@@ -239,7 +239,7 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
     """
     def check_size(idx):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
-            return size_fn(idx) < max_positions
+            return size_fn(idx) <= max_positions
         else:
             return all(a <= b for a, b in zip(size_fn(idx), max_positions))
 
@@ -250,7 +250,7 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
             raise Exception((
                 'Size of sample #{} is invalid (={}) since max_positions={}, '
                 'skip this example with --skip-invalid-size-inputs-valid-test'
-            ).format(idx, self.size(idx), max_positions))
+            ).format(idx, size_fn(idx), max_positions))
         yield idx
 
     if len(ignored) > 0:
