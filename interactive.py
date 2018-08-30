@@ -32,14 +32,14 @@ def buffered_read(buffer_size):
         yield buffer
 
 
-def make_batches(lines, args, src_dict, max_positions):
+def make_batches(lines, args, task, max_positions):
     tokens = [
-        tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long()
+        tokenizer.Tokenizer.tokenize(src_str, task.source_dictionary, add_if_not_exist=False).long()
         for src_str in lines
     ]
     lengths = np.array([t.numel() for t in tokens])
-    itr = data.EpochBatchIterator(
-        dataset=data.LanguagePairDataset(tokens, lengths, src_dict),
+    itr = task.get_batch_iterator(
+        dataset=data.LanguagePairDataset(tokens, lengths, task.source_dictionary),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
         max_positions=max_positions,
@@ -76,7 +76,6 @@ def main(args):
     models, model_args = utils.load_ensemble_for_inference(model_paths, task, model_arg_overrides=eval(args.model_overrides))
 
     # Set dictionaries
-    src_dict = task.source_dictionary
     tgt_dict = task.target_dictionary
 
     # Optimize ensemble for generation
@@ -151,13 +150,18 @@ def main(args):
 
         return [make_result(batch.srcs[i], t) for i, t in enumerate(translations)]
 
+    max_positions = utils.resolve_max_positions(
+        task.max_positions(),
+        *[model.max_positions() for model in models]
+    )
+
     if args.buffer_size > 1:
         print('| Sentence buffer size:', args.buffer_size)
     print('| Type the input sentence and press return:')
     for inputs in buffered_read(args.buffer_size):
         indices = []
         results = []
-        for batch, batch_indices in make_batches(inputs, args, src_dict, models[0].max_positions()):
+        for batch, batch_indices in make_batches(inputs, args, task, max_positions):
             indices.extend(batch_indices)
             results += process_batch(batch)
 

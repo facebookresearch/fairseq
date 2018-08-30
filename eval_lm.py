@@ -59,11 +59,13 @@ def main(parsed_args):
 
     assert len(models) > 0
 
-    itr = data.EpochBatchIterator(
+    itr = task.get_batch_iterator(
         dataset=task.dataset(args.gen_subset),
         max_tokens=args.max_tokens or 36000,
         max_sentences=args.max_sentences,
-        max_positions=models[0].max_positions(),
+        max_positions=utils.resolve_max_positions(*[
+            model.max_positions() for model in models
+        ]),
         num_shards=args.num_shards,
         shard_id=args.shard_id,
         ignore_invalid_inputs=True,

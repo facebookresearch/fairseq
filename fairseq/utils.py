@@ -150,7 +150,7 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     ensemble = []
     for state in states:
         args = state['args']
-        
+
         if model_arg_overrides is not None:
             args = _override_model_args(args, model_arg_overrides)
 
@@ -399,3 +399,17 @@ def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
             idx = int(m.group(1)) if len(m.groups()) > 0 else i
             entries.append((idx, m.group(0)))
     return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
+
+
+def resolve_max_positions(*args):
+    """Resolve max position constraints from multiple sources."""
+    max_positions = None
+    for arg in args:
+        if max_positions is None:
+            max_positions = arg
+        elif arg is not None:
+            if isinstance(arg, float) or isinstance(arg, int):
+                max_positions = min(max_positions, arg)
+            else:
+                max_positions = tuple(map(min, zip(max_positions, arg)))
+    return max_positions
