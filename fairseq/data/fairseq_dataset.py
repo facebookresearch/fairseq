@@ -7,6 +7,8 @@
 
 import torch.utils.data
 
+from fairseq.data import data_utils
+
 
 class FairseqDataset(torch.utils.data.Dataset):
     """A dataset that provides helpers for batching."""
@@ -18,7 +20,14 @@ class FairseqDataset(torch.utils.data.Dataset):
         raise NotImplementedError
 
     def collater(self, samples):
-        """Merge a list of samples to form a mini-batch."""
+        """Merge a list of samples to form a mini-batch.
+
+        Args:
+            samples (List[int]): sample indices to collate
+
+        Returns:
+            dict: a mini-batch suitable for forwarding with a Model
+        """
         raise NotImplementedError
 
     def get_dummy_batch(self, num_tokens, max_positions):
@@ -26,13 +35,16 @@ class FairseqDataset(torch.utils.data.Dataset):
         raise NotImplementedError
 
     def num_tokens(self, index):
-        """Return an example's length (number of tokens), used for batching."""
+        """Return the number of tokens in a sample. This value is used to
+        enforce ``--max-tokens`` during batching."""
+        raise NotImplementedError
+
+    def size(self, index):
+        """Return an example's size as a float or tuple. This value is used when
+        filtering a dataset with ``--max-positions``."""
         raise NotImplementedError
 
     def ordered_indices(self):
-        """Ordered indices for batching."""
-        raise NotImplementedError
-
-    def valid_size(self, index, max_positions):
-        """Check if an example's size is valid according to max_positions."""
+        """Return an ordered list of indices. Batches will be constructed based
+        on this order."""
         raise NotImplementedError

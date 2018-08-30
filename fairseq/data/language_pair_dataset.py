@@ -8,6 +8,8 @@
 import numpy as np
 import torch
 
+from fairseq import utils
+
 from . import data_utils, FairseqDataset
 
 
@@ -59,7 +61,27 @@ def collate(samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=Fal
 
 
 class LanguagePairDataset(FairseqDataset):
-    """A pair of torch.utils.data.Datasets."""
+    """
+    A pair of torch.utils.data.Datasets.
+
+    Args:
+        src (torch.utils.data.Dataset): source dataset to wrap
+        src_sizes (List[int]): source sentence lengths
+        src_dict (fairseq.data.Dictionary): source vocabulary
+        tgt (torch.utils.data.Dataset, optional): target dataset to wrap
+        tgt_sizes (List[int], optional): target sentence lengths
+        tgt_dict (fairseq.data.Dictionary, optional): target vocabulary
+        left_pad_source (bool, optional): pad source tensors on the left side.
+            Default: ``True``
+        left_pad_target (bool, optional): pad target tensors on the left side.
+            Default: ``False``
+        max_source_positions (int, optional): max number of tokens in the source
+            sentence. Default: ``1024``
+        max_target_positions (int, optional): max number of tokens in the target
+            sentence. Default: ``1024``
+        shuffle (bool, optional): shuffle dataset elements before batching.
+            Default: ``True``
+    """
 
     def __init__(
         self, src, src_sizes, src_dict,
@@ -95,15 +117,43 @@ class LanguagePairDataset(FairseqDataset):
         return len(self.src)
 
     def collater(self, samples):
-        """Merge a list of samples to form a mini-batch."""
+        """Merge a list of samples to form a mini-batch.
+
+        Returned mini-batches contain the following keys:
+        - `id` (torch.LongTensor): example IDs in the original input order
+        - `ntokens` (int): total number of tokens in the batch
+        - `net_input` (dict): the input to the Model, containing keys:
+          - `src_tokens` (torch.LongTensor): a padded 2D Tensor of tokens in
+            the source sentence of shape `(bsz, src_len)`. Padding will appear
+            on the left if ``left_pad_source`` is True.
+          - `src_lengths` (torch.LongTensor): 1D Tensor of the unpadded lengths
+            of each source sentence of shape `(bsz)`
+          - `prev_output_tokens` (torch.LongTensor): a padded 2D Tensor of
+            tokens in the target sentence, shifted right by one position for
+            input feeding/teacher forcing, of shape `(bsz, tgt_len)`. Padding
+            will appear on the left if ``left_pad_target`` is True.
+        - `target` (torch.LongTensor): a padded 2D Tensor of tokens in the
+          target sentence of shape `(bsz, tgt_len)`. Padding will appear on the
+          left if ``left_pad_target`` is True.
+
+        Args:
+            samples (List[dict]): samples to collate
+
+        Returns:
+            dict: a mini-batch suitable for forwarding with a Model
+        """
         return collate(
             samples, pad_idx=self.src_dict.pad(), eos_idx=self.src_dict.eos(),
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
         )
 
     def get_dummy_batch(self, num_tokens, max_positions, src_len=128, tgt_len=128):
-        max_source_positions, max_target_positions = self._get_max_positions(max_positions)
-        src_len, tgt_len = min(src_len, max_source_positions), min(tgt_len, max_target_positions)
+        """Return a dummy batch with a given number of tokens."""
+        src_len, tgt_len = utils.resolve_max_positions(
+            (src_len, tgt_len),
+            max_positions,
+            (self.max_source_positions, self.max_target_positions),
+        )
         bsz = num_tokens // max(src_len, tgt_len)
         return self.collater([
             {
@@ -115,11 +165,18 @@ class LanguagePairDataset(FairseqDataset):
         ])
 
     def num_tokens(self, index):
-        """Return an example's length (number of tokens), used for batching."""
+        """Return the number of tokens in a sample. This value is used to
+        enforce ``--max-tokens`` during batching."""
         return max(self.src_sizes[index], self.tgt_sizes[index] if self.tgt_sizes is not None else 0)
 
+    def size(self, index):
+        """Return an example's size as a float or tuple. This value is used when
+        filtering a dataset with ``--max-positions``."""
+        return (self.src_sizes[index], self.tgt_sizes[index] if self.tgt_sizes is not None else 0)
+
     def ordered_indices(self):
-        """Ordered indices for batching."""
+        """Return an ordered list of indices. Batches will be constructed based
+        on this order."""
         if self.shuffle:
             indices = np.random.permutation(len(self))
         else:
@@ -127,18 +184,3 @@ class LanguagePairDataset(FairseqDataset):
         if self.tgt_sizes is not None:
             indices = indices[np.argsort(self.tgt_sizes[indices], kind='mergesort')]
         return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
-
-    def valid_size(self, index, max_positions):
-        """Check if an example's size is valid according to max_positions."""
-        max_source_positions, max_target_positions = self._get_max_positions(max_positions)
-        return (
-            self.src_sizes[index] <= max_source_positions
-            and (self.tgt_sizes is None or self.tgt_sizes[index] <= max_target_positions)
-        )
-
-    def _get_max_positions(self, max_positions):
-        if max_positions is None:
-            return self.max_source_positions, self.max_target_positions
-        assert len(max_positions) == 2
-        max_src_pos, max_tgt_pos = max_positions
-        return min(self.max_source_positions, max_src_pos), min(self.max_target_positions, max_tgt_pos)

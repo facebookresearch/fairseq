@@ -31,7 +31,16 @@ def collate(samples, pad_idx, eos_idx):
 
 
 class MonolingualDataset(FairseqDataset):
-    """A wrapper around torch.utils.data.Dataset for monolingual data."""
+    """
+    A wrapper around torch.utils.data.Dataset for monolingual data.
+
+    Args:
+        dataset (torch.utils.data.Dataset): dataset to wrap
+        sizes (List[int]): sentence lengths
+        vocab (fairseq.data.Dictionary): vocabulary
+        shuffle (bool, optional): shuffle the elements before batching.
+            Default: ``True``
+    """
 
     def __init__(self, dataset, sizes, vocab, shuffle):
         self.dataset = dataset
@@ -47,12 +56,31 @@ class MonolingualDataset(FairseqDataset):
         return len(self.dataset)
 
     def collater(self, samples):
-        """Merge a list of samples to form a mini-batch."""
+        """Merge a list of samples to form a mini-batch.
+
+        Returned mini-batches contain the following keys:
+        - `id` (torch.LongTensor): example IDs in the original input order
+        - `ntokens` (int): total number of tokens in the batch
+        - `net_input` (dict): the input to the Model, containing keys:
+          - `src_tokens` (torch.LongTensor): a padded 2D Tensor of tokens in
+            the source sentence of shape `(bsz, src_len)`. Padding will appear
+            on the right.
+        - `target` (torch.LongTensor): a padded 2D Tensor of tokens in the
+          target sentence of shape `(bsz, tgt_len)`. Padding will appear on the
+          right.
+
+        Args:
+            samples (List[dict]): samples to collate
+
+        Returns:
+            dict: a mini-batch suitable for forwarding with a Model
+        """
         return collate(samples, self.vocab.pad(), self.vocab.eos())
 
     def get_dummy_batch(self, num_tokens, max_positions, tgt_len=128):
-        assert isinstance(max_positions, float) or isinstance(max_positions, int)
-        tgt_len = min(tgt_len, max_positions)
+        """Return a dummy batch with a given number of tokens."""
+        if isinstance(max_positions, float) or isinstance(max_positions, int):
+            tgt_len = min(tgt_len, max_positions)
         bsz = num_tokens // tgt_len
         target = self.vocab.dummy_sentence(tgt_len + 1)
         source, target = target[:-1], target[1:]
@@ -62,19 +90,21 @@ class MonolingualDataset(FairseqDataset):
         ])
 
     def num_tokens(self, index):
-        """Return an example's length (number of tokens), used for batching."""
+        """Return the number of tokens in a sample. This value is used to
+        enforce ``--max-tokens`` during batching."""
+        return self.sizes[index]
+
+    def size(self, index):
+        """Return an example's size as a float or tuple. This value is used when
+        filtering a dataset with ``--max-positions``."""
         return self.sizes[index]
 
     def ordered_indices(self):
-        """Ordered indices for batching."""
+        """Return an ordered list of indices. Batches will be constructed based
+        on this order."""
         if self.shuffle:
             order = [np.random.permutation(len(self))]
         else:
             order = [np.arange(len(self))]
         order.append(np.flip(self.sizes, 0))
         return np.lexsort(order)
-
-    def valid_size(self, index, max_positions):
-        """Check if an example's size is valid according to max_positions."""
-        assert isinstance(max_positions, float) or isinstance(max_positions, int)
-        return self.sizes[index] <= max_positions
