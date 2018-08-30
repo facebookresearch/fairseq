@@ -44,7 +44,7 @@ def get_trainer_and_epoch_itr(epoch, epoch_size, num_updates, iterations_in_epoc
     trainer = mock_trainer(epoch, num_updates, iterations_in_epoch)
     epoch_itr = data.EpochBatchIterator(
         dataset=data.LanguagePairDataset(tokens_ds, tokens_ds.sizes, mock_dict(), shuffle=False),
-        max_tokens=1,
+        batch_sampler=[[i] for i in range(epoch_size)],
     )
     return trainer, epoch_itr
 

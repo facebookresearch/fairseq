@@ -12,8 +12,6 @@ import os
 import numpy as np
 import torch
 
-from . import FairseqDataset
-
 
 def infer_language_pair(path):
     """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
@@ -99,41 +97,34 @@ def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=Fal
 
 
 class EpochBatchIterator(object):
-    """Iterate over a FairseqDataset and yield batches bucketed by size.
+    """A multi-epoch iterator over a :class:`~torch.utils.data.Dataset`.
 
-    Batches may contain sequences of different lengths. This iterator can be
-    reused across multiple epochs with the next_epoch_itr() method.
+    Compared to :class:`~torch.utils.data.DataLoader`, this iterator:
+
+    - can be reused across multiple epochs with the :func:`next_epoch_itr`
+      method (optionally shuffled between epochs)
+    - can be serialized/deserialized with the :func:`state_dict` and
+      :func:`load_state_dict` methods
+    - supports sharding with the ``num_shards`` and ``shard_id`` arguments
 
     Args:
-        dataset: a FairseqDataset
-        max_tokens: max number of tokens in each batch
-        max_sentences: max number of sentences in each batch
-        max_positions: max sentence length supported by the model
-        ignore_invalid_inputs: don't raise Exception for sentences that are too long
-        required_batch_size_multiple: require batch size to be a multiple of N
-        seed: seed for random number generator for reproducibility
-        num_shards: shard the data iterator into N shards
-        shard_id: which shard of the data iterator to return
+        dataset (Dataset): dataset from which to load the data
+        batch_sampler (Sampler): an iterator over batches of indices
+        seed (int, optional): seed for random number generator for
+            reproducibility. Default: ``1``
+        num_shards (int, optional): shard the data iterator into N
+            shards. Default: ``1``
+        shard_id (int, optional): which shard of the data iterator to
+            return. Default: ``0``
     """
 
-    def __init__(
-        self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
-        ignore_invalid_inputs=False, required_batch_size_multiple=1, seed=1,
-        num_shards=1, shard_id=0,
-    ):
-        assert isinstance(dataset, FairseqDataset)
+    def __init__(self, dataset, batch_sampler, seed=1, num_shards=1, shard_id=0):
+        assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
-        self.max_tokens = max_tokens if max_tokens is not None else float('Inf')
-        self.max_sentences = max_sentences if max_sentences is not None else float('Inf')
-        self.max_positions = max_positions
-        self.ignore_invalid_inputs = ignore_invalid_inputs
-        self.bsz_mult = required_batch_size_multiple
+        self.frozen_batches = tuple(batch_sampler)
         self.seed = seed
         self.num_shards = num_shards
         self.shard_id = shard_id
-
-        with numpy_seed(self.seed):
-            self.frozen_batches = tuple(self._batch_generator())
 
         self.epoch = 0
         self._cur_epoch_itr = None
@@ -143,7 +134,13 @@ class EpochBatchIterator(object):
         return len(self.frozen_batches)
 
     def next_epoch_itr(self, shuffle=True):
-        """Shuffle batches and return a new iterator over the dataset."""
+        """
+        Return a new iterator over the dataset.
+
+        Args:
+            shuffle (bool, optional): shuffle batches before returning the
+                iterator. Default: ``True``
+        """
         if self._next_epoch_itr is not None:
             self._cur_epoch_itr = self._next_epoch_itr
             self._next_epoch_itr = None
@@ -153,10 +150,12 @@ class EpochBatchIterator(object):
         return self._cur_epoch_itr
 
     def end_of_epoch(self):
+        """Returns whether the most recent epoch iterator has been exhausted"""
         return not self._cur_epoch_itr.has_next()
 
     @property
     def iterations_in_epoch(self):
+        """The number of consumed batches in the current epoch."""
         if self._cur_epoch_itr is not None:
             return self._cur_epoch_itr.count
         elif self._next_epoch_itr is not None:
@@ -193,55 +192,6 @@ class EpochBatchIterator(object):
             batch_sampler=ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[]),
         ))
 
-    def _batch_generator(self):
-        batch = []
-
-        def is_batch_full(num_tokens):
-            if len(batch) == 0:
-                return False
-            if len(batch) == self.max_sentences:
-                return True
-            if num_tokens > self.max_tokens:
-                return True
-            return False
-
-        sample_len = 0
-        sample_lens = []
-        ignored = []
-        for idx in self.dataset.ordered_indices():
-            if not self.dataset.valid_size(idx, self.max_positions):
-                if self.ignore_invalid_inputs:
-                    ignored.append(idx)
-                    continue
-                raise Exception((
-                    'Size of sample #{} is invalid, max_positions={}, skip this '
-                    'example with --skip-invalid-size-inputs-valid-test'
-                ).format(idx, self.max_positions))
-
-            sample_lens.append(self.dataset.num_tokens(idx))
-            sample_len = max(sample_len, sample_lens[-1])
-            num_tokens = (len(batch) + 1) * sample_len
-            if is_batch_full(num_tokens):
-                mod_len = max(
-                    self.bsz_mult * (len(batch) // self.bsz_mult),
-                    len(batch) % self.bsz_mult,
-                )
-                yield batch[:mod_len]
-                batch = batch[mod_len:]
-                sample_lens = sample_lens[mod_len:]
-                sample_len = max(sample_lens) if len(sample_lens) > 0 else 0
-
-            batch.append(idx)
-
-        if len(batch) > 0:
-            yield batch
-
-        if len(ignored) > 0:
-            print((
-                '| WARNING: {} samples have invalid sizes and will be skipped, '
-                'max_positions={}, first few sample ids={}'
-            ).format(len(ignored), self.max_positions, ignored[:10]))
-
 
 @contextlib.contextmanager
 def numpy_seed(seed):
@@ -256,3 +206,112 @@ def numpy_seed(seed):
         yield
     finally:
         np.random.set_state(state)
+
+
+def collect_filtered(function, iterable, filtered):
+    """
+    Similar to :func:`filter` but collects filtered elements in ``filtered``.
+
+    Args:
+        function (callable): function that returns ``False`` for elements that
+            should be filtered
+        iterable (iterable): iterable to filter
+        filtered (list): list to store filtered elements
+    """
+    for el in iterable:
+        if function(el):
+            yield el
+        else:
+            filtered.append(el)
+
+
+def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
+    """
+    Filter indices based on their size.
+
+    Args:
+        indices (List[int]): ordered list of dataset indices
+        size_fn (callable): function that returns the size of a given index
+        max_positions (tuple): filter elements larger than this size.
+            Comparisons are done component-wise.
+        raise_exception (bool, optional): if ``True``, raise an exception
+            if any elements are filtered. Default: ``False``
+    """
+    def check_size(idx):
+        if isinstance(max_positions, float) or isinstance(max_positions, int):
+            return size_fn(idx) < max_positions
+        else:
+            return all(a <= b for a, b in zip(size_fn(idx), max_positions))
+
+    ignored = []
+    itr = collect_filtered(check_size, indices, ignored)
+    for idx in itr:
+        if len(ignored) > 0 and raise_exception:
+            raise Exception((
+                'Size of sample #{} is invalid (={}) since max_positions={}, '
+                'skip this example with --skip-invalid-size-inputs-valid-test'
+            ).format(idx, self.size(idx), max_positions))
+        yield idx
+
+    if len(ignored) > 0:
+        print((
+            '| WARNING: {} samples have invalid sizes and will be skipped, '
+            'max_positions={}, first few sample ids={}'
+        ).format(len(ignored), max_positions, ignored[:10]))
+
+
+def batch_by_size(
+    indices, num_tokens_fn, max_tokens=None, max_sentences=None,
+    required_batch_size_multiple=1,
+):
+    """
+    Yield mini-batches of indices bucketed by size. Batches may contain
+    sequences of different lengths.
+
+    Args:
+        indices (List[int]): ordered list of dataset indices
+        num_tokens_fn (callable): function that returns the number of tokens at
+            a given index
+        max_tokens (int, optional): max number of tokens in each batch.
+            Default: ``None``
+        max_sentences (int, optional): max number of sentences in each
+            batch. Default: ``None``
+        required_batch_size_multiple (int, optional): require batch size to
+            be a multiple of N. Default: ``1``
+    """
+    max_tokens = max_tokens if max_tokens is not None else float('Inf')
+    max_sentences = max_sentences if max_sentences is not None else float('Inf')
+    bsz_mult = required_batch_size_multiple
+
+    batch = []
+
+    def is_batch_full(num_tokens):
+        if len(batch) == 0:
+            return False
+        if len(batch) == max_sentences:
+            return True
+        if num_tokens > max_tokens:
+            return True
+        return False
+
+    sample_len = 0
+    sample_lens = []
+    ignored = []
+    for idx in indices:
+        sample_lens.append(num_tokens_fn(idx))
+        sample_len = max(sample_len, sample_lens[-1])
+        num_tokens = (len(batch) + 1) * sample_len
+        if is_batch_full(num_tokens):
+            mod_len = max(
+                bsz_mult * (len(batch) // bsz_mult),
+                len(batch) % bsz_mult,
+            )
+            yield batch[:mod_len]
+            batch = batch[mod_len:]
+            sample_lens = sample_lens[mod_len:]
+            sample_len = max(sample_lens) if len(sample_lens) > 0 else 0
+
+        batch.append(idx)
+
+    if len(batch) > 0:
+        yield batch

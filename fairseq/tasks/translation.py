@@ -139,6 +139,9 @@ class TranslationTask(FairseqTask):
             max_target_positions=self.args.max_target_positions,
         )
 
+    def max_positions(self):
+        return (self.args.max_source_positions, self.args.max_target_positions)
+
     @property
     def source_dictionary(self):
         return self.src_dict
