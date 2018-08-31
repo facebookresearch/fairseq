@@ -12,4 +12,4 @@ from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
 from .token_block_dataset import TokenBlockDataset
 
-from .data_utils import EpochBatchIterator
+from .iterators import EpochBatchIterator
