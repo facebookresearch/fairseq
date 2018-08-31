@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from fairseq.data import data_utils, FairseqDataset
+from fairseq.data import data_utils, FairseqDataset, iterators
 
 
 class FairseqTask(object):
@@ -87,8 +87,9 @@ class FairseqTask(object):
         )
 
         # return a reusable, sharded iterator
-        return data_utils.EpochBatchIterator(
+        return iterators.EpochBatchIterator(
             dataset=dataset,
+            collate_fn=dataset.collater,
             batch_sampler=batch_sampler,
             seed=seed,
             num_shards=num_shards,
