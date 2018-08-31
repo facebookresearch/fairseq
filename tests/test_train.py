@@ -42,8 +42,10 @@ def get_trainer_and_epoch_itr(epoch, epoch_size, num_updates, iterations_in_epoc
     tokens = torch.LongTensor(list(range(epoch_size)))
     tokens_ds = data.TokenBlockDataset(tokens, [len(tokens)], 1, include_targets=False)
     trainer = mock_trainer(epoch, num_updates, iterations_in_epoch)
+    dataset = data.LanguagePairDataset(tokens_ds, tokens_ds.sizes, mock_dict(), shuffle=False)
     epoch_itr = data.EpochBatchIterator(
-        dataset=data.LanguagePairDataset(tokens_ds, tokens_ds.sizes, mock_dict(), shuffle=False),
+        dataset=dataset,
+        collate_fn=dataset.collater,
         batch_sampler=[[i] for i in range(epoch_size)],
     )
     return trainer, epoch_itr

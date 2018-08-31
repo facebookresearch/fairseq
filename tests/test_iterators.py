@@ -7,14 +7,14 @@
 
 import unittest
 
-from fairseq.data import data_utils
+from fairseq.data import iterators
 
 
-class TestDataUtils(unittest.TestCase):
+class TestIterators(unittest.TestCase):
 
     def test_counting_iterator(self):
         x = list(range(10))
-        itr = data_utils.CountingIterator(x)
+        itr = iterators.CountingIterator(x)
         self.assertTrue(itr.has_next())
         self.assertEqual(next(itr), 0)
         self.assertEqual(next(itr), 1)
