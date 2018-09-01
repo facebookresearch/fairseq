@@ -126,8 +126,8 @@ class SequenceGenerator(object):
         tokens = src_tokens.data.new(bsz * beam_size, maxlen + 2).fill_(self.pad)
         tokens_buf = tokens.clone()
         tokens[:, 0] = self.eos
-        attn = scores.new(bsz * beam_size, src_tokens.size(1), maxlen + 2)
-        attn_buf = attn.clone()
+        attn, attn_buf = None, None
+        nonpad_idxs = None
 
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
@@ -191,7 +191,7 @@ class SequenceGenerator(object):
             tokens_clone = tokens.index_select(0, bbsz_idx)
             tokens_clone = tokens_clone[:, 1:step + 2]  # skip the first index, which is EOS
             tokens_clone[:, step] = self.eos
-            attn_clone = attn.index_select(0, bbsz_idx)[:, :, 1:step+2]
+            attn_clone = attn.index_select(0, bbsz_idx)[:, :, 1:step+2] if attn is not None else None
 
             # compute scores per token position
             pos_scores = scores.index_select(0, bbsz_idx)[:, :step+1]
@@ -220,10 +220,13 @@ class SequenceGenerator(object):
 
                 def get_hypo():
 
-                    # remove padding tokens from attn scores
-                    nonpad_idxs = src_tokens[sent].ne(self.pad)
-                    hypo_attn = attn_clone[i][nonpad_idxs]
-                    _, alignment = hypo_attn.max(dim=0)
+                    if attn_clone is not None:
+                        # remove padding tokens from attn scores
+                        hypo_attn = attn_clone[i][nonpad_idxs[sent]]
+                        _, alignment = hypo_attn.max(dim=0)
+                    else:
+                        hypo_attn = None
+                        alignment = None
 
                     return {
                         'tokens': tokens_clone[i],
@@ -270,8 +273,7 @@ class SequenceGenerator(object):
                         model.decoder.reorder_incremental_state(incremental_states[model], reorder_state)
                     encoder_outs[i] = model.encoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
-            probs, avg_attn_scores = self._decode(
-                tokens[:, :step + 1], encoder_outs, incremental_states)
+            probs, avg_attn_scores = self._decode(tokens[:, :step + 1], encoder_outs, incremental_states)
             if step == 0:
                 # at the first step all hypotheses are equally likely, so use
                 # only the first beam
@@ -286,7 +288,12 @@ class SequenceGenerator(object):
             probs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             # Record attention scores
-            attn[:, :, step + 1].copy_(avg_attn_scores)
+            if avg_attn_scores is not None:
+                if attn is None:
+                    attn = scores.new(bsz * beam_size, src_tokens.size(1), maxlen + 2)
+                    attn_buf = attn.clone()
+                    nonpad_idxs = src_tokens.ne(self.pad)
+                attn[:, :, step + 1].copy_(avg_attn_scores)
 
             cand_scores = buffer('cand_scores', type_of=scores)
             cand_indices = buffer('cand_indices')
@@ -417,8 +424,9 @@ class SequenceGenerator(object):
                 scores_buf.resize_as_(scores)
                 tokens = tokens.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
                 tokens_buf.resize_as_(tokens)
-                attn = attn.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, attn.size(1), -1)
-                attn_buf.resize_as_(attn)
+                if attn is not None:
+                    attn = attn.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, attn.size(1), -1)
+                    attn_buf.resize_as_(attn)
                 bsz = new_bsz
             else:
                 batch_idxs = None
@@ -473,15 +481,17 @@ class SequenceGenerator(object):
             )
 
             # copy attention for active hypotheses
-            torch.index_select(
-                attn[:, :, :step + 2], dim=0, index=active_bbsz_idx,
-                out=attn_buf[:, :, :step + 2],
-            )
+            if attn is not None:
+                torch.index_select(
+                    attn[:, :, :step + 2], dim=0, index=active_bbsz_idx,
+                    out=attn_buf[:, :, :step + 2],
+                )
 
             # swap buffers
             tokens, tokens_buf = tokens_buf, tokens
             scores, scores_buf = scores_buf, scores
-            attn, attn_buf = attn_buf, attn
+            if attn is not None:
+                attn, attn_buf = attn_buf, attn
 
             # reorder incremental state in decoder
             reorder_state = active_bbsz_idx
@@ -518,7 +528,7 @@ class SequenceGenerator(object):
     def _decode_one(self, tokens, model, encoder_out, incremental_states, log_probs):
         with torch.no_grad():
             if incremental_states[model] is not None:
-                decoder_out = list(model.decoder(tokens, encoder_out, incremental_states[model]))
+                decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=incremental_states[model]))
             else:
                 decoder_out = list(model.decoder(tokens, encoder_out))
             decoder_out[0] = decoder_out[0][:, -1, :]

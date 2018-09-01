@@ -203,6 +203,7 @@ def generate_main(data_dir, extra_flags=None):
             '--max-len-b', '5',
             '--gen-subset', 'valid',
             '--no-progress-bar',
+            '--print-alignment',
         ] + (extra_flags or []),
     )
 

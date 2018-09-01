@@ -80,23 +80,25 @@ class Trainer(object):
                 self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
             )
 
-    def load_checkpoint(self, filename):
+    def load_checkpoint(self, filename, load_optim=True):
         """Load all training state from a checkpoint file."""
-        extra_state, self._optim_history, last_optim_state = \
+        extra_state, optim_history, last_optim_state = \
             utils.load_model_state(filename, self.model)
 
         if last_optim_state is not None:
             # rebuild optimizer after loading model, since params may have changed
             self._build_optimizer()
 
-            # only reload optimizer and lr_scheduler if they match
-            last_optim = self._optim_history[-1]
-            if last_optim['criterion_name'] == self.criterion.__class__.__name__:
-                self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
-                if last_optim['optimizer_name'] == self.optimizer.__class__.__name__:
-                    self.optimizer.load_state_dict(last_optim_state)
+            if load_optim:
+                self._optim_history = optim_history
+                # only reload optimizer and lr_scheduler if they match
+                last_optim = self._optim_history[-1]
+                if last_optim['criterion_name'] == self.criterion.__class__.__name__:
+                    self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
+                    if last_optim['optimizer_name'] == self.optimizer.__class__.__name__:
+                        self.optimizer.load_state_dict(last_optim_state)
 
-            self._num_updates = last_optim['num_updates']
+                self._num_updates = last_optim['num_updates']
 
         if extra_state is not None and 'train_meters' in extra_state:
             self.meters = extra_state['train_meters']
@@ -140,6 +142,11 @@ class Trainer(object):
             ooms_fwd = sum(ooms_fwd)
             ooms_bwd = sum(ooms_bwd)
 
+            if ooms_fwd == self.args.distributed_world_size:
+                print('| WARNING: OOM in all workers, skipping batch')
+                self.zero_grad()
+                return None
+
             # aggregate stats and logging outputs
             ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
             nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
@@ -178,11 +185,6 @@ class Trainer(object):
             return None  # buffering updates
 
     def _forward(self, sample, eval=False):
-        # prepare model and optimizer
-        if eval:
-            self.model.eval()
-        else:
-            self.model.train()
         loss = None
         sample_size = 0
         logging_output = {
@@ -190,19 +192,25 @@ class Trainer(object):
             'nsentences': sample['target'].size(0) if sample is not None else 0,
         }
         oom = 0
-        if sample is not None:
-            try:
+        try:
+            # prepare model and optimizer
+            if eval:
+                self.model.eval()
+            else:
+                self.model.train()
+
+            if sample is not None:
                 with torch.no_grad() if eval else contextlib.ExitStack():
                     # calculate loss and sample size
                     loss, sample_size, logging_output_ = self.task.get_loss(self.model, self.criterion, sample)
                     logging_output.update(logging_output_)
-            except RuntimeError as e:
-                if not eval and 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory, skipping batch')
-                    oom = 1
-                    loss = None
-                else:
-                    raise e
+        except RuntimeError as e:
+            if not eval and 'out of memory' in str(e):
+                print('| WARNING: ran out of memory, skipping batch')
+                oom = 1
+                loss = None
+            else:
+                raise e
         return loss, sample_size, logging_output, oom
 
     def _backward(self, loss):

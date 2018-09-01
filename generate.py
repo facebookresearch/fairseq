@@ -41,11 +41,14 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task)
+    models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task, model_arg_overrides=eval(args.model_overrides))
 
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
+        model.make_generation_fast_(
+            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
+            need_attn=args.print_alignment,
+        )
         if args.fp16:
             model.half()
 
@@ -119,7 +122,7 @@ def main(args):
                     tokenizer_tool=tokenizer_tool,
                     hypo_tokens=hypo['tokens'].int().cpu(),
                     src_str=src_str,
-                    alignment=hypo['alignment'].int().cpu(),
+                    alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
@@ -134,10 +137,12 @@ def main(args):
                             hypo['positional_scores'].tolist(),
                         ))
                     ))
-                    print('A-{}\t{}'.format(
-                        sample_id,
-                        ' '.join(map(lambda x: str(utils.item(x)), alignment))
-                    ))
+
+                    if args.print_alignment:
+                        print('A-{}\t{}'.format(
+                            sample_id,
+                            ' '.join(map(lambda x: str(utils.item(x)), alignment))
+                        ))
 
                 # Score only the top hypothesis
                 if has_target and i == 0:

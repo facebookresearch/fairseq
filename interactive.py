@@ -17,7 +17,7 @@ from fairseq.sequence_generator import SequenceGenerator
 
 
 Batch = namedtuple('Batch', 'srcs tokens lengths')
-Translation = namedtuple('Translation', 'src_str hypos alignments')
+Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
 
 
 def buffered_read(buffer_size):
@@ -73,7 +73,7 @@ def main(args):
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
     model_paths = args.path.split(':')
-    models, model_args = utils.load_ensemble_for_inference(model_paths, task)
+    models, model_args = utils.load_ensemble_for_inference(model_paths, task, model_arg_overrides=eval(args.model_overrides))
 
     # Set dictionaries
     src_dict = task.source_dictionary
@@ -84,7 +84,10 @@ def main(args):
 
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(beamable_mm_beam_size=None if args.no_beamable_mm else args.beam)
+        model.make_generation_fast_(
+            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
+            need_attn=args.print_alignment,
+        )
         if args.fp16:
             model.half()
 
@@ -93,7 +96,7 @@ def main(args):
         models, tgt_dict, beam_size=args.beam, stop_early=(not args.no_early_stop),
         normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
         unk_penalty=args.unkpen, sampling=args.sampling, sampling_topk=args.sampling_topk,
-        minlen=args.min_len,
+        minlen=args.min_len, sampling_temperature=args.sampling_temperature
     )
 
     if use_cuda:
@@ -107,6 +110,7 @@ def main(args):
         result = Translation(
             src_str='O\t{}'.format(src_str),
             hypos=[],
+            pos_scores=[],
             alignments=[],
         )
 
@@ -116,13 +120,22 @@ def main(args):
                 tokenizer_tool=tokenizer_tool,
                 hypo_tokens=hypo['tokens'].int().cpu(),
                 src_str=src_str,
-                alignment=hypo['alignment'].int().cpu(),
+                alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
                 align_dict=align_dict,
                 tgt_dict=tgt_dict,
                 remove_bpe=args.remove_bpe,
             )
             result.hypos.append('H\t{}\t{}'.format(hypo['score'], hypo_str))
-            result.alignments.append('A\t{}'.format(' '.join(map(lambda x: str(utils.item(x)), alignment))))
+            result.pos_scores.append('P\t{}'.format(
+                ' '.join(map(
+                    lambda x: '{:.4f}'.format(x),
+                    hypo['positional_scores'].tolist(),
+                ))
+            ))
+            result.alignments.append(
+                'A\t{}'.format(' '.join(map(lambda x: str(utils.item(x)), alignment)))
+                if args.print_alignment else None
+            )
         return result
 
     def process_batch(batch):
@@ -154,9 +167,11 @@ def main(args):
         for i in np.argsort(indices):
             result = results[i]
             print(result.src_str)
-            for hypo, align in zip(result.hypos, result.alignments):
+            for hypo, pos_scores, align in zip(result.hypos, result.pos_scores, result.alignments):
                 print(hypo)
-                print(align)
+                print(pos_scores)
+                if align is not None:
+                    print(align)
 
 
 if __name__ == '__main__':
