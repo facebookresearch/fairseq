@@ -93,7 +93,7 @@ class CosineSchedule(FairseqLRScheduler):
             else:
                 i = math.floor(curr_updates / self.period)
                 t_i = self.period
-                t_curr = num_updates - (self.period * i)
+                t_curr = curr_updates - (self.period * i)
 
             lr_shrink = self.lr_shrink ** i
             min_lr = self.min_lr  * lr_shrink
