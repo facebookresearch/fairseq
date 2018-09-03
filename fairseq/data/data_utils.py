@@ -88,7 +88,8 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
             return size_fn(idx) <= max_positions
         else:
-            return all(a <= b for a, b in zip(size_fn(idx), max_positions))
+            return all(a is None or b is None or a <= b
+                       for a, b in zip(size_fn(idx), max_positions))
 
     ignored = []
     itr = collect_filtered(check_size, indices, ignored)
