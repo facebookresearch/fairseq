@@ -24,7 +24,7 @@ class FairseqEncoder(nn.Module):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        raise NotImplementedError
+        return 1e6  # an arbitrary large number
 
     def upgrade_state_dict(self, state_dict):
         return state_dict
