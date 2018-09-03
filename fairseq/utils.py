@@ -403,6 +403,16 @@ def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
 
 def resolve_max_positions(*args):
     """Resolve max position constraints from multiple sources."""
+
+    def nullsafe_min(l):
+        minim = None
+        for item in l:
+            if minim is None:
+                minim = item
+            elif item is not None and item < minim:
+                minim = item
+        return minim
+
     max_positions = None
     for arg in args:
         if max_positions is None:
@@ -411,5 +421,7 @@ def resolve_max_positions(*args):
             if isinstance(arg, float) or isinstance(arg, int):
                 max_positions = min(max_positions, arg)
             else:
-                max_positions = tuple(map(min, zip(max_positions, arg)))
+                max_positions = tuple(
+                    map(nullsafe_min, zip(max_positions, arg))
+                )
     return max_positions
