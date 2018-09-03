@@ -25,6 +25,9 @@ def collate(samples, pad_idx, eos_idx):
         'ntokens': sum(len(s['target']) for s in samples),
         'net_input': {
             'src_tokens': merge('source'),
+            'src_lengths': torch.LongTensor([
+                s['source'].numel() for s in samples
+            ]),
         },
         'target': merge('target'),
     }
@@ -42,7 +45,7 @@ class MonolingualDataset(FairseqDataset):
             Default: ``True``
     """
 
-    def __init__(self, dataset, sizes, vocab, shuffle):
+    def __init__(self, dataset, sizes, vocab, shuffle=True):
         self.dataset = dataset
         self.sizes = np.array(sizes)
         self.vocab = vocab
@@ -58,7 +61,7 @@ class MonolingualDataset(FairseqDataset):
     def collater(self, samples):
         """Merge a list of samples to form a mini-batch.
 
-        Returned mini-batches contain the following keys:
+        Returns mini-batches with the following keys:
         - `id` (torch.LongTensor): example IDs in the original input order
         - `ntokens` (int): total number of tokens in the batch
         - `net_input` (dict): the input to the Model, containing keys:

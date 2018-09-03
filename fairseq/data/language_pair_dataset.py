@@ -13,7 +13,10 @@ from fairseq import utils
 from . import data_utils, FairseqDataset
 
 
-def collate(samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False):
+def collate(
+    samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
+    input_feeding=True,
+):
     if len(samples) == 0:
         return {}
 
@@ -35,29 +38,33 @@ def collate(samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=Fal
     target = None
     if samples[0].get('target', None) is not None:
         target = merge('target', left_pad=left_pad_target)
-        # we create a shifted version of targets for feeding the
-        # previous output token(s) into the next decoder step
-        prev_output_tokens = merge(
-            'target',
-            left_pad=left_pad_target,
-            move_eos_to_beginning=True,
-        )
-        prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
         target = target.index_select(0, sort_order)
         ntokens = sum(len(s['target']) for s in samples)
+
+        if input_feeding:
+            # we create a shifted version of targets for feeding the
+            # previous output token(s) into the next decoder step
+            prev_output_tokens = merge(
+                'target',
+                left_pad=left_pad_target,
+                move_eos_to_beginning=True,
+            )
+            prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
         ntokens = sum(len(s['source']) for s in samples)
 
-    return {
+    batch = {
         'id': id,
         'ntokens': ntokens,
         'net_input': {
             'src_tokens': src_tokens,
             'src_lengths': src_lengths,
-            'prev_output_tokens': prev_output_tokens,
         },
         'target': target,
     }
+    if prev_output_tokens is not None:
+        batch['net_input']['prev_output_tokens'] = prev_output_tokens
+    return batch
 
 
 class LanguagePairDataset(FairseqDataset):
@@ -81,6 +88,9 @@ class LanguagePairDataset(FairseqDataset):
             sentence. Default: ``1024``
         shuffle (bool, optional): shuffle dataset elements before batching.
             Default: ``True``
+        input_feeding (bool, optional): create a shifted version of the targets
+            to be passed into the model for input feeding/teacher forcing.
+            Default: ``True``
     """
 
     def __init__(
@@ -88,7 +98,7 @@ class LanguagePairDataset(FairseqDataset):
         tgt=None, tgt_sizes=None, tgt_dict=None,
         left_pad_source=True, left_pad_target=False,
         max_source_positions=1024, max_target_positions=1024,
-        shuffle=True,
+        shuffle=True, input_feeding=True,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -105,6 +115,7 @@ class LanguagePairDataset(FairseqDataset):
         self.max_source_positions = max_source_positions
         self.max_target_positions = max_target_positions
         self.shuffle = shuffle
+        self.input_feeding = input_feeding
 
     def __getitem__(self, index):
         return {
@@ -119,22 +130,23 @@ class LanguagePairDataset(FairseqDataset):
     def collater(self, samples):
         """Merge a list of samples to form a mini-batch.
 
-        Returned mini-batches contain the following keys:
+        Returns mini-batches with the following keys:
         - `id` (torch.LongTensor): example IDs in the original input order
         - `ntokens` (int): total number of tokens in the batch
         - `net_input` (dict): the input to the Model, containing keys:
           - `src_tokens` (torch.LongTensor): a padded 2D Tensor of tokens in
             the source sentence of shape `(bsz, src_len)`. Padding will appear
-            on the left if ``left_pad_source`` is True.
+            on the left if *left_pad_source* is True.
           - `src_lengths` (torch.LongTensor): 1D Tensor of the unpadded lengths
             of each source sentence of shape `(bsz)`
           - `prev_output_tokens` (torch.LongTensor): a padded 2D Tensor of
             tokens in the target sentence, shifted right by one position for
-            input feeding/teacher forcing, of shape `(bsz, tgt_len)`. Padding
-            will appear on the left if ``left_pad_target`` is True.
+            input feeding/teacher forcing, of shape `(bsz, tgt_len)`. This key
+            will only be present if *input_feeding* is ``True``. Padding will
+            appear on the left if *left_pad_target* is ``True``.
         - `target` (torch.LongTensor): a padded 2D Tensor of tokens in the
           target sentence of shape `(bsz, tgt_len)`. Padding will appear on the
-          left if ``left_pad_target`` is True.
+          left if *left_pad_target* is ``True``.
 
         Args:
             samples (List[dict]): samples to collate
@@ -145,6 +157,7 @@ class LanguagePairDataset(FairseqDataset):
         return collate(
             samples, pad_idx=self.src_dict.pad(), eos_idx=self.src_dict.eos(),
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
+            input_feeding=self.input_feeding,
         )
 
     def get_dummy_batch(self, num_tokens, max_positions, src_len=128, tgt_len=128):

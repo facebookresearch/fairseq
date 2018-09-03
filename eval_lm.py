@@ -109,7 +109,7 @@ def main(parsed_args):
                     print('| Skipping tokens with inf scores:',
                           task.target_dictionary.string(hypo['tokens'][inf_scores.nonzero()]))
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
-                score_sum += pos_scores.sum()
+                score_sum += utils.item(pos_scores.sum())
                 count += pos_scores.numel() - skipped_toks
 
                 if args.output_word_probs or args.output_word_stats:

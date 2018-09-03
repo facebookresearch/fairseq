@@ -5,8 +5,9 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from . import FairseqDecoder, FairseqEncoder
 
@@ -34,11 +35,19 @@ class BaseFairseqModel(nn.Module):
 
     def get_normalized_probs(self, net_output, log_probs, sample=None):
         """Get normalized probabilities (or log probs) from a net's output."""
-        return self.decoder.get_normalized_probs(net_output, log_probs, sample)
+        if hasattr(self, 'decoder'):
+            return self.decoder.get_normalized_probs(net_output, log_probs, sample)
+        elif torch.is_tensor(net_output):
+            logits = net_output.float()
+            if log_probs:
+                return F.log_softmax(logits, dim=-1)
+            else:
+                return F.softmax(logits, dim=-1)
+        raise NotImplementedError
 
     def max_positions(self):
         """Maximum length supported by the model."""
-        raise NotImplementedError
+        return None
 
     def max_decoder_positions(self):
         """Maximum length supported by the decoder."""
@@ -138,7 +147,7 @@ class FairseqLanguageModel(BaseFairseqModel):
         self.decoder = decoder
         assert isinstance(self.decoder, FairseqDecoder)
 
-    def forward(self, src_tokens):
+    def forward(self, src_tokens, src_lengths):
         return self.decoder(src_tokens)
 
     def max_positions(self):
