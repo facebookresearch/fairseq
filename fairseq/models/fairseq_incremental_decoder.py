@@ -9,12 +9,44 @@ from . import FairseqDecoder
 
 
 class FairseqIncrementalDecoder(FairseqDecoder):
-    """Base class for incremental decoders."""
+    """Base class for incremental decoders.
+
+    Incremental decoding is a special mode at inference time where the Model
+    only receives a single timestep of input corresponding to the immediately
+    previous output token (for input feeding) and must produce the next output
+    *incrementally*. Thus the model must cache any long-term state that is
+    needed about the sequence, e.g., hidden states, convolutional states, etc.
+
+    Compared to the standard :class:`FairseqDecoder` interface, the incremental
+    decoder interface allows :func:`forward` functions to take an extra keyword
+    argument (*incremental_state*) that can be used to cache state across
+    time-steps.
+
+    The :class:`FairseqIncrementalDecoder` interface also defines the
+    :func:`reorder_incremental_state` method, which is used during beam search
+    to select and reorder the incremental state based on the selection of beams.
+    """
 
     def __init__(self, dictionary):
         super().__init__(dictionary)
 
     def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+        """
+        Args:
+            prev_output_tokens (LongTensor): previous decoder outputs of shape
+                `(batch, tgt_len)`, for input feeding/teacher forcing
+            encoder_out (Tensor, optional): output from the encoder, used for
+                encoder-side attention
+            incremental_state (dict): dictionary used for storing state during
+                :ref:`Incremental decoding`
+
+        Returns:
+            tuple:
+                - the last decoder layer's output of shape `(batch, tgt_len,
+                  vocab)`
+                - the last decoder layer's attention weights of shape `(batch,
+                  tgt_len, src_len)`
+        """
         raise NotImplementedError
 
     def reorder_incremental_state(self, incremental_state, new_order):
