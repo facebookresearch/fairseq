@@ -16,15 +16,32 @@ class FairseqEncoder(nn.Module):
         self.dictionary = dictionary
 
     def forward(self, src_tokens, src_lengths):
+        """
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (LongTensor): lengths of each source sentence of shape
+                `(batch)`
+        """
         raise NotImplementedError
 
     def reorder_encoder_out(self, encoder_out, new_order):
-        """Reorder encoder output according to new_order."""
+        """
+        Reorder encoder output according to `new_order`.
+
+        Args:
+            encoder_out: output from the ``forward()`` method
+            new_order (LongTensor): desired order
+
+        Returns:
+            `encoder_out` rearranged according to `new_order`
+        """
         raise NotImplementedError
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        raise NotImplementedError
+        return 1e6  # an arbitrary large number
 
     def upgrade_state_dict(self, state_dict):
+        """Upgrade a (possibly old) state dict for new versions of fairseq."""
         return state_dict

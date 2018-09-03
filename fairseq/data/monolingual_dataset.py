@@ -40,7 +40,7 @@ class MonolingualDataset(FairseqDataset):
     Args:
         dataset (torch.utils.data.Dataset): dataset to wrap
         sizes (List[int]): sentence lengths
-        vocab (fairseq.data.Dictionary): vocabulary
+        vocab (~fairseq.data.Dictionary): vocabulary
         shuffle (bool, optional): shuffle the elements before batching.
             Default: ``True``
     """
@@ -61,22 +61,23 @@ class MonolingualDataset(FairseqDataset):
     def collater(self, samples):
         """Merge a list of samples to form a mini-batch.
 
-        Returns mini-batches with the following keys:
-        - `id` (torch.LongTensor): example IDs in the original input order
-        - `ntokens` (int): total number of tokens in the batch
-        - `net_input` (dict): the input to the Model, containing keys:
-          - `src_tokens` (torch.LongTensor): a padded 2D Tensor of tokens in
-            the source sentence of shape `(bsz, src_len)`. Padding will appear
-            on the right.
-        - `target` (torch.LongTensor): a padded 2D Tensor of tokens in the
-          target sentence of shape `(bsz, tgt_len)`. Padding will appear on the
-          right.
-
         Args:
             samples (List[dict]): samples to collate
 
         Returns:
-            dict: a mini-batch suitable for forwarding with a Model
+            dict: a mini-batch with the following keys:
+
+                - `id` (LongTensor): example IDs in the original input order
+                - `ntokens` (int): total number of tokens in the batch
+                - `net_input` (dict): the input to the Model, containing keys:
+
+                  - `src_tokens` (LongTensor): a padded 2D Tensor of tokens in
+                    the source sentence of shape `(bsz, src_len)`. Padding will
+                    appear on the right.
+
+                - `target` (LongTensor): a padded 2D Tensor of tokens in the
+                  target sentence of shape `(bsz, tgt_len)`. Padding will appear
+                  on the right.
         """
         return collate(samples, self.vocab.pad(), self.vocab.eos())
 

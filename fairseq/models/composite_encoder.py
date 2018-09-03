@@ -10,8 +10,13 @@ from . import FairseqEncoder
 
 class CompositeEncoder(FairseqEncoder):
     """
-    Encoder class that forwards on multiple encoders, for example for a fusion model or question-answering
-    Accepts a dictionary of encoder, the first encoder's dictionary is used for initialization
+    A wrapper around a dictionary of :class:`FairseqEncoder` objects.
+
+    We run forward on each encoder and return a dictionary of outputs. The first
+    encoder's dictionary is used for initialization.
+
+    Args:
+        encoders (dict): a dictionary of :class:`FairseqEncoder` objects.
     """
 
     def __init__(self, encoders):
@@ -21,6 +26,17 @@ class CompositeEncoder(FairseqEncoder):
             self.add_module(key, self.encoders[key])
 
     def forward(self, src_tokens, src_lengths):
+        """
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (LongTensor): lengths of each source sentence of shape
+                `(batch)`
+
+        Returns:
+            dict:
+                the outputs from each Encoder
+        """
         encoder_out = {}
         for key in self.encoders:
             encoder_out[key] = self.encoders[key](src_tokens, src_lengths)

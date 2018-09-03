@@ -5,7 +5,9 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
+"""
+BLEU scoring of generated translations against reference translations.
+"""
 
 import argparse
 import os
@@ -15,7 +17,7 @@ from fairseq import bleu, tokenizer
 from fairseq.data import dictionary
 
 
-def main():
+def get_parser():
     parser = argparse.ArgumentParser(description='Command-line script for BLEU scoring.')
     parser.add_argument('-s', '--sys', default='-', help='system output')
     parser.add_argument('-r', '--ref', required=True, help='references')
@@ -23,7 +25,11 @@ def main():
                         type=int, help='consider ngrams up to this order')
     parser.add_argument('--ignore-case', action='store_true',
                         help='case-insensitive scoring')
+    return parser
 
+
+def main():
+    parser = get_parser()
     args = parser.parse_args()
     print(args)
 

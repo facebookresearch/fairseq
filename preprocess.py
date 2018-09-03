@@ -5,7 +5,9 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-#
+"""
+Data pre-processing: build vocabularies and binarize training data.
+"""
 
 import argparse
 from itertools import zip_longest
@@ -17,8 +19,7 @@ from fairseq.tokenizer import Tokenizer, tokenize_line
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(
-        description='Data pre-processing: Create dictionary and store data in binary format')
+    parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--source-lang', default=None, metavar='SRC', help='source language')
     parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET', help='target language')
     parser.add_argument('--trainpref', metavar='FP', default=None, help='train file prefix')

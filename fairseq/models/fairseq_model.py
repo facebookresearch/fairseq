@@ -54,16 +54,17 @@ class BaseFairseqModel(nn.Module):
         return self.decoder.max_positions()
 
     def load_state_dict(self, state_dict, strict=True):
-        """Copies parameters and buffers from state_dict into this module and
+        """Copies parameters and buffers from *state_dict* into this module and
         its descendants.
 
-        Overrides the method in nn.Module; compared with that method this
-        additionally "upgrades" state_dicts from old checkpoints.
+        Overrides the method in :class:`nn.Module`. Compared with that method
+        this additionally "upgrades" *state_dicts* from old checkpoints.
         """
         self.upgrade_state_dict(state_dict)
         super().load_state_dict(state_dict, strict)
 
     def upgrade_state_dict(self, state_dict):
+        """Upgrade old state dicts to work with newer code."""
         assert state_dict is not None
 
         def do_upgrade(m, prefix):
@@ -119,7 +120,12 @@ class BaseFairseqModel(nn.Module):
 
 
 class FairseqModel(BaseFairseqModel):
-    """Base class for encoder-decoder models."""
+    """Base class for encoder-decoder models.
+
+    Args:
+        encoder (FairseqEncoder): the encoder
+        decoder (FairseqDecoder): the decoder
+    """
 
     def __init__(self, encoder, decoder):
         super().__init__()
@@ -130,6 +136,26 @@ class FairseqModel(BaseFairseqModel):
         assert isinstance(self.decoder, FairseqDecoder)
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens):
+        """
+        Run the forward pass for an encoder-decoder model.
+
+        First feed a batch of source tokens through the encoder. Then, feed the
+        encoder output and previous decoder outputs (i.e., input feeding/teacher
+        forcing) to the decoder to produce the next outputs::
+
+            encoder_out = self.encoder(src_tokens, src_lengths)
+            return self.decoder(prev_output_tokens, encoder_out)
+
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (LongTensor): source sentence lengths of shape `(batch)`
+            prev_output_tokens (LongTensor): previous decoder outputs of shape
+                `(batch, tgt_len)`, for input feeding/teacher forcing
+
+        Returns:
+            the decoder's output, typically of shape `(batch, tgt_len, vocab)`
+        """
         encoder_out = self.encoder(src_tokens, src_lengths)
         decoder_out = self.decoder(prev_output_tokens, encoder_out)
         return decoder_out
@@ -140,7 +166,11 @@ class FairseqModel(BaseFairseqModel):
 
 
 class FairseqLanguageModel(BaseFairseqModel):
-    """Base class for decoder-only models."""
+    """Base class for decoder-only models.
+
+    Args:
+        decoder (FairseqDecoder): the decoder
+    """
 
     def __init__(self, decoder):
         super().__init__()
@@ -148,6 +178,19 @@ class FairseqLanguageModel(BaseFairseqModel):
         assert isinstance(self.decoder, FairseqDecoder)
 
     def forward(self, src_tokens, src_lengths):
+        """
+        Run the forward pass for a decoder-only model.
+
+        Feeds a batch of tokens through the decoder to predict the next tokens.
+
+        Args:
+            src_tokens (LongTensor): tokens on which to condition the decoder,
+                of shape `(batch, tgt_len)`
+            src_lengths (LongTensor): source sentence lengths of shape `(batch)`
+
+        Returns:
+            the decoder's output, typically of shape `(batch, seq_len, vocab)`
+        """
         return self.decoder(src_tokens)
 
     def max_positions(self):

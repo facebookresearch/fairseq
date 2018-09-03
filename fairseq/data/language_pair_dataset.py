@@ -74,10 +74,10 @@ class LanguagePairDataset(FairseqDataset):
     Args:
         src (torch.utils.data.Dataset): source dataset to wrap
         src_sizes (List[int]): source sentence lengths
-        src_dict (fairseq.data.Dictionary): source vocabulary
+        src_dict (~fairseq.data.Dictionary): source vocabulary
         tgt (torch.utils.data.Dataset, optional): target dataset to wrap
         tgt_sizes (List[int], optional): target sentence lengths
-        tgt_dict (fairseq.data.Dictionary, optional): target vocabulary
+        tgt_dict (~fairseq.data.Dictionary, optional): target vocabulary
         left_pad_source (bool, optional): pad source tensors on the left side.
             Default: ``True``
         left_pad_target (bool, optional): pad target tensors on the left side.
@@ -130,29 +130,31 @@ class LanguagePairDataset(FairseqDataset):
     def collater(self, samples):
         """Merge a list of samples to form a mini-batch.
 
-        Returns mini-batches with the following keys:
-        - `id` (torch.LongTensor): example IDs in the original input order
-        - `ntokens` (int): total number of tokens in the batch
-        - `net_input` (dict): the input to the Model, containing keys:
-          - `src_tokens` (torch.LongTensor): a padded 2D Tensor of tokens in
-            the source sentence of shape `(bsz, src_len)`. Padding will appear
-            on the left if *left_pad_source* is True.
-          - `src_lengths` (torch.LongTensor): 1D Tensor of the unpadded lengths
-            of each source sentence of shape `(bsz)`
-          - `prev_output_tokens` (torch.LongTensor): a padded 2D Tensor of
-            tokens in the target sentence, shifted right by one position for
-            input feeding/teacher forcing, of shape `(bsz, tgt_len)`. This key
-            will only be present if *input_feeding* is ``True``. Padding will
-            appear on the left if *left_pad_target* is ``True``.
-        - `target` (torch.LongTensor): a padded 2D Tensor of tokens in the
-          target sentence of shape `(bsz, tgt_len)`. Padding will appear on the
-          left if *left_pad_target* is ``True``.
-
         Args:
             samples (List[dict]): samples to collate
 
         Returns:
-            dict: a mini-batch suitable for forwarding with a Model
+            dict: a mini-batch with the following keys:
+
+                - `id` (LongTensor): example IDs in the original input order
+                - `ntokens` (int): total number of tokens in the batch
+                - `net_input` (dict): the input to the Model, containing keys:
+
+                  - `src_tokens` (LongTensor): a padded 2D Tensor of tokens in
+                    the source sentence of shape `(bsz, src_len)`. Padding will
+                    appear on the left if *left_pad_source* is ``True``.
+                  - `src_lengths` (LongTensor): 1D Tensor of the unpadded
+                    lengths of each source sentence of shape `(bsz)`
+                  - `prev_output_tokens` (LongTensor): a padded 2D Tensor of
+                    tokens in the target sentence, shifted right by one position
+                    for input feeding/teacher forcing, of shape `(bsz,
+                    tgt_len)`. This key will not be present if *input_feeding*
+                    is ``False``. Padding will appear on the left if
+                    *left_pad_target* is ``True``.
+
+                - `target` (LongTensor): a padded 2D Tensor of tokens in the
+                  target sentence of shape `(bsz, tgt_len)`. Padding will appear
+                  on the left if *left_pad_target* is ``True``.
         """
         return collate(
             samples, pad_idx=self.src_dict.pad(), eos_idx=self.src_dict.eos(),
