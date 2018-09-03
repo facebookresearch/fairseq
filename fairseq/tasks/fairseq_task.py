@@ -25,13 +25,31 @@ class FairseqTask(object):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
+        """Setup the task (e.g., load dictionaries).
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+        """
         return cls(args)
 
     def load_dataset(self, split, combine=False):
+        """Load a given dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
         raise NotImplementedError
 
     def dataset(self, split):
-        """Return a dataset split."""
+        """
+        Return a loaded dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+
+        Returns:
+            a :class:`~fairseq.data.FairseqDataset` corresponding to *split*
+        """
         from fairseq.data import FairseqDataset
         if split not in self.datasets:
             raise KeyError('Dataset not loaded: ' + split)
@@ -48,7 +66,7 @@ class FairseqTask(object):
         Get an iterator that yields batches of data from the given dataset.
 
         Args:
-            dataset (FairseqDataset): dataset to batch
+            dataset (~fairseq.data.FairseqDataset): dataset to batch
             max_tokens (int, optional): max number of tokens in each batch.
                 Default: ``None``
             max_sentences (int, optional): max number of sentences in each
@@ -67,7 +85,8 @@ class FairseqTask(object):
                 return. Default: ``0``
 
         Returns:
-            EpochBatchIterator: a batched iterator over the given dataset split
+            ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
+                given dataset split
         """
         assert isinstance(dataset, FairseqDataset)
 
@@ -97,23 +116,58 @@ class FairseqTask(object):
         )
 
     def build_model(self, args):
+        """
+        Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
+        task.
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+
+        Returns:
+            a :class:`~fairseq.models.BaseFairseqModel` instance
+        """
         from fairseq import models
         return models.build_model(args, self)
 
     def build_criterion(self, args):
+        """
+        Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
+        this task.
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+
+        Returns:
+            a :class:`~fairseq.criterions.FairseqCriterion` instance
+        """
         from fairseq import criterions
         return criterions.build_criterion(args, self)
 
     def get_loss(self, model, criterion, sample):
+        """
+        Return the loss as computed by *criterion* for the given *model* and
+        *sample*.
+
+        Args:
+            model (~fairseq.models.BaseFairseqModel): the model
+            criterion (~fairseq.criterions.FairseqCriterion): the criterion
+            sample (dict): the mini-batch. The format is defined by the
+                :class:`~fairseq.data.FairseqDataset`.
+        """
         return criterion(model, sample)
 
     def max_positions(self):
+        """Return the max input length allowed by the task."""
         return None
 
     @property
     def source_dictionary(self):
+        """Return the source :class:`~fairseq.data.Dictionary` (if applicable
+        for this task)."""
         raise NotImplementedError
 
     @property
     def target_dictionary(self):
+        """Return the target :class:`~fairseq.data.Dictionary` (if applicable
+        for this task)."""
         raise NotImplementedError

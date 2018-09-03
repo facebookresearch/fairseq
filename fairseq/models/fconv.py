@@ -24,6 +24,23 @@ from . import (
 
 @register_model('fconv')
 class FConvModel(FairseqModel):
+    """
+    A fully convolutional model, i.e. a convolutional encoder and a
+    convolutional decoder, as described in `"Convolutional Sequence to Sequence
+    Learning" (Gehring et al., 2017) <https://arxiv.org/abs/1705.03122>`_.
+
+    Args:
+        encoder (FConvEncoder): the encoder
+        decoder (FConvDecoder): the decoder
+
+    The Convolutional model provides the following named architectures and
+    command-line arguments:
+
+    .. argparse::
+        :ref: fairseq.models.fconv_parser
+        :prog:
+    """
+
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
         self.encoder.num_attention_layers = sum(layer is not None for layer in decoder.attention)
@@ -145,7 +162,26 @@ class FConvLanguageModel(FairseqLanguageModel):
 
 
 class FConvEncoder(FairseqEncoder):
-    """Convolutional encoder"""
+    """
+    Convolutional encoder consisting of `len(convolutions)` layers.
+
+    Args:
+        dictionary (~fairseq.data.Dictionary): encoding dictionary
+        embed_dim (int, optional): embedding dimension
+        embed_dict (str, optional): filename from which to load pre-trained
+            embeddings
+        max_positions (int, optional): maximum supported input sequence length
+        convolutions (list, optional): the convolutional layer structure. Each
+            list item `i` corresponds to convolutional layer `i`. Layers are
+            given as ``(out_channels, kernel_width, [residual])``. Residual
+            connections are added between layers when ``residual=1`` (which is
+            the default behavior).
+        dropout (float, optional): dropout to be applied before each conv layer
+        normalization_constant (float, optional): multiplies the result of the
+            residual block by sqrt(value)
+        left_pad (bool, optional): whether the input is left-padded. Default:
+            ``True``
+    """
 
     def __init__(
             self, dictionary, embed_dim=512, embed_dict=None, max_positions=1024,
@@ -198,6 +234,23 @@ class FConvEncoder(FairseqEncoder):
         self.fc2 = Linear(in_channels, embed_dim)
 
     def forward(self, src_tokens, src_lengths):
+        """
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (LongTensor): lengths of each source sentence of shape
+                `(batch)`
+
+        Returns:
+            dict:
+                - **encoder_out** (tuple): a tuple with two elements, where the
+                  first element is the last encoder layer's output and the
+                  second element is the same quantity summed with the input
+                  embedding (used for attention). The shape of both tensors is
+                  `(batch, src_len, embed_dim)`.
+                - **encoder_padding_mask** (ByteTensor): the positions of
+                  padding elements of shape `(batch, src_len)`
+        """
         # embed tokens and positions
         x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
         x = F.dropout(x, p=self.dropout, training=self.training)

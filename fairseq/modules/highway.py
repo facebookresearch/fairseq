@@ -13,8 +13,8 @@ from torch import nn
 
 class Highway(torch.nn.Module):
     """
-    A `Highway layer <https://arxiv.org/abs/1505.00387>
-    Adopted from the AllenNLP implementation
+    A `Highway layer <https://arxiv.org/abs/1505.00387>`_.
+    Adopted from the AllenNLP implementation.
     """
 
     def __init__(

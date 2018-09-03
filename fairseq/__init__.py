@@ -8,3 +8,10 @@
 from .multiprocessing_pdb import pdb
 
 __all__ = ['pdb']
+
+import fairseq.criterions
+import fairseq.models
+import fairseq.modules
+import fairseq.optim
+import fairseq.optim.lr_scheduler
+import fairseq.tasks

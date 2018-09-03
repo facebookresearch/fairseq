@@ -22,11 +22,30 @@ from . import FairseqTask, register_task
 
 @register_task('translation')
 class TranslationTask(FairseqTask):
+    """
+    Translate from one (source) language to another (target) language.
+
+    Args:
+        src_dict (Dictionary): dictionary for the source language
+        tgt_dict (Dictionary): dictionary for the target language
+
+    .. note::
+
+        The translation task is compatible with :mod:`train.py <train>`,
+        :mod:`generate.py <generate>` and :mod:`interactive.py <interactive>`.
+
+    The translation task provides the following additional command-line
+    arguments:
+
+    .. argparse::
+        :ref: fairseq.tasks.translation_parser
+        :prog:
+    """
 
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('data', metavar='DIR', help='path to data directory')
+        parser.add_argument('data', help='path to data directory')
         parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                             help='source language')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
@@ -34,9 +53,9 @@ class TranslationTask(FairseqTask):
         parser.add_argument('--raw-text', action='store_true',
                             help='load raw text dataset')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
-                            help='pad the source on the left (default: True)')
+                            help='pad the source on the left')
         parser.add_argument('--left-pad-target', default='False', type=str, metavar='BOOL',
-                            help='pad the target on the left (default: False)')
+                            help='pad the target on the left')
         parser.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
                             help='max number of tokens in the source sequence')
         parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
@@ -51,6 +70,11 @@ class TranslationTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
+        """Setup the task (e.g., load dictionaries).
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+        """
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
 
@@ -72,7 +96,11 @@ class TranslationTask(FairseqTask):
         return cls(args, src_dict, tgt_dict)
 
     def load_dataset(self, split, combine=False):
-        """Load a dataset split."""
+        """Load a given dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
 
         def split_exists(split, src, tgt, lang):
             filename = os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, lang))
@@ -140,12 +168,15 @@ class TranslationTask(FairseqTask):
         )
 
     def max_positions(self):
+        """Return the max sentence length allowed by the task."""
         return (self.args.max_source_positions, self.args.max_target_positions)
 
     @property
     def source_dictionary(self):
+        """Return the source :class:`~fairseq.data.Dictionary`."""
         return self.src_dict
 
     @property
     def target_dictionary(self):
+        """Return the target :class:`~fairseq.data.Dictionary`."""
         return self.tgt_dict

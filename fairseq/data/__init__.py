@@ -7,9 +7,23 @@
 
 from .dictionary import Dictionary
 from .fairseq_dataset import FairseqDataset
-from .indexed_dataset import IndexedDataset, IndexedInMemoryDataset, IndexedRawTextDataset  # noqa: F401
+from .indexed_dataset import IndexedDataset, IndexedInMemoryDataset, IndexedRawTextDataset
 from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
 from .token_block_dataset import TokenBlockDataset
 
-from .iterators import EpochBatchIterator
+from .iterators import CountingIterator, EpochBatchIterator, ShardedIterator
+
+__all__ = [
+    'CountingIterator',
+    'Dictionary',
+    'EpochBatchIterator',
+    'FairseqDataset',
+    'IndexedDataset',
+    'IndexedInMemoryDataset',
+    'IndexedRawTextDataset',
+    'LanguagePairDataset',
+    'MonolingualDataset',
+    'TokenBlockDataset',
+    'ShardedIterator',
+]

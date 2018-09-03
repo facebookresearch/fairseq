@@ -27,6 +27,22 @@ from . import (
 
 @register_model('transformer')
 class TransformerModel(FairseqModel):
+    """
+    Transformer model from `"Attention Is All You Need" (Vaswani, et al, 2017)
+    <https://arxiv.org/abs/1706.03762>`_.
+
+    Args:
+        encoder (TransformerEncoder): the encoder
+        decoder (TransformerDecoder): the decoder
+
+    The Transformer model provides the following named architectures and
+    command-line arguments:
+
+    .. argparse::
+        :ref: fairseq.models.transformer_parser
+        :prog:
+    """
+
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
@@ -202,7 +218,17 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
 
 class TransformerEncoder(FairseqEncoder):
-    """Transformer encoder."""
+    """
+    Transformer encoder consisting of *args.encoder_layers* layers. Each layer
+    is a :class:`TransformerEncoderLayer`.
+
+    Args:
+        args (argparse.Namespace): parsed command-line arguments
+        dictionary (~fairseq.data.Dictionary): encoding dictionary
+        embed_tokens (torch.nn.Embedding): input embedding
+        left_pad (bool, optional): whether the input is left-padded. Default:
+            ``True``
+    """
 
     def __init__(self, args, dictionary, embed_tokens, left_pad=True):
         super().__init__(dictionary)
@@ -231,6 +257,20 @@ class TransformerEncoder(FairseqEncoder):
            self.layer_norm = LayerNorm(embed_dim)
 
     def forward(self, src_tokens, src_lengths):
+        """
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (torch.LongTensor): lengths of each source sentence of
+                shape `(batch)`
+
+        Returns:
+            dict:
+                - **encoder_out** (Tensor): the last encoder layer's output of
+                  shape `(src_len, batch, embed_dim)`
+                - **encoder_padding_mask** (ByteTensor): the positions of
+                  padding elements of shape `(batch, src_len)`
+        """
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(src_tokens)
         if self.embed_positions is not None:
@@ -258,6 +298,16 @@ class TransformerEncoder(FairseqEncoder):
         }
 
     def reorder_encoder_out(self, encoder_out, new_order):
+        """
+        Reorder encoder output according to *new_order*.
+
+        Args:
+            encoder_out: output from the ``forward()`` method
+            new_order (LongTensor): desired order
+
+        Returns:
+            *encoder_out* rearranged according to *new_order*
+        """
         if encoder_out['encoder_out'] is not None:
             encoder_out['encoder_out'] = \
                 encoder_out['encoder_out'].index_select(1, new_order)
@@ -273,6 +323,7 @@ class TransformerEncoder(FairseqEncoder):
         return min(self.max_source_positions, self.embed_positions.max_positions())
 
     def upgrade_state_dict(self, state_dict):
+        """Upgrade a (possibly old) state dict for new versions of fairseq."""
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             if 'encoder.embed_positions.weights' in state_dict:
                 del state_dict['encoder.embed_positions.weights']
@@ -286,7 +337,19 @@ class TransformerEncoder(FairseqEncoder):
 
 
 class TransformerDecoder(FairseqIncrementalDecoder):
-    """Transformer decoder."""
+    """
+    Transformer decoder consisting of *args.decoder_layers* layers. Each layer
+    is a :class:`TransformerDecoderLayer`.
+
+    Args:
+        args (argparse.Namespace): parsed command-line arguments
+        dictionary (~fairseq.data.Dictionary): decoding dictionary
+        embed_tokens (torch.nn.Embedding): output embedding
+        no_encoder_attn (bool, optional): whether to attend to encoder outputs.
+            Default: ``False``
+        left_pad (bool, optional): whether the input is left-padded. Default:
+            ``False``
+    """
 
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, left_pad=False, final_norm=True):
         super().__init__(dictionary)
@@ -338,6 +401,22 @@ class TransformerDecoder(FairseqIncrementalDecoder):
            self.layer_norm = LayerNorm(embed_dim)
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
+        """
+        Args:
+            prev_output_tokens (LongTensor): previous decoder outputs of shape
+                `(batch, tgt_len)`, for input feeding/teacher forcing
+            encoder_out (Tensor, optional): output from the encoder, used for
+                encoder-side attention
+            incremental_state (dict): dictionary used for storing state during
+                :ref:`Incremental decoding`
+
+        Returns:
+            tuple:
+                - the last decoder layer's output of shape `(batch, tgt_len,
+                  vocab)`
+                - the last decoder layer's attention weights of shape `(batch,
+                  tgt_len, src_len)`
+        """
         # embed positions
         positions = self.embed_positions(
             prev_output_tokens,
@@ -397,6 +476,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         return min(self.max_target_positions, self.embed_positions.max_positions())
 
     def upgrade_state_dict(self, state_dict):
+        """Upgrade a (possibly old) state dict for new versions of fairseq."""
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             if 'decoder.embed_positions.weights' in state_dict:
                 del state_dict['decoder.embed_positions.weights']
@@ -429,12 +509,15 @@ class TransformerEncoderLayer(nn.Module):
     """Encoder layer block.
 
     In the original paper each operation (multi-head attention or FFN) is
-    postprocessed with: dropout -> add residual -> layernorm.
-    In the tensor2tensor code they suggest that learning is more robust when
+    postprocessed with: `dropout -> add residual -> layernorm`. In the
+    tensor2tensor code they suggest that learning is more robust when
     preprocessing each layer with layernorm and postprocessing with:
-    dropout -> add residual.
-    We default to the approach in the paper, but the tensor2tensor approach can
-    be enabled by setting `normalize_before=True`.
+    `dropout -> add residual`. We default to the approach in the paper, but the
+    tensor2tensor approach can be enabled by setting
+    *args.encoder_normalize_before* to ``True``.
+
+    Args:
+        args (argparse.Namespace): parsed command-line arguments
     """
 
     def __init__(self, args):
@@ -452,6 +535,15 @@ class TransformerEncoderLayer(nn.Module):
         self.layer_norms = nn.ModuleList([LayerNorm(self.embed_dim) for i in range(2)])
 
     def forward(self, x, encoder_padding_mask):
+        """
+        Args:
+            x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
+            encoder_padding_mask (ByteTensor): binary ByteTensor of shape
+                `(batch, src_len)` where padding elements are indicated by ``1``.
+
+        Returns:
+            encoded output of shape `(batch, src_len, embed_dim)`
+        """
         residual = x
         x = self.maybe_layer_norm(0, x, before=True)
         x, _ = self.self_attn(query=x, key=x, value=x, key_padding_mask=encoder_padding_mask)
@@ -478,7 +570,21 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerDecoderLayer(nn.Module):
-    """Decoder layer block."""
+    """Decoder layer block.
+
+    In the original paper each operation (multi-head attention, encoder
+    attention or FFN) is postprocessed with: `dropout -> add residual ->
+    layernorm`. In the tensor2tensor code they suggest that learning is more
+    robust when preprocessing each layer with layernorm and postprocessing with:
+    `dropout -> add residual`. We default to the approach in the paper, but the
+    tensor2tensor approach can be enabled by setting
+    *args.decoder_normalize_before* to ``True``.
+
+    Args:
+        args (argparse.Namespace): parsed command-line arguments
+        no_encoder_attn (bool, optional): whether to attend to encoder outputs.
+            Default: ``False``
+    """
 
     def __init__(self, args, no_encoder_attn=False):
         super().__init__()
@@ -510,6 +616,15 @@ class TransformerDecoderLayer(nn.Module):
         self.need_attn = True
 
     def forward(self, x, encoder_out, encoder_padding_mask, incremental_state):
+        """
+        Args:
+            x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
+            encoder_padding_mask (ByteTensor): binary ByteTensor of shape
+                `(batch, src_len)` where padding elements are indicated by ``1``.
+
+        Returns:
+            encoded output of shape `(batch, src_len, embed_dim)`
+        """
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
         x, _ = self.self_attn(

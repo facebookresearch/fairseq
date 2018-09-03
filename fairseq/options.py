@@ -35,6 +35,10 @@ def get_generation_parser(interactive=False, default_task='translation'):
     return parser
 
 
+def get_interactive_generation_parser(default_task='translation'):
+    return get_generation_parser(interactive=True, default_task=default_task)
+
+
 def get_eval_lm_parser(default_task='language_modeling'):
     parser = get_parser('Evaluate Language Model', default_task)
     add_dataset_args(parser, gen=True)
@@ -115,8 +119,7 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
 
 
 def get_parser(desc, default_task='translation'):
-    parser = argparse.ArgumentParser(
-        description='Facebook AI Research Sequence-to-Sequence Toolkit -- ' + desc)
+    parser = argparse.ArgumentParser()
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
     parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
                         help='log progress every N batches (when progress bar is disabled)')
@@ -128,8 +131,9 @@ def get_parser(desc, default_task='translation'):
 
     # Task definitions can be found under fairseq/tasks/
     parser.add_argument(
-        '--task', metavar='TASK', default=default_task, choices=TASK_REGISTRY.keys(),
-        help='task: {} (default: {})'.format(', '.join(TASK_REGISTRY.keys()), default_task)
+        '--task', metavar='TASK', default=default_task,
+        choices=TASK_REGISTRY.keys(),
+        help='task',
     )
 
     return parser
@@ -199,7 +203,7 @@ def add_optimization_args(parser):
     # Optimizer definitions can be found under fairseq/optim/
     group.add_argument('--optimizer', default='nag', metavar='OPT',
                        choices=OPTIMIZER_REGISTRY.keys(),
-                       help='optimizer: {} (default: nag)'.format(', '.join(OPTIMIZER_REGISTRY.keys())))
+                       help='Optimizer')
     group.add_argument('--lr', '--learning-rate', default='0.25', metavar='LR_1,LR_2,...,LR_N',
                        help='learning rate for the first N epochs; all epochs >N using LR_N'
                             ' (note: this may be interpreted differently depending on --lr-scheduler)')
@@ -210,8 +214,8 @@ def add_optimization_args(parser):
 
     # Learning rate schedulers can be found under fairseq/optim/lr_scheduler/
     group.add_argument('--lr-scheduler', default='reduce_lr_on_plateau',
-                       help='learning rate scheduler: {} (default: reduce_lr_on_plateau)'.format(
-                           ', '.join(LR_SCHEDULER_REGISTRY.keys())))
+                       choices=LR_SCHEDULER_REGISTRY.keys(),
+                       help='Learning Rate Scheduler')
     group.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
                        help='learning rate shrink factor for annealing, lr_new = (lr * lr_shrink)')
     group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
@@ -337,16 +341,14 @@ def add_model_args(parser):
     group.add_argument(
         '--arch', '-a', default='fconv', metavar='ARCH', required=True,
         choices=ARCH_MODEL_REGISTRY.keys(),
-        help='model architecture: {} (default: fconv)'.format(
-            ', '.join(ARCH_MODEL_REGISTRY.keys())),
+        help='Model Architecture',
     )
 
     # Criterion definitions can be found under fairseq/criterions/
     group.add_argument(
         '--criterion', default='cross_entropy', metavar='CRIT',
         choices=CRITERION_REGISTRY.keys(),
-        help='training criterion: {} (default: cross_entropy)'.format(
-            ', '.join(CRITERION_REGISTRY.keys())),
+        help='Training Criterion',
     )
 
     return group
