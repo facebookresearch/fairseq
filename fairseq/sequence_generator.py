@@ -83,10 +83,9 @@ class SequenceGenerator(object):
                 timer.start()
             with torch.no_grad():
                 hypos = self.generate(
-                    input['src_tokens'],
-                    input['src_lengths'],
                     beam_size=beam_size,
-                    maxlen=int(maxlen_a*srclen + maxlen_b),
+                    maxlen=int(maxlen_a*srclen + maxlen_b
+                    **net_input),
                     prefix_tokens=s['target'][:, :prefix_size] if prefix_size > 0 else None,
                 )
             if timer is not None:
@@ -97,12 +96,13 @@ class SequenceGenerator(object):
                 ref = utils.strip_pad(s['target'].data[i, :], self.pad) if s['target'] is not None else None
                 yield id, src, ref, hypos[i]
 
-    def generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
+    def generate(self, beam_size=None, maxlen=None, prefix_tokens=None, **net_input):
         """Generate a batch of translations."""
         with torch.no_grad():
-            return self._generate(src_tokens, src_lengths, beam_size, maxlen, prefix_tokens)
+            return self._generate(beam_size, maxlen, prefix_tokens, **net_input)
 
-    def _generate(self, src_tokens, src_lengths, beam_size=None, maxlen=None, prefix_tokens=None):
+    def _generate(self, beam_size=None, maxlen=None, prefix_tokens=None, **net_input):
+        src_tokens = net_input['src_tokens']
         bsz, srclen = src_tokens.size()
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
 
@@ -121,10 +121,10 @@ class SequenceGenerator(object):
                 incremental_states[model] = None
 
             # compute the encoder output for each beam
-            encoder_out = model.encoder(
-                src_tokens.repeat(1, beam_size).view(-1, srclen),
-                src_lengths.expand(beam_size, src_lengths.numel()).t().contiguous().view(-1),
-            )
+            encoder_out = model.encoder(**net_input)
+            new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
+            new_order = new_order.to(net_input['src_tokens'].device)
+            encoder_out = model.encoder.reorder_encoder_out(encoder_out, new_order)
             encoder_outs.append(encoder_out)
 
         # initialize buffers
