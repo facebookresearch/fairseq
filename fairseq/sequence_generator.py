@@ -84,9 +84,9 @@ class SequenceGenerator(object):
             with torch.no_grad():
                 hypos = self.generate(
                     beam_size=beam_size,
-                    maxlen=int(maxlen_a*srclen + maxlen_b
-                    **net_input),
+                    maxlen=int(maxlen_a*srclen + maxlen_b),
                     prefix_tokens=s['target'][:, :prefix_size] if prefix_size > 0 else None,
+                    **net_input,
                 )
             if timer is not None:
                 timer.stop(sum(len(h[0]['tokens']) for h in hypos))
