@@ -9,6 +9,7 @@ import importlib
 import os
 
 from .fairseq_optimizer import FairseqOptimizer
+from .fp16_optimizer import FP16Optimizer
 
 
 OPTIMIZER_REGISTRY = {}
@@ -16,7 +17,7 @@ OPTIMIZER_CLASS_NAMES = set()
 
 
 def build_optimizer(args, params):
-    params = filter(lambda p: p.requires_grad, params)
+    params = list(filter(lambda p: p.requires_grad, params))
     return OPTIMIZER_REGISTRY[args.optimizer](args, params)
 
 

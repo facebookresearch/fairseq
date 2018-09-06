@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 import itertools
+import math
 
 import numpy as np
 import torch
@@ -148,6 +149,36 @@ class EpochBatchIterator(object):
             collate_fn=self.collate_fn,
             batch_sampler=ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[]),
         ))
+
+
+class GroupedIterator(object):
+    """Wrapper around an iterable that returns groups (chunks) of items.
+
+    Args:
+        iterable (iterable): iterable to wrap
+        chunk_size (int): size of each chunk
+    """
+
+    def __init__(self, iterable, chunk_size):
+        self._len = int(math.ceil(len(iterable) / float(chunk_size)))
+        self.itr = iter(iterable)
+        self.chunk_size = chunk_size
+
+    def __len__(self):
+        return self._len
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        chunk = []
+        try:
+            for _ in range(self.chunk_size):
+                chunk.append(next(self.itr))
+        except StopIteration as e:
+            if len(chunk) == 0:
+                raise e
+        return chunk
 
 
 class ShardedIterator(object):

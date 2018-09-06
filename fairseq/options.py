@@ -183,6 +183,10 @@ def add_distributed_training_args(parser):
                        help='port number (not required if using --distributed-init-method)')
     group.add_argument('--device-id', default=0, type=int,
                        help='which GPU to use (usually configured automatically)')
+    group.add_argument('--no-c10d', action='store_true',
+                       help='don\'t use c10d distributed backend')
+    group.add_argument('--c10d-bucket-cap-mb', default=150, metavar='MB',
+                       help='bucket size for c10d backend')
     return group
 
 

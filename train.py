@@ -16,7 +16,7 @@ import math
 import torch
 
 from fairseq import distributed_utils, options, progress_bar, tasks, utils
-from fairseq.fp16_trainer import FP16Trainer
+from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
 
@@ -43,16 +43,17 @@ def main(args):
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
     print('| num. model params: {}'.format(sum(p.numel() for p in model.parameters())))
 
+    # Make a dummy batch to (i) warm the caching allocator and (ii) as a
+    # placeholder DistributedDataParallel when there's an uneven number of
+    # batches per worker.
+    max_positions = utils.resolve_max_positions(
+        task.max_positions(),
+        model.max_positions(),
+    )
+    dummy_batch = task.dataset('train').get_dummy_batch(args.max_tokens, max_positions)
+
     # Build trainer
-    if args.fp16:
-        if torch.cuda.get_device_capability(0)[0] < 7:
-            print('| WARNING: your device does NOT support faster training with --fp16,'
-                  ' please switch to FP32 which is likely to be faster')
-        trainer = FP16Trainer(args, task, model, criterion)
-    else:
-        if torch.cuda.get_device_capability(0)[0] >= 7:
-            print('| NOTICE: your device may support faster training with --fp16')
-        trainer = Trainer(args, task, model, criterion)
+    trainer = Trainer(args, task, model, criterion, dummy_batch)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
@@ -60,10 +61,6 @@ def main(args):
     ))
 
     # Initialize dataloader
-    max_positions = utils.resolve_max_positions(
-        task.max_positions(),
-        trainer.get_model().max_positions(),
-    )
     epoch_itr = task.get_batch_iterator(
         dataset=task.dataset(args.train_subset),
         max_tokens=args.max_tokens,
@@ -78,9 +75,7 @@ def main(args):
 
     # Load the latest checkpoint if one is available
     if not load_checkpoint(args, trainer, epoch_itr):
-        # Send a dummy batch to warm the caching allocator
-        dummy_batch = task.dataset('train').get_dummy_batch(args.max_tokens, max_positions)
-        trainer.dummy_train_step(dummy_batch)
+        trainer.dummy_train_step([dummy_batch])
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
@@ -110,32 +105,32 @@ def main(args):
 def train(args, trainer, task, epoch_itr):
     """Train the model for one epoch."""
 
-    # Initialize data iterator
-    itr = epoch_itr.next_epoch_itr()
-    progress = progress_bar.build_progress_bar(args, itr, epoch_itr.epoch, no_progress_bar='simple')
-
-    # update parameters every N batches
+    # Update parameters every N batches
     if epoch_itr.epoch <= len(args.update_freq):
         update_freq = args.update_freq[epoch_itr.epoch - 1]
     else:
         update_freq = args.update_freq[-1]
 
+    # Initialize data iterator
+    itr = epoch_itr.next_epoch_itr()
+    itr = iterators.GroupedIterator(itr, update_freq)
+    progress = progress_bar.build_progress_bar(
+        args, itr, epoch_itr.epoch, no_progress_bar='simple',
+    )
+
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     first_valid = args.valid_subset.split(',')[0]
     max_update = args.max_update or math.inf
     num_batches = len(epoch_itr)
-    for i, sample in enumerate(progress, start=epoch_itr.iterations_in_epoch):
-        if i < num_batches - 1 and (i + 1) % update_freq > 0:
-            # buffer updates according to --update-freq
-            trainer.train_step(sample, update_params=False)
+    for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
+        log_output = trainer.train_step(samples)
+        if log_output is None:
             continue
-        else:
-            log_output = trainer.train_step(sample, update_params=True)
 
         # log mid-epoch stats
         stats = get_training_stats(trainer)
         for k, v in log_output.items():
-            if k in ['loss', 'nll_loss', 'sample_size']:
+            if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
                 continue  # these are already logged above
             if 'loss' in k:
                 extra_meters[k].update(v, log_output['sample_size'])
@@ -163,7 +158,9 @@ def train(args, trainer, task, epoch_itr):
     progress.print(stats)
 
     # reset training meters
-    for k in ['train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'clip', 'gnorm']:
+    for k in [
+        'train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'gnorm', 'clip',
+    ]:
         meter = trainer.get_meter(k)
         if meter is not None:
             meter.reset()
@@ -230,7 +227,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
             log_output = trainer.valid_step(sample)
 
             for k, v in log_output.items():
-                if k in ['loss', 'nll_loss', 'sample_size']:
+                if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
                     continue
                 extra_meters[k].update(v)
 

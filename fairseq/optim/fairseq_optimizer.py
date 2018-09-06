@@ -5,7 +5,9 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import torch.optim
+import math
+
+import torch
 
 
 class FairseqOptimizer(object):
@@ -13,7 +15,7 @@ class FairseqOptimizer(object):
     def __init__(self, args, params):
         super().__init__()
         self.args = args
-        self.params = params
+        self.params = list(params)
 
     @staticmethod
     def add_args(parser):
@@ -67,10 +69,25 @@ class FairseqOptimizer(object):
             for group in self.optimizer.param_groups:
                 group.update(optimizer_overrides)
 
+    def backward(self, loss):
+        loss.backward()
+
+    def multiply_grads(self, c):
+        """Multiplies grads by a constant ``c``."""
+        for p in self.params:
+            p.grad.data.mul_(c)
+
+    def clip_grad_norm(self, max_norm):
+        """Clips gradient norm."""
+        if max_norm > 0:
+            return torch.nn.utils.clip_grad_norm_(self.params, max_norm)
+        else:
+            return math.sqrt(sum(p.grad.data.norm()**2 for p in self.params))
+
     def step(self, closure=None):
         """Performs a single optimization step."""
-        return self.optimizer.step(closure)
+        self.optimizer.step(closure)
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
-        return self.optimizer.zero_grad()
+        self.optimizer.zero_grad()
