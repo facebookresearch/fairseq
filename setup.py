@@ -35,7 +35,7 @@ bleu = Extension(
 
 setup(
     name='fairseq',
-    version='0.5.0',
+    version='0.6.0',
     description='Facebook AI Research Sequence-to-Sequence Toolkit',
     long_description=readme,
     license=license,

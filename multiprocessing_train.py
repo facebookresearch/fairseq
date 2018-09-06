@@ -19,8 +19,10 @@ from train import main as single_process_main
 def main(args):
     # Set distributed training parameters for a single node.
     args.distributed_world_size = torch.cuda.device_count()
-    args.distributed_init_method = 'tcp://localhost:{port}'.format(
-        port=random.randint(10000, 20000))
+    port = random.randint(10000, 20000)
+    args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
+    args.distributed_init_host = 'localhost'
+    args.distributed_port = port + 1
 
     mp = torch.multiprocessing.get_context('spawn')
 

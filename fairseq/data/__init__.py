@@ -12,18 +12,24 @@ from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
 from .token_block_dataset import TokenBlockDataset
 
-from .iterators import CountingIterator, EpochBatchIterator, ShardedIterator
+from .iterators import (
+    CountingIterator,
+    EpochBatchIterator,
+    GroupedIterator,
+    ShardedIterator,
+)
 
 __all__ = [
     'CountingIterator',
     'Dictionary',
     'EpochBatchIterator',
     'FairseqDataset',
+    'GroupedIterator',
     'IndexedDataset',
     'IndexedInMemoryDataset',
     'IndexedRawTextDataset',
     'LanguagePairDataset',
     'MonolingualDataset',
-    'TokenBlockDataset',
     'ShardedIterator',
+    'TokenBlockDataset',
 ]
