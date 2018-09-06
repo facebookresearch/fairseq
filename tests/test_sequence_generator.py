@@ -85,7 +85,7 @@ class TestSequenceGenerator(unittest.TestCase):
 
     def test_with_normalization(self):
         generator = SequenceGenerator([self.model], self.tgt_dict)
-        hypos = generator.generate(src_tokens=self.src_tokens, src_lengths=self.src_lengths, beam_size=2)
+        hypos = generator.generate(self.src_tokens, self.src_lengths, beam_size=2)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -104,7 +104,7 @@ class TestSequenceGenerator(unittest.TestCase):
         # Sentence 1: unchanged from the normalized case
         # Sentence 2: beams swap order
         generator = SequenceGenerator([self.model], self.tgt_dict, normalize_scores=False)
-        hypos = generator.generate(src_tokens=self.src_tokens, src_lengths=self.src_lengths, beam_size=2)
+        hypos = generator.generate(self.src_tokens, self.src_lengths, beam_size=2)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -122,7 +122,7 @@ class TestSequenceGenerator(unittest.TestCase):
     def test_with_lenpen_favoring_short_hypos(self):
         lenpen = 0.6
         generator = SequenceGenerator([self.model], self.tgt_dict, len_penalty=lenpen)
-        hypos = generator.generate(src_tokens=self.src_tokens, src_lengths=self.src_lengths, beam_size=2)
+        hypos = generator.generate(self.src_tokens, self.src_lengths, beam_size=2)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -140,7 +140,7 @@ class TestSequenceGenerator(unittest.TestCase):
     def test_with_lenpen_favoring_long_hypos(self):
         lenpen = 5.0
         generator = SequenceGenerator([self.model], self.tgt_dict, len_penalty=lenpen)
-        hypos = generator.generate(src_tokens=self.src_tokens, src_lengths=self.src_lengths, beam_size=2)
+        hypos = generator.generate(self.src_tokens, self.src_lengths, beam_size=2)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w2, w1, w2, eos])
@@ -157,7 +157,7 @@ class TestSequenceGenerator(unittest.TestCase):
 
     def test_maxlen(self):
         generator = SequenceGenerator([self.model], self.tgt_dict, maxlen=2)
-        hypos = generator.generate(src_tokens=self.src_tokens, src_lengths=self.src_lengths, beam_size=2)
+        hypos = generator.generate(self.src_tokens, self.src_lengths, beam_size=2)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -174,7 +174,7 @@ class TestSequenceGenerator(unittest.TestCase):
 
     def test_no_stop_early(self):
         generator = SequenceGenerator([self.model], self.tgt_dict, stop_early=False)
-        hypos = generator.generate(src_tokens=self.src_tokens, src_lengths=self.src_lengths, beam_size=2)
+        hypos = generator.generate(self.src_tokens, self.src_lengths, beam_size=2)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
