@@ -15,7 +15,7 @@ from itertools import chain
 
 import torch
 
-from fairseq import distributed_utils, optim, utils
+from fairseq import distributed_utils, models, optim, utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.optim import lr_scheduler
 
@@ -23,22 +23,27 @@ from fairseq.optim import lr_scheduler
 class Trainer(object):
     """Main class for data parallel training.
 
-    This class supports data parallel training, where multiple workers each
-    have a full model replica and gradients are accumulated synchronously via
-    torch.distributed.all_reduce.
+    This class supports synchronous distributed data parallel training,
+    where multiple workers each have a full model replica and gradients
+    are accumulated across workers before each update. We use
+    :class:`~torch.nn.parallel.DistributedDataParallel` to handle
+    communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion):
+    def __init__(self, args, task, model, criterion, dummy_batch):
 
         if not torch.cuda.is_available():
             raise NotImplementedError('Training on CPU is not supported')
 
         self.args = args
+        self.task = task
 
         # copy model and criterion to current device
-        self.task = task
-        self.model = model.cuda()
         self.criterion = criterion.cuda()
+        if args.fp16:
+            self._model = model.half().cuda()
+        else:
+            self._model = model.cuda()
 
         # initialize meters
         self.meters = OrderedDict()
@@ -53,14 +58,27 @@ class Trainer(object):
         self.meters['gnorm'] = AverageMeter()  # gradient norm
         self.meters['clip'] = AverageMeter()   # % of updates clipped
         self.meters['oom'] = AverageMeter()    # out of memory
+        if args.fp16:
+            self.meters['loss_scale'] = AverageMeter()  # dynamic loss scale
         self.meters['wall'] = TimeMeter()      # wall time in seconds
         self.meters['train_wall'] = StopwatchMeter()  # train wall time in seconds
 
-        self._buffered_stats = defaultdict(lambda: [])
-        self._flat_grads = None
+        self._dummy_batch = dummy_batch
         self._num_updates = 0
         self._optim_history = None
         self._optimizer = None
+        self._wrapped_model = None
+
+    @property
+    def model(self):
+        if self._wrapped_model is None:
+            if self.args.distributed_world_size > 1:
+                self._wrapped_model = models.DistributedFairseqModel(
+                    self.args, self._model,
+                )
+            else:
+                self._wrapped_model = self._model
+        return self._wrapped_model
 
     @property
     def optimizer(self):
@@ -69,7 +87,17 @@ class Trainer(object):
         return self._optimizer
 
     def _build_optimizer(self):
-        self._optimizer = optim.build_optimizer(self.args, self.model.parameters())
+        if self.args.fp16:
+            if torch.cuda.get_device_capability(0)[0] < 7:
+                print('| WARNING: your device does NOT support faster training with --fp16, '
+                      'please switch to FP32 which is likely to be faster')
+            params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
+            self._optimizer = optim.FP16Optimizer.build_optimizer(self.args, params)
+        else:
+            if torch.cuda.get_device_capability(0)[0] >= 7:
+                print('| NOTICE: your device may support faster training with --fp16')
+            self._optimizer = optim.build_optimizer(self.args, self.model.parameters())
+
         self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self._optimizer)
 
     def save_checkpoint(self, filename, extra_state):
@@ -77,31 +105,27 @@ class Trainer(object):
         if distributed_utils.is_master(self.args):  # only save one checkpoint
             extra_state['train_meters'] = self.meters
             utils.save_state(
-                filename, self.args, self.model, self.criterion, self.optimizer,
+                filename, self.args, self.get_model(), self.criterion, self.optimizer,
                 self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
             )
 
     def load_checkpoint(self, filename, reset_optimizer=False, reset_lr_scheduler=False, optimizer_overrides=None):
         """Load all training state from a checkpoint file."""
         extra_state, self._optim_history, last_optim_state = \
-            utils.load_model_state(filename, self.model)
-
+            utils.load_model_state(filename, self.get_model())
         if last_optim_state is not None and not reset_optimizer:
             # rebuild optimizer after loading model, since params may have changed
             self._build_optimizer()
 
             # only reload optimizer and lr_scheduler if they match
             last_optim = self._optim_history[-1]
-
             assert last_optim['criterion_name'] == self.criterion.__class__.__name__, \
                 'criterion does not match; please reset the optimizer (--reset-optimizer)'
-
             assert last_optim['optimizer_name'] == self.optimizer.__class__.__name__, \
                 'optimizer does not match; please reset the optimizer (--reset-optimizer)'
 
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
-
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
             self._num_updates = last_optim['num_updates']
@@ -117,7 +141,7 @@ class Trainer(object):
 
         return extra_state
 
-    def train_step(self, sample, update_params=True, dummy_batch=False):
+    def train_step(self, samples, dummy_batch=False):
         """Do forward, backward and parameter update."""
         # Set seed based on args.seed and the update number so that we get
         # reproducible results when resuming from checkpoints
@@ -125,229 +149,163 @@ class Trainer(object):
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
 
+        self.model.train()
+        self.zero_grad()
+
         if not dummy_batch:
             self.meters['train_wall'].start()
 
         # forward and backward pass
-        sample = self._prepare_sample(sample)
-        loss, sample_size, logging_output, oom_fwd = self._forward(sample)
-        oom_bwd = self._backward(loss)
+        logging_outputs, sample_sizes, ooms = [], [], 0
+        for i, sample in enumerate(samples):
+            sample = self._prepare_sample(sample)
+            if sample is None:
+                # when sample is None, run forward/backward on a dummy batch
+                # and ignore the resulting gradients
+                sample = self._prepare_sample(self._dummy_batch)
+                ignore_grad = True
+            else:
+                ignore_grad = False
 
-        # buffer stats and logging outputs
-        self._buffered_stats['sample_sizes'].append(sample_size)
-        self._buffered_stats['logging_outputs'].append(logging_output)
-        self._buffered_stats['ooms_fwd'].append(oom_fwd)
-        self._buffered_stats['ooms_bwd'].append(oom_bwd)
+            try:
+                # forward
+                loss, sample_size, logging_output = self.task.get_loss(
+                    self.model, self.criterion, sample,
+                )
+                if ignore_grad:
+                    loss *= 0
 
-        # update parameters
-        if update_params:
-            agg_logging_output = self._update_params()
-        else:
-            agg_logging_output = None  # buffering updates
+                if self.args.distributed_world_size > 1:
+                    # only all-reduce gradients in the last backwards pass
+                    if i < len(samples) - 1:
+                        self.model.need_reduction = False
+                    else:
+                        self.model.need_reduction = True
 
-        if not dummy_batch:
-            self.meters['train_wall'].stop()
+                # backward
+                self.optimizer.backward(loss)
 
-        return agg_logging_output
+                if not ignore_grad:
+                    logging_outputs.append(logging_output)
+                    sample_sizes.append(sample_size)
+            except RuntimeError as e:
+                if 'out of memory' in str(e):
+                    print('| WARNING: ran out of memory, skipping batch')
+                    ooms += 1
+                    self.zero_grad()
+                else:
+                    raise e
 
-    def _update_params(self):
+        if dummy_batch:
+            return None
+
         # gather logging outputs from all replicas
-        sample_sizes = self._buffered_stats['sample_sizes']
-        logging_outputs = self._buffered_stats['logging_outputs']
-        ooms_fwd = self._buffered_stats['ooms_fwd']
-        ooms_bwd = self._buffered_stats['ooms_bwd']
         if self.args.distributed_world_size > 1:
-            sample_sizes, logging_outputs, ooms_fwd, ooms_bwd = map(
-                lambda l: list(chain.from_iterable(l)),
-                zip(*distributed_utils.all_gather_list(
-                    (sample_sizes, logging_outputs, ooms_fwd, ooms_bwd)
-                ))
-            )
-        ooms_fwd = sum(ooms_fwd)
-        ooms_bwd = sum(ooms_bwd)
+            logging_outputs, sample_sizes, ooms = zip(*distributed_utils.all_gather_list(
+                [logging_outputs, sample_sizes, ooms],
+            ))
+            logging_outputs = list(chain.from_iterable(logging_outputs))
+            sample_sizes = list(chain.from_iterable(sample_sizes))
+            ooms = sum(ooms)
 
-        if ooms_fwd == self.args.distributed_world_size:
-            print('| WARNING: OOM in all workers, skipping batch')
+        if ooms == self.args.distributed_world_size:
+            print('| WARNING: OOM in all workers, skipping update')
             self.zero_grad()
             return None
 
-        # aggregate stats and logging outputs
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
-        agg_logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
-        grad_denom = self.criterion.__class__.grad_denom(sample_sizes)
+        # aggregate logging outputs and sample sizes
+        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        sample_size = self.criterion.__class__.grad_denom(sample_sizes)
+
+        if not all(k in logging_output for k in ['ntokens', 'nsentences']):
+            raise Exception((
+                'Please update the {}.aggregate_logging_outputs() method to '
+                'return ntokens and nsentences'
+            ).format(self.criterion.__class__.__name__))
 
         try:
-            # all-reduce and rescale gradients, then take an optimization step
-            grad_norm = self._all_reduce_and_rescale(grad_denom)
-            self._opt()
+            # normalize grads by sample size
+            self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
+
+            # clip grads
+            grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
+
+            # take an optimization step
+            self.optimizer.step()
+            self._num_updates += 1
+
+            # update learning rate
+            self.lr_scheduler.step_update(self._num_updates)
 
             # update meters
+            ntokens = logging_output.get('ntokens', 0)
+            nsentences = logging_output.get('nsentences', 0)
             self.meters['wps'].update(ntokens)
             self.meters['ups'].update(1.)
             self.meters['wpb'].update(ntokens)
             self.meters['bsz'].update(nsentences)
-            if grad_norm is not None:
-                self.meters['gnorm'].update(grad_norm)
-                self.meters['clip'].update(1. if grad_norm > self.args.clip_norm else 0.)
-            self.meters['oom'].update(ooms_fwd + ooms_bwd)
-
-            # update loss meters for training
-            if 'loss' in agg_logging_output:
-                self.meters['train_loss'].update(agg_logging_output['loss'], grad_denom)
-            # criterions can optionally log the NLL loss too
-            if 'nll_loss' in agg_logging_output:
-                self.meters['train_nll_loss'].update(agg_logging_output['nll_loss'], ntokens)
+            self.meters['gnorm'].update(grad_norm)
+            self.meters['clip'].update(
+                1. if grad_norm > self.args.clip_norm and self.args.clip_norm > 0 else 0.
+            )
+            self.meters['oom'].update(ooms)
+            self.meters['train_loss'].update(logging_output.get('loss', 0), sample_size)
+            self.meters['train_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
         except OverflowError as e:
-            self.zero_grad()
             print('| WARNING: overflow detected, ' + str(e))
+            self.zero_grad()
+            logging_output = None
 
-        self.clear_buffered_stats()
+        if self.args.fp16:
+            self.meters['loss_scale'].reset()
+            self.meters['loss_scale'].update(self.optimizer.scaler.loss_scale)
 
-        return agg_logging_output
+        self.meters['train_wall'].stop()
 
-    def _forward(self, sample, eval=False):
-        loss = None
-        sample_size = 0
-        logging_output = {
-            'ntokens': sample['ntokens'] if sample is not None else 0,
-            'nsentences': sample['target'].size(0) if sample is not None else 0,
-        }
-        oom = 0
-        try:
-            # prepare model and optimizer
-            if eval:
-                self.model.eval()
-            else:
-                self.model.train()
-
-            if sample is not None:
-                with torch.no_grad() if eval else contextlib.ExitStack():
-                    # calculate loss and sample size
-                    loss, sample_size, logging_output_ = self.task.get_loss(self.model, self.criterion, sample)
-                    logging_output.update(logging_output_)
-        except RuntimeError as e:
-            if not eval and 'out of memory' in str(e):
-                print('| WARNING: ran out of memory, skipping batch')
-                oom = 1
-                loss = None
-            else:
-                raise e
-        return loss, sample_size, logging_output, oom
-
-    def _backward(self, loss):
-        oom = 0
-        if loss is not None:
-            try:
-                # backward pass
-                loss.backward()
-            except RuntimeError as e:
-                if 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory, skipping batch')
-                    oom = 1
-                    self.zero_grad()
-                else:
-                    raise e
-        return oom
-
-    def _all_reduce_and_rescale(self, grad_denom):
-        # flatten grads into a single buffer and all-reduce
-        flat_grads = self._flat_grads = self._get_flat_grads(self._flat_grads)
-        if self.args.distributed_world_size > 1:
-            torch.distributed.all_reduce(flat_grads)
-
-        # rescale and clip gradients
-        flat_grads.div_(grad_denom)
-        grad_norm = utils.clip_grad_norm_(flat_grads, self.args.clip_norm)
-
-        # copy grads back into model parameters
-        self._set_flat_grads(flat_grads)
-
-        return grad_norm
-
-    def _get_grads(self):
-        grads = []
-        for name, p in self.model.named_parameters():
-            if not p.requires_grad:
-                continue
-            if p.grad is None:
-                print('WARNING: model parameter did not receive gradient: ' + name + '. '
-                      'Check that you\'re using the param in the forward pass or set requires_grad=False')
-                grads.append(p.new_zeros(p.shape))
-            else:
-                grads.append(p.grad.data)
-        return grads
-
-    def _get_flat_grads(self, out=None):
-        grads = self._get_grads()
-        if out is None:
-            grads_size = sum(g.numel() for g in grads)
-            out = grads[0].new(grads_size).zero_()
-        offset = 0
-        for g in grads:
-            numel = g.numel()
-            out[offset:offset+numel].copy_(g.view(-1))
-            offset += numel
-        return out[:offset]
-
-    def _set_flat_grads(self, new_grads):
-        grads = self._get_grads()
-        offset = 0
-        for g in grads:
-            numel = g.numel()
-            g.copy_(new_grads[offset:offset+numel].view_as(g))
-            offset += numel
-
-    def _opt(self):
-        # take an optimization step
-        self.optimizer.step()
-        self.zero_grad()
-        self._num_updates += 1
-
-        # update learning rate
-        self.lr_scheduler.step_update(self._num_updates)
+        return logging_output
 
     def valid_step(self, sample):
         """Do forward pass in evaluation mode."""
-        # forward pass
-        sample = self._prepare_sample(sample)
-        _loss, sample_size, logging_output, oom_fwd = self._forward(sample, eval=True)
-        assert not oom_fwd, 'Ran out of memory during validation'
+        self.model.eval()
 
-        # gather logging outputs from all GPUs
+        logging_output, sample_size = {}, 0
+        with torch.no_grad():
+            sample = self._prepare_sample(sample)
+            if sample is None:
+                sample = self._prepare_sample(self._dummy_batch)
+            _loss, sample_size, logging_output = self.task.get_loss(
+                self.model, self.criterion, sample,
+            )
+
+        # gather logging outputs from all replicas
         if self.args.distributed_world_size > 1:
-            sample_sizes, logging_outputs = zip(*distributed_utils.all_gather_list(
-                (sample_size, logging_output)
+            logging_output, sample_size = zip(*distributed_utils.all_gather_list(
+                [logging_output, sample_size],
             ))
+            logging_output = list(logging_output)
+            sample_size = list(sample_size)
         else:
-            sample_sizes = [sample_size]
-            logging_outputs = [logging_output]
+            logging_output = [logging_output]
+            sample_size = [sample_size]
 
-        # aggregate stats and logging outputs
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        grad_denom = self.criterion.__class__.grad_denom(sample_sizes)
-        agg_logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        # aggregate logging outputs and sample sizes
+        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_output)
+        sample_size = self.criterion.__class__.grad_denom(sample_size)
 
-        # update loss meters for validation
-        if 'loss' in agg_logging_output:
-            self.meters['valid_loss'].update(agg_logging_output['loss'], grad_denom)
-        # criterions can optionally log the NLL loss too
-        if 'nll_loss' in agg_logging_output:
-            self.meters['valid_nll_loss'].update(agg_logging_output['nll_loss'], ntokens)
+        # update meters for validation
+        ntokens = logging_output.get('ntokens', 0)
+        self.meters['valid_loss'].update(logging_output.get('loss', 0), sample_size)
+        self.meters['valid_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
 
-        return agg_logging_output
+        return logging_output
 
     def dummy_train_step(self, dummy_batch):
         """Dummy training step for warming caching allocator."""
-        self.train_step(dummy_batch, update_params=False, dummy_batch=True)
+        self.train_step(dummy_batch, dummy_batch=True)
         self.zero_grad()
-        self.clear_buffered_stats()
 
     def zero_grad(self):
         self.optimizer.zero_grad()
-
-    def clear_buffered_stats(self):
-        self._buffered_stats.clear()
 
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate based on the validation loss."""
@@ -362,8 +320,8 @@ class Trainer(object):
         return self.optimizer.get_lr()
 
     def get_model(self):
-        """Get the model replica."""
-        return self.model
+        """Get the (non-wrapped) model instance."""
+        return self._model
 
     def get_meter(self, name):
         """Get a specific meter by name."""

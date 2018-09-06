@@ -36,5 +36,7 @@ Iterators
     :members:
 .. autoclass:: fairseq.data.EpochBatchIterator
     :members:
+.. autoclass:: fairseq.data.GroupedIterator
+    :members:
 .. autoclass:: fairseq.data.ShardedIterator
     :members:
