@@ -13,6 +13,19 @@ and contains a train, test, and valid split. The dataset is described here: http
 
 Example usage:
 ```
+# Preprocess the dataset:
+# Note that the dataset release is the full data, but the paper models the first 1000 words of each story
+# Here is some example code that can trim the dataset to the first 1000 words of each story
+$ python
+$ data = ["train", "test", "valid"]
+$ for name in data:
+$   with open(name + ".wp_target") as f:
+$     stories = f.readlines()
+$   stories = [" ".join(i.split()[0:1000]) for i in stories]
+$   with open(name + ".wp_target", "w") as o:
+$     for line in stories:
+$       o.write(line.strip() + "\n")
+
 # Binarize the dataset:
 $ TEXT=examples/stories/writingPrompts
 $ python preprocess.py --source-lang wp_source --target-lang wp_target \
