@@ -127,13 +127,11 @@ class LanguageModelingTask(FairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
 
-        base_path = '' if full_path else self.args.data
-
         loaded_datasets = []
 
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
-            path = os.path.join(base_path, split_k)
+            path = os.path.join(self.args.data, split_k)
 
             if self.args.raw_text and IndexedRawTextDataset.exists(path):
                 ds = IndexedRawTextDataset(path, self.dictionary)
