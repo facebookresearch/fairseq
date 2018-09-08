@@ -180,7 +180,7 @@ class FairseqLanguageModel(BaseFairseqModel):
         self.decoder = decoder
         assert isinstance(self.decoder, FairseqDecoder)
 
-    def forward(self, src_tokens, **unused):
+    def forward(self, src_tokens, src_lengths):
         """
         Run the forward pass for a decoder-only model.
 
@@ -189,6 +189,7 @@ class FairseqLanguageModel(BaseFairseqModel):
         Args:
             src_tokens (LongTensor): tokens on which to condition the decoder,
                 of shape `(batch, tgt_len)`
+            src_lengths (LongTensor): source sentence lengths of shape `(batch)`
 
         Returns:
             the decoder's output, typically of shape `(batch, seq_len, vocab)`

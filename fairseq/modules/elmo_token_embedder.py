@@ -98,10 +98,10 @@ class ElmoTokenEmbedder(nn.Module):
 
     def _lm_states(self, input):
         if self.tune_lm:
-            _, model_out = self.language_model(input)
+            _, model_out = self.language_model(input, src_lengths=None)
         else:
             with torch.no_grad():
-                _, model_out = self.language_model(input)
+                _, model_out = self.language_model(input, src_lengths=None)
 
         assert 'inner_states' in model_out
 
