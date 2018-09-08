@@ -145,9 +145,9 @@ def main(args):
             tokens = tokens.cuda()
             lengths = lengths.cuda()
 
+        encoder_input = {'src_tokens': tokens, 'src_lengths': lengths}
         translations = translator.generate(
-            tokens,
-            lengths,
+            encoder_input,
             maxlen=int(args.max_len_a * tokens.size(1) + args.max_len_b),
         )
 
