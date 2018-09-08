@@ -147,7 +147,10 @@ class ElmoTokenEmbedder(nn.Module):
             self,
             input: torch.Tensor,
     ):
-        zero_block = input.new(0, 0)
+        if not self.add_bos and not self.add_eos:
+            return input
+
+        zero_block = input.new(input.size(0), 0)
         bos_block = input.new_full((input.size(0), 1), self.eos_idx) if self.add_bos else zero_block
         pad_block = input.new_full((input.size(0), 1), self.padding_idx) if self.add_eos else zero_block
 
