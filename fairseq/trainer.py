@@ -266,16 +266,22 @@ class Trainer(object):
 
     def valid_step(self, sample):
         """Do forward pass in evaluation mode."""
-        self.model.eval()
-
-        logging_output, sample_size = {}, 0
         with torch.no_grad():
+            self.model.eval()
+
             sample = self._prepare_sample(sample)
             if sample is None:
                 sample = self._prepare_sample(self._dummy_batch)
+                ignore_results = True
+            else:
+                ignore_results = False
+
             _loss, sample_size, logging_output = self.task.get_loss(
                 self.model, self.criterion, sample,
             )
+
+            if ignore_results:
+                logging_output, sample_size = {}, 0
 
         # gather logging outputs from all replicas
         if self.args.distributed_world_size > 1:
