@@ -42,7 +42,7 @@ class FP16Optimizer(optim.FairseqOptimizer):
         self.fp32_optimizer = fp32_optimizer
         self.fp32_params = fp32_params
         self.scaler = DynamicLossScaler(
-            init_scale=2.**7,
+            init_scale=args.fp16_init_scale,
             scale_window=(2**14 / args.distributed_world_size),
         )
 

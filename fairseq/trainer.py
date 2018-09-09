@@ -250,7 +250,8 @@ class Trainer(object):
             )
             self.meters['oom'].update(ooms)
             self.meters['train_loss'].update(logging_output.get('loss', 0), sample_size)
-            self.meters['train_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
+            if 'nll_loss' in logging_output:
+                self.meters['train_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
         except OverflowError as e:
             print('| WARNING: overflow detected, ' + str(e))
             self.zero_grad()
@@ -301,7 +302,8 @@ class Trainer(object):
         # update meters for validation
         ntokens = logging_output.get('ntokens', 0)
         self.meters['valid_loss'].update(logging_output.get('loss', 0), sample_size)
-        self.meters['valid_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
+        if 'nll_loss' in logging_output:
+            self.meters['valid_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
 
         return logging_output
 
