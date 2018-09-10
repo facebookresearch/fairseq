@@ -107,7 +107,7 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
 
         print("Model args: ", args)
 
-        decoder = BiTransformerDecoder(args, task.dictionary, embed_tokens)
+        decoder = BiTransformerDecoder(args, task.output_dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
 
     @classmethod
