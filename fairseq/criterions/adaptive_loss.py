@@ -74,6 +74,7 @@ class AdaptiveLoss(FairseqCriterion):
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         agg_output = {
             'loss': loss_sum / sample_size / math.log(2),
+            'nll_loss': loss_sum / sample_size / math.log(2),
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,
