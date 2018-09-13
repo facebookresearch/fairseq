@@ -10,12 +10,16 @@ Data pre-processing: build vocabularies and binarize training data.
 """
 
 import argparse
+from collections import Counter
 from itertools import zip_longest
 import os
 import shutil
 
+
 from fairseq.data import indexed_dataset, dictionary
 from fairseq.tokenizer import Tokenizer, tokenize_line
+from multiprocessing import Pool, Manager, Process
+
 
 
 def get_parser():
@@ -41,6 +45,7 @@ def get_parser():
     parser.add_argument('--only-source', action='store_true', help='Only process the source language')
     parser.add_argument('--padding-factor', metavar='N', default=8, type=int,
                         help='Pad dictionary size to be multiple of N')
+    parser.add_argument('--workers', metavar='N', default=1, type=int, help='number of parallel workers')
     return parser
 
 
@@ -52,7 +57,7 @@ def main(args):
     def build_dictionary(filenames):
         d = dictionary.Dictionary()
         for filename in filenames:
-            Tokenizer.add_file_to_dictionary(filename, d, tokenize_line)
+            Tokenizer.add_file_to_dictionary(filename, d, tokenize_line, args.workers)
         return d
 
     def train_path(lang):
@@ -69,11 +74,6 @@ def main(args):
 
     def dict_path(lang):
         return dest_path('dict', lang) + '.txt'
-
-    def dataset_dest_path(output_prefix, lang, extension):
-        base = f'{args.destdir}/{output_prefix}'
-        lang_part = f'.{args.source_lang}-{args.target_lang}.{lang}' if lang is not None else ''
-        return f'{base}{lang_part}.{extension}'
 
     if args.joined_dictionary:
         assert not args.srcdict, 'cannot combine --srcdict and --joined-dictionary'
@@ -111,25 +111,54 @@ def main(args):
             )
         tgt_dict.save(dict_path(args.target_lang))
 
-    def make_binary_dataset(input_prefix, output_prefix, lang):
+    def make_binary_dataset(input_prefix, output_prefix, lang, num_workers):
         dict = dictionary.Dictionary.load(dict_path(lang))
         print('| [{}] Dictionary: {} types'.format(lang, len(dict) - 1))
+        n_seq_tok = [0, 0]
+        replaced = Counter()
 
-        ds = indexed_dataset.IndexedDatasetBuilder(dataset_dest_path(output_prefix, lang, 'bin'))
-
-        def consumer(tensor):
-            ds.add_item(tensor)
+        def merge_result(worker_result):
+            replaced.update(worker_result['replaced'])
+            n_seq_tok[0] += worker_result['nseq']
+            n_seq_tok[1] += worker_result['ntok']
 
         input_file = '{}{}'.format(input_prefix, ('.' + lang) if lang is not None else '')
-        res = Tokenizer.binarize(input_file, dict, consumer)
-        print('| [{}] {}: {} sents, {} tokens, {:.3}% replaced by {}'.format(
-            lang, input_file, res['nseq'], res['ntok'],
-            100 * res['nunk'] / res['ntok'], dict.unk_word))
-        ds.finalize(dataset_dest_path(output_prefix, lang, 'idx'))
+        offsets = Tokenizer.find_offsets(input_file, num_workers)
+        pool = None
+        if num_workers > 1:
+            pool = Pool(processes=num_workers-1)
+            for worker_id in range(1, num_workers):
+                prefix = "{}{}".format(output_prefix, worker_id)
+                pool.apply_async(binarize, (args, input_file, dict, prefix, lang,
+                                            offsets[worker_id],
+                                            offsets[worker_id + 1]), callback=merge_result)
+            pool.close()
 
-    def make_dataset(input_prefix, output_prefix, lang):
+        ds = indexed_dataset.IndexedDatasetBuilder(dataset_dest_file(args, output_prefix, lang, 'bin'))
+        merge_result(Tokenizer.binarize(input_file, dict, lambda t: ds.add_item(t),
+                                        offset=0, end=offsets[1]))
+        if num_workers > 1:
+            pool.join()
+            for worker_id in range(1, num_workers):
+                prefix = "{}{}".format(output_prefix, worker_id)
+                temp_file_path = dataset_dest_prefix(args, prefix, lang)
+                ds.merge_file_(temp_file_path)
+                os.remove(indexed_dataset.data_file_path(temp_file_path))
+                os.remove(indexed_dataset.index_file_path(temp_file_path))
+
+
+        ds.finalize(dataset_dest_file(args, output_prefix, lang, 'idx'))
+
+
+        print('| [{}] {}: {} sents, {} tokens, {:.3}% replaced by {}'.format(
+            lang, input_file, n_seq_tok[0], n_seq_tok[1],
+            100 * sum(replaced.values()) / n_seq_tok[1], dict.unk_word))
+
+
+
+    def make_dataset(input_prefix, output_prefix, lang, num_workers=1):
         if args.output_format == 'binary':
-            make_binary_dataset(input_prefix, output_prefix, lang)
+            make_binary_dataset(input_prefix, output_prefix, lang, num_workers)
         elif args.output_format == 'raw':
             # Copy original text file to destination folder
             output_text_file = dest_path(
@@ -140,7 +169,7 @@ def main(args):
 
     def make_all(lang):
         if args.trainpref:
-            make_dataset(args.trainpref, 'train', lang)
+            make_dataset(args.trainpref, 'train', lang, num_workers=args.workers)
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(',')):
                 outprefix = 'valid{}'.format(k) if k > 0 else 'valid'
@@ -194,6 +223,28 @@ def main(args):
                 args.source_lang, args.target_lang)), 'w') as f:
             for k, v in align_dict.items():
                 print('{} {}'.format(src_dict[k], tgt_dict[v]), file=f)
+
+
+
+def binarize(args, filename, dict, output_prefix, lang, offset, end):
+
+    ds = indexed_dataset.IndexedDatasetBuilder(dataset_dest_file(args, output_prefix, lang, 'bin'))
+    def consumer(tensor):
+        ds.add_item(tensor)
+
+    res = Tokenizer.binarize(filename, dict, consumer, offset=offset, end=end)
+    ds.finalize(dataset_dest_file(args, output_prefix, lang, 'idx'))
+    return res
+
+def dataset_dest_prefix(args, output_prefix, lang):
+    base = f'{args.destdir}/{output_prefix}'
+    lang_part = f'.{args.source_lang}-{args.target_lang}.{lang}' if lang is not None else ''
+    return f'{base}{lang_part}'
+
+
+def dataset_dest_file(args, output_prefix, lang, extension):
+    base = dataset_dest_prefix(args, output_prefix, lang)
+    return f'{base}.{extension}'
 
 
 if __name__ == '__main__':
