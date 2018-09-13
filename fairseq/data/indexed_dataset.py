@@ -52,9 +52,15 @@ def data_file_path(prefix_path):
 class IndexedDataset(torch.utils.data.Dataset):
     """Loader for TorchNet IndexedDataset"""
 
-    def __init__(self, path, fix_lua_indexing=False):
+    def __init__(self, path, fix_lua_indexing=False, read_data=True):
         super().__init__()
         self.fix_lua_indexing = fix_lua_indexing
+        self.read_index(path)
+        self.data_file = None
+        if read_data:
+            self.read_data(path)
+
+    def read_index(self, path):
         with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
             assert magic == b'TNTIDX\x00\x00'
@@ -66,7 +72,6 @@ class IndexedDataset(torch.utils.data.Dataset):
             self.dim_offsets = read_longs(f, self.size + 1)
             self.data_offsets = read_longs(f, self.size + 1)
             self.sizes = read_longs(f, self.s)
-        self.read_data(path)
 
     def read_data(self, path):
         self.data_file = open(data_file_path(path), 'rb', buffering=0)
@@ -76,7 +81,8 @@ class IndexedDataset(torch.utils.data.Dataset):
             raise IndexError('index out of range')
 
     def __del__(self):
-        self.data_file.close()
+        if self.data_file:
+            self.data_file.close()
 
     def __getitem__(self, i):
         self.check_index(i)
@@ -192,6 +198,26 @@ class IndexedDatasetBuilder(object):
         for s in tensor.size():
             self.sizes.append(s)
         self.dim_offsets.append(self.dim_offsets[-1] + len(tensor.size()))
+
+    def merge_file_(self, another_file):
+        index = IndexedDataset(another_file, read_data=False)
+        assert index.dtype == self.dtype
+
+        begin = self.data_offsets[-1]
+        for offset in index.data_offsets[1:]:
+            self.data_offsets.append(begin + offset)
+        self.sizes.extend(index.sizes)
+        begin = self.dim_offsets[-1]
+        for dim_offset in index.dim_offsets[1:]:
+            self.dim_offsets.append(begin + dim_offset)
+
+        with open(data_file_path(another_file), 'rb') as f:
+            while True:
+                data = f.read(1024)
+                if data:
+                    self.out_file.write(data)
+                else:
+                    break
 
     def finalize(self, index_file):
         self.out_file.close()
