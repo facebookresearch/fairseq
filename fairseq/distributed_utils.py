@@ -5,10 +5,11 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from collections import namedtuple
 import pickle
 
 import torch
-from torch import distributed
+from torch import distributed, nn
 from torch.distributed import group
 
 from fairseq import utils
@@ -18,38 +19,47 @@ def is_master(args):
     return args.distributed_rank == 0
 
 
-_use_c10d = [None]
+_use_c10d = [True]
+
+
+C10dStatus = namedtuple('C10dStatus', ['has_c10d', 'is_default'])
+
+
+if hasattr(nn.parallel, 'deprecated'):
+    c10d_status = C10dStatus(has_c10d=True, is_default=True)
+elif hasattr(nn.parallel, '_DistributedDataParallelC10d'):
+    c10d_status = C10dStatus(has_c10d=True, is_default=False)
+else:
+    c10d_status = C10dStatus(has_c10d=False, is_default=False)
 
 
 def distributed_init(args):
     if args.distributed_world_size == 1:
         raise ValueError('Cannot initialize distributed with distributed_world_size=1')
 
-    if _use_c10d[0] is None:
-        _use_c10d[0] = not args.no_c10d
-
-    if _use_c10d[0] and not hasattr(torch.nn.parallel, '_DistributedDataParallelC10d'):
+    if args.ddp_backend == 'no_c10d':
         _use_c10d[0] = False
-        print('WARNING: cannot find DistributedDataParallelC10d, '
-              'falling back to standard DistributedDataParallel')
 
     print('| distributed init (rank {}): {}'.format(
         args.distributed_rank, args.distributed_init_method), flush=True)
 
     if _use_c10d[0]:
-        distributed.c10d.init_process_group(
-            backend=args.distributed_backend,
-            init_method=args.distributed_init_method,
-            world_size=args.distributed_world_size,
-            rank=args.distributed_rank,
-        )
+        if c10d_status.is_default:
+            init_fn = distributed.init_process_group
+        else:
+            init_fn = distributed.c10d.init_process_group
     else:
-        distributed.init_process_group(
-            backend=args.distributed_backend,
-            init_method=args.distributed_init_method,
-            world_size=args.distributed_world_size,
-            rank=args.distributed_rank,
-        )
+        if c10d_status.is_default:
+            init_fn = distributed.deprecated.init_process_group
+        else:
+            init_fn = distributed.init_process_group
+
+    init_fn(
+        backend=args.distributed_backend,
+        init_method=args.distributed_init_method,
+        world_size=args.distributed_world_size,
+        rank=args.distributed_rank,
+    )
 
     if not is_master(args):
         suppress_output()

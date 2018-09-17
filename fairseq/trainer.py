@@ -265,7 +265,7 @@ class Trainer(object):
 
         return logging_output
 
-    def valid_step(self, sample):
+    def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
         with torch.no_grad():
             self.model.eval()
@@ -277,9 +277,20 @@ class Trainer(object):
             else:
                 ignore_results = False
 
-            _loss, sample_size, logging_output = self.task.get_loss(
-                self.model, self.criterion, sample,
-            )
+            try:
+                _loss, sample_size, logging_output = self.task.get_loss(
+                    self.model, self.criterion, sample,
+                )
+            except RuntimeError as e:
+                if 'out of memory' in str(e) and not raise_oom:
+                    print('| WARNING: ran out of memory, retrying batch')
+                    for p in self.model.parameters():
+                        if p.grad is not None:
+                            del p.grad  # free some memory
+                    torch.cuda.empty_cache()
+                    return self.valid_step(sample, raise_oom=True)
+                else:
+                    raise e
 
             if ignore_results:
                 logging_output, sample_size = {}, 0
