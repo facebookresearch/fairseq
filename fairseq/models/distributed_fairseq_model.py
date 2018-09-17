@@ -5,8 +5,9 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from torch.distributed import c10d
 from torch.nn import parallel
+
+from fairseq.distributed_utils import c10d_status
 
 from . import BaseFairseqModel
 
@@ -28,21 +29,36 @@ class DistributedFairseqModel(BaseFairseqModel):
     def __init__(self, args, model):
         super().__init__()
         assert isinstance(model, BaseFairseqModel)
-        if args.no_c10d:
-            self.ddp_model = parallel.DistributedDataParallel(
+        if args.ddp_backend == 'c10d':
+            if c10d_status.is_default:
+                ddp_class = parallel.DistributedDataParallel
+            elif c10d_status.has_c10d:
+                ddp_class = parallel._DistributedDataParallelC10d
+            else:
+                raise Exception(
+                    'Can\'t find c10d version of DistributedDataParallel. '
+                    'Please update PyTorch.'
+                )
+            self.ddp_model = ddp_class(
+                module=model,
+                device_ids=[args.device_id],
+                output_device=args.device_id,
+                broadcast_buffers=False,
+                bucket_cap_mb=args.bucket_cap_mb,
+            )
+        elif args.ddp_backend == 'no_c10d':
+            if c10d_status.is_default:
+                ddp_class = parallel.deprecated.DistributedDataParallel
+            else:
+                ddp_class = parallel.DistributedDataParallel
+            self.ddp_model = ddp_class(
                 module=model,
                 device_ids=[args.device_id],
                 output_device=args.device_id,
                 broadcast_buffers=False,
             )
         else:
-            self.ddp_model = parallel._DistributedDataParallelC10d(
-                module=model,
-                device_ids=[args.device_id],
-                output_device=args.device_id,
-                broadcast_buffers=False,
-                bucket_cap_mb=args.c10d_bucket_cap_mb,
-            )
+            raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)
 
     def __call__(self, *args, **kwargs):
         return self.ddp_model(*args, **kwargs)
