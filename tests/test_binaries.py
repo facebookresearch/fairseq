@@ -292,7 +292,7 @@ def train_language_model(data_dir, arch):
             '--max-epoch', '1',
             '--no-progress-bar',
             '--distributed-world-size', '1',
-            '--no-c10d',
+            '--ddp-backend', 'no_c10d',
         ],
     )
     train.main(train_args)
