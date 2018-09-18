@@ -193,10 +193,12 @@ Alternatively you can manually start one process per GPU:
     > DATA=...  # path to the preprocessed dataset, must be visible from all nodes
     > HOST_PORT=master.example.com:9218  # one of the hosts used by the job
     > RANK=...  # the rank of this process, from 0 to 127 in case of 128 GPUs
+    > LOCAL_RANK=... # the local rank of this process, from 0 to 7 in case of 8 GPUs per machine
     > python train.py $DATA \
         --distributed-world-size 128 \
         --distributed-init-method 'tcp://$HOST_PORT' \
         --distributed-rank $RANK \
+        --device-id $LOCAL_RANK \
         --force-anneal 50 --lr-scheduler fixed --max-epoch 55 \
         --arch fconv_wmt_en_fr --optimizer nag --lr 0.1,4 --max-tokens 3000 \
         --clip-norm 0.1 --dropout 0.1 --criterion label_smoothed_cross_entropy \
