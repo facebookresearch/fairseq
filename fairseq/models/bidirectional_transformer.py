@@ -68,12 +68,6 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='size of character embeddings')
         parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
                             help='number of highway layers for character token embeddder')
-        parser.add_argument('--exclude-self-target', action='store_true',
-                            help='exclude self target')
-        parser.add_argument('--future-target', action='store_true',
-                            help='include future target')
-        parser.add_argument('--past-target', action='store_true',
-                            help='include past target')
         parser.add_argument('--linear-final-layer', action='store_true',
                             help='if set, uses a simple linear layer for the final prediction that combines the '
                                  'forward and backward tower instead of an attentional layer')
@@ -88,8 +82,6 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
 
         # make sure all arguments are present in older models
         base_bi_lm_architecture(args)
-
-        cls.set_targets(args, task)
 
         if not hasattr(args, 'max_source_positions'):
             args.max_source_positions = args.tokens_per_sample
@@ -110,16 +102,9 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         decoder = BiTransformerDecoder(args, task.output_dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
 
-    @classmethod
-    def set_targets(cls, args, task):
-        targets = ['self'] if not args.exclude_self_target else []
-        if args.future_target:
-            targets.append('future')
-        if args.past_target:
-            targets.append('past')
-
-        for ds in task.datasets.values():
-            ds.set_targets(targets)
+    @property
+    def supported_targets(self):
+        return {'self', 'past', 'future'}
 
 
 class BiTransformerDecoder(FairseqDecoder):
@@ -134,7 +119,7 @@ class BiTransformerDecoder(FairseqDecoder):
         self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = args.max_target_positions
 
-        self.exclude_self_target = args.exclude_self_target
+        self.self_target = args.self_target
         self.future_target = args.future_target
         self.past_target = args.past_target
 
@@ -155,7 +140,7 @@ class BiTransformerDecoder(FairseqDecoder):
         self.full_attn_layer = None
         self.full_linear_layer = None
 
-        if not self.exclude_self_target:
+        if self.self_target:
             if args.linear_final_layer:
                 self.full_linear_layer = Linear(embed_dim * 2, embed_dim, args.linear_final_layer_bias)
             else:
@@ -231,7 +216,7 @@ class BiTransformerDecoder(FairseqDecoder):
             )
             inner_states.extend((fwd_x, bwd_x))
 
-        if not self.exclude_self_target:
+        if self.self_target:
             if self.full_attn_layer is not None:
                 x, attn = self.full_attn_layer(
                     fwd_x,
@@ -412,6 +397,9 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
 
 @register_model_architecture('bi_transformer_lm', 'bi_transformer_lm')
 def base_bi_lm_architecture(args):
+    # by default bi-directional language models predict the current token (self)
+    args.self_target = True
+
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
@@ -429,7 +417,6 @@ def base_bi_lm_architecture(args):
     args.linear_final_layer = getattr(args, 'linear_final_layer', False)
     args.linear_final_layer_bias = getattr(args, 'linear_final_layer_bias', False)
 
-    args.exclude_self_target = getattr(args, 'exclude_self_target', False)
     args.future_target = getattr(args, 'future_target', False)
     args.past_target = getattr(args, 'past_target', False)
 
@@ -445,3 +432,11 @@ def bi_transformer_lm_big(args):
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 4096)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 16)
     base_bi_lm_architecture(args)
+
+
+@register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_big_non_cloze')
+def bi_transformer_lm_big_non_cloze(args):
+    bi_transformer_lm_big(args)
+    args.self_target = False
+    args.future_target = True
+    args.past_target = True
