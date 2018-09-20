@@ -99,8 +99,6 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
 
         print("Model args: ", args)
 
-        args.self_target = not getattr(args, 'exclude_self_target', False)
-
         decoder = BiTransformerDecoder(args, task.output_dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
 
@@ -400,7 +398,7 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
 @register_model_architecture('bi_transformer_lm', 'bi_transformer_lm')
 def base_bi_lm_architecture(args):
     # by default bi-directional language models predict the current token (self)
-    args.self_target = True
+    args.self_target = getattr(args, 'self_target', not getattr(args, 'exclude_self_target', False))
 
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
