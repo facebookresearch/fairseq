@@ -190,6 +190,7 @@ def add_distributed_training_args(parser):
     group.add_argument('--ddp-backend', default='c10d', type=str,
                        choices=['c10d', 'no_c10d'],
                        help='DistributedDataParallel backend')
+    group.add_argument('--no-c10d', action='store_true', help='equivalent to no_c10d backend')
     group.add_argument('--bucket-cap-mb', default=150, type=int, metavar='MB',
                        help='bucket size for reduction')
     group.add_argument('--fix-batches-to-gpus', action='store_true',
