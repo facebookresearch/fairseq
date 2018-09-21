@@ -65,6 +65,9 @@ class BaseFairseqModel(nn.Module):
 
     def upgrade_state_dict(self, state_dict):
         """Upgrade old state dicts to work with newer code."""
+        self.upgrade_state_dict_named(state_dict, '')
+
+    def upgrade_state_dict_named(self, state_dict, name):
         assert state_dict is not None
 
         def do_upgrade(m, prefix):
@@ -79,7 +82,7 @@ class BaseFairseqModel(nn.Module):
                     c.upgrade_state_dict(state_dict)
                 do_upgrade(c, name)
 
-        do_upgrade(self, '')
+        do_upgrade(self, name)
 
     def make_generation_fast_(self, **kwargs):
         """Optimize model for faster generation."""
@@ -196,3 +199,7 @@ class FairseqLanguageModel(BaseFairseqModel):
     def max_positions(self):
         """Maximum length supported by the model."""
         return self.decoder.max_positions()
+
+    @property
+    def supported_targets(self):
+        return {'future'}

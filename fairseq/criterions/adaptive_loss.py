@@ -42,11 +42,14 @@ class AdaptiveLoss(FairseqCriterion):
         adaptive_softmax = model.decoder.adaptive_softmax
 
         net_output = model(**sample['net_input'])
-        target = model.get_targets(sample, net_output).view(-1)
+        orig_target = model.get_targets(sample, net_output)
 
-        bsz = target.size(0)
+        nsentences = orig_target.size(0)
+        orig_target = orig_target.view(-1)
 
-        logits, target = adaptive_softmax(net_output[0], target)
+        bsz = orig_target.size(0)
+
+        logits, target = adaptive_softmax(net_output[0], orig_target)
         assert len(target) == len(logits)
 
         loss = net_output[0].new(1 if reduce else bsz).zero_()
@@ -57,11 +60,13 @@ class AdaptiveLoss(FairseqCriterion):
                 loss += F.cross_entropy(logits[i], target[i], size_average=False, ignore_index=self.padding_idx,
                                         reduce=reduce)
 
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        orig = utils.strip_pad(orig_target, self.padding_idx)
+        ntokens = orig.numel()
+        sample_size = sample['target'].size(0) if self.args.sentence_avg else ntokens
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
-            'ntokens': sample['ntokens'],
-            'nsentences': sample['target'].size(0),
+            'ntokens': ntokens,
+            'nsentences': nsentences,
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
