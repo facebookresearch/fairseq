@@ -61,6 +61,7 @@ def collate(
             'src_lengths': src_lengths,
         },
         'target': target,
+        'nsentences': samples[0]['source'].size(0),
     }
     if prev_output_tokens is not None:
         batch['net_input']['prev_output_tokens'] = prev_output_tokens

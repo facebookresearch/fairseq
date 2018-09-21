@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from .dictionary import Dictionary
+from .dictionary import Dictionary, TruncatedDictionary
 from .fairseq_dataset import FairseqDataset
 from .indexed_dataset import IndexedDataset, IndexedInMemoryDataset, IndexedRawTextDataset
 from .language_pair_dataset import LanguagePairDataset

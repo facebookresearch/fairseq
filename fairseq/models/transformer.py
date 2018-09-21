@@ -213,7 +213,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_input_dim, task.dictionary.pad())
 
-        decoder = TransformerDecoder(args, task.dictionary, embed_tokens, no_encoder_attn=True, final_norm=False)
+        decoder = TransformerDecoder(args, task.output_dictionary, embed_tokens, no_encoder_attn=True, final_norm=False)
         return TransformerLanguageModel(decoder)
 
 
@@ -442,6 +442,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         x = x.transpose(0, 1)
         attn = None
 
+        inner_states = [x]
+
         # decoder layers
         for layer in self.layers:
             x, attn = layer(
@@ -449,7 +451,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 encoder_out['encoder_out'] if encoder_out is not None else None,
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 incremental_state,
+                self_attn_mask=self.buffered_future_mask(x) if incremental_state is None else None,
             )
+            inner_states.append(x)
 
         if self.normalize:
             x = self.layer_norm(x)
@@ -467,13 +471,21 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             else:
                 x = F.linear(x, self.embed_out)
 
-        return x, attn
+        return x, {'attn': attn, 'inner_states': inner_states}
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
         if self.embed_positions is None:
             return self.max_target_positions
         return min(self.max_target_positions, self.embed_positions.max_positions())
+
+    def buffered_future_mask(self, tensor):
+        dim = tensor.size(0)
+        if not hasattr(self, '_future_mask') or self._future_mask is None or self._future_mask.device != tensor.device:
+            self._future_mask = torch.triu(utils.fill_with_neg_inf(tensor.new(dim, dim)), 1)
+        if self._future_mask.size(0) < dim:
+            self._future_mask = torch.triu(utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1)
+        return self._future_mask[:dim, :dim]
 
     def upgrade_state_dict(self, state_dict):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
@@ -615,7 +627,8 @@ class TransformerDecoderLayer(nn.Module):
         self.final_layer_norm = LayerNorm(self.embed_dim)
         self.need_attn = True
 
-    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state):
+    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state, self_attn_mask=None,
+                self_attn_padding_mask=None):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
@@ -631,9 +644,10 @@ class TransformerDecoderLayer(nn.Module):
             query=x,
             key=x,
             value=x,
-            mask_future_timesteps=True,
+            key_padding_mask=self_attn_padding_mask,
             incremental_state=incremental_state,
             need_weights=False,
+            attn_mask=self_attn_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
@@ -728,7 +742,6 @@ def base_lm_architecture(args):
     # The model training is not stable without this
     args.decoder_normalize_before = True
 
-
 @register_model_architecture('transformer_lm', 'transformer_lm_big')
 def transformer_lm_big(args):
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 1024)
@@ -740,7 +753,7 @@ def transformer_lm_big(args):
 @register_model_architecture('transformer_lm', 'transformer_lm_wiki103')
 def transformer_lm_wiki103(args):
     args.dropout = getattr(args, 'dropout', 0.3)
-    base_lm_architecture(args)
+    transformer_lm_big(args)
 
 
 @register_model_architecture('transformer_lm', 'transformer_lm_gbw')

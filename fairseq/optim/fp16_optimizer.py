@@ -106,8 +106,9 @@ class FP16Optimizer(optim.FairseqOptimizer):
             for p in self.params:
                 if not p.requires_grad:
                     continue
-                numel = p.grad.data.numel()
-                self.fp32_params.grad.data[offset:offset+numel].copy_(p.grad.data.view(-1))
+                grad_data = p.grad.data if p.grad is not None else p.data.new_zeros(p.data.shape)
+                numel = grad_data.numel()
+                self.fp32_params.grad.data[offset:offset+numel].copy_(grad_data.view(-1))
                 offset += numel
 
             # correct for dynamic loss scaler
