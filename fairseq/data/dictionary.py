@@ -199,3 +199,20 @@ class Dictionary(object):
         t = torch.Tensor(length).uniform_(self.nspecial + 1, len(self)).long()
         t[-1] = self.eos()
         return t
+
+class TruncatedDictionary(object):
+
+    def __init__(self, wrapped_dict, length):
+        self.__class__ = type(dict.__class__.__name__,
+                              (self.__class__, dict.__class__), {})
+        self.__dict__ = dict.__dict__
+        self.wrapped_dict = wrapped_dict
+        self.length = min(len(self.wrapped_dict), length)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, i):
+        if i < self.length:
+            return self.wrapped_dict[i]
+        return self.wrapped_dict.unk()

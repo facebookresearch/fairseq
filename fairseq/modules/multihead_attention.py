@@ -18,22 +18,30 @@ class MultiheadAttention(nn.Module):
 
     See "Attention Is All You Need" for more details.
     """
-    def __init__(self, embed_dim, num_heads, dropout=0., bias=True):
+
+    def __init__(self, embed_dim, num_heads, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim**-0.5
-        self._mask = None
+        self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight = Parameter(torch.Tensor(3*embed_dim, embed_dim))
+        self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
         if bias:
-            self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
+            self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+
+        if add_bias_kv:
+            self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
+            self.bias_v = Parameter(torch.Tensor(1, 1, embed_dim))
+        else:
+            self.bias_k = self.bias_v = None
+
+        self.add_zero_attn = add_zero_attn
 
         self.reset_parameters()
 
@@ -43,15 +51,18 @@ class MultiheadAttention(nn.Module):
         if self.in_proj_bias is not None:
             nn.init.constant_(self.in_proj_bias, 0.)
             nn.init.constant_(self.out_proj.bias, 0.)
+        if self.bias_k is not None:
+            nn.init.xavier_normal_(self.bias_k)
+        if self.bias_v is not None:
+            nn.init.xavier_normal_(self.bias_v)
 
-    def forward(self, query, key, value, mask_future_timesteps=False,
-                key_padding_mask=None, incremental_state=None,
-                need_weights=True, static_kv=False):
+    def forward(self, query, key, value, key_padding_mask=None, incremental_state=None,
+                need_weights=True, static_kv=False, attn_mask=None):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
-        query, key and value. Future timesteps can be masked with the
-        `mask_future_timesteps` argument. Padding elements can be excluded from
+        query, key and value. Timesteps can be masked by supplying a T x T mask in the
+        `attn_mask` argument. Padding elements can be excluded from
         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
         batch x src_len, where padding elements are indicated by 1s.
         """
@@ -103,24 +114,40 @@ class MultiheadAttention(nn.Module):
             saved_state['prev_value'] = v
             self._set_input_buffer(incremental_state, saved_state)
 
+        if self.bias_k is not None:
+            assert self.bias_v is not None
+            k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
+            v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
+            if attn_mask is not None:
+                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
+            if key_padding_mask is not None:
+                key_padding_mask = torch.cat(
+                    [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
+
         src_len = k.size(0)
 
         if key_padding_mask is not None:
             assert key_padding_mask.size(0) == bsz
             assert key_padding_mask.size(1) == src_len
 
-        q = q.contiguous().view(tgt_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
-        k = k.contiguous().view(src_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
-        v = v.contiguous().view(src_len, bsz*self.num_heads, self.head_dim).transpose(0, 1)
+        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        k = k.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        v = v.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+
+        if self.add_zero_attn:
+            src_len += 1
+            k = torch.cat([k, k.new_zeros((k.size(0), 1) + k.size()[2:])], dim=1)
+            v = torch.cat([v, v.new_zeros((v.size(0), 1) + v.size()[2:])], dim=1)
+            if attn_mask is not None:
+                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
+            if key_padding_mask is not None:
+                key_padding_mask = torch.cat([key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
-        # only apply masking at training time (when incremental state is None)
-        if mask_future_timesteps and incremental_state is None:
-            assert query.size() == key.size(), \
-                'mask_future_timesteps only applies to self-attention'
-            attn_weights += self.buffered_mask(attn_weights).unsqueeze(0)
+        if attn_mask is not None:
+            attn_weights += attn_mask.unsqueeze(0)
         if key_padding_mask is not None:
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
@@ -129,6 +156,7 @@ class MultiheadAttention(nn.Module):
                 float('-inf'),
             ).type_as(attn_weights)  # FP16 support: cast to float and back
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+
         attn_weights = F.softmax(attn_weights.float(), dim=-1).type_as(attn_weights)
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
 
@@ -156,10 +184,10 @@ class MultiheadAttention(nn.Module):
         return self._in_proj(query, end=self.embed_dim)
 
     def in_proj_k(self, key):
-        return self._in_proj(key, start=self.embed_dim, end=2*self.embed_dim)
+        return self._in_proj(key, start=self.embed_dim, end=2 * self.embed_dim)
 
     def in_proj_v(self, value):
-        return self._in_proj(value, start=2*self.embed_dim)
+        return self._in_proj(value, start=2 * self.embed_dim)
 
     def _in_proj(self, input, start=0, end=None):
         weight = self.in_proj_weight
@@ -168,14 +196,6 @@ class MultiheadAttention(nn.Module):
         if bias is not None:
             bias = bias[start:end]
         return F.linear(input, weight, bias)
-
-    def buffered_mask(self, tensor):
-        dim = tensor.size(-1)
-        if self._mask is None:
-            self._mask = torch.triu(utils.fill_with_neg_inf(tensor.new(dim, dim)), 1)
-        if self._mask.size(0) < dim:
-            self._mask = torch.triu(utils.fill_with_neg_inf(self._mask.resize_(dim, dim)), 1)
-        return self._mask[:dim, :dim]
 
     def reorder_incremental_state(self, incremental_state, new_order):
         """Reorder buffered internal state (for incremental generation)."""

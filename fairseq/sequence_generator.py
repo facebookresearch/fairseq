@@ -507,7 +507,11 @@ class SequenceGenerator(object):
                 decoder_out = list(model.decoder(tokens, encoder_out))
             decoder_out[0] = decoder_out[0][:, -1, :]
             attn = decoder_out[1]
+            if type(attn) is dict:
+                attn = attn['attn']
             if attn is not None:
+                if type(attn) is dict:
+                    attn = attn['attn']
                 attn = attn[:, -1, :]
         probs = model.get_normalized_probs(decoder_out, log_probs=log_probs)
         return probs, attn

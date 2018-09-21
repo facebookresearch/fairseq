@@ -13,7 +13,7 @@ from torch.utils.data import ConcatDataset
 
 from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
-    MonolingualDataset, TokenBlockDataset,
+    MonolingualDataset, TokenBlockDataset, TruncatedDictionary
 )
 
 from . import FairseqTask, register_task
@@ -25,7 +25,14 @@ class LanguageModelingTask(FairseqTask):
     Train a language model.
 
     Args:
-        dictionary (Dictionary): the dictionary for the language model
+        dictionary (Dictionary): the dictionary for the  input of the language model
+
+        output_dictionary (Dictionary): the dictionary for the output of the language model.
+        In most cases it will be the same as dictionary, but could possibly be a more limited
+        version of the dictionary (if --output-dictionary-size is used).
+
+        targets (List[str]): list of the target types that the language model should predict.
+        Can be one of "self", "future", and "past". Defaults to "future".
 
     .. note::
 
@@ -55,10 +62,23 @@ class LanguageModelingTask(FairseqTask):
                             help='max number of tokens per sample for LM dataset')
         parser.add_argument('--raw-text', default=False, action='store_true',
                             help='load raw text dataset')
+        parser.add_argument('--output-dictionary-size', default=-1, type=int,
+                            help='limit the size of output dictionary')
+        parser.add_argument('--self-target', action='store_true',
+                            help='include self target')
+        parser.add_argument('--future-target', action='store_true',
+                            help='include future target')
+        parser.add_argument('--past-target', action='store_true',
+                            help='include past target')
 
-    def __init__(self, args, dictionary):
+    def __init__(self, args, dictionary, output_dictionary, targets=None):
         super().__init__(args)
         self.dictionary = dictionary
+        self.output_dictionary = output_dictionary
+
+        if targets is None:
+            targets = ['future']
+        self.targets = targets
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -69,7 +89,36 @@ class LanguageModelingTask(FairseqTask):
         """
         dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
         print('| dictionary: {} types'.format(len(dictionary)))
-        return cls(args, dictionary)
+        output_dictionary = dictionary
+        if args.output_dictionary_size >= 0:
+            output_dictionary = TruncatedDictionary(dictionary, args.output_dictionary_size)
+
+        # upgrade old checkpoints
+        if hasattr(args, 'exclude_self_target'):
+            args.self_target = not args.exclude_self_target
+
+        targets = []
+        if args.self_target:
+            targets.append('self')
+        if args.future_target:
+            targets.append('future')
+        if args.past_target:
+            targets.append('past')
+        if len(targets) == 0:
+            # standard language modeling
+            targets = ['future']
+
+        return cls(args, dictionary, output_dictionary, targets=targets)
+
+    def build_model(self, args):
+        model = super().build_model(args)
+
+        for target in self.targets:
+            if target not in model.supported_targets:
+                raise ValueError('Unsupported language modeling target: {}'.format(target))
+
+        return model
+
 
     def load_dataset(self, split, combine=False):
         """Load a given dataset split.
@@ -98,8 +147,8 @@ class LanguageModelingTask(FairseqTask):
 
             loaded_datasets.append(
                 TokenBlockDataset(
-                    tokens, ds.sizes, self.args.tokens_per_sample, self.args.sample_break_mode,
-                    include_targets=True
+                    tokens, ds.sizes, self.args.tokens_per_sample, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
+                    break_mode=self.args.sample_break_mode, include_targets=True,
                 ))
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
@@ -114,10 +163,16 @@ class LanguageModelingTask(FairseqTask):
             dataset = ConcatDataset(loaded_datasets)
             sizes = np.concatenate([ds.sizes for ds in loaded_datasets])
 
-        self.datasets[split] = MonolingualDataset(dataset, sizes, self.dictionary, shuffle=False)
+        add_eos_for_other_targets = self.args.sample_break_mode is not None and self.args.sample_break_mode != 'none'
+
+        self.datasets[split] = MonolingualDataset(
+            dataset, sizes, self.dictionary, self.output_dictionary,
+            add_eos_for_other_targets=add_eos_for_other_targets, shuffle=False,
+            targets=self.targets,
+        )
 
     @property
     def target_dictionary(self):
         """Return the :class:`~fairseq.data.Dictionary` for the language
         model."""
-        return self.dictionary
+        return self.output_dictionary

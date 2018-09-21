@@ -40,7 +40,7 @@ def mock_dict():
 
 def get_trainer_and_epoch_itr(epoch, epoch_size, num_updates, iterations_in_epoch):
     tokens = torch.LongTensor(list(range(epoch_size)))
-    tokens_ds = data.TokenBlockDataset(tokens, [len(tokens)], 1, include_targets=False)
+    tokens_ds = data.TokenBlockDataset(tokens, sizes=[len(tokens)], block_size=1, pad=0, eos=1, include_targets=False)
     trainer = mock_trainer(epoch, num_updates, iterations_in_epoch)
     dataset = data.LanguagePairDataset(tokens_ds, tokens_ds.sizes, mock_dict(), shuffle=False)
     epoch_itr = data.EpochBatchIterator(
