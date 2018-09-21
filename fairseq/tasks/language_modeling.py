@@ -95,6 +95,10 @@ class LanguageModelingTask(FairseqTask):
         # upgrade old checkpoints
         if hasattr(args, 'exclude_self_target'):
             args.self_target = not args.exclude_self_target
+        else:
+            args.self_target = True
+            args.future_target = False
+            args.past_target = False
 
         targets = []
         if getattr(args, 'self_target', False):
