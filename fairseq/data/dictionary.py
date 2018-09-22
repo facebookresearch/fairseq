@@ -203,9 +203,9 @@ class Dictionary(object):
 class TruncatedDictionary(object):
 
     def __init__(self, wrapped_dict, length):
-        self.__class__ = type(dict.__class__.__name__,
-                              (self.__class__, dict.__class__), {})
-        self.__dict__ = dict.__dict__
+        self.__class__ = type(wrapped_dict.__class__.__name__,
+                              (self.__class__, wrapped_dict.__class__), {})
+        self.__dict__ = wrapped_dict.__dict__
         self.wrapped_dict = wrapped_dict
         self.length = min(len(self.wrapped_dict), length)
 
