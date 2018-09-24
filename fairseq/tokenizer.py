@@ -11,7 +11,7 @@ import os, re
 import torch
 from multiprocessing import Pool
 
-SPACE_NORMALIZER = re.compile("\s+")
+SPACE_NORMALIZER = re.compile(r"\s+")
 
 
 def tokenize_line(line):

@@ -45,6 +45,11 @@ class MultiheadAttention(nn.Module):
 
         self.reset_parameters()
 
+        self.onnx_trace = False
+
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True
+
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.in_proj_weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
@@ -94,9 +99,7 @@ class MultiheadAttention(nn.Module):
             q = self.in_proj_q(query)
             if key is None:
                 assert value is None
-                # this will allow us to concat it with previous value and get
-                # just get the previous value
-                k = v = q.new(0)
+                k = v = None
             else:
                 k, v = self.in_proj_kv(key)
         else:
@@ -106,12 +109,20 @@ class MultiheadAttention(nn.Module):
         q *= self.scaling
 
         if saved_state is not None:
+
             if 'prev_key' in saved_state:
-                k = torch.cat((saved_state['prev_key'], k), dim=0)
+                if static_kv:
+                    k = saved_state['prev_key']
+                else:
+                    k = torch.cat((saved_state['prev_key'], k), dim=0)
             if 'prev_value' in saved_state:
-                v = torch.cat((saved_state['prev_value'], v), dim=0)
+                if static_kv:
+                    v = saved_state['prev_value']
+                else:
+                    v = torch.cat((saved_state['prev_value'], v), dim=0)
             saved_state['prev_key'] = k
             saved_state['prev_value'] = v
+
             self._set_input_buffer(incremental_state, saved_state)
 
         if self.bias_k is not None:
