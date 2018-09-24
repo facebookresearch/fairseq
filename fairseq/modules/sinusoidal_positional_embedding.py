@@ -9,6 +9,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.onnx.operators
 
 from fairseq import utils
 
@@ -55,12 +56,12 @@ class SinusoidalPositionalEmbedding(nn.Module):
             emb[padding_idx, :] = 0
         return emb
 
-    def forward(self, input, incremental_state=None):
+    def forward(self, input, incremental_state=None, timestep=None):
         """Input is expected to be of size [bsz x seqlen]."""
-        # recompute/expand embeddings if needed
-        bsz, seq_len = input.size()
+        bsz, seq_len = torch.onnx.operators.shape_as_tensor(input)
         max_pos = self.padding_idx + 1 + seq_len
         if self.weights is None or max_pos > self.weights.size(0):
+            # recompute/expand embeddings if needed
             self.weights = SinusoidalPositionalEmbedding.get_embedding(
                 max_pos,
                 self.embedding_dim,
@@ -70,12 +71,13 @@ class SinusoidalPositionalEmbedding(nn.Module):
 
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step
-            return self.weights[self.padding_idx + seq_len, :].expand(bsz, 1, -1)
+            pos = (timestep.int() + 1).long() if timestep is not None else seq_len
+            if self.onnx_trace:
+                return self.weights[self.padding_idx + pos, :].unsqueeze(1).repeat(bsz, 1, 1)
+            return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
 
         positions = utils.make_positions(input, self.padding_idx, self.left_pad, self.onnx_trace)
         if self.onnx_trace:
-            bsz = torch.onnx.operators.shape_as_tensor(input)[0]
-            seq_len = torch.onnx.operators.shape_as_tensor(input)[1]
             flat_embeddings = self.weights.detach().index_select(0, positions.view(-1))
             embedding_shape = torch.cat((bsz.view(1), seq_len.view(1), torch.LongTensor([-1])))
             embeddings = torch.onnx.operators.reshape_from_tensor_shape(flat_embeddings, embedding_shape)
