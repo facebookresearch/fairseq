@@ -186,6 +186,8 @@ class Trainer(object):
                         self.model.need_reduction = True
 
                 # backward
+                for acc in self.model.ddp_model._grad_accs:
+                    acc(None)
                 self.optimizer.backward(loss)
 
                 if not ignore_grad:
