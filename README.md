@@ -7,7 +7,7 @@ of various sequence-to-sequence models, including:
 - **Convolutional Neural Networks (CNN)**
   - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](https://arxiv.org/abs/1612.08083)
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122)
-  - **_New_** [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
+  - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
   - **_New_** [Fan et al. (2018): Hierarchical Neural Story Generation](https://arxiv.org/abs/1805.04833)
 - **Long Short-Term Memory (LSTM) networks**
   - [Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation](https://arxiv.org/abs/1508.04025)
@@ -15,6 +15,7 @@ of various sequence-to-sequence models, including:
 - **Transformer (self-attention) networks**
   - [Vaswani et al. (2017): Attention Is All You Need](https://arxiv.org/abs/1706.03762)
   - **_New_** [Ott et al. (2018): Scaling Neural Machine Translation](https://arxiv.org/abs/1806.00187)
+  - **_New_** [Edunov et al. (2018): Understanding Back-Translation at Scale](https://arxiv.org/abs/1808.09381)
 
 Fairseq features:
 - multi-GPU (distributed) training on one machine or across multiple machines
@@ -64,6 +65,7 @@ Convolutional <br> ([Gehring et al., 2017](https://arxiv.org/abs/1705.03122)) | 
 Convolutional <br> ([Gehring et al., 2017](https://arxiv.org/abs/1705.03122)) | [WMT17 English-German](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt17.v2.en-de.fconv-py.tar.bz2) | newstest2014: <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/wmt17.v2.en-de.newstest2014.tar.bz2)
 Transformer <br> ([Ott et al., 2018](https://arxiv.org/abs/1806.00187)) | [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt14.en-fr.joined-dict.transformer.tar.bz2) | newstest2014 (shared vocab): <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/wmt14.en-fr.joined-dict.newstest2014.tar.bz2)
 Transformer <br> ([Ott et al., 2018](https://arxiv.org/abs/1806.00187)) | [WMT16 English-German](https://drive.google.com/uc?export=download&id=0B_bZck-ksdkpM25jRUN2X2UxMm8) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt16.en-de.joined-dict.transformer.tar.bz2) | newstest2014 (shared vocab): <br> [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/data/wmt16.en-de.joined-dict.newstest2014.tar.bz2)
+Transformer <br> ([Edunov et al. (2018)](https://arxiv.org/abs/1808.09381)) | [WMT'18 English-German](http://www.statmt.org/wmt18/translation-task.html) | [download (.tar.bz2)](https://s3.amazonaws.com/fairseq-py/models/wmt18.en-de.ensemble.tar.bz2) | See NOTE in the archive
 
 ### Language models
 
