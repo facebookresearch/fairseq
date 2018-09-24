@@ -428,6 +428,7 @@ def base_bi_lm_architecture(args):
 
 @register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_big')
 def bi_transformer_lm_big(args):
+    args.self_target = True
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 1024)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 4096)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 16)
