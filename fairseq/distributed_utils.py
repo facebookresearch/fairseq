@@ -9,8 +9,7 @@ from collections import namedtuple
 import pickle
 
 import torch
-from torch import distributed, nn
-from torch.distributed import group
+from torch import nn
 
 from fairseq import utils
 
@@ -33,6 +32,16 @@ else:
     c10d_status = C10dStatus(has_c10d=False, is_default=False)
 
 
+if c10d_status.is_default:
+    import torch.distributed as dist_c10d
+    import torch.distributed.deprecated as dist_no_c10d
+elif c10d_status.has_c10d:
+    import torch.distributed.c10d as dist_c10d
+    import torch.distributed as dist_no_c10d
+else:
+    import torch.distributed as dist_no_c10d
+
+
 def distributed_init(args):
     if args.distributed_world_size == 1:
         raise ValueError('Cannot initialize distributed with distributed_world_size=1')
@@ -44,15 +53,9 @@ def distributed_init(args):
         args.distributed_rank, args.distributed_init_method), flush=True)
 
     if _use_c10d[0]:
-        if c10d_status.is_default:
-            init_fn = distributed.init_process_group
-        else:
-            init_fn = distributed.c10d.init_process_group
+        init_fn = dist_c10d.init_process_group
     else:
-        if c10d_status.is_default:
-            init_fn = distributed.deprecated.init_process_group
-        else:
-            init_fn = distributed.init_process_group
+        init_fn = dist_no_c10d.init_process_group
 
     init_fn(
         backend=args.distributed_backend,
@@ -83,32 +86,32 @@ def suppress_output():
 
 def get_rank():
     if _use_c10d[0]:
-        return distributed.c10d.get_rank()
+        return dist_c10d.get_rank()
     else:
-        return distributed.get_rank()
+        return dist_no_c10d.get_rank()
 
 
 def get_world_size():
     if _use_c10d[0]:
-        return distributed.c10d.get_world_size()
+        return dist_c10d.get_world_size()
     else:
-        return distributed.get_world_size()
+        return dist_no_c10d.get_world_size()
 
 
 def get_default_group():
     if _use_c10d[0]:
-        return distributed.c10d.group.WORLD
+        return dist_c10d.group.WORLD
     else:
-        return distributed.group.WORLD
+        return dist_no_c10d.group.WORLD
 
 
 def all_reduce(tensor, group=None):
     if group is None:
         group = get_default_group()
     if _use_c10d[0]:
-        return distributed.c10d.all_reduce(tensor, group=group)
+        return dist_c10d.all_reduce(tensor, group=group)
     else:
-        return distributed.all_reduce(tensor, group=group)
+        return dist_no_c10d.all_reduce(tensor, group=group)
 
 
 def all_gather_list(data, group=None, max_size=16384):

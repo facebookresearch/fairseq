@@ -627,7 +627,13 @@ class TransformerDecoderLayer(nn.Module):
         self.final_layer_norm = LayerNorm(self.embed_dim)
         self.need_attn = True
 
-    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state, self_attn_mask=None,
+        self.onnx_trace = False
+
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True
+
+    def forward(self, x, encoder_out, encoder_padding_mask, incremental_state,
+                prev_self_attn_state=None, prev_attn_state=None, self_attn_mask=None,
                 self_attn_padding_mask=None):
         """
         Args:
@@ -640,6 +646,12 @@ class TransformerDecoderLayer(nn.Module):
         """
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
+        if prev_self_attn_state is not None:
+            if incremental_state is None:
+                incremental_state = {}
+            prev_key, prev_value = prev_self_attn_state
+            saved_state = {"prev_key": prev_key, "prev_value": prev_value}
+            self.self_attn._set_input_buffer(incremental_state, saved_state)
         x, _ = self.self_attn(
             query=x,
             key=x,
@@ -657,6 +669,12 @@ class TransformerDecoderLayer(nn.Module):
         if self.encoder_attn is not None:
             residual = x
             x = self.maybe_layer_norm(self.encoder_attn_layer_norm, x, before=True)
+            if prev_attn_state is not None:
+                if incremental_state is None:
+                    incremental_state = {}
+                prev_key, prev_value = prev_attn_state
+                saved_state = {"prev_key": prev_key, "prev_value": prev_value}
+                self.encoder_attn._set_input_buffer(incremental_state, saved_state)
             x, attn = self.encoder_attn(
                 query=x,
                 key=encoder_out,
@@ -678,6 +696,10 @@ class TransformerDecoderLayer(nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
+        if self.onnx_trace:
+            saved_state = self.self_attn._get_input_buffer(incremental_state)
+            self_attn_state = saved_state["prev_key"], saved_state["prev_value"]
+            return x, attn, self_attn_state
         return x, attn
 
     def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
