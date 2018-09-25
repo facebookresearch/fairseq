@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import argparse
 import torch
 
 from fairseq import utils
@@ -49,6 +50,70 @@ def dummy_dataloader(
         collate_fn=(lambda samples: collate(samples, padding_idx, eos_idx)),
     )
     return iter(dataloader)
+
+
+def sequence_generator_setup():
+    # construct dummy dictionary
+    d = dummy_dictionary(vocab_size=2)
+
+    eos = d.eos()
+    w1 = 4
+    w2 = 5
+
+    # construct source data
+    src_tokens = torch.LongTensor([[w1, w2, eos], [w1, w2, eos]])
+    src_lengths = torch.LongTensor([2, 2])
+
+    args = argparse.Namespace()
+    unk = 0.
+    args.beam_probs = [
+        # step 0:
+        torch.FloatTensor([
+            # eos      w1   w2
+            # sentence 1:
+            [0.0, unk, 0.9, 0.1],  # beam 1
+            [0.0, unk, 0.9, 0.1],  # beam 2
+            # sentence 2:
+            [0.0, unk, 0.7, 0.3],
+            [0.0, unk, 0.7, 0.3],
+        ]),
+        # step 1:
+        torch.FloatTensor([
+            # eos      w1   w2       prefix
+            # sentence 1:
+            [1.0, unk, 0.0, 0.0],  # w1: 0.9  (emit: w1 <eos>: 0.9*1.0)
+            [0.0, unk, 0.9, 0.1],  # w2: 0.1
+            # sentence 2:
+            [0.25, unk, 0.35, 0.4],  # w1: 0.7  (don't emit: w1 <eos>: 0.7*0.25)
+            [0.00, unk, 0.10, 0.9],  # w2: 0.3
+        ]),
+        # step 2:
+        torch.FloatTensor([
+            # eos      w1   w2       prefix
+            # sentence 1:
+            [0.0, unk, 0.1, 0.9],  # w2 w1: 0.1*0.9
+            [0.6, unk, 0.2, 0.2],  # w2 w2: 0.1*0.1  (emit: w2 w2 <eos>: 0.1*0.1*0.6)
+            # sentence 2:
+            [0.60, unk, 0.4, 0.00],  # w1 w2: 0.7*0.4  (emit: w1 w2 <eos>: 0.7*0.4*0.6)
+            [0.01, unk, 0.0, 0.99],  # w2 w2: 0.3*0.9
+        ]),
+        # step 3:
+        torch.FloatTensor([
+            # eos      w1   w2       prefix
+            # sentence 1:
+            [1.0, unk, 0.0, 0.0],  # w2 w1 w2: 0.1*0.9*0.9  (emit: w2 w1 w2 <eos>: 0.1*0.9*0.9*1.0)
+            [1.0, unk, 0.0, 0.0],  # w2 w1 w1: 0.1*0.9*0.1  (emit: w2 w1 w1 <eos>: 0.1*0.9*0.1*1.0)
+            # sentence 2:
+            [0.1, unk, 0.5, 0.4],  # w2 w2 w2: 0.3*0.9*0.99  (emit: w2 w2 w2 <eos>: 0.3*0.9*0.99*0.1)
+            [1.0, unk, 0.0, 0.0],  # w1 w2 w1: 0.7*0.4*0.4  (emit: w1 w2 w1 <eos>: 0.7*0.4*0.4*1.0)
+        ]),
+    ]
+
+    task = TestTranslationTask.setup_task(args, d, d)
+    model = task.build_model(args)
+    tgt_dict = task.target_dictionary
+
+    return tgt_dict, w1, w2, src_tokens, src_lengths, model
 
 
 class TestDataset(torch.utils.data.Dataset):
