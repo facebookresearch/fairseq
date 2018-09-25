@@ -5,6 +5,7 @@ The following commands provide an example of pre-processing data, training a mod
 The dataset can be downloaded like this:
 
 ```
+cd examples/stories
 curl https://s3.amazonaws.com/fairseq-py/data/writingPrompts.tar.gz | tar xvzf -
 ```
 
@@ -27,7 +28,7 @@ $     for line in stories:
 $       o.write(line.strip() + "\n")
 
 # Binarize the dataset:
-$ TEXT=examples/stories/writingPrompts
+$ export TEXT=examples/stories/writingPrompts
 $ python preprocess.py --source-lang wp_source --target-lang wp_target \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/writingPrompts --padding-factor 1 --thresholdtgt 10 --thresholdsrc 10
