@@ -90,7 +90,7 @@ class EpochBatchIterator(object):
     def __len__(self):
         return len(self.frozen_batches)
 
-    def next_epoch_itr(self, shuffle=True):
+    def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
         """Return a new iterator over the dataset.
 
         Args:
@@ -102,7 +102,8 @@ class EpochBatchIterator(object):
             self._next_epoch_itr = None
         else:
             self.epoch += 1
-            self._cur_epoch_itr = self._get_iterator_for_epoch(self.epoch, shuffle)
+            self._cur_epoch_itr = self._get_iterator_for_epoch(
+                self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus)
         return self._cur_epoch_itr
 
     def end_of_epoch(self):
@@ -135,19 +136,39 @@ class EpochBatchIterator(object):
             if itr_pos < len(itr):
                 self._next_epoch_itr = itr.skip(itr_pos)
 
-    def _get_iterator_for_epoch(self, epoch, shuffle):
-        if shuffle:
+    def _get_iterator_for_epoch(self, epoch, shuffle, fix_batches_to_gpus=False):
+
+        def shuffle_batches(batches, seed):
             # set seed based on the seed and epoch number so that we get
             # reproducible results when resuming from checkpoints
-            with data_utils.numpy_seed(self.seed + epoch):
-                batches = list(self.frozen_batches)  # copy
+            with data_utils.numpy_seed(seed):
                 np.random.shuffle(batches)
-        else:
+            return batches
+
+        if self.dataset.supports_prefetch:
             batches = self.frozen_batches
+
+            if shuffle and not fix_batches_to_gpus:
+                batches = shuffle_batches(list(batches), self.seed + epoch)
+
+            batches = list(ShardedIterator(
+                batches, self.num_shards, self.shard_id, fill_value=[]))
+            self.dataset.prefetch([i for s in batches for i in s])
+
+            if shuffle and fix_batches_to_gpus:
+                batches = shuffle_batches(batches, self.seed + epoch + self.shard_id)
+
+        else:
+            if shuffle:
+                batches = shuffle_batches(list(self.frozen_batches), self.seed + epoch)
+            else:
+                batches = self.frozen_batches
+            batches = ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[])
+
         return CountingIterator(torch.utils.data.DataLoader(
             self.dataset,
             collate_fn=self.collate_fn,
-            batch_sampler=ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[]),
+            batch_sampler=batches,
         ))
 
 

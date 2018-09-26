@@ -144,7 +144,6 @@ def batch_by_size(
 
     sample_len = 0
     sample_lens = []
-    ignored = []
     for idx in indices:
         sample_lens.append(num_tokens_fn(idx))
         sample_len = max(sample_len, sample_lens[-1])
