@@ -112,7 +112,7 @@ def train(args, trainer, task, epoch_itr):
         update_freq = args.update_freq[-1]
 
     # Initialize data iterator
-    itr = epoch_itr.next_epoch_itr()
+    itr = epoch_itr.next_epoch_itr(fix_batches_to_gpus=args.fix_batches_to_gpus)
     itr = iterators.GroupedIterator(itr, update_freq)
     progress = progress_bar.build_progress_bar(
         args, itr, epoch_itr.epoch, no_progress_bar='simple',

@@ -200,3 +200,12 @@ class LanguagePairDataset(FairseqDataset):
         if self.tgt_sizes is not None:
             indices = indices[np.argsort(self.tgt_sizes[indices], kind='mergesort')]
         return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
+
+    def prefetch(self, indices):
+        self.src.prefetch(indices)
+        self.tgt.prefetch(indices)
+
+    @property
+    def supports_prefetch(self):
+        return True
+

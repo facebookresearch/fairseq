@@ -190,6 +190,10 @@ def add_distributed_training_args(parser):
                        help='DistributedDataParallel backend')
     group.add_argument('--bucket-cap-mb', default=150, type=int, metavar='MB',
                        help='bucket size for reduction')
+    group.add_argument('--fix-batches-to-gpus', action='store_true',
+                       help='Don\'t shuffle batches between GPUs, this reduces overall '
+                            'randomness and may affect precision but avoids the cost of'
+                            're-reading the data')
     return group
 
 
