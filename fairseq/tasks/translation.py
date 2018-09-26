@@ -122,7 +122,7 @@ class TranslationTask(FairseqTask):
 
         data_paths = self.args.data
 
-        for data_path in data_paths:
+        for dk, data_path in enumerate(data_paths):
             for k in itertools.count():
                 split_k = split + (str(k) if k > 0 else '')
 
@@ -133,7 +133,7 @@ class TranslationTask(FairseqTask):
                 elif split_exists(split_k, tgt, src, src, data_path):
                     prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
                 else:
-                    if k > 0:
+                    if k > 0 or dk > 0:
                         break
                     else:
                         raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
