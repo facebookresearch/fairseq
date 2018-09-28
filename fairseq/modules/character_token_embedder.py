@@ -48,9 +48,6 @@ class CharacterTokenEmbedder(torch.nn.Module):
         self.set_vocab(vocab, max_char_len)
         self.reset_parameters()
 
-        for p in self.parameters():
-            p.grad = p.data.new_zeros(p.data.shape)
-
     def set_vocab(self, vocab, max_char_len):
         word_to_char = torch.LongTensor(len(vocab), max_char_len)
 
