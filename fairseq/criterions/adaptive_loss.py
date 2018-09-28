@@ -22,7 +22,7 @@ class AdaptiveLoss(FairseqCriterion):
     def __init__(self, args, task):
         super().__init__(args, task)
 
-        if args.ddp_backend == 'c10d' and not getattr(args, 'no_c10d', False):
+        if args.ddp_backend == 'c10d':
             raise Exception(
                 'AdaptiveLoss is not compatible with the c10d '
                 'version of DistributedDataParallel. Please use '
