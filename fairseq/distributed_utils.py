@@ -26,7 +26,7 @@ C10dStatus = namedtuple('C10dStatus', ['has_c10d', 'is_default'])
 
 if hasattr(nn.parallel, 'deprecated'):
     c10d_status = C10dStatus(has_c10d=True, is_default=True)
-elif hasattr(nn.parallel, '_DistributedDataParallelC10d'):
+elif hasattr(torch.distributed, 'c10d') and hasattr(torch.distributed.c10d, 'init_process_group'):
     c10d_status = C10dStatus(has_c10d=True, is_default=False)
 else:
     c10d_status = C10dStatus(has_c10d=False, is_default=False)
@@ -46,7 +46,8 @@ def distributed_init(args):
     if args.distributed_world_size == 1:
         raise ValueError('Cannot initialize distributed with distributed_world_size=1')
 
-    if args.ddp_backend == 'no_c10d':
+    if args.ddp_backend == 'no_c10d' or not c10d_status.has_c10d:
+        args.ddp_backend = 'no_c10d'
         _use_c10d[0] = False
 
     print('| distributed init (rank {}): {}'.format(
