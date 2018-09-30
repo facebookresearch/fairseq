@@ -48,3 +48,10 @@ class FairseqDataset(torch.utils.data.Dataset):
         """Return an ordered list of indices. Batches will be constructed based
         on this order."""
         raise NotImplementedError
+
+    @property
+    def supports_prefetch(self):
+        return False
+
+    def prefetch(self, indices):
+        raise NotImplementedError

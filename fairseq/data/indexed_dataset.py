@@ -106,6 +106,47 @@ class IndexedDataset(torch.utils.data.Dataset):
         )
 
 
+class IndexedCachedDataset(IndexedDataset):
+
+    def __init__(self, path, fix_lua_indexing=False):
+        super().__init__(path, fix_lua_indexing, True)
+        self.cache = None
+        self.cache_index = {}
+
+    @property
+    def supports_prefetch(self):
+        return True
+
+    def prefetch(self, indices):
+        if all(i in self.cache_index for i in indices):
+            return
+        indices.sort()
+        total_size = 0
+        for i in indices:
+            total_size += self.data_offsets[i + 1] - self.data_offsets[i]
+        self.cache = np.empty(total_size, dtype=self.dtype)
+        ptx = 0
+        self.cache_index.clear()
+        for i in indices:
+            self.cache_index[i] = ptx
+            size = self.data_offsets[i + 1] - self.data_offsets[i]
+            a = self.cache[ptx : ptx + size]
+            self.data_file.seek(self.data_offsets[i] * self.element_size)
+            self.data_file.readinto(a)
+            ptx += size
+
+    def __getitem__(self, i):
+        self.check_index(i)
+        tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
+        a = np.empty(tensor_size, dtype=self.dtype)
+        ptx = self.cache_index[i]
+        np.copyto(a, self.cache[ptx : ptx + a.size])
+        item = torch.from_numpy(a).long()
+        if self.fix_lua_indexing:
+            item -= 1  # subtract 1 for 0-based indexing
+        return item
+
+
 class IndexedInMemoryDataset(IndexedDataset):
     """Loader for TorchNet IndexedDataset, keeps all the data in memory"""
 
