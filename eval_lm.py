@@ -45,10 +45,10 @@ def main(parsed_args):
     print('| loading model(s) from {}'.format(parsed_args.path))
     models, args = utils.load_ensemble_for_inference(parsed_args.path.split(':'), task)
 
-    args.__dict__.update(parsed_args.__dict__)
-    print(args)
-
-    task.args = args
+    for arg in vars(parsed_args).keys():
+        if arg not in {'self_target', 'future_target', 'past_target', 'tokens_per_sample', 'output_size_dictionary'}:
+            setattr(args, arg, getattr(parsed_args, arg))
+    task = tasks.setup_task(args)
 
     # Load dataset splits
     task.load_dataset(args.gen_subset)
