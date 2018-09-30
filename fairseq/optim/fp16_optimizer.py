@@ -133,7 +133,9 @@ class FP16Optimizer(optim.FairseqOptimizer):
         self.scaler.update_scale(overflow)
         if overflow:
             if self.scaler.loss_scale <= self.args.min_loss_scale:
-                raise Exception((
+                # Use FloatingPointError as an uncommon error that parent
+                # functions can safely catch to stop training.
+                raise FloatingPointError((
                     'Minimum loss scale reached ({}). Your loss is probably exploding. '
                     'Try lowering the learning rate, using gradient clipping or '
                     'increasing the batch size.'
