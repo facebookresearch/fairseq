@@ -86,6 +86,9 @@ class EpochBatchIterator(object):
         self.epoch = 0
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
+        self._supports_prefetch = (
+            hasattr(dataset, 'supports_prefetch') and dataset.supports_prefetch
+        )
 
     def __len__(self):
         return len(self.frozen_batches)
@@ -96,6 +99,10 @@ class EpochBatchIterator(object):
         Args:
             shuffle (bool, optional): shuffle batches before returning the
                 iterator. Default: ``True``
+            fix_batches_to_gpus: ensure that batches are always
+                allocated to the same shards across epochs. Requires
+                that :attr:`dataset` supports prefetching. Default:
+                ``False``
         """
         if self._next_epoch_itr is not None:
             self._cur_epoch_itr = self._next_epoch_itr
@@ -145,7 +152,7 @@ class EpochBatchIterator(object):
                 np.random.shuffle(batches)
             return batches
 
-        if self.dataset.supports_prefetch:
+        if self._supports_prefetch:
             batches = self.frozen_batches
 
             if shuffle and not fix_batches_to_gpus:
