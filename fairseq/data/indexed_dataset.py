@@ -113,6 +113,10 @@ class IndexedCachedDataset(IndexedDataset):
         self.cache = None
         self.cache_index = {}
 
+    @property
+    def supports_prefetch(self):
+        return True
+
     def prefetch(self, indices):
         if all(i in self.cache_index for i in indices):
             return

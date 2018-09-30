@@ -207,5 +207,9 @@ class LanguagePairDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return True
-
+        return (
+            hasattr(self.src, 'supports_prefetch')
+            and self.src.supports_prefetch
+            and hasattr(self.tgt, 'supports_prefetch')
+            and self.tgt.supports_prefetch
+        )
