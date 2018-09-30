@@ -134,25 +134,28 @@ $ python generate.py data-bin/fconv_wmt_en_fr \
 
 ## Replicating results from "Scaling Neural Machine Translation"
 
-To replicate results from the paper [Scaling Neural Machine Translation (Ott et al., 2018)](https://arxiv.org/abs/1806.00187):
+To replicate results from the paper [Scaling Neural Machine Translation (Ott et al., 2018)](https://arxiv.org/abs/1806.00187),
+please first download the [preprocessed WMT'16 En-De data provided by Google](https://drive.google.com/uc?export=download&id=0B_bZck-ksdkpM25jRUN2X2UxMm8).
 
-1. Prepare the WMT'14 En-De data with a BPE vocab of 32k:
+1. Extract the WMT'16 En-De data:
 ```
-$ bash prepare-wmt14en2de.sh --scaling18
-$ cd ../..
+$ TEXT=wmt16_en_de_bpe32k
+$ mkdir $TEXT
+$ tar -xzvf wmt16_en_de.tar.gz -C $TEXT
 ```
 2. Preprocess the dataset with a joined dictionary:
 ```
-$ TEXT=examples/translation/wmt14_en_de
 $ python preprocess.py --source-lang en --target-lang de \
-  --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
-  --destdir data-bin/wmt14_en_de_joined_dict \
+  --trainpref $TEXT/train.tok.clean.bpe.32000 \
+  --validpref $TEXT/newstest2013.tok.bpe.32000 \
+  --testpref $TEXT/newstest2014.tok.bpe.32000 \
+  --destdir data-bin/wmt16_en_de_bpe32k \
   --nwordssrc 32768 --nwordstgt 32768 \
   --joined-dictionary
 ```
 3. Train a model:
 ```
-$ python train.py data-bin/wmt14_en_de_joined_dict \
+$ python train.py data-bin/wmt16_en_de_bpe32k \
   --arch transformer_vaswani_wmt_en_de_big --share-all-embeddings \
   --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
   --lr-scheduler inverse_sqrt --warmup-init-lr 1e-07 --warmup-updates 4000 \

@@ -180,5 +180,5 @@ class MonolingualDataset(FairseqDataset):
             order = [np.random.permutation(len(self))]
         else:
             order = [np.arange(len(self))]
-        order.append(np.flip(self.sizes, 0))
+        order.append(self.sizes)
         return np.lexsort(order)

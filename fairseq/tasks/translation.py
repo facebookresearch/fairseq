@@ -9,12 +9,10 @@ import itertools
 import numpy as np
 import os
 
-from torch.utils.data import ConcatDataset
-
 from fairseq import options
 from fairseq.data import (
-    data_utils, Dictionary, LanguagePairDataset, IndexedInMemoryDataset,
-    IndexedRawTextDataset,
+    data_utils, Dictionary, LanguagePairDataset, ConcatDataset,
+    IndexedRawTextDataset, IndexedCachedDataset, IndexedDataset
 )
 
 from . import FairseqTask, register_task
@@ -106,15 +104,15 @@ class TranslationTask(FairseqTask):
             filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
             if self.args.raw_text and IndexedRawTextDataset.exists(filename):
                 return True
-            elif not self.args.raw_text and IndexedInMemoryDataset.exists(filename):
+            elif not self.args.raw_text and IndexedDataset.exists(filename):
                 return True
             return False
 
         def indexed_dataset(path, dictionary):
             if self.args.raw_text:
                 return IndexedRawTextDataset(path, dictionary)
-            elif IndexedInMemoryDataset.exists(path):
-                return IndexedInMemoryDataset(path, fix_lua_indexing=True)
+            elif IndexedDataset.exists(path):
+                return IndexedCachedDataset(path, fix_lua_indexing=True)
             return None
 
         src_datasets = []
@@ -122,7 +120,7 @@ class TranslationTask(FairseqTask):
 
         data_paths = self.args.data
 
-        for data_path in data_paths:
+        for dk, data_path in enumerate(data_paths):
             for k in itertools.count():
                 split_k = split + (str(k) if k > 0 else '')
 
@@ -133,7 +131,7 @@ class TranslationTask(FairseqTask):
                 elif split_exists(split_k, tgt, src, src, data_path):
                     prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
                 else:
-                    if k > 0:
+                    if k > 0 or dk > 0:
                         break
                     else:
                         raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
