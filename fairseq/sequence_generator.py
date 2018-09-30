@@ -480,21 +480,17 @@ class SequenceGenerator(object):
         if len(self.models) == 1:
             return self._decode_one(tokens, self.models[0], encoder_outs[0], incremental_states, log_probs=True)
 
-        avg_probs = None
+        log_probs = []
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
-            probs, attn = self._decode_one(tokens, model, encoder_out, incremental_states, log_probs=False)
-            if avg_probs is None:
-                avg_probs = probs
-            else:
-                avg_probs.add_(probs)
+            probs, attn = self._decode_one(tokens, model, encoder_out, incremental_states, log_probs=True)
+            log_probs.append(probs)
             if attn is not None:
                 if avg_attn is None:
                     avg_attn = attn
                 else:
                     avg_attn.add_(attn)
-        avg_probs.div_(len(self.models))
-        avg_probs.log_()
+        avg_probs = torch.logsumexp(torch.stack(log_probs, dim=0), dim=0) - math.log(len(self.models))
         if avg_attn is not None:
             avg_attn.div_(len(self.models))
         return avg_probs, avg_attn

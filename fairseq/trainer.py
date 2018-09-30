@@ -45,7 +45,15 @@ class Trainer(object):
         else:
             self._model = model.cuda()
 
-        # initialize meters
+        self._dummy_batch = dummy_batch
+        self._num_updates = 0
+        self._optim_history = None
+        self._optimizer = None
+        self._wrapped_model = None
+
+        self.init_meters(args)
+
+    def init_meters(self, args):
         self.meters = OrderedDict()
         self.meters['train_loss'] = AverageMeter()
         self.meters['train_nll_loss'] = AverageMeter()
@@ -63,11 +71,6 @@ class Trainer(object):
         self.meters['wall'] = TimeMeter()      # wall time in seconds
         self.meters['train_wall'] = StopwatchMeter()  # train wall time in seconds
 
-        self._dummy_batch = dummy_batch
-        self._num_updates = 0
-        self._optim_history = None
-        self._optimizer = None
-        self._wrapped_model = None
 
     @property
     def model(self):
