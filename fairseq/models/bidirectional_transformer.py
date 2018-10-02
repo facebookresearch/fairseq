@@ -23,7 +23,7 @@ from fairseq.models.transformer import (
 )
 
 from fairseq.modules import (
-    AdaptiveSoftmax, BidirectionalMultiheadSelfAttention, CharacterTokenEmbedder, MultiheadAttention,
+    AdaptiveInput, AdaptiveSoftmax, BidirectionalMultiheadSelfAttention, CharacterTokenEmbedder, MultiheadAttention,
     SinusoidalPositionalEmbedding
 )
 
@@ -55,6 +55,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                                  'Must be used with adaptive_loss criterion')
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        parser.add_argument('--adaptive-softmax-factor', type=float, metavar='N',
+                            help='adaptive input factor')
         parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
         parser.add_argument('--no-token-positional-embeddings', action='store_true',
@@ -68,6 +70,16 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='size of character embeddings')
         parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
                             help='number of highway layers for character token embeddder')
+        parser.add_argument('--adaptive-input', default=False, action='store_true',
+                            help='if set, uses adaptive input')
+        parser.add_argument('--adaptive-input-factor', type=float, metavar='N',
+                            help='adaptive input factor')
+        parser.add_argument('--adaptive-input-cutoff', metavar='EXPR',
+                            help='comma separated list of adaptive input cutoff points.')
+        parser.add_argument('--tie-adaptive-weights', action='store_true',
+                            help='if set, ties the weights of adaptive softmax and adaptive input')
+        parser.add_argument('--tie-adaptive-proj', action='store_true',
+                            help='if set, ties the projection weights of adaptive softmax and adaptive input')
         parser.add_argument('--linear-final-layer', action='store_true',
                             help='if set, uses a simple linear layer for the final prediction that combines the '
                                  'forward and backward tower instead of an attentional layer')
@@ -94,8 +106,18 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                                                   args.decoder_embed_dim,
                                                   args.char_embedder_highway_layers,
                                                   )
+        elif args.adaptive_input:
+            embed_tokens = AdaptiveInput(len(task.dictionary), task.dictionary.pad(), args.decoder_embed_dim,
+                                         args.adaptive_input_factor, args.decoder_embed_dim,
+                                         options.eval_str_list(args.adaptive_input_cutoff, type=int))
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
+
+        if args.tie_adaptive_weights:
+            assert args.adaptive_input
+            assert args.adaptive_input_factor == args.adaptive_softmax_factor
+            assert args.adaptive_softmax_cutoff == args.adaptive_input_cutoff, '{} != {}'.format(
+                args.adaptive_softmax_cutoff, args.adaptive_input_cutoff)
 
         print("Model args: ", args)
 
@@ -153,9 +175,13 @@ class BiTransformerDecoder(FairseqDecoder):
         if self.load_softmax:
             if args.adaptive_softmax_cutoff is not None:
                 self.adaptive_softmax = AdaptiveSoftmax(
-                    len(dictionary), args.decoder_embed_dim,
+                    len(dictionary),
+                    args.decoder_embed_dim,
                     options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
                     dropout=args.adaptive_softmax_dropout,
+                    adaptive_inputs=embed_tokens if args.tie_adaptive_weights else None,
+                    factor=args.adaptive_softmax_factor,
+                    tie_proj=args.tie_adaptive_proj,
                 )
             elif not self.share_input_output_embed:
                 self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
@@ -406,7 +432,8 @@ def base_bi_lm_architecture(args):
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
-    args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', args.dropout)
+    args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
+    args.adaptive_softmax_factor = getattr(args, 'adaptive_softmax_factor', 4)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
@@ -414,6 +441,14 @@ def base_bi_lm_architecture(args):
                                      '[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]')
     args.character_embedding_dim = getattr(args, 'character_embedding_dim', 128)
     args.char_embedder_highway_layers = getattr(args, 'char_embedder_highway_layers', 2)
+
+    args.adaptive_input = getattr(args, 'adaptive_input', False)
+    args.adaptive_input_factor = getattr(args, 'adaptive_input_factor', 4)
+    args.adaptive_input_cutoff = getattr(args, 'adaptive_input_cutoff', '')
+
+    args.tie_adaptive_weights = getattr(args, 'tie_adaptive_weights', False)
+    args.tie_adaptive_proj = getattr(args, 'tie_adaptive_proj', False)
+
     args.linear_final_layer = getattr(args, 'linear_final_layer', False)
     args.linear_final_layer_bias = getattr(args, 'linear_final_layer_bias', False)
 
