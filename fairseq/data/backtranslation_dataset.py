@@ -12,18 +12,22 @@ from . import FairseqDataset, language_pair_dataset
 
 
 class BacktranslationDataset(FairseqDataset):
-    def __init__(self, args, tgt_dataset, tgt_dict, backtranslation_model):
+    def __init__(
+        self,
+        tgt_dataset,
+        tgt_dict,
+        backtranslation_model,
+        unkpen,
+        sampling,
+        beam,
+        max_len_a,
+        max_len_b,
+    ):
         """
         Sets up a backtranslation dataset which takes a tgt batch, generates
         a src using a tgt-src backtranslation_model, and returns the
         corresponding {generated src, input tgt} batch
         Args:
-            args: generation args for the backtranslation SequenceGenerator'
-                Note that there is no equivalent argparse code for these args
-                anywhere in our top level train scripts yet. Integration is
-                still in progress. You can still, however, test out this dataset
-                functionality with the appropriate args as in the corresponding
-                unittest: test_backtranslation_dataset.
             tgt_dataset: dataset which will be used to build self.tgt_dataset --
                 a LanguagePairDataset with tgt dataset as the source dataset and
                 None as the target dataset.
@@ -33,6 +37,8 @@ class BacktranslationDataset(FairseqDataset):
             tgt_dict: tgt dictionary (typically a joint src/tgt BPE dictionary)
             backtranslation_model: tgt-src model to use in the SequenceGenerator
                 to generate backtranslations from tgt batches
+            unkpen, sampling, beam, max_len_a, max_len_b: generation args for
+                the backtranslation SequenceGenerator
         """
         self.tgt_dataset = language_pair_dataset.LanguagePairDataset(
             src=tgt_dataset,
@@ -45,13 +51,13 @@ class BacktranslationDataset(FairseqDataset):
         self.backtranslation_generator = sequence_generator.SequenceGenerator(
             [backtranslation_model],
             tgt_dict,
-            unk_penalty=args.backtranslation_unkpen,
-            sampling=args.backtranslation_sampling,
-            beam_size=args.backtranslation_beam,
+            unk_penalty=unkpen,
+            sampling=sampling,
+            beam_size=beam,
         )
-        self.backtranslation_max_len_a = args.backtranslation_max_len_a
-        self.backtranslation_max_len_b = args.backtranslation_max_len_b
-        self.backtranslation_beam = args.backtranslation_beam
+        self.max_len_a = max_len_a
+        self.max_len_b = max_len_b
+        self.beam = beam
 
     def __getitem__(self, index):
         """
@@ -75,8 +81,10 @@ class BacktranslationDataset(FairseqDataset):
         feed to the backtranslation model. Then take the generated translation
         with best score as the source and the orignal net input as the target.
         """
-        collated_tgt_only_sample = self.tgt_dataset.collater(samples)
-        backtranslation_hypos = self._generate_hypotheses(collated_tgt_only_sample)
+        collated_tgt_only_sample = self.tgt_dataset.collater(samples=samples)
+        backtranslation_hypos = self._generate_hypotheses(
+            sample=collated_tgt_only_sample
+        )
 
         # Go through each tgt sentence in batch and its corresponding best
         # generated hypothesis and create a backtranslation data pair
@@ -125,7 +133,7 @@ class BacktranslationDataset(FairseqDataset):
         hypos = self.backtranslation_generator.generate(
             input,
             maxlen=int(
-                self.backtranslation_max_len_a * srclen + self.backtranslation_max_len_b
+                self.max_len_a * srclen + self.max_len_b
             ),
         )
         return hypos

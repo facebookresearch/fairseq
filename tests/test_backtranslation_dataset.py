@@ -5,7 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import argparse
 import unittest
 
 import tests.utils as test_utils
@@ -18,18 +17,6 @@ class TestBacktranslationDataset(unittest.TestCase):
         self.tgt_dict, self.w1, self.w2, self.src_tokens, self.src_lengths, self.model = (
             test_utils.sequence_generator_setup()
         )
-        backtranslation_args = argparse.Namespace()
-
-        """
-        Same as defaults from fairseq/options.py
-        """
-        backtranslation_args.backtranslation_unkpen = 0
-        backtranslation_args.backtranslation_sampling = False
-        backtranslation_args.backtranslation_max_len_a = 0
-        backtranslation_args.backtranslation_max_len_b = 200
-        backtranslation_args.backtranslation_beam = 2
-
-        self.backtranslation_args = backtranslation_args
 
         dummy_src_samples = self.src_tokens
 
@@ -37,10 +24,14 @@ class TestBacktranslationDataset(unittest.TestCase):
 
     def test_backtranslation_dataset(self):
         backtranslation_dataset = BacktranslationDataset(
-            args=self.backtranslation_args,
             tgt_dataset=self.tgt_dataset,
             tgt_dict=self.tgt_dict,
             backtranslation_model=self.model,
+            unkpen=0,
+            sampling=False,
+            max_len_a=0,
+            max_len_b=200,
+            beam=2,
         )
         dataloader = torch.utils.data.DataLoader(
             backtranslation_dataset,
