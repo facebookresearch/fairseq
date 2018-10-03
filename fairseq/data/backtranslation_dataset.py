@@ -17,11 +17,10 @@ class BacktranslationDataset(FairseqDataset):
         tgt_dataset,
         tgt_dict,
         backtranslation_model,
-        unkpen,
-        sampling,
-        beam,
         max_len_a,
         max_len_b,
+        generator_class=sequence_generator.SequenceGenerator,
+        **kwargs,
     ):
         """
         Sets up a backtranslation dataset which takes a tgt batch, generates
@@ -37,8 +36,13 @@ class BacktranslationDataset(FairseqDataset):
             tgt_dict: tgt dictionary (typically a joint src/tgt BPE dictionary)
             backtranslation_model: tgt-src model to use in the SequenceGenerator
                 to generate backtranslations from tgt batches
-            unkpen, sampling, beam, max_len_a, max_len_b: generation args for
+             max_len_a, max_len_b: args passed into generate() function of
                 the backtranslation SequenceGenerator
+            generator_class: which SequenceGenerator class to use for
+                backtranslation. Output of generate() should be the same format
+                as fairseq's SequenceGenerator
+            kwargs: generation args to init the backtranslation
+                SequenceGenerator
         """
         self.tgt_dataset = language_pair_dataset.LanguagePairDataset(
             src=tgt_dataset,
@@ -48,16 +52,14 @@ class BacktranslationDataset(FairseqDataset):
             tgt_sizes=None,
             tgt_dict=None,
         )
-        self.backtranslation_generator = sequence_generator.SequenceGenerator(
-            [backtranslation_model],
-            tgt_dict,
-            unk_penalty=unkpen,
-            sampling=sampling,
-            beam_size=beam,
-        )
+
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
-        self.beam = beam
+        self.backtranslation_generator = generator_class(
+            models=[backtranslation_model],
+            tgt_dict=tgt_dict,
+            **kwargs,
+        )
 
     def __getitem__(self, index):
         """

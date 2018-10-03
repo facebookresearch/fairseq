@@ -10,6 +10,7 @@ import unittest
 import tests.utils as test_utils
 import torch
 from fairseq.data.backtranslation_dataset import BacktranslationDataset
+from fairseq import sequence_generator
 
 
 class TestBacktranslationDataset(unittest.TestCase):
@@ -23,15 +24,19 @@ class TestBacktranslationDataset(unittest.TestCase):
         self.tgt_dataset = test_utils.TestDataset(data=dummy_src_samples)
 
     def test_backtranslation_dataset(self):
+        """
+        SequenceGenerator kwargs are same as defaults from fairseq/options.py
+        """
         backtranslation_dataset = BacktranslationDataset(
             tgt_dataset=self.tgt_dataset,
             tgt_dict=self.tgt_dict,
             backtranslation_model=self.model,
-            unkpen=0,
-            sampling=False,
             max_len_a=0,
             max_len_b=200,
-            beam=2,
+            beam_size=2,
+            unk_penalty=0,
+            sampling=False,
+            generator_class=sequence_generator.SequenceGenerator,
         )
         dataloader = torch.utils.data.DataLoader(
             backtranslation_dataset,
