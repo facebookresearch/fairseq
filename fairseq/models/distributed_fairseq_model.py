@@ -12,67 +12,64 @@ from fairseq.distributed_utils import c10d_status
 from . import BaseFairseqModel
 
 
-class DistributedFairseqModel(BaseFairseqModel):
+def DistributedFairseqModel(args, model):
     """
-    A wrapper around a :class:`BaseFairseqModel` instance that adds support for
-    distributed training.
+    Wrap a *model* to support distributed data parallel training.
 
-    Anytime a method or attribute is called on this class we first try to
-    forward it to the underlying DistributedDataParallel instance, otherwise we
-    forward it to the original :class:`BaseFairseqModel` instance.
+    This is similar to the built-in DistributedDataParallel, but allows
+    additional configuration of the DistributedDataParallel class to
+    use, and also provides easier access to the wrapped model by
+    forwarding requests for missing attributes to the wrapped model.
 
     Args:
         args (argparse.Namespace): fairseq args
         model (BaseFairseqModel): model to wrap
     """
 
-    def __init__(self, args, model):
-        super().__init__()
-        assert isinstance(model, BaseFairseqModel)
-        if args.ddp_backend == 'c10d':
-            if c10d_status.is_default:
-                ddp_class = parallel.DistributedDataParallel
-            elif c10d_status.has_c10d:
-                ddp_class = parallel._DistributedDataParallelC10d
-            else:
-                raise Exception(
-                    'Can\'t find c10d version of DistributedDataParallel. '
-                    'Please update PyTorch.'
-                )
-            self.ddp_model = ddp_class(
-                module=model,
-                device_ids=[args.device_id],
-                output_device=args.device_id,
-                broadcast_buffers=False,
-                bucket_cap_mb=args.bucket_cap_mb,
-            )
-        elif args.ddp_backend == 'no_c10d':
-            if c10d_status.is_default:
-                ddp_class = parallel.deprecated.DistributedDataParallel
-            else:
-                ddp_class = parallel.DistributedDataParallel
-            self.ddp_model = ddp_class(
-                module=model,
-                device_ids=[args.device_id],
-                output_device=args.device_id,
-                broadcast_buffers=False,
-            )
+    # determine which DDP class to extend
+    assert isinstance(model, BaseFairseqModel)
+    if args.ddp_backend == 'c10d':
+        if c10d_status.is_default:
+            ddp_class = parallel.DistributedDataParallel
+        elif c10d_status.has_c10d:
+            ddp_class = parallel._DistributedDataParallelC10d
         else:
-            raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)
+            raise Exception(
+                'Can\'t find c10d version of DistributedDataParallel. '
+                'Please update PyTorch.'
+            )
+        init_kwargs = dict(
+            module=model,
+            device_ids=[args.device_id],
+            output_device=args.device_id,
+            broadcast_buffers=False,
+            bucket_cap_mb=args.bucket_cap_mb,
+        )
+    elif args.ddp_backend == 'no_c10d':
+        if c10d_status.is_default:
+            ddp_class = parallel.deprecated.DistributedDataParallel
+        else:
+            ddp_class = parallel.DistributedDataParallel
+        init_kwargs = dict(
+            module=model,
+            device_ids=[args.device_id],
+            output_device=args.device_id,
+            broadcast_buffers=False,
+        )
+    else:
+        raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)
 
-    def __call__(self, *args, **kwargs):
-        return self.ddp_model(*args, **kwargs)
+    class _DistributedFairseqModel(ddp_class):
+        """Extend DistributedDataParallel to check for missing
+        attributes in the wrapped module."""
 
-    def forward(self, *args, **kwargs):
-        return self.ddp_model.forward(*args, **kwargs)
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
 
-    def __getattr__(self, name):
-        try:
+        def __getattr__(self, name):
+            wrapped_module = super().__getattr__('module')
+            if hasattr(wrapped_module, name):
+                return getattr(wrapped_module, name)
             return super().__getattr__(name)
-        except AttributeError:
-            pass
-        try:
-            return self.ddp_model.__getattr__(name)
-        except AttributeError:
-            pass
-        return self.ddp_model.module.__getattr__(name)
+
+    return _DistributedFairseqModel(**init_kwargs)
