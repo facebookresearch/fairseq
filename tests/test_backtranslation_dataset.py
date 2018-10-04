@@ -23,7 +23,7 @@ class TestBacktranslationDataset(unittest.TestCase):
 
         self.tgt_dataset = test_utils.TestDataset(data=dummy_src_samples)
 
-    def test_backtranslation_dataset(self):
+    def _backtranslation_dataset_helper(self, remove_eos_at_src):
         """
         SequenceGenerator kwargs are same as defaults from fairseq/options.py
         """
@@ -36,6 +36,7 @@ class TestBacktranslationDataset(unittest.TestCase):
             beam_size=2,
             unk_penalty=0,
             sampling=False,
+            remove_eos_at_src=remove_eos_at_src,
             generator_class=sequence_generator.SequenceGenerator,
         )
         dataloader = torch.utils.data.DataLoader(
@@ -50,12 +51,20 @@ class TestBacktranslationDataset(unittest.TestCase):
         # Note that we sort by src_lengths and add left padding, so actually
         # ids will look like: [1, 0]
         expected_src = torch.LongTensor([[w1, w2, w1, eos], [pad, pad, w1, eos]])
+        if remove_eos_at_src:
+            expected_src = expected_src[:, :-1]
         expected_tgt = torch.LongTensor([[w1, w2, eos], [w1, w2, eos]])
         generated_src = backtranslation_batch_result["net_input"]["src_tokens"]
         tgt_tokens = backtranslation_batch_result["target"]
 
         self.assertTensorEqual(expected_src, generated_src)
         self.assertTensorEqual(expected_tgt, tgt_tokens)
+
+    def test_backtranslation_dataset_no_eos_at_src(self):
+        self._backtranslation_dataset_helper(remove_eos_at_src=True)
+
+    def test_backtranslation_dataset_with_eos_at_src(self):
+        self._backtranslation_dataset_helper(remove_eos_at_src=False)
 
     def assertTensorEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")
