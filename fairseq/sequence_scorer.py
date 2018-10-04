@@ -66,7 +66,7 @@ class SequenceScorer(object):
                 decoder_out = model.forward(**net_input)
                 attn = decoder_out[1]
 
-            probs = model.get_normalized_probs(decoder_out, log_probs=False, sample=sample).data
+            probs = model.get_normalized_probs(decoder_out, log_probs=len(self.models) == 1, sample=sample).data
             if avg_probs is None:
                 avg_probs = probs
             else:
@@ -77,12 +77,14 @@ class SequenceScorer(object):
                     avg_attn = attn
                 else:
                     avg_attn.add_(attn)
-        avg_probs.div_(len(self.models))
-        avg_probs.log_()
-        if avg_attn is not None:
-            avg_attn.div_(len(self.models))
+        if len(self.models) > 1:
+            avg_probs.div_(len(self.models))
+            avg_probs.log_()
+            if avg_attn is not None:
+                avg_attn.div_(len(self.models))
         avg_probs = avg_probs.gather(
             dim=2,
             index=sample['target'].data.unsqueeze(-1),
         )
         return avg_probs.squeeze(2), avg_attn
+

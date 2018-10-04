@@ -100,9 +100,8 @@ class CharacterTokenEmbedder(torch.nn.Module):
                 chars[eos] = 0
             unk = None
         else:
-            self.word_to_char = self.word_to_char.type_as(input)
             flat_words = input.view(-1)
-            chars = self.word_to_char[flat_words]
+            chars = self.word_to_char[flat_words.type_as(self.word_to_char)].type_as(input)
             pads = flat_words.eq(self.vocab.pad())
             eos = flat_words.eq(self.vocab.eos())
             unk = flat_words.eq(self.vocab.unk())
