@@ -86,10 +86,9 @@ class CharacterTokenEmbedder(torch.nn.Module):
             self,
             words: torch.Tensor,
     ):
-        self.word_to_char = self.word_to_char.type_as(words)
-
         flat_words = words.view(-1)
-        word_embs = self._convolve(self.word_to_char[flat_words])
+        char_ids = self.word_to_char[flat_words.type_as(self.word_to_char)].type_as(words)
+        word_embs = self._convolve(char_ids)
 
         pads = flat_words.eq(self.vocab.pad())
         if pads.any():
