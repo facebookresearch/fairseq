@@ -211,10 +211,10 @@ class Trainer(object):
             return None
 
         # aggregate logging outputs and sample sizes
-        sample_size = self.task.grad_denom(sample_sizes, self.criterion)
         logging_output = self.task.aggregate_logging_outputs(
             logging_outputs, self.criterion
         )
+        sample_size = self.task.grad_denom(sample_sizes, self.criterion)
 
         if not all(k in logging_output for k in ['ntokens', 'nsentences']):
             raise Exception((
