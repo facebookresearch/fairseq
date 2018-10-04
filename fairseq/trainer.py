@@ -217,7 +217,7 @@ class Trainer(object):
             return None
 
         # aggregate logging outputs and sample sizes
-        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        logging_output = self.criterion._aggregate_logging_outputs(logging_outputs)
         sample_size = self.criterion.__class__.grad_denom(sample_sizes)
 
         if not all(k in logging_output for k in ['ntokens', 'nsentences']):
@@ -310,7 +310,7 @@ class Trainer(object):
             sample_size = [sample_size]
 
         # aggregate logging outputs and sample sizes
-        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_output)
+        logging_output = self.criterion._aggregate_logging_outputs(logging_output)
         sample_size = self.criterion.__class__.grad_denom(sample_size)
 
         # update meters for validation
