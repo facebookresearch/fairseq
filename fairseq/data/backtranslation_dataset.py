@@ -31,7 +31,9 @@ class BacktranslationDataset(FairseqDataset):
         Args:
             tgt_dataset: dataset which will be used to build self.tgt_dataset --
                 a LanguagePairDataset with tgt dataset as the source dataset and
-                None as the target dataset.
+                None as the target dataset. Should NOT have padding so that
+                src_lengths are accurately calculated by language_pair_dataset
+                collate function.
                 We use language_pair_dataset here to encapsulate the tgt_dataset
                 so we can re-use the LanguagePairDataset collater to format the
                 batches in the structure that SequenceGenerator expects.

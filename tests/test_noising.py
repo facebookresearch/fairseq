@@ -8,7 +8,15 @@
 import torch
 import unittest
 
-from fairseq.data import Dictionary, data_utils, noising
+import tests.utils as test_utils
+from fairseq import utils
+from fairseq.data import (
+    AppendEosDataset,
+    Dictionary,
+    data_utils,
+    noising,
+    LanguagePairDataset,
+)
 
 
 class TestDataNoising(unittest.TestCase):
@@ -187,6 +195,119 @@ class TestDataNoising(unittest.TestCase):
                 x=x, x_noised=x_noised, x_len=x_len, l_noised=l_noised
             )
             self.assert_no_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
+
+    def _get_noising_dataset_batch(
+        self, src_tokens_no_pad, src_dict, use_append_eos_dataset=False
+    ):
+        """
+        Constructs a NoisingDataset and the corresponding
+        LanguagePairDataset(NoisingDataset(src), src). If we set
+        use_append_eos_dataset to True, wrap the source dataset in
+        AppendEosDataset to append EOS to the clean source when using it as the
+        target. In practice, we should use AppendEosDataset because our models
+        usually have source without EOS but target with EOS.
+        """
+        src_dataset = test_utils.TestDataset(data=src_tokens_no_pad)
+
+        noising_dataset = noising.NoisingDataset(
+            src_dataset=src_dataset,
+            src_dict=src_dict,
+            seed=1234,
+            max_word_shuffle_distance=3,
+            word_dropout_prob=0.2,
+            word_blanking_prob=0.2,
+            noising_class=noising.UnsupervisedMTNoising,
+        )
+        tgt = src_dataset
+        if use_append_eos_dataset:
+            tgt = AppendEosDataset(src_dataset, src_dict.eos())
+        language_pair_dataset = LanguagePairDataset(
+            src=noising_dataset,
+            tgt=tgt,
+            src_sizes=None,
+            src_dict=src_dict
+        )
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset=language_pair_dataset,
+            batch_size=2,
+            collate_fn=language_pair_dataset.collater,
+        )
+        denoising_batch_result = next(iter(dataloader))
+        return denoising_batch_result
+
+    def test_noising_dataset_with_eos(self):
+        src_dict, src_tokens, _ = self._get_test_data(append_eos=True)
+
+        # Format data for src_dataset
+        src_tokens = torch.t(src_tokens)
+        src_tokens_no_pad = []
+        for src_sentence in src_tokens:
+            src_tokens_no_pad.append(
+                utils.strip_pad(tensor=src_sentence, pad=src_dict.pad())
+            )
+        denoising_batch_result = self._get_noising_dataset_batch(
+            src_tokens_no_pad=src_tokens_no_pad, src_dict=src_dict
+        )
+
+        eos, pad = src_dict.eos(), src_dict.pad()
+
+        # Generated noisy source as source
+        expected_src = torch.LongTensor(
+            [[4, 5, 10, 11, 8, 12, 13, eos], [pad, pad, pad, 6, 8, 9, 7, eos]]
+        )
+        # Original clean source as target (right-padded)
+        expected_tgt = torch.LongTensor(
+            [[4, 5, 10, 11, 8, 12, 13, eos], [6, 7, 8, 9, eos, pad, pad, pad]]
+        )
+        generated_src = denoising_batch_result["net_input"]["src_tokens"]
+        tgt_tokens = denoising_batch_result["target"]
+
+        self.assertTensorEqual(expected_src, generated_src)
+        self.assertTensorEqual(expected_tgt, tgt_tokens)
+
+    def test_noising_dataset_without_eos(self):
+        """
+        Similar to test noising dataset with eos except that we have to set
+        use_append_eos_dataset=True so that we wrap the source dataset in the
+        AppendEosDataset when using it as the target in LanguagePairDataset.
+        """
+
+        src_dict, src_tokens, _ = self._get_test_data(append_eos=False)
+
+        # Format data for src_dataset
+        src_tokens = torch.t(src_tokens)
+        src_tokens_no_pad = []
+        for src_sentence in src_tokens:
+            src_tokens_no_pad.append(
+                utils.strip_pad(tensor=src_sentence, pad=src_dict.pad())
+            )
+        denoising_batch_result = self._get_noising_dataset_batch(
+            src_tokens_no_pad=src_tokens_no_pad,
+            src_dict=src_dict,
+            use_append_eos_dataset=True,
+        )
+
+        eos, pad = src_dict.eos(), src_dict.pad()
+
+        # Generated noisy source as source
+        expected_src = torch.LongTensor(
+            [[4,  5, 10, 11,  8, 12, 13], [pad, pad, pad, 6, 8, 9, 7]]
+        )
+        # Original clean source as target (right-padded)
+        expected_tgt = torch.LongTensor(
+            [[4, 5, 10, 11, 8, 12, 13, eos], [6, 7, 8, 9, eos, pad, pad, pad]]
+        )
+
+        generated_src = denoising_batch_result["net_input"]["src_tokens"]
+        tgt_tokens = denoising_batch_result["target"]
+
+        self.assertTensorEqual(expected_src, generated_src)
+        self.assertTensorEqual(expected_tgt, tgt_tokens)
+
+    def assertTensorEqual(self, t1, t2):
+        self.assertEqual(t1.size(), t2.size(), "size mismatch")
+        self.assertEqual(t1.ne(t2).long().sum(), 0)
 
 
 if __name__ == '__main__':
