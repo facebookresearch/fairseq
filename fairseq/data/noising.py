@@ -8,6 +8,8 @@
 import torch
 import numpy as np
 
+from fairseq.data import data_utils
+
 
 class WordNoising(object):
     """Generate a noisy version of a sentence, without changing words themselves."""
@@ -22,6 +24,12 @@ class WordNoising(object):
         raise NotImplementedError()
 
     def _get_bpe_word_idx(self, x):
+        """
+        Given a list of BPE tokens, for every index in the tokens list,
+        return the index of the word grouping that it belongs to.
+        For example, for input x corresponding to ["how", "are", "y@@", "ou"],
+        return [0, 1, 2, 2].
+        """
         # x: (T x B)
         bpe_end = self.bpe_end[x]
         # do a reduce front sum to generate word ids
@@ -53,9 +61,23 @@ class WordDropout(WordNoising):
             # Since dropout probabilities need to apply over non-pad tokens,
             # it is not trivial to generate the keep mask without consider
             # input lengths; otherwise, this could be done outside the loop
-            keep = np.random.rand(lengths[i] - 1) >= dropout_prob
+
+            # We want to drop whole words based on word_idx grouping
+            num_words = max(word_idx[:, i]) + 1
+
             # ith example: [x0, x1, ..., eos, pad, ..., pad]
-            assert x[lengths[i] - 1, i] == self.dictionary.eos()
+            # We should only generate keep probs for non-EOS tokens. Thus if the
+            # input sentence ends in EOS, the last word idx is not included in
+            # the dropout mask generation and we append True to always keep EOS.
+            # Otherwise, just generate the dropout mask for all word idx
+            # positions.
+            has_eos = x[lengths[i] - 1, i] == self.dictionary.eos()
+            if has_eos:  # has eos?
+                keep = np.random.rand(num_words - 1) >= dropout_prob
+                keep = np.append(keep, [True])  # keep EOS symbol
+            else:
+                keep = np.random.rand(num_words) >= dropout_prob
+
             words = x[:lengths[i], i].tolist()
 
             # TODO: speed up the following loop
@@ -67,11 +89,13 @@ class WordDropout(WordNoising):
             new_s = [w for w in new_s if w is not None]
             # we need to have at least one word in the sentence (more than the
             # start / end sentence symbols)
-            if len(new_s) == 1:
-                new_s.append(words[np.random.randint(0, len(words))])
-            assert (
-                len(new_s) >= 2
-                and new_s[-1] == self.dictionary.eos()
+            if len(new_s) <= 1:
+                # insert at beginning in case the only token left is EOS
+                # EOS should be at end of list.
+                new_s.insert(0, words[np.random.randint(0, len(words))])
+            assert len(new_s) >= 1 and (
+                not has_eos  # Either don't have EOS at end or last token is EOS
+                or (len(new_s) >= 2 and new_s[-1] == self.dictionary.eos())
             ), "New sentence is invalid."
             sentences.append(new_s)
             modified_lengths.append(len(new_s))
@@ -114,13 +138,130 @@ class WordShuffle(WordNoising):
 
         x2 = x.clone()
         for i in range(lengths.size(0)):
+            length_no_eos = lengths[i]
+            if x[lengths[i] - 1, i] == self.dictionary.eos():
+                length_no_eos = lengths[i] - 1
+
             # generate a random permutation
-            scores = word_idx[:lengths[i] - 1, i] + noise[word_idx[:lengths[i] - 1, i], i]
+            scores = word_idx[:length_no_eos, i] + noise[word_idx[:length_no_eos, i], i]
             # ensure no reordering inside a word
-            scores += 1e-6 * np.arange(lengths[i] - 1)
+            scores += 1e-6 * np.arange(length_no_eos)
             permutation = scores.argsort()
             # shuffle words
-            x2[:lengths[i] - 1, i].copy_(
-                x2[:lengths[i] - 1, i][torch.from_numpy(permutation)]
+            x2[:length_no_eos, i].copy_(
+                x2[:length_no_eos, i][torch.from_numpy(permutation)]
             )
         return x2, lengths
+
+
+class UnsupervisedMTNoising(WordNoising):
+    """
+    Implements the default configuration for noising in UnsupervisedMT
+    (github.com/facebookresearch/UnsupervisedMT)
+    """
+    def __init__(
+        self,
+        dictionary,
+        max_word_shuffle_distance,
+        word_dropout_prob,
+        word_blanking_prob
+    ):
+        super().__init__(dictionary)
+        self.max_word_shuffle_distance = max_word_shuffle_distance
+        self.word_dropout_prob = word_dropout_prob
+        self.word_blanking_prob = word_blanking_prob
+
+        self.word_dropout = WordDropout(dictionary=dictionary)
+        self.word_shuffle = WordShuffle(dictionary=dictionary)
+
+    def noising(self, x, lengths):
+        # 1. Word Shuffle
+        noisy_src_tokens, noisy_src_lengths = self.word_shuffle.noising(
+            x=x,
+            lengths=lengths,
+            max_shuffle_distance=self.max_word_shuffle_distance,
+        )
+        # 2. Word Dropout
+        noisy_src_tokens, noisy_src_lengths = self.word_dropout.noising(
+            x=noisy_src_tokens,
+            lengths=noisy_src_lengths,
+            dropout_prob=self.word_dropout_prob,
+        )
+        # 3. Word Blanking
+        noisy_src_tokens, noisy_src_lengths = self.word_dropout.noising(
+            x=noisy_src_tokens,
+            lengths=noisy_src_lengths,
+            dropout_prob=self.word_blanking_prob,
+            blank_idx=self.dictionary.unk(),
+        )
+
+        return noisy_src_tokens
+
+
+class NoisingDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        src_dataset,
+        src_dict,
+        seed,
+        noising_class=UnsupervisedMTNoising,
+        **kwargs,
+    ):
+        """
+        Sets up a noising dataset which takes a src batch, generates
+        a noisy src using a noising config, and returns the
+        corresponding {noisy src, original src} batch
+        Args:
+            src_dataset: dataset which will be used to build self.src_dataset --
+                a LanguagePairDataset with src dataset as the source dataset and
+                None as the target dataset. Should NOT have padding so that
+                src_lengths are accurately calculated by language_pair_dataset
+                collate function.
+                We use language_pair_dataset here to encapsulate the tgt_dataset
+                so we can re-use the LanguagePairDataset collater to format the
+                batches in the structure that SequenceGenerator expects.
+            src_dict: src dict
+            src_dict: src dictionary
+            seed: seed to use when generating random noise
+            noising_class: class to use when initializing noiser
+            kwargs: noising args for configuring noising to apply
+                Note that there is no equivalent argparse code for these args
+                anywhere in our top level train scripts yet. Integration is
+                still in progress. You can still, however, test out this dataset
+                functionality with the appropriate args as in the corresponding
+                unittest: test_noising_dataset.
+        """
+
+        self.src_dataset = src_dataset
+        self.src_dict = src_dict
+        self.noiser = noising_class(
+            dictionary=src_dict, **kwargs,
+        )
+        self.seed = seed
+
+    def __getitem__(self, index):
+        """
+        Returns a single noisy sample. Multiple samples are fed to the collater
+        create a noising dataset batch.
+        """
+        src_tokens = self.src_dataset[index]
+        src_lengths = torch.LongTensor([len(src_tokens)])
+        src_tokens = src_tokens.unsqueeze(0)
+
+        # Transpose src tokens to fit expected shape of x in noising function
+        # (batch size, sequence length) -> (sequence length, batch size)
+        src_tokens_t = torch.t(src_tokens)
+
+        with data_utils.numpy_seed(self.seed + index):
+            noisy_src_tokens = self.noiser.noising(src_tokens_t, src_lengths)
+
+        # Transpose back to expected src_tokens format
+        # (sequence length, 1) -> (1, sequence length)
+        noisy_src_tokens = torch.t(noisy_src_tokens)
+        return noisy_src_tokens[0]
+
+    def __len__(self):
+        """
+        The length of the noising dataset is the length of src.
+        """
+        return len(self.src_dataset)
