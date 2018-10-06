@@ -8,6 +8,8 @@
 import torch
 import numpy as np
 
+from fairseq.data import data_utils
+
 
 class WordNoising(object):
     """Generate a noisy version of a sentence, without changing words themselves."""
@@ -150,3 +152,116 @@ class WordShuffle(WordNoising):
                 x2[:length_no_eos, i][torch.from_numpy(permutation)]
             )
         return x2, lengths
+
+
+class UnsupervisedMTNoising(WordNoising):
+    """
+    Implements the default configuration for noising in UnsupervisedMT
+    (github.com/facebookresearch/UnsupervisedMT)
+    """
+    def __init__(
+        self,
+        dictionary,
+        max_word_shuffle_distance,
+        word_dropout_prob,
+        word_blanking_prob
+    ):
+        super().__init__(dictionary)
+        self.max_word_shuffle_distance = max_word_shuffle_distance
+        self.word_dropout_prob = word_dropout_prob
+        self.word_blanking_prob = word_blanking_prob
+
+        self.word_dropout = WordDropout(dictionary=dictionary)
+        self.word_shuffle = WordShuffle(dictionary=dictionary)
+
+    def noising(self, x, lengths):
+        # 1. Word Shuffle
+        noisy_src_tokens, noisy_src_lengths = self.word_shuffle.noising(
+            x=x,
+            lengths=lengths,
+            max_shuffle_distance=self.max_word_shuffle_distance,
+        )
+        # 2. Word Dropout
+        noisy_src_tokens, noisy_src_lengths = self.word_dropout.noising(
+            x=noisy_src_tokens,
+            lengths=noisy_src_lengths,
+            dropout_prob=self.word_dropout_prob,
+        )
+        # 3. Word Blanking
+        noisy_src_tokens, noisy_src_lengths = self.word_dropout.noising(
+            x=noisy_src_tokens,
+            lengths=noisy_src_lengths,
+            dropout_prob=self.word_blanking_prob,
+            blank_idx=self.dictionary.unk(),
+        )
+
+        return noisy_src_tokens
+
+
+class NoisingDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        src_dataset,
+        src_dict,
+        seed,
+        noising_class=UnsupervisedMTNoising,
+        **kwargs,
+    ):
+        """
+        Sets up a noising dataset which takes a src batch, generates
+        a noisy src using a noising config, and returns the
+        corresponding {noisy src, original src} batch
+        Args:
+            src_dataset: dataset which will be used to build self.src_dataset --
+                a LanguagePairDataset with src dataset as the source dataset and
+                None as the target dataset. Should NOT have padding so that
+                src_lengths are accurately calculated by language_pair_dataset
+                collate function.
+                We use language_pair_dataset here to encapsulate the tgt_dataset
+                so we can re-use the LanguagePairDataset collater to format the
+                batches in the structure that SequenceGenerator expects.
+            src_dict: src dict
+            src_dict: src dictionary
+            seed: seed to use when generating random noise
+            noising_class: class to use when initializing noiser
+            kwargs: noising args for configuring noising to apply
+                Note that there is no equivalent argparse code for these args
+                anywhere in our top level train scripts yet. Integration is
+                still in progress. You can still, however, test out this dataset
+                functionality with the appropriate args as in the corresponding
+                unittest: test_noising_dataset.
+        """
+
+        self.src_dataset = src_dataset
+        self.src_dict = src_dict
+        self.noiser = noising_class(
+            dictionary=src_dict, **kwargs,
+        )
+        self.seed = seed
+
+    def __getitem__(self, index):
+        """
+        Returns a single noisy sample. Multiple samples are fed to the collater
+        create a noising dataset batch.
+        """
+        src_tokens = self.src_dataset[index]
+        src_lengths = torch.LongTensor([len(src_tokens)])
+        src_tokens = src_tokens.unsqueeze(0)
+
+        # Transpose src tokens to fit expected shape of x in noising function
+        # (batch size, sequence length) -> (sequence length, batch size)
+        src_tokens_t = torch.t(src_tokens)
+
+        with data_utils.numpy_seed(self.seed + index):
+            noisy_src_tokens = self.noiser.noising(src_tokens_t, src_lengths)
+
+        # Transpose back to expected src_tokens format
+        # (sequence length, 1) -> (1, sequence length)
+        noisy_src_tokens = torch.t(noisy_src_tokens)
+        return noisy_src_tokens[0]
+
+    def __len__(self):
+        """
+        The length of the noising dataset is the length of src.
+        """
+        return len(self.src_dataset)
