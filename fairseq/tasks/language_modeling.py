@@ -90,7 +90,7 @@ class LanguageModelingTask(FairseqTask):
         dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
         print('| dictionary: {} types'.format(len(dictionary)))
         output_dictionary = dictionary
-        if args.output_dictionary_size >= 0:
+        if hasattr(args, 'output_dictionary_size') and args.output_dictionary_size >= 0:
             output_dictionary = TruncatedDictionary(dictionary, args.output_dictionary_size)
 
         # upgrade old checkpoints
@@ -118,7 +118,6 @@ class LanguageModelingTask(FairseqTask):
                 raise ValueError('Unsupported language modeling target: {}'.format(target))
 
         return model
-
 
     def load_dataset(self, split, combine=False):
         """Load a given dataset split.

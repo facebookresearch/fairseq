@@ -180,7 +180,7 @@ class FairseqLanguageModel(BaseFairseqModel):
         self.decoder = decoder
         assert isinstance(self.decoder, FairseqDecoder)
 
-    def forward(self, src_tokens, src_lengths):
+    def forward(self, src_tokens, **unused):
         """
         Run the forward pass for a decoder-only model.
 
