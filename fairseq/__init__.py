@@ -8,6 +8,7 @@
 from .multiprocessing_pdb import pdb
 
 __all__ = ['pdb']
+__version__ = '0.6.0'
 
 import fairseq.criterions
 import fairseq.models
