@@ -125,9 +125,9 @@ class SentenceClassificationTask(FairseqTask):
     def aggregate_extra_metrics(self, logs):
         return {
             'mcc': tuple(
-                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['mcc'] for log in logs])),
+                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['mcc'] for log in logs if 'extra_metrics' in log])),
             'acc': tuple(
-                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['acc'] for log in logs]))
+                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['acc'] for log in logs if 'extra_metrics' in log]))
         }
 
     def get_loss(self, model, criterion, sample, is_valid=False):

@@ -75,7 +75,10 @@ class FairseqOptimizer(object):
     def multiply_grads(self, c):
         """Multiplies grads by a constant ``c``."""
         for p in self.params:
-            p.grad.data.mul_(c)
+            if p.grad is not None:
+                p.grad.data.mul_(c)
+            else:
+                print(p.shape, 'got no grad!')
 
     def clip_grad_norm(self, max_norm):
         """Clips gradient norm."""

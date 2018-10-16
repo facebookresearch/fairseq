@@ -12,7 +12,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq.tasks.language_modeling import LanguageModelingTask
-from fairseq.modules import ElmoTokenEmbedder
+from fairseq.modules import (
+    ElmoTokenEmbedder, MultiheadAttention
+)
 from . import (
     BaseFairseqModel, register_model, register_model_architecture,
 )
@@ -31,7 +33,49 @@ class SentenceClassifier(BaseFairseqModel):
         super().__init__()
 
         self.embedding = embedding
-        self.linear = nn.Linear(args.model_dim, args.num_labels)
+
+        self.class_queries = nn.Parameter(torch.Tensor(args.num_labels, args.model_dim))
+        self.dropout = nn.Dropout(0.5)
+        self.attn = MultiheadAttention(args.model_dim, 16, 0, add_zero_attn=True)
+        self.ln_q = nn.LayerNorm(args.model_dim)
+        self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.normal_(self.class_queries)
+        torch.nn.init.xavier_uniform_(self.proj.weight)
+        torch.nn.init.constant_(self.proj.bias, 0)
+
+    def forward(self, src_tokens, src_lengths):
+
+        input_padding_mask = src_tokens.eq(self.embedding.padding_idx)
+        if not input_padding_mask.any():
+            input_padding_mask = None
+
+        x = self.embedding(src_tokens)
+        self.dropout(x)
+
+        # BTC -> TBC
+        x = x.transpose(0,1)
+
+        q = self.class_queries.unsqueeze(1).expand(self.class_queries.shape[0], x.shape[1],
+                                                   self.class_queries.shape[1])
+
+        enc_q, _ = self.attn(
+            query=q,
+            key=x,
+            value=x,
+            key_padding_mask=input_padding_mask,
+            need_weights=False,
+        )
+
+        x = self.ln_q(enc_q)
+        x = self.dropout(x)
+
+        x = self.proj(x).squeeze(-1).t()
+
+        return x
 
     @staticmethod
     def add_args(parser):
@@ -79,15 +123,6 @@ class SentenceClassifier(BaseFairseqModel):
             embedding = nn.Embedding(len(dictionary), args.model_dim, dictionary.pad())
 
         return SentenceClassifier(args, embedding)
-
-    def forward(self, src_tokens, src_lengths):
-        x = self.embedding(src_tokens)
-        x = self.linear(x)
-        x = x.mean(dim=1)
-        return x
-
-    # def get_normalized_probs(self, net_output, log_probs, sample=None):
-    #     pass
 
 
 @register_model_architecture('sentence_classifier', 'sentence_classifier')
