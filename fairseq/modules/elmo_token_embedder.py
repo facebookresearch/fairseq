@@ -34,7 +34,7 @@ class LearningToNorm(nn.Module):
         else:
             while mask.dim() < input.dim():
                 mask = mask.unsqueeze(-1)
-            mask = mask.expand_as(input).float()
+            mask = mask.expand_as(input).type_as(input)
 
         mean_weights = self.sm(self.mean_weights)
         var_weights = self.sm(self.var_weights)

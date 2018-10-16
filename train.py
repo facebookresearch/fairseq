@@ -221,6 +221,10 @@ def validate(args, trainer, task, epoch_itr, subsets):
             meter = trainer.get_meter(k)
             if meter is not None:
                 meter.reset()
+        task_meters = trainer.get_meter('task')
+        if task_meters is not None:
+            for m in task_meters.values():
+                m.reset()
         extra_meters = collections.defaultdict(lambda: AverageMeter())
 
         for sample in progress:
