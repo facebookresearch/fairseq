@@ -120,7 +120,7 @@ class IndexedCachedDataset(IndexedDataset):
     def prefetch(self, indices):
         if all(i in self.cache_index for i in indices):
             return
-        indices.sort()
+        indices = sorted(set(indices))
         total_size = 0
         for i in indices:
             total_size += self.data_offsets[i + 1] - self.data_offsets[i]
