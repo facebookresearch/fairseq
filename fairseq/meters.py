@@ -95,8 +95,8 @@ class MCCMeter(object):
         self.tn += tn
         self.fp += fp
         self.fn += fn
-        self.val = (self.tp * self.tn - self.fp * self.fn) / math.sqrt(
-            (self.tp + self.fp) * (self.tp + self.fn) * (self.tn + self.fp) * (self.tn + self.fn))
+        self.val = (self.tp * self.tn - self.fp * self.fn) / (math.sqrt(
+            (self.tp + self.fp) * (self.tp + self.fn) * (self.tn + self.fp) * (self.tn + self.fn)) or 1.0)
 
 
 class AccuracyMeter(object):
