@@ -143,7 +143,7 @@ class FairseqTask(object):
         from fairseq import criterions
         return criterions.build_criterion(args, self)
 
-    def get_loss(self, model, criterion, sample):
+    def get_loss(self, model, criterion, sample, is_valid=False):
         """
         Return the loss as computed by *criterion* for the given *model* and
         *sample*.

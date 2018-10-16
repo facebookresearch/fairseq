@@ -5,11 +5,13 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import math
 import time
 
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -28,6 +30,7 @@ class AverageMeter(object):
 
 class TimeMeter(object):
     """Computes the average occurrence of some event per second"""
+
     def __init__(self, init=0):
         self.reset(init)
 
@@ -50,6 +53,7 @@ class TimeMeter(object):
 
 class StopwatchMeter(object):
     """Computes the sum/avg duration of some event in seconds"""
+
     def __init__(self):
         self.reset()
 
@@ -71,3 +75,46 @@ class StopwatchMeter(object):
     @property
     def avg(self):
         return self.sum / self.n
+
+
+class MCCMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.tp = 0
+        self.tn = 0
+        self.fp = 0
+        self.fn = 0
+        self.val = 0
+
+    def update(self, tp, tn, fp, fn):
+        self.tp += tp
+        self.tn += tn
+        self.fp += fp
+        self.fn += fn
+        self.val = (self.tp * self.tn - self.fp * self.fn) / math.sqrt(
+            (self.tp + self.fp) * (self.tp + self.fn) * (self.tn + self.fp) * (self.tn + self.fn))
+
+
+class AccuracyMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.tp = 0
+        self.tn = 0
+        self.fp = 0
+        self.fn = 0
+        self.val = 0
+
+    def update(self, tp, tn, fp, fn):
+        self.tp += tp
+        self.tn += tn
+        self.fp += fp
+        self.fn += fn
+        self.val = (self.tp + self.tn) / (self.tp + self.tn + self.fp + self.fn)

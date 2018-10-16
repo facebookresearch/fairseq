@@ -227,7 +227,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
             log_output = trainer.valid_step(sample)
 
             for k, v in log_output.items():
-                if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
+                if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size', 'extra_metrics']:
                     continue
                 extra_meters[k].update(v)
 
@@ -251,6 +251,12 @@ def get_valid_stats(trainer):
         nll_loss = trainer.get_meter('valid_loss').avg
     stats['valid_ppl'] = get_perplexity(nll_loss)
     stats['num_updates'] = trainer.get_num_updates()
+
+    task_meters = trainer.get_meter('task')
+    if task_meters is not None:
+        for n, m in task_meters.items():
+            stats[n] = m.val
+
     if hasattr(save_checkpoint, 'best'):
         stats['best'] = min(save_checkpoint.best, stats['valid_loss'])
     return stats

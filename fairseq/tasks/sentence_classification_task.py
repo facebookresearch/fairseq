@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from functools import reduce
 import itertools
 import numpy as np
 import os
@@ -15,6 +16,7 @@ from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
     SentenceClassificationDataset, TokenBlockDataset
 )
+from fairseq.meters import MCCMeter, AccuracyMeter
 
 from . import FairseqTask, register_task
 
@@ -48,6 +50,7 @@ class SentenceClassificationTask(FairseqTask):
         super().__init__(args)
         self.dictionary = dictionary
         self.padding_idx = -100
+        self.num_labels = args.num_labels
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -112,6 +115,42 @@ class SentenceClassificationTask(FairseqTask):
         self.datasets[split] = SentenceClassificationDataset(
             dataset, loaded_labels, sizes, self.dictionary,
         )
+
+    def extra_meters(self):
+        return {
+            'mcc': MCCMeter(),
+            'acc': AccuracyMeter()
+        }
+
+    def aggregate_extra_metrics(self, logs):
+        return {
+            'mcc': tuple(
+                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['mcc'] for log in logs])),
+            'acc': tuple(
+                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['acc'] for log in logs]))
+        }
+
+    def get_loss(self, model, criterion, sample, is_valid=False):
+        loss, sample_size, logging_output = criterion(model, sample, reduce=not is_valid)
+
+        if is_valid:
+            probs = (-loss).exp()
+            pos = sample['target'].view(-1).eq(1)
+            neg = sample['target'].view(-1).eq(0)
+            tp = (probs[pos] > 1 / self.num_labels).long().sum()
+            tn = (probs[neg] > 1 / self.num_labels).long().sum()
+            fp = neg.long().sum() - tn
+            fn = pos.long().sum() - tp
+
+            logging_output['extra_metrics'] = {
+                'mcc': (tp.item(), tn.item(), fp.item(), fn.item()),
+                'acc': (tp.item(), tn.item(), fp.item(), fn.item()),
+            }
+
+            loss = loss.sum()
+            logging_output['loss'] = loss.item()
+
+        return loss, sample_size, logging_output
 
     @property
     def target_dictionary(self):
