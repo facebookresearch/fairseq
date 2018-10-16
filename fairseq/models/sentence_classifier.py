@@ -27,6 +27,39 @@ from fairseq.models.transformer import (
 )
 
 
+class AttentionLayer(nn.Module):
+    def __init__(self, dim, dropout):
+        super().__init__()
+
+        self.prem_hyp_attn = MultiheadAttention(dim, 16, 0, add_zero_attn=True)
+
+        self.ln_h = nn.LayerNorm(dim)
+        self.ln_h2 = nn.LayerNorm(dim)
+
+        self.qh_ffn = nn.Sequential(
+            nn.Linear(dim, dim * 2),
+            nn.ReLU(),
+            nn.Linear(dim * 2, dim),
+        )
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, q, kv, key_mask):
+        enc_h, _ = self.prem_hyp_attn(
+            query=q,
+            key=kv,
+            value=kv,
+            key_padding_mask=key_mask,
+            need_weights=False,
+        )
+        enc_h += q
+        enc_h = self.ln_h(enc_h)
+        enc_h = self.dropout(enc_h)
+
+        enc_h = enc_h + self.qh_ffn(enc_h)
+        enc_h = self.ln_h2(enc_h)
+        return enc_h
+
+
 @register_model('sentence_classifier')
 class SentenceClassifier(BaseFairseqModel):
     def __init__(self, args, embedding):
@@ -35,10 +68,16 @@ class SentenceClassifier(BaseFairseqModel):
         self.embedding = embedding
 
         self.class_queries = nn.Parameter(torch.Tensor(args.num_labels, args.model_dim))
-        self.dropout = nn.Dropout(0.5)
+        self.embedding_dropout = nn.Dropout(args.embedding_dropout)
         self.attn = MultiheadAttention(args.model_dim, 16, 0, add_zero_attn=True)
         self.ln_q = nn.LayerNorm(args.model_dim)
+        self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
+
+        self.layers = nn.ModuleList([
+            AttentionLayer(args.model_dim, args.dropout),
+            AttentionLayer(args.model_dim, args.dropout),
+        ])
 
         self.reset_parameters()
 
@@ -52,12 +91,21 @@ class SentenceClassifier(BaseFairseqModel):
         input_padding_mask = src_tokens.eq(self.embedding.padding_idx)
         if not input_padding_mask.any():
             input_padding_mask = None
+        else:
+            #     input_padding_mask = input_padding_mask[:, :-1]
+            input_padding_mask = torch.cat(
+                [input_padding_mask.new_zeros(input_padding_mask.size(0), 1), input_padding_mask], dim=1)
 
         x = self.embedding(src_tokens)
-        self.dropout(x)
+        # self.embedding_dropout(x)
 
         # BTC -> TBC
-        x = x.transpose(0,1)
+        x = x.transpose(0, 1)
+
+        enc_x = x
+        for layer in self.layers:
+            enc_x = layer(enc_x, x, input_padding_mask)
+        x = enc_x
 
         q = self.class_queries.unsqueeze(1).expand(self.class_queries.shape[0], x.shape[1],
                                                    self.class_queries.shape[1])
@@ -71,7 +119,7 @@ class SentenceClassifier(BaseFairseqModel):
         )
 
         x = self.ln_q(enc_q)
-        x = self.dropout(x)
+        x = self.last_dropout(x)
 
         x = self.proj(x).squeeze(-1).t()
 
@@ -82,6 +130,9 @@ class SentenceClassifier(BaseFairseqModel):
         """Add model-specific arguments to the parser."""
         parser.add_argument('--elmo-path', metavar='PATH', help='path to elmo model')
         parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
+        parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
+        parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
+        parser.add_argument('--dropout', type=float, metavar='D', help='model dropout')
 
     @classmethod
     def build_model(cls, args, task):
@@ -101,10 +152,14 @@ class SentenceClassifier(BaseFairseqModel):
                 models[0],
                 dictionary.eos(),
                 dictionary.pad(),
+                add_bos=True,
+                remove_bos=False,
+                remove_eos=False,
                 combine_tower_states=True,
                 projection_dim=args.model_dim,
                 add_final_predictive=True,
                 add_final_context=True,
+                final_dropout=args.embedding_dropout,
                 weights_dropout=0,
                 tune_lm=False,
                 apply_softmax=True,
@@ -128,3 +183,6 @@ class SentenceClassifier(BaseFairseqModel):
 @register_model_architecture('sentence_classifier', 'sentence_classifier')
 def base_architecture(args):
     args.model_dim = getattr(args, 'model_dim', 2048)
+    args.embedding_dropout = getattr(args, 'embedding_dropout', 0.5)
+    args.dropout = getattr(args, 'dropout', 0.3)
+    args.last_dropout = getattr(args, 'last_dropout', 0.3)
