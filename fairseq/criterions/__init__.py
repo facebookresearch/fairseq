@@ -8,7 +8,7 @@
 import importlib
 import os
 
-from .fairseq_criterion import FairseqCriterion
+from .fairseq_criterion import FairseqCriterion, FairseqSequenceCriterion
 
 
 CRITERION_REGISTRY = {}

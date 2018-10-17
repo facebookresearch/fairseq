@@ -14,6 +14,7 @@ class FairseqCriterion(_Loss):
         super().__init__()
         self.args = args
         self.padding_idx = task.target_dictionary.pad()
+        self.task = task
 
     @staticmethod
     def add_args(parser):
@@ -48,3 +49,7 @@ class FairseqCriterion(_Loss):
     def grad_denom(sample_sizes):
         """Compute the gradient denominator for a set of sample sizes."""
         return sum(sample_sizes)
+
+
+class FairseqSequenceCriterion(FairseqCriterion):
+    pass
