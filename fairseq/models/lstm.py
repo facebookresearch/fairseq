@@ -445,36 +445,42 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         self.need_attn = need_attn
 
 
-def Embedding(num_embeddings, embedding_dim, padding_idx):
-    m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.uniform_(m.weight, -0.1, 0.1)
-    nn.init.constant_(m.weight[padding_idx], 0)
-    return m
+class Embedding(nn.Embedding):
+    """Custom nn.Embedding module that: 
+    (i) initialize weights with uniform distribution and 
+    (ii)sets padding row of the tensor to 0 
+    """
+    def __init__(self, num_embeddings, embedding_dim, padding_idx):
+        super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx)
+        nn.init.uniform_(self.weight, -0.1, 0.1)
+        nn.init.constant_(self.weight[padding_idx], 0)
 
+        
+class LSTM(nn.LSTM):
+    """Custom nn.LSTM module that initialize all weights and bias with uniform distribution."""
+    def __init__(self, input_size, hidden_size, **kwargs):
+        super().__init__(input_size, hidden_size, **kwargs)
+        for name, param in self.named_parameters():
+            if 'weight' in name or 'bias' in name:
+                self._parameters[name] = param.data.uniform_(-0.1, 0.1)
 
-def LSTM(input_size, hidden_size, **kwargs):
-    m = nn.LSTM(input_size, hidden_size, **kwargs)
-    for name, param in m.named_parameters():
-        if 'weight' in name or 'bias' in name:
-            param.data.uniform_(-0.1, 0.1)
-    return m
+                
+class LSTMCell(nn.LSTMCell):
+    """Custom nn.LSTMCell module that initialize all weights and bias with uniform distribution."""
+    def __init__(self, input_size, hidden_size, **kwargs):
+        super().__init__(input_size, hidden_size, **kwargs)
+        for name, param in self.named_parameters():
+            if 'weight' in name or 'bias' in name:
+                self._parameters[name] = param.data.uniform_(-0.1, 0.1)
 
-
-def LSTMCell(input_size, hidden_size, **kwargs):
-    m = nn.LSTMCell(input_size, hidden_size, **kwargs)
-    for name, param in m.named_parameters():
-        if 'weight' in name or 'bias' in name:
-            param.data.uniform_(-0.1, 0.1)
-    return m
-
-
-def Linear(in_features, out_features, bias=True, dropout=0):
-    """Linear layer (input: N x T x C)"""
-    m = nn.Linear(in_features, out_features, bias=bias)
-    m.weight.data.uniform_(-0.1, 0.1)
-    if bias:
-        m.bias.data.uniform_(-0.1, 0.1)
-    return m
+                
+class Linear(nn.Linear):
+    """Custom nn.Linear module that initialize all weights (and bias) with uniform distribution."""
+    def __init__(self, in_features, out_features, bias=True):
+        super().__init__(in_features, out_features, bias=bias)
+        self.weight.data.uniform_(-0.1, 0.1)
+        if bias:
+            self.bias.data.uniform_(-0.1, 0.1)
 
 
 @register_model_architecture('lstm', 'lstm')
