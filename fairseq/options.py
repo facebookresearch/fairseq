@@ -130,6 +130,8 @@ def get_parser(desc, default_task='translation'):
     parser.add_argument('--fp16', action='store_true', help='use FP16')
     parser.add_argument('--fp16-init-scale', default=2**7, type=int,
                         help='default FP16 loss scale')
+    parser.add_argument('--fp16-scale-window', type=int,
+                        help='number of updates before increasing loss scale')
 
     # Task definitions can be found under fairseq/tasks/
     parser.add_argument(
