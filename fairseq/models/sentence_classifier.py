@@ -189,12 +189,13 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         self.eos_idx = eos_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
-        self.proj = torch.nn.Linear(args.model_dim * 2, 2, bias=False)
+        self.proj = torch.nn.Linear(args.model_dim * 2, 2, bias=True)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        torch.nn.init.xavier_uniform_(self.proj.weight)
+        torch.nn.init.constant_(self.proj.weight, 0)
+        torch.nn.init.constant_(self.proj.bias, 0)
 
     def forward(self, src_tokens, src_lengths):
         bos_block = src_tokens.new_full((src_tokens.size(0), 1), self.eos_idx)
@@ -204,7 +205,6 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
 
         eos_idxs = src_tokens.eq(self.eos_idx)
         x = x[eos_idxs].view(src_tokens.size(0), 1, -1) # assume only 2 eoses per sample
-        # x = torch.cat([x[:, 0], x[:, 1]], dim=1)
 
         x = self.last_dropout(x)
         x = self.proj(x).squeeze(-1)
@@ -247,4 +247,4 @@ def base_architecture(args):
 @register_model_architecture('finetuning_sentence_classifier', 'finetuning_sentence_classifier')
 def base_architecture(args):
     args.model_dim = getattr(args, 'model_dim', 1024)
-    args.last_dropout = getattr(args, 'last_dropout', 0)
+    args.last_dropout = getattr(args, 'last_dropout', 0.3)
