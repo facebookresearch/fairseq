@@ -34,7 +34,6 @@ class AttentionLayer(nn.Module):
         self.prem_hyp_attn = MultiheadAttention(dim, 16, 0, add_zero_attn=True)
 
         self.ln_h = nn.LayerNorm(dim)
-        self.ln_h2 = nn.LayerNorm(dim)
 
         self.qh_ffn = nn.Sequential(
             nn.Linear(dim, dim * 2),
@@ -56,7 +55,6 @@ class AttentionLayer(nn.Module):
         enc_h = self.dropout(enc_h)
 
         enc_h = enc_h + self.qh_ffn(enc_h)
-        enc_h = self.ln_h2(enc_h)
         return enc_h
 
 
@@ -75,7 +73,6 @@ class SentenceClassifier(BaseFairseqModel):
         self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
 
         self.layers = nn.ModuleList([
-            AttentionLayer(args.model_dim, args.dropout),
             AttentionLayer(args.model_dim, args.dropout),
         ])
 
