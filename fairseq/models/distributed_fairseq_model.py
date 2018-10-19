@@ -8,6 +8,7 @@
 from torch.nn import parallel
 
 from fairseq.distributed_utils import c10d_status
+from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
 
 from . import BaseFairseqModel
 
@@ -55,6 +56,13 @@ def DistributedFairseqModel(args, model):
             device_ids=[args.device_id],
             output_device=args.device_id,
             broadcast_buffers=False,
+        )
+    elif args.ddp_backend == 'legacy':
+        ddp_class = LegacyDistributedDataParallel
+        init_kwargs = dict (
+            module=model,
+            world_size=args.distributed_world_size,
+            bucket_cap_mb=args.bucket_cap_mb,
         )
     else:
         raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)
