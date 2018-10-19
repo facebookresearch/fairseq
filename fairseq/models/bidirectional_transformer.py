@@ -87,6 +87,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='if set, has a bias on the final linear layer')
         parser.add_argument('--no-bias-kv', action='store_true',
                             help='if set, pads attn with zero instead of adding a learnable bias kv')
+        parser.add_argument('--double-final-heads', action='store_true',
+                            help='if set, doubles the number of heads for the final layer')
 
     @classmethod
     def build_model(cls, args, task):
@@ -283,7 +285,6 @@ class BiTransformerDecoder(FairseqDecoder):
 
         return x, {'attn': attn, 'inner_states': inner_states}
 
-
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
         if not hasattr(self, '_future_mask') or self._future_mask is None or self._future_mask.device != tensor.device:
@@ -377,7 +378,8 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
         self.self_attn = BidirectionalMultiheadSelfAttention(
-            self.embed_dim, args.decoder_attention_heads,
+            self.embed_dim,
+            (args.decoder_attention_heads * 2) if args.double_final_heads else args.decoder_attention_heads,
             dropout=args.attention_dropout,
         )
         self.dropout = args.dropout
