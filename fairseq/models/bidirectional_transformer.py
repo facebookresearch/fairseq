@@ -459,6 +459,8 @@ def base_bi_lm_architecture(args):
 
     args.no_bias_kv = getattr(args, 'no_bias_kv', False)
 
+    args.double_final_heads = getattr(args, 'double_final_heads', False)
+
     # otherwise model training is unstable
     args.decoder_normalize_before = True
 
