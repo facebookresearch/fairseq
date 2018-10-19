@@ -17,7 +17,8 @@ from .grad_multiply import GradMultiply
 from .highway import Highway
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .linearized_convolution import LinearizedConvolution
-from .multihead_attention import MultiheadAttention, BidirectionalMultiheadSelfAttention
+from .multihead_attention import MultiheadAttention
+from .bidirectional_multihead_attention import BidirectionalMultiheadSelfAttention
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 
