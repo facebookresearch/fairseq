@@ -31,7 +31,7 @@ class AttentionLayer(nn.Module):
     def __init__(self, dim, dropout):
         super().__init__()
 
-        self.prem_hyp_attn = MultiheadAttention(dim, 16, 0, add_zero_attn=True)
+        self.prem_hyp_attn = MultiheadAttention(dim, 16, 0.0, add_zero_attn=True)
 
         self.ln_h = nn.LayerNorm(dim)
 

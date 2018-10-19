@@ -16,7 +16,7 @@ from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
     SentencePairClassificationDataset, TokenBlockDataset
 )
-from fairseq.meters import MCCMeter, AccuracyMeter
+from fairseq.meters import ClassificationMeter
 
 from . import FairseqTask, register_task
 
@@ -90,7 +90,7 @@ class SentencePairClassificationTask(FairseqTask):
                     tokens = ds.buffer
                 else:
                     if k > 0:
-                        stop=True
+                        stop = True
                         break
                     else:
                         raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
@@ -129,13 +129,14 @@ class SentencePairClassificationTask(FairseqTask):
 
     def extra_meters(self):
         return {
-            'acc': AccuracyMeter()
+            'classification': ClassificationMeter(),
         }
 
     def aggregate_extra_metrics(self, logs):
         return {
-            'acc': tuple(
-                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['acc'] for log in logs if 'extra_metrics' in log]))
+            'classification': tuple(
+                reduce(lambda q, w: (sum(x) for x in zip(q, w)),
+                       [log['extra_metrics']['classification'] for log in logs if 'extra_metrics' in log]))
         }
 
     def get_loss(self, model, criterion, sample, is_valid=False):
@@ -151,7 +152,7 @@ class SentencePairClassificationTask(FairseqTask):
             fn = pos.long().sum() - tp
 
             logging_output['extra_metrics'] = {
-                'acc': (tp.item(), tn.item(), fp.item(), fn.item()),
+                'classification': (tp.item(), tn.item(), fp.item(), fn.item()),
             }
 
             loss = loss.sum()

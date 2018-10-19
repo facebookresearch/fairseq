@@ -258,8 +258,9 @@ def get_valid_stats(trainer):
 
     task_meters = trainer.get_meter('task')
     if task_meters is not None:
-        for n, m in task_meters.items():
-            stats[n] = m.val
+        for m in task_meters.values():
+            for n, v in m.vals():
+                stats[n] = v
 
     if hasattr(save_checkpoint, 'best'):
         stats['best'] = min(save_checkpoint.best, stats['valid_loss'])

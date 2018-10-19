@@ -77,7 +77,7 @@ class StopwatchMeter(object):
         return self.sum / self.n
 
 
-class MCCMeter(object):
+class ClassificationMeter(object):
     """Computes and stores the average and current value"""
 
     def __init__(self):
@@ -88,33 +88,23 @@ class MCCMeter(object):
         self.tn = 0
         self.fp = 0
         self.fn = 0
-        self.val = 0
+        self.acc = 0
 
     def update(self, tp, tn, fp, fn):
         self.tp += tp
         self.tn += tn
         self.fp += fp
         self.fn += fn
-        self.val = (self.tp * self.tn - self.fp * self.fn) / (math.sqrt(
+        self.acc = (self.tp + self.tn) / (self.tp + self.tn + self.fp + self.fn)
+        self.mcc = (self.tp * self.tn - self.fp * self.fn) / (math.sqrt(
             (self.tp + self.fp) * (self.tp + self.fn) * (self.tn + self.fp) * (self.tn + self.fn)) or 1.0)
 
-
-class AccuracyMeter(object):
-    """Computes and stores the average and current value"""
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.tp = 0
-        self.tn = 0
-        self.fp = 0
-        self.fn = 0
-        self.val = 0
-
-    def update(self, tp, tn, fp, fn):
-        self.tp += tp
-        self.tn += tn
-        self.fp += fp
-        self.fn += fn
-        self.val = (self.tp + self.tn) / (self.tp + self.tn + self.fp + self.fn)
+    def vals(self):
+        return [
+            ('tp', self.tp),
+            ('tn', self.tn),
+            ('fp', self.fp),
+            ('fn', self.fn),
+            ('acc', self.acc),
+            ('mcc', self.mcc),
+        ]

@@ -16,7 +16,7 @@ from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
     SentenceClassificationDataset, TokenBlockDataset
 )
-from fairseq.meters import MCCMeter, AccuracyMeter
+from fairseq.meters import ClassificationMeter
 
 from . import FairseqTask, register_task
 
@@ -118,16 +118,13 @@ class SentenceClassificationTask(FairseqTask):
 
     def extra_meters(self):
         return {
-            'mcc': MCCMeter(),
-            'acc': AccuracyMeter()
+            'classification': ClassificationMeter(),
         }
 
     def aggregate_extra_metrics(self, logs):
         return {
-            'mcc': tuple(
-                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['mcc'] for log in logs if 'extra_metrics' in log])),
-            'acc': tuple(
-                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['acc'] for log in logs if 'extra_metrics' in log]))
+            'classification': tuple(
+                reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['classification'] for log in logs if 'extra_metrics' in log])),
         }
 
     def get_loss(self, model, criterion, sample, is_valid=False):
@@ -143,8 +140,7 @@ class SentenceClassificationTask(FairseqTask):
             fn = pos.long().sum() - tp
 
             logging_output['extra_metrics'] = {
-                'mcc': (tp.item(), tn.item(), fp.item(), fn.item()),
-                'acc': (tp.item(), tn.item(), fp.item(), fn.item()),
+                'classification': (tp.item(), tn.item(), fp.item(), fn.item()),
             }
 
             loss = loss.sum()
