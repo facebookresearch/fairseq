@@ -13,6 +13,7 @@ from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
 from .token_block_dataset import TokenBlockDataset
 from .sentence_classification_dataset import SentenceClassificationDataset
+from .sentence_pair_classification_dataset import SentencePairClassificationDataset
 
 from .iterators import (
     CountingIterator,
@@ -36,5 +37,6 @@ __all__ = [
     'MonolingualDataset',
     'ShardedIterator',
     'SentenceClassificationDataset',
+    'SentencePairClassificationDataset',
     'TokenBlockDataset',
 ]
