@@ -131,6 +131,7 @@ class SentenceClassificationTask(FairseqTask):
         loss, sample_size, logging_output = criterion(model, sample, reduce=not is_valid)
 
         if is_valid:
+            assert self.num_labels == 2
             probs = (-loss).exp()
             pos = sample['target'].view(-1).eq(1)
             neg = sample['target'].view(-1).eq(0)

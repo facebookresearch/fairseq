@@ -144,15 +144,17 @@ class SentencePairClassificationTask(FairseqTask):
 
         if is_valid:
             probs = (-loss).exp()
-            pos = sample['target'].view(-1).eq(1)
-            neg = sample['target'].view(-1).eq(0)
-            tp = (probs[pos] > 1 / self.num_labels).long().sum()
-            tn = (probs[neg] > 1 / self.num_labels).long().sum()
-            fp = neg.long().sum() - tn
-            fn = pos.long().sum() - tp
+
+            tp = tn = fp = fn = 0
+
+            for i in range(self.num_labels + 1):
+                pos = sample['target'].view(-1).eq(i)
+                c_tp = (probs[pos] > 1 / self.num_labels).long().sum().item()
+                tp += c_tp
+                fn += pos.long().sum().item() - c_tp
 
             logging_output['extra_metrics'] = {
-                'classification': (tp.item(), tn.item(), fp.item(), fn.item()),
+                'classification': (tp, tn, fp, fn),
             }
 
             loss = loss.sum()

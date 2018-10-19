@@ -57,6 +57,17 @@ def main():
                     label_col = parts.index('gold_label')
                     continue
 
+
+                if parts[label_col] == '-':
+                    continue
+
+                if parts[label_col] == '' or parts[label_col] == '-':
+                    print(inp)
+                    print(parts)
+                    print(line)
+                    print(sent1_col, sent2_col, label_col)
+                    print(parts[sent1_col])
+                    print(parts[sent2_col])
                 label = labels[parts[label_col]]
                 print(label, file=lbl_out)
                 print(parts[sent1_col], file=s1_out)
