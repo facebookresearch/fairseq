@@ -136,6 +136,22 @@ class SentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
         parser.add_argument('--dropout', type=float, metavar='D', help='model dropout')
 
+        parser.add_argument('--init_gamma', type=float, metavar='D', default=1.0)
+        parser.add_argument('--weights_dropout', type=float, metavar='D', default=0.0)
+        parser.add_argument('--combine_tower_states', default=False, action='store_true')
+        parser.add_argument('--add_final_predictive', default=False, action='store_true')
+        parser.add_argument('--add_final_context', default=False, action='store_true')
+        parser.add_argument('--apply_softmax', default=False, action='store_true')
+        parser.add_argument('--layer_norm', default=False, action='store_true')
+        parser.add_argument('--affine_layer_norm', default=False, action='store_true')
+        parser.add_argument('--channelwise_weights', default=False, action='store_true')
+        parser.add_argument('--scaled_sigmoid', default=False, action='store_true')
+        parser.add_argument('--individual_norms', default=False, action='store_true')
+        parser.add_argument('--channelwise_norm', default=False, action='store_true')
+        parser.add_argument('--ltn', default=False, action='store_true')
+        parser.add_argument('--ltn_dims', type=int, default=3)
+        parser.add_argument('--train_gamma', default=False, action='store_true')
+
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
@@ -157,24 +173,24 @@ class SentencePairClassifier(BaseFairseqModel):
                 add_bos=True,
                 remove_bos=False,
                 remove_eos=False,
-                combine_tower_states=True,
+                combine_tower_states=args.combine_tower_states,
                 projection_dim=args.model_dim,
-                add_final_predictive=True,
-                add_final_context=True,
+                add_final_predictive=args.add_final_predictive,
+                add_final_context=args.add_final_context,
                 final_dropout=args.embedding_dropout,
-                weights_dropout=0,
+                weights_dropout=args.weights_dropout,
                 tune_lm=False,
-                apply_softmax=True,
-                layer_norm=False,
-                affine_layer_norm=False,
-                channelwise_weights=False,
-                scaled_sigmoid=False,
-                individual_norms=False,
-                channelwise_norm=False,
-                init_gamma=1.0,
-                ltn=True,
-                ltn_dims=3,
-                train_gamma=True,
+                apply_softmax=args.apply_softmax,
+                layer_norm=args.layer_norm,
+                affine_layer_norm=args.affine_layer_norm,
+                channelwise_weights=args.channelwise_weights,
+                scaled_sigmoid=args.scaled_sigmoid,
+                individual_norms=args.individual_norms,
+                channelwise_norm=args.channelwise_norm,
+                init_gamma=args.init_gamma,
+                ltn=args.ltn,
+                ltn_dims=args.ltn_dims,
+                train_gamma=args.train_gamma,
             )
         else:
             embedding = nn.Embedding(len(dictionary), args.model_dim, dictionary.pad())
