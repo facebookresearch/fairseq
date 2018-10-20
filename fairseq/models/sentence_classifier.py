@@ -42,6 +42,12 @@ class AttentionLayer(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
 
+        self.reset_parameters()
+
+    # def reset_parameters(self):
+    #     torch.nn.init.constant_(self.qh_ffn[0].bias, 0)
+    #     torch.nn.init.constant_(self.qh_ffn[2].bias, 0)
+
     def forward(self, q, kv, key_mask):
         enc_h, _ = self.prem_hyp_attn(
             query=q,
