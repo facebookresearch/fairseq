@@ -89,6 +89,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='if set, pads attn with zero instead of adding a learnable bias kv')
         parser.add_argument('--double-final-heads', action='store_true',
                             help='if set, doubles the number of heads for the final layer')
+        parser.add_argument('--concat-final-q', action='store_true',
+                            help='if set, concatenates the query for the final bidirectional layer instead of summing')
 
     @classmethod
     def build_model(cls, args, task):
@@ -381,6 +383,7 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
             self.embed_dim,
             (args.decoder_attention_heads * 2) if args.double_final_heads else args.decoder_attention_heads,
             dropout=args.attention_dropout,
+            concat_final_q=args.concat_final_q,
         )
         self.dropout = args.dropout
         self.relu_dropout = args.relu_dropout
@@ -460,6 +463,7 @@ def base_bi_lm_architecture(args):
     args.no_bias_kv = getattr(args, 'no_bias_kv', False)
 
     args.double_final_heads = getattr(args, 'double_final_heads', False)
+    args.concat_final_q = getattr(args, 'concat_final_q', False)
 
     # otherwise model training is unstable
     args.decoder_normalize_before = True

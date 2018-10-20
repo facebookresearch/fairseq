@@ -19,7 +19,7 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
     See "Attention Is All You Need" for more details.
     """
 
-    def __init__(self, embed_dim, num_heads, dropout=0., bias=True):
+    def __init__(self, embed_dim, num_heads, dropout=0., bias=True, concat_final_q=False):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -27,10 +27,18 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         self.head_dim = embed_dim // num_heads
         assert self.embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
+        self.concat_final_q = concat_final_q
 
-        self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
+        chunks = 3
+        if concat_final_q:
+            self.q_proj=nn.Linear(embed_dim*2, embed_dim, bias=bias)
+            chunks = 2
+        else:
+            self.q_proj = None
+
+        self.in_proj_weight = Parameter(torch.Tensor(chunks * embed_dim, embed_dim))
         if bias:
-            self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
+            self.in_proj_bias = Parameter(torch.Tensor(chunks * embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
@@ -38,9 +46,13 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
+        if self.q_proj is not None:
+            nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.in_proj_weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.in_proj_bias is not None:
+            if self.q_proj is not None:
+                nn.init.constant_(self.q_proj.bias, 0.)
             nn.init.constant_(self.in_proj_bias, 0.)
             nn.init.constant_(self.out_proj.bias, 0.)
 
@@ -65,7 +77,10 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         fwd_idxs = torch.arange(tgt_len, out=fwd_x.new().long())
         bwd_idxs = torch.arange(1, tgt_len + 1, out=fwd_x.new().long())
 
-        q = padded_fwd_x[fwd_idxs] + padded_bwd_x[bwd_idxs]
+        if self.concat_final_q:
+            q = torch.cat([padded_fwd_x[fwd_idxs], padded_bwd_x[bwd_idxs]], dim=-1)
+        else:
+            q = padded_fwd_x[fwd_idxs] + padded_bwd_x[bwd_idxs]
         kv = torch.cat([fwd_x, bwd_x], dim=0)
 
         src_len = tgt_len * 2
@@ -106,10 +121,14 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         return attn, attn_weights
 
     def in_proj_q(self, query):
-        return self._in_proj(query, end=self.embed_dim)
+        if self.concat_final_q:
+            return self.q_proj(query)
+        else:
+            return self._in_proj(query, end=self.embed_dim)
 
     def in_proj_kv(self, key):
-        return self._in_proj(key, start=self.embed_dim).chunk(2, dim=-1)
+        start = None if self.q_proj is not None else self.embed_dim
+        return self._in_proj(key, start=start).chunk(2, dim=-1)
 
     def _in_proj(self, input, start=None, end=None):
         weight = self.in_proj_weight
