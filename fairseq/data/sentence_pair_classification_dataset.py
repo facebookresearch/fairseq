@@ -44,18 +44,40 @@ class SentencePairClassificationDataset(FairseqDataset):
           Default: ``True``
     """
 
-    def __init__(self, dataset1, dataset2, labels, sizes1, sizes2, dictionary):
+    def __init__(self, dataset1, dataset2, labels, sizes1, sizes2, dictionary, concat_sentences_mode):
         self.dataset1, self.dataset2 = dataset1, dataset2
         self.sizes1, self.sizes2 = np.array(sizes1), np.array(sizes2)
         self.labels = np.array(labels)
         self.vocab = dictionary
         self.shuffle = False
+        self.concat_sentences_mode = concat_sentences_mode
 
     def __getitem__(self, index):
         sent1 = self.dataset1[index]
         sent2 = self.dataset2[index]
         lbl = self.labels[index]
+
+        sent1, sent2 = self._join_sents(sent1, sent2)
+
+
         return {'id': index, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.LongTensor([lbl])}
+
+
+    def _join_sents(self, sent1, sent2):
+        eos = sent1.new_full((1,), self.vocab.eos())
+        sent1 = torch.cat([eos, sent1])
+
+        if self.concat_sentences_mode == 'none':
+            sent2 = torch.cat([eos, sent2])
+        elif self.concat_sentences_mode == 'eos':
+            sent1 = torch.cat([sent1, sent2])
+            sent2 = sent2.new(0)
+        elif self.concat_sentences_mode == 'unk':
+            sent1 = torch.cat([sent1, sent1.new_full((1,), self.vocab.unk()), eos, sent2])
+            sent2 = sent2.new(0)
+        else:
+            raise Exception('unknown concat sentence mode ' + self.concat_sentences_mode)
+        return sent1, sent2
 
     def __len__(self):
         return len(self.dataset1)
@@ -70,6 +92,10 @@ class SentencePairClassificationDataset(FairseqDataset):
         bsz = num_tokens // tgt_len
         sent1 = self.vocab.dummy_sentence(tgt_len + 2)
         sent2 = self.vocab.dummy_sentence(tgt_len + 2)
+
+        sent1[sent1.eq(self.vocab.unk())] = 66
+        sent2[sent2.eq(self.vocab.unk())] = 66
+        sent1, sent2 = self._join_sents(sent1, sent2)
 
         return self.collater([
             {'id': i, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.LongTensor([0])}

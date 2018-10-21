@@ -101,6 +101,7 @@ class ElmoTokenEmbedder(nn.Module):
                  ltn_dims=None,
                  train_gamma=True,
                  add_intermediate_context=False,
+                 weight_heads=1,
                  ):
         super().__init__()
 
@@ -162,13 +163,15 @@ class ElmoTokenEmbedder(nn.Module):
         self.softmax = None
 
         if channelwise_weights:
+            assert weight_heads == 1
             self.weights = nn.Parameter(torch.ones(self.dim, self.num_layers))
         else:
-            self.weights = nn.Parameter(torch.ones(self.num_layers))
+            self.weights = nn.Parameter(torch.Tensor(weight_heads, self.num_layers).uniform_())
         self.softmax = nn.Softmax(dim=-1) if apply_softmax else None
 
         self.sigmoid_weights = nn.Parameter(torch.zeros(self.num_layers, self.dim)) if scaled_sigmoid else None
 
+        init_gamma = init_gamma / weight_heads
         self.gamma = nn.Parameter(torch.full((1,), init_gamma), requires_grad=train_gamma)
         self.projection = nn.Linear(self.dim, self.embedding_dim,
                                     bias=False) if self.embedding_dim != self.dim else None
@@ -365,11 +368,12 @@ class ElmoTokenEmbedder(nn.Module):
 
         x = states[0].new_zeros(input.size() + (self.dim,))
         for i in range(len(states)):
-            s = states[i]
-            if self.sigmoid_weights is not None:
-                sw = F.sigmoid(self.sigmoid_weights[i]) * 2
-                s = s * sw
-            x += s * w[i]
+            for j in range(w.size(0)):
+                s = states[i]
+                if self.sigmoid_weights is not None:
+                    sw = F.sigmoid(self.sigmoid_weights[i]) * 2
+                    s = s * sw
+                x += s * w[j, i]
 
         x = self._without_sentence_boundaries(x)
 

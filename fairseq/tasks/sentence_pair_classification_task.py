@@ -45,12 +45,15 @@ class SentencePairClassificationTask(FairseqTask):
                             help='load raw text dataset')
         parser.add_argument('--num-labels', type=int, default=3,
                             help='number of labels')
+        parser.add_argument('--concat-sentences-mode', default='none',
+                            help='concat sentences in the dataset. none = dont concat, eos = eos concat, unk = unk concat')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
         self.padding_idx = -100
         self.num_labels = args.num_labels
+        self.concat_sentences_mode = args.concat_sentences_mode
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -124,7 +127,7 @@ class SentencePairClassificationTask(FairseqTask):
             sizes2 = np.concatenate([ds.sizes for ds in loaded_datasets[1]])
 
         self.datasets[split] = SentencePairClassificationDataset(
-            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary,
+            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary, self.concat_sentences_mode
         )
 
     def extra_meters(self):

@@ -42,7 +42,7 @@ class AttentionLayer(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
 
-        self.reset_parameters()
+        # self.reset_parameters()
 
     # def reset_parameters(self):
     #     torch.nn.init.constant_(self.qh_ffn[0].bias, 0)
@@ -152,6 +152,7 @@ class SentenceClassifier(BaseFairseqModel):
         parser.add_argument('--ltn', default=False, action='store_true')
         parser.add_argument('--ltn_dims', type=int, default=3)
         parser.add_argument('--train_gamma', default=False, action='store_true')
+        parser.add_argument('--weight_heads', type=int, default=1)
 
 
     @classmethod
@@ -193,6 +194,7 @@ class SentenceClassifier(BaseFairseqModel):
                 ltn=args.ltn,
                 ltn_dims=args.ltn_dims,
                 train_gamma=args.train_gamma,
+                weight_heads=args.weight_heads,
             )
         else:
             embedding = nn.Embedding(len(dictionary), args.model_dim, dictionary.pad())

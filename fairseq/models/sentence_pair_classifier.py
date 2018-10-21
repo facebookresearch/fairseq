@@ -76,7 +76,6 @@ class SentencePairClassifier(BaseFairseqModel):
             AttentionLayer(args.model_dim, args.dropout),
         ])
 
-
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -117,7 +116,6 @@ class SentencePairClassifier(BaseFairseqModel):
             key_padding_mask=hypothesis_pad_mask,
             need_weights=False,
         )
-
 
         x = self.ln_q(enc_q)
         x = self.last_dropout(x)
@@ -199,65 +197,36 @@ class SentencePairClassifier(BaseFairseqModel):
 
 @register_model('finetuning_sentence_pair_classifier')
 class FinetuningSentencePairClassifier(BaseFairseqModel):
-    def __init__(self, args, language_model, eos_idx, pad_idx):
+    def __init__(self, args, language_model, eos_idx, pad_idx, unk_idx):
         super().__init__()
 
         self.language_model = language_model
         self.eos_idx = eos_idx
         self.pad_idx = pad_idx
+        self.unk_idx = unk_idx
 
-        self.class_queries = nn.Parameter(torch.Tensor(args.num_labels, args.model_dim))
-        self.embedding_dropout = nn.Dropout(args.embedding_dropout)
-        self.qh_attn = MultiheadAttention(args.model_dim, 16, 0, add_zero_attn=True)
-        self.ln_q = nn.LayerNorm(args.model_dim)
         self.last_dropout = nn.Dropout(args.last_dropout)
-        self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
+        self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels, bias=True)
 
-        self.pq_layers = nn.ModuleList([
-            AttentionLayer(args.model_dim, args.dropout),
-            AttentionLayer(args.model_dim, args.dropout),
-        ])
+        assert args.concat_sentences_mode in ('eos', 'unk')
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        torch.nn.init.normal_(self.class_queries)
-        torch.nn.init.xavier_uniform_(self.proj.weight)
+        torch.nn.init.constant_(self.proj.weight, 0)
         torch.nn.init.constant_(self.proj.bias, 0)
 
     def forward(self, sentence1, sentence2):
-        bos_block = sentence1.new_full((sentence1.size(0), 1), self.eos_idx)
-        sentence1 = torch.cat([bos_block, sentence1], dim=1)
-        sentence2 = torch.cat([bos_block, sentence2], dim=1)
+        assert sentence2.numel() == 0, 's1={}, s2={}'.format(sentence1.numel(), sentence2.numel())
+        x, _ = self.language_model(sentence1)
 
-        premise_pad_mask = sentence1.eq(self.pad_idx)
-        hypothesis_pad_mask = sentence2.eq(self.pad_idx)
+        idxs = sentence1.eq(self.unk_idx)
 
-        embedded_premise, _ = self.language_model(sentence1)
-        embedded_hypothesis, _ = self.language_model(sentence2)
+        x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 or 4 eoses per sample
+        # x = x[idxs].sum(dim=1, keepdim=True)
 
-        embedded_premise = self.embedding_dropout(embedded_premise).transpose(0, 1)
-        embedded_hypothesis = self.embedding_dropout(embedded_hypothesis).transpose(0, 1)
-
-        q = self.class_queries.unsqueeze(1).expand(self.class_queries.shape[0], embedded_hypothesis.shape[1],
-                                                   self.class_queries.shape[1])
-
-        enc_h = embedded_hypothesis
-        for layer in self.pq_layers:
-            enc_h = layer(enc_h, embedded_premise, premise_pad_mask)
-
-        enc_q, _ = self.qh_attn(
-            query=q,
-            key=enc_h,
-            value=enc_h,
-            key_padding_mask=hypothesis_pad_mask,
-            need_weights=False,
-        )
-
-        x = self.ln_q(enc_q)
         x = self.last_dropout(x)
-
-        x = self.proj(x).squeeze(-1).t()
+        x = self.proj(x).squeeze(-1)
 
         return x
 
@@ -285,7 +254,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {'remove_head': True})
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
-        return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad())
+        return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
 
 
 @register_model_architecture('sentence_pair_classifier', 'sentence_pair_classifier')
