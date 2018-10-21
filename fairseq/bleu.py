@@ -13,7 +13,7 @@ try:
     from fairseq import libbleu
 except ImportError as e:
     import sys
-    sys.stderr.write('ERROR: missing libbleu.so. run `python setup.py install`\n')
+    sys.stderr.write('ERROR: missing libbleu.so. run `python setup.py build develop`\n')
     raise e
 
 
