@@ -208,7 +208,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels, bias=True)
 
-        assert args.concat_sentences_mode in ('eos', 'unk')
+        assert args.concat_sentences_mode in ('eos')
 
         self.reset_parameters()
 
@@ -220,10 +220,12 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         assert sentence2.numel() == 0, 's1={}, s2={}'.format(sentence1.numel(), sentence2.numel())
         x, _ = self.language_model(sentence1)
 
-        idxs = sentence1.eq(self.unk_idx)
+        idxs = sentence1.eq(self.eos_idx)
 
         x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 or 4 eoses per sample
-        # x = x[idxs].sum(dim=1, keepdim=True)
+        # x[idxs].view(sentence1.size(0), -1, x.size(-1))
+        # x = x[:, 1]
+        # x = x.sum(dim=1)
 
         x = self.last_dropout(x)
         x = self.proj(x).squeeze(-1)
