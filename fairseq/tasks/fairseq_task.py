@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 from fairseq.data import data_utils, FairseqDataset, iterators
+import torch
 
 
 class FairseqTask(object):
@@ -32,7 +33,7 @@ class FairseqTask(object):
         """
         return cls(args)
 
-    def load_dataset(self, split, combine=False):
+    def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -143,18 +144,51 @@ class FairseqTask(object):
         from fairseq import criterions
         return criterions.build_criterion(args, self)
 
-    def get_loss(self, model, criterion, sample):
+    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
         """
-        Return the loss as computed by *criterion* for the given *model* and
-        *sample*.
+        Do forward and backward, and return the loss as computed by *criterion*
+        for the given *model* and *sample*.
 
         Args:
-            model (~fairseq.models.BaseFairseqModel): the model
-            criterion (~fairseq.criterions.FairseqCriterion): the criterion
             sample (dict): the mini-batch. The format is defined by the
                 :class:`~fairseq.data.FairseqDataset`.
+            model (~fairseq.models.BaseFairseqModel): the model
+            criterion (~fairseq.criterions.FairseqCriterion): the criterion
+            optimizer (~fairseq.optim.FairseqOptimizer): the optimizer
+            ignore_grad (bool): multiply loss by 0 if this is set to True
+
+        Returns:
+            tuple:
+                - the loss
+                - the sample size, which is used as the denominator for the
+                  gradient
+                - logging outputs to display while training
         """
-        return criterion(model, sample)
+        model.train()
+
+        loss, sample_size, logging_output = criterion(model, sample)
+        if ignore_grad:
+            loss *= 0
+        optimizer.backward(loss)
+        return loss, sample_size, logging_output
+
+    def valid_step(self, sample, model, criterion):
+        model.eval()
+        with torch.no_grad():
+            loss, sample_size, logging_output = criterion(model, sample)
+        return loss, sample_size, logging_output
+
+    def init_logging_output(self, sample):
+        return {
+            'ntokens': sample['ntokens'] if sample is not None else 0,
+            'nsentences': sample['target'].size(0) if sample is not None else 0,
+        }
+
+    def grad_denom(self, sample_sizes, criterion):
+        return criterion.__class__.grad_denom(sample_sizes)
+
+    def aggregate_logging_outputs(self, logging_outputs, criterion):
+        return criterion.__class__.aggregate_logging_outputs(logging_outputs)
 
     def max_positions(self):
         """Return the max input length allowed by the task."""

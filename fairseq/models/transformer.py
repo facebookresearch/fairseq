@@ -120,13 +120,13 @@ class TransformerModel(FairseqModel):
 
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
-                raise RuntimeError('--share-all-embeddings requires a joined dictionary')
+                raise ValueError('--share-all-embeddings requires a joined dictionary')
             if args.encoder_embed_dim != args.decoder_embed_dim:
-                raise RuntimeError(
+                raise ValueError(
                     '--share-all-embeddings requires --encoder-embed-dim to match --decoder-embed-dim')
             if args.decoder_embed_path and (
                     args.decoder_embed_path != args.encoder_embed_path):
-                raise RuntimeError('--share-all-embeddings not compatible with --decoder-embed-path')
+                raise ValueError('--share-all-embeddings not compatible with --decoder-embed-path')
             encoder_embed_tokens = build_embedding(
                 src_dict, args.encoder_embed_dim, args.encoder_embed_path
             )

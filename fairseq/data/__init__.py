@@ -12,6 +12,7 @@ from .indexed_dataset import IndexedDataset, IndexedCachedDataset, IndexedInMemo
 from .append_eos_dataset import AppendEosDataset
 from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
+from .round_robin_zip_datasets import RoundRobinZipDatasets
 from .token_block_dataset import TokenBlockDataset
 
 from .iterators import (
@@ -35,6 +36,7 @@ __all__ = [
     'IndexedRawTextDataset',
     'LanguagePairDataset',
     'MonolingualDataset',
+    'RoundRobinZipDatasets',
     'ShardedIterator',
     'TokenBlockDataset',
 ]

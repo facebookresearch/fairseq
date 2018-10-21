@@ -9,8 +9,7 @@
 Train a network across multiple GPUs.
 """
 
-from collections import defaultdict, OrderedDict
-import contextlib
+from collections import OrderedDict
 from itertools import chain
 
 import torch
@@ -171,22 +170,17 @@ class Trainer(object):
                 ignore_grad = False
 
             try:
-                # forward
-                loss, sample_size, logging_output = self.task.get_loss(
-                    self.model, self.criterion, sample,
+                # forward and backward
+                loss, sample_size, logging_output = self.task.train_step(
+                    sample, self.model, self.criterion, self.optimizer,
+                    ignore_grad
                 )
-                if ignore_grad:
-                    loss *= 0
-
                 if self.args.distributed_world_size > 1:
                     # only all-reduce gradients in the last backwards pass
                     if i < len(samples) - 1:
                         self.model.need_reduction = False
                     else:
                         self.model.need_reduction = True
-
-                # backward
-                self.optimizer.backward(loss)
 
                 if not ignore_grad:
                     logging_outputs.append(logging_output)
@@ -217,14 +211,16 @@ class Trainer(object):
             return None
 
         # aggregate logging outputs and sample sizes
-        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_outputs)
-        sample_size = self.criterion.__class__.grad_denom(sample_sizes)
+        sample_size = self.task.grad_denom(sample_sizes, self.criterion)
+        logging_output = self.task.aggregate_logging_outputs(
+            logging_outputs, self.criterion
+        )
 
         if not all(k in logging_output for k in ['ntokens', 'nsentences']):
             raise Exception((
                 'Please update the {}.aggregate_logging_outputs() method to '
                 'return ntokens and nsentences'
-            ).format(self.criterion.__class__.__name__))
+            ).format(self.task.__class__.__name__))
 
         try:
             # normalize grads by sample size
@@ -281,8 +277,8 @@ class Trainer(object):
                 ignore_results = False
 
             try:
-                _loss, sample_size, logging_output = self.task.get_loss(
-                    self.model, self.criterion, sample,
+                _loss, sample_size, logging_output = self.task.valid_step(
+                    sample, self.model, self.criterion
                 )
             except RuntimeError as e:
                 if 'out of memory' in str(e) and not raise_oom:
@@ -310,8 +306,12 @@ class Trainer(object):
             sample_size = [sample_size]
 
         # aggregate logging outputs and sample sizes
-        logging_output = self.criterion.__class__.aggregate_logging_outputs(logging_output)
-        sample_size = self.criterion.__class__.grad_denom(sample_size)
+        logging_output = self.task.aggregate_logging_outputs(
+            logging_output, self.criterion
+        )
+        sample_size = self.task.grad_denom(
+            sample_size, self.criterion
+        )
 
         # update meters for validation
         ntokens = logging_output.get('ntokens', 0)
