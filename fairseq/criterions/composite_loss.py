@@ -7,7 +7,7 @@
 
 from torch import nn
 
-from fairseq import utils
+from fairseq import utils, options
 from . import FairseqCriterion, register_criterion
 
 
@@ -21,6 +21,8 @@ class CompositeLoss(FairseqCriterion):
         """Add criterion-specific arguments to the parser."""
         parser.add_argument('--underlying-criterion', type=str, metavar='VAL', required=True,
                             help='underlying criterion to use for the composite loss')
+        parser.add_argument('--loss-weights', type=str, metavar='EXPR', default=None,
+                            help='if set, provides 1 weight per target for each respective loss')
 
     def __init__(self, args, task):
         super().__init__(args, task)
@@ -31,6 +33,7 @@ class CompositeLoss(FairseqCriterion):
 
         self.underlying_criterion = task.build_criterion(args)
         args.criterion = saved_criterion
+        self.weights = options.eval_str_list(args.loss_weights, type=float)
 
     class FakeModel(nn.Module):
         def __init__(self, model, net_out, target):
@@ -58,9 +61,11 @@ class CompositeLoss(FairseqCriterion):
 
         sample_size = 0
         logging_output = {}
-        for o, t in zip(net_outputs[0], targets):
+        for i, (o, t) in enumerate(zip(net_outputs[0], targets)):
             m = CompositeLoss.FakeModel(model, (o, net_outputs[1]), t)
             l, ss, logging_output = self.underlying_criterion(m, sample, reduce)
+            if self.weights is not None:
+                l *= self.weights[i]
             loss += l
             sample_size += ss
 
