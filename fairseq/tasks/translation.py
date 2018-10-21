@@ -93,7 +93,7 @@ class TranslationTask(FairseqTask):
 
         return cls(args, src_dict, tgt_dict)
 
-    def load_dataset(self, split, combine=False):
+    def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -143,9 +143,6 @@ class TranslationTask(FairseqTask):
 
                 if not combine:
                     break
-
-
-
 
         assert len(src_datasets) == len(tgt_datasets)
 

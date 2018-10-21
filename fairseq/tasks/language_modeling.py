@@ -119,8 +119,7 @@ class LanguageModelingTask(FairseqTask):
 
         return model
 
-
-    def load_dataset(self, split, combine=False):
+    def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:

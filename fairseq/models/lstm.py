@@ -95,14 +95,14 @@ class LSTMModel(FairseqModel):
         if args.share_all_embeddings:
             # double check all parameters combinations are valid
             if task.source_dictionary != task.target_dictionary:
-                raise RuntimeError('--share-all-embeddings requires a joint dictionary')
+                raise ValueError('--share-all-embeddings requires a joint dictionary')
             if args.decoder_embed_path and (
                     args.decoder_embed_path != args.encoder_embed_path):
-                raise RuntimeError(
+                raise ValueError(
                     '--share-all-embed not compatible with --decoder-embed-path'
                 )
             if args.encoder_embed_dim != args.decoder_embed_dim:
-                raise RuntimeError(
+                raise ValueError(
                     '--share-all-embeddings requires --encoder-embed-dim to '
                     'match --decoder-embed-dim'
                 )
@@ -120,7 +120,7 @@ class LSTMModel(FairseqModel):
         # one last double check of parameter combinations
         if args.share_decoder_input_output_embed and (
                 args.decoder_embed_dim != args.decoder_out_embed_dim):
-            raise RuntimeError(
+            raise ValueError(
                 '--share-decoder-input-output-embeddings requires '
                 '--decoder-embed-dim to match --decoder-out-embed-dim'
             )
