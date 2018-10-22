@@ -16,15 +16,24 @@ def main():
     parser.add_argument(
         '--output',
         required=True,
-        metavar='FILE',
+        metavar='DIR',
         help='Path for output',
     )
 
     parser.add_argument(
         '--label-col',
+        type=int,
         default=1,
         metavar='N',
         help='column for the label (0-based indexing)',
+    )
+
+    parser.add_argument(
+        '--skip-rows',
+        type=int,
+        default=0,
+        metavar='N',
+        help='number of rows to skip',
     )
 
     parser.add_argument(
@@ -52,7 +61,9 @@ def main():
         label_filename = base_filename + '.lbl'
         with open(inp, 'r') as f_in, open(os.path.join(args.output, data_filename), 'w') as data_out, open(
                 os.path.join(args.output, label_filename), 'w') as lbl_out:
-            for line in f_in:
+            for i, line in enumerate(f_in):
+                if i < args.skip_rows:
+                    continue
                 parts = line.strip().split(args.separator)
                 print(parts[args.label_col], file=lbl_out)
                 print(parts[args.data_col], file=data_out)
