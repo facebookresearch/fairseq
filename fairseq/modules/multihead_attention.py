@@ -11,7 +11,7 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 
 from fairseq import utils
-from .relative_positional_embeddings import RelativePositionalEmbedding
+
 
 class MultiheadAttention(nn.Module):
     """Multi-headed attention.
@@ -155,11 +155,6 @@ class MultiheadAttention(nn.Module):
                 key_padding_mask = torch.cat([key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-
-        if qkv_same and self.relative_pos_emb_k is not None:
-            rel_pos_emb = self.relative_positions(q, self.relative_pos_emb_k, transpose=True)
-            attn_weights += rel_pos_emb
-
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
         if attn_mask is not None:
@@ -177,11 +172,6 @@ class MultiheadAttention(nn.Module):
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
 
         attn = torch.bmm(attn_weights, v)
-
-        if qkv_same and self.relative_pos_emb_v is not None:
-            rel_pos_emb = self.relative_positions(attn_weights, self.relative_pos_emb_v, transpose=False)
-            attn += rel_pos_emb
-
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn = self.out_proj(attn)
