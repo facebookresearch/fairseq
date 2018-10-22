@@ -66,7 +66,7 @@ class LearningToNorm(nn.Module):
 
 class ElmoTokenEmbedder(nn.Module):
     """
-    This is an implementation of the ELMo module which allows learning how to combine hidden states of a language fmodel
+    This is an implementation of the ELMo module which allows learning how to combine hidden states of a language model
     to learn task-specific word representations.
     For more information see the paper here: http://arxiv.org/abs/1802.05365
 
