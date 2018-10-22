@@ -86,6 +86,7 @@ class LanguageModelingTask(FairseqTask):
             args (argparse.Namespace): parsed command-line arguments
         """
         dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
+        dictionary.memory_optimize()
         print('| dictionary: {} types'.format(len(dictionary)))
         output_dictionary = dictionary
         if hasattr(args, 'output_dictionary_size') and args.output_dictionary_size >= 0:

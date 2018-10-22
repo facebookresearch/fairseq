@@ -24,6 +24,7 @@ class Dictionary(object):
         self.eos_index = self.add_symbol(eos)
         self.unk_index = self.add_symbol(unk)
         self.nspecial = len(self.symbols)
+        self._optimized = False
 
     def __eq__(self, other):
         return self.indices == other.indices
@@ -37,8 +38,14 @@ class Dictionary(object):
         """Returns the number of symbols in the dictionary"""
         return len(self.symbols)
 
+    def memory_optimize(self):
+        self._optimized = True
+        self.indices.clear()
+
     def index(self, sym):
         """Returns the index of the specified symbol"""
+        if self._optimized:
+            raise RuntimeError("Optimized dictionary doesn't support indexing")
         if sym in self.indices:
             return self.indices[sym]
         return self.unk_index
