@@ -30,7 +30,6 @@ class FairseqCriterion(_Loss):
         """
         raise NotImplementedError
 
-
     def aggregate_logging_outputs(self, logging_outputs):
         """Aggregate logging outputs from data parallel training."""
         raise NotImplementedError

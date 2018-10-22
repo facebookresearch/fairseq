@@ -222,7 +222,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
 
         idxs = sentence1.eq(self.eos_idx)
 
-        x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 or 4 eoses per sample
+        x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 eoses per sample
         # x[idxs].view(sentence1.size(0), -1, x.size(-1))
         # x = x[:, 1]
         # x = x.sum(dim=1)
