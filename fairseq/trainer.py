@@ -70,6 +70,8 @@ class Trainer(object):
             self.meters['loss_scale'] = AverageMeter()  # dynamic loss scale
         self.meters['wall'] = TimeMeter()      # wall time in seconds
         self.meters['train_wall'] = StopwatchMeter()  # train wall time in seconds
+        if hasattr(self.task, 'extra_meters'):
+            self.meters['task'] = self.task.extra_meters()
 
 
     @property
@@ -282,7 +284,7 @@ class Trainer(object):
 
             try:
                 _loss, sample_size, logging_output = self.task.get_loss(
-                    self.model, self.criterion, sample,
+                    self.model, self.criterion, sample, is_valid=True
                 )
             except RuntimeError as e:
                 if 'out of memory' in str(e) and not raise_oom:
@@ -309,15 +311,25 @@ class Trainer(object):
             logging_output = [logging_output]
             sample_size = [sample_size]
 
+        # extra hacky!
+        extra_metrics = self.task.aggregate_extra_metrics(logging_output)
+
         # aggregate logging outputs and sample sizes
         logging_output = self.criterion._aggregate_logging_outputs(logging_output)
         sample_size = self.criterion.__class__.grad_denom(sample_size)
+
+        if extra_metrics is not None:
+            logging_output['extra_metrics'] = extra_metrics
 
         # update meters for validation
         ntokens = logging_output.get('ntokens', 0)
         self.meters['valid_loss'].update(logging_output.get('loss', 0), sample_size)
         if 'nll_loss' in logging_output:
             self.meters['valid_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
+
+        if 'extra_metrics' in logging_output:
+            for n, m in self.meters['task'].items():
+                m.update(*logging_output['extra_metrics'][n])
 
         return logging_output
 

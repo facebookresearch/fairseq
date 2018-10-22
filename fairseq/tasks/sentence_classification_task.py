@@ -14,8 +14,8 @@ from torch.utils.data import ConcatDataset
 
 from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
-    SentenceClassificationDataset, TokenBlockDataset
-)
+    SentenceClassificationDataset, TokenBlockDataset,
+    IndexedDataset)
 from fairseq.meters import ClassificationMeter
 
 from . import FairseqTask, register_task
@@ -80,10 +80,8 @@ class SentenceClassificationTask(FairseqTask):
 
             if self.args.raw_text and IndexedRawTextDataset.exists(path):
                 ds = IndexedRawTextDataset(path, self.dictionary)
-                tokens = [t for l in ds.tokens_list for t in l]
             elif not self.args.raw_text and IndexedInMemoryDataset.exists(path):
-                ds = IndexedInMemoryDataset(path, fix_lua_indexing=True)
-                tokens = ds.buffer
+                ds = IndexedDataset(path, fix_lua_indexing=True)
             else:
                 if k > 0:
                     break
@@ -92,7 +90,7 @@ class SentenceClassificationTask(FairseqTask):
 
             loaded_datasets.append(
                 TokenBlockDataset(
-                    tokens, ds.sizes, 0, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
+                    ds, 0, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
                     break_mode='eos', include_targets=False,
                 ))
 

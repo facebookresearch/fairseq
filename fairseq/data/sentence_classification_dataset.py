@@ -93,3 +93,14 @@ class SentenceClassificationDataset(FairseqDataset):
             order = [np.arange(len(self))]
         order.append(self.sizes)
         return np.lexsort(order)
+
+
+    def prefetch(self, indices):
+        self.dataset.prefetch(indices)
+
+    @property
+    def supports_prefetch(self):
+        return (
+            hasattr(self.dataset, 'supports_prefetch')
+            and self.dataset.supports_prefetch
+        )

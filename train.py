@@ -239,6 +239,12 @@ def validate(args, trainer, task, epoch_itr, subsets):
         stats = get_valid_stats(trainer)
         for k, meter in extra_meters.items():
             stats[k] = meter.avg
+
+        if task_meters is not None:
+            for _, m in task_meters.items():
+                for n, v in m.vals():
+                    stats[n] = v
+
         progress.print(stats)
 
         valid_losses.append(stats['valid_loss'])

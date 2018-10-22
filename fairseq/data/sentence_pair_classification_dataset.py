@@ -121,3 +121,16 @@ class SentencePairClassificationDataset(FairseqDataset):
             indices = np.arange(len(self))
         indices = indices[np.argsort(self.sizes1[indices], kind='mergesort')]
         return indices[np.argsort(self.sizes2[indices], kind='mergesort')]
+
+    def prefetch(self, indices):
+        self.dataset1.prefetch(indices)
+        self.dataset2.prefetch(indices)
+
+    @property
+    def supports_prefetch(self):
+        return (
+            hasattr(self.dataset1, 'supports_prefetch')
+            and self.dataset1.supports_prefetch
+            and hasattr(self.dataset2, 'supports_prefetch')
+            and self.dataset2.supports_prefetch
+        )

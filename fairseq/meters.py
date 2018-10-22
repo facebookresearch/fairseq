@@ -89,6 +89,10 @@ class ClassificationMeter(object):
         self.fp = 0
         self.fn = 0
         self.acc = 0
+        self.mcc = 0
+        self.precision = 0
+        self.recall = 0
+        self.f1 = 0
 
     def update(self, tp, tn, fp, fn):
         self.tp += tp
@@ -98,6 +102,9 @@ class ClassificationMeter(object):
         self.acc = (self.tp + self.tn) / (self.tp + self.tn + self.fp + self.fn)
         self.mcc = (self.tp * self.tn - self.fp * self.fn) / (math.sqrt(
             (self.tp + self.fp) * (self.tp + self.fn) * (self.tn + self.fp) * (self.tn + self.fn)) or 1.0)
+        self.precision = self.tp / (self.tp + self.fp)
+        self.recall = self.tp / (self.tp + self.fn)
+        self.f1 = 2 * self.precision * self.recall / (self.precision + self.recall)
 
     def vals(self):
         return [
@@ -107,4 +114,5 @@ class ClassificationMeter(object):
             ('fn', self.fn),
             ('acc', self.acc),
             ('mcc', self.mcc),
+            ('f1', self.f1),
         ]
