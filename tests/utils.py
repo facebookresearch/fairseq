@@ -121,6 +121,7 @@ class TestDataset(torch.utils.data.Dataset):
     def __init__(self, data):
         super().__init__()
         self.data = data
+        self.sizes = None
 
     def __getitem__(self, index):
         return self.data[index]
