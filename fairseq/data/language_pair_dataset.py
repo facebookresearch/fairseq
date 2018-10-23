@@ -99,7 +99,7 @@ class LanguagePairDataset(FairseqDataset):
         tgt=None, tgt_sizes=None, tgt_dict=None,
         left_pad_source=True, left_pad_target=False,
         max_source_positions=1024, max_target_positions=1024,
-        shuffle=True, input_feeding=True,
+        shuffle=True, input_feeding=True, **kwargs,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -117,12 +117,29 @@ class LanguagePairDataset(FairseqDataset):
         self.max_target_positions = max_target_positions
         self.shuffle = shuffle
         self.input_feeding = input_feeding
+        self.append_eos_to_source = kwargs.pop("append_eos_to_source", False)
+        self.append_eos_to_target = kwargs.pop("append_eos_to_target", True)
 
     def __getitem__(self, index):
+        tgt_item = self.tgt[index] if self.tgt is not None else None
+        src_item = self.src[index]
+        # Append EOS to the tgt sentence if it does not have an EOS and strip EOS
+        # from end of src sentence if it exists
+        # This is the case if we use tgt_dataset as source and vice versa
+        if self.append_eos_to_target:
+            eos = self.tgt_dict.eos() if self.tgt_dict else self.src_dict.eos()
+            if self.tgt and self.tgt[index][-1] != eos:
+                tgt_item = torch.cat([self.tgt[index], torch.LongTensor([eos])])
+
+        if not self.append_eos_to_source:
+            eos = self.src_dict.eos()
+            if self.src[index][-1] == eos:
+                src_item = self.src[index][:-1]
+
         return {
             'id': index,
-            'source': self.src[index],
-            'target': self.tgt[index] if self.tgt is not None else None,
+            'source': src_item,
+            'target': tgt_item,
         }
 
     def __len__(self):
