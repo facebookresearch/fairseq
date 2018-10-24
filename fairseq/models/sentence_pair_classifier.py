@@ -13,8 +13,8 @@ import torch.nn.functional as F
 
 from fairseq.tasks.language_modeling import LanguageModelingTask
 from fairseq.modules import (
-    ElmoTokenEmbedder, MultiheadAttention
-)
+    ElmoTokenEmbedder, MultiheadAttention,
+    CharacterTokenEmbedder)
 from . import (
     BaseFairseqModel, register_model, register_model_architecture,
 )
@@ -208,6 +208,10 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels, bias=True)
 
+        if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
+            print('disabling training char convolutions')
+            self.language_model.decoder.embed_tokens.disable_convolutional_grads()
+
         assert args.concat_sentences_mode in ('eos')
 
         self.reset_parameters()
@@ -223,9 +227,6 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         idxs = sentence1.eq(self.eos_idx)
 
         x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 eoses per sample
-        # x[idxs].view(sentence1.size(0), -1, x.size(-1))
-        # x = x[:, 1]
-        # x = x.sum(dim=1)
 
         x = self.last_dropout(x)
         x = self.proj(x).squeeze(-1)

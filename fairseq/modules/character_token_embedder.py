@@ -48,6 +48,14 @@ class CharacterTokenEmbedder(torch.nn.Module):
         self.set_vocab(vocab, max_char_len)
         self.reset_parameters()
 
+    def disable_convolutional_grads(self):
+        def disable(m):
+            for p in m.parameters():
+                p.requires_grad = False
+        disable(self.char_embeddings)
+        disable(self.convolutions)
+        disable(self.highway)
+
     def set_vocab(self, vocab, max_char_len):
         word_to_char = torch.LongTensor(len(vocab), max_char_len)
 

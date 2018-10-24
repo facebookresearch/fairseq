@@ -13,8 +13,8 @@ import torch.nn.functional as F
 
 from fairseq.tasks.language_modeling import LanguageModelingTask
 from fairseq.modules import (
-    ElmoTokenEmbedder, MultiheadAttention
-)
+    ElmoTokenEmbedder, MultiheadAttention,
+    CharacterTokenEmbedder)
 from . import (
     BaseFairseqModel, register_model, register_model_architecture,
 )
@@ -25,6 +25,8 @@ from fairseq import utils
 from fairseq.models.transformer import (
     Embedding, LayerNorm, Linear, PositionalEmbedding,
 )
+
+from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
 
 class AttentionLayer(nn.Module):
@@ -199,6 +201,134 @@ class SentenceClassifier(BaseFairseqModel):
 
         return SentenceClassifier(args, embedding)
 
+@register_model('sentence_classifier_lstm')
+class SentenceClassifierLstm(BaseFairseqModel):
+    def __init__(self, args, embedding):
+        super().__init__()
+
+        self.embedding = embedding
+
+        self.lstm = nn.LSTM(
+            input_size=args.model_dim,
+            hidden_size=1024,
+            dropout=args.dropout,
+            bidirectional=True,
+        )
+
+        self.last_dropout = nn.Dropout(args.last_dropout)
+        self.proj = torch.nn.Linear(4096, 2, bias=True)
+
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.xavier_uniform_(self.proj.weight)
+        torch.nn.init.constant_(self.proj.bias, 0)
+
+    def forward(self, src_tokens, src_lengths):
+
+        input_padding_mask = src_tokens.eq(self.embedding.padding_idx)
+        if not input_padding_mask.any():
+            input_padding_mask = None
+        else:
+            #     input_padding_mask = input_padding_mask[:, :-1]
+            input_padding_mask = torch.cat(
+                [input_padding_mask.new_zeros(input_padding_mask.size(0), 1), input_padding_mask], dim=1)
+
+        x = self.embedding(src_tokens)
+        src_lengths += 1
+
+        seq_lengths, perm_idx = src_lengths.sort(0, descending=True)
+        x = x[perm_idx]
+
+        x = x.transpose(0,1)
+
+        x = pack_padded_sequence(x, seq_lengths.cpu().numpy())
+        x, _ = self.lstm(x)
+        x = pad_packed_sequence(x)
+
+        x = torch.cat([x[0][0], x[0][-1]], dim=1)
+
+        _, unperm_idx = perm_idx.sort(0)
+        x = x[unperm_idx]
+
+        x = self.last_dropout(x)
+
+        x = self.proj(x)
+
+        return x
+
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        parser.add_argument('--elmo-path', metavar='PATH', help='path to elmo model')
+        parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
+        parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
+        parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
+        parser.add_argument('--dropout', type=float, metavar='D', help='model dropout')
+
+        parser.add_argument('--init_gamma', type=float, metavar='D', default=1.0)
+        parser.add_argument('--weights_dropout', type=float, metavar='D', default=0.0)
+        parser.add_argument('--combine_tower_states', default=False, action='store_true')
+        parser.add_argument('--add_final_predictive', default=False, action='store_true')
+        parser.add_argument('--add_final_context', default=False, action='store_true')
+        parser.add_argument('--apply_softmax', default=False, action='store_true')
+        parser.add_argument('--layer_norm', default=False, action='store_true')
+        parser.add_argument('--affine_layer_norm', default=False, action='store_true')
+        parser.add_argument('--channelwise_weights', default=False, action='store_true')
+        parser.add_argument('--scaled_sigmoid', default=False, action='store_true')
+        parser.add_argument('--individual_norms', default=False, action='store_true')
+        parser.add_argument('--channelwise_norm', default=False, action='store_true')
+        parser.add_argument('--ltn', default=False, action='store_true')
+        parser.add_argument('--ltn_dims', type=int, default=3)
+        parser.add_argument('--train_gamma', default=False, action='store_true')
+
+
+    @classmethod
+    def build_model(cls, args, task):
+        """Build a new model instance."""
+
+        # make sure all arguments are present in older models
+        base_architecture(args)
+
+        dictionary = task.dictionary
+
+        if args.elmo_path is not None:
+            task = LanguageModelingTask(args, dictionary, dictionary)
+            models, _ = utils.load_ensemble_for_inference([args.elmo_path], task, {'remove_head': True})
+            assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
+
+            embedding = ElmoTokenEmbedder(
+                models[0],
+                dictionary.eos(),
+                dictionary.pad(),
+                add_bos=True,
+                remove_bos=False,
+                remove_eos=False,
+                combine_tower_states=args.combine_tower_states,
+                projection_dim=args.model_dim,
+                add_final_predictive=args.add_final_predictive,
+                add_final_context=args.add_final_context,
+                final_dropout=args.embedding_dropout,
+                weights_dropout=args.weights_dropout,
+                tune_lm=False,
+                apply_softmax=args.apply_softmax,
+                layer_norm=args.layer_norm,
+                affine_layer_norm=args.affine_layer_norm,
+                channelwise_weights=args.channelwise_weights,
+                scaled_sigmoid=args.scaled_sigmoid,
+                individual_norms=args.individual_norms,
+                channelwise_norm=args.channelwise_norm,
+                init_gamma=args.init_gamma,
+                ltn=args.ltn,
+                ltn_dims=args.ltn_dims,
+                train_gamma=args.train_gamma,
+            )
+        else:
+            embedding = nn.Embedding(len(dictionary), args.model_dim, dictionary.pad())
+
+        return SentenceClassifierLstm(args, embedding)
+
 
 @register_model('finetuning_sentence_classifier')
 class FinetuningSentenceClassifier(BaseFairseqModel):
@@ -211,6 +341,10 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.model_dim * 2, 2, bias=True)
 
+        if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
+            print('disabling training char convolutions')
+            self.language_model.decoder.embed_tokens.disable_convolutional_grads()
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -222,6 +356,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         src_tokens = torch.cat([bos_block, src_tokens], dim=1)
 
         x, _ = self.language_model(src_tokens)
+        if isinstance(x, list):
+            x = x[0]
 
         eos_idxs = src_tokens.eq(self.eos_idx)
         x = x[eos_idxs].view(src_tokens.size(0), 1, -1) # assume only 2 eoses per sample
@@ -243,7 +379,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         """Build a new model instance."""
 
         # make sure all arguments are present in older models
-        base_architecture(args)
+        base_architecture_ft(args)
 
         dictionary = task.dictionary
 
@@ -265,6 +401,11 @@ def base_architecture(args):
 
 
 @register_model_architecture('finetuning_sentence_classifier', 'finetuning_sentence_classifier')
-def base_architecture(args):
+def base_architecture_ft(args):
     args.model_dim = getattr(args, 'model_dim', 1024)
+    args.last_dropout = getattr(args, 'last_dropout', 0.3)
+
+@register_model_architecture('sentence_classifier_lstm', 'sentence_classifier_lstm')
+def base_architecture_lstm(args):
+    # args.model_dim = getattr(args, 'model_dim', 1024)
     args.last_dropout = getattr(args, 'last_dropout', 0.3)
