@@ -92,6 +92,10 @@ class LanguagePairDataset(FairseqDataset):
         input_feeding (bool, optional): create a shifted version of the targets
             to be passed into the model for input feeding/teacher forcing.
             Default: ``True``
+        remove_eos_from_source (bool, optional): if set, removes eos from end of
+            source if it's present. Default: ``False``
+        append_eos_to_target (bool, optional): if set, appends eos to end of
+            target if it's absent. Default: ``False``
     """
 
     def __init__(
@@ -99,7 +103,7 @@ class LanguagePairDataset(FairseqDataset):
         tgt=None, tgt_sizes=None, tgt_dict=None,
         left_pad_source=True, left_pad_target=False,
         max_source_positions=1024, max_target_positions=1024,
-        shuffle=True, input_feeding=True,
+        shuffle=True, input_feeding=True, remove_eos_from_source=False, append_eos_to_target=False,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -117,12 +121,30 @@ class LanguagePairDataset(FairseqDataset):
         self.max_target_positions = max_target_positions
         self.shuffle = shuffle
         self.input_feeding = input_feeding
+        self.remove_eos_from_source = remove_eos_from_source
+        self.append_eos_to_target = append_eos_to_target
 
     def __getitem__(self, index):
+        tgt_item = self.tgt[index] if self.tgt is not None else None
+        src_item = self.src[index]
+        # Append EOS to end of tgt sentence if it does not have an EOS and remove
+        # EOS from end of src sentence if it exists. This is useful when we use
+        # use existing datasets for opposite directions i.e., when we want to
+        # use tgt_dataset as src_dataset and vice versa
+        if self.append_eos_to_target:
+            eos = self.tgt_dict.eos() if self.tgt_dict else self.src_dict.eos()
+            if self.tgt and self.tgt[index][-1] != eos:
+                tgt_item = torch.cat([self.tgt[index], torch.LongTensor([eos])])
+
+        if self.remove_eos_from_source:
+            eos = self.src_dict.eos()
+            if self.src[index][-1] == eos:
+                src_item = self.src[index][:-1]
+
         return {
             'id': index,
-            'source': self.src[index],
-            'target': self.tgt[index] if self.tgt is not None else None,
+            'source': src_item,
+            'target': tgt_item,
         }
 
     def __len__(self):
