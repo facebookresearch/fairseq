@@ -8,6 +8,7 @@
 import torch
 
 from fairseq import sequence_generator
+from fairseq import utils
 
 from . import FairseqDataset, language_pair_dataset
 
@@ -111,7 +112,7 @@ class BacktranslationDataset(FairseqDataset):
             # have an EOS appended to the end of each sentence.
             original_tgt = input_sample["source"]
             if original_tgt[-1] != eos:
-                original_tgt = torch.cat([original_tgt, torch.LongTensor(eos)])
+                original_tgt = torch.cat([original_tgt, torch.LongTensor([eos])])
 
             # The generated source dialect backtranslation will have an EOS.
             # If we want our parallel data source to not have an EOS, we will
@@ -128,8 +129,8 @@ class BacktranslationDataset(FairseqDataset):
             generated_samples.append(
                 {
                     "id": input_sample["id"],
-                    "source": generated_source,
-                    "target": original_tgt,
+                    "source": generated_source.cpu(),
+                    "target": original_tgt.cpu(),
                 }
             )
 
@@ -161,8 +162,12 @@ class BacktranslationDataset(FairseqDataset):
         sample. Note in this case, sample["target"] is None, and
         sample["net_input"]["src_tokens"] is really in tgt language.
         """
+        if torch.cuda.is_available():
+            s = utils.move_to_cuda(sample)
+        else:
+            s = sample
         self.backtranslation_generator.cuda()
-        input = sample["net_input"]
+        input = s["net_input"]
         srclen = input["src_tokens"].size(1)
         hypos = self.backtranslation_generator.generate(
             input,
@@ -178,4 +183,4 @@ class BacktranslationDataset(FairseqDataset):
         Here, we return src dataset size as tgt dataset size as an approximation.
         We do not know src size until we backtranslate and generate src sentences.
         """
-        return (self.tgt_dataset.size(index), self.tgt_dataset.size(index))
+        return (self.tgt_dataset.size(index)[0], self.tgt_dataset.size(index)[0])
