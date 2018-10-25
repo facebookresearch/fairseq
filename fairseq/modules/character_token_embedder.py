@@ -15,6 +15,9 @@ from typing import List, Tuple
 from .highway import Highway
 from fairseq.data import Dictionary
 
+CHAR_PAD_IDX = 0
+CHAR_EOS_IDX = 257
+
 
 class CharacterTokenEmbedder(torch.nn.Module):
     def __init__(
@@ -25,13 +28,16 @@ class CharacterTokenEmbedder(torch.nn.Module):
             word_embed_dim: int,
             highway_layers: int,
             max_char_len: int = 50,
+            char_inputs: bool = False
     ):
         super(CharacterTokenEmbedder, self).__init__()
 
         self.embedding_dim = word_embed_dim
+        self.max_char_len = max_char_len
         self.char_embeddings = nn.Embedding(257, char_embed_dim, padding_idx=0)
         self.symbol_embeddings = nn.Parameter(torch.FloatTensor(2, word_embed_dim))
         self.eos_idx, self.unk_idx = 0, 1
+        self.char_inputs = char_inputs
 
         self.convolutions = nn.ModuleList()
         for width, out_c in filters:
@@ -84,25 +90,33 @@ class CharacterTokenEmbedder(torch.nn.Module):
 
     def forward(
             self,
-            words: torch.Tensor,
+            input: torch.Tensor,
     ):
-        flat_words = words.view(-1)
-        char_ids = self.word_to_char[flat_words.type_as(self.word_to_char)].type_as(words)
-        word_embs = self._convolve(char_ids)
+        if self.char_inputs:
+            chars = input.view(-1, self.max_char_len)
+            pads = chars[:, 0].eq(CHAR_PAD_IDX)
+            eos = chars[:, 0].eq(CHAR_EOS_IDX)
+            if eos.any():
+                chars[eos] = 0
+            unk = None
+        else:
+            flat_words = input.view(-1)
+            chars = self.word_to_char[flat_words.type_as(self.word_to_char)].type_as(input)
+            pads = flat_words.eq(self.vocab.pad())
+            eos = flat_words.eq(self.vocab.eos())
+            unk = flat_words.eq(self.vocab.unk())
 
-        pads = flat_words.eq(self.vocab.pad())
+        word_embs = self._convolve(chars)
         if pads.any():
             word_embs[pads] = 0
 
-        eos = flat_words.eq(self.vocab.eos())
         if eos.any():
             word_embs[eos] = self.symbol_embeddings[self.eos_idx]
 
-        unk = flat_words.eq(self.vocab.unk())
-        if unk.any():
+        if unk is not None and unk.any():
             word_embs[unk] = self.symbol_embeddings[self.unk_idx]
 
-        return word_embs.view(words.size() + (-1,))
+        return word_embs.view(input.size()[:2] + (-1,))
 
     def _convolve(
             self,
