@@ -65,22 +65,20 @@ def distributed_init(args):
         rank=args.distributed_rank,
     )
 
-    if not is_master(args):
-        suppress_output()
+    suppress_output(is_master(args))
 
     return args.distributed_rank
 
 
-def suppress_output():
+def suppress_output(is_master):
     """Suppress printing on the current device. Force printing with `force=True`."""
     import builtins as __builtin__
     builtin_print = __builtin__.print
 
     def print(*args, **kwargs):
-        if 'force' in kwargs:
-            force = kwargs.pop('force')
-            if force:
-                builtin_print(*args, **kwargs)
+        force = kwargs.pop('force', False)
+        if is_master or force:
+            builtin_print(*args, **kwargs)
 
     __builtin__.print = print
 
