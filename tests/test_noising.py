@@ -20,23 +20,36 @@ from fairseq.data import (
 
 
 class TestDataNoising(unittest.TestCase):
-    def _get_test_data(self, append_eos=True):
+    def _get_test_data(self, append_eos=True, bpe=True):
         vocab = Dictionary()
-        vocab.add_symbol("he@@")
-        vocab.add_symbol("llo")
-        vocab.add_symbol("how")
-        vocab.add_symbol("are")
-        vocab.add_symbol("y@@")
-        vocab.add_symbol("ou")
-        vocab.add_symbol("n@@")
-        vocab.add_symbol("ew")
-        vocab.add_symbol("or@@")
-        vocab.add_symbol("k")
+        if bpe:
+            vocab.add_symbol("he@@")
+            vocab.add_symbol("llo")
+            vocab.add_symbol("how")
+            vocab.add_symbol("are")
+            vocab.add_symbol("y@@")
+            vocab.add_symbol("ou")
+            vocab.add_symbol("n@@")
+            vocab.add_symbol("ew")
+            vocab.add_symbol("or@@")
+            vocab.add_symbol("k")
 
-        src_tokens = [
-            ["he@@", "llo", "n@@", "ew", "y@@", "or@@", "k"],
-            ["how", "are", "y@@", "ou"],
-        ]
+            src_tokens = [
+                ["he@@", "llo", "n@@", "ew", "y@@", "or@@", "k"],
+                ["how", "are", "y@@", "ou"],
+            ]
+        else:
+            vocab.add_symbol("hello")
+            vocab.add_symbol("how")
+            vocab.add_symbol("are")
+            vocab.add_symbol("you")
+            vocab.add_symbol("new")
+            vocab.add_symbol("york")
+            src_tokens = [
+                ["hello", "new", "york", "you"],
+                ["how", "are", "you", "new", "york"],
+            ]
+
         src_len = [len(x) for x in src_tokens]
         # If we have to append EOS, we include EOS in counting src length
         if append_eos:
@@ -126,6 +139,22 @@ class TestDataNoising(unittest.TestCase):
         self.assertEqual(x_len[0], l_noised[0])
         self.assertEqual(x_len[1], l_noised[1])
 
+    def assert_nonbpe_shuffle_with_distance_3(self, x, x_noised, x_len, l_noised):
+        """
+        Applies word shuffle with max_shuffle_distance = 3 and asserts that the
+        shuffling result is as expected. If test data changes, update this func
+        """
+        # Expect the first example has the last two tokens shuffled
+        # Expect the secon example has the second and third tokens shuffled
+        shuffle_map = {0: 0, 1: 1, 2: 3, 3: 2}
+        for k, v in shuffle_map.items():
+            self.assertEqual(x[k][0], x_noised[v][0])
+        shuffle_map = {0: 0, 1: 2, 2: 1, 3: 3, 4: 4}
+        for k, v in shuffle_map.items():
+            self.assertEqual(x[k][1], x_noised[v][1])
+        self.assertEqual(x_len[0], l_noised[0])
+        self.assertEqual(x_len[1], l_noised[1])
+
     def test_word_shuffle_with_eos(self):
         vocab, x, x_len = self._get_test_data(append_eos=True)
 
@@ -140,6 +169,24 @@ class TestDataNoising(unittest.TestCase):
 
             x_noised, l_noised = word_shuffle.noising(x, x_len, 3)
             self.assert_word_shuffle_with_distance_3(
+                x=x, x_noised=x_noised, x_len=x_len, l_noised=l_noised
+            )
+            self.assert_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
+
+    def test_word_shuffle_with_eos_nonbpe(self):
+        vocab, x, x_len = self._get_test_data(append_eos=True, bpe=False)
+
+        with data_utils.numpy_seed(1234):
+            word_shuffle = noising.WordShuffle(vocab, bpe_cont_marker=None)
+
+            x_noised, l_noised = word_shuffle.noising(x, x_len, 0)
+            self.assert_no_shuffle_with_0_distance(
+                x=x, x_noised=x_noised, x_len=x_len, l_noised=l_noised
+            )
+            self.assert_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
+
+            x_noised, l_noised = word_shuffle.noising(x, x_len, 3)
+            self.assert_nonbpe_shuffle_with_distance_3(
                 x=x, x_noised=x_noised, x_len=x_len, l_noised=l_noised
             )
             self.assert_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
