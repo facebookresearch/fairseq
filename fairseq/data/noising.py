@@ -18,7 +18,11 @@ class WordNoising(object):
         self.bpe_end = np.array([
             not self.dictionary[i].endswith(bpe_cont_marker)
             for i in range(len(self.dictionary))
-        ])
+        ]) if bpe_cont_marker else None
+
+        self.get_word_idx = (
+            self._get_bpe_word_idx if bpe_cont_marker else self._get_token_idx
+        )
 
     def noising(self, x, lengths, noising_prob=0.0):
         raise NotImplementedError()
@@ -36,6 +40,15 @@ class WordNoising(object):
         word_idx = bpe_end[::-1].cumsum(0)[::-1]
         word_idx = word_idx.max(0)[None, :] - word_idx
         return word_idx
+
+    def _get_token_idx(self, x):
+        """
+        This is to extend noising functions to be able to apply to non-bpe
+        tokens, e.g. word or characters.
+        """
+        x = torch.t(x)
+        word_idx = np.array([range(len(x_i)) for x_i in x])
+        return np.transpose(word_idx)
 
 
 class WordDropout(WordNoising):
@@ -114,8 +127,8 @@ class WordDropout(WordNoising):
 class WordShuffle(WordNoising):
     """Shuffle words by no more than k positions."""
 
-    def __init__(self, dictionary):
-        super().__init__(dictionary)
+    def __init__(self, dictionary, bpe_cont_marker="@@"):
+        super().__init__(dictionary, bpe_cont_marker)
 
     def noising(self, x, lengths, max_shuffle_distance=3):
         # x: (T x B), lengths: B
@@ -134,8 +147,7 @@ class WordShuffle(WordNoising):
         noise[0] = -1  # do not move start sentence symbol
 
         # be sure to shuffle entire words
-        word_idx = self._get_bpe_word_idx(x)
-
+        word_idx = self.get_word_idx(x)
         x2 = x.clone()
         for i in range(lengths.size(0)):
             length_no_eos = lengths[i]
