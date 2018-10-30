@@ -177,7 +177,12 @@ class MultiheadAttention(nn.Module):
 
         attn = torch.bmm(attn_weights, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
-        attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        if (self.onnx_trace and attn.size(1) == 1):
+            # when ONNX tracing a single decoder step (sequence length == 1)
+            # the transpose is a no-op copy before view, thus unnecessary
+            attn = attn.contiguous().view(tgt_len, bsz, embed_dim)
+        else:
+            attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn = self.out_proj(attn)
 
         if need_weights:
