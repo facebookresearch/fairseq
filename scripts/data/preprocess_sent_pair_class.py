@@ -21,6 +21,34 @@ def main():
     )
 
     parser.add_argument(
+        '--label-col-name',
+        default='gold_label',
+        metavar='NAME',
+        help='the name of the label column',
+    )
+
+    parser.add_argument(
+        '--sentence1-col-name',
+        default='sentence1',
+        metavar='NAME',
+        help='the name of the column holding sentence 1',
+    )
+
+    parser.add_argument(
+        '--sentence2-col-name',
+        default='sentence2',
+        metavar='NAME',
+        help='the name of the column holding sentence 2',
+    )
+
+    parser.add_argument(
+        '--labels',
+        default=['neutral', 'entailment', 'contradiction'],
+        nargs='+',
+        help='list of labels',
+    )
+
+    parser.add_argument(
         '--separator',
         default='\t',
         metavar='SEP',
@@ -30,11 +58,7 @@ def main():
     args = parser.parse_args()
     print(args)
 
-    labels = {
-        'neutral': 0,
-        'entailment': 1,
-        'contradiction': 2,
-    }
+    labels = {l: i for i, l in enumerate(args.labels)}
 
     for inp in args.inputs:
         filename = os.path.basename(inp)
@@ -45,18 +69,22 @@ def main():
 
         sent1_col = sent2_col = label_col = None
 
-        with open(inp, 'r') as f_in, open(os.path.join(args.output, s1_filename), 'w') as s1_out, open(
+        with open(inp, 'r', encoding='utf-8-sig') as f_in, open(os.path.join(args.output, s1_filename),
+                                                                'w') as s1_out, open(
                 os.path.join(args.output, s2_filename), 'w') as s2_out, open(
-                os.path.join(args.output, label_filename), 'w') as lbl_out:
+            os.path.join(args.output, label_filename), 'w') as lbl_out:
             for line in f_in:
                 parts = line.strip().split(args.separator)
 
                 if sent1_col is None:
-                    sent1_col = parts.index('sentence1')
-                    sent2_col = parts.index('sentence2')
-                    label_col = parts.index('gold_label')
+                    sent1_col = parts.index(args.sentence1_col_name)
+                    sent2_col = parts.index(args.sentence2_col_name)
+                    label_col = parts.index(args.label_col_name)
                     continue
 
+                if len(parts) <= label_col:
+                    print('invalid line', parts)
+                    continue
 
                 if parts[label_col] == '-':
                     continue
