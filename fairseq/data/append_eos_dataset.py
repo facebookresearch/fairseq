@@ -17,7 +17,6 @@ class AppendEosDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         item = torch.cat([self.dataset[index], torch.LongTensor([self.eos])])
-        print(item)
         return item
 
     def __len__(self):

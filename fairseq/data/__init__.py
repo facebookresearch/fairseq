@@ -7,10 +7,10 @@
 
 from .dictionary import Dictionary, TruncatedDictionary
 from .fairseq_dataset import FairseqDataset
-from .concat_dataset import ConcatDataset
-from .indexed_dataset import IndexedDataset, IndexedCachedDataset, IndexedInMemoryDataset, IndexedRawTextDataset
 from .append_eos_dataset import AppendEosDataset
 from .backtranslation_dataset import BacktranslationDataset
+from .concat_dataset import ConcatDataset
+from .indexed_dataset import IndexedDataset, IndexedCachedDataset, IndexedInMemoryDataset, IndexedRawTextDataset
 from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
@@ -25,6 +25,7 @@ from .iterators import (
 
 __all__ = [
     'AppendEosDataset',
+    'BacktranslationDataset',
     'ConcatDataset',
     'CountingIterator',
     'Dictionary',
@@ -40,5 +41,4 @@ __all__ = [
     'RoundRobinZipDatasets',
     'ShardedIterator',
     'TokenBlockDataset',
-    'BacktranslationDataset',
 ]
