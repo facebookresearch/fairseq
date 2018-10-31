@@ -42,7 +42,7 @@ class CosineSchedule(FairseqLRScheduler):
         self.min_lr =  args.lr[0]
         self.max_lr = args.max_lr
 
-        assert self.max_lr > self.min_lr, 'max_lr must be more than lr'
+        assert self.max_lr >= self.min_lr, 'max_lr must be more or equal than lr'
 
         self.t_mult = args.t_mult
         self.period = args.lr_period_updates
