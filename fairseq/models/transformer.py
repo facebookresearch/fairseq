@@ -569,10 +569,6 @@ class TransformerEncoderLayer(nn.Module):
         self.self_attn = MultiheadAttention(
             self.embed_dim, args.encoder_attention_heads,
             dropout=args.attention_dropout,
-            pos_emb_type=args.attn_position_embedding_type,
-            max_k_pos_emb=args.max_key_position_embedding,
-            max_v_pos_emb=args.max_val_position_embedding,
-            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE,
         )
         self.dropout = args.dropout
         self.relu_dropout = args.relu_dropout
@@ -639,10 +635,6 @@ class TransformerDecoderLayer(nn.Module):
         self.self_attn = MultiheadAttention(
             self.embed_dim, args.decoder_attention_heads,
             dropout=args.attention_dropout,
-            pos_emb_type=args.attn_position_embedding_type,
-            max_k_pos_emb=args.max_key_position_embedding,
-            max_v_pos_emb=args.max_val_position_embedding,
-            left_pad=LanguagePairDataset.LEFT_PAD_SOURCE,
         )
         self.dropout = args.dropout
         self.relu_dropout = args.relu_dropout

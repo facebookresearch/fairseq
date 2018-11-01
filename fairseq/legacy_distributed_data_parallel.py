@@ -90,7 +90,7 @@ class LegacyDistributedDataParallel(nn.Module):
             for param in self.module.parameters():
                 if not param.requires_grad:
                     continue
-                if param.grad.requires_grad:
+                if param.grad is not None and param.grad.requires_grad:
                     raise RuntimeError("DistributedDataParallel only works "
                                        "with gradients that don't require "
                                        "grad")
