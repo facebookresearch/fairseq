@@ -166,7 +166,7 @@ class LanguageModelingTask(FairseqTask):
 
         self.datasets[split] = MonolingualDataset(
             dataset, sizes, self.dictionary, self.output_dictionary,
-            add_eos_for_other_targets=add_eos_for_other_targets, shuffle=False,
+            add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
             targets=self.targets,
         )
 
