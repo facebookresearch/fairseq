@@ -223,6 +223,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
     def forward(self, sentence1, sentence2):
         assert sentence2.numel() == 0, 's1={}, s2={}'.format(sentence1.numel(), sentence2.numel())
         x, _ = self.language_model(sentence1)
+        if isinstance(x, list):
+            x = x[0]
 
         idxs = sentence1.eq(self.eos_idx)
 

@@ -49,7 +49,7 @@ class SentencePairClassificationDataset(FairseqDataset):
         self.sizes1, self.sizes2 = np.array(sizes1), np.array(sizes2)
         self.labels = np.array(labels)
         self.vocab = dictionary
-        self.shuffle = False
+        self.shuffle = True
         self.concat_sentences_mode = concat_sentences_mode
 
     def __getitem__(self, index):
