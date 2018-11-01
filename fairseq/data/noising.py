@@ -32,10 +32,17 @@ class WordNoising(object):
         Given a list of BPE tokens, for every index in the tokens list,
         return the index of the word grouping that it belongs to.
         For example, for input x corresponding to ["how", "are", "y@@", "ou"],
-        return [0, 1, 2, 2].
+        return [[0], [1], [2], [2]].
         """
         # x: (T x B)
         bpe_end = self.bpe_end[x]
+
+        if (x.size(0) == 1 and x.size(1) == 1):
+            # Special case when we only have one word in x. If x = [[N]],
+            # bpe_end is a scalar (bool) instead of a 2-dim array of bools,
+            # which makes the sum operation below fail.
+            return np.array([[0]])
+
         # do a reduce front sum to generate word ids
         word_idx = bpe_end[::-1].cumsum(0)[::-1]
         word_idx = word_idx.max(0)[None, :] - word_idx
@@ -142,7 +149,7 @@ class WordShuffle(WordNoising):
         noise = np.random.uniform(
             0,
             max_shuffle_distance,
-            size=(x.size(0) - 1, x.size(1)),
+            size=(x.size(0), x.size(1)),
         )
         noise[0] = -1  # do not move start sentence symbol
 
@@ -153,7 +160,6 @@ class WordShuffle(WordNoising):
             length_no_eos = lengths[i]
             if x[lengths[i] - 1, i] == self.dictionary.eos():
                 length_no_eos = lengths[i] - 1
-
             # generate a random permutation
             scores = word_idx[:length_no_eos, i] + noise[word_idx[:length_no_eos, i], i]
             # ensure no reordering inside a word
@@ -216,6 +222,7 @@ class NoisingDataset(torch.utils.data.Dataset):
         src_dataset,
         src_dict,
         seed,
+        noiser=None,
         noising_class=UnsupervisedMTNoising,
         **kwargs,
     ):
@@ -235,6 +242,8 @@ class NoisingDataset(torch.utils.data.Dataset):
             src_dict: src dict
             src_dict: src dictionary
             seed: seed to use when generating random noise
+            noiser: a pre-initialized noiser. If this is None, a noiser will
+                be created using noising_class and kwargs.
             noising_class: class to use when initializing noiser
             kwargs: noising args for configuring noising to apply
                 Note that there is no equivalent argparse code for these args
@@ -246,7 +255,7 @@ class NoisingDataset(torch.utils.data.Dataset):
 
         self.src_dataset = src_dataset
         self.src_dict = src_dict
-        self.noiser = noising_class(
+        self.noiser = noiser if noiser is not None else noising_class(
             dictionary=src_dict, **kwargs,
         )
         self.seed = seed
