@@ -91,6 +91,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='if set, doubles the number of heads for the final layer')
         parser.add_argument('--concat-final-q', action='store_true',
                             help='if set, concatenates the query for the final bidirectional layer instead of summing')
+        parser.add_argument('--input-dropout', type=float, metavar='N',
+                            help='percentage of input dropout (turn into pads)')
 
     @classmethod
     def build_model(cls, args, task):
@@ -152,6 +154,8 @@ class BiTransformerDecoder(FairseqDecoder):
         self.embed_tokens = embed_tokens
         self.embed_scale = math.sqrt(embed_dim)
 
+        self.input_dropout = torch.tensor(args.input_dropout) if args.input_dropout > 0 else None
+
         self.embed_positions = PositionalEmbedding(
             args.max_target_positions, embed_dim, self.padding_idx,
             left_pad=left_pad,
@@ -209,6 +213,11 @@ class BiTransformerDecoder(FairseqDecoder):
                   equivalent to the logits if adaptive softmax is used.
                   NOTE: unlike the logits, the format for all hidden states is T x B x C
         """
+
+        if self.input_dropout is not None and self.training:
+            drop_mask = torch.bernoulli(self.input_dropout.expand(source_tokens.shape)).byte()
+            source_tokens = source_tokens.clone()
+            source_tokens[drop_mask] = self.padding_idx
 
         # compute padding mask
         padding_mask = source_tokens.eq(self.padding_idx)
@@ -464,6 +473,8 @@ def base_bi_lm_architecture(args):
 
     args.double_final_heads = getattr(args, 'double_final_heads', False)
     args.concat_final_q = getattr(args, 'concat_final_q', False)
+
+    args.input_dropout = getattr(args, 'input_dropout', 0.)
 
     # otherwise model training is unstable
     args.decoder_normalize_before = True
