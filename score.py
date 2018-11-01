@@ -44,7 +44,8 @@ def main():
         for line in fd.readlines():
             if args.ignore_case:
                 yield line.lower()
-            yield line
+            else:     
+                yield line
 
     def score(fdsys):
         with open(args.ref) as fdref:
