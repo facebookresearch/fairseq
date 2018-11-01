@@ -66,13 +66,15 @@ class TestDataNoising(unittest.TestCase):
         return vocab, x, torch.LongTensor(src_len)
 
     def assert_eos_at_end(self, x, x_len, eos):
-        """ Asserts last token of every sentence in x is EOS """
+        """Asserts last token of every sentence in x is EOS """
         for i in range(len(x_len)):
             self.assertEqual(
                 x[x_len[i]-1][i],
                 eos,
-                f"Expected eos (token id {eos}) at the end of sentence {i} but "
-                f"got {x[i][-1]} instead"
+                (
+                    "Expected eos (token id {eos}) at the end of sentence {i} but "
+                    "got {other} instead"
+                ).format(i=i, eos=eos, other=x[i][-1])
             )
 
     def assert_word_dropout_correct(self, x, x_noised, x_len, l_noised):
@@ -192,16 +194,18 @@ class TestDataNoising(unittest.TestCase):
             self.assert_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
 
     def assert_no_eos_at_end(self, x, x_len, eos):
-        """ Asserts that the last token of each sentence in x is not EOS """
+        """Asserts that the last token of each sentence in x is not EOS """
         for i in range(len(x_len)):
             self.assertNotEqual(
                 x[x_len[i]-1][i],
                 eos,
-                f"Expected no eos (token id {eos}) at the end of sentence {i}."
+                "Expected no eos (token id {eos}) at the end of sentence {i}.".format(
+                    eos=eos, i=i,
+                )
             )
 
     def test_word_dropout_without_eos(self):
-        """ Same result as word dropout with eos except no EOS at end"""
+        """Same result as word dropout with eos except no EOS at end"""
         vocab, x, x_len = self._get_test_data(append_eos=False)
 
         with data_utils.numpy_seed(1234):
@@ -213,7 +217,7 @@ class TestDataNoising(unittest.TestCase):
             self.assert_no_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
 
     def test_word_blank_without_eos(self):
-        """ Same result as word blank with eos except no EOS at end"""
+        """Same result as word blank with eos except no EOS at end"""
         vocab, x, x_len = self._get_test_data(append_eos=False)
 
         with data_utils.numpy_seed(1234):
@@ -225,7 +229,7 @@ class TestDataNoising(unittest.TestCase):
             self.assert_no_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
 
     def test_word_shuffle_without_eos(self):
-        """ Same result as word shuffle with eos except no EOS at end """
+        """Same result as word shuffle with eos except no EOS at end"""
         vocab, x, x_len = self._get_test_data(append_eos=False)
 
         with data_utils.numpy_seed(1234):
