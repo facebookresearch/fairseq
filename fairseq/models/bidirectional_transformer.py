@@ -145,6 +145,7 @@ class BiTransformerDecoder(FairseqDecoder):
 
         embed_dim = embed_tokens.embedding_dim
         self.padding_idx = embed_tokens.padding_idx
+        self.unk_idx = dictionary.unk()
         self.max_target_positions = args.max_target_positions
 
         self.self_target = args.self_target
@@ -217,7 +218,7 @@ class BiTransformerDecoder(FairseqDecoder):
         if self.input_dropout is not None and self.training:
             drop_mask = torch.bernoulli(self.input_dropout.expand(source_tokens.shape)).byte()
             source_tokens = source_tokens.clone()
-            source_tokens[drop_mask] = self.padding_idx
+            source_tokens[drop_mask] = self.unk_idx
 
         # compute padding mask
         padding_mask = source_tokens.eq(self.padding_idx)
