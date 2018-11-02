@@ -5,17 +5,17 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import torch
 import unittest
 
 import tests.utils as test_utils
+import torch
 from fairseq import utils
 from fairseq.data import (
     AppendEosDataset,
     Dictionary,
+    LanguagePairDataset,
     data_utils,
     noising,
-    LanguagePairDataset,
 )
 
 
@@ -69,12 +69,12 @@ class TestDataNoising(unittest.TestCase):
         """Asserts last token of every sentence in x is EOS """
         for i in range(len(x_len)):
             self.assertEqual(
-                x[x_len[i]-1][i],
+                x[x_len[i] - 1][i],
                 eos,
                 (
                     "Expected eos (token id {eos}) at the end of sentence {i} but "
                     "got {other} instead"
-                ).format(i=i, eos=eos, other=x[i][-1])
+                ).format(i=i, eos=eos, other=x[i][-1]),
             )
 
     def assert_word_dropout_correct(self, x, x_noised, x_len, l_noised):
@@ -197,11 +197,11 @@ class TestDataNoising(unittest.TestCase):
         """Asserts that the last token of each sentence in x is not EOS """
         for i in range(len(x_len)):
             self.assertNotEqual(
-                x[x_len[i]-1][i],
+                x[x_len[i] - 1][i],
                 eos,
                 "Expected no eos (token id {eos}) at the end of sentence {i}.".format(
-                    eos=eos, i=i,
-                )
+                    eos=eos, i=i
+                ),
             )
 
     def test_word_dropout_without_eos(self):
@@ -273,10 +273,7 @@ class TestDataNoising(unittest.TestCase):
         if use_append_eos_dataset:
             tgt = AppendEosDataset(src_dataset, src_dict.eos())
         language_pair_dataset = LanguagePairDataset(
-            src=noising_dataset,
-            tgt=tgt,
-            src_sizes=None,
-            src_dict=src_dict
+            src=noising_dataset, tgt=tgt, src_sizes=None, src_dict=src_dict
         )
 
         dataloader = torch.utils.data.DataLoader(
@@ -343,7 +340,7 @@ class TestDataNoising(unittest.TestCase):
 
         # Generated noisy source as source
         expected_src = torch.LongTensor(
-            [[4,  5, 10, 11,  8, 12, 13], [pad, pad, pad, 6, 8, 9, 7]]
+            [[4, 5, 10, 11, 8, 12, 13], [pad, pad, pad, 6, 8, 9, 7]]
         )
         # Original clean source as target (right-padded)
         expected_tgt = torch.LongTensor(
@@ -361,5 +358,5 @@ class TestDataNoising(unittest.TestCase):
         self.assertEqual(t1.ne(t2).long().sum(), 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
