@@ -155,7 +155,6 @@ class SentenceClassifier(BaseFairseqModel):
         parser.add_argument('--ltn_dims', type=int, default=3)
         parser.add_argument('--train_gamma', default=False, action='store_true')
 
-
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
@@ -201,6 +200,7 @@ class SentenceClassifier(BaseFairseqModel):
 
         return SentenceClassifier(args, embedding)
 
+
 @register_model('sentence_classifier_lstm')
 class SentenceClassifierLstm(BaseFairseqModel):
     def __init__(self, args, embedding):
@@ -217,7 +217,6 @@ class SentenceClassifierLstm(BaseFairseqModel):
 
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(4096, 2, bias=True)
-
 
         self.reset_parameters()
 
@@ -241,7 +240,7 @@ class SentenceClassifierLstm(BaseFairseqModel):
         seq_lengths, perm_idx = src_lengths.sort(0, descending=True)
         x = x[perm_idx]
 
-        x = x.transpose(0,1)
+        x = x.transpose(0, 1)
 
         x = pack_padded_sequence(x, seq_lengths.cpu().numpy())
         x, _ = self.lstm(x)
@@ -282,7 +281,6 @@ class SentenceClassifierLstm(BaseFairseqModel):
         parser.add_argument('--ltn', default=False, action='store_true')
         parser.add_argument('--ltn_dims', type=int, default=3)
         parser.add_argument('--train_gamma', default=False, action='store_true')
-
 
     @classmethod
     def build_model(cls, args, task):
@@ -360,7 +358,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
             x = x[0]
 
         eos_idxs = src_tokens.eq(self.eos_idx)
-        x = x[eos_idxs].view(src_tokens.size(0), 1, -1) # assume only 2 eoses per sample
+        x = x[eos_idxs].view(src_tokens.size(0), 1, -1)  # assume only 2 eoses per sample
 
         x = self.last_dropout(x)
         x = self.proj(x).squeeze(-1)
@@ -373,6 +371,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--lm-path', metavar='PATH', help='path to elmo model')
         parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
+        parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
 
     @classmethod
     def build_model(cls, args, task):
@@ -386,10 +385,106 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         assert args.lm_path is not None
 
         task = LanguageModelingTask(args, dictionary, dictionary)
-        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {'remove_head': True})
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {'remove_head': True, 'dropout': args.model_dropout})
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
         return FinetuningSentenceClassifier(args, models[0], dictionary.eos())
+
+
+@register_model('hybrid_sentence_classifier')
+class HybridSentenceClassifier(BaseFairseqModel):
+    def __init__(self, args, language_model, eos_idx, pad_idx):
+        super().__init__()
+
+        self.language_model = language_model
+        self.eos_idx = eos_idx
+        self.pad_idx = pad_idx
+
+        self.class_queries = nn.Parameter(torch.Tensor(args.num_labels, args.model_dim))
+        self.embedding_dropout = nn.Dropout(args.embedding_dropout)
+        self.attn = MultiheadAttention(args.model_dim, 16, 0, add_zero_attn=True)
+        self.ln_q = nn.LayerNorm(args.model_dim)
+        self.last_dropout = nn.Dropout(args.last_dropout)
+        self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
+
+        self.layers = nn.ModuleList([
+            AttentionLayer(args.model_dim, args.dropout),
+        ])
+
+        if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
+            print('disabling training char convolutions')
+            self.language_model.decoder.embed_tokens.disable_convolutional_grads()
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.normal_(self.class_queries)
+        torch.nn.init.xavier_uniform_(self.proj.weight)
+        torch.nn.init.constant_(self.proj.bias, 0)
+
+    def forward(self, src_tokens, src_lengths):
+        bos_block = src_tokens.new_full((src_tokens.size(0), 1), self.eos_idx)
+        src_tokens = torch.cat([bos_block, src_tokens], dim=1)
+
+        input_padding_mask = src_tokens.eq(self.pad_idx)
+        if not input_padding_mask.any():
+            input_padding_mask = None
+
+        x, _ = self.language_model(src_tokens)
+        if isinstance(x, list):
+            x = x[0]
+
+        x = x.transpose(0, 1)
+        x = self.embedding_dropout(x)
+
+        enc_x = x
+        for layer in self.layers:
+            enc_x = layer(enc_x, x, input_padding_mask)
+        x = enc_x
+
+        q = self.class_queries.unsqueeze(1).expand(self.class_queries.shape[0], x.shape[1],
+                                                   self.class_queries.shape[1])
+
+        enc_q, _ = self.attn(
+            query=q,
+            key=x,
+            value=x,
+            key_padding_mask=input_padding_mask,
+            need_weights=False,
+        )
+
+        x = self.ln_q(enc_q)
+        x = self.last_dropout(x)
+
+        x = self.proj(x).squeeze(-1).t()
+
+        return x
+
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        parser.add_argument('--lm-path', metavar='PATH', help='path to elmo model')
+        parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
+        parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
+        parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
+        parser.add_argument('--dropout', type=float, metavar='D', help='dropout')
+
+    @classmethod
+    def build_model(cls, args, task):
+        """Build a new model instance."""
+
+        # make sure all arguments are present in older models
+        base_architecture_hybrid(args)
+
+        dictionary = task.dictionary
+
+        assert args.lm_path is not None
+
+        task = LanguageModelingTask(args, dictionary, dictionary)
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {'remove_head': True})
+        assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
+
+        return HybridSentenceClassifier(args, models[0], dictionary.eos(), dictionary.pad())
 
 
 @register_model_architecture('sentence_classifier', 'sentence_classifier')
@@ -404,6 +499,16 @@ def base_architecture(args):
 def base_architecture_ft(args):
     args.model_dim = getattr(args, 'model_dim', 1024)
     args.last_dropout = getattr(args, 'last_dropout', 0.3)
+    args.model_dropout = getattr(args, 'model_dropout', 0.1)
+
+
+@register_model_architecture('hybrid_sentence_classifier', 'hybrid_sentence_classifier')
+def base_architecture_hybrid(args):
+    args.model_dim = getattr(args, 'model_dim', 1024)
+    args.last_dropout = getattr(args, 'last_dropout', 0.3)
+    args.dropout = getattr(args, 'dropout', 0.3)
+    args.embedding_dropout = getattr(args, 'embedding_dropout', 0.3)
+
 
 @register_model_architecture('sentence_classifier_lstm', 'sentence_classifier_lstm')
 def base_architecture_lstm(args):
