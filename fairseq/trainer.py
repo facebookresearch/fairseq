@@ -312,7 +312,10 @@ class Trainer(object):
             sample_size = [sample_size]
 
         # extra hacky!
-        extra_metrics = self.task.aggregate_extra_metrics(logging_output)
+        if hasattr(self.task, 'aggregate_extra_metrics'):
+            extra_metrics = self.task.aggregate_extra_metrics(logging_output)
+        else:
+            extra_metrics = None
 
         # aggregate logging outputs and sample sizes
         logging_output = self.criterion._aggregate_logging_outputs(logging_output)
