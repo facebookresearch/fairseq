@@ -148,20 +148,15 @@ class TranslationTask(FairseqTask):
 
         if len(src_datasets) == 1:
             src_dataset, tgt_dataset = src_datasets[0], tgt_datasets[0]
-            src_sizes = src_dataset.sizes
-            tgt_sizes = tgt_dataset.sizes
         else:
-            if self.args.upsample_primary > 1:
-                src_datasets.extend([src_datasets[0]] * (self.args.upsample_primary - 1))
-                tgt_datasets.extend([tgt_datasets[0]] * (self.args.upsample_primary - 1))
-            src_dataset = ConcatDataset(src_datasets)
-            tgt_dataset = ConcatDataset(tgt_datasets)
-            src_sizes = np.concatenate([ds.sizes for ds in src_datasets])
-            tgt_sizes = np.concatenate([ds.sizes for ds in tgt_datasets])
+            sample_ratios = [1] * len(src_datasets)
+            sample_ratios[0] = self.args.upsample_primary
+            src_dataset = ConcatDataset(src_datasets, sample_ratios)
+            tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
 
         self.datasets[split] = LanguagePairDataset(
-            src_dataset, src_sizes, self.src_dict,
-            tgt_dataset, tgt_sizes, self.tgt_dict,
+            src_dataset, src_dataset.sizes, self.src_dict,
+            tgt_dataset, tgt_dataset.sizes, self.tgt_dict,
             left_pad_source=self.args.left_pad_source,
             left_pad_target=self.args.left_pad_target,
             max_source_positions=self.args.max_source_positions,

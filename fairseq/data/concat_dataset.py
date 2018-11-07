@@ -1,24 +1,29 @@
 import bisect
 
+import numpy as np
 from . import FairseqDataset
 
 
 class ConcatDataset(FairseqDataset):
 
     @staticmethod
-    def cumsum(sequence):
+    def cumsum(sequence, sample_ratios):
         r, s = [], 0
-        for e in sequence:
-            l = len(e)
+        for e, ratio in zip(sequence, sample_ratios):
+            l = ratio * len(e)
             r.append(l + s)
             s += l
         return r
 
-    def __init__(self, datasets):
+    def __init__(self, datasets, sample_ratios=1):
         super(ConcatDataset, self).__init__()
         assert len(datasets) > 0, 'datasets should not be an empty iterable'
         self.datasets = list(datasets)
-        self.cummulative_sizes = self.cumsum(self.datasets)
+        if isinstance(sample_ratios, int):
+            sample_ratios = [sample_ratios] * len(self.datasets)
+        self.sample_ratios = sample_ratios
+        self.cummulative_sizes = self.cumsum(self.datasets, sample_ratios)
+        self.real_sizes = [len(d) for d in self.datasets]
 
     def __len__(self):
         return self.cummulative_sizes[-1]
@@ -29,7 +34,12 @@ class ConcatDataset(FairseqDataset):
             sample_idx = idx
         else:
             sample_idx = idx - self.cummulative_sizes[dataset_idx - 1]
+        sample_idx = sample_idx % self.real_sizes[dataset_idx]
         return self.datasets[dataset_idx][sample_idx]
+
+    @property
+    def sizes(self):
+        return np.concatenate([np.tile(ds.sizes, sr) for ds, sr in zip(self.datasets, self.sample_ratios)])
 
     @property
     def supports_prefetch(self):
@@ -38,5 +48,6 @@ class ConcatDataset(FairseqDataset):
     def prefetch(self, indices):
         frm = 0
         for to, ds in zip(self.cummulative_sizes, self.datasets):
-            ds.prefetch([i - frm for i in indices if frm <= i < to])
+            real_size = len(ds)
+            ds.prefetch([(i - frm) % real_size for i in indices if frm <= i < to])
             frm = to

@@ -245,3 +245,7 @@ class FairseqLanguageModel(BaseFairseqModel):
     @property
     def supported_targets(self):
         return {'future'}
+
+    def remove_head(self):
+        """Removes the head of the model (e.g. the softmax layer) to conserve space when it is not needed"""
+        raise NotImplementedError()

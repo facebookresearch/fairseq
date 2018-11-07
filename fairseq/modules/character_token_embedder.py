@@ -5,12 +5,10 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 
 from torch import nn
-from torch.nn.utils.rnn import pad_sequence
 
 from typing import List, Tuple
 
@@ -47,10 +45,11 @@ class CharacterTokenEmbedder(torch.nn.Module):
                 nn.Conv1d(char_embed_dim, out_c, kernel_size=width)
             )
 
-        final_dim = sum(f[1] for f in filters)
+        last_dim = sum(f[1] for f in filters)
 
-        self.highway = Highway(final_dim, highway_layers)
-        self.projection = nn.Linear(final_dim, word_embed_dim)
+        self.highway = Highway(last_dim, highway_layers) if highway_layers > 0 else None
+
+        self.projection = nn.Linear(last_dim, word_embed_dim)
 
         self.set_vocab(vocab, max_char_len)
         self.reset_parameters()
@@ -84,7 +83,8 @@ class CharacterTokenEmbedder(torch.nn.Module):
     def reset_parameters(self):
         nn.init.xavier_normal_(self.char_embeddings.weight)
         nn.init.xavier_normal_(self.symbol_embeddings)
-        nn.init.xavier_normal_(self.projection.weight)
+        nn.init.xavier_uniform_(self.projection.weight)
+
         nn.init.constant_(self.char_embeddings.weight[self.char_embeddings.padding_idx], 0.)
         nn.init.constant_(self.projection.bias, 0.)
 
@@ -100,9 +100,8 @@ class CharacterTokenEmbedder(torch.nn.Module):
                 chars[eos] = 0
             unk = None
         else:
-            self.word_to_char = self.word_to_char.type_as(input)
             flat_words = input.view(-1)
-            chars = self.word_to_char[flat_words]
+            chars = self.word_to_char[flat_words.type_as(self.word_to_char)].type_as(input)
             pads = flat_words.eq(self.vocab.pad())
             eos = flat_words.eq(self.vocab.eos())
             unk = flat_words.eq(self.vocab.unk())
@@ -134,7 +133,10 @@ class CharacterTokenEmbedder(torch.nn.Module):
             x = F.relu(x)
             conv_result.append(x)
 
-        conv_result = torch.cat(conv_result, dim=-1)
-        conv_result = self.highway(conv_result)
+        x = torch.cat(conv_result, dim=-1)
 
-        return self.projection(conv_result)
+        if self.highway is not None:
+            x = self.highway(x)
+        x = self.projection(x)
+
+        return x

@@ -98,11 +98,11 @@ class LanguageModelingTask(FairseqTask):
             args.self_target = not args.exclude_self_target
 
         targets = []
-        if args.self_target:
+        if getattr(args, 'self_target', False):
             targets.append('self')
-        if args.future_target:
+        if getattr(args, 'future_target', False):
             targets.append('future')
-        if args.past_target:
+        if getattr(args, 'past_target', False):
             targets.append('past')
         if len(targets) == 0:
             # standard language modeling
@@ -166,7 +166,7 @@ class LanguageModelingTask(FairseqTask):
 
         self.datasets[split] = MonolingualDataset(
             dataset, sizes, self.dictionary, self.output_dictionary,
-            add_eos_for_other_targets=add_eos_for_other_targets, shuffle=False,
+            add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
             targets=self.targets,
         )
 

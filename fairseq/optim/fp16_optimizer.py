@@ -41,9 +41,20 @@ class FP16Optimizer(optim.FairseqOptimizer):
         super().__init__(args, params)
         self.fp32_optimizer = fp32_optimizer
         self.fp32_params = fp32_params
+
+        if getattr(args, 'fp16_scale_window', None) is None:
+            if len(args.update_freq) > 1:
+                raise ValueError(
+                    '--fp16-scale-window must be given explicitly when using a '
+                    'custom --update-freq schedule'
+                )
+            scale_window = 2**14 / args.distributed_world_size / args.update_freq[0]
+        else:
+            scale_window = args.fp16_scale_window
+
         self.scaler = DynamicLossScaler(
             init_scale=args.fp16_init_scale,
-            scale_window=(2**14 / args.distributed_world_size),
+            scale_window=scale_window,
         )
 
     @staticmethod
