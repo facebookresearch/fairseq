@@ -13,15 +13,24 @@ from fairseq.data import data_utils
 
 class WordNoising(object):
     """Generate a noisy version of a sentence, without changing words themselves."""
-    def __init__(self, dictionary, bpe_cont_marker="@@"):
+    def __init__(self, dictionary, bpe_cont_marker="@@", bpe_end_marker=None):
         self.dictionary = dictionary
-        self.bpe_end = np.array([
-            not self.dictionary[i].endswith(bpe_cont_marker)
-            for i in range(len(self.dictionary))
-        ]) if bpe_cont_marker else None
+        self.bpe_end = None
+        if bpe_cont_marker:
+            self.bpe_end = np.array([
+                not self.dictionary[i].endswith(bpe_cont_marker)
+                for i in range(len(self.dictionary))
+            ])
+        elif bpe_end_marker:
+            self.bpe_end = np.array([
+                self.dictionary[i].endswith(bpe_end_marker)
+                for i in range(len(self.dictionary))
+            ])
 
         self.get_word_idx = (
-            self._get_bpe_word_idx if bpe_cont_marker else self._get_token_idx
+            self._get_bpe_word_idx
+            if self.bpe_end is not None
+            else self._get_token_idx
         )
 
     def noising(self, x, lengths, noising_prob=0.0):
@@ -63,8 +72,8 @@ class WordDropout(WordNoising):
     then dropped words will be removed. Otherwise, it will be replaced by the
     blank_idx."""
 
-    def __init__(self, dictionary):
-        super().__init__(dictionary)
+    def __init__(self, dictionary, bpe_cont_marker="@@", bpe_end_marker=None):
+        super().__init__(dictionary, bpe_cont_marker, bpe_end_marker)
 
     def noising(self, x, lengths, dropout_prob=0.1, blank_idx=None):
         # x: (T x B), lengths: B
@@ -134,8 +143,8 @@ class WordDropout(WordNoising):
 class WordShuffle(WordNoising):
     """Shuffle words by no more than k positions."""
 
-    def __init__(self, dictionary, bpe_cont_marker="@@"):
-        super().__init__(dictionary, bpe_cont_marker)
+    def __init__(self, dictionary, bpe_cont_marker="@@", bpe_end_marker=None):
+        super().__init__(dictionary, bpe_cont_marker, bpe_end_marker)
 
     def noising(self, x, lengths, max_shuffle_distance=3):
         # x: (T x B), lengths: B
@@ -152,7 +161,6 @@ class WordShuffle(WordNoising):
             size=(x.size(0), x.size(1)),
         )
         noise[0] = -1  # do not move start sentence symbol
-
         # be sure to shuffle entire words
         word_idx = self.get_word_idx(x)
         x2 = x.clone()
@@ -182,15 +190,25 @@ class UnsupervisedMTNoising(WordNoising):
         dictionary,
         max_word_shuffle_distance,
         word_dropout_prob,
-        word_blanking_prob
+        word_blanking_prob,
+        bpe_cont_marker="@@",
+        bpe_end_marker=None,
     ):
         super().__init__(dictionary)
         self.max_word_shuffle_distance = max_word_shuffle_distance
         self.word_dropout_prob = word_dropout_prob
         self.word_blanking_prob = word_blanking_prob
 
-        self.word_dropout = WordDropout(dictionary=dictionary)
-        self.word_shuffle = WordShuffle(dictionary=dictionary)
+        self.word_dropout = WordDropout(
+            dictionary=dictionary,
+            bpe_cont_marker=bpe_cont_marker,
+            bpe_end_marker=bpe_end_marker,
+        )
+        self.word_shuffle = WordShuffle(
+            dictionary=dictionary,
+            bpe_cont_marker=bpe_cont_marker,
+            bpe_end_marker=bpe_end_marker,
+        )
 
     def noising(self, x, lengths):
         # 1. Word Shuffle
