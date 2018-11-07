@@ -21,36 +21,109 @@ from fairseq.data import (
 
 
 class TestDataNoising(unittest.TestCase):
-    def _get_test_data(self, append_eos=True, bpe=True):
+    def _get_test_data_with_bpe_cont_marker(self, append_eos=True):
+        """
+        Args:
+            append_eos: if True, each input sentence in the source tokens tensor
+                will have an EOS appended to the end.
+
+        Returns:
+            vocabs: BPE vocab with continuation markers as suffixes to denote
+                non-end of word tokens. This is the standard BPE format used in
+                fairseq's preprocessing.
+            x: input tensor containing numberized source tokens, with EOS at the
+                end if append_eos is true
+            src_lengths: and source lengths.
+        """
         vocab = Dictionary()
-        if bpe:
-            vocab.add_symbol("he@@")
-            vocab.add_symbol("llo")
-            vocab.add_symbol("how")
-            vocab.add_symbol("are")
-            vocab.add_symbol("y@@")
-            vocab.add_symbol("ou")
-            vocab.add_symbol("n@@")
-            vocab.add_symbol("ew")
-            vocab.add_symbol("or@@")
-            vocab.add_symbol("k")
+        vocab.add_symbol("he@@")
+        vocab.add_symbol("llo")
+        vocab.add_symbol("how")
+        vocab.add_symbol("are")
+        vocab.add_symbol("y@@")
+        vocab.add_symbol("ou")
+        vocab.add_symbol("n@@")
+        vocab.add_symbol("ew")
+        vocab.add_symbol("or@@")
+        vocab.add_symbol("k")
 
-            src_tokens = [
-                ["he@@", "llo", "n@@", "ew", "y@@", "or@@", "k"],
-                ["how", "are", "y@@", "ou"],
-            ]
-        else:
-            vocab.add_symbol("hello")
-            vocab.add_symbol("how")
-            vocab.add_symbol("are")
-            vocab.add_symbol("you")
-            vocab.add_symbol("new")
-            vocab.add_symbol("york")
-            src_tokens = [
-                ["hello", "new", "york", "you"],
-                ["how", "are", "you", "new", "york"],
-            ]
+        src_tokens = [
+            ["he@@", "llo", "n@@", "ew", "y@@", "or@@", "k"],
+            ["how", "are", "y@@", "ou"],
+        ]
+        x, src_lengths = x, src_lengths = self._convert_src_tokens_to_tensor(
+            vocab=vocab, src_tokens=src_tokens, append_eos=append_eos
+        )
+        return vocab, x, src_lengths
 
+    def _get_test_data_with_bpe_end_marker(self, append_eos=True):
+        """
+        Args:
+            append_eos: if True, each input sentence in the source tokens tensor
+                will have an EOS appended to the end.
+
+        Returns:
+            vocabs: BPE vocab with end-of-word markers as suffixes to denote
+                tokens at the end of a word. This is an alternative to fairseq's
+                standard preprocessing framework and is not generally supported
+                within fairseq.
+            x: input tensor containing numberized source tokens, with EOS at the
+                end if append_eos is true
+            src_lengths: and source lengths.
+        """
+        vocab = Dictionary()
+        vocab.add_symbol("he")
+        vocab.add_symbol("llo_EOW")
+        vocab.add_symbol("how_EOW")
+        vocab.add_symbol("are_EOW")
+        vocab.add_symbol("y")
+        vocab.add_symbol("ou_EOW")
+        vocab.add_symbol("n")
+        vocab.add_symbol("ew_EOW")
+        vocab.add_symbol("or")
+        vocab.add_symbol("k_EOW")
+
+        src_tokens = [
+            ["he", "llo_EOW", "n", "ew_EOW", "y", "or", "k_EOW"],
+            ["how_EOW", "are_EOW", "y", "ou_EOW"],
+        ]
+        x, src_lengths = x, src_lengths = self._convert_src_tokens_to_tensor(
+            vocab=vocab, src_tokens=src_tokens, append_eos=append_eos
+        )
+        return vocab, x, src_lengths
+
+    def _get_test_data_with_word_vocab(self, append_eos=True):
+        """
+        Args:
+            append_eos: if True, each input sentence in the source tokens tensor
+                will have an EOS appended to the end.
+
+        Returns:
+            vocabs: word vocab
+            x: input tensor containing numberized source tokens, with EOS at the
+                end if append_eos is true
+            src_lengths: and source lengths.
+        """
+        vocab = Dictionary()
+
+        vocab.add_symbol("hello")
+        vocab.add_symbol("how")
+        vocab.add_symbol("are")
+        vocab.add_symbol("you")
+        vocab.add_symbol("new")
+        vocab.add_symbol("york")
+        src_tokens = [
+            ["hello", "new", "york", "you"],
+            ["how", "are", "you", "new", "york"],
+        ]
+        x, src_lengths = self._convert_src_tokens_to_tensor(
+            vocab=vocab, src_tokens=src_tokens, append_eos=append_eos
+        )
+        return vocab, x, src_lengths
+
+    def _convert_src_tokens_to_tensor(
+        self, vocab: Dictionary, src_tokens: List[List[str]], append_eos: bool
+    ):
         src_len = [len(x) for x in src_tokens]
         # If we have to append EOS, we include EOS in counting src length
         if append_eos:
@@ -64,7 +137,7 @@ class TestDataNoising(unittest.TestCase):
                 x[i][j + 1] = vocab.eos()
 
         x = x.transpose(1, 0)
-        return vocab, x, torch.LongTensor(src_len)
+        return x, torch.LongTensor(src_len)
 
     def assert_eos_at_end(self, x, x_len, eos):
         """Asserts last token of every sentence in x is EOS """
@@ -86,7 +159,7 @@ class TestDataNoising(unittest.TestCase):
             self.assertEqual(x_noised[i][0], x[i + 2][0])
 
     def test_word_dropout_with_eos(self):
-        vocab, x, x_len = self._get_test_data(append_eos=True)
+        vocab, x, x_len = self._get_test_data_with_bpe_cont_marker(append_eos=True)
 
         with data_utils.numpy_seed(1234):
             noising_gen = noising.WordDropout(vocab)
@@ -107,7 +180,7 @@ class TestDataNoising(unittest.TestCase):
                 self.assertEqual(x_noised[i][0], x[i][0])
 
     def test_word_blank_with_eos(self):
-        vocab, x, x_len = self._get_test_data(append_eos=True)
+        vocab, x, x_len = self._get_test_data_with_bpe_cont_marker(append_eos=True)
 
         with data_utils.numpy_seed(1234):
             noising_gen = noising.WordDropout(vocab)
@@ -128,6 +201,7 @@ class TestDataNoising(unittest.TestCase):
         vocab: Dictionary,
         expected_shufle_maps: List[Dict[int, int]],
         expect_eos_at_end: bool,
+        bpe_end_marker=None,
     ):
         """
         This verifies that with a given x, x_len, max_shuffle_distance, and
@@ -142,9 +216,17 @@ class TestDataNoising(unittest.TestCase):
                 old positions in x to their new positions in x.
             expect_eos_at_end: if True, check the output to make sure there is
                 an EOS at the end.
+            bpe_end_marker: str denoting the BPE end token. If this is not None, we
+                set the BPE cont token to None in the noising classes.
         """
+        bpe_cont_marker = None
+        if bpe_end_marker is None:
+            bpe_cont_marker = "@@"
+
         with data_utils.numpy_seed(1234):
-            word_shuffle = noising.WordShuffle(vocab)
+            word_shuffle = noising.WordShuffle(
+                vocab, bpe_cont_marker=bpe_cont_marker, bpe_end_marker=bpe_end_marker
+            )
             x_noised, l_noised = word_shuffle.noising(
                 x, x_len, max_shuffle_distance=max_shuffle_distance
             )
@@ -164,7 +246,7 @@ class TestDataNoising(unittest.TestCase):
             self.assert_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
 
     def test_word_shuffle_with_eos(self):
-        vocab, x, x_len = self._get_test_data(append_eos=True)
+        vocab, x, x_len = self._get_test_data_with_bpe_cont_marker(append_eos=True)
 
         # Assert word shuffle with max shuffle distance 0 causes input to be
         # unchanged
@@ -195,7 +277,8 @@ class TestDataNoising(unittest.TestCase):
         )
 
     def test_word_shuffle_with_eos_nonbpe(self):
-        vocab, x, x_len = self._get_test_data(append_eos=True, bpe=False)
+        """The purpose of this is to test shuffling logic with word vocabs"""
+        vocab, x, x_len = self._get_test_data_with_word_vocab(append_eos=True)
 
         # Assert word shuffle with max shuffle distance 0 causes input to be
         # unchanged
@@ -227,7 +310,7 @@ class TestDataNoising(unittest.TestCase):
 
     def test_word_shuffle_without_eos(self):
         """Same result as word shuffle with eos except no EOS at end"""
-        vocab, x, x_len = self._get_test_data(append_eos=False)
+        vocab, x, x_len = self._get_test_data_with_bpe_cont_marker(append_eos=False)
 
         # Assert word shuffle with max shuffle distance 0 causes input to be
         # unchanged
@@ -257,6 +340,40 @@ class TestDataNoising(unittest.TestCase):
             expect_eos_at_end=False,
         )
 
+    def test_word_shuffle_without_eos_with_bpe_end_marker(self):
+        """Same result as word shuffle without eos except using BPE end token"""
+        vocab, x, x_len = self._get_test_data_with_bpe_end_marker(append_eos=False)
+
+        # Assert word shuffle with max shuffle distance 0 causes input to be
+        # unchanged
+        self.assert_word_shuffle_matches_expected(
+            x=x,
+            x_len=x_len,
+            max_shuffle_distance=0,
+            vocab=vocab,
+            expected_shufle_maps=[
+                self.generate_unchanged_shuffle_map(example_len)
+                for example_len in x_len
+            ],
+            expect_eos_at_end=False,
+            bpe_end_marker="_EOW",
+        )
+
+        # Assert word shuffle with max shuffle distance 3 matches our expected
+        # shuffle order
+        self.assert_word_shuffle_matches_expected(
+            x=x,
+            x_len=x_len,
+            vocab=vocab,
+            max_shuffle_distance=3,
+            expected_shufle_maps=[
+                self.generate_unchanged_shuffle_map(x_len[0]),
+                {0: 0, 1: 3, 2: 1, 3: 2},
+            ],
+            expect_eos_at_end=False,
+            bpe_end_marker="_EOW",
+        )
+
     def assert_no_eos_at_end(self, x, x_len, eos):
         """Asserts that the last token of each sentence in x is not EOS """
         for i in range(len(x_len)):
@@ -270,7 +387,7 @@ class TestDataNoising(unittest.TestCase):
 
     def test_word_dropout_without_eos(self):
         """Same result as word dropout with eos except no EOS at end"""
-        vocab, x, x_len = self._get_test_data(append_eos=False)
+        vocab, x, x_len = self._get_test_data_with_bpe_cont_marker(append_eos=False)
 
         with data_utils.numpy_seed(1234):
             noising_gen = noising.WordDropout(vocab)
@@ -282,7 +399,7 @@ class TestDataNoising(unittest.TestCase):
 
     def test_word_blank_without_eos(self):
         """Same result as word blank with eos except no EOS at end"""
-        vocab, x, x_len = self._get_test_data(append_eos=False)
+        vocab, x, x_len = self._get_test_data_with_bpe_cont_marker(append_eos=False)
 
         with data_utils.numpy_seed(1234):
             noising_gen = noising.WordDropout(vocab)
@@ -330,7 +447,9 @@ class TestDataNoising(unittest.TestCase):
         return denoising_batch_result
 
     def test_noising_dataset_with_eos(self):
-        src_dict, src_tokens, _ = self._get_test_data(append_eos=True)
+        src_dict, src_tokens, _ = self._get_test_data_with_bpe_cont_marker(
+            append_eos=True
+        )
 
         # Format data for src_dataset
         src_tokens = torch.t(src_tokens)
@@ -366,7 +485,9 @@ class TestDataNoising(unittest.TestCase):
         AppendEosDataset when using it as the target in LanguagePairDataset.
         """
 
-        src_dict, src_tokens, _ = self._get_test_data(append_eos=False)
+        src_dict, src_tokens, _ = self._get_test_data_with_bpe_cont_marker(
+            append_eos=False
+        )
 
         # Format data for src_dataset
         src_tokens = torch.t(src_tokens)
