@@ -36,9 +36,9 @@ class AttentionLayer(nn.Module):
         self.ln_h = nn.LayerNorm(dim)
 
         self.qh_ffn = nn.Sequential(
-            nn.Linear(dim, dim * 2),
+            nn.Linear(dim, dim * 4),
             nn.ReLU(),
-            nn.Linear(dim * 2, dim),
+            nn.Linear(dim * 4, dim),
         )
         self.dropout = nn.Dropout(dropout)
 
@@ -206,7 +206,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         self.unk_idx = unk_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
-        self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels, bias=True)
+        self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels if args.num_labels > 0 else 1, bias=True)
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')

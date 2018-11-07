@@ -60,7 +60,7 @@ class SentencePairClassificationDataset(FairseqDataset):
         sent1, sent2 = self._join_sents(sent1, sent2)
 
 
-        return {'id': index, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.LongTensor([lbl])}
+        return {'id': index, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.tensor([lbl])}
 
 
     def _join_sents(self, sent1, sent2):
@@ -98,7 +98,7 @@ class SentencePairClassificationDataset(FairseqDataset):
         sent1, sent2 = self._join_sents(sent1, sent2)
 
         return self.collater([
-            {'id': i, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.LongTensor([0])}
+            {'id': i, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.tensor([self.labels[0]])}
             for i in range(bsz)
         ])
 

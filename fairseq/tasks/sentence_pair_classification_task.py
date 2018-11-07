@@ -16,7 +16,7 @@ from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
     SentencePairClassificationDataset, TokenBlockDataset,
     IndexedDataset)
-from fairseq.meters import ClassificationMeter
+from fairseq.meters import ClassificationMeter, RegressionMeter
 
 from . import FairseqTask, register_task
 
@@ -106,7 +106,8 @@ class SentencePairClassificationTask(FairseqTask):
                 break
             with open(base_path + '.lbl', 'r') as lbl_f:
                 lines = lbl_f.readlines()
-                loaded_labels.extend(int(l) for l in lines)
+                cast = int if self.num_labels > 0 else float
+                loaded_labels.extend(cast(l) for l in lines)
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[0][-1])))
 
@@ -129,42 +130,62 @@ class SentencePairClassificationTask(FairseqTask):
         )
 
     def extra_meters(self):
-        return {
-            'classification': ClassificationMeter(),
-        }
+        if self.num_labels > 0:
+            return {
+                'classification': ClassificationMeter(),
+            }
+        else:
+            return {
+                'regression': RegressionMeter()
+            }
 
     def aggregate_extra_metrics(self, logs):
-        return {
-            'classification': tuple(
-                reduce(lambda q, w: (sum(x) for x in zip(q, w)),
-                       [log['extra_metrics']['classification'] for log in logs if 'extra_metrics' in log]))
-        }
+        if self.num_labels > 0:
+            return {
+                'classification': tuple(
+                    reduce(lambda q, w: (sum(x) for x in zip(q, w)),
+                           [log['extra_metrics']['classification'] for log in logs if 'extra_metrics' in log]))
+            }
+        else:
+            return {
+                'regression': tuple(
+                    reduce(lambda q, w: (sum(x, []) for x in zip(q, w)),
+                           [log['extra_metrics']['regression'] for log in logs if 'extra_metrics' in log]))
+            }
 
     def get_loss(self, model, criterion, sample, is_valid=False):
         loss, sample_size, logging_output = criterion(model, sample, reduce=not is_valid)
 
         if is_valid:
-            probs = (-loss).exp()
+            if self.num_labels > 0:
+                probs = (-loss).exp()
 
-            tp = tn = fp = fn = 0
+                tp = tn = fp = fn = 0
 
-            if self.num_labels == 2:
-                pos = sample['target'].view(-1).eq(1)
-                neg = sample['target'].view(-1).eq(0)
-                tp = (probs[pos] > 1 / self.num_labels).long().sum().item()
-                tn = (probs[neg] > 1 / self.num_labels).long().sum().item()
-                fp = neg.long().sum().item() - tn
-                fn = pos.long().sum().item() - tp
+                if self.num_labels == 2:
+                    pos = sample['target'].view(-1).eq(1)
+                    neg = sample['target'].view(-1).eq(0)
+                    tp = (probs[pos] > 1 / self.num_labels).long().sum().item()
+                    tn = (probs[neg] > 1 / self.num_labels).long().sum().item()
+                    fp = neg.long().sum().item() - tn
+                    fn = pos.long().sum().item() - tp
+                else:
+                    for i in range(self.num_labels + 1):
+                        pos = sample['target'].view(-1).eq(i)
+                        c_tp = (probs[pos] > 1 / self.num_labels).long().sum().item()
+                        tp += c_tp
+                        fn += pos.long().sum().item() - c_tp
+
+                logging_output['extra_metrics'] = {
+                    'classification': (tp, tn, fp, fn),
+                }
             else:
-                for i in range(self.num_labels + 1):
-                    pos = sample['target'].view(-1).eq(i)
-                    c_tp = (probs[pos] > 1 / self.num_labels).long().sum().item()
-                    tp += c_tp
-                    fn += pos.long().sum().item() - c_tp
+                xs = logging_output['preds'].view(-1).tolist()
+                ys = sample['target'].view(-1).tolist()
 
-            logging_output['extra_metrics'] = {
-                'classification': (tp, tn, fp, fn),
-            }
+                logging_output['extra_metrics'] = {
+                    'regression': (xs, ys),
+                }
 
             loss = loss.sum()
             logging_output['loss'] = loss.item()

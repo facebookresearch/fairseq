@@ -69,7 +69,7 @@ class TokenBlockDataset(FairseqDataset):
             curr = 0
             for sz in sizes:
                 # skip samples with just 1 example (which would be just the eos token)
-                if sz > 1:
+                if sz > 0:
                     self.slice_indices.append((curr, curr + sz))
                 curr += sz
         else:
