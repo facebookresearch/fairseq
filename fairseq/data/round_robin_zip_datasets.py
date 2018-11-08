@@ -59,6 +59,8 @@ class RoundRobinZipDatasets(FairseqDataset):
 
     def collater(self, samples):
         """Merge a list of samples to form a mini-batch."""
+        if len(samples) == 0:
+            return None
         if self.eval_key is None:
             return OrderedDict([
                 (key, dataset.collater([sample[key] for sample in samples]))
