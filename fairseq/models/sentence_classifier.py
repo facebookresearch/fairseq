@@ -402,14 +402,10 @@ class HybridSentenceClassifier(BaseFairseqModel):
 
         self.class_queries = nn.Parameter(torch.Tensor(args.num_labels, args.model_dim))
         self.embedding_dropout = nn.Dropout(args.embedding_dropout)
-        self.attn = MultiheadAttention(args.model_dim, 16, 0, add_zero_attn=True)
-        self.ln_q = nn.LayerNorm(args.model_dim)
+        self.attn = MultiheadAttention(args.model_dim, args.num_heads, head_dim=128, add_bias_kv=True)
+        self.ln_q = nn.LayerNorm(args.model_dim, elementwise_affine=False)
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
-
-        self.layers = nn.ModuleList([
-            AttentionLayer(args.model_dim, args.dropout),
-        ])
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
@@ -437,11 +433,6 @@ class HybridSentenceClassifier(BaseFairseqModel):
         x = x.transpose(0, 1)
         x = self.embedding_dropout(x)
 
-        enc_x = x
-        for layer in self.layers:
-            enc_x = layer(enc_x, x, input_padding_mask)
-        x = enc_x
-
         q = self.class_queries.unsqueeze(1).expand(self.class_queries.shape[0], x.shape[1],
                                                    self.class_queries.shape[1])
 
@@ -467,7 +458,7 @@ class HybridSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
         parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
-        parser.add_argument('--dropout', type=float, metavar='D', help='dropout')
+        parser.add_argument('--num-heads', type=int, metavar='D', help='number of attn heads')
 
     @classmethod
     def build_model(cls, args, task):
@@ -506,7 +497,7 @@ def base_architecture_ft(args):
 def base_architecture_hybrid(args):
     args.model_dim = getattr(args, 'model_dim', 1024)
     args.last_dropout = getattr(args, 'last_dropout', 0.3)
-    args.dropout = getattr(args, 'dropout', 0.3)
+    args.num_heads = getattr(args, 'num_heads', 16)
     args.embedding_dropout = getattr(args, 'embedding_dropout', 0.3)
 
 

@@ -19,25 +19,26 @@ class MultiheadAttention(nn.Module):
     See "Attention Is All You Need" for more details.
     """
 
-    def __init__(self, embed_dim, num_heads, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False):
+    def __init__(self, embed_dim, num_heads, dropout=0., head_dim=None, bias=True, add_bias_kv=False, add_zero_attn=False):
         super().__init__()
-        self.embed_dim = embed_dim
+        self.input_dim = embed_dim
         self.num_heads = num_heads
         self.dropout = dropout
-        self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
+        self.head_dim = head_dim or embed_dim // num_heads
+        # assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
+        self.embed_dim = self.head_dim * self.num_heads
+        self.in_proj_weight = Parameter(torch.Tensor(3 * self.embed_dim, self.input_dim))
         if bias:
-            self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
+            self.in_proj_bias = Parameter(torch.Tensor(3 * self.embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
-        self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+        self.out_proj = nn.Linear(self.embed_dim, self.input_dim, bias=bias)
 
         if add_bias_kv:
-            self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
-            self.bias_v = Parameter(torch.Tensor(1, 1, embed_dim))
+            self.bias_k = Parameter(torch.Tensor(1, 1, self.embed_dim))
+            self.bias_v = Parameter(torch.Tensor(1, 1, self.embed_dim))
         else:
             self.bias_k = self.bias_v = None
 
@@ -76,7 +77,7 @@ class MultiheadAttention(nn.Module):
         kv_same = key.data_ptr() == value.data_ptr()
 
         tgt_len, bsz, embed_dim = query.size()
-        assert embed_dim == self.embed_dim
+        assert embed_dim == self.input_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
         assert key.size() == value.size()
 
@@ -173,7 +174,7 @@ class MultiheadAttention(nn.Module):
 
         attn = torch.bmm(attn_weights, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
-        attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, self.embed_dim)
         attn = self.out_proj(attn)
 
         if need_weights:
