@@ -83,7 +83,7 @@ class WordDropout(WordNoising):
         assert 0 < dropout_prob < 1
 
         # be sure to drop entire words
-        word_idx = self._get_bpe_word_idx(x)
+        word_idx = self.get_word_idx(x)
         sentences = []
         modified_lengths = []
         for i in range(lengths.size(0)):
