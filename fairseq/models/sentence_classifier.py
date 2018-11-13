@@ -210,7 +210,7 @@ class SentenceClassifierLstm(BaseFairseqModel):
 
         self.lstm = nn.LSTM(
             input_size=args.model_dim,
-            hidden_size=1024,
+            hidden_size=args.model_dim,
             dropout=args.dropout,
             bidirectional=True,
         )
@@ -225,15 +225,6 @@ class SentenceClassifierLstm(BaseFairseqModel):
         torch.nn.init.constant_(self.proj.bias, 0)
 
     def forward(self, src_tokens, src_lengths):
-
-        input_padding_mask = src_tokens.eq(self.embedding.padding_idx)
-        if not input_padding_mask.any():
-            input_padding_mask = None
-        else:
-            #     input_padding_mask = input_padding_mask[:, :-1]
-            input_padding_mask = torch.cat(
-                [input_padding_mask.new_zeros(input_padding_mask.size(0), 1), input_padding_mask], dim=1)
-
         x = self.embedding(src_tokens)
         src_lengths += 1
 
@@ -385,7 +376,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         assert args.lm_path is not None
 
         task = LanguageModelingTask(args, dictionary, dictionary)
-        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {'remove_head': True, 'dropout': args.model_dropout})
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task,
+                                                      {'remove_head': True, 'dropout': args.model_dropout})
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
         return FinetuningSentenceClassifier(args, models[0], dictionary.eos())
@@ -400,12 +392,16 @@ class HybridSentenceClassifier(BaseFairseqModel):
         self.eos_idx = eos_idx
         self.pad_idx = pad_idx
 
-        self.class_queries = nn.Parameter(torch.Tensor(args.num_labels, args.model_dim))
+        self.lstm = nn.LSTM(
+            input_size=args.model_dim,
+            hidden_size=args.lstm_dim,
+            bias=False,
+            bidirectional=True,
+        )
+
         self.embedding_dropout = nn.Dropout(args.embedding_dropout)
-        self.attn = MultiheadAttention(args.model_dim, args.num_heads, head_dim=128, add_bias_kv=True)
-        self.ln_q = nn.LayerNorm(args.model_dim, elementwise_affine=False)
         self.last_dropout = nn.Dropout(args.last_dropout)
-        self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
+        self.proj = torch.nn.Linear(args.lstm_dim * 2, args.num_labels, bias=True)
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
@@ -414,40 +410,37 @@ class HybridSentenceClassifier(BaseFairseqModel):
         self.reset_parameters()
 
     def reset_parameters(self):
-        torch.nn.init.normal_(self.class_queries)
         torch.nn.init.xavier_uniform_(self.proj.weight)
         torch.nn.init.constant_(self.proj.bias, 0)
 
     def forward(self, src_tokens, src_lengths):
         bos_block = src_tokens.new_full((src_tokens.size(0), 1), self.eos_idx)
         src_tokens = torch.cat([bos_block, src_tokens], dim=1)
+        src_lengths += 1
 
-        input_padding_mask = src_tokens.eq(self.pad_idx)
-        if not input_padding_mask.any():
-            input_padding_mask = None
+        bsz, tsz = src_tokens.size()
 
         x, _ = self.language_model(src_tokens)
         if isinstance(x, list):
             x = x[0]
 
-        x = x.transpose(0, 1)
         x = self.embedding_dropout(x)
 
-        q = self.class_queries.unsqueeze(1).expand(self.class_queries.shape[0], x.shape[1],
-                                                   self.class_queries.shape[1])
+        seq_lengths, perm_idx = src_lengths.sort(0, descending=True)
+        x = x[perm_idx]
+        x = x.transpose(0, 1)
+        x = pack_padded_sequence(x, seq_lengths.cpu().numpy())
+        x, _ = self.lstm(x)
+        x, lengths = pad_packed_sequence(x)
 
-        enc_q, _ = self.attn(
-            query=q,
-            key=x,
-            value=x,
-            key_padding_mask=input_padding_mask,
-            need_weights=False,
-        )
+        x = x.view(tsz, bsz, 2, -1)
+        x = torch.cat([x[0, :, 1], x[lengths - 1, torch.arange(len(lengths)), 0]], dim=-1)
 
-        x = self.ln_q(enc_q)
+        _, unperm_idx = perm_idx.sort(0)
+        x = x[unperm_idx]
+
         x = self.last_dropout(x)
-
-        x = self.proj(x).squeeze(-1).t()
+        x = self.proj(x)
 
         return x
 
@@ -456,9 +449,10 @@ class HybridSentenceClassifier(BaseFairseqModel):
         """Add model-specific arguments to the parser."""
         parser.add_argument('--lm-path', metavar='PATH', help='path to elmo model')
         parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
+        parser.add_argument('--model-dropout', type=float, metavar='N', help='dropout for the model')
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
         parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
-        parser.add_argument('--num-heads', type=int, metavar='D', help='number of attn heads')
+        parser.add_argument('--lstm-dim', type=int, metavar='D', help='lstm dim')
 
     @classmethod
     def build_model(cls, args, task):
@@ -472,7 +466,8 @@ class HybridSentenceClassifier(BaseFairseqModel):
         assert args.lm_path is not None
 
         task = LanguageModelingTask(args, dictionary, dictionary)
-        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {'remove_head': True})
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task,
+                                                      {'remove_head': True, 'dropout': args.model_dropout})
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
         return HybridSentenceClassifier(args, models[0], dictionary.eos(), dictionary.pad())
@@ -497,8 +492,9 @@ def base_architecture_ft(args):
 def base_architecture_hybrid(args):
     args.model_dim = getattr(args, 'model_dim', 1024)
     args.last_dropout = getattr(args, 'last_dropout', 0.3)
-    args.num_heads = getattr(args, 'num_heads', 16)
+    args.lstm_dim = getattr(args, 'lstm_dim', 1024)
     args.embedding_dropout = getattr(args, 'embedding_dropout', 0.3)
+    args.model_dropout = getattr(args, 'model_dropout', 0.1)
 
 
 @register_model_architecture('sentence_classifier_lstm', 'sentence_classifier_lstm')

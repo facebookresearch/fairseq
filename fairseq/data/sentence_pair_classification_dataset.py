@@ -26,6 +26,7 @@ def collate(samples, pad_idx, eos_idx):
             'sentence2': data_utils.collate_tokens(
                 [s['sentence2'] for s in samples], pad_idx, eos_idx, left_pad=False,
             ),
+            'sent1_lengths': torch.stack([s['sent1_lengths'] for s in samples], dim=0),
         },
         'target': torch.stack([s['target'] for s in samples], dim=0),
         'nsentences': samples[0]['sentence1'].size(0),
@@ -54,14 +55,14 @@ class SentencePairClassificationDataset(FairseqDataset):
 
     def __getitem__(self, index):
         sent1 = self.dataset1[index]
+        sent1_len = sent1.numel()
         sent2 = self.dataset2[index]
         lbl = self.labels[index]
 
         sent1, sent2 = self._join_sents(sent1, sent2)
 
-
-        return {'id': index, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.tensor([lbl])}
-
+        return {'id': index, 'sentence1': sent1, 'sentence2': sent2, 'sent1_lengths': torch.LongTensor([sent1_len]),
+                'target': torch.tensor([lbl])}
 
     def _join_sents(self, sent1, sent2):
         eos = sent1.new_full((1,), self.vocab.eos())
@@ -94,11 +95,13 @@ class SentencePairClassificationDataset(FairseqDataset):
         sent2 = self.vocab.dummy_sentence(tgt_len + 2)
 
         sent1[sent1.eq(self.vocab.unk())] = 66
+        sent1_len = sent1.numel()
         sent2[sent2.eq(self.vocab.unk())] = 66
         sent1, sent2 = self._join_sents(sent1, sent2)
 
         return self.collater([
-            {'id': i, 'sentence1': sent1, 'sentence2': sent2, 'target': torch.tensor([self.labels[0]])}
+            {'id': i, 'sentence1': sent1, 'sentence2': sent2, 'sent1_lengths': torch.LongTensor([sent1_len]),
+             'target': torch.tensor([self.labels[0]])}
             for i in range(bsz)
         ])
 
@@ -129,8 +132,8 @@ class SentencePairClassificationDataset(FairseqDataset):
     @property
     def supports_prefetch(self):
         return (
-            hasattr(self.dataset1, 'supports_prefetch')
-            and self.dataset1.supports_prefetch
-            and hasattr(self.dataset2, 'supports_prefetch')
-            and self.dataset2.supports_prefetch
+                hasattr(self.dataset1, 'supports_prefetch')
+                and self.dataset1.supports_prefetch
+                and hasattr(self.dataset2, 'supports_prefetch')
+                and self.dataset2.supports_prefetch
         )

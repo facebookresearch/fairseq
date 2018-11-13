@@ -214,21 +214,41 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
 
         assert args.concat_sentences_mode in ('eos')
 
+        self.pos_emb = PositionalEmbedding(1024, args.model_dim, pad_idx, False, learned=False)
+        self.pos_markers = nn.Parameter(torch.Tensor(2, args.model_dim))
+
         self.reset_parameters()
 
     def reset_parameters(self):
         torch.nn.init.constant_(self.proj.weight, 0)
         torch.nn.init.constant_(self.proj.bias, 0)
+        torch.nn.init.xavier_normal_(self.pos_markers)
 
-    def forward(self, sentence1, sentence2):
+    def forward(self, sentence1, sentence2, sent1_lengths):
         assert sentence2.numel() == 0, 's1={}, s2={}'.format(sentence1.numel(), sentence2.numel())
-        x, _ = self.language_model(sentence1)
+
+        pos_embs = self.pos_emb(sentence1.new_full(sentence1.shape, self.eos_idx))
+
+        embs = pos_embs.clone()
+        embs += self.pos_markers[0]
+        ar = (utils.buffered_arange(sentence1.size(1))).expand(sentence1.shape).to(sentence1.device)
+        no_emb_mask = ar.eq(sent1_lengths)
+        mask = ar.gt(sent1_lengths)
+        ar = ar - mask.size(1) + mask.long().sum(dim=1).unsqueeze(1)
+        mask = ar.ge(0)
+        embs[mask] = pos_embs[0, ar[mask]] + self.pos_markers[1]
+        embs[no_emb_mask] = pos_embs[no_emb_mask]
+        # embs=None
+
+        x, _ = self.language_model(sentence1, pos_embs=embs)
         if isinstance(x, list):
             x = x[0]
 
         idxs = sentence1.eq(self.eos_idx)
 
         x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 eoses per sample
+        # x = torch.cat([x[:,0].unsqueeze(1), x[:,-1].unsqueeze(1)], dim=1)
+        # x = x.view(x.shape[0], 1, -1)
 
         x = self.last_dropout(x)
         x = self.proj(x).squeeze(-1)
@@ -387,6 +407,8 @@ class HybridSentencePairClassifier2(BaseFairseqModel):
 
         assert args.concat_sentences_mode in ('eos')
 
+        self.pos_emb = PositionalEmbedding(1024, args.model_dim, pad_idx, False, learned=False)
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -394,13 +416,22 @@ class HybridSentencePairClassifier2(BaseFairseqModel):
         torch.nn.init.xavier_uniform_(self.proj.weight)
         torch.nn.init.constant_(self.proj.bias, 0)
 
-    def forward(self, sentence1, sentence2):
+    def forward(self, sentence1, sentence2, sent1_lengths):
 
         input_padding_mask = sentence1.eq(self.pad_idx)
         if not input_padding_mask.any():
             input_padding_mask = None
 
-        x, _ = self.language_model(sentence1)
+        pos_embs = self.pos_emb(sentence1.new_full(sentence1.shape, self.eos_idx))
+
+        embs = pos_embs.clone()
+        ar = (utils.buffered_arange(sentence1.size(1))).expand(sentence1.shape).to(sentence1.device)
+        mask = ar.gt(sent1_lengths)
+        ar = ar - mask.size(1) + mask.long().sum(dim=1).unsqueeze(1)
+        mask = ar.ge(0)
+        embs[mask] = pos_embs[0, ar[mask]]
+
+        x, _ = self.language_model(sentence1, pos_embs=embs)
         if isinstance(x, list):
             x = x[0]
 

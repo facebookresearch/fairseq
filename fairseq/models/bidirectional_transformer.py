@@ -196,7 +196,7 @@ class BiTransformerDecoder(FairseqDecoder):
                 self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
                 nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
-    def forward(self, source_tokens, **unused):
+    def forward(self, source_tokens, pos_embs=None, **unused):
         """ Forward pass for the bidirectional transformer
 
         Args:
@@ -226,7 +226,10 @@ class BiTransformerDecoder(FairseqDecoder):
             padding_mask = None
 
         # embed positions
-        positions = self.embed_positions(source_tokens) if self.embed_positions is not None else None
+        if pos_embs is not None:
+            positions = pos_embs
+        else:
+            positions = self.embed_positions(source_tokens) if self.embed_positions is not None else None
 
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(source_tokens)
