@@ -288,10 +288,11 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     if val_loss is not None:
         save_checkpoint.best = min(val_loss, prev_best)
     extra_state = {
-        'best': save_checkpoint.best,
         'train_iterator': epoch_itr.state_dict(),
         'val_loss': val_loss,
     }
+    if hasattr(save_checkpoint, 'best'):
+        extra_state.update({'best': save_checkpoint.best})
 
     checkpoints = [os.path.join(args.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond]
     if len(checkpoints) > 0:
