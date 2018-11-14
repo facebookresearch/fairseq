@@ -55,8 +55,7 @@ def main(parsed_args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(parsed_args.path))
-    model_arg_overrides = {"tokens_per_sample": parsed_args.tokens_per_sample}
-    models, args = utils.load_ensemble_for_inference(parsed_args.path.split(':'), task, model_arg_overrides=model_arg_overrides)
+    models, args = utils.load_ensemble_for_inference(parsed_args.path.split(':'), task, model_arg_overrides=eval(parsed_args.model_overrides))
 
     for arg in vars(parsed_args).keys():
         if arg not in {'self_target', 'future_target', 'past_target', 'tokens_per_sample', 'output_size_dictionary'}:
