@@ -153,7 +153,7 @@ class MonolingualDataset(FairseqDataset):
         """Return a dummy batch with a given number of tokens."""
         if isinstance(max_positions, float) or isinstance(max_positions, int):
             tgt_len = min(tgt_len, max_positions)
-        bsz = num_tokens // tgt_len
+        bsz = max(num_tokens // tgt_len, 1)
         target = self.vocab.dummy_sentence(tgt_len + 2)
         source, past_target, future_target = target[1:-1], target[2:], target[:-2]
         source, target = self._make_source_target(source, past_target, future_target)
