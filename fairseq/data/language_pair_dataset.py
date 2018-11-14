@@ -192,7 +192,7 @@ class LanguagePairDataset(FairseqDataset):
             max_positions,
             (self.max_source_positions, self.max_target_positions),
         )
-        bsz = num_tokens // max(src_len, tgt_len)
+        bsz = max(num_tokens // max(src_len, tgt_len), 1)
         return self.collater([
             {
                 'id': i,
