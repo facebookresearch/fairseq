@@ -160,6 +160,10 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
         model.load_state_dict(state['model'], strict=True)
         ensemble.append(model)
 
+        # some args (e.g., tokens_per_sample) might have been updated while building the model
+        if model_arg_overrides is not None:
+            args = _override_model_args(args, model_arg_overrides)
+
     return ensemble, args
 
 
