@@ -754,9 +754,13 @@ def Embedding(num_embeddings, embedding_dim, padding_idx):
     return m
 
 
-def LayerNorm(embedding_dim):
-    m = nn.LayerNorm(embedding_dim)
-    return m
+class LayerNorm(nn.LayerNorm):
+
+    def __init__(self, embedding_dim):
+        super().__init__(embedding_dim)
+
+    def forward(self, x):
+        return super().forward(x.float()).type_as(x)
 
 
 def Linear(in_features, out_features, bias=True):

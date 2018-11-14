@@ -40,7 +40,7 @@ class Trainer(object):
         # copy model and criterion to current device
         self.criterion = criterion.cuda()
         if args.fp16:
-            self._model = model.half().cuda()
+            self._model = utils.convert_model_to_fp16_(model).cuda()
         else:
             self._model = model.cuda()
 
