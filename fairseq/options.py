@@ -274,6 +274,8 @@ def add_common_eval_args(group):
     group.add_argument('--cpu', action='store_true', help='generate on CPU')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
+    group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
+                       help='a dictionary used to override model args at generation that were used during model training')
 
 
 def add_eval_lm_args(parser):
@@ -330,8 +332,6 @@ def add_generation_args(parser):
                        help='strength of diversity penalty for Diverse Beam Search')
     group.add_argument('--print-alignment', action='store_true',
                        help='if set, uses attention feedback to compute and print alignment to source tokens')
-    group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
-                       help='a dictionary used to override model args at generation that were used during model training')
     return group
 
 
