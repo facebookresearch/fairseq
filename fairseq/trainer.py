@@ -134,6 +134,8 @@ class Trainer(object):
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
             self._num_updates = last_optim['num_updates']
+        else:
+            self._build_optimizer()
 
         if extra_state is not None and 'train_meters' in extra_state:
             self.meters.update(extra_state['train_meters'])

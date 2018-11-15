@@ -20,28 +20,27 @@ class SquadCriterion(FairseqCriterion):
         super().__init__(args, task)
 
     def forward(self, model, sample, reduce=True):
-        """Compute the loss for the given sample.
 
-        Returns a tuple with three elements:
-        1) the loss
-        2) the sample size, which is used as the denominator for the gradient
-        3) logging outputs to display while training
-        """
-        net_output = model(**sample['net_input'])
-        lprobs = model.get_normalized_probs(net_output, log_probs=True)
-        lprobs = lprobs.view(-1, lprobs.size(-1))
-        target = model.get_targets(sample, net_output).view(-1)
-        loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx,
-                          reduce=reduce)
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        targets = sample['target']
+
+        outs = model(**sample['net_input'])
+
+        outs = [F.log_softmax(o, dim=-1).view(-1, o.size(-1)) for o in outs]
+
+        loss = outs[0].new_zeros(1 if reduce else targets[0].size(0))
+
+        for t, o in zip(targets, outs):
+            loss += F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
+
+        sample_size = targets[0].size(0)
+
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
             'ntokens': sample['ntokens'],
-            'nsentences': sample['target'].size(0),
+            'nsentences': sample['target'][0].size(0),
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
-
 
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):

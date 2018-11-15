@@ -16,7 +16,7 @@ def collate(samples, pad_idx, eos_idx, target_pad_idx):
     if len(samples) == 0:
         return {}
 
-    target_len = samples[0]['target']
+    target_len = len(samples[0]['target'])
     target = [torch.stack([s['target'][0] for s in samples], dim=0)]
     for i in range(1, target_len):
         target.append(data_utils.collate_tokens(
@@ -65,12 +65,13 @@ class SquadDataset(FairseqDataset):
         text = self._join_sents(sent2, sent1)
 
         start_target = torch.LongTensor(text.shape).fill_(self.pad_idx)
-        end_target = start_target.clone()
 
         if len(lbl) == 0:
             is_impossible_target = torch.tensor([1])
+            end_target = start_target
         else:
             is_impossible_target = torch.tensor([0])
+            end_target = start_target.clone()
             start_target[1:sent1.numel()] = 0  # leave eos as pads
             end_target[1:sent1.numel()] = 0  # leave eos as pads
             for s, e in lbl:
@@ -108,7 +109,7 @@ class SquadDataset(FairseqDataset):
         target = (torch.tensor([0]), torch.tensor([self.pad_idx] * len(text)), torch.tensor([self.pad_idx] * len(text)))
 
         return self.collater([
-            {'id': i, 'sentence1': sent1, 'sentence2': sent2, 'target': target}
+            {'id': i, 'text': text, 'target': target}
             for i in range(bsz)
         ])
 

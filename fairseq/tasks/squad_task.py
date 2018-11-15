@@ -96,11 +96,12 @@ class SquadTask(FairseqTask):
                 break
             with open(base_path + '.lbl', 'r') as lbl_f:
                 lines = lbl_f.readlines()
-                lbls = [int(x) for l in lines for x in l.split()]
-                impossible = lbls[0] == 1
-                answers = [] if impossible else list(zip(lbls[1::2], lbls[2::2]))
+                for line in lines:
+                    lbls = [int(x) for x in line.strip().split()]
+                    impossible = lbls[0] == 1
+                    answers = [] if impossible else list(zip(lbls[1::2], lbls[2::2]))
 
-                loaded_labels.append(answers)
+                    loaded_labels.append(answers)
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[0][-1])))
 
@@ -119,7 +120,7 @@ class SquadTask(FairseqTask):
             sizes2 = np.concatenate([ds.sizes for ds in loaded_datasets[1]])
 
         self.datasets[split] = SquadDataset(
-            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary
+            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary, self.padding_idx
         )
 
     def extra_meters(self):

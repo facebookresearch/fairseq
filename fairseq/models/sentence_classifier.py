@@ -363,6 +363,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
         parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
 
     @classmethod
     def build_model(cls, args, task):
@@ -376,8 +378,12 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         assert args.lm_path is not None
 
         task = LanguageModelingTask(args, dictionary, dictionary)
-        models, _ = utils.load_ensemble_for_inference([args.lm_path], task,
-                                                      {'remove_head': True, 'dropout': args.model_dropout})
+        models, _ = utils.load_ensemble_for_inference(
+            [args.lm_path], task,
+            {'remove_head': True,
+             'dropout': args.model_dropout,
+             'attention_dropout': args.attention_dropout,
+             'relu_dropout': args.relu_dropout, })
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
         return FinetuningSentenceClassifier(args, models[0], dictionary.eos())
@@ -486,6 +492,8 @@ def base_architecture_ft(args):
     args.model_dim = getattr(args, 'model_dim', 1024)
     args.last_dropout = getattr(args, 'last_dropout', 0.3)
     args.model_dropout = getattr(args, 'model_dropout', 0.1)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
+    args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
 
 
 @register_model_architecture('hybrid_sentence_classifier', 'hybrid_sentence_classifier')
