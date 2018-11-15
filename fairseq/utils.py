@@ -147,12 +147,24 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
         state = _upgrade_state_dict(state)
         states.append(state)
 
+    overridden_args = None
+    if model_arg_overrides is not None and 'model_args_state' in model_arg_overrides:
+        state = torch.load(model_arg_overrides['model_args_state'], map_location=lambda s, l: default_restore_location(s, 'cpu'))
+        overridden_args = state['args']
+
     ensemble = []
     for state in states:
-        args = state['args']
+        args = state['args'] if overridden_args is None else overridden_args
 
         if model_arg_overrides is not None:
             args = _override_model_args(args, model_arg_overrides)
+
+        if model_arg_overrides is not None and 'load_prefix' in model_arg_overrides:
+            pref = model_arg_overrides['load_prefix']
+            for k in list(state['model'].keys()):
+                if k.startswith(pref):
+                    state['model'][k[len(pref):]] = state['model'][k]
+                del state['model'][k]
 
         # build model for ensemble
         model = task.build_model(args)
