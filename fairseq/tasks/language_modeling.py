@@ -87,11 +87,14 @@ class LanguageModelingTask(FairseqTask):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
-        dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
-        print('| dictionary: {} types'.format(len(dictionary)))
-        output_dictionary = dictionary
-        if args.output_dictionary_size >= 0:
-            output_dictionary = TruncatedDictionary(dictionary, args.output_dictionary_size)
+        dictionary = None
+        output_dictionary = None
+        if args.data:
+            dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
+            print('| dictionary: {} types'.format(len(dictionary)))
+            output_dictionary = dictionary
+            if args.output_dictionary_size >= 0:
+                output_dictionary = TruncatedDictionary(dictionary, args.output_dictionary_size)
 
         # upgrade old checkpoints
         if hasattr(args, 'exclude_self_target'):

@@ -51,7 +51,11 @@ class CharacterTokenEmbedder(torch.nn.Module):
 
         self.projection = nn.Linear(last_dim, word_embed_dim)
 
-        self.set_vocab(vocab, max_char_len)
+        assert vocab is not None or char_inputs, "vocab must be set if not using char inputs"
+        self.vocab = None
+        if vocab is not None:
+            self.set_vocab(vocab, max_char_len)
+
         self.reset_parameters()
 
     def set_vocab(self, vocab, max_char_len):
@@ -78,7 +82,7 @@ class CharacterTokenEmbedder(torch.nn.Module):
 
     @property
     def padding_idx(self):
-        return self.vocab.pad()
+        return Dictionary().pad() if self.vocab is None else self.vocab.pad()
 
     def reset_parameters(self):
         nn.init.xavier_normal_(self.char_embeddings.weight)
