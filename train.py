@@ -227,6 +227,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
                 m.reset()
         extra_meters = collections.defaultdict(lambda: AverageMeter())
 
+        misclassified = []
         for sample in progress:
             log_output = trainer.valid_step(sample)
 
@@ -234,6 +235,9 @@ def validate(args, trainer, task, epoch_itr, subsets):
                 if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size', 'extra_metrics']:
                     continue
                 extra_meters[k].update(v)
+
+            if 'extra_metrics' in log_output and 'misclassified' in log_output['extra_metrics']:
+                misclassified += log_output['extra_metrics']['misclassified']
 
         # log validation stats
         stats = get_valid_stats(trainer)
@@ -246,6 +250,9 @@ def validate(args, trainer, task, epoch_itr, subsets):
                     stats[n] = v
 
         progress.print(stats)
+
+        if len(misclassified) > 0:
+            print(misclassified, flush=True)
 
         valid_losses.append(stats['valid_loss'])
     return valid_losses

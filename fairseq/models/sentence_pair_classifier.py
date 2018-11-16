@@ -26,6 +26,8 @@ from fairseq.models.transformer import (
     Embedding, LayerNorm, Linear, PositionalEmbedding,
 )
 
+from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
+
 
 class AttentionLayer(nn.Module):
     def __init__(self, dim, dropout):
@@ -36,9 +38,9 @@ class AttentionLayer(nn.Module):
         self.ln_h = nn.LayerNorm(dim)
 
         self.qh_ffn = nn.Sequential(
-            nn.Linear(dim, dim * 2),
+            nn.Linear(dim, dim * 4),
             nn.ReLU(),
-            nn.Linear(dim * 2, dim),
+            nn.Linear(dim * 4, dim),
         )
         self.dropout = nn.Dropout(dropout)
 
@@ -206,7 +208,16 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         self.unk_idx = unk_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
-        self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels, bias=True)
+        self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels if args.num_labels > 0 else 1, bias=True)
+
+        if args.pos_markers:
+            self.pos_emb = PositionalEmbedding(1024, args.model_dim, pad_idx, False, learned=False)
+            self.pos_markers = nn.Parameter(torch.Tensor(2, args.model_dim))
+            self.continuous_pos = args.continuous_pos
+        else:
+            self.pos_emb = None
+            self.pos_markers = None
+
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
@@ -219,10 +230,32 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
     def reset_parameters(self):
         torch.nn.init.constant_(self.proj.weight, 0)
         torch.nn.init.constant_(self.proj.bias, 0)
+        if self.pos_markers is not None:
+            torch.nn.init.xavier_normal_(self.pos_markers, gain=0.5)
 
-    def forward(self, sentence1, sentence2):
+    def forward(self, sentence1, sentence2, sent1_lengths):
         assert sentence2.numel() == 0, 's1={}, s2={}'.format(sentence1.numel(), sentence2.numel())
-        x, _ = self.language_model(sentence1)
+
+        if self.pos_emb is not None:
+            pos_embs = self.pos_emb(sentence1.new_full(sentence1.shape, self.eos_idx))
+
+            embs = pos_embs.clone()
+            embs += self.pos_markers[0]
+            ar = (utils.buffered_arange(sentence1.size(1))).expand(sentence1.shape).to(sentence1.device)
+            no_emb_mask = ar.eq(sent1_lengths)
+            mask = ar.gt(sent1_lengths)
+
+            if self.continuous_pos:
+                embs[mask] = pos_embs[mask] + self.pos_markers[1]
+            else:
+                ar = ar - mask.size(1) + mask.long().sum(dim=1).unsqueeze(1)
+                mask = ar.ge(0)
+                embs[mask] = pos_embs[0, ar[mask]] + self.pos_markers[1]
+            embs[no_emb_mask] = pos_embs[no_emb_mask]
+        else:
+            embs = None
+
+        x, _ = self.language_model(sentence1, pos_embs=embs)
         if isinstance(x, list):
             x = x[0]
 
@@ -240,9 +273,202 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         """Add model-specific arguments to the parser."""
         parser.add_argument('--lm-path', metavar='PATH', help='path to elmo model')
         parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
-        parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
         parser.add_argument('--dropout', type=float, metavar='D', help='model dropout')
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
+        parser.add_argument('--pos-markers', action='store_true', help='add sent markers if set')
+        parser.add_argument('--continuous-pos', action='store_true', help='if true positions are continuous')
+        parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
+
+    @classmethod
+    def build_model(cls, args, task):
+        """Build a new model instance."""
+
+        # make sure all arguments are present in older models
+        base_architecture(args)
+
+        dictionary = task.dictionary
+
+        assert args.lm_path is not None
+
+        task = LanguageModelingTask(args, dictionary, dictionary)
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {
+            'remove_head': True,
+            'dropout': args.model_dropout,
+            'attention_dropout': args.attention_dropout,
+            'relu_dropout': args.relu_dropout,
+            # 'model_args_state': '/checkpoint02/edunov/lm/models/cc_9000m/checkpoint_best.pt',
+            # 'load_prefix': 'language_model.'
+        })
+        assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
+
+        return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
+
+
+@register_model('hybrid_sentence_pair_classifier')
+class HybridSentencePairClassifier(BaseFairseqModel):
+    def __init__(self, args, language_model, eos_idx, pad_idx, unk_idx):
+        super().__init__()
+
+        self.language_model = language_model
+        self.eos_idx = eos_idx
+        self.pad_idx = pad_idx
+        self.unk_idx = unk_idx
+
+        self.language_model = language_model
+        self.eos_idx = eos_idx
+        self.pad_idx = pad_idx
+
+        self.lstm = nn.LSTM(
+            input_size=args.model_dim,
+            hidden_size=args.lstm_dim,
+            bias=False,
+            bidirectional=True,
+        )
+
+        self.embedding_dropout = nn.Dropout(args.embedding_dropout)
+        self.last_dropout = nn.Dropout(args.last_dropout)
+        self.proj = torch.nn.Linear(args.lstm_dim * 2, args.num_labels, bias=True)
+
+        if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
+            print('disabling training char convolutions')
+            self.language_model.decoder.embed_tokens.disable_convolutional_grads()
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.xavier_uniform_(self.proj.weight)
+        torch.nn.init.constant_(self.proj.bias, 0)
+
+    def forward(self, sentence1, sentence2):
+
+        src_tokens = sentence1
+
+        src_lengths = src_tokens.ne(self.pad_idx).long().sum(dim=-1)
+
+        bsz, tsz = src_tokens.size()
+
+        x, _ = self.language_model(src_tokens)
+        if isinstance(x, list):
+            x = x[0]
+
+        x = self.embedding_dropout(x)
+
+        seq_lengths, perm_idx = src_lengths.sort(0, descending=True)
+        x = x[perm_idx]
+        x = x.transpose(0, 1)
+        x = pack_padded_sequence(x, seq_lengths.cpu().numpy())
+        x, _ = self.lstm(x)
+        x, lengths = pad_packed_sequence(x)
+
+        x = x.view(tsz, bsz, 2, -1)
+        x = torch.cat([x[0, :, 1], x[lengths - 1, torch.arange(len(lengths)), 0]], dim=-1)
+
+        _, unperm_idx = perm_idx.sort(0)
+        x = x[unperm_idx]
+
+        x = self.last_dropout(x)
+        x = self.proj(x)
+
+        return x
+
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        parser.add_argument('--lm-path', metavar='PATH', help='path to elmo model')
+        parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
+        parser.add_argument('--model-dropout', type=float, metavar='N', help='dropout for the model')
+        parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
+        parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
+        parser.add_argument('--lstm-dim', type=int, metavar='D', help='lstm dim')
+
+    @classmethod
+    def build_model(cls, args, task):
+        """Build a new model instance."""
+
+        # make sure all arguments are present in older models
+        base_architecture(args)
+
+        dictionary = task.dictionary
+
+        assert args.lm_path is not None
+
+        task = LanguageModelingTask(args, dictionary, dictionary)
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task,
+                                                      {'remove_head': True, 'dropout': args.model_dropout})
+        assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
+
+        return HybridSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
+
+@register_model('hybrid_sentence_pair_classifier2')
+class HybridSentencePairClassifier2(BaseFairseqModel):
+    def __init__(self, args, language_model, eos_idx, pad_idx, unk_idx):
+        super().__init__()
+
+        self.language_model = language_model
+        self.eos_idx = eos_idx
+        self.pad_idx = pad_idx
+
+        self.class_queries = nn.Parameter(torch.Tensor(args.num_labels, args.model_dim))
+        self.embedding_dropout = nn.Dropout(args.embedding_dropout)
+        self.attn = MultiheadAttention(args.model_dim, args.num_heads, head_dim=128, add_bias_kv=True)
+        self.ln_q = nn.LayerNorm(args.model_dim, elementwise_affine=False)
+        self.last_dropout = nn.Dropout(args.last_dropout)
+        self.proj = torch.nn.Linear(args.model_dim, 1, bias=True)
+
+        if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
+            print('disabling training char convolutions')
+            self.language_model.decoder.embed_tokens.disable_convolutional_grads()
+
+            assert args.concat_sentences_mode in ('eos')
+
+            self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.normal_(self.class_queries)
+        torch.nn.init.xavier_uniform_(self.proj.weight)
+        torch.nn.init.constant_(self.proj.bias, 0)
+
+    def forward(self, sentence1, sentence2):
+
+        input_padding_mask = sentence1.eq(self.pad_idx)
+        if not input_padding_mask.any():
+            input_padding_mask = None
+
+        x, _ = self.language_model(sentence1)
+        if isinstance(x, list):
+            x = x[0]
+
+        x = x.transpose(0, 1)
+        x = self.embedding_dropout(x)
+
+        q = self.class_queries.unsqueeze(1).expand(self.class_queries.shape[0], x.shape[1],
+                                                   self.class_queries.shape[1])
+
+        enc_q, _ = self.attn(
+            query=q,
+            key=x,
+            value=x,
+            key_padding_mask=input_padding_mask,
+            need_weights=False,
+        )
+
+        x = self.ln_q(enc_q)
+        x = self.last_dropout(x)
+
+        x = self.proj(x).squeeze(-1).t()
+
+        return x
+
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        parser.add_argument('--lm-path', metavar='PATH', help='path to elmo model')
+        parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
+        parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
+        parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
+        parser.add_argument('--num-heads', type=int, metavar='D', help='number of attn heads')
 
     @classmethod
     def build_model(cls, args, task):
@@ -259,7 +485,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {'remove_head': True})
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
-        return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
+        return HybridSentencePairClassifier2(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
 
 
 @register_model_architecture('sentence_pair_classifier', 'sentence_pair_classifier')
@@ -273,4 +499,25 @@ def base_architecture(args):
 @register_model_architecture('finetuning_sentence_pair_classifier', 'finetuning_sentence_pair_classifier')
 def base_architecture(args):
     args.model_dim = getattr(args, 'model_dim', 1024)
+    args.last_dropout = getattr(args, 'last_dropout', 0.1)
+    args.model_dropout = getattr(args, 'model_dropout', 0.1)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
+    args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
+    args.pos_markers = getattr(args, 'pos_markers', False)
+    args.continuous_pos = getattr(args, 'continuous_pos', False)
+
+
+@register_model_architecture('hybrid_sentence_pair_classifier', 'hybrid_sentence_pair_classifier')
+def base_architecture(args):
+    args.model_dim = getattr(args, 'model_dim', 1024)
+    args.last_dropout = getattr(args, 'last_dropout', 0.3)
+    args.lstm_dim = getattr(args, 'lstm_dim', 1024)
+    args.embedding_dropout = getattr(args, 'embedding_dropout', 0.3)
+    args.model_dropout = getattr(args, 'model_dropout', 0.1)
+
+@register_model_architecture('hybrid_sentence_pair_classifier2', 'hybrid_sentence_pair_classifier2')
+def base_architecture(args):
+    args.model_dim = getattr(args, 'model_dim', 1024)
+    args.embedding_dropout = getattr(args, 'embedding_dropout', 0.3)
+    args.dropout = getattr(args, 'dropout', 0.3)
     args.last_dropout = getattr(args, 'last_dropout', 0.3)

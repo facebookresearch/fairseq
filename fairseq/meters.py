@@ -7,6 +7,9 @@
 
 import math
 import time
+import numpy as np
+
+from scipy.stats import pearsonr, spearmanr
 
 
 class AverageMeter(object):
@@ -115,4 +118,27 @@ class ClassificationMeter(object):
             ('acc', self.acc),
             ('mcc', self.mcc),
             ('f1', self.f1),
+        ]
+
+class RegressionMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.xs = []
+        self.ys = []
+
+    def update(self, xs, ys):
+        self.xs += xs
+        self.ys += ys
+
+    def vals(self):
+        pearsons, _ = pearsonr(self.xs, self.ys)
+        spearmans, _ = spearmanr(self.xs, self.ys)
+
+        return [
+            ('pearsons', pearsons),
+            ('spearmans', spearmans),
         ]

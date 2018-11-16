@@ -58,7 +58,10 @@ def main():
     args = parser.parse_args()
     print(args)
 
-    labels = {l: i for i, l in enumerate(args.labels)}
+    if len(args.labels) == 1 and args.labels[0] == 'identity':
+        labels = None
+    else:
+        labels = {l: i for i, l in enumerate(args.labels)}
 
     for inp in args.inputs:
         filename = os.path.basename(inp)
@@ -96,7 +99,7 @@ def main():
                     print(sent1_col, sent2_col, label_col)
                     print(parts[sent1_col])
                     print(parts[sent2_col])
-                label = labels[parts[label_col]]
+                label = labels[parts[label_col]] if labels is not None else parts[label_col]
                 print(label, file=lbl_out)
                 print(parts[sent1_col], file=s1_out)
                 print(parts[sent2_col], file=s2_out)

@@ -123,6 +123,7 @@ class SentenceClassificationTask(FairseqTask):
         return {
             'classification': tuple(
                 reduce(lambda q, w: (sum(x) for x in zip(q, w)), [log['extra_metrics']['classification'] for log in logs if 'extra_metrics' in log])),
+            'misclassified': sum([log['extra_metrics']['misclassified'] for log in logs if 'extra_metrics' in log], [])
         }
 
     def get_loss(self, model, criterion, sample, is_valid=False):
@@ -133,17 +134,30 @@ class SentenceClassificationTask(FairseqTask):
             probs = (-loss).exp()
             pos = sample['target'].view(-1).eq(1)
             neg = sample['target'].view(-1).eq(0)
-            tp = (probs[pos] > 1 / self.num_labels).long().sum()
-            tn = (probs[neg] > 1 / self.num_labels).long().sum()
+
+            correct_pos = probs[pos] > 1 / self.num_labels
+            correct_neg = probs[neg] > 1 / self.num_labels
+
+            tp = correct_pos.long().sum()
+            tn = correct_neg.long().sum()
             fp = neg.long().sum() - tn
             fn = pos.long().sum() - tp
 
             logging_output['extra_metrics'] = {
                 'classification': (tp.item(), tn.item(), fp.item(), fn.item()),
+                'misclassified': []
             }
 
             loss = loss.sum()
             logging_output['loss'] = loss.item()
+
+            if False:
+                correct = pos.new_zeros(pos.shape)
+                correct[pos] = correct_pos
+                correct[neg] = correct_neg
+                incorrect = ~correct
+                incorrect_ids = sample['id'][incorrect.nonzero()]
+                logging_output['extra_metrics']['misclassified'] = incorrect_ids.squeeze().tolist()
 
         return loss, sample_size, logging_output
 

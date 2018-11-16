@@ -69,7 +69,7 @@ class TokenBlockDataset(FairseqDataset):
             curr = 0
             for sz in sizes:
                 # skip samples with just 1 example (which would be just the eos token)
-                if sz > 1:
+                if sz > 0:
                     self.slice_indices.append((curr, curr + sz))
                 curr += sz
         else:
@@ -87,7 +87,7 @@ class TokenBlockDataset(FairseqDataset):
             # past target is rotated to the left by 2 (padded if its first)
             if s == 0:
                 source = np.concatenate([[self.eos], self.cache[0:e - 1]])
-                past_target = np.concatenate([[self.pad, sindelf.eos], self.cache[0:e - 2]])
+                past_target = np.concatenate([[self.pad, self.eos], self.cache[0:e - 2]])
             else:
                 source = self.cache[s - 1: e - 1]
                 if s == 1:

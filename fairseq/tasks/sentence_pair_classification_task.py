@@ -16,7 +16,7 @@ from fairseq.data import (
     Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
     SentencePairClassificationDataset, TokenBlockDataset,
     IndexedDataset)
-from fairseq.meters import ClassificationMeter
+from fairseq.meters import ClassificationMeter, RegressionMeter
 
 from . import FairseqTask, register_task
 
@@ -106,12 +106,16 @@ class SentencePairClassificationTask(FairseqTask):
                 break
             with open(base_path + '.lbl', 'r') as lbl_f:
                 lines = lbl_f.readlines()
-                loaded_labels.extend(int(l) for l in lines)
+                cast = int if self.num_labels > 0 else float
+                loaded_labels.extend(cast(l) for l in lines)
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[0][-1])))
 
             if not combine:
                 break
+
+        if self.num_labels == 2:
+            loaded_labels = [l if l == 1 else 0 for l in loaded_labels]
 
         if len(loaded_datasets[0]) == 1:
             dataset1 = loaded_datasets[0][0]
@@ -129,42 +133,91 @@ class SentencePairClassificationTask(FairseqTask):
         )
 
     def extra_meters(self):
-        return {
-            'classification': ClassificationMeter(),
-        }
+        if self.num_labels > 0:
+            return {
+                'classification': ClassificationMeter(),
+            }
+        else:
+            return {
+                'regression': RegressionMeter()
+            }
 
     def aggregate_extra_metrics(self, logs):
-        return {
-            'classification': tuple(
-                reduce(lambda q, w: (sum(x) for x in zip(q, w)),
-                       [log['extra_metrics']['classification'] for log in logs if 'extra_metrics' in log]))
-        }
+        if self.num_labels > 0:
+            return {
+                'classification': tuple(
+                    reduce(lambda q, w: (sum(x) for x in zip(q, w)),
+                           [log['extra_metrics']['classification'] for log in logs if 'extra_metrics' in log])),
+                'misclassified': sum([log['extra_metrics']['misclassified'] for log in logs if 'extra_metrics' in log],
+                                     [])
+            }
+        else:
+            return {
+                'regression': tuple(
+                    reduce(lambda q, w: (sum(x, []) for x in zip(q, w)),
+                           [log['extra_metrics']['regression'] for log in logs if 'extra_metrics' in log]))
+            }
 
     def get_loss(self, model, criterion, sample, is_valid=False):
         loss, sample_size, logging_output = criterion(model, sample, reduce=not is_valid)
 
         if is_valid:
-            probs = (-loss).exp()
+            if self.num_labels > 0:
+                probs = (-loss).exp()
 
-            tp = tn = fp = fn = 0
+                tp = tn = fp = fn = 0
 
-            if self.num_labels == 2:
-                pos = sample['target'].view(-1).eq(1)
-                neg = sample['target'].view(-1).eq(0)
-                tp = (probs[pos] > 1 / self.num_labels).long().sum().item()
-                tn = (probs[neg] > 1 / self.num_labels).long().sum().item()
-                fp = neg.long().sum().item() - tn
-                fn = pos.long().sum().item() - tp
+                correct_by_lbl = []
+
+                if self.num_labels == 2:
+                    pos = sample['target'].view(-1).eq(1)
+                    neg = sample['target'].view(-1).eq(0)
+                    correct_pos = probs[pos] > 1 / self.num_labels
+                    correct_neg = probs[neg] > 1 / self.num_labels
+
+                    correct_by_lbl.extend([(pos, correct_pos), (neg, correct_neg)])
+
+                    tp = correct_pos.long().sum().item()
+                    tn = correct_neg.long().sum().item()
+                    fp = neg.long().sum().item() - tn
+                    fn = pos.long().sum().item() - tp
+                else:
+                    for i in range(self.num_labels + 1):
+                        pos = sample['target'].view(-1).eq(i)
+                        correct_lbl = probs[pos] > 1 / self.num_labels
+
+                        correct_by_lbl.append((pos, correct_lbl))
+
+                        c_tp = correct_lbl.long().sum().item()
+                        tp += c_tp
+                        fn += pos.long().sum().item() - c_tp
+
+                logging_output['extra_metrics'] = {
+                    'classification': (tp, tn, fp, fn),
+                    'misclassified': []
+                }
+
+                if False:
+                    correct = correct_by_lbl[0][1].new_zeros(probs.shape)
+
+                    for mask, corr in correct_by_lbl:
+                        correct[mask] = corr
+
+                    incorrect = ~correct
+                    incorrect_ids = sample['id'][incorrect.nonzero()]
+                    incorrect_probs = probs[incorrect.nonzero()]
+
+                    logging_output['extra_metrics']['misclassified'] = list(
+                        zip(incorrect_ids.squeeze(-1).tolist(),
+                            map(lambda x: round(x, 2), incorrect_probs.squeeze(-1).tolist())))
+
             else:
-                for i in range(self.num_labels + 1):
-                    pos = sample['target'].view(-1).eq(i)
-                    c_tp = (probs[pos] > 1 / self.num_labels).long().sum().item()
-                    tp += c_tp
-                    fn += pos.long().sum().item() - c_tp
+                xs = logging_output['preds'].view(-1).tolist()
+                ys = sample['target'].view(-1).tolist()
 
-            logging_output['extra_metrics'] = {
-                'classification': (tp, tn, fp, fn),
-            }
+                logging_output['extra_metrics'] = {
+                    'regression': (xs, ys),
+                }
 
             loss = loss.sum()
             logging_output['loss'] = loss.item()

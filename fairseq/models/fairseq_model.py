@@ -180,7 +180,7 @@ class FairseqLanguageModel(BaseFairseqModel):
         self.decoder = decoder
         assert isinstance(self.decoder, FairseqDecoder)
 
-    def forward(self, src_tokens, **unused):
+    def forward(self, src_tokens, **kwargs):
         """
         Run the forward pass for a decoder-only model.
 
@@ -194,7 +194,7 @@ class FairseqLanguageModel(BaseFairseqModel):
         Returns:
             the decoder's output, typically of shape `(batch, seq_len, vocab)`
         """
-        return self.decoder(src_tokens)
+        return self.decoder(src_tokens, **kwargs)
 
     def max_positions(self):
         """Maximum length supported by the model."""

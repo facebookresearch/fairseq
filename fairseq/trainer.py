@@ -134,6 +134,8 @@ class Trainer(object):
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
             self._num_updates = last_optim['num_updates']
+        else:
+            self._build_optimizer()
 
         if extra_state is not None and 'train_meters' in extra_state:
             self.meters.update(extra_state['train_meters'])
@@ -312,7 +314,10 @@ class Trainer(object):
             sample_size = [sample_size]
 
         # extra hacky!
-        extra_metrics = self.task.aggregate_extra_metrics(logging_output)
+        if hasattr(self.task, 'aggregate_extra_metrics'):
+            extra_metrics = self.task.aggregate_extra_metrics(logging_output)
+        else:
+            extra_metrics = None
 
         # aggregate logging outputs and sample sizes
         logging_output = self.criterion._aggregate_logging_outputs(logging_output)
