@@ -225,6 +225,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
 
         assert args.concat_sentences_mode in ('eos', 'unk', 'unk_only')
 
+        self.ln = nn.LayerNorm(args.model_dim * mult, elementwise_affine=False) if args.layer_norm else None
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -259,6 +261,9 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         if isinstance(x, list):
             x = x[0]
 
+        if self.ln is not None:
+            x = self.ln(x)
+
         idxs = sentence1.eq(self.eos_idx) | sentence1.eq(self.unk_idx)
 
         x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 eoses per sample
@@ -285,6 +290,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--pretraining', action='store_true', help='if true, load pretraining mode')
+        parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
 
     @classmethod
     def build_model(cls, args, task):
@@ -517,6 +523,7 @@ def base_architecture(args):
     args.pos_markers = getattr(args, 'pos_markers', False)
     args.continuous_pos = getattr(args, 'continuous_pos', False)
     args.pretraining = getattr(args, 'pretraining', False)
+    args.layer_norm = getattr(args, 'layer_norm', False)
 
 
 @register_model_architecture('hybrid_sentence_pair_classifier', 'hybrid_sentence_pair_classifier')
