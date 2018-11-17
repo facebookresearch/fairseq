@@ -170,17 +170,22 @@ class Trainer(object):
                 ignore_grad = False
 
             try:
+                if self.args.distributed_world_size > 1:
+                    # Whenever *samples* contains more than one mini-batch, we
+                    # want to accumulate gradients locally and only call
+                    # all-reduce in the last backwards pass. Currently the
+                    # *need_reduction* flag is only supported by
+                    # LegacyDistributedDataParallel.
+                    if i < len(samples) - 1:
+                        self.model.accumulate_grads = True
+                    else:
+                        self.model.accumulate_grads = False
+
                 # forward and backward
                 loss, sample_size, logging_output = self.task.train_step(
                     sample, self.model, self.criterion, self.optimizer,
                     ignore_grad
                 )
-                if self.args.distributed_world_size > 1:
-                    # only all-reduce gradients in the last backwards pass
-                    if i < len(samples) - 1:
-                        self.model.need_reduction = False
-                    else:
-                        self.model.need_reduction = True
 
                 if not ignore_grad:
                     logging_outputs.append(logging_output)
