@@ -219,13 +219,13 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             self.pos_emb = None
             self.pos_markers = None
 
+        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=False) if args.layer_norm else None
+
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
             self.language_model.decoder.embed_tokens.disable_convolutional_grads()
 
         assert args.concat_sentences_mode in ('eos', 'unk', 'unk_only')
-
-        self.ln = nn.LayerNorm(args.model_dim * mult, elementwise_affine=False) if args.layer_norm else None
 
         self.reset_parameters()
 
