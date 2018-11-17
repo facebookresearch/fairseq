@@ -208,7 +208,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         self.unk_idx = unk_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
-        self.proj = torch.nn.Linear(args.model_dim * 3, args.num_labels if args.num_labels > 0 else 1, bias=True)
+        mult = 3 if args.concat_sentences_mode == 'eos' or args.concat_sentences_mode == 'unk_only' else 5
+        self.proj = torch.nn.Linear(args.model_dim * mult, args.num_labels if args.num_labels > 0 else 1, bias=True)
 
         if args.pos_markers:
             self.pos_emb = PositionalEmbedding(1024, args.model_dim, pad_idx, False, learned=False)
@@ -218,12 +219,11 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             self.pos_emb = None
             self.pos_markers = None
 
-
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
             self.language_model.decoder.embed_tokens.disable_convolutional_grads()
 
-        assert args.concat_sentences_mode in ('eos')
+        assert args.concat_sentences_mode in ('eos', 'unk', 'unk_only')
 
         self.reset_parameters()
 
@@ -259,7 +259,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         if isinstance(x, list):
             x = x[0]
 
-        idxs = sentence1.eq(self.eos_idx)
+        idxs = sentence1.eq(self.eos_idx) | sentence1.eq(self.unk_idx)
 
         x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 eoses per sample
 
@@ -267,6 +267,10 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         x = self.proj(x).squeeze(-1)
 
         return x
+        # return x, F.cosine_similarity(self.pos_markers[0], self.pos_markers[1],
+        #                               dim=-1).abs() + (
+        #                       2 - self.pos_markers[0].norm().clamp(0, 1) - self.pos_markers[1].norm().clamp(0,
+        #                                                                                                     1)) if self.pos_markers is not None else None
 
     @staticmethod
     def add_args(parser):
@@ -280,6 +284,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--pretraining', action='store_true', help='if true, load pretraining mode')
 
     @classmethod
     def build_model(cls, args, task):
@@ -293,14 +298,19 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         assert args.lm_path is not None
 
         task = LanguageModelingTask(args, dictionary, dictionary)
-        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, {
+
+        overrides = {
             'remove_head': True,
             'dropout': args.model_dropout,
             'attention_dropout': args.attention_dropout,
             'relu_dropout': args.relu_dropout,
-            # 'model_args_state': '/checkpoint02/edunov/lm/models/cc_9000m/checkpoint_best.pt',
-            # 'load_prefix': 'language_model.'
-        })
+        }
+
+        if args.pretraining:
+            overrides['model_args_state'] = '/checkpoint02/edunov/lm/models/cc_9000m/checkpoint_best.pt'
+            overrides['load_prefix'] = 'language_model.'
+
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, overrides)
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
         return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
@@ -400,6 +410,7 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
         return HybridSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
+
 
 @register_model('hybrid_sentence_pair_classifier2')
 class HybridSentencePairClassifier2(BaseFairseqModel):
@@ -505,6 +516,7 @@ def base_architecture(args):
     args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
     args.pos_markers = getattr(args, 'pos_markers', False)
     args.continuous_pos = getattr(args, 'continuous_pos', False)
+    args.pretraining = getattr(args, 'pretraining', False)
 
 
 @register_model_architecture('hybrid_sentence_pair_classifier', 'hybrid_sentence_pair_classifier')
@@ -514,6 +526,7 @@ def base_architecture(args):
     args.lstm_dim = getattr(args, 'lstm_dim', 1024)
     args.embedding_dropout = getattr(args, 'embedding_dropout', 0.3)
     args.model_dropout = getattr(args, 'model_dropout', 0.1)
+
 
 @register_model_architecture('hybrid_sentence_pair_classifier2', 'hybrid_sentence_pair_classifier2')
 def base_architecture(args):

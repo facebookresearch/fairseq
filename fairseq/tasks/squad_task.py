@@ -130,11 +130,10 @@ class SquadTask(FairseqTask):
         pass
 
     def get_loss(self, model, criterion, sample, is_valid=False):
-        loss, sample_size, logging_output = criterion(model, sample, reduce=not is_valid)
+        loss, sample_size, logging_output = criterion(model, sample)
 
         if is_valid:
-            loss = loss.sum()
-            logging_output['loss'] = loss.item()
+            loss = logging_output['loss']
 
         return loss, sample_size, logging_output
 

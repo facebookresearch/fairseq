@@ -76,6 +76,9 @@ class SentencePairClassificationDataset(FairseqDataset):
         elif self.concat_sentences_mode == 'unk':
             sent1 = torch.cat([sent1, sent1.new_full((1,), self.vocab.unk()), eos, sent2])
             sent2 = sent2.new(0)
+        elif self.concat_sentences_mode == 'unk_only':
+            sent1 = torch.cat([sent1[:-1], sent1.new_full((1,), self.vocab.unk()), sent2])
+            sent2 = sent2.new(0)
         else:
             raise Exception('unknown concat sentence mode ' + self.concat_sentences_mode)
         return sent1, sent2

@@ -27,15 +27,26 @@ class SquadCriterion(FairseqCriterion):
 
         outs = [F.log_softmax(o, dim=-1).view(-1, o.size(-1)) for o in outs]
 
-        loss = outs[0].new_zeros(1 if reduce else targets[0].size(0))
+        if reduce:
+            losses = outs[0].new_zeros(1)
+            losses = (losses, losses, losses)
+        else:
+            losses = (out.new_zeros(out.shape[:-1]) for out in outs)
 
-        for t, o in zip(targets, outs):
+        for t, o, loss in zip(targets, outs, losses):
             loss += F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
+
+        if reduce:
+            loss = losses[0]
+            reduced_loss = loss
+        else:
+            loss = losses
+            reduced_loss = sum(l.sum() for l in losses)
 
         sample_size = targets[0].size(0)
 
         logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
+            'loss': utils.item(reduced_loss),
             'ntokens': sample['ntokens'],
             'nsentences': sample['target'][0].size(0),
             'sample_size': sample_size,
@@ -55,6 +66,4 @@ class SquadCriterion(FairseqCriterion):
             'nsentences': nsentences,
             'sample_size': sample_size,
         }
-        if sample_size != ntokens:
-            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
         return agg_output
