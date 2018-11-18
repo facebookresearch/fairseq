@@ -208,8 +208,14 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         self.unk_idx = unk_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
-        mult = 3 if args.concat_sentences_mode == 'eos' or args.concat_sentences_mode == 'unk_only' else 5
+        if args.concat_sentences_mode == 'eos':
+            mult = 3
+        elif args.concat_sentences_mode == 'unk_only':
+            mult = 2 + int(args.proj_unk)
+        else:
+            mult = 4 + int(args.proj_unk)
         self.proj = torch.nn.Linear(args.model_dim * mult, args.num_labels if args.num_labels > 0 else 1, bias=True)
+        self.proj_unk = args.proj_unk
 
         if args.pos_markers:
             self.pos_emb = PositionalEmbedding(1024, args.model_dim, pad_idx, False, learned=False)
@@ -223,7 +229,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
-            self.language_model.decoder.embed_tokens.disable_convolutional_grads()
+            self.language_model.decoder.embed_tokens.disable_convolutional_grads(copy_eos_to_unk=args.copy_eos_to_unk)
 
         assert args.concat_sentences_mode in ('eos', 'unk', 'unk_only')
 
@@ -264,7 +270,9 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         if self.ln is not None:
             x = self.ln(x)
 
-        idxs = sentence1.eq(self.eos_idx) | sentence1.eq(self.unk_idx)
+        idxs = sentence1.eq(self.eos_idx)
+        if self.proj_unk:
+            idxs = idxs | sentence1.eq(self.unk_idx)
 
         x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 eoses per sample
 
@@ -291,6 +299,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--pretraining', action='store_true', help='if true, load pretraining mode')
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
+        parser.add_argument('--copy-eos-to-unk', action='store_true', help='if true, initializes unk (used as sep) to weights from eos')
+        parser.add_argument('--proj-unk', action='store_true', help='if true, also includes unk emb in projection')
 
     @classmethod
     def build_model(cls, args, task):
@@ -524,6 +534,8 @@ def base_architecture(args):
     args.continuous_pos = getattr(args, 'continuous_pos', False)
     args.pretraining = getattr(args, 'pretraining', False)
     args.layer_norm = getattr(args, 'layer_norm', False)
+    args.copy_eos_to_unk = getattr(args, 'copy_eos_to_unk', False)
+    args.proj_unk = getattr(args, 'proj_unk', False)
 
 
 @register_model_architecture('hybrid_sentence_pair_classifier', 'hybrid_sentence_pair_classifier')
