@@ -146,8 +146,8 @@ class TestDataNoising(unittest.TestCase):
                 x[x_len[i] - 1][i],
                 eos,
                 (
-                    "Expected eos (token id {eos}) at the end of sentence {i} but "
-                    "got {other} instead"
+                    "Expected eos (token id {eos}) at the end of sentence {i} "
+                    "but got {other} instead"
                 ).format(i=i, eos=eos, other=x[i][-1]),
             )
 

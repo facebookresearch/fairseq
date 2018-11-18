@@ -242,7 +242,7 @@ class NoisingDataset(torch.utils.data.Dataset):
         seed,
         noiser=None,
         noising_class=UnsupervisedMTNoising,
-        **kwargs,
+        **kwargs
     ):
         """
         Sets up a noising dataset which takes a src batch, generates

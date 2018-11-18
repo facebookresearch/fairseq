@@ -120,7 +120,7 @@ def main(args):
     def file_name(prefix, lang):
         fname = prefix
         if lang is not None:
-            fname += f".{lang}"
+            fname += ".{lang}".format(lang=lang)
         return fname
 
     def dest_path(prefix, lang):

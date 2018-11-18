@@ -24,7 +24,7 @@ class BacktranslationDataset(FairseqDataset):
         remove_eos_at_src=False,
         generator_class=sequence_generator.SequenceGenerator,
         cuda=True,
-        **kwargs,
+        **kwargs
     ):
         """
         Sets up a backtranslation dataset which takes a tgt batch, generates
