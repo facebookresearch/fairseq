@@ -75,14 +75,15 @@ class FairseqOptimizer(object):
     def multiply_grads(self, c):
         """Multiplies grads by a constant ``c``."""
         for p in self.params:
-            p.grad.data.mul_(c)
+            if p.grad is not None:
+                p.grad.data.mul_(c)
 
     def clip_grad_norm(self, max_norm):
         """Clips gradient norm."""
         if max_norm > 0:
             return torch.nn.utils.clip_grad_norm_(self.params, max_norm)
         else:
-            return math.sqrt(sum(p.grad.data.norm()**2 for p in self.params))
+            return math.sqrt(sum(p.grad.data.norm()**2 for p in self.params if p.grad is not None))
 
     def step(self, closure=None):
         """Performs a single optimization step."""
