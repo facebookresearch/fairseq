@@ -29,9 +29,9 @@ class SquadCriterion(FairseqCriterion):
 
         if reduce:
             losses = outs[0].new_zeros(1)
-            losses = (losses, losses, losses)
+            losses = (losses,) * len(outs)
         else:
-            losses = (out.new_zeros(out.shape[:-1]) for out in outs)
+            losses = tuple(out.new_zeros(out.shape[:-1]) for out in outs)
 
         for t, o, loss in zip(targets, outs, losses):
             loss += F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)

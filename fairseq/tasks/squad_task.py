@@ -41,11 +41,16 @@ class SquadTask(FairseqTask):
     def add_args(parser):
         """Add task-specific arguments to the parser."""
         parser.add_argument('data', help='path to data directory')
+        parser.add_argument('--concat-sentences-mode', default='unk_only',
+                            help='concat sentences in the dataset. eos = eos concat, '
+                                 'unk = unk concat (with eos), unk_only = concat with unk')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
         self.padding_idx = -100
+        self.concat_sentences_mode = args.concat_sentences_mode
+        self.valid_groups = ('classification_imp', 'classification_start', 'classification_end')
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -120,19 +125,49 @@ class SquadTask(FairseqTask):
             sizes2 = np.concatenate([ds.sizes for ds in loaded_datasets[1]])
 
         self.datasets[split] = SquadDataset(
-            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary, self.padding_idx
+            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary, self.padding_idx,
+            self.concat_sentences_mode
         )
 
     def extra_meters(self):
-        return {}
+        return {
+            'classification_imp': ClassificationMeter('imp'),
+            'classification_start': ClassificationMeter('start'),
+            'classification_end': ClassificationMeter('end'),
+        }
 
     def aggregate_extra_metrics(self, logs):
-        pass
+        agg = {}
+        for m in self.valid_groups:
+            agg[m] = tuple(
+                reduce(lambda q, w: (sum(x) for x in zip(q, w)),
+                       [log['extra_metrics'][m] for log in logs if 'extra_metrics' in log]))
+        return agg
 
     def get_loss(self, model, criterion, sample, is_valid=False):
-        loss, sample_size, logging_output = criterion(model, sample)
+        loss, sample_size, logging_output = criterion(model, sample, reduce=not is_valid)
 
         if is_valid:
+            logging_output['extra_metrics'] = {}
+            for g, l, t in zip(self.valid_groups, loss, sample['target']):
+                probs = (-l).exp()
+                pos = t.view(-1).eq(1)
+                neg = t.view(-1).eq(0)
+
+                # tp = (probs[pos] > 1 / self.num_labels).long().sum() if pos.any() else probs.new_zeros(1).long()
+                # tn = (probs[neg] > 1 / self.num_labels).long().sum() if neg.any() else probs.new_zeros(1).long()
+
+                correct_pos = probs[pos] > 0.5
+                correct_neg = probs[neg] > 0.5
+
+                tp = correct_pos.long().sum()
+                tn = correct_neg.long().sum()
+
+                fp = neg.long().sum() - tn
+                fn = pos.long().sum() - tp
+
+                logging_output['extra_metrics'][g] = (tp.item(), tn.item(), fp.item(), fn.item())
+
             loss = logging_output['loss']
 
         return loss, sample_size, logging_output

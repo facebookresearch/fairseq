@@ -323,7 +323,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         }
 
         if args.pretraining:
-            overrides['model_args_state'] = '/checkpoint02/edunov/lm/models/cc_9000m/checkpoint_best.pt'
+            overrides['model_args_state'] = '/checkpoint/edunov/old_checkpoint02/lm/models/cc_9000m/checkpoint_best.pt'
             overrides['load_prefix'] = 'language_model.'
 
         models, _ = utils.load_ensemble_for_inference([args.lm_path], task, overrides)

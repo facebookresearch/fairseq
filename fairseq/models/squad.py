@@ -24,9 +24,21 @@ class FinetuningSquad(BaseFairseqModel):
         self.unk_idx = unk_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
+
+        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=False) if args.layer_norm else None
+
         self.start_proj = torch.nn.Linear(args.model_dim, 2, bias=True)
         self.end_proj = torch.nn.Linear(args.model_dim, 2, bias=True)
-        self.imp_proj = torch.nn.Linear(args.model_dim * 3, 2, bias=True)
+
+        if args.concat_sentences_mode == 'eos':
+            mult = 3
+        elif args.concat_sentences_mode == 'unk_only':
+            mult = 2 + int(args.proj_unk)
+        else:
+            mult = 4 + int(args.proj_unk)
+
+        self.imp_proj = torch.nn.Linear(args.model_dim * mult, 2, bias=True)
+        self.proj_unk = args.proj_unk
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
@@ -49,6 +61,9 @@ class FinetuningSquad(BaseFairseqModel):
         if isinstance(x, list):
             x = x[0]
 
+        if self.ln is not None:
+            x = self.ln(x)
+
         idxs = text.eq(self.eos_idx)
 
         x = self.last_dropout(x)
@@ -70,6 +85,8 @@ class FinetuningSquad(BaseFairseqModel):
         parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--proj-unk', action='store_true', help='if true, also includes unk emb in projection')
+        parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
 
     @classmethod
     def build_model(cls, args, task):
@@ -101,3 +118,5 @@ def base_architecture(args):
     args.model_dropout = getattr(args, 'model_dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
     args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
+    args.layer_norm = getattr(args, 'layer_norm', False)
+    args.proj_unk = getattr(args, 'proj_unk', False)

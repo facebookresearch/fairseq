@@ -49,13 +49,14 @@ class SquadDataset(FairseqDataset):
           Default: ``True``
     """
 
-    def __init__(self, dataset1, dataset2, labels, sizes1, sizes2, dictionary, pad_idx):
+    def __init__(self, dataset1, dataset2, labels, sizes1, sizes2, dictionary, pad_idx, concat_sentences_mode):
         self.dataset1, self.dataset2 = dataset1, dataset2
         self.sizes1, self.sizes2 = np.array(sizes1), np.array(sizes2)
         self.labels = np.array(labels)
         self.vocab = dictionary
         self.shuffle = True
         self.pad_idx = pad_idx
+        self.concat_sentences_mode = concat_sentences_mode
 
     def __getitem__(self, index):
         sent1 = self.dataset1[index]
@@ -86,7 +87,17 @@ class SquadDataset(FairseqDataset):
     def _join_sents(self, sent1, sent2):
         eos = sent1.new_full((1,), self.vocab.eos())
         sent1 = torch.cat([eos, sent1])
-        return torch.cat([sent1, sent2])
+
+        if self.concat_sentences_mode == 'eos':
+            text = torch.cat([sent1, sent2])
+        elif self.concat_sentences_mode == 'unk':
+            text = torch.cat([sent1, sent1.new_full((1,), self.vocab.unk()), eos, sent2])
+        elif self.concat_sentences_mode == 'unk_only':
+            text = torch.cat([sent1[:-1], sent1.new_full((1,), self.vocab.unk()), sent2])
+        else:
+            raise Exception('unknown concat sentence mode ' + self.concat_sentences_mode)
+
+        return text
 
     def __len__(self):
         return len(self.dataset1)
