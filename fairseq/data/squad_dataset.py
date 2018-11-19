@@ -30,6 +30,7 @@ def collate(samples, pad_idx, eos_idx, target_pad_idx):
             'text': data_utils.collate_tokens(
                 [s['text'] for s in samples], pad_idx, eos_idx, left_pad=False,
             ),
+            'paragraph_mask': data_utils.collate_tokens([s['paragraph_mask'] for s in samples], 0, 0, left_pad=False)
         },
         'target': target,
         'nsentences': len(samples),
@@ -59,13 +60,15 @@ class SquadDataset(FairseqDataset):
         self.concat_sentences_mode = concat_sentences_mode
 
     def __getitem__(self, index):
-        sent1 = self.dataset1[index]
-        sent2 = self.dataset2[index]
+        paragraph = self.dataset1[index]
+        question = self.dataset2[index]
         lbl = self.labels[index]
-        article_mask = torch.ones(sent1.numel() + 1).byte()
 
-        text = self._join_sents(sent2, sent1)
+        text = self._join_sents(question, paragraph)
 
+        question_len = question.numel() + 1  # account for bos
+
+        paragraph_mask = torch.zeros(text.shape).byte()
         start_target = torch.LongTensor(text.shape).fill_(self.pad_idx)
 
         if len(lbl) == 0:
@@ -73,17 +76,19 @@ class SquadDataset(FairseqDataset):
             end_target = start_target
         else:
             is_impossible_target = torch.tensor([0])
+            paragraph_mask[question_len:] = 1  # include last eos in case it is the end index
             end_target = start_target.clone()
-            start_target[1:sent1.numel()] = 0  # leave eos as pads
-            end_target[1:sent1.numel()+1] = 0  # include eos last
+
+            start_target[question_len:-1] = 0  # leave eos as pads
+            end_target[question_len + 1:] = 0  # first token cannot be end target
             for s, e in lbl:
                 assert e > s
-                start_target[s] = 1
-                end_target[e] = 1
+                start_target[question_len + s] = 1
+                end_target[question_len + e] = 1
 
         target = (is_impossible_target, start_target, end_target)
 
-        return {'id': index, 'text': text, 'target': target, 'article_mask': article_mask}
+        return {'id': index, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask}
 
     def _join_sents(self, sent1, sent2):
         eos = sent1.new_full((1,), self.vocab.eos())
@@ -118,10 +123,13 @@ class SquadDataset(FairseqDataset):
         sent2[sent2.eq(self.vocab.unk())] = 66
         text = self._join_sents(sent1, sent2)
 
+        paragraph_mask = torch.zeros(text.shape).byte()
+        paragraph_mask[sent2.numel():] = 1
+
         target = (torch.tensor([0]), torch.tensor([self.pad_idx] * len(text)), torch.tensor([self.pad_idx] * len(text)))
 
         return self.collater([
-            {'id': i, 'text': text, 'target': target}
+            {'id': i, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask}
             for i in range(bsz)
         ])
 

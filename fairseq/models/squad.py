@@ -56,7 +56,7 @@ class FinetuningSquad(BaseFairseqModel):
         torch.nn.init.constant_(self.imp_proj.weight, 0)
         torch.nn.init.constant_(self.imp_proj.bias, 0)
 
-    def forward(self, text):
+    def forward(self, text, paragraph_mask):
         x, _ = self.language_model(text)
         if isinstance(x, list):
             x = x[0]
@@ -73,8 +73,12 @@ class FinetuningSquad(BaseFairseqModel):
         eos_emb = x[idxs].view(text.size(0), 1, -1)  # assume only 3 eoses per sample
 
         imp = self.imp_proj(eos_emb).squeeze(-1)
-        start = self.start_proj(x)
-        end = self.end_proj(x)
+        if paragraph_mask.any():
+            paragraph_toks = x[paragraph_mask]
+            start = self.start_proj(paragraph_toks)
+            end = self.end_proj(paragraph_toks)
+        else:
+            start = end = x.new_zeros(0)
 
         return imp, start, end
 

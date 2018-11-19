@@ -9,6 +9,7 @@ from functools import reduce
 import itertools
 import numpy as np
 import os
+import torch
 
 from torch.utils.data import ConcatDataset
 
@@ -151,24 +152,24 @@ class SquadTask(FairseqTask):
             logging_output['extra_metrics'] = {}
             for g, l, t in zip(self.valid_groups, loss, sample['target']):
                 probs = (-l).exp()
-                pos = t.view(-1).eq(1)
-                neg = t.view(-1).eq(0)
 
-                # tp = (probs[pos] > 1 / self.num_labels).long().sum() if pos.any() else probs.new_zeros(1).long()
-                # tn = (probs[neg] > 1 / self.num_labels).long().sum() if neg.any() else probs.new_zeros(1).long()
+                if t.size(0) == probs.size(0):
+                    pos = t.view(-1).eq(1)
+                    neg = t.view(-1).eq(0)
+                    correct_pos = probs[pos] > 0.5
+                    correct_neg = probs[neg] > 0.5
+                    tp = correct_pos.long().sum().item()
+                    tn = correct_neg.long().sum().item()
+                    fp = (neg.long().sum() - tn).item()
+                    fn = (pos.long().sum() - tp).item()
+                else:
+                    preds = torch.argmax(probs.view(t.shape), dim=-1).unsqueeze(-1)
+                    tp = torch.gather(t, dim=1, index=preds).eq(1).long().sum().item()
+                    tn = 0
+                    fp = t.size(0) - tp
+                    fn = 0
 
-                num_labels = t.size(1)
-
-                correct_pos = probs[pos] > 0.5
-                correct_neg = probs[neg] > 0.5
-
-                tp = correct_pos.long().sum()
-                tn = correct_neg.long().sum()
-
-                fp = neg.long().sum() - tn
-                fn = pos.long().sum() - tp
-
-                logging_output['extra_metrics'][g] = (tp.item(), tn.item(), fp.item(), fn.item())
+                logging_output['extra_metrics'][g] = (tp, tn, fp, fn)
 
             loss = logging_output['loss']
 

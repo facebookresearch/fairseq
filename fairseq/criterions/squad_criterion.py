@@ -22,33 +22,44 @@ class SquadCriterion(FairseqCriterion):
     def forward(self, model, sample, reduce=True):
 
         targets = sample['target']
+        net_input = sample['net_input']
+        paragraph_mask = net_input['paragraph_mask']
 
-        outs = model(**sample['net_input'])
+        outs = model(**net_input)
 
-        outs = [F.log_softmax(o, dim=-1).view(-1, o.size(-1)) for o in outs]
+        outs = [F.log_softmax(o, dim=-1).view(-1, o.size(-1)) if len(o) > 0 else o for o in outs]
+        sample_sizes = (sample['nsentences'], sample['possible_sentences'], sample['possible_sentences'])
 
         if reduce:
             losses = outs[0].new_zeros(1)
             losses = (losses,) * len(outs)
         else:
-            losses = tuple(out.new_zeros(out.shape[:-1]) for out in outs)
+            losses = tuple(outs[0].new_zeros(t.numel()) for t in targets)
 
-        for t, o, loss in zip(targets, outs, losses):
-            loss += F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
+        for t, o, loss, ss in zip(targets, outs, losses, sample_sizes):
+            if len(o) == 0:
+                continue
+            if t.numel() *2 != o.numel():
+                buf = outs[0].new_zeros(paragraph_mask.shape + (2,))
+                buf[paragraph_mask] = o
+                o = buf.view(-1, buf.size(-1))
+            l = F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
+            if reduce:
+                l /= ss
+            loss += l
 
         if reduce:
-            loss = losses[0]
-            reduced_loss = loss
+            reduced_loss = loss = losses[0]
         else:
             loss = losses
-            reduced_loss = sum(l.sum() for l in losses)
+            reduced_loss = sum(l.sum() / (ss or 1.0) for l, ss in zip(losses, sample_sizes))
 
-        sample_size = targets[0].size(0)
+        sample_size = sample['nsentences']
 
         logging_output = {
             'loss': utils.item(reduced_loss),
             'ntokens': sample['ntokens'],
-            'nsentences': sample['target'][0].size(0),
+            'nsentences': sample_size,
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
@@ -61,7 +72,7 @@ class SquadCriterion(FairseqCriterion):
         nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         agg_output = {
-            'loss': loss_sum / sample_size / math.log(2),
+            'loss': loss_sum / math.log(2),
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,
