@@ -210,7 +210,7 @@ class Trainer(object):
             sample_sizes = list(chain.from_iterable(sample_sizes))
             ooms = sum(ooms)
 
-        if ooms == self.args.distributed_world_size:
+        if ooms == self.args.distributed_world_size * len(samples):
             print('| WARNING: OOM in all workers, skipping update')
             self.zero_grad()
             return None
