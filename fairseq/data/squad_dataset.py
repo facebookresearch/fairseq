@@ -62,6 +62,7 @@ class SquadDataset(FairseqDataset):
         sent1 = self.dataset1[index]
         sent2 = self.dataset2[index]
         lbl = self.labels[index]
+        article_mask = torch.ones(sent1.numel() + 1).byte()
 
         text = self._join_sents(sent2, sent1)
 
@@ -74,7 +75,7 @@ class SquadDataset(FairseqDataset):
             is_impossible_target = torch.tensor([0])
             end_target = start_target.clone()
             start_target[1:sent1.numel()] = 0  # leave eos as pads
-            end_target[1:sent1.numel()] = 0  # leave eos as pads
+            end_target[1:sent1.numel()+1] = 0  # include eos last
             for s, e in lbl:
                 assert e > s
                 start_target[s] = 1
@@ -82,7 +83,7 @@ class SquadDataset(FairseqDataset):
 
         target = (is_impossible_target, start_target, end_target)
 
-        return {'id': index, 'text': text, 'target': target}
+        return {'id': index, 'text': text, 'target': target, 'article_mask': article_mask}
 
     def _join_sents(self, sent1, sent2):
         eos = sent1.new_full((1,), self.vocab.eos())

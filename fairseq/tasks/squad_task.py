@@ -157,6 +157,8 @@ class SquadTask(FairseqTask):
                 # tp = (probs[pos] > 1 / self.num_labels).long().sum() if pos.any() else probs.new_zeros(1).long()
                 # tn = (probs[neg] > 1 / self.num_labels).long().sum() if neg.any() else probs.new_zeros(1).long()
 
+                num_labels = t.size(1)
+
                 correct_pos = probs[pos] > 0.5
                 correct_neg = probs[neg] > 0.5
 

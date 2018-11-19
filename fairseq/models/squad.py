@@ -65,6 +65,8 @@ class FinetuningSquad(BaseFairseqModel):
             x = self.ln(x)
 
         idxs = text.eq(self.eos_idx)
+        if self.proj_unk:
+            idxs = idxs | text.eq(self.unk_idx)
 
         x = self.last_dropout(x)
 
