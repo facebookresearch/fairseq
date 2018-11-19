@@ -12,16 +12,12 @@ from . import data_utils, FairseqDataset
 from typing import List
 
 
-def collate(samples, pad_idx, eos_idx, target_pad_idx):
+def collate(samples, pad_idx, eos_idx):
     if len(samples) == 0:
         return {}
 
     target_len = len(samples[0]['target'])
-    target = [torch.stack([s['target'][0] for s in samples], dim=0)]
-    for i in range(1, target_len):
-        target.append(data_utils.collate_tokens(
-            [s['target'][i] for s in samples], target_pad_idx, target_pad_idx, left_pad=False,
-        ))
+    target = [torch.stack([s['target'][i] for s in samples], dim=0) for i in range(target_len)]
 
     return {
         'id': torch.LongTensor([s['id'] for s in samples]),
@@ -69,22 +65,21 @@ class SquadDataset(FairseqDataset):
         question_len = question.numel() + 1  # account for bos
 
         paragraph_mask = torch.zeros(text.shape).byte()
-        start_target = torch.LongTensor(text.shape).fill_(self.pad_idx)
+        start_target = torch.LongTensor(1)
 
         if len(lbl) == 0:
             is_impossible_target = torch.tensor([1])
+            start_target.fill_(self.pad_idx)
             end_target = start_target
         else:
             is_impossible_target = torch.tensor([0])
             paragraph_mask[question_len:] = 1  # include last eos in case it is the end index
             end_target = start_target.clone()
 
-            start_target[question_len:-1] = 0  # leave eos as pads
-            end_target[question_len + 1:] = 0  # first token cannot be end target
-            for s, e in lbl:
-                assert e > s
-                start_target[question_len + s] = 1
-                end_target[question_len + e] = 1
+            s, e = lbl[0]
+            assert e > s
+            start_target.fill_(question_len + s)
+            end_target.fill_(question_len + e)
 
         target = (is_impossible_target, start_target, end_target)
 
@@ -109,7 +104,7 @@ class SquadDataset(FairseqDataset):
         return len(self.dataset1)
 
     def collater(self, samples):
-        return collate(samples, self.vocab.pad(), self.vocab.eos(), self.pad_idx)
+        return collate(samples, self.vocab.pad(), self.vocab.eos())
 
     def get_dummy_batch(self, num_tokens, max_positions, tgt_len=128):
         """Return a dummy batch with a given number of tokens."""
@@ -126,7 +121,7 @@ class SquadDataset(FairseqDataset):
         paragraph_mask = torch.zeros(text.shape).byte()
         paragraph_mask[sent2.numel():] = 1
 
-        target = (torch.tensor([0]), torch.tensor([self.pad_idx] * len(text)), torch.tensor([self.pad_idx] * len(text)))
+        target = (torch.tensor([0]), torch.tensor([self.pad_idx]), torch.tensor([self.pad_idx]))
 
         return self.collater([
             {'id': i, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask}

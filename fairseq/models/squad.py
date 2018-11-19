@@ -27,8 +27,8 @@ class FinetuningSquad(BaseFairseqModel):
 
         self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=False) if args.layer_norm else None
 
-        self.start_proj = torch.nn.Linear(args.model_dim, 2, bias=True)
-        self.end_proj = torch.nn.Linear(args.model_dim, 2, bias=True)
+        self.start_proj = torch.nn.Linear(args.model_dim, 1, bias=True)
+        self.end_proj = torch.nn.Linear(args.model_dim, 1, bias=True)
 
         if args.concat_sentences_mode == 'eos':
             mult = 3
@@ -75,8 +75,10 @@ class FinetuningSquad(BaseFairseqModel):
         imp = self.imp_proj(eos_emb).squeeze(-1)
         if paragraph_mask.any():
             paragraph_toks = x[paragraph_mask]
-            start = self.start_proj(paragraph_toks)
-            end = self.end_proj(paragraph_toks)
+            start = x.new_full(paragraph_mask.shape, float('-inf'))
+            end = start.clone()
+            start[paragraph_mask] = self.start_proj(paragraph_toks).squeeze(-1)
+            end[paragraph_mask] = self.end_proj(paragraph_toks).squeeze(-1)
         else:
             start = end = x.new_zeros(0)
 

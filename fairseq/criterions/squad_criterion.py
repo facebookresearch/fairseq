@@ -39,10 +39,6 @@ class SquadCriterion(FairseqCriterion):
         for t, o, loss, ss in zip(targets, outs, losses, sample_sizes):
             if len(o) == 0:
                 continue
-            if t.numel() *2 != o.numel():
-                buf = outs[0].new_zeros(paragraph_mask.shape + (2,))
-                buf[paragraph_mask] = o
-                o = buf.view(-1, buf.size(-1))
             l = F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
             if reduce:
                 l /= ss
@@ -62,7 +58,7 @@ class SquadCriterion(FairseqCriterion):
             'nsentences': sample_size,
             'sample_size': sample_size,
         }
-        return loss, sample_size, logging_output
+        return loss, sample_size, logging_output, outs
 
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
