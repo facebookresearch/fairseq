@@ -330,6 +330,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.model_dim * 2, 2, bias=True)
 
+        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=False) if args.layer_norm else None
+
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
             self.language_model.decoder.embed_tokens.disable_convolutional_grads()
@@ -348,6 +350,9 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         if isinstance(x, list):
             x = x[0]
 
+        if self.ln is not None:
+            x = self.ln(x)
+
         eos_idxs = src_tokens.eq(self.eos_idx)
         x = x[eos_idxs].view(src_tokens.size(0), 1, -1)  # assume only 2 eoses per sample
 
@@ -365,6 +370,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
 
     @classmethod
     def build_model(cls, args, task):
@@ -494,6 +500,7 @@ def base_architecture_ft(args):
     args.model_dropout = getattr(args, 'model_dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
     args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
+    args.layer_norm = getattr(args, 'layer_norm', False)
 
 
 @register_model_architecture('hybrid_sentence_classifier', 'hybrid_sentence_classifier')
