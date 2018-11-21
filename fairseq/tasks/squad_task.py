@@ -51,7 +51,7 @@ class SquadTask(FairseqTask):
         self.dictionary = dictionary
         self.padding_idx = -100
         self.concat_sentences_mode = args.concat_sentences_mode
-        self.valid_groups = ('classification_imp', 'classification_start', 'classification_end')
+        self.valid_groups = ('classification_start', 'classification_end')
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -135,7 +135,6 @@ class SquadTask(FairseqTask):
 
     def extra_meters(self):
         return {
-            'classification_imp': ClassificationMeter('imp'),
             'classification_start': ClassificationMeter('start'),
             'classification_end': ClassificationMeter('end'),
         }
@@ -149,37 +148,18 @@ class SquadTask(FairseqTask):
         return agg
 
     def get_loss(self, model, criterion, sample, is_valid=False):
-        loss, sample_size, logging_output, outs = criterion(model, sample, reduce=not is_valid)
+        loss, sample_size, logging_output, outs = criterion(model, sample)
 
         if is_valid:
             logging_output['extra_metrics'] = {}
-            for g, l, o, t in zip(self.valid_groups, loss, outs, sample['target']):
-
-                if o.size(-1) == 2:
-                    probs = (-l).exp()
-                    pos = t.view(-1).eq(1)
-                    neg = t.view(-1).eq(0)
-                    correct_pos = probs[pos] > 0.5
-                    correct_neg = probs[neg] > 0.5
-                    tp = correct_pos.long().sum().item()
-                    tn = correct_neg.long().sum().item()
-                    fp = (neg.long().sum() - tn).item()
-                    fn = (pos.long().sum() - tp).item()
-                elif o.numel() == 0:
-                    tp = tn = fp = fn = 0
-                else:
-                    mask = t.ge(0)
-                    t = t[mask]
-                    o = o[mask.expand(o.shape)].view(t.size(0), -1)
-                    preds = torch.argmax(o, dim=-1)
-                    tp = t.eq(preds).long().sum().item()
-                    tn = 0
-                    fp = t.size(0) - tp
-                    fn = 0
+            for g, o, t in zip(self.valid_groups, outs, sample['target']):
+                pred_t = torch.argmax(o, dim=-1)
+                tp = t.eq(pred_t).long().sum().item()
+                tn = 0
+                fp = t.size(0) - tp
+                fn = 0
 
                 logging_output['extra_metrics'][g] = (tp, tn, fp, fn)
-
-            loss = logging_output['loss']
 
         return loss, sample_size, logging_output
 

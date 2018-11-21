@@ -26,33 +26,19 @@ class SquadCriterion(FairseqCriterion):
 
         outs = model(**net_input)
 
-        outs = [F.log_softmax(o, dim=-1).view(-1, o.size(-1)) if len(o) > 0 else o for o in outs]
-        sample_sizes = (sample['nsentences'], sample['possible_sentences'], sample['possible_sentences'])
+        outs = [F.log_softmax(o, dim=-1).view(-1, o.size(-1)) for o in outs]
+        loss = None
 
-        if reduce:
-            losses = outs[0].new_zeros(1)
-            losses = (losses,) * len(outs)
-        else:
-            losses = tuple(outs[0].new_zeros(t.numel()) for t in targets)
+        for t, o in zip(targets, outs):
+            if loss is None:
+                loss = F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
+            else:
+                loss += F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
 
-        for t, o, loss, ss in zip(targets, outs, losses, sample_sizes):
-            if len(o) == 0:
-                continue
-            l = F.nll_loss(o, t.view(-1), size_average=False, ignore_index=self.padding_idx, reduce=reduce)
-            if reduce:
-                l /= ss
-            loss += l
-
-        if reduce:
-            reduced_loss = loss = losses[0]
-        else:
-            loss = losses
-            reduced_loss = sum(l.sum() / (ss or 1.0) for l, ss in zip(losses, sample_sizes))
-
-        sample_size = sample['nsentences']
+        sample_size = sample['nsentences'] * len(outs)
 
         logging_output = {
-            'loss': utils.item(reduced_loss),
+            'loss': utils.item(loss.data) if reduce else loss.data,
             'ntokens': sample['ntokens'],
             'nsentences': sample_size,
             'sample_size': sample_size,
@@ -67,7 +53,7 @@ class SquadCriterion(FairseqCriterion):
         nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         agg_output = {
-            'loss': loss_sum / math.log(2),
+            'loss': loss_sum / sample_size / math.log(2),
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,

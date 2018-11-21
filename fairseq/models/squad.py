@@ -27,18 +27,8 @@ class FinetuningSquad(BaseFairseqModel):
 
         self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=False) if args.layer_norm else None
 
-        self.start_proj = torch.nn.Linear(args.model_dim, 1, bias=True)
-        self.end_proj = torch.nn.Linear(args.model_dim, 1, bias=True)
-
-        if args.concat_sentences_mode == 'eos':
-            mult = 3
-        elif args.concat_sentences_mode == 'unk_only':
-            mult = 2 + int(args.proj_unk)
-        else:
-            mult = 4 + int(args.proj_unk)
-
-        self.imp_proj = torch.nn.Linear(args.model_dim * mult, 2, bias=True)
-        self.proj_unk = args.proj_unk
+        self.start_proj = torch.nn.Linear(args.model_dim, 1, bias=False)
+        self.end_proj = torch.nn.Linear(args.model_dim, 1, bias=False)
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
@@ -48,13 +38,10 @@ class FinetuningSquad(BaseFairseqModel):
 
     def reset_parameters(self):
         torch.nn.init.constant_(self.start_proj.weight, 0)
-        torch.nn.init.constant_(self.start_proj.bias, 0)
+        # torch.nn.init.constant_(self.start_proj.bias, 0)
 
         torch.nn.init.constant_(self.end_proj.weight, 0)
-        torch.nn.init.constant_(self.end_proj.bias, 0)
-
-        torch.nn.init.constant_(self.imp_proj.weight, 0)
-        torch.nn.init.constant_(self.imp_proj.bias, 0)
+        # torch.nn.init.constant_(self.end_proj.bias, 0)
 
     def forward(self, text, paragraph_mask):
         x, _ = self.language_model(text)
@@ -64,25 +51,16 @@ class FinetuningSquad(BaseFairseqModel):
         if self.ln is not None:
             x = self.ln(x)
 
-        idxs = text.eq(self.eos_idx)
-        if self.proj_unk:
-            idxs = idxs | text.eq(self.unk_idx)
-
         x = self.last_dropout(x)
 
-        eos_emb = x[idxs].view(text.size(0), 1, -1)  # assume only 3 eoses per sample
+        assert paragraph_mask.any()
+        paragraph_toks = x[paragraph_mask]
+        start = x.new_full(paragraph_mask.shape, float('-inf'))
+        end = start.clone()
+        start[paragraph_mask] = self.start_proj(paragraph_toks).squeeze(-1)
+        end[paragraph_mask] = self.end_proj(paragraph_toks).squeeze(-1)
 
-        imp = self.imp_proj(eos_emb).squeeze(1)
-        if paragraph_mask.any():
-            paragraph_toks = x[paragraph_mask]
-            start = x.new_full(paragraph_mask.shape, float('-inf'))
-            end = start.clone()
-            start[paragraph_mask] = self.start_proj(paragraph_toks).squeeze(-1)
-            end[paragraph_mask] = self.end_proj(paragraph_toks).squeeze(-1)
-        else:
-            start = end = x.new_zeros(0)
-
-        return imp, start, end
+        return start, end
 
     @staticmethod
     def add_args(parser):

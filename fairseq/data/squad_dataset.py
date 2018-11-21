@@ -67,23 +67,17 @@ class SquadDataset(FairseqDataset):
         question_len = question.numel() + 1  # account for bos
 
         paragraph_mask = torch.zeros(text.shape).byte()
-        paragraph_mask[question_len:] = 1  # include last eos in case it is the end index
-        start_target = torch.LongTensor(1)
+        paragraph_mask[question_len - 1:] = 1  # include sep + last eos in case it is the end index
 
         if len(lbl) == 0:
-            is_impossible_target = torch.tensor([1])
-            start_target.fill_(self.pad_idx)
-            end_target = start_target
+            s, e = -1, -1
         else:
-            is_impossible_target = torch.tensor([0])
-            end_target = start_target.clone()
-
             s, e = lbl[0]
             assert e > s
-            start_target.fill_(question_len + s)
-            end_target.fill_(question_len + e)
+        start_target = torch.LongTensor([question_len + s])
+        end_target = torch.LongTensor([question_len + e])
 
-        target = (is_impossible_target, start_target, end_target)
+        target = (start_target, end_target)
 
         return {'id': index, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask,
                 'squad_ids': [self.ids[index]]}
@@ -124,10 +118,10 @@ class SquadDataset(FairseqDataset):
         paragraph_mask = torch.zeros(text.shape).byte()
         paragraph_mask[sent2.numel():] = 1
 
-        target = (torch.tensor([0]), torch.tensor([self.pad_idx]), torch.tensor([self.pad_idx]))
+        target = (torch.tensor([self.pad_idx]), torch.tensor([self.pad_idx]))
 
         return self.collater([
-            {'id': i, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask}
+            {'id': i, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask, 'squad_ids': [0]}
             for i in range(bsz)
         ])
 

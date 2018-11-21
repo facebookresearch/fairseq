@@ -34,8 +34,6 @@ class CrossEntropyCriterion(FairseqCriterion):
         target = model.get_targets(sample, net_output).view(-1)
         loss = F.nll_loss(lprobs, target, size_average=False, ignore_index=self.padding_idx,
                           reduce=reduce)
-        # if aux is not None:
-        #     loss += aux
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
