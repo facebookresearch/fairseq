@@ -11,6 +11,9 @@ Evaluate the perplexity of a trained language model.
 """
 
 import json
+import math
+import mosestokenizer as mt
+import regex as re
 from os import path
 import subprocess
 import tempfile
@@ -35,6 +38,8 @@ def eval_dataset(task, model, dataset, data_file, use_cuda=True):
     was_training = model.training
     model.eval()
 
+    detokenize = mt.MosesDetokenizer('en')
+
     for batch in itr:
         if use_cuda:
             batch = utils.move_to_cuda(batch)
@@ -47,9 +52,30 @@ def eval_dataset(task, model, dataset, data_file, use_cuda=True):
             if imp:
                 pred = ''
             else:
-                start_pred = torch.argmax(start_preds, dim=-1)
-                end_pred = torch.argmax(end_preds[start_pred + 1:]) + start_pred + 1
-                pred = task.dictionary.string(text[start_pred:end_pred])
+                maxlen=20
+
+                best = float('-inf')
+                start_ind = 0
+                end_ind = 0
+
+                curr_start = 0
+                while curr_start < len(start_preds) - 1:
+                    curr_end = torch.argmax(end_preds[curr_start + 1:curr_start + 1 + maxlen]) + curr_start + 1
+                    curr_start = torch.argmax(start_preds[curr_start:curr_end]) + curr_start
+
+                    score = start_preds[curr_start] + end_preds[curr_end]
+                    if score > best:
+                        best = score
+                        start_ind = curr_start
+                        end_ind = curr_end
+                    curr_start = curr_end
+
+                assert end_ind > start_ind
+
+                pred = task.dictionary.string(text[start_ind:end_ind]).split()
+                pred = detokenize(pred)
+                pred = re.sub(r'(\d+) ([-–]) (\d+)', r'\1\2\3', pred)
+                pred = re.sub(r"(.+) ' (.+)", r"\1'\2", pred)
 
             res[id] = pred
 
@@ -59,7 +85,7 @@ def eval_dataset(task, model, dataset, data_file, use_cuda=True):
         res = subprocess.check_output(
             ["python", "official_squad_eval.py", data_file, f.name],
             cwd=path.dirname(path.realpath(__file__)))
-        print(res)
+        print(res.decode('utf-8'))
 
     if was_training:
         model.train()

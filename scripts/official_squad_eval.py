@@ -74,8 +74,6 @@ def compute_f1(a_gold, a_pred):
     # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
     return int(gold_toks == pred_toks)
   if num_same == 0:
-    print('gold:', ' '.join(gold_toks), flush=True)
-    print('pred:', ' '.join(pred_toks), flush=True)
     return 0
   precision = 1.0 * num_same / len(pred_toks)
   recall = 1.0 * num_same / len(gold_toks)
@@ -101,6 +99,9 @@ def get_raw_scores(dataset, preds):
         # Take max over all gold answers
         exact_scores[qid] = max(compute_exact(a, a_pred) for a in gold_answers)
         f1_scores[qid] = max(compute_f1(a, a_pred) for a in gold_answers)
+        # if f1_scores[qid] == 0:
+        #   print('gold:', gold_answers, flush=True)
+        #   print('pred:', a_pred, flush=True)
   return exact_scores, f1_scores
 
 def apply_no_ans_threshold(scores, na_probs, qid_to_has_ans, na_prob_thresh):
