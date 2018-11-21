@@ -72,7 +72,7 @@ class FinetuningSquad(BaseFairseqModel):
 
         eos_emb = x[idxs].view(text.size(0), 1, -1)  # assume only 3 eoses per sample
 
-        imp = self.imp_proj(eos_emb).squeeze(-1)
+        imp = self.imp_proj(eos_emb).squeeze(1)
         if paragraph_mask.any():
             paragraph_toks = x[paragraph_mask]
             start = x.new_full(paragraph_mask.shape, float('-inf'))

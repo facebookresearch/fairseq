@@ -23,7 +23,6 @@ class SquadCriterion(FairseqCriterion):
 
         targets = sample['target']
         net_input = sample['net_input']
-        paragraph_mask = net_input['paragraph_mask']
 
         outs = model(**net_input)
 

@@ -74,6 +74,7 @@ class SquadTask(FairseqTask):
 
         loaded_datasets = [[], []]
         loaded_labels = []
+        loaded_ids = []
         stop = False
 
         for k in itertools.count():
@@ -108,6 +109,8 @@ class SquadTask(FairseqTask):
                     answers = [] if impossible else list(zip(lbls[1::2], lbls[2::2]))
 
                     loaded_labels.append(answers)
+            with open(base_path + '.id', 'r') as id_f:
+                loaded_ids.extend([id.strip() for id in id_f.readlines()])
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[0][-1])))
 
@@ -126,7 +129,7 @@ class SquadTask(FairseqTask):
             sizes2 = np.concatenate([ds.sizes for ds in loaded_datasets[1]])
 
         self.datasets[split] = SquadDataset(
-            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary, self.padding_idx,
+            dataset1, dataset2, loaded_labels, loaded_ids, sizes1, sizes2, self.dictionary, self.padding_idx,
             self.concat_sentences_mode
         )
 

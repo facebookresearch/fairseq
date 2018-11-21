@@ -7,6 +7,7 @@ import os
 import string
 import re
 
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -79,10 +80,12 @@ def main():
         base_filename = os.path.splitext(filename)[0]
         s1_filename = base_filename + '_1.txt'
         s2_filename = base_filename + '_2.txt'
+        id_filename = base_filename + '.id'
         label_filename = base_filename + '.lbl'
         with open(inp, 'r') as f_in, open(os.path.join(args.output, s1_filename), 'w') as s1_out, open(
-                os.path.join(args.output, s2_filename), 'w') as s2_out, open(os.path.join(args.output, label_filename),
-                                                                             'w') as lbl_out:
+                os.path.join(args.output, s2_filename), 'w') as s2_out, open(os.path.join(args.output, id_filename),
+                                                                             'w') as id_out, open(
+            os.path.join(args.output, label_filename), 'w') as lbl_out:
             data = json.load(f_in)
             for example in data['data']:
                 for p in example['paragraphs']:
@@ -113,6 +116,7 @@ def main():
                             continue
                         print(' '.join(context), file=s1_out)
                         print(' '.join(q), file=s2_out)
+                        print(qa['id'], file=id_out)
                         lbl_str = f'{int(is_impossible)}'
                         for s in spans:
                             lbl_str += f' {s[0]} {s[1]}'

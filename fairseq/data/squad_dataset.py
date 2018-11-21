@@ -31,6 +31,7 @@ def collate(samples, pad_idx, eos_idx):
         'target': target,
         'nsentences': len(samples),
         'possible_sentences': sum(int(s['target'][0] == 0) for s in samples),
+        'squad_ids': sum((s['squad_ids'] for s in samples), [])
     }
 
 
@@ -46,10 +47,11 @@ class SquadDataset(FairseqDataset):
           Default: ``True``
     """
 
-    def __init__(self, dataset1, dataset2, labels, sizes1, sizes2, dictionary, pad_idx, concat_sentences_mode):
+    def __init__(self, dataset1, dataset2, labels, ids, sizes1, sizes2, dictionary, pad_idx, concat_sentences_mode):
         self.dataset1, self.dataset2 = dataset1, dataset2
         self.sizes1, self.sizes2 = np.array(sizes1), np.array(sizes2)
         self.labels = np.array(labels)
+        self.ids = ids
         self.vocab = dictionary
         self.shuffle = True
         self.pad_idx = pad_idx
@@ -65,6 +67,7 @@ class SquadDataset(FairseqDataset):
         question_len = question.numel() + 1  # account for bos
 
         paragraph_mask = torch.zeros(text.shape).byte()
+        paragraph_mask[question_len:] = 1  # include last eos in case it is the end index
         start_target = torch.LongTensor(1)
 
         if len(lbl) == 0:
@@ -73,7 +76,6 @@ class SquadDataset(FairseqDataset):
             end_target = start_target
         else:
             is_impossible_target = torch.tensor([0])
-            paragraph_mask[question_len:] = 1  # include last eos in case it is the end index
             end_target = start_target.clone()
 
             s, e = lbl[0]
@@ -83,7 +85,8 @@ class SquadDataset(FairseqDataset):
 
         target = (is_impossible_target, start_target, end_target)
 
-        return {'id': index, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask}
+        return {'id': index, 'text': text, 'target': target, 'paragraph_mask': paragraph_mask,
+                'squad_ids': [self.ids[index]]}
 
     def _join_sents(self, sent1, sent2):
         eos = sent1.new_full((1,), self.vocab.eos())
