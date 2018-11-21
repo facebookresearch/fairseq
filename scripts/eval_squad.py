@@ -44,34 +44,37 @@ def eval_dataset(task, model, dataset, data_file, use_cuda=True):
         if use_cuda:
             batch = utils.move_to_cuda(batch)
         with torch.no_grad():
-            imp_res, start_res, end_res = model(**batch['net_input'])
-        is_imp = imp_res[:, 1] > imp_res[:, 0]
+            start_res, end_res = model(**batch['net_input'])
 
-        for imp, start_preds, end_preds, id, text in zip(is_imp.cpu(), start_res.cpu(), end_res.cpu(),
-                                                         batch['squad_ids'], batch['net_input']['text']):
-            if imp:
+        for start_preds, end_preds, id, text, mask in zip(start_res, end_res, batch['squad_ids'],
+                                                          batch['net_input']['text'],
+                                                          batch['net_input']['paragraph_mask']):
+
+            sep_idx = mask.nonzero()[0]
+
+            maxlen = 20
+
+            best = start_preds[sep_idx] + end_preds[sep_idx]
+            start_ind = sep_idx
+            end_ind = sep_idx
+
+            curr_start = sep_idx + 1
+            while curr_start < len(start_preds) - 1:
+                curr_end = torch.argmax(end_preds[curr_start + 1:curr_start + 1 + maxlen]) + curr_start + 1
+                curr_start = torch.argmax(start_preds[curr_start:curr_end]) + curr_start
+
+                score = start_preds[curr_start] + end_preds[curr_end]
+                if score > best:
+                    best = score
+                    start_ind = curr_start
+                    end_ind = curr_end
+                    assert end_ind > start_ind
+
+                curr_start = curr_end
+
+            if start_ind == sep_idx and end_ind == sep_idx:
                 pred = ''
             else:
-                maxlen=20
-
-                best = float('-inf')
-                start_ind = 0
-                end_ind = 0
-
-                curr_start = 0
-                while curr_start < len(start_preds) - 1:
-                    curr_end = torch.argmax(end_preds[curr_start + 1:curr_start + 1 + maxlen]) + curr_start + 1
-                    curr_start = torch.argmax(start_preds[curr_start:curr_end]) + curr_start
-
-                    score = start_preds[curr_start] + end_preds[curr_end]
-                    if score > best:
-                        best = score
-                        start_ind = curr_start
-                        end_ind = curr_end
-                    curr_start = curr_end
-
-                assert end_ind > start_ind
-
                 pred = task.dictionary.string(text[start_ind:end_ind]).split()
                 pred = detokenize(pred)
                 pred = re.sub(r'(\d+) ([-–]) (\d+)', r'\1\2\3', pred)
