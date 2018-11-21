@@ -153,6 +153,7 @@ class SquadTask(FairseqTask):
         if is_valid:
             logging_output['extra_metrics'] = {}
             for g, o, t in zip(self.valid_groups, outs, sample['target']):
+                t = t.squeeze(-1)
                 pred_t = torch.argmax(o, dim=-1)
                 tp = t.eq(pred_t).long().sum().item()
                 tn = 0
