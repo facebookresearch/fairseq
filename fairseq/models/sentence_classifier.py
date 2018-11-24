@@ -330,7 +330,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.model_dim * 2, 2, bias=True)
 
-        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=False) if args.layer_norm else None
+        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm) if args.layer_norm else None
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
@@ -371,6 +371,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
+        parser.add_argument('--affine-layer-norm', action='store_true', help='if true, and layer norm is enabled, it is affine')
 
     @classmethod
     def build_model(cls, args, task):
@@ -501,6 +502,7 @@ def base_architecture_ft(args):
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
     args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
     args.layer_norm = getattr(args, 'layer_norm', False)
+    args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
 
 
 @register_model_architecture('hybrid_sentence_classifier', 'hybrid_sentence_classifier')

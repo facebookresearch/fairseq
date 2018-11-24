@@ -225,13 +225,11 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             self.pos_emb = None
             self.pos_markers = None
 
-        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=False) if args.layer_norm else None
+        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm) if args.layer_norm else None
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
             self.language_model.decoder.embed_tokens.disable_convolutional_grads(copy_eos_to_unk=args.copy_eos_to_unk)
-
-        assert args.concat_sentences_mode in ('eos', 'unk', 'unk_only')
 
         self.reset_parameters()
 
@@ -299,6 +297,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--pretraining', action='store_true', help='if true, load pretraining mode')
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
+        parser.add_argument('--affine-layer-norm', action='store_true',
+                            help='if true, and layer norm is enabled, it is affine')
         parser.add_argument('--copy-eos-to-unk', action='store_true', help='if true, initializes unk (used as sep) to weights from eos')
         parser.add_argument('--proj-unk', action='store_true', help='if true, also includes unk emb in projection')
 
@@ -354,6 +354,9 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         )
 
         self.embedding_dropout = nn.Dropout(args.embedding_dropout)
+
+        self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm)
+
         self.last_dropout = nn.Dropout(args.last_dropout)
         self.proj = torch.nn.Linear(args.lstm_dim * 2, args.num_labels, bias=True)
 
@@ -367,7 +370,7 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         torch.nn.init.xavier_uniform_(self.proj.weight)
         torch.nn.init.constant_(self.proj.bias, 0)
 
-    def forward(self, sentence1, sentence2):
+    def forward(self, sentence1, sentence2, sent1_lengths):
 
         src_tokens = sentence1
 
@@ -379,6 +382,7 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         if isinstance(x, list):
             x = x[0]
 
+        x = self.ln(x)
         x = self.embedding_dropout(x)
 
         seq_lengths, perm_idx = src_lengths.sort(0, descending=True)
@@ -404,10 +408,14 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         """Add model-specific arguments to the parser."""
         parser.add_argument('--lm-path', metavar='PATH', help='path to elmo model')
         parser.add_argument('--model-dim', type=int, metavar='N', help='decoder input dimension')
-        parser.add_argument('--model-dropout', type=float, metavar='N', help='dropout for the model')
+        parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
         parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
         parser.add_argument('--lstm-dim', type=int, metavar='D', help='lstm dim')
+        parser.add_argument('--affine-layer-norm', action='store_true',
+                            help='if true, and layer norm is enabled, it is affine')
 
     @classmethod
     def build_model(cls, args, task):
@@ -420,9 +428,15 @@ class HybridSentencePairClassifier(BaseFairseqModel):
 
         assert args.lm_path is not None
 
+        overrides = {
+            'remove_head': True,
+            'dropout': args.model_dropout,
+            'attention_dropout': args.attention_dropout,
+            'relu_dropout': args.relu_dropout,
+        }
+
         task = LanguageModelingTask(args, dictionary, dictionary)
-        models, _ = utils.load_ensemble_for_inference([args.lm_path], task,
-                                                      {'remove_head': True, 'dropout': args.model_dropout})
+        models, _ = utils.load_ensemble_for_inference([args.lm_path], task, overrides)
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
         return HybridSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
@@ -534,6 +548,7 @@ def base_architecture(args):
     args.continuous_pos = getattr(args, 'continuous_pos', False)
     args.pretraining = getattr(args, 'pretraining', False)
     args.layer_norm = getattr(args, 'layer_norm', False)
+    args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
     args.copy_eos_to_unk = getattr(args, 'copy_eos_to_unk', False)
     args.proj_unk = getattr(args, 'proj_unk', False)
 
@@ -545,6 +560,9 @@ def base_architecture(args):
     args.lstm_dim = getattr(args, 'lstm_dim', 1024)
     args.embedding_dropout = getattr(args, 'embedding_dropout', 0.3)
     args.model_dropout = getattr(args, 'model_dropout', 0.1)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
+    args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
+    args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
 
 
 @register_model_architecture('hybrid_sentence_pair_classifier2', 'hybrid_sentence_pair_classifier2')
