@@ -49,7 +49,7 @@ class SentenceClassificationDataset(FairseqDataset):
         self.sizes = np.array(sizes)
         self.labels = np.array(labels)
         self.vocab = dictionary
-        self.shuffle = True
+        self.shuffle = False
 
     def __getitem__(self, index):
         sent = self.dataset[index]
