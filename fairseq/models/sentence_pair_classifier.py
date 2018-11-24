@@ -225,6 +225,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             self.pos_emb = None
             self.pos_markers = None
 
+        self.mask_curr_state = not args.drop_mask
+
         self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm) if args.layer_norm else None
 
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
@@ -261,7 +263,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         else:
             embs = None
 
-        x, _ = self.language_model(sentence1, pos_embs=embs)
+        x, _ = self.language_model(sentence1, mask_curr_state=self.mask_curr_state, pos_embs=embs)
         if isinstance(x, list):
             x = x[0]
 
@@ -301,6 +303,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
                             help='if true, and layer norm is enabled, it is affine')
         parser.add_argument('--copy-eos-to-unk', action='store_true', help='if true, initializes unk (used as sep) to weights from eos')
         parser.add_argument('--proj-unk', action='store_true', help='if true, also includes unk emb in projection')
+        parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
 
     @classmethod
     def build_model(cls, args, task):
@@ -551,6 +554,7 @@ def base_architecture(args):
     args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
     args.copy_eos_to_unk = getattr(args, 'copy_eos_to_unk', False)
     args.proj_unk = getattr(args, 'proj_unk', False)
+    args.drop_mask = getattr(args, 'drop_mask', False)
 
 
 @register_model_architecture('hybrid_sentence_pair_classifier', 'hybrid_sentence_pair_classifier')

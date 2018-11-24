@@ -196,7 +196,7 @@ class BiTransformerDecoder(FairseqDecoder):
                 self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
                 nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
 
-    def forward(self, source_tokens, pos_embs=None, **unused):
+    def forward(self, source_tokens, mask_curr_state=True, pos_embs=None, **unused):
         """ Forward pass for the bidirectional transformer
 
         Args:
@@ -264,7 +264,8 @@ class BiTransformerDecoder(FairseqDecoder):
                 x, attn = self.full_attn_layer(
                     fwd_x,
                     bwd_x,
-                    padding_mask,
+                    mask_curr_state=mask_curr_state,
+                    key_padding_mask=padding_mask,
                 )
                 inner_states.append(x)
             elif self.full_linear_layer is not None:
@@ -410,12 +411,13 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
 
         self.final_layer_norm = LayerNorm(self.embed_dim)
 
-    def forward(self, fwd_x, bwd_x, key_padding_mask):
+    def forward(self, fwd_x, bwd_x, mask_curr_state, key_padding_mask):
         fwd_x = self.maybe_layer_norm(self.fwd_layer_norm, fwd_x, before=True)
         bwd_x = self.maybe_layer_norm(self.bwd_layer_norm, bwd_x, before=True)
         x, attn = self.self_attn(
             fwd_x=fwd_x,
             bwd_x=bwd_x,
+            mask_curr_state=mask_curr_state,
             key_padding_mask=key_padding_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)

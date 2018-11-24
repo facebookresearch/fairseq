@@ -56,7 +56,7 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
             nn.init.constant_(self.in_proj_bias, 0.)
             nn.init.constant_(self.out_proj.bias, 0.)
 
-    def forward(self, fwd_x, bwd_x, key_padding_mask=None):
+    def forward(self, fwd_x, bwd_x, mask_curr_state=True, key_padding_mask=None):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
@@ -95,7 +95,8 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
-        attn_weights += self.mask(attn_weights).unsqueeze(0)
+        if mask_curr_state:
+            attn_weights += self.mask(attn_weights).unsqueeze(0)
 
         if key_padding_mask is not None:
             # don't attend to padding symbols

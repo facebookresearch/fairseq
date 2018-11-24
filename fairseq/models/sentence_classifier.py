@@ -332,6 +332,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
 
         self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm) if args.layer_norm else None
 
+        self.mask_curr_state = not args.drop_mask
+
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
             self.language_model.decoder.embed_tokens.disable_convolutional_grads()
@@ -346,7 +348,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         bos_block = src_tokens.new_full((src_tokens.size(0), 1), self.eos_idx)
         src_tokens = torch.cat([bos_block, src_tokens], dim=1)
 
-        x, _ = self.language_model(src_tokens)
+        x, _ = self.language_model(src_tokens, mask_curr_state=self.mask_curr_state)
         if isinstance(x, list):
             x = x[0]
 
@@ -372,6 +374,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
         parser.add_argument('--affine-layer-norm', action='store_true', help='if true, and layer norm is enabled, it is affine')
+        parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
 
     @classmethod
     def build_model(cls, args, task):
