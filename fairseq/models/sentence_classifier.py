@@ -328,7 +328,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         self.eos_idx = eos_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
-        self.proj = torch.nn.Linear(args.model_dim * 2, 2, bias=True)
+        self.proj = torch.nn.Linear(args.model_dim * 2, 2, bias=not args.no_proj_bias)
 
         self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm) if args.layer_norm else None
 
@@ -342,7 +342,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
 
     def reset_parameters(self):
         torch.nn.init.constant_(self.proj.weight, 0)
-        torch.nn.init.constant_(self.proj.bias, 0)
+        if self.proj.bias is not None:
+            torch.nn.init.constant_(self.proj.bias, 0)
 
     def forward(self, src_tokens, src_lengths):
         bos_block = src_tokens.new_full((src_tokens.size(0), 1), self.eos_idx)
@@ -375,6 +376,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
         parser.add_argument('--affine-layer-norm', action='store_true', help='if true, and layer norm is enabled, it is affine')
         parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
+        parser.add_argument('--no-proj-bias', action='store_true',
+                            help='if true, does not include proj bias')
 
     @classmethod
     def build_model(cls, args, task):
@@ -506,6 +509,7 @@ def base_architecture_ft(args):
     args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
     args.layer_norm = getattr(args, 'layer_norm', False)
     args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
+    args.no_proj_bias = getattr(args, 'no_proj_bias', False)
 
 
 @register_model_architecture('hybrid_sentence_classifier', 'hybrid_sentence_classifier')

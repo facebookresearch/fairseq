@@ -33,6 +33,9 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
     def __init__(self, decoder):
         super().__init__(decoder)
 
+        self.embedding_dim = decoder.output_dim
+        self.padding_idx = decoder.padding_idx
+
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
@@ -147,6 +150,7 @@ class BiTransformerDecoder(FairseqDecoder):
         self.padding_idx = embed_tokens.padding_idx
         self.unk_idx = dictionary.unk()
         self.max_target_positions = args.max_target_positions
+        self.output_dim = args.decoder_embed_dim
 
         self.self_target = args.self_target
         self.future_target = args.future_target
