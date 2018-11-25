@@ -214,7 +214,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             mult = 2 + int(args.proj_unk)
         else:
             mult = 4 + int(args.proj_unk)
-        self.proj = torch.nn.Linear(args.model_dim * mult, args.num_labels if args.num_labels > 0 else 1, bias=True)
+        self.proj = torch.nn.Linear(args.model_dim * mult, args.num_labels if args.num_labels > 0 else 1, bias=not args.no_proj_bias)
         self.proj_unk = args.proj_unk
 
         if args.pos_markers:
@@ -237,7 +237,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
 
     def reset_parameters(self):
         torch.nn.init.constant_(self.proj.weight, 0)
-        torch.nn.init.constant_(self.proj.bias, 0)
+        if self.proj.bias is not None:
+            torch.nn.init.constant_(self.proj.bias, 0)
         if self.pos_markers is not None:
             torch.nn.init.xavier_normal_(self.pos_markers, gain=0.5)
 
@@ -304,6 +305,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--copy-eos-to-unk', action='store_true', help='if true, initializes unk (used as sep) to weights from eos')
         parser.add_argument('--proj-unk', action='store_true', help='if true, also includes unk emb in projection')
         parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
+        parser.add_argument('--no-proj-bias', action='store_true',
+                            help='if true, does not include proj bias')
 
     @classmethod
     def build_model(cls, args, task):
@@ -417,8 +420,7 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
         parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
         parser.add_argument('--lstm-dim', type=int, metavar='D', help='lstm dim')
-        parser.add_argument('--affine-layer-norm', action='store_true',
-                            help='if true, and layer norm is enabled, it is affine')
+        parser.add_argument('--affine-layer-norm', action='store_true', help='if true, and layer norm is enabled, it is affine')
 
     @classmethod
     def build_model(cls, args, task):
@@ -555,6 +557,7 @@ def base_architecture(args):
     args.copy_eos_to_unk = getattr(args, 'copy_eos_to_unk', False)
     args.proj_unk = getattr(args, 'proj_unk', False)
     args.drop_mask = getattr(args, 'drop_mask', False)
+    args.no_proj_bias = getattr(args, 'no_proj_bias', False)
 
 
 @register_model_architecture('hybrid_sentence_pair_classifier', 'hybrid_sentence_pair_classifier')
