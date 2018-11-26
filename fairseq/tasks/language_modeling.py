@@ -25,14 +25,15 @@ class LanguageModelingTask(FairseqTask):
     Train a language model.
 
     Args:
-        dictionary (Dictionary): the dictionary for the  input of the language model
-
-        output_dictionary (Dictionary): the dictionary for the output of the language model.
-        In most cases it will be the same as dictionary, but could possibly be a more limited
-        version of the dictionary (if --output-dictionary-size is used).
-
-        targets (List[str]): list of the target types that the language model should predict.
-        Can be one of "self", "future", and "past". Defaults to "future".
+        dictionary (~fairseq.data.Dictionary): the dictionary for the input of
+            the language model
+        output_dictionary (~fairseq.data.Dictionary): the dictionary for the
+            output of the language model. In most cases it will be the same as
+            *dictionary*, but could possibly be a more limited version of the
+            dictionary (if ``--output-dictionary-size`` is used).
+        targets (List[str]): list of the target types that the language model
+            should predict.  Can be one of "self", "future", and "past".
+            Defaults to "future".
 
     .. note::
 

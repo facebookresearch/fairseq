@@ -33,6 +33,7 @@ def collate(samples, pad_idx, eos_idx):
 
     return {
         'id': torch.LongTensor([s['id'] for s in samples]),
+        'nsentences': len(samples),
         'ntokens': sum(len(s['source']) for s in samples),
         'net_input': {
             'src_tokens': merge('source'),
@@ -41,7 +42,6 @@ def collate(samples, pad_idx, eos_idx):
             ]),
         },
         'target': merge('target', is_target_list),
-        'nsentences': samples[0]['source'].size(0),
     }
 
 
