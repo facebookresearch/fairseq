@@ -99,8 +99,12 @@ class BaseFairseqModel(nn.Module):
 
         self.apply(apply_remove_weight_norm)
 
+        seen = set()
+
         def apply_make_generation_fast_(module):
-            if module != self and hasattr(module, 'make_generation_fast_'):
+            if module != self and hasattr(module, 'make_generation_fast_') \
+                    and module not in seen:
+                seen.add(module)
                 module.make_generation_fast_(**kwargs)
 
         self.apply(apply_make_generation_fast_)
@@ -115,8 +119,12 @@ class BaseFairseqModel(nn.Module):
 
     def prepare_for_onnx_export_(self, **kwargs):
         """Make model exportable via ONNX trace."""
+        seen = set()
+
         def apply_prepare_for_onnx_export_(module):
-            if module != self and hasattr(module, 'prepare_for_onnx_export_'):
+            if module != self and hasattr(module, 'prepare_for_onnx_export_') \
+                    and module not in seen:
+                seen.add(module)
                 module.prepare_for_onnx_export_(**kwargs)
 
         self.apply(apply_prepare_for_onnx_export_)
