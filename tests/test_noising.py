@@ -12,9 +12,9 @@ import tests.utils as test_utils
 import torch
 from fairseq import utils
 from fairseq.data import (
-    AppendEosDataset,
     Dictionary,
     LanguagePairDataset,
+    TransformEosDataset,
     data_utils,
     noising,
 )
@@ -410,15 +410,14 @@ class TestDataNoising(unittest.TestCase):
             self.assert_no_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
 
     def _get_noising_dataset_batch(
-        self, src_tokens_no_pad, src_dict, use_append_eos_dataset=False
+        self, src_tokens_no_pad, src_dict, append_eos_to_tgt=False,
     ):
         """
         Constructs a NoisingDataset and the corresponding
-        LanguagePairDataset(NoisingDataset(src), src). If we set
-        use_append_eos_dataset to True, wrap the source dataset in
-        AppendEosDataset to append EOS to the clean source when using it as the
-        target. In practice, we should use AppendEosDataset because our models
-        usually have source without EOS but target with EOS.
+        ``LanguagePairDataset(NoisingDataset(src), src)``. If
+        *append_eos_to_tgt* is True, wrap the source dataset in
+        :class:`TransformEosDataset` to append EOS to the clean source when
+        using it as the target.
         """
         src_dataset = test_utils.TestDataset(data=src_tokens_no_pad)
 
@@ -432,10 +431,12 @@ class TestDataNoising(unittest.TestCase):
             noising_class=noising.UnsupervisedMTNoising,
         )
         tgt = src_dataset
-        if use_append_eos_dataset:
-            tgt = AppendEosDataset(src_dataset, src_dict.eos())
         language_pair_dataset = LanguagePairDataset(
             src=noising_dataset, tgt=tgt, src_sizes=None, src_dict=src_dict
+        )
+        language_pair_dataset = TransformEosDataset(
+            language_pair_dataset, src_dict.eos(),
+            append_eos_to_tgt=append_eos_to_tgt,
         )
 
         dataloader = torch.utils.data.DataLoader(
@@ -481,8 +482,7 @@ class TestDataNoising(unittest.TestCase):
     def test_noising_dataset_without_eos(self):
         """
         Similar to test noising dataset with eos except that we have to set
-        use_append_eos_dataset=True so that we wrap the source dataset in the
-        AppendEosDataset when using it as the target in LanguagePairDataset.
+        *append_eos_to_tgt* to ``True``.
         """
 
         src_dict, src_tokens, _ = self._get_test_data_with_bpe_cont_marker(
@@ -499,7 +499,7 @@ class TestDataNoising(unittest.TestCase):
         denoising_batch_result = self._get_noising_dataset_batch(
             src_tokens_no_pad=src_tokens_no_pad,
             src_dict=src_dict,
-            use_append_eos_dataset=True,
+            append_eos_to_tgt=True,
         )
 
         eos, pad = src_dict.eos(), src_dict.pad()
