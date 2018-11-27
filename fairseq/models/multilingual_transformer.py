@@ -88,34 +88,41 @@ class MultilingualTransformerModel(FairseqMultiModel):
         # build shared embeddings (if applicable)
         shared_encoder_embed_tokens, shared_decoder_embed_tokens = None, None
         if args.share_all_embeddings:
-            shared_dict = task.dicts[task.langs[0]]
-            if any(dict != shared_dict for dict in task.dicts.values()):
-                raise ValueError('--share-all-embeddings requires a joined dictionary')
             if args.encoder_embed_dim != args.decoder_embed_dim:
                 raise ValueError(
                     '--share-all-embeddings requires --encoder-embed-dim to match --decoder-embed-dim')
             if args.decoder_embed_path and (
                     args.decoder_embed_path != args.encoder_embed_path):
                 raise ValueError('--share-all-embeddings not compatible with --decoder-embed-path')
-            shared_encoder_embed_tokens = build_embedding(
-                shared_dict, args.encoder_embed_dim, args.encoder_embed_path
+            shared_encoder_embed_tokens = FairseqMultiModel.build_shared_embeddings(
+                dicts=task.dicts,
+                langs=task.langs,
+                embed_dim=args.encoder_embed_dim,
+                build_embedding=build_embedding,
+                pretrained_embed_path=args.encoder_embed_path,
             )
             shared_decoder_embed_tokens = shared_encoder_embed_tokens
             args.share_decoder_input_output_embed = True
         else:
             if args.share_encoder_embeddings:
-                shared_dict = task.dicts[src_langs[0]]
-                if any(task.dicts[src_lang] != shared_dict for src_lang in src_langs):
-                    raise ValueError('--share-encoder-embeddings requires a joined source dictionary')
-                shared_encoder_embed_tokens = build_embedding(
-                    shared_dict, args.encoder_embed_dim, args.encoder_embed_path
+                shared_encoder_embed_tokens = (
+                    FairseqMultiModel.build_shared_embeddings(
+                        dicts=task.dicts,
+                        langs=src_langs,
+                        embed_dim=args.encoder_embed_dim,
+                        build_embedding=build_embedding,
+                        pretrained_embed_path=args.encoder_embed_path,
+                    )
                 )
             if args.share_decoder_embeddings:
-                shared_dict = task.dicts[tgt_langs[0]]
-                if any(task.dicts[tgt_lang] != shared_dict for tgt_lang in src_langs):
-                    raise ValueError('--share-decoder-embeddings requires a joined target dictionary')
-                shared_decoder_embed_tokens = build_embedding(
-                    shared_dict, args.decoder_embed_dim, args.decoder_embed_path
+                shared_decoder_embed_tokens = (
+                    FairseqMultiModel.build_shared_embeddings(
+                        dicts=task.dicts,
+                        langs=tgt_langs,
+                        embed_dim=args.decoder_embed_dim,
+                        build_embedding=build_embedding,
+                        pretrained_embed_path=args.decoder_embed_path,
+                    )
                 )
 
         # encoders/decoders for each language
