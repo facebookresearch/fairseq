@@ -156,20 +156,32 @@ class MultiheadAttention(nn.Module):
             if attn_mask is not None:
                 attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
             if key_padding_mask is not None:
-                key_padding_mask = torch.cat([key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
+                key_padding_mask = torch.cat(
+                    [key_padding_mask, torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask)], dim=1)
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
         if attn_mask is not None:
-            attn_weights += attn_mask.unsqueeze(0)
+            attn_mask = attn_mask.unsqueeze(0)
+            if self.onnx_trace:
+                attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
+            attn_weights += attn_mask
+
         if key_padding_mask is not None:
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights.float().masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2),
-                float('-inf'),
-            ).type_as(attn_weights)  # FP16 support: cast to float and back
+            if self.onnx_trace:
+                attn_weights = torch.where(
+                    key_padding_mask.unsqueeze(1).unsqueeze(2),
+                    torch.Tensor([float("-Inf")]),
+                    attn_weights.float()
+                ).type_as(attn_weights)
+            else:
+                attn_weights = attn_weights.float().masked_fill(
+                    key_padding_mask.unsqueeze(1).unsqueeze(2),
+                    float('-inf'),
+                ).type_as(attn_weights)  # FP16 support: cast to float and back
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         attn_weights = F.softmax(attn_weights.float(), dim=-1).type_as(attn_weights)
