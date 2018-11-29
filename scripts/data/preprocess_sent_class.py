@@ -65,8 +65,11 @@ def main():
                 if i < args.skip_rows:
                     continue
                 parts = line.strip().split(args.separator)
-                print(parts[args.label_col], file=lbl_out)
+                if args.label_col >= 0:
+                    print(parts[args.label_col], file=lbl_out)
                 print(parts[args.data_col], file=data_out)
+        if args.label_col < 0:
+            os.remove(os.path.join(args.output, label_filename))
 
 
 if __name__ == '__main__':
