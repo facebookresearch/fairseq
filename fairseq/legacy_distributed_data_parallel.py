@@ -166,4 +166,5 @@ class LegacyDistributedDataParallel(nn.Module):
             def allreduce_hook(*unused):
                 Variable._execution_engine.queue_callback(reduction_fn)
 
-            p.register_hook(allreduce_hook)
+            if p.requires_grad:
+                p.register_hook(allreduce_hook)
