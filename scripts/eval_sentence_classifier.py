@@ -37,8 +37,6 @@ def eval_dataset(task, model, dataset, out_file, use_cuda=True):
             if use_cuda:
                 batch = utils.move_to_cuda(batch)
 
-            assert batch['target'].equal(batch['id'].view(batch['target'].shape))
-
             logits = model(**batch['net_input'])
 
             pred_class = logits.argmax(dim=-1).cpu()

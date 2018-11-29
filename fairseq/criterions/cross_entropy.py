@@ -41,6 +41,10 @@ class CrossEntropyCriterion(FairseqCriterion):
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
         }
+
+        if not reduce:
+            logging_output['model_out'] = net_output
+
         return loss, sample_size, logging_output
 
 

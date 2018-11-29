@@ -167,49 +167,29 @@ class SentencePairClassificationTask(FairseqTask):
 
                 tp = tn = fp = fn = 0
 
-                correct_by_lbl = []
-
                 if self.num_labels == 2:
                     pos = sample['target'].view(-1).eq(1)
                     neg = sample['target'].view(-1).eq(0)
                     correct_pos = probs[pos] > 1 / self.num_labels
                     correct_neg = probs[neg] > 1 / self.num_labels
 
-                    correct_by_lbl.extend([(pos, correct_pos), (neg, correct_neg)])
-
                     tp = correct_pos.long().sum().item()
                     tn = correct_neg.long().sum().item()
                     fp = neg.long().sum().item() - tn
                     fn = pos.long().sum().item() - tp
                 else:
-                    for i in range(self.num_labels + 1):
-                        pos = sample['target'].view(-1).eq(i)
-                        correct_lbl = probs[pos] > 1 / self.num_labels
+                    output = logging_output['model_out']
+                    preds = output.argmax(dim=-1).view(-1)
 
-                        correct_by_lbl.append((pos, correct_lbl))
-
-                        c_tp = correct_lbl.long().sum().item()
-                        tp += c_tp
-                        fn += pos.long().sum().item() - c_tp
+                    match = preds.eq(sample['target'].view(-1)).long()
+                    tp = match.sum().item()
+                    fn = match.numel() - tp
 
                 logging_output['extra_metrics'] = {
                     'classification': (tp, tn, fp, fn),
                     'misclassified': []
                 }
-
-                if False:
-                    correct = correct_by_lbl[0][1].new_zeros(probs.shape)
-
-                    for mask, corr in correct_by_lbl:
-                        correct[mask] = corr
-
-                    incorrect = ~correct
-                    incorrect_ids = sample['id'][incorrect.nonzero()]
-                    incorrect_probs = probs[incorrect.nonzero()]
-
-                    logging_output['extra_metrics']['misclassified'] = list(
-                        zip(incorrect_ids.squeeze(-1).tolist(),
-                            map(lambda x: round(x, 2), incorrect_probs.squeeze(-1).tolist())))
+                del logging_output['model_out']
 
             else:
                 xs = logging_output['preds'].view(-1).tolist()

@@ -269,7 +269,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             x = x[0]
 
         if self.ln is not None:
-            x = self.ln(x)
+            x = F.layer_norm(x, x.shape[-2:])
+            # x = self.ln(x)
 
         idxs = sentence1.eq(self.eos_idx)
         if self.proj_unk:

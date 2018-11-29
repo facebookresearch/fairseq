@@ -96,7 +96,7 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
         if mask_curr_state:
-            attn_weights += self.mask(attn_weights).unsqueeze(0)
+            attn_weights += self.mask(attn_weights, mask_curr_state).unsqueeze(0)
 
         if key_padding_mask is not None:
             # don't attend to padding symbols
@@ -144,10 +144,13 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
                 bias = bias[start:]
         return F.linear(input, weight, bias)
 
-    def mask(self, tensor):
+    def mask(self, tensor, mask_curr):
         dim = tensor.size(-1)
         half_dim = dim // 2
+
+        add = 1 if mask_curr else 0
+
         ones = tensor.new_ones(half_dim, dim).byte()
-        mask = ones.triu(half_dim + 1) + ones.tril(-1)
+        mask = ones.triu(half_dim + add) + ones.tril(-add)
         mask = utils.fill_with_neg_inf(tensor.new(mask.size())).masked_fill_(mask, 0)
         return mask
