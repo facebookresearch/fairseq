@@ -32,6 +32,7 @@ class CharacterTokenEmbedder(torch.nn.Module):
     ):
         super(CharacterTokenEmbedder, self).__init__()
 
+        self.onnx_trace = False
         self.embedding_dim = word_embed_dim
         self.max_char_len = max_char_len
         self.char_embeddings = nn.Embedding(257, char_embed_dim, padding_idx=0)
@@ -57,6 +58,9 @@ class CharacterTokenEmbedder(torch.nn.Module):
             self.set_vocab(vocab, max_char_len)
 
         self.reset_parameters()
+
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True
 
     def set_vocab(self, vocab, max_char_len):
         word_to_char = torch.LongTensor(len(vocab), max_char_len)
@@ -101,7 +105,11 @@ class CharacterTokenEmbedder(torch.nn.Module):
             pads = chars[:, 0].eq(CHAR_PAD_IDX)
             eos = chars[:, 0].eq(CHAR_EOS_IDX)
             if eos.any():
-                chars[eos] = 0
+                if self.onnx_trace:
+                    chars = torch.where(eos.unsqueeze(1), chars.new_zeros(1), chars)
+                else:
+                    chars[eos] = 0
+
             unk = None
         else:
             flat_words = input.view(-1)
@@ -111,14 +119,20 @@ class CharacterTokenEmbedder(torch.nn.Module):
             unk = flat_words.eq(self.vocab.unk())
 
         word_embs = self._convolve(chars)
-        if pads.any():
-            word_embs[pads] = 0
-
-        if eos.any():
-            word_embs[eos] = self.symbol_embeddings[self.eos_idx]
-
-        if unk is not None and unk.any():
-            word_embs[unk] = self.symbol_embeddings[self.unk_idx]
+        if self.onnx_trace:
+            if pads.any():
+                word_embs = torch.where(pads.unsqueeze(1), word_embs.new_zeros(1), word_embs)
+            if eos.any():
+                word_embs = torch.where(eos.unsqueeze(1), self.symbol_embeddings[self.eos_idx], word_embs)
+            if unk is not None and unk.any():
+                word_embs = torch.where(unk.unsqueeze(1), self.symbol_embeddings[self.unk_idx], word_embs)
+        else:
+            if pads.any():
+                word_embs[pads] = 0
+            if eos.any():
+                word_embs[eos] = self.symbol_embeddings[self.eos_idx]
+            if unk is not None and unk.any():
+                word_embs[unk] = self.symbol_embeddings[self.unk_idx]
 
         return word_embs.view(input.size()[:2] + (-1,))
 
