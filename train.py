@@ -22,8 +22,10 @@ from fairseq.meters import AverageMeter, StopwatchMeter
 
 
 def main(args):
+    dummy_batch_size = args.max_tokens
     if args.max_tokens is None:
         args.max_tokens = 6000
+        dummy_batch_size = 1024
     print(args)
 
     if not torch.cuda.is_available():
@@ -35,7 +37,7 @@ def main(args):
     task = tasks.setup_task(args)
 
     # Load dataset splits
-    load_dataset_splits(task, ['train', 'valid'])
+    load_dataset_splits(task, ['train'] + args.valid_subset.split(','))
 
     # Build model and criterion
     model = task.build_model(args)
@@ -50,7 +52,7 @@ def main(args):
         task.max_positions(),
         model.max_positions(),
     )
-    dummy_batch = task.dataset('train').get_dummy_batch(args.max_tokens, max_positions)
+    dummy_batch = task.dataset('train').get_dummy_batch(dummy_batch_size, max_positions)
 
     # Build trainer
     trainer = Trainer(args, task, model, criterion, dummy_batch)
@@ -121,7 +123,6 @@ def train(args, trainer, task, epoch_itr):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     first_valid = args.valid_subset.split(',')[0]
     max_update = args.max_update or math.inf
-    validate(args, trainer, task, epoch_itr, [first_valid])
     for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
         log_output = trainer.train_step(samples)
         if log_output is None:

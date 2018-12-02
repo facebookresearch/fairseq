@@ -217,6 +217,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         self.proj = torch.nn.Linear(args.model_dim * mult, args.num_labels if args.num_labels > 0 else 1, bias=not args.no_proj_bias)
         self.proj_unk = args.proj_unk
 
+        self.lm_scalar = args.lm_scalar
+
         if args.pos_markers:
             self.pos_emb = PositionalEmbedding(1024, args.model_dim, pad_idx, False, learned=False)
             self.pos_markers = nn.Parameter(torch.Tensor(2, args.model_dim))
@@ -276,6 +278,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         if self.proj_unk:
             idxs = idxs | sentence1.eq(self.unk_idx)
 
+        x *= self.lm_scalar
+
         x = x[idxs].view(sentence1.size(0), 1, -1)  # assume only 3 eoses per sample
 
         x = self.last_dropout(x)
@@ -299,6 +303,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
+        parser.add_argument('--lm-scalar', type=float, metavar='D', default=1.0, help='scale output of lm this much before projection')
         parser.add_argument('--pretraining', action='store_true', help='if true, load pretraining mode')
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
         parser.add_argument('--affine-layer-norm', action='store_true',
@@ -549,6 +554,7 @@ def base_architecture(args):
     args.last_dropout = getattr(args, 'last_dropout', 0.1)
     args.model_dropout = getattr(args, 'model_dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
+    args.lm_scalar = getattr(args, 'lm_scalar', 1.0)
     args.relu_dropout = getattr(args, 'relu_dropout', 0.05)
     args.pos_markers = getattr(args, 'pos_markers', False)
     args.continuous_pos = getattr(args, 'continuous_pos', False)

@@ -199,6 +199,8 @@ class BiTransformerDecoder(FairseqDecoder):
             elif not self.share_input_output_embed:
                 self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
                 nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
+        else:
+            self.share_input_output_embed = False
 
     def forward(self, source_tokens, mask_curr_state=True, pos_embs=None, **unused):
         """ Forward pass for the bidirectional transformer

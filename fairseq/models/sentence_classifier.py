@@ -334,6 +334,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
 
         self.mask_curr_state = not args.drop_mask
 
+        self.lm_scalar = args.lm_scalar
+
         if isinstance(self.language_model.decoder.embed_tokens, CharacterTokenEmbedder):
             print('disabling training char convolutions')
             self.language_model.decoder.embed_tokens.disable_convolutional_grads()
@@ -352,6 +354,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         x, _ = self.language_model(src_tokens, mask_curr_state=self.mask_curr_state)
         if isinstance(x, list):
             x = x[0]
+
+        x *= self.lm_scalar
 
         if self.ln is not None:
             x = self.ln(x)
@@ -378,6 +382,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
         parser.add_argument('--no-proj-bias', action='store_true',
                             help='if true, does not include proj bias')
+        parser.add_argument('--lm-scalar', type=float, metavar='D', default=1.0,
+                            help='scale output of lm this much before projection')
 
     @classmethod
     def build_model(cls, args, task):
@@ -510,6 +516,7 @@ def base_architecture_ft(args):
     args.layer_norm = getattr(args, 'layer_norm', False)
     args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
     args.no_proj_bias = getattr(args, 'no_proj_bias', False)
+    args.lm_scalar = getattr(args, 'lm_scalar', 1.0)
 
 
 @register_model_architecture('hybrid_sentence_classifier', 'hybrid_sentence_classifier')
