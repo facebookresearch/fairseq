@@ -148,12 +148,23 @@ def all_gather_list(data, group=None, max_size=16384):
 
     all_reduce(buffer, group=group)
 
-    result = []
-    for i in range(world_size):
-        out_buffer = buffer[i * max_size : (i + 1) * max_size]
-        size = (255 * utils.item(out_buffer[0])) + utils.item(out_buffer[1])
-        if size > 0:
-            result.append(
-                pickle.loads(bytes(out_buffer[2:size+2].tolist()))
-            )
-    return result
+    try:
+        result = []
+        for i in range(world_size):
+            out_buffer = buffer[i * max_size : (i + 1) * max_size]
+            size = (255 * utils.item(out_buffer[0])) + utils.item(out_buffer[1])
+            if size > 0:
+                result.append(
+                    pickle.loads(bytes(out_buffer[2:size+2].tolist()))
+                )
+        return result
+    except pickle.UnpicklingError as e:
+        raise Exception(
+            'Unable to unpickle data from other workers. all_gather_list requires all '
+            'workers to enter the function together, so this error usually indicates '
+            'that the workers have fallen out of sync somehow. Workers can fall out of '
+            'sync if one of them runs out of memory, or if there are other conditions '
+            'in your training script that can cause one worker to finish an epoch '
+            'while other workers are still iterating over their portions of the data.'
+        )
+
