@@ -199,23 +199,24 @@ class SentencePairClassifier(BaseFairseqModel):
 
 @register_model('finetuning_sentence_pair_classifier')
 class FinetuningSentencePairClassifier(BaseFairseqModel):
-    def __init__(self, args, language_model, eos_idx, pad_idx, unk_idx):
+    def __init__(self, args, language_model, eos_idx, pad_idx, unk_idx, sep_idx):
         super().__init__()
 
         self.language_model = language_model
         self.eos_idx = eos_idx
         self.pad_idx = pad_idx
-        self.unk_idx = unk_idx
+        self.unk_idx = unk_idx if args.concat_sentences_mode != 'sep' else sep_idx
 
         self.last_dropout = nn.Dropout(args.last_dropout)
         if args.concat_sentences_mode == 'eos':
             mult = 3
-        elif args.concat_sentences_mode == 'unk_only':
+        elif args.concat_sentences_mode == 'unk_only' or args.concat_sentences_mode == 'sep':
             mult = 2 + int(args.proj_unk)
         else:
             mult = 4 + int(args.proj_unk)
-        self.proj = torch.nn.Linear(args.model_dim * mult, args.num_labels if args.num_labels > 0 else 1, bias=not args.no_proj_bias)
-        self.proj_unk = args.proj_unk
+        self.proj = torch.nn.Linear(args.model_dim * mult, args.num_labels if args.num_labels > 0 else 1,
+                                    bias=not args.no_proj_bias)
+        self.proj_unk = args.proj_unk and args.concat_sentences_mode != 'eos'
 
         self.lm_scalar = args.lm_scalar
 
@@ -303,12 +304,14 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--model-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--attention-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
-        parser.add_argument('--lm-scalar', type=float, metavar='D', default=1.0, help='scale output of lm this much before projection')
+        parser.add_argument('--lm-scalar', type=float, metavar='D', default=1.0,
+                            help='scale output of lm this much before projection')
         parser.add_argument('--pretraining', action='store_true', help='if true, load pretraining mode')
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
         parser.add_argument('--affine-layer-norm', action='store_true',
                             help='if true, and layer norm is enabled, it is affine')
-        parser.add_argument('--copy-eos-to-unk', action='store_true', help='if true, initializes unk (used as sep) to weights from eos')
+        parser.add_argument('--copy-eos-to-unk', action='store_true',
+                            help='if true, initializes unk (used as sep) to weights from eos')
         parser.add_argument('--proj-unk', action='store_true', help='if true, also includes unk emb in projection')
         parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
         parser.add_argument('--no-proj-bias', action='store_true',
@@ -341,7 +344,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         models, _ = utils.load_ensemble_for_inference([args.lm_path], task, overrides)
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
-        return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk())
+        return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk(),
+                                                len(dictionary) - 1)
 
 
 @register_model('hybrid_sentence_pair_classifier')
@@ -426,7 +430,8 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--last-dropout', type=float, metavar='D', help='dropout before projection')
         parser.add_argument('--embedding-dropout', type=float, metavar='D', help='dropout after embedding')
         parser.add_argument('--lstm-dim', type=int, metavar='D', help='lstm dim')
-        parser.add_argument('--affine-layer-norm', action='store_true', help='if true, and layer norm is enabled, it is affine')
+        parser.add_argument('--affine-layer-norm', action='store_true',
+                            help='if true, and layer norm is enabled, it is affine')
 
     @classmethod
     def build_model(cls, args, task):
