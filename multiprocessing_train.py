@@ -23,6 +23,9 @@ def main(args):
     args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
     args.distributed_init_host = 'localhost'
     args.distributed_port = port + 1
+    if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
+        print('| WARNING: when using --update-freq on a single machine, you '
+              'will get better performance with --ddp-backend=no_c10d')
 
     mp = torch.multiprocessing.get_context('spawn')
 
