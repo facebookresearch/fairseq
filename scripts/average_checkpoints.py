@@ -86,33 +86,19 @@ def main():
         description='Tool to average the params of input checkpoints to '
                     'produce a new checkpoint',
     )
-
-    parser.add_argument(
-        '--inputs',
-        required=True,
-        nargs='+',
-        help='Input checkpoint file paths.',
-    )
-    parser.add_argument(
-        '--output',
-        required=True,
-        metavar='FILE',
-        help='Write the new checkpoint containing the averaged weights to this '
-             'path.',
-    )
+    # fmt: off
+    parser.add_argument('--inputs', required=True, nargs='+',
+                        help='Input checkpoint file paths.')
+    parser.add_argument('--output', required=True, metavar='FILE',
+                        help='Write the new checkpoint containing the averaged weights to this path.')
     num_group = parser.add_mutually_exclusive_group()
-    num_group.add_argument(
-        '--num-epoch-checkpoints',
-        type=int,
-        help='if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, '
-             'and average last this many of them.',
-    )
-    num_group.add_argument(
-        '--num-update-checkpoints',
-        type=int,
-        help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, '
-             'and average last this many of them.',
-    )
+    num_group.add_argument('--num-epoch-checkpoints', type=int,
+                           help='if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, '
+                           'and average last this many of them.')
+    num_group.add_argument('--num-update-checkpoints', type=int,
+                           help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, '
+                           'and average last this many of them.')
+    # fmt: on
     args = parser.parse_args()
     print(args)
 

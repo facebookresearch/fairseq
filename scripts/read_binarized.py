@@ -16,8 +16,10 @@ from fairseq.data import IndexedDataset
 def get_parser():
     parser = argparse.ArgumentParser(
         description='writes text from binarized file to stdout')
+    # fmt: off
     parser.add_argument('--dict', metavar='FP', required=True, help='dictionary containing known words')
     parser.add_argument('--input', metavar='FP', required=True, help='binarized file to read')
+    # fmt: on
 
     return parser
 

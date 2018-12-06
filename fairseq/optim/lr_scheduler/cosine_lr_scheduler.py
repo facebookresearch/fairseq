@@ -63,6 +63,7 @@ class CosineSchedule(FairseqLRScheduler):
     @staticmethod
     def add_args(parser):
         """Add arguments to the parser for this LR scheduler."""
+        # fmt: off
         parser.add_argument('--warmup-updates', default=0, type=int, metavar='N',
                             help='warmup the learning rate linearly for the first N updates')
         parser.add_argument('--warmup-init-lr', default=-1, type=float, metavar='LR',
@@ -73,6 +74,7 @@ class CosineSchedule(FairseqLRScheduler):
                             help='factor to grow the length of each period')
         parser.add_argument('--lr-period-updates', default=5000, type=float, metavar='LR',
                             help='initial number of updates per period')
+        # fmt: on
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""

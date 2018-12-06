@@ -41,6 +41,7 @@ class FConvModelSelfAtt(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
@@ -75,6 +76,7 @@ class FConvModelSelfAtt(FairseqModel):
                             help='path to load checkpoint from pretrained model')
         parser.add_argument('--pretrained', type=str, metavar='EXPR',
                             help='use pretrained model when training [True, ...]')
+        # fmt: on
 
     @classmethod
     def build_model(cls, args, task):
