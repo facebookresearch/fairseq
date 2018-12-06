@@ -22,8 +22,10 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     @staticmethod
     def add_args(parser):
         """Add criterion-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--label-smoothing', default=0., type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
+        # fmt: on
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.

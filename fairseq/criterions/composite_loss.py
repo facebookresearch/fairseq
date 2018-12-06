@@ -19,8 +19,10 @@ class CompositeLoss(FairseqCriterion):
     @staticmethod
     def add_args(parser):
         """Add criterion-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--underlying-criterion', type=str, metavar='VAL', required=True,
                             help='underlying criterion to use for the composite loss')
+        # fmt: on
 
     def __init__(self, args, task):
         super().__init__(args, task)
