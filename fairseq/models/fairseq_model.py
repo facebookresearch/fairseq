@@ -70,6 +70,12 @@ class BaseFairseqModel(nn.Module):
         self.upgrade_state_dict_named(state_dict, '')
 
     def upgrade_state_dict_named(self, state_dict, name):
+        """Upgrade old state dicts to work with newer code.
+
+        Args:
+            state_dict (dict): state dictionary to upgrade, in place
+            name (str): the state dict key corresponding to the current module
+        """
         assert state_dict is not None
 
         def do_upgrade(m, prefix):
