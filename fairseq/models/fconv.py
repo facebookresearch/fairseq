@@ -48,6 +48,7 @@ class FConvModel(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
@@ -70,6 +71,7 @@ class FConvModel(FairseqModel):
                             help='share input and output embeddings (requires'
                                  ' --decoder-out-embed-dim and --decoder-embed-dim'
                                  ' to be equal)')
+        # fmt: on
 
     @classmethod
     def build_model(cls, args, task):

@@ -49,6 +49,7 @@ class TransformerModel(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--attention-dropout', type=float, metavar='D',
@@ -93,6 +94,7 @@ class TransformerModel(FairseqModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        # fmt: on
 
     @classmethod
     def build_model(cls, args, task):
@@ -153,6 +155,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--attention-dropout', default=0., type=float, metavar='D',
@@ -205,6 +208,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='if set, ties the projection weights of adaptive softmax and adaptive input')
         parser.add_argument('--decoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the decoder')
+        # fmt: on
 
     @classmethod
     def build_model(cls, args, task):

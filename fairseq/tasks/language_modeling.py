@@ -52,6 +52,7 @@ class LanguageModelingTask(FairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('data', help='path to data directory')
         parser.add_argument('--sample-break-mode',
                             choices=['none', 'complete', 'eos'],
@@ -71,6 +72,7 @@ class LanguageModelingTask(FairseqTask):
                             help='include future target')
         parser.add_argument('--past-target', action='store_true',
                             help='include past target')
+        # fmt: on
 
     def __init__(self, args, dictionary, output_dictionary, targets=None):
         super().__init__(args)

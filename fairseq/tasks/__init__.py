@@ -65,10 +65,10 @@ for file in os.listdir(os.path.dirname(__file__)):
         if task_name in TASK_REGISTRY:
             parser = argparse.ArgumentParser(add_help=False)
             group_task = parser.add_argument_group('Task name')
-            group_task.add_argument(
-                '--task', metavar=task_name,
-                help='Enable this task with: ``--task=' + task_name + '``'
-            )
+            # fmt: off
+            group_task.add_argument('--task', metavar=task_name,
+                                    help='Enable this task with: ``--task=' + task_name + '``')
+            # fmt: on
             group_args = parser.add_argument_group('Additional command-line arguments')
             TASK_REGISTRY[task_name].add_args(group_args)
             globals()[task_name + '_parser'] = parser

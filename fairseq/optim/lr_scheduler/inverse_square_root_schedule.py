@@ -55,10 +55,12 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
     @staticmethod
     def add_args(parser):
         """Add arguments to the parser for this LR scheduler."""
+        # fmt: off
         parser.add_argument('--warmup-updates', default=4000, type=int, metavar='N',
                             help='warmup the learning rate linearly for the first N updates')
         parser.add_argument('--warmup-init-lr', default=-1, type=float, metavar='LR',
                             help='initial learning rate during warmup phase; default is args.lr')
+        # fmt: on
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""

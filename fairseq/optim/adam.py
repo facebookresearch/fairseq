@@ -21,10 +21,12 @@ class FairseqAdam(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
                             help='betas for Adam optimizer')
         parser.add_argument('--adam-eps', type=float, default=1e-8, metavar='D',
                             help='epsilon for Adam optimizer')
+        # fmt: on
 
     @property
     def optimizer_config(self):

@@ -19,12 +19,14 @@ from fairseq.data import dictionary
 
 def get_parser():
     parser = argparse.ArgumentParser(description='Command-line script for BLEU scoring.')
+    # fmt: off
     parser.add_argument('-s', '--sys', default='-', help='system output')
     parser.add_argument('-r', '--ref', required=True, help='references')
     parser.add_argument('-o', '--order', default=4, metavar='N',
                         type=int, help='consider ngrams up to this order')
     parser.add_argument('--ignore-case', action='store_true',
                         help='case-insensitive scoring')
+    # fmt: on
     return parser
 
 
@@ -44,7 +46,7 @@ def main():
         for line in fd.readlines():
             if args.ignore_case:
                 yield line.lower()
-            else:     
+            else:
                 yield line
 
     def score(fdsys):

@@ -25,6 +25,7 @@ class LSTMModel(FairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
@@ -68,6 +69,7 @@ class LSTMModel(FairseqModel):
         parser.add_argument('--share-all-embeddings', default=False, action='store_true',
                             help='share encoder, decoder and output embeddings'
                                  ' (requires shared dictionary and embed dim)')
+        # fmt: on
 
     @classmethod
     def build_model(cls, args, task):
