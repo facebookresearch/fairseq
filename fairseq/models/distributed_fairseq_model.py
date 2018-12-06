@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import inspect
 from torch.nn import parallel
 
 from fairseq.distributed_utils import c10d_status
@@ -46,6 +47,10 @@ def DistributedFairseqModel(args, model):
             broadcast_buffers=False,
             bucket_cap_mb=args.bucket_cap_mb,
         )
+        # Maintain backward compatibility for 0.4 or earlier
+        if 'check_reduction' in inspect.getargspec(ddp_class)[0]:
+            init_kwargs['check_reduction'] = True
+
     elif args.ddp_backend == 'no_c10d':
         ddp_class = LegacyDistributedDataParallel
         init_kwargs = dict(
