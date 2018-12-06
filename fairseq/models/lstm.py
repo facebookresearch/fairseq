@@ -75,6 +75,9 @@ class LSTMModel(FairseqModel):
         # make sure that all args are properly defaulted (in case there are any new ones)
         base_architecture(args)
 
+        if args.encoder_layers != args.decoder_layers:
+            raise ValueError('--encoder-layers must match --decoder-layers')
+
         def load_pretrained_embedding_from_file(embed_path, dictionary, embed_dim):
             num_embeddings = len(dictionary)
             padding_idx = dictionary.pad()
