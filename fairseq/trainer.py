@@ -29,7 +29,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion, dummy_batch):
+    def __init__(self, args, task, model, criterion, dummy_batch, oom_batch=None):
 
         if not torch.cuda.is_available():
             raise NotImplementedError('Training on CPU is not supported')
@@ -45,6 +45,7 @@ class Trainer(object):
             self._model = model.cuda()
 
         self._dummy_batch = dummy_batch
+        self._oom_batch = oom_batch
         self._num_updates = 0
         self._optim_history = None
         self._optimizer = None
@@ -198,6 +199,9 @@ class Trainer(object):
                 else:
                     raise e
 
+        if ooms > 0 and self._oom_batch is not None:
+            self.handle_ooms(ooms)
+
         if dummy_batch:
             return None
 
@@ -330,6 +334,15 @@ class Trainer(object):
         """Dummy training step for warming caching allocator."""
         self.train_step(dummy_batch, dummy_batch=True)
         self.zero_grad()
+
+    def handle_ooms(self, number_of_ooms):
+        """
+        c10d accumulates/syncs gradients between gpus during backward pass.
+        In case of OOMs, gpus may fail to sync, so we manually iterate
+        extra to make sure each gpu makes same number of iterations.
+        """
+        for _ in range(number_of_ooms):
+            self.train_step([self._oom_batch], True)
 
     def zero_grad(self):
         self.optimizer.zero_grad()
