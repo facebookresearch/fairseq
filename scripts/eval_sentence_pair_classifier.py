@@ -50,7 +50,8 @@ def eval_dataset(task, model, dataset, out_file, labels, use_cuda=True):
     with open(out_file, 'w') as out_f:
         print('index\tprediction', file=out_f)
         for i in range(len(predictions)):
-            print(f'{i}\t{labels[predictions[i]]}', file=out_f)
+            val = labels[predictions[i]] if labels is not None else predictions[i]
+            print(f'{i}\t{val}', file=out_f)
 
 
 def main(parsed_args):
@@ -93,7 +94,7 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '--labels',
-        default=['neutral', 'entailment', 'contradiction'],
+        # default=['neutral', 'entailment', 'contradiction'],
         nargs='+',
         help='list of labels',
     )

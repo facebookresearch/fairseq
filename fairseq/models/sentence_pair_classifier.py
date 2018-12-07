@@ -85,7 +85,10 @@ class SentencePairClassifier(BaseFairseqModel):
         torch.nn.init.xavier_uniform_(self.proj.weight)
         torch.nn.init.constant_(self.proj.bias, 0)
 
-    def forward(self, sentence1, sentence2):
+    def forward(self, sentence1, sentence2, sent1_lengths):
+
+        assert sentence1.numel() > 0
+        assert sentence2.numel() > 0
 
         premise_pad_mask = sentence1.eq(self.embedding.padding_idx)
         hypothesis_pad_mask = sentence2.eq(self.embedding.padding_idx)
