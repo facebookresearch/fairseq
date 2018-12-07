@@ -12,19 +12,29 @@ from fairseq import optim, utils
 
 class DynamicLossScaler:
 
-    def __init__(self, init_scale=2.**15, scale_factor=2., scale_window=2000):
+    def __init__(self, init_scale=2.**15, scale_factor=2., scale_window=2000, tolerance=0.05):
         self.loss_scale = init_scale
         self.scale_factor = scale_factor
         self.scale_window = scale_window
+        self.tolerance = tolerance
         self._iter = 0
         self._last_overflow_iter = -1
+        self._last_rescale_iter = -1
+        self._overflows_since_rescale = 0
 
     def update_scale(self, overflow):
+        iter_since_rescale = self._iter - self._last_rescale_iter
         if overflow:
-            self.loss_scale /= self.scale_factor
             self._last_overflow_iter = self._iter
+            self._overflows_since_rescale += 1
+            pct_overflow = self._overflows_since_rescale / float(iter_since_rescale)
+            if pct_overflow >= self.tolerance:
+                self.loss_scale /= self.scale_factor
+                self._last_rescale_iter = self._iter
+                self._overflows_since_rescale = 0
         elif (self._iter - self._last_overflow_iter) % self.scale_window == 0:
             self.loss_scale *= self.scale_factor
+            self._last_rescale_iter = self._iter
         self._iter += 1
 
     @staticmethod
@@ -55,6 +65,7 @@ class FP16Optimizer(optim.FairseqOptimizer):
         self.scaler = DynamicLossScaler(
             init_scale=args.fp16_init_scale,
             scale_window=scale_window,
+            tolerance=args.fp16_scale_tolerance,
         )
 
     @staticmethod
