@@ -51,9 +51,10 @@ def main(args):
         model.max_positions(),
     )
     dummy_batch = task.dataset('train').get_dummy_batch(args.max_tokens, max_positions)
+    oom_batch = task.dataset('train').get_dummy_batch(1, max_positions)
 
     # Build trainer
-    trainer = Trainer(args, task, model, criterion, dummy_batch)
+    trainer = Trainer(args, task, model, criterion, dummy_batch, oom_batch)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
