@@ -108,6 +108,8 @@ class TransformerModel(FairseqModel):
                             help='if using a pretrained bilm encoder, what is the relu dropout for bilm')
         parser.add_argument('--bilm-mask-last-state', action='store_true',
                             help='if set, masks last state in bilm as is done during training')
+        parser.add_argument('--decoder-embed-scale', type=float,
+                            help='scaling factor for embeddings used in decoder')
 
     @classmethod
     def build_model(cls, args, task):
@@ -187,7 +189,7 @@ class TransformerModel(FairseqModel):
             encoder = EmbeddingEncoder(src_dict, encoder_embed_tokens)
         else:
             encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens, math.sqrt(args.encoder_embed_dim))
-        decoder = TransformerDecoder(args, tgt_dict, decoder_embed_tokens)
+        decoder = TransformerDecoder(args, tgt_dict, decoder_embed_tokens, args.decoder_embed_scale)
         return TransformerModel(encoder, decoder)
 
 
@@ -507,7 +509,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             ``False``
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, left_pad=False, final_norm=True):
+    def __init__(self, args, dictionary, embed_tokens, embed_scale=None, no_encoder_attn=False, left_pad=False, final_norm=True):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
@@ -520,7 +522,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.max_target_positions = args.max_target_positions
 
         self.embed_tokens = embed_tokens
-        self.embed_scale = math.sqrt(self.embed_dim)
+        self.embed_scale = math.sqrt(self.embed_dim) if embed_scale is None else embed_scale
 
         self.project_in_dim = Linear(input_embed_dim, self.embed_dim,
                                      bias=False) if self.embed_dim != input_embed_dim else None
@@ -581,18 +583,26 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                   tgt_len, src_len)`
         """
         # embed positions
+
+        lm_decoder = not isinstance(self.embed_tokens, nn.Embedding)
+
         positions = self.embed_positions(
             prev_output_tokens,
             incremental_state=incremental_state,
         ) if self.embed_positions is not None else None
 
-        if incremental_state is not None:
+        if incremental_state is not None and not lm_decoder:
             prev_output_tokens = prev_output_tokens[:, -1:]
             if positions is not None:
                 positions = positions[:, -1:]
 
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
+
+        if incremental_state is not None and lm_decoder:
+            x = x[:, -1:]
+            if positions is not None:
+                positions = positions[:, -1:]
 
         if self.project_in_dim is not None:
             x = self.project_in_dim(x)
@@ -989,6 +999,8 @@ def base_architecture(args):
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
     args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)
+
+    args.decoder_embed_scale = getattr(args, 'decoder_embed_scale', None)
 
 
 @register_model_architecture('transformer', 'transformer_iwslt_de_en')
