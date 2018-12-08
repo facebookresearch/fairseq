@@ -149,7 +149,8 @@ class TransformerModel(FairseqModel):
                          'relu_dropout': args.bilm_relu_dropout, })
                     assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
-                    return BILMEmbedder(models[0], args.encoder_embed_dim), 1
+                    return BILMEmbedder(models[0], args.encoder_embed_dim) if is_encoder else LMEmbedder(models[0],
+                                                                                                         args.decoder_embed_dim)
 
             num_embeddings = len(dictionary)
             padding_idx = dictionary.pad()
@@ -158,7 +159,7 @@ class TransformerModel(FairseqModel):
             if path:
                 embed_dict = utils.parse_embedding(path)
                 utils.load_embedding(embed_dict, dictionary, emb)
-            return emb, math.sqrt(encoder_embed_tokens.embedding_dim)
+            return emb
 
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
@@ -175,17 +176,17 @@ class TransformerModel(FairseqModel):
             decoder_embed_tokens = encoder_embed_tokens
             args.share_decoder_input_output_embed = True
         else:
-            encoder_embed_tokens, emb_scale = build_embedding(
+            encoder_embed_tokens = build_embedding(
                 src_dict, args.encoder_embed_dim, is_encoder=True, path=args.encoder_embed_path
             )
-            decoder_embed_tokens, _ = build_embedding(
+            decoder_embed_tokens = build_embedding(
                 tgt_dict, args.decoder_embed_dim, is_encoder=False, path=args.decoder_embed_path
             )
 
         if getattr(args, 'embedding_only', False):
             encoder = EmbeddingEncoder(src_dict, encoder_embed_tokens)
         else:
-            encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens, emb_scale)
+            encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens, math.sqrt(args.encoder_embed_dim))
         decoder = TransformerDecoder(args, tgt_dict, decoder_embed_tokens)
         return TransformerModel(encoder, decoder)
 
@@ -204,6 +205,23 @@ class BILMEmbedder(nn.Module):
         if isinstance(x, list):
             x = x[0]
 
+        if self.proj is not None:
+            x = self.proj(x)
+
+        return x
+
+
+class LMEmbedder(nn.Module):
+    def __init__(self, lm, embed_dim):
+        super().__init__()
+        self.lm = lm
+        self.embedding_dim = embed_dim
+        self.padding_idx = lm.padding_idx
+
+        self.proj = Linear(lm.embedding_dim, embed_dim, bias=False) if lm.embedding_dim != embed_dim else None
+
+    def forward(self, x):
+        x, _ = self.lm(x)
         if self.proj is not None:
             x = self.proj(x)
 
@@ -254,6 +272,8 @@ class EmbeddingEncoder(FairseqEncoder):
 class TransformerLanguageModel(FairseqLanguageModel):
     def __init__(self, decoder):
         super().__init__(decoder)
+        self.padding_idx = decoder.dictionary.pad()
+        self.embedding_dim = decoder.embed_dim
 
     @staticmethod
     def add_args(parser):
@@ -493,19 +513,20 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
         input_embed_dim = embed_tokens.embedding_dim
-        embed_dim = args.decoder_embed_dim
+        self.embed_dim = args.decoder_embed_dim
         output_embed_dim = args.decoder_output_dim
 
         padding_idx = embed_tokens.padding_idx
         self.max_target_positions = args.max_target_positions
 
         self.embed_tokens = embed_tokens
-        self.embed_scale = math.sqrt(embed_dim)  # todo: try with input_embed_dim
+        self.embed_scale = math.sqrt(self.embed_dim)
 
-        self.project_in_dim = Linear(input_embed_dim, embed_dim, bias=False) if embed_dim != input_embed_dim else None
+        self.project_in_dim = Linear(input_embed_dim, self.embed_dim,
+                                     bias=False) if self.embed_dim != input_embed_dim else None
 
         self.embed_positions = PositionalEmbedding(
-            args.max_target_positions, embed_dim, padding_idx,
+            args.max_target_positions, self.embed_dim, padding_idx,
             left_pad=left_pad,
             learned=args.decoder_learned_pos,
         ) if not args.no_dec_token_positional_embeddings else None
@@ -518,26 +539,29 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.adaptive_softmax = None
 
-        self.project_out_dim = Linear(embed_dim, output_embed_dim, bias=False) \
-            if embed_dim != output_embed_dim and not args.tie_adaptive_weights else None
+        self.project_out_dim = Linear(self.embed_dim, output_embed_dim, bias=False) \
+            if self.embed_dim != output_embed_dim and not args.tie_adaptive_weights else None
 
-        if args.adaptive_softmax_cutoff is not None:
-            self.adaptive_softmax = AdaptiveSoftmax(
-                len(dictionary),
-                output_embed_dim,
-                options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
-                dropout=args.adaptive_softmax_dropout,
-                adaptive_inputs=embed_tokens if args.tie_adaptive_weights else None,
-                factor=args.adaptive_softmax_factor,
-                tie_proj=args.tie_adaptive_proj,
-            )
-        elif not self.share_input_output_embed:
-            self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), output_embed_dim))
-            nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim ** -0.5)
+        self.load_softmax = not getattr(args, 'remove_head', False)
+
+        if self.load_softmax:
+            if args.adaptive_softmax_cutoff is not None:
+                self.adaptive_softmax = AdaptiveSoftmax(
+                    len(dictionary),
+                    output_embed_dim,
+                    options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
+                    dropout=args.adaptive_softmax_dropout,
+                    adaptive_inputs=embed_tokens if args.tie_adaptive_weights else None,
+                    factor=args.adaptive_softmax_factor,
+                    tie_proj=args.tie_adaptive_proj,
+                )
+            elif not self.share_input_output_embed:
+                self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), output_embed_dim))
+                nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim ** -0.5)
         self.register_buffer('version', torch.Tensor([2]))
         self.normalize = args.decoder_normalize_before and final_norm
         if self.normalize:
-            self.layer_norm = LayerNorm(embed_dim)
+            self.layer_norm = LayerNorm(self.embed_dim)
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
         """
@@ -603,7 +627,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        if self.adaptive_softmax is None:
+        if self.adaptive_softmax is None and self.load_softmax:
             # project back to size of vocabulary
             if self.share_input_output_embed:
                 x = F.linear(x, self.embed_tokens.weight)
@@ -626,7 +650,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self._future_mask = torch.triu(utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1)
         return self._future_mask[:dim, :dim]
 
-    def upgrade_state_dict(self, state_dict):
+    def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             if 'decoder.embed_positions.weights' in state_dict:
@@ -651,6 +675,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layer_norm = None
             self.normalize = False
             state_dict['decoder.version'] = torch.Tensor([1])
+
+        if not self.load_softmax:
+            for k in list(state_dict.keys()):
+                if k.startswith(name + '.adaptive_softmax.') or k.startswith(name + '.embed_out'):
+                    del state_dict[k]
 
         return state_dict
 
