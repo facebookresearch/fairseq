@@ -108,8 +108,12 @@ class TransformerModel(FairseqModel):
                             help='if using a pretrained bilm encoder, what is the relu dropout for bilm')
         parser.add_argument('--bilm-mask-last-state', action='store_true',
                             help='if set, masks last state in bilm as is done during training')
+        parser.add_argument('--bilm-add-bos', action='store_true',
+                            help='if set, adds bos to input')
         parser.add_argument('--decoder-embed-scale', type=float,
                             help='scaling factor for embeddings used in decoder')
+        parser.add_argument('--encoder-embed-scale', type=float,
+                            help='scaling factor for embeddings used in encoder')
 
     @classmethod
     def build_model(cls, args, task):
@@ -151,8 +155,8 @@ class TransformerModel(FairseqModel):
                          'relu_dropout': args.bilm_relu_dropout, })
                     assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
-                    return BILMEmbedder(models[0], args.encoder_embed_dim) if is_encoder else LMEmbedder(models[0],
-                                                                                                         args.decoder_embed_dim)
+                    return BILMEmbedder(models[0], args, args.encoder_embed_dim) if is_encoder \
+                        else LMEmbedder(models[0], args.decoder_embed_dim)
 
             num_embeddings = len(dictionary)
             padding_idx = dictionary.pad()
@@ -188,24 +192,35 @@ class TransformerModel(FairseqModel):
         if getattr(args, 'embedding_only', False):
             encoder = EmbeddingEncoder(src_dict, encoder_embed_tokens)
         else:
-            encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens, math.sqrt(args.encoder_embed_dim))
+            encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens, args.encoder_embed_scale)
         decoder = TransformerDecoder(args, tgt_dict, decoder_embed_tokens, args.decoder_embed_scale)
         return TransformerModel(encoder, decoder)
 
 
 class BILMEmbedder(nn.Module):
-    def __init__(self, bilm, embed_dim):
+    def __init__(self, bilm, args, embed_dim):
         super().__init__()
         self.bilm = bilm
         self.embedding_dim = embed_dim
         self.padding_idx = bilm.padding_idx
 
+        self.eos_idx = bilm.eos_idx
+
+        self.mask_curr_state = args.bilm_mask_last_state
+        self.add_bos = args.bilm_add_bos
+
         self.proj = Linear(bilm.embedding_dim, embed_dim, bias=False) if bilm.embedding_dim != embed_dim else None
 
     def forward(self, x):
-        x, _ = self.bilm(x, mask_curr_state=False)
+        if self.add_bos:
+            x = torch.cat([x.new_full((x.shape[0], 1), self.eos_idx), x], dim=1)
+
+        x, _ = self.bilm(x, mask_curr_state=self.mask_curr_state)
         if isinstance(x, list):
             x = x[0]
+
+        if self.add_bos:
+            x = x[:, 1:]
 
         if self.proj is not None:
             x = self.proj(x)
@@ -388,16 +403,17 @@ class TransformerEncoder(FairseqEncoder):
             ``True``
     """
 
-    def __init__(self, args, dictionary, embed_tokens, embed_scale, left_pad=True):
+    def __init__(self, args, dictionary, embed_tokens, embed_scale=None, left_pad=True):
         super().__init__(dictionary)
         self.dropout = args.dropout
 
         embed_dim = embed_tokens.embedding_dim
         self.padding_idx = embed_tokens.padding_idx
         self.max_source_positions = args.max_source_positions
+        self.eos_idx = dictionary.eos()
 
         self.embed_tokens = embed_tokens
-        self.embed_scale = embed_scale
+        self.embed_scale = math.sqrt(args.encoder_embed_dim) if embed_scale is None else embed_scale
         self.embed_positions = PositionalEmbedding(
             args.max_source_positions, embed_dim, self.padding_idx,
             left_pad=left_pad,
@@ -509,7 +525,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             ``False``
     """
 
-    def __init__(self, args, dictionary, embed_tokens, embed_scale=None, no_encoder_attn=False, left_pad=False, final_norm=True):
+    def __init__(self, args, dictionary, embed_tokens, embed_scale=None, no_encoder_attn=False, left_pad=False,
+                 final_norm=True):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
@@ -1001,6 +1018,10 @@ def base_architecture(args):
     args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)
 
     args.decoder_embed_scale = getattr(args, 'decoder_embed_scale', None)
+    args.encoder_embed_scale = getattr(args, 'encoder_embed_scale', None)
+
+    args.bilm_mask_last_state = getattr(args, 'bilm_mask_last_state', False)
+    args.bilm_add_bos = getattr(args, 'bilm_add_bos', False)
 
 
 @register_model_architecture('transformer', 'transformer_iwslt_de_en')

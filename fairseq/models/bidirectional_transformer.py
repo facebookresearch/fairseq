@@ -35,6 +35,7 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
 
         self.embedding_dim = decoder.output_dim
         self.padding_idx = decoder.padding_idx
+        self.eos_idx = decoder.eos_idx
 
     @staticmethod
     def add_args(parser):
@@ -94,6 +95,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='if set, doubles the number of heads for the final layer')
         parser.add_argument('--concat-final-q', action='store_true',
                             help='if set, concatenates the query for the final bidirectional layer instead of summing')
+        parser.add_argument('--single-tower', action='store_true',
+                            help='if set, uses a single tower for both bwd and fwd passes')
         parser.add_argument('--input-dropout', type=float, metavar='N',
                             help='percentage of input dropout (turn into pads)')
 
@@ -149,6 +152,7 @@ class BiTransformerDecoder(FairseqDecoder):
         embed_dim = embed_tokens.embedding_dim
         self.padding_idx = embed_tokens.padding_idx
         self.unk_idx = dictionary.unk()
+        self.eos_idx = dictionary.eos()
         self.max_target_positions = args.max_target_positions
         self.output_dim = args.decoder_embed_dim
 
@@ -170,7 +174,8 @@ class BiTransformerDecoder(FairseqDecoder):
         self.forward_layers = nn.ModuleList([TransformerDecoderLayer(args)
                                              for _ in range(args.decoder_layers)])
         self.backward_layers = nn.ModuleList([TransformerDecoderLayer(args)
-                                              for _ in range(args.decoder_layers)])
+                                              for _ in range(
+                args.decoder_layers)]) if not args.single_tower else self.forward_layers
 
         self.full_attn_layer = None
         self.full_linear_layer = None
@@ -485,6 +490,7 @@ def base_bi_lm_architecture(args):
 
     args.double_final_heads = getattr(args, 'double_final_heads', False)
     args.concat_final_q = getattr(args, 'concat_final_q', False)
+    args.single_tower = getattr(args, 'single_tower', False)
 
     args.input_dropout = getattr(args, 'input_dropout', 0.)
 
