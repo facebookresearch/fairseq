@@ -176,6 +176,7 @@ class BiTransformerDecoder(FairseqDecoder):
         self.backward_layers = nn.ModuleList([TransformerDecoderLayer(args)
                                               for _ in range(
                 args.decoder_layers)]) if not args.single_tower else self.forward_layers
+        self.single_tower = args.single_tower
 
         self.full_attn_layer = None
         self.full_linear_layer = None

@@ -24,7 +24,7 @@ from fairseq.meters import AverageMeter, StopwatchMeter
 def main(args):
     dummy_batch_size = args.max_tokens
     if args.max_tokens is None:
-        args.max_tokens = 6000
+        args.max_tokens = 4096
         dummy_batch_size = 1024
     print(args)
 
