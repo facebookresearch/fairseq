@@ -9,7 +9,7 @@ import itertools
 import numpy as np
 import os
 
-from fairseq import options
+from fairseq import options, utils
 from fairseq.data import (
     data_utils, Dictionary, LanguagePairDataset, ConcatDataset,
     IndexedRawTextDataset, IndexedCachedDataset, IndexedDataset
@@ -62,6 +62,24 @@ class TranslationTask(FairseqTask):
         parser.add_argument('--upsample-primary', default=1, type=int,
                             help='amount to upsample primary dataset')
         # fmt: on
+
+    @staticmethod
+    def load_pretrained_model(path, src_dict_path, tgt_dict_path, arg_overrides=None):
+        model = utils.load_checkpoint_to_cpu(path)
+        args = model['args']
+        state_dict = model['model']
+        args = utils.override_model_args(args, arg_overrides)
+        src_dict = Dictionary.load(src_dict_path)
+        tgt_dict = Dictionary.load(tgt_dict_path)
+        assert src_dict.pad() == tgt_dict.pad()
+        assert src_dict.eos() == tgt_dict.eos()
+        assert src_dict.unk() == tgt_dict.unk()
+
+        task = TranslationTask(args, src_dict, tgt_dict)
+        model = task.build_model(args)
+        model.upgrade_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=True)
+        return model
 
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args)
