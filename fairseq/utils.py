@@ -131,6 +131,12 @@ def _upgrade_state_dict(state):
     return state
 
 
+def load_checkpoint_to_cpu(path):
+    state = torch.load(path, map_location=lambda s, l: default_restore_location(s, 'cpu'))
+    state = _upgrade_state_dict(state)
+    return state
+
+
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     """Load an ensemble of models for inference.
 
@@ -143,8 +149,7 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     for filename in filenames:
         if not os.path.exists(filename):
             raise IOError('Model file not found: {}'.format(filename))
-        state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
-        state = _upgrade_state_dict(state)
+        state = load_checkpoint_to_cpu(filename)
         states.append(state)
 
     ensemble = []
@@ -152,7 +157,7 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
         args = state['args']
 
         if model_arg_overrides is not None:
-            args = _override_model_args(args, model_arg_overrides)
+            args = override_model_args(args, model_arg_overrides)
 
         # build model for ensemble
         model = task.build_model(args)
@@ -162,12 +167,12 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
 
         # some args (e.g., tokens_per_sample) might have been updated while building the model
         if model_arg_overrides is not None:
-            args = _override_model_args(args, model_arg_overrides)
+            args = override_model_args(args, model_arg_overrides)
 
     return ensemble, args
 
 
-def _override_model_args(args, model_arg_overrides):
+def override_model_args(args, model_arg_overrides):
     # Uses model_arg_overrides {'arg_name': arg} to override model args
     for arg_name, arg_val in model_arg_overrides.items():
         setattr(args, arg_name, arg_val)
