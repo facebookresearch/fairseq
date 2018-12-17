@@ -332,6 +332,8 @@ def add_generation_args(parser):
                        help='just score the reference translation')
     group.add_argument('--prefix-size', default=0, type=int, metavar='PS',
                        help='initialize generation by target prefix of given length')
+    group.add_argument('--no-repeat-ngram-size', default=0, type=int, metavar='N',
+                       help='ngram blocking such that this size ngram cannot be repeated in the generation')
     group.add_argument('--sampling', action='store_true',
                        help='sample hypotheses instead of using beam search')
     group.add_argument('--sampling-topk', default=-1, type=int, metavar='PS',
