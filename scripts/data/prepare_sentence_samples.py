@@ -5,56 +5,61 @@ import random
 
 
 def main(args):
-    if args.randomize_next_sentence:
-        docs = []
-        with open(args.input, 'r') as inp:
-            doc = []
-            for line in inp:
-                line = line.strip()
-                if len(line) == 0 and len(doc) > 0:
-                    docs.append(doc)
-                    doc = []
-                elif len(line) > 0:
-                    doc.append(line)
+    docs = []
+    with open(args.input, 'r') as inp:
+        doc = []
+        for line in inp:
+            line = line.strip().split()
+            if len(line) == 0 and len(doc) > 0:
+                docs.append(doc)
+                doc = []
+            elif len(line) > 0:
+                doc.append(line)
 
-        with open(args.output, 'w') as out, open(args.output + '.lbl', 'w') as lbl:
-            assert len(docs) > 1
-            for i, doc in enumerate(docs):
-                s1 = doc[0]
-                j = 1
-                while j <= len(doc):
-                    if random.random() >= 0.5 or j == len(doc):
+    with open(args.output, 'w') as out, open(args.output + '.lbl', 'w') as lbl:
+        assert len(docs) > 1
+        for i, doc in enumerate(docs):
+            j = 0
+            chunk = []
+            length = 0
+            while j < len(doc):
+                chunk.append(doc[j])
+                length += len(doc[j])
+                if j == len(doc) - 1 or length >= args.seq_length:
+                    a_end = 1 if len(chunk) == 1 else random.randint(1, len(chunk) - 1)
+                    a_toks = [t for c in chunk[:a_end] for t in c]
+                    b_toks = []
+                    if args.randomize_next_sentence and (random.random() >= 0.5 or len(chunk) == 1):
                         r = i
                         while r == i:
                             r = random.randint(0, len(docs) - 1)
                         k = random.randint(0, len(docs[r]) - 1)
-                        s2 = docs[r][k]
+                        while k < len(docs[r]):
+                            b_toks.extend(docs[r][k])
+                            if (len(a_toks) + len(b_toks)) >= args.seq_length:
+                                break
+                            k += 1
+                        j -= len(chunk) - a_end
                         print(0, file=lbl)
                     else:
-                        s2 = doc[j]
-                        j += 1
-                        print(1, file=lbl)
-                    sample = f'{s1} {args.sep} {s2}'
-                    print(sample, file=out)
-                    if j < len(doc):
-                        s1 = doc[j]
-                    j += 1
-    else:
-        with open(args.input, 'r') as inp, open(args.output, 'w') as out:
-            prev_sent = None
-            for line in inp:
-                line = line.strip()
-                if len(line) == 0:
-                    if args.keep_single and prev_sent is not None:
-                        sample = f'{prev_sent}'
-                        print(sample, file=out)
-                    prev_sent = None
-                elif prev_sent is None:
-                    prev_sent = line
-                else:
-                    sample = f'{prev_sent} {args.sep} {line}'
-                    print(sample, file=out)
-                    prev_sent = None
+                        b_toks.extend(t for c in chunk[a_end:] for t in c)
+                        if args.randomize_next_sentence:
+                            print(1, file=lbl)
+                    while (len(a_toks) + len(b_toks)) > args.seq_length:
+                        target = a_toks if len(a_toks) > len(b_toks) else b_toks
+                        target.pop(0 if random.random() >= 0.5 else -1)
+
+                    assert len(a_toks) > 0
+                    assert not args.randomize_next_sentence or len(b_toks) > 0
+
+                    if len(b_toks) == 0:
+                        sample = a_toks
+                    else:
+                        sample = a_toks + [args.sep] + b_toks
+                    print(' '.join(sample), file=out)
+                    chunk = []
+                    length = 0
+                j += 1
 
 
 if __name__ == '__main__':
@@ -76,11 +81,11 @@ if __name__ == '__main__':
         default='<SEP>',
         help='separator token',
     )
-    parser.add_argument(
-        '--keep-single',
-        action='store_true',
-        help='if set, keeps single example sentences also (e.g. for uneven length docs)'
-    )
+    # parser.add_argument(
+    #     '--keep-single',
+    #     action='store_true',
+    #     help='if set, keeps single example sentences also (e.g. for uneven length docs)'
+    # )
     parser.add_argument(
         '--randomize-next-sentence',
         action='store_true',
@@ -88,6 +93,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--seq-length',
+        default=512,
         type=int,
         help='if set, sequences are constructed by taking up to this many tokens. when the number of tokens exceeds this length, they are truncated. sentences are assigned to first or second segment randomly'
     )
