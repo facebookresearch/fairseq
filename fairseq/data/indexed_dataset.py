@@ -98,6 +98,12 @@ class IndexedDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.size
 
+    def read_into(self, start, dst):
+        self.data_file.seek(start * self.element_size)
+        self.data_file.readinto(dst)
+        if self.fix_lua_indexing:
+            dst -= 1  # subtract 1 for 0-based indexing
+
     @staticmethod
     def exists(path):
         return (
@@ -157,6 +163,11 @@ class IndexedInMemoryDataset(IndexedDataset):
         self.data_file.close()
         if self.fix_lua_indexing:
             self.buffer -= 1  # subtract 1 for 0-based indexing
+
+    def read_into(self, start, dst):
+        if self.token_blob is None:
+            self.token_blob = [t for l in self.tokens_list for t in l]
+        np.copyto(dst, self.token_blob[start:])
 
     def __del__(self):
         pass

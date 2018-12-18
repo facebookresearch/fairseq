@@ -9,12 +9,10 @@ import itertools
 import numpy as np
 import os
 
-from torch.utils.data import ConcatDataset
-
 from fairseq.data import (
-    Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
-    MonolingualDataset, TokenBlockDataset, TruncatedDictionary
-)
+    ConcatDataset, Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
+    MonolingualDataset, TokenBlockDataset, TruncatedDictionary,
+    IndexedCachedDataset, IndexedDataset)
 
 from . import FairseqTask, register_task
 
@@ -140,10 +138,8 @@ class LanguageModelingTask(FairseqTask):
 
             if self.args.raw_text and IndexedRawTextDataset.exists(path):
                 ds = IndexedRawTextDataset(path, self.dictionary)
-                tokens = [t for l in ds.tokens_list for t in l]
-            elif not self.args.raw_text and IndexedInMemoryDataset.exists(path):
-                ds = IndexedInMemoryDataset(path, fix_lua_indexing=True)
-                tokens = ds.buffer
+            elif not self.args.raw_text and IndexedDataset.exists(path):
+                ds = IndexedDataset(path, fix_lua_indexing=True)
             else:
                 if k > 0:
                     break
@@ -152,7 +148,7 @@ class LanguageModelingTask(FairseqTask):
 
             loaded_datasets.append(
                 TokenBlockDataset(
-                    tokens, ds.sizes, self.args.tokens_per_sample, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
+                    ds, self.args.tokens_per_sample, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
                     break_mode=self.args.sample_break_mode, include_targets=True,
                 ))
 
