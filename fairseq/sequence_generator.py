@@ -19,7 +19,7 @@ class SequenceGenerator(object):
         normalize_scores=True, len_penalty=1., unk_penalty=0., retain_dropout=False,
         sampling=False, sampling_topk=-1, sampling_temperature=1.,
         diverse_beam_groups=-1, diverse_beam_strength=0.5,
-        match_source_len=False,
+        match_source_len=False, no_repeat_ngram_size=0
     ):
         """Generates translations of a given source sentence.
         Args:
@@ -65,6 +65,7 @@ class SequenceGenerator(object):
         self.unk_penalty = unk_penalty
         self.retain_dropout = retain_dropout
         self.match_source_len = match_source_len
+        self.no_repeat_ngram_size = no_repeat_ngram_size
 
         assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
 
@@ -335,6 +336,14 @@ class SequenceGenerator(object):
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
+            if self.no_repeat_ngram_size > 0:
+                # for each beam and batch sentence, generate a list of previous ngrams
+                gen_ngrams = [{} for bbsz_idx in range(bsz * beam_size)]
+                for bbsz_idx in range(bsz * beam_size):
+                    gen_tokens = tokens[bbsz_idx].tolist()
+                    for ngram in zip(*[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]):
+                        gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
+
             # Record attention scores
             if avg_attn_scores is not None:
                 if attn is None:
@@ -349,6 +358,22 @@ class SequenceGenerator(object):
             eos_scores = buffer('eos_scores', type_of=scores)
             if step < maxlen:
                 self.search.set_src_lengths(src_lengths)
+
+                if self.no_repeat_ngram_size > 0:
+                    def calculate_banned_tokens(bbsz_idx):
+                        # before decoding the next token, prevent decoding of ngrams that have already appeared
+                        ngram_index = tuple(tokens[bbsz_idx, step + 2 - self.no_repeat_ngram_size:step + 1].tolist())
+                        return gen_ngrams[bbsz_idx].get(ngram_index, [])
+
+                    if step + 2 - self.no_repeat_ngram_size >= 0:
+                        # no banned tokens if we haven't generated no_repeat_ngram_size tokens yet
+                        banned_tokens = [calculate_banned_tokens(bbsz_idx) for bbsz_idx in range(bsz * beam_size)]
+                    else:
+                        banned_tokens = [[] for bbsz_idx in range(bsz * beam_size)]
+
+                    for bbsz_idx in range(bsz * beam_size):
+                        lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = float('-Inf')
+
                 if prefix_tokens is not None and step < prefix_tokens.size(1):
                     probs_slice = lprobs.view(bsz, -1, lprobs.size(-1))[:, 0, :]
                     cand_scores = torch.gather(
