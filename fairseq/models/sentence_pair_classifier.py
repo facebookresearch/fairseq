@@ -231,7 +231,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             self.pos_emb = None
             self.pos_markers = None
 
-        self.mask_curr_state = not args.drop_mask
+        self.mask_curr_state = args.last_mask
 
         self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm) if args.layer_norm else None
 
@@ -316,7 +316,8 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--copy-eos-to-unk', action='store_true',
                             help='if true, initializes unk (used as sep) to weights from eos')
         parser.add_argument('--proj-unk', action='store_true', help='if true, also includes unk emb in projection')
-        parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
+        parser.add_argument('--last-mask', choices=['full', 'none', 'curr'],
+                            help='full: full cloze loss masking, none: no masking at all, curr: same as full but remove masking only for current token')
         parser.add_argument('--no-proj-bias', action='store_true',
                             help='if true, does not include proj bias')
 
@@ -571,7 +572,7 @@ def base_architecture(args):
     args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
     args.copy_eos_to_unk = getattr(args, 'copy_eos_to_unk', False)
     args.proj_unk = getattr(args, 'proj_unk', False)
-    args.drop_mask = getattr(args, 'drop_mask', False)
+    args.last_mask = getattr(args, 'last_mask', 'full')
     args.no_proj_bias = getattr(args, 'no_proj_bias', False)
 
 

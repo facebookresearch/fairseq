@@ -208,7 +208,7 @@ class BiTransformerDecoder(FairseqDecoder):
         else:
             self.share_input_output_embed = False
 
-    def forward(self, source_tokens, mask_curr_state=True, pos_embs=None, **unused):
+    def forward(self, source_tokens, mask_curr_state='full', pos_embs=None, **unused):
         """ Forward pass for the bidirectional transformer
 
         Args:

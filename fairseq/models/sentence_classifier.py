@@ -332,7 +332,7 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
 
         self.ln = nn.LayerNorm(args.model_dim, elementwise_affine=args.affine_layer_norm) if args.layer_norm else None
 
-        self.mask_curr_state = not args.drop_mask
+        self.mask_curr_state = args.last_mask
 
         self.lm_scalar = args.lm_scalar
 
@@ -379,7 +379,8 @@ class FinetuningSentenceClassifier(BaseFairseqModel):
         parser.add_argument('--relu-dropout', type=float, metavar='D', help='lm dropout')
         parser.add_argument('--layer-norm', action='store_true', help='if true, does non affine layer norm before proj')
         parser.add_argument('--affine-layer-norm', action='store_true', help='if true, and layer norm is enabled, it is affine')
-        parser.add_argument('--drop-mask', action='store_true', help='if true, drops mask for curr state')
+        parser.add_argument('--last-mask', choices=['full', 'none', 'curr'],
+                            help='full: full cloze loss masking, none: no masking at all, curr: same as full but remove masking only for current token')
         parser.add_argument('--no-proj-bias', action='store_true',
                             help='if true, does not include proj bias')
         parser.add_argument('--lm-scalar', type=float, metavar='D', default=1.0,
@@ -517,6 +518,7 @@ def base_architecture_ft(args):
     args.affine_layer_norm = getattr(args, 'affine_layer_norm', False)
     args.no_proj_bias = getattr(args, 'no_proj_bias', False)
     args.lm_scalar = getattr(args, 'lm_scalar', 1.0)
+    args.last_mask = getattr(args, 'last_mask', 'full')
 
 
 @register_model_architecture('hybrid_sentence_classifier', 'hybrid_sentence_classifier')
