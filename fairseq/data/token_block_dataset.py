@@ -10,6 +10,7 @@ import math
 import numpy as np
 import torch
 
+from fairseq import utils
 from . import FairseqDataset
 
 
@@ -38,7 +39,6 @@ class TokenBlockDataset(FairseqDataset):
         self.eos = eos
         self.include_targets = include_targets
         self.slice_indices = []
-        self.cache_index = {}
         sizes = ds.sizes
 
         if break_mode is None or break_mode == 'none':
@@ -69,16 +69,21 @@ class TokenBlockDataset(FairseqDataset):
             curr = 0
             for sz in sizes:
                 # skip samples with just 1 example (which would be just the eos token)
+                sz = utils.item(sz)
                 if sz > 0:
                     self.slice_indices.append((curr, curr + sz))
                 curr += sz
         else:
             raise ValueError('Invalid break_mode: ' + break_mode)
 
+        self.slice_indices = np.array(self.slice_indices, dtype=int)
         self.sizes = np.array([e - s for s, e in self.slice_indices])
+        self.cache_index = np.empty(len(self.slice_indices), dtype=int)
 
     def __getitem__(self, index):
-        s, e = self.cache_index[index]
+        s = self.cache_index[index]
+        si, ei = self.slice_indices[index]
+        e = s + ei - si
 
         item = torch.from_numpy(self.cache[s:e]).long()
 
@@ -112,7 +117,7 @@ class TokenBlockDataset(FairseqDataset):
         for idx in indices:
             s, e = self.slice_indices[idx]
             self.dataset.read_into(s, self.cache[start:start + e - s])
-            self.cache_index[idx] = (start, start + e - s)
+            self.cache_index[idx] = start
             start += e - s
 
     @property
