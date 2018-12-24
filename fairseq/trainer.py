@@ -214,6 +214,7 @@ class Trainer(object):
             sample_sizes = list(chain.from_iterable(sample_sizes))
             ooms = sum(ooms)
 
+        self.meters['oom'].update(ooms, len(samples))
         if ooms == self.args.distributed_world_size * len(samples):
             print('| WARNING: OOM in all workers, skipping update')
             self.zero_grad()
@@ -256,7 +257,6 @@ class Trainer(object):
             self.meters['clip'].update(
                 1. if grad_norm > self.args.clip_norm and self.args.clip_norm > 0 else 0.
             )
-            self.meters['oom'].update(ooms)
             self.meters['train_loss'].update(logging_output.get('loss', 0), sample_size)
             if 'nll_loss' in logging_output:
                 self.meters['train_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
