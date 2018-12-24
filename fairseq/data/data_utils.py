@@ -100,12 +100,13 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
 
     ignored = []
     itr = collect_filtered(check_size, indices, ignored)
+
     for idx in itr:
         if len(ignored) > 0 and raise_exception:
             raise Exception((
                 'Size of sample #{} is invalid (={}) since max_positions={}, '
                 'skip this example with --skip-invalid-size-inputs-valid-test'
-            ).format(idx, size_fn(idx), max_positions))
+            ).format(ignored[0], size_fn(ignored[0]), max_positions))
         yield idx
 
     if len(ignored) > 0:

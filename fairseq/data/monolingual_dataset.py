@@ -182,3 +182,10 @@ class MonolingualDataset(FairseqDataset):
             order = [np.arange(len(self))]
         order.append(self.sizes)
         return np.lexsort(order)
+
+    @property
+    def supports_prefetch(self):
+        return self.dataset.supports_prefetch
+
+    def prefetch(self, indices):
+        self.dataset.prefetch(indices)
