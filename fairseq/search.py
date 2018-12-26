@@ -128,7 +128,6 @@ class DiverseBeamSearch(Search):
             raise ValueError(
                 'DiverseBeamSearch requires --beam to be divisible by the number of groups'
             )
-        group_size = beam_size // self.num_groups
 
         # initialize diversity penalty
         if self.diversity_buf is None:

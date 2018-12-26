@@ -149,7 +149,6 @@ class SequenceGenerator(object):
         bsz, srclen = src_tokens.size()
         maxlen = min(maxlen, self.maxlen) if maxlen is not None else self.maxlen
         if self.match_source_len:
-            minlen = src_lengths.min().item()
             maxlen = src_lengths.max().item()
 
         # the max beam size is the dictionary size - 1, since we never select pad
@@ -342,7 +341,8 @@ class SequenceGenerator(object):
                 for bbsz_idx in range(bsz * beam_size):
                     gen_tokens = tokens[bbsz_idx].tolist()
                     for ngram in zip(*[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]):
-                        gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
+                        gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = \
+                                gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
 
             # Record attention scores
             if avg_attn_scores is not None:
