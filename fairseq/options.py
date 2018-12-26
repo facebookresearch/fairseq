@@ -315,6 +315,8 @@ def add_generation_args(parser):
                              'where x is the source length'))
     group.add_argument('--min-len', default=1, type=float, metavar='N',
                        help=('minimum generation length'))
+    group.add_argument('--match-source-len', default=False, action='store_true',
+                       help=('generations should match the source length'))
     group.add_argument('--no-early-stop', action='store_true',
                        help=('continue searching even after finalizing k=beam '
                              'hypotheses; this is more correct, but increases '
@@ -333,13 +335,15 @@ def add_generation_args(parser):
                        help='just score the reference translation')
     group.add_argument('--prefix-size', default=0, type=int, metavar='PS',
                        help='initialize generation by target prefix of given length')
+    group.add_argument('--no-repeat-ngram-size', default=0, type=int, metavar='N',
+                       help='ngram blocking such that this size ngram cannot be repeated in the generation')
     group.add_argument('--sampling', action='store_true',
                        help='sample hypotheses instead of using beam search')
     group.add_argument('--sampling-topk', default=-1, type=int, metavar='PS',
                        help='sample from top K likely next words instead of all words')
     group.add_argument('--sampling-temperature', default=1, type=float, metavar='N',
                        help='temperature for random sampling')
-    group.add_argument('--diverse-beam-groups', default=1, type=int, metavar='N',
+    group.add_argument('--diverse-beam-groups', default=-1, type=int, metavar='N',
                        help='number of groups for Diverse Beam Search')
     group.add_argument('--diverse-beam-strength', default=0.5, type=float, metavar='N',
                        help='strength of diversity penalty for Diverse Beam Search')

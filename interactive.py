@@ -97,6 +97,7 @@ def main(args):
         len_penalty=args.lenpen, unk_penalty=args.unkpen,
         sampling=args.sampling, sampling_topk=args.sampling_topk, sampling_temperature=args.sampling_temperature,
         diverse_beam_groups=args.diverse_beam_groups, diverse_beam_strength=args.diverse_beam_strength,
+        match_source_len=args.match_source_len, no_repeat_ngram_size=args.no_repeat_ngram_size,
     )
 
     if use_cuda:

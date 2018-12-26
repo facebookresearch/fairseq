@@ -5,6 +5,8 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import math
+
 import torch
 
 
@@ -47,6 +49,9 @@ class Search(object):
         """
         raise NotImplementedError
 
+    def set_src_lengths(self, src_lengths):
+        self.src_lengths = src_lengths
+
 
 class BeamSearch(Search):
 
@@ -80,6 +85,25 @@ class BeamSearch(Search):
         return self.scores_buf, self.indices_buf, self.beams_buf
 
 
+class LengthConstrainedBeamSearch(Search):
+
+    def __init__(self, tgt_dict, min_len_a, min_len_b, max_len_a, max_len_b):
+        super().__init__(tgt_dict)
+        self.min_len_a = min_len_a
+        self.min_len_b = min_len_b
+        self.max_len_a = max_len_a
+        self.max_len_b = max_len_b
+        self.beam = BeamSearch(tgt_dict)
+
+    def step(self, step, lprobs, scores):
+        min_lens = self.min_len_a * self.src_lengths + self.min_len_b
+        max_lens = self.max_len_a * self.src_lengths + self.max_len_b
+        lprobs[step < min_lens, :, self.eos] = -math.inf
+        lprobs[step == max_lens, :, self.eos] = 0
+        lprobs[step > max_lens, :, self.eos] = -math.inf
+        return self.beam.step(step, lprobs, scores)
+
+
 class DiverseBeamSearch(Search):
     """Diverse Beam Search.
 
@@ -104,7 +128,6 @@ class DiverseBeamSearch(Search):
             raise ValueError(
                 'DiverseBeamSearch requires --beam to be divisible by the number of groups'
             )
-        group_size = beam_size // self.num_groups
 
         # initialize diversity penalty
         if self.diversity_buf is None:
