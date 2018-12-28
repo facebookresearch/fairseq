@@ -166,3 +166,11 @@ class BacktranslationDataset(FairseqDataset):
         """
         tgt_size = self.tgt_dataset.size(index)[0]
         return (tgt_size, tgt_size)
+    
+    @property
+    def supports_prefetch(self):
+        return self.tgt_dataset.supports_prefetch()
+
+    def prefetch(self, indices):
+        return self.tgt_dataset.prefetch(indices)
+
