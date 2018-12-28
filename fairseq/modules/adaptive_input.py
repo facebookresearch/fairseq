@@ -7,7 +7,6 @@
 
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from typing import List
@@ -16,13 +15,13 @@ from typing import List
 class AdaptiveInput(nn.Module):
 
     def __init__(
-            self,
-            vocab_size: int,
-            padding_idx: int,
-            initial_dim: int,
-            factor: float,
-            output_dim: int,
-            cutoff: List[int],
+        self,
+        vocab_size: int,
+        padding_idx: int,
+        initial_dim: int,
+        factor: float,
+        output_dim: int,
+        cutoff: List[int],
     ):
         super().__init__()
 

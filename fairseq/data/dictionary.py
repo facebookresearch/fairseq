@@ -200,11 +200,15 @@ class Dictionary(object):
         t[-1] = self.eos()
         return t
 
+
 class TruncatedDictionary(object):
 
     def __init__(self, wrapped_dict, length):
-        self.__class__ = type(wrapped_dict.__class__.__name__,
-                              (self.__class__, wrapped_dict.__class__), {})
+        self.__class__ = type(
+            wrapped_dict.__class__.__name__,
+            (self.__class__, wrapped_dict.__class__),
+            {}
+        )
         self.__dict__ = wrapped_dict.__dict__
         self.wrapped_dict = wrapped_dict
         self.length = min(len(self.wrapped_dict), length)

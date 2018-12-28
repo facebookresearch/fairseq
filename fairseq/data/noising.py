@@ -245,11 +245,12 @@ class NoisingDataset(torch.utils.data.Dataset):
         **kwargs
     ):
         """
-        Sets up a noising dataset which takes a src batch, generates
-        a noisy src using a noising config, and returns the
-        corresponding {noisy src, original src} batch
+        Wrap a :class:`~torch.utils.data.Dataset` and apply noise to the
+        samples based on the supplied noising configuration.
+
         Args:
-            src_dataset: dataset which will be used to build self.src_dataset --
+            src_dataset (~torch.utils.data.Dataset): dataset to wrap.
+                to build self.src_dataset --
                 a LanguagePairDataset with src dataset as the source dataset and
                 None as the target dataset. Should NOT have padding so that
                 src_lengths are accurately calculated by language_pair_dataset
@@ -257,26 +258,22 @@ class NoisingDataset(torch.utils.data.Dataset):
                 We use language_pair_dataset here to encapsulate the tgt_dataset
                 so we can re-use the LanguagePairDataset collater to format the
                 batches in the structure that SequenceGenerator expects.
-            src_dict: src dict
-            src_dict: src dictionary
-            seed: seed to use when generating random noise
-            noiser: a pre-initialized noiser. If this is None, a noiser will
-                be created using noising_class and kwargs.
-            noising_class: class to use when initializing noiser
-            kwargs: noising args for configuring noising to apply
-                Note that there is no equivalent argparse code for these args
-                anywhere in our top level train scripts yet. Integration is
-                still in progress. You can still, however, test out this dataset
-                functionality with the appropriate args as in the corresponding
-                unittest: test_noising_dataset.
+            src_dict (~fairseq.data.Dictionary): source dictionary
+            seed (int): seed to use when generating random noise
+            noiser (WordNoising): a pre-initialized :class:`WordNoising`
+                instance. If this is None, a new instance will be created using
+                *noising_class* and *kwargs*.
+            noising_class (class, optional): class to use to initialize a
+                default :class:`WordNoising` instance.
+            kwargs (dict, optional): arguments to initialize the default
+                :class:`WordNoising` instance given by *noiser*.
         """
-
         self.src_dataset = src_dataset
         self.src_dict = src_dict
+        self.seed = seed
         self.noiser = noiser if noiser is not None else noising_class(
             dictionary=src_dict, **kwargs,
         )
-        self.seed = seed
 
     def __getitem__(self, index):
         """

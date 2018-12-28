@@ -197,8 +197,8 @@ def add_distributed_training_args(parser):
     group.add_argument('--bucket-cap-mb', default=150, type=int, metavar='MB',
                        help='bucket size for reduction')
     group.add_argument('--fix-batches-to-gpus', action='store_true',
-                       help='Don\'t shuffle batches between GPUs, this reduces overall '
-                            'randomness and may affect precision but avoids the cost of'
+                       help='don\'t shuffle batches between GPUs; this reduces overall '
+                            'randomness and may affect precision but avoids the cost of '
                             're-reading the data')
     # fmt: on
     return group
@@ -284,7 +284,8 @@ def add_common_eval_args(group):
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
     group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
-                       help='a dictionary used to override model args at generation that were used during model training')
+                       help='a dictionary used to override model args at generation '
+                            'that were used during model training')
     # fmt: on
 
 

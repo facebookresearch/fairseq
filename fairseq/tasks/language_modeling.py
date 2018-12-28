@@ -10,9 +10,14 @@ import numpy as np
 import os
 
 from fairseq.data import (
-    ConcatDataset, Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
-    MonolingualDataset, TokenBlockDataset, TruncatedDictionary,
-    IndexedCachedDataset, IndexedDataset)
+    ConcatDataset,
+    Dictionary,
+    IndexedDataset,
+    IndexedRawTextDataset,
+    MonolingualDataset,
+    TokenBlockDataset,
+    TruncatedDictionary,
+)
 
 from . import FairseqTask, register_task
 

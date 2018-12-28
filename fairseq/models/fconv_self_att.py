@@ -524,6 +524,7 @@ def base_architecture(args):
     args.pretrained_checkpoint = getattr(args, 'pretrained_checkpoint', '')
     args.pretrained = getattr(args, 'pretrained', 'False')
 
+
 @register_model_architecture('fconv_self_att', 'fconv_self_att_wp')
 def fconv_self_att_wp(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 256)

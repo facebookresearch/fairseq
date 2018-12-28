@@ -22,6 +22,7 @@ class SequenceGenerator(object):
         match_source_len=False, no_repeat_ngram_size=0
     ):
         """Generates translations of a given source sentence.
+
         Args:
             beam_size (int, optional): beam width (default: 1)
             min/maxlen (int, optional): the length of the generated output will
@@ -90,11 +91,14 @@ class SequenceGenerator(object):
         cuda=False, timer=None, prefix_size=0,
     ):
         """Iterate over a batched dataset and yield individual translations.
+
         Args:
-            maxlen_a/b: generate sequences of maximum length ax + b,
-                where x is the source sentence length.
-            cuda: use GPU for generation
-            timer: StopwatchMeter for timing generations.
+            maxlen_a/b (int, optional): generate sequences of maximum length
+                ``ax + b``, where ``x`` is the source sentence length.
+            cuda (bool, optional): use GPU for generation
+            timer (StopwatchMeter, optional): time generations
+            prefix_size (int, optional): prefill the generation with the gold
+                prefix up to this length.
         """
         if maxlen_b is None:
             maxlen_b = self.maxlen
@@ -132,12 +136,13 @@ class SequenceGenerator(object):
         """Generate a batch of translations.
 
         Args:
-            encoder_input: dictionary containing the inputs to
-                model.encoder.forward
-            beam_size: int overriding the beam size. defaults to
-                self.beam_size
-            max_len: maximum length of the generated sequence
-            prefix_tokens: force decoder to begin with these tokens
+            encoder_input (dict): dictionary containing the inputs to
+                *model.encoder.forward*.
+            beam_size (int, optional): overriding the beam size
+                (default: *self.beam_size*).
+            max_len (int, optional): maximum length of the generated sequence
+            prefix_tokens (LongTensor, optional): force decoder to begin with
+                these tokens
         """
         with torch.no_grad():
             return self._generate(encoder_input, beam_size, maxlen, prefix_tokens)

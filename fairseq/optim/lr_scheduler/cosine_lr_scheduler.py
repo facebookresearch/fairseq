@@ -13,18 +13,25 @@ from . import FairseqLRScheduler, register_lr_scheduler
 @register_lr_scheduler('cosine')
 class CosineSchedule(FairseqLRScheduler):
     """Assign LR based on a cyclical schedule that follows the cosine function.
-    See https://arxiv.org/pdf/1608.03983.pdf for details
+
+    See https://arxiv.org/pdf/1608.03983.pdf for details.
+
     We also support a warmup phase where we linearly increase the learning rate
-    from some initial learning rate (`--warmup-init-lr`) until the configured
-    learning rate (`--lr`).
-    During warmup:
+    from some initial learning rate (``--warmup-init-lr``) until the configured
+    learning rate (``--lr``).
+
+    During warmup::
+
       lrs = torch.linspace(args.warmup_init_lr, args.lr, args.warmup_updates)
       lr = lrs[update_num]
-    After warmup:
+
+    After warmup::
+
       lr = lr_min + 0.5*(lr_max - lr_min)*(1 + cos(t_curr / t_i))
-    where
-      t_curr is current percentage of updates within the current period range
-      t_i is the current period range, which is scaled by t_mul after every iteration
+
+    where ``t_curr`` is current percentage of updates within the current period
+    range and ``t_i`` is the current period range, which is scaled by ``t_mul``
+    after every iteration.
     """
 
     def __init__(self, args, optimizer):
@@ -39,7 +46,7 @@ class CosineSchedule(FairseqLRScheduler):
         if args.warmup_init_lr < 0:
             args.warmup_init_lr = args.lr[0]
 
-        self.min_lr =  args.lr[0]
+        self.min_lr = args.lr[0]
         self.max_lr = args.max_lr
 
         assert self.max_lr > self.min_lr, 'max_lr must be more than lr'
@@ -98,7 +105,7 @@ class CosineSchedule(FairseqLRScheduler):
                 t_curr = curr_updates - (self.period * i)
 
             lr_shrink = self.lr_shrink ** i
-            min_lr = self.min_lr  * lr_shrink
+            min_lr = self.min_lr * lr_shrink
             max_lr = self.max_lr * lr_shrink
 
             self.lr = min_lr + 0.5 * (max_lr - min_lr) * (1 + math.cos(math.pi * t_curr / t_i))

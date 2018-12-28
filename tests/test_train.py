@@ -64,7 +64,6 @@ class TestLoadCheckpoint(unittest.TestCase):
         self.applied_patches = [patch(p, d) for p, d in self.patches.items()]
         [p.start() for p in self.applied_patches]
 
-
     def test_load_partial_checkpoint(self):
         with contextlib.redirect_stdout(StringIO()):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 200, 50)

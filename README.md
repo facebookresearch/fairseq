@@ -19,10 +19,13 @@ of various sequence-to-sequence models, including:
 
 Fairseq features:
 - multi-GPU (distributed) training on one machine or across multiple machines
-- fast beam search generation on both CPU and GPU
+- fast generation on both CPU and GPU with multiple search algorithms implemented:
+  - beam search
+  - Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
+  - sampling (unconstrained and top-k)
 - large mini-batch training even on a single GPU via delayed updates
 - fast half-precision floating point (FP16) training
-- extensible: easily register new models, criterions, and tasks
+- extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
 
 We also provide [pre-trained models](#pre-trained-models) for several benchmark
 translation and language modeling datasets.
@@ -34,7 +37,7 @@ translation and language modeling datasets.
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 * Python version 3.6
 
-Currently fairseq requires PyTorch version >= 0.4.0.
+Currently fairseq requires PyTorch version >= 1.0.0.
 Please follow the instructions here: https://github.com/pytorch/pytorch#installation.
 
 If you use Docker make sure to increase the shared memory size either with

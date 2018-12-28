@@ -79,23 +79,23 @@ class LanguagePairDataset(FairseqDataset):
         tgt (torch.utils.data.Dataset, optional): target dataset to wrap
         tgt_sizes (List[int], optional): target sentence lengths
         tgt_dict (~fairseq.data.Dictionary, optional): target vocabulary
-        left_pad_source (bool, optional): pad source tensors on the left side.
-            Default: ``True``
-        left_pad_target (bool, optional): pad target tensors on the left side.
-            Default: ``False``
-        max_source_positions (int, optional): max number of tokens in the source
-            sentence. Default: ``1024``
-        max_target_positions (int, optional): max number of tokens in the target
-            sentence. Default: ``1024``
-        shuffle (bool, optional): shuffle dataset elements before batching.
-            Default: ``True``
+        left_pad_source (bool, optional): pad source tensors on the left side
+            (default: True).
+        left_pad_target (bool, optional): pad target tensors on the left side
+            (default: False).
+        max_source_positions (int, optional): max number of tokens in the
+            source sentence (default: 1024).
+        max_target_positions (int, optional): max number of tokens in the
+            target sentence (default: 1024).
+        shuffle (bool, optional): shuffle dataset elements before batching
+            (default: True).
         input_feeding (bool, optional): create a shifted version of the targets
-            to be passed into the model for input feeding/teacher forcing.
-            Default: ``True``
-        remove_eos_from_source (bool, optional): if set, removes eos from end of
-            source if it's present. Default: ``False``
+            to be passed into the model for input feeding/teacher forcing
+            (default: True).
+        remove_eos_from_source (bool, optional): if set, removes eos from end
+            of source if it's present (default: False).
         append_eos_to_target (bool, optional): if set, appends eos to end of
-            target if it's absent. Default: ``False``
+            target if it's absent (default: False).
     """
 
     def __init__(

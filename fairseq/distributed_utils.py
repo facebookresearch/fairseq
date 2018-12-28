@@ -158,7 +158,7 @@ def all_gather_list(data, group=None, max_size=16384):
                     pickle.loads(bytes(out_buffer[2:size+2].tolist()))
                 )
         return result
-    except pickle.UnpicklingError as e:
+    except pickle.UnpicklingError:
         raise Exception(
             'Unable to unpickle data from other workers. all_gather_list requires all '
             'workers to enter the function together, so this error usually indicates '
@@ -167,4 +167,3 @@ def all_gather_list(data, group=None, max_size=16384):
             'in your training script that can cause one worker to finish an epoch '
             'while other workers are still iterating over their portions of the data.'
         )
-

@@ -179,10 +179,8 @@ class FConvEncoder(FairseqEncoder):
             connections are added between layers when ``residual=1`` (which is
             the default behavior).
         dropout (float, optional): dropout to be applied before each conv layer
-        normalization_constant (float, optional): multiplies the result of the
-            residual block by sqrt(value)
-        left_pad (bool, optional): whether the input is left-padded. Default:
-            ``True``
+        left_pad (bool, optional): whether the input is left-padded
+            (default: True).
     """
 
     def __init__(

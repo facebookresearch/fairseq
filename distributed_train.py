@@ -28,7 +28,7 @@ def main(args):
                 args.device_id = int(os.environ.get('SLURM_LOCALID'))
             except subprocess.CalledProcessError as e:  # scontrol failed
                 raise e
-            except FileNotFoundError as e:  # Slurm is not installed
+            except FileNotFoundError:  # Slurm is not installed
                 pass
     if args.distributed_init_method is None and args.distributed_port is None:
         raise ValueError('--distributed-init-method or --distributed-port '

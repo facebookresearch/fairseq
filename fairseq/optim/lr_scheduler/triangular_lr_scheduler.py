@@ -14,8 +14,7 @@ from . import FairseqLRScheduler, register_lr_scheduler
 class TriangularSchedule(FairseqLRScheduler):
     """Assign LR based on a triangular cyclical schedule.
 
-    See https://arxiv.org/pdf/1506.01186.pdf for details
-
+    See https://arxiv.org/pdf/1506.01186.pdf for details.
     """
 
     def __init__(self, args, optimizer):

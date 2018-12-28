@@ -196,7 +196,6 @@ class LSTMEncoder(FairseqEncoder):
         if bidirectional:
             self.output_units *= 2
 
-
     def forward(self, src_tokens, src_lengths):
         if self.left_pad:
             # convert left-padding to right-padding
@@ -235,7 +234,8 @@ class LSTMEncoder(FairseqEncoder):
         if self.bidirectional:
 
             def combine_bidir(outs):
-                return outs.view(self.num_layers, 2, bsz, -1).transpose(1, 2).contiguous().view(self.num_layers, bsz, -1)
+                out = outs.view(self.num_layers, 2, bsz, -1).transpose(1, 2).contiguous()
+                return out.view(self.num_layers, bsz, -1)
 
             final_hiddens = combine_bidir(final_hiddens)
             final_cells = combine_bidir(final_cells)
@@ -339,7 +339,6 @@ class LSTMDecoder(FairseqIncrementalDecoder):
                                                     dropout=dropout_out)
         elif not self.share_input_output_embed:
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
-
 
     def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None):
         encoder_out = encoder_out_dict['encoder_out']
@@ -503,6 +502,7 @@ def base_architecture(args):
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '10000,50000,200000')
+
 
 @register_model_architecture('lstm', 'lstm_wiseman_iwslt_de_en')
 def lstm_wiseman_iwslt_de_en(args):

@@ -113,8 +113,9 @@ class AdaptiveSoftmax(nn.Module):
             m = nn.Sequential(
                 proj,
                 nn.Dropout(self.dropout),
-                nn.Linear(dim, self.cutoff[i + 1] - self.cutoff[i], bias=False) \
-                    if tied_emb is None else TiedLinear(tied_emb, transpose=False)
+                nn.Linear(
+                    dim, self.cutoff[i + 1] - self.cutoff[i], bias=False,
+                ) if tied_emb is None else TiedLinear(tied_emb, transpose=False),
             )
 
             self.tail.append(m)

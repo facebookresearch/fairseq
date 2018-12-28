@@ -353,7 +353,7 @@ The model files should appear in the :file:`checkpoints/` directory.
 -------------------------------
 
 Finally we can write a short script to evaluate our model on new inputs. Create
-a new file named :file:`eval_classify.py` with the following contents::
+a new file named :file:`eval_classifier.py` with the following contents::
 
   from fairseq import data, options, tasks, utils
   from fairseq.tokenizer import Tokenizer

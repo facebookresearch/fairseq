@@ -46,10 +46,11 @@ class Trainer(object):
 
         self._dummy_batch = dummy_batch
         self._oom_batch = oom_batch
+
+        self._lr_scheduler = None
         self._num_updates = 0
         self._optim_history = None
         self._optimizer = None
-        self._lr_scheduler = None
         self._wrapped_model = None
 
         self.init_meters(args)
@@ -71,7 +72,6 @@ class Trainer(object):
             self.meters['loss_scale'] = AverageMeter()  # dynamic loss scale
         self.meters['wall'] = TimeMeter()      # wall time in seconds
         self.meters['train_wall'] = StopwatchMeter()  # train wall time in seconds
-
 
     @property
     def model(self):
