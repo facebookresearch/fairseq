@@ -49,6 +49,7 @@ class Trainer(object):
         self._num_updates = 0
         self._optim_history = None
         self._optimizer = None
+        self._lr_scheduler = None
         self._wrapped_model = None
 
         self.init_meters(args)
@@ -89,6 +90,12 @@ class Trainer(object):
             self._build_optimizer()
         return self._optimizer
 
+    @property
+    def lr_scheduler(self):
+        if self._lr_scheduler is None:
+            self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+        return self._lr_scheduler
+
     def _build_optimizer(self):
         if self.args.fp16:
             if torch.cuda.get_device_capability(0)[0] < 7:
@@ -100,8 +107,6 @@ class Trainer(object):
             if torch.cuda.get_device_capability(0)[0] >= 7:
                 print('| NOTICE: your device may support faster training with --fp16')
             self._optimizer = optim.build_optimizer(self.args, self.model.parameters())
-
-        self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self._optimizer)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
