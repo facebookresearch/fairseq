@@ -21,6 +21,20 @@ mini-batches.
 .. autoclass:: fairseq.data.MonolingualDataset
     :members:
 
+**Helper Datasets**
+
+These datasets wrap other :class:`fairseq.data.FairseqDataset` instances and
+provide additional functionality:
+
+.. autoclass:: fairseq.data.BacktranslationDataset
+    :members:
+.. autoclass:: fairseq.data.ConcatDataset
+    :members:
+.. autoclass:: fairseq.data.RoundRobinZipDatasets
+    :members:
+.. autoclass:: fairseq.data.TransformEosDataset
+    :members:
+
 
 Dictionary
 ----------
@@ -32,6 +46,8 @@ Dictionary
 Iterators
 ---------
 
+.. autoclass:: fairseq.data.BufferedIterator
+    :members:
 .. autoclass:: fairseq.data.CountingIterator
     :members:
 .. autoclass:: fairseq.data.EpochBatchIterator

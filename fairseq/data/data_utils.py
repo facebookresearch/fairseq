@@ -81,8 +81,8 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
         size_fn (callable): function that returns the size of a given index
         max_positions (tuple): filter elements larger than this size.
             Comparisons are done component-wise.
-        raise_exception (bool, optional): if ``True``, raise an exception
-            if any elements are filtered. Default: ``False``
+        raise_exception (bool, optional): if ``True``, raise an exception if
+            any elements are filtered (default: False).
     """
     def check_size(idx):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
@@ -128,12 +128,12 @@ def batch_by_size(
         indices (List[int]): ordered list of dataset indices
         num_tokens_fn (callable): function that returns the number of tokens at
             a given index
-        max_tokens (int, optional): max number of tokens in each batch.
-            Default: ``None``
+        max_tokens (int, optional): max number of tokens in each batch
+            (default: None).
         max_sentences (int, optional): max number of sentences in each
-            batch. Default: ``None``
+            batch (default: None).
         required_batch_size_multiple (int, optional): require batch size to
-            be a multiple of N. Default: ``1``
+            be a multiple of N (default: 1).
     """
     max_tokens = max_tokens if max_tokens is not None else float('Inf')
     max_sentences = max_sentences if max_sentences is not None else float('Inf')

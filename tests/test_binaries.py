@@ -68,8 +68,7 @@ class TestTranslation(unittest.TestCase):
                         data_dir, 'fconv_iwslt_de_en', ['--max-target-positions', '5'],
                     )
                 self.assertTrue(
-                    'skip this example with --skip-invalid-size-inputs-valid-test' \
-                    in str(context.exception)
+                    'skip this example with --skip-invalid-size-inputs-valid-test' in str(context.exception)
                 )
                 train_translation_model(
                     data_dir, 'fconv_iwslt_de_en',

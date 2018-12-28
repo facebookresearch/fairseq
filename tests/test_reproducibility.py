@@ -12,10 +12,6 @@ import os
 import tempfile
 import unittest
 
-import torch
-
-from fairseq import options
-
 from . import test_binaries
 
 

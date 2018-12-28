@@ -13,13 +13,16 @@ from . import FairseqDataset
 
 
 class RoundRobinZipDatasets(FairseqDataset):
-    """Zip multiple FairseqDatasets together, repeating shorter datasets in a
-    round-robin fashion to match the length of the longest one.
+    """Zip multiple :class:`~fairseq.data.FairseqDataset` instances together.
+
+    Shorter datasets are repeated in a round-robin fashion to match the length
+    of the longest one.
 
     Args:
-        datasets: a dictionary of FairseqDatasets
-        eval_key: an optional key used at evaluation time that causes this
-            instance to pass-through batches from `datasets[eval_key]`.
+        datasets (Dict[~fairseq.data.FairseqDataset]): a dictionary of
+            :class:`~fairseq.data.FairseqDataset` instances.
+        eval_key (str, optional): a key used at evaluation time that causes
+            this instance to pass-through batches from *datasets[eval_key]*.
     """
 
     def __init__(self, datasets, eval_key=None):

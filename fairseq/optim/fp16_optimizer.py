@@ -5,9 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import torch
-
-from fairseq import optim, utils
+from fairseq import optim
 
 
 class DynamicLossScaler(object):
@@ -164,6 +162,12 @@ class FP16Optimizer(optim.FairseqOptimizer):
         ConvertToFP32.unwrap_optimizer_(self.wrapped_optimizer.optimizer)
 
     def backward(self, loss):
+        """Computes the sum of gradients of the given tensor w.r.t. graph leaves.
+
+        Compared to :func:`fairseq.optim.FairseqOptimizer.backward`, this
+        function additionally dynamically scales the loss to avoid gradient
+        underflow.
+        """
         loss = loss * self.scaler.loss_scale
         loss.backward()
         self._grads_are_scaled = True
@@ -178,7 +182,7 @@ class FP16Optimizer(optim.FairseqOptimizer):
             assert multiply_grads == 1.
 
     def multiply_grads(self, c):
-        """Multiplies grads by a constant ``c``."""
+        """Multiplies grads by a constant *c*."""
         if self._grads_are_scaled:
             self._unscale_grads(c)
         else:

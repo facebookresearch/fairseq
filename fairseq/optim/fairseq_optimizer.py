@@ -70,10 +70,11 @@ class FairseqOptimizer(object):
                 group.update(optimizer_overrides)
 
     def backward(self, loss):
+        """Computes the sum of gradients of the given tensor w.r.t. graph leaves."""
         loss.backward()
 
     def multiply_grads(self, c):
-        """Multiplies grads by a constant ``c``."""
+        """Multiplies grads by a constant *c*."""
         for p in self.params:
             if p.grad is not None:
                 p.grad.data.mul_(c)

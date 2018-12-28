@@ -17,6 +17,7 @@ from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
 
 from .iterators import (
+    BufferedIterator,
     CountingIterator,
     EpochBatchIterator,
     GroupedIterator,
@@ -25,6 +26,7 @@ from .iterators import (
 
 __all__ = [
     'BacktranslationDataset',
+    'BufferedIterator',
     'ConcatDataset',
     'CountingIterator',
     'Dictionary',

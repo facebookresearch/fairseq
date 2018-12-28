@@ -1,8 +1,8 @@
 Modules
 =======
 
-Fairseq provides several stand-alone :class:`torch.nn.Module` s that may be
-helpful when implementing a new :class:`FairseqModel`.
+Fairseq provides several stand-alone :class:`torch.nn.Module` classes that may
+be helpful when implementing a new :class:`~fairseq.models.FairseqModel`.
 
 .. automodule:: fairseq.modules
     :members:

@@ -75,8 +75,9 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    model_paths = args.path.split(':')
-    models, model_args = utils.load_ensemble_for_inference(model_paths, task, model_arg_overrides=eval(args.model_overrides))
+    models, _model_args = utils.load_ensemble_for_inference(
+        args.path.split(':'), task, model_arg_overrides=eval(args.model_overrides),
+    )
 
     # Set dictionaries
     tgt_dict = task.target_dictionary

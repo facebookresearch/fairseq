@@ -6,7 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 
 import itertools
-import numpy as np
 import os
 
 from fairseq import options, utils

@@ -16,6 +16,40 @@ import torch
 from . import data_utils
 
 
+class BufferedIterator(object):
+    """Wrapper around an iterable that prefetches items into a buffer.
+
+    Args:
+        iterable (iterable): iterable to wrap
+        buffer_size (int): number of items to prefetch and buffer
+    """
+
+    def __init__(self, iterable, buffer_size):
+        self.iterable = iterable
+
+        self.q = queue.Queue(maxsize=buffer_size)
+        self.thread = threading.Thread(target=self._load_q, daemon=True)
+        self.thread.start()
+
+    def __len__(self):
+        return len(self.iterable)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        x = self.q.get()
+        if x is None:
+            self.thread.join()
+            raise StopIteration
+        return x[0]
+
+    def _load_q(self):
+        for x in self.iterable:
+            self.q.put([x])  # wrap in list so that it's never None
+        self.q.put(None)
+
+
 class CountingIterator(object):
     """Wrapper around an iterable that maintains the iteration count.
 
@@ -69,12 +103,12 @@ class EpochBatchIterator(object):
         batch_sampler (~torch.utils.data.Sampler): an iterator over batches of
             indices
         seed (int, optional): seed for random number generator for
-            reproducibility. Default: 1
+            reproducibility (default: 1).
         num_shards (int, optional): shard the data iterator into N
-            shards. Default: 1
+            shards (default: 1).
         shard_id (int, optional): which shard of the data iterator to
-            return. Default: 0
-        buffer_size (int, optional): number of batches to buffer. Default: 5
+            return (default: 0).
+        buffer_size (int, optional): number of batches to buffer (default: 5).
     """
 
     def __init__(
@@ -105,11 +139,10 @@ class EpochBatchIterator(object):
 
         Args:
             shuffle (bool, optional): shuffle batches before returning the
-                iterator. Default: ``True``
+                iterator (default: True).
             fix_batches_to_gpus: ensure that batches are always
                 allocated to the same shards across epochs. Requires
-                that :attr:`dataset` supports prefetching. Default:
-                ``False``
+                that :attr:`dataset` supports prefetching (default: False).
         """
         if self._next_epoch_itr is not None:
             self._cur_epoch_itr = self._next_epoch_itr
@@ -189,40 +222,6 @@ class EpochBatchIterator(object):
         ))
 
 
-class BufferedIterator(object):
-    """Wrapper around an iterable that prefetches items into a buffer.
-
-    Args:
-        iterable (iterable): iterable to wrap
-        buffer_size (int): number of items to prefetch and buffer
-    """
-
-    def __init__(self, iterable, buffer_size):
-        self.iterable = iterable
-
-        self.q = queue.Queue(maxsize=buffer_size)
-        self.thread = threading.Thread(target=self._load_q, daemon=True)
-        self.thread.start()
-
-    def __len__(self):
-        return len(self.iterable)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        x = self.q.get()
-        if x is None:
-            self.thread.join()
-            raise StopIteration
-        return x[0]
-
-    def _load_q(self):
-        for x in self.iterable:
-            self.q.put([x])  # wrap in list so that it's never None
-        self.q.put(None)
-
-
 class GroupedIterator(object):
     """Wrapper around an iterable that returns groups (chunks) of items.
 
@@ -261,7 +260,7 @@ class ShardedIterator(object):
         num_shards (int): number of shards to split the iterable into
         shard_id (int): which shard to iterator over
         fill_value (Any, optional): padding value when the iterable doesn't
-            evenly divide *num_shards*. Default: ``None``
+            evenly divide *num_shards* (default: None).
     """
 
     def __init__(self, iterable, num_shards, shard_id, fill_value=None):

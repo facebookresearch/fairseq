@@ -22,11 +22,17 @@ fairseq implements the following high-level training flow::
   for epoch in range(num_epochs):
       itr = task.get_batch_iterator(task.dataset('train'))
       for num_updates, batch in enumerate(itr):
-          loss = criterion(model, batch)
-          optimizer.backward(loss)
+          task.train_step(batch, model, criterion, optimizer)
+          average_and_clip_gradients()
           optimizer.step()
           lr_scheduler.step_update(num_updates)
       lr_scheduler.step(epoch)
+
+where the default implementation for ``train.train_step`` is roughly::
+
+  def train_step(self, batch, model, criterion, optimizer):
+      loss = criterion(model, batch)
+      optimizer.backward(loss)
 
 **Registering new plug-ins**
 
