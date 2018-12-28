@@ -13,6 +13,8 @@ import collections
 import itertools
 import os
 import math
+import random
+
 import torch
 
 from fairseq import distributed_utils, options, progress_bar, tasks, utils
@@ -354,6 +356,12 @@ if __name__ == '__main__':
         distributed_main(args)
     elif args.distributed_world_size > 1:
         from multiprocessing_train import main as multiprocessing_main
+
+        # Set distributed training parameters for a single node.
+        args.distributed_world_size = torch.cuda.device_count()
+        port = random.randint(10000, 20000)
+        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
+        args.distributed_port = port + 1
 
         multiprocessing_main(args)
     else:
