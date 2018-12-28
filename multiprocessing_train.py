@@ -7,7 +7,6 @@
 # can be found in the PATENTS file in the same directory.
 
 import os
-import random
 import signal
 import torch
 
@@ -17,12 +16,6 @@ from train import main as single_process_main
 
 
 def main(args):
-    # Set distributed training parameters for a single node.
-    args.distributed_world_size = torch.cuda.device_count()
-    port = random.randint(10000, 20000)
-    args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
-    args.distributed_init_host = 'localhost'
-    args.distributed_port = port + 1
     if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
         print('| WARNING: when using --update-freq on a single machine, you '
               'will get better performance with --ddp-backend=no_c10d')
@@ -35,8 +28,9 @@ def main(args):
 
     # Train with multiprocessing.
     procs = []
-    for i in range(args.distributed_world_size):
-        args.distributed_rank = i
+    base_rank = args.distributed_rank
+    for i in range(torch.cuda.device_count()):
+        args.distributed_rank = base_rank + i
         args.device_id = i
         procs.append(mp.Process(target=run, args=(args, error_queue, ), daemon=True))
         procs[i].start()
