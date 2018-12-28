@@ -359,11 +359,10 @@ a new file named :file:`eval_classify.py` with the following contents::
   from fairseq.tokenizer import Tokenizer
 
   # Parse command-line arguments for generation
-  parser = options.get_generation_parser()
+  parser = options.get_generation_parser(default_task='simple_classification')
   args = options.parse_args_and_arch(parser)
 
   # Setup task
-  args.task = 'simple_classification'
   task = tasks.setup_task(args)
 
   # Load model
