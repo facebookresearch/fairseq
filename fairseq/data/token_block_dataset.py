@@ -101,6 +101,10 @@ class TokenBlockDataset(FairseqDataset):
     def __len__(self):
         return len(self.slice_indices)
 
+    @property
+    def supports_prefetch(self):
+        return True
+
     def prefetch(self, indices):
         indices.sort()
         total_size = 0
@@ -114,7 +118,3 @@ class TokenBlockDataset(FairseqDataset):
             self.dataset.read_into(s, self.cache[start:start + e - s])
             self.cache_index[idx] = (start, start + e - s)
             start += e - s
-
-    @property
-    def supports_prefetch(self):
-        return True

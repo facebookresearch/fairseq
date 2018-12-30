@@ -223,15 +223,20 @@ class LanguagePairDataset(FairseqDataset):
             indices = indices[np.argsort(self.tgt_sizes[indices], kind='mergesort')]
         return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
 
+    @property
+    def supports_prefetch(self):
+        return (
+            getattr(self.src, 'supports_prefetch', False)
+            and getattr(self.tgt, 'supports_prefetch', False)
+        )
+
     def prefetch(self, indices):
         self.src.prefetch(indices)
         self.tgt.prefetch(indices)
 
     @property
-    def supports_prefetch(self):
+    def is_thread_safe(self):
         return (
-            hasattr(self.src, 'supports_prefetch')
-            and self.src.supports_prefetch
-            and hasattr(self.tgt, 'supports_prefetch')
-            and self.tgt.supports_prefetch
+            getattr(self.src, 'is_thread_safe', False)
+            and getattr(self.tgt, 'is_thread_safe', False)
         )

@@ -184,7 +184,11 @@ class MonolingualDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return self.dataset.supports_prefetch
+        return getattr(self.dataset, 'supports_prefetch', False)
 
     def prefetch(self, indices):
         self.dataset.prefetch(indices)
+
+    @property
+    def is_thread_safe(self):
+        return getattr(self.dataset, 'is_thread_safe', False)

@@ -110,3 +110,21 @@ class RoundRobinZipDatasets(FairseqDataset):
             dataset.valid_size(self._map_index(key, index), max_positions[key])
             for key, dataset in self.datasets.items()
         )
+
+    @property
+    def supports_prefetch(self):
+        return all(
+            getattr(dataset, 'supports_prefetch', False)
+            for dataset in self.datasets.values()
+        )
+
+    def prefetch(self, indices):
+        for key, dataset in self.datasets.items():
+            dataset.prefetch([self._map_index(key, index) for index in indices])
+
+    @property
+    def is_thread_safe(self):
+        return all(
+            getattr(dataset, 'is_thread_safe', False)
+            for dataset in self.datasets.values()
+        )

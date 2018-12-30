@@ -7,6 +7,7 @@
 
 import os
 import struct
+import threading
 
 import numpy as np
 import torch
@@ -57,6 +58,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         self.fix_lua_indexing = fix_lua_indexing
         self.read_index(path)
         self.data_file = None
+        self._lock = threading.Lock()
         if read_data:
             self.read_data(path)
 
@@ -88,8 +90,9 @@ class IndexedDataset(torch.utils.data.Dataset):
         self.check_index(i)
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
         a = np.empty(tensor_size, dtype=self.dtype)
-        self.data_file.seek(self.data_offsets[i] * self.element_size)
-        self.data_file.readinto(a)
+        with self._lock:
+            self.data_file.seek(self.data_offsets[i] * self.element_size)
+            self.data_file.readinto(a)
         item = torch.from_numpy(a).long()
         if self.fix_lua_indexing:
             item -= 1  # subtract 1 for 0-based indexing
@@ -99,8 +102,9 @@ class IndexedDataset(torch.utils.data.Dataset):
         return self.size
 
     def read_into(self, start, dst):
-        self.data_file.seek(start * self.element_size)
-        self.data_file.readinto(dst)
+        with self._lock:
+            self.data_file.seek(start * self.element_size)
+            self.data_file.readinto(dst)
         if self.fix_lua_indexing:
             dst -= 1  # subtract 1 for 0-based indexing
 
@@ -110,6 +114,10 @@ class IndexedDataset(torch.utils.data.Dataset):
             os.path.exists(index_file_path(path)) and
             os.path.exists(data_file_path(path))
         )
+
+    @property
+    def is_thread_safe(self):
+        return True
 
 
 class IndexedCachedDataset(IndexedDataset):
@@ -137,8 +145,9 @@ class IndexedCachedDataset(IndexedDataset):
             self.cache_index[i] = ptx
             size = self.data_offsets[i + 1] - self.data_offsets[i]
             a = self.cache[ptx : ptx + size]
-            self.data_file.seek(self.data_offsets[i] * self.element_size)
-            self.data_file.readinto(a)
+            with self._lock:
+                self.data_file.seek(self.data_offsets[i] * self.element_size)
+                self.data_file.readinto(a)
             ptx += size
 
     def __getitem__(self, i):

@@ -51,7 +51,15 @@ class FairseqDataset(torch.utils.data.Dataset):
 
     @property
     def supports_prefetch(self):
+        """Whether this dataset supports prefetching."""
         return False
 
     def prefetch(self, indices):
+        """Prefetch the data required for this epoch."""
         raise NotImplementedError
+
+    @property
+    def is_thread_safe(self):
+        """Whether __getitem__ is thread-safe. Certain optimizations are only
+        available for thread-safe Datasets."""
+        return False
