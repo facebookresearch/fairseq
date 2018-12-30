@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import atexit
 import itertools
 import math
 import queue
@@ -19,6 +20,9 @@ from . import data_utils
 class BufferedIterator(object):
     """Wrapper around an iterable that prefetches items into a buffer.
 
+    Note: this iterator assumes exclusive access to iterable; thread safety is
+    the responsibility of the caller.
+
     Args:
         iterable (iterable): iterable to wrap
         buffer_size (int): number of items to prefetch and buffer
@@ -28,8 +32,14 @@ class BufferedIterator(object):
         self.iterable = iterable
 
         self.q = queue.Queue(maxsize=buffer_size)
+        self._stop_thread = False
         self.thread = threading.Thread(target=self._load_q, daemon=True)
         self.thread.start()
+
+        atexit.register(self.stop_thread)
+
+    def __del__(self):
+        self.stop_thread()
 
     def __len__(self):
         return len(self.iterable)
@@ -38,15 +48,33 @@ class BufferedIterator(object):
         return self
 
     def __next__(self):
-        x = self.q.get()
-        if x is None:
-            self.thread.join()
-            raise StopIteration
-        return x[0]
+        while True:
+            try:
+                x = self.q.get(timeout=0.1)
+            except queue.Empty:
+                x = None
+            if x is None:
+                self.stop_thread()
+                raise StopIteration
+            return x[0]
+
+    def stop_thread(self):
+        self._stop_thread = True
+        self.thread.join()
 
     def _load_q(self):
         for x in self.iterable:
-            self.q.put([x])  # wrap in list so that it's never None
+            in_q = False
+            while not in_q:
+                try:
+                    self.q.put([x], timeout=0.1)  # wrap in list so that it's never None
+                    in_q = True
+                except queue.Full:
+                    # we use a timeout above so that q.put doesn't block
+                    # indefinitely and we can terminate the thread early
+                    pass
+                if self._stop_thread:
+                    return
         self.q.put(None)
 
 
@@ -127,9 +155,8 @@ class EpochBatchIterator(object):
         self.epoch = 0
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
-        self._supports_prefetch = (
-            hasattr(dataset, 'supports_prefetch') and dataset.supports_prefetch
-        )
+        self._supports_prefetch = getattr(dataset, 'supports_prefetch', False)
+        self._is_thread_safe = getattr(dataset, 'is_thread_safe', False)
 
     def __len__(self):
         return len(self.frozen_batches)
@@ -150,7 +177,8 @@ class EpochBatchIterator(object):
         else:
             self.epoch += 1
             self._cur_epoch_itr = self._get_iterator_for_epoch(
-                self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus)
+                self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus,
+            )
         return self._cur_epoch_itr
 
     def end_of_epoch(self):
@@ -212,14 +240,14 @@ class EpochBatchIterator(object):
                 batches = self.frozen_batches
             batches = ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[])
 
-        return CountingIterator(BufferedIterator(
-            torch.utils.data.DataLoader(
-                self.dataset,
-                collate_fn=self.collate_fn,
-                batch_sampler=batches,
-            ),
-            buffer_size=self.buffer_size,
-        ))
+        itr = torch.utils.data.DataLoader(
+            self.dataset,
+            collate_fn=self.collate_fn,
+            batch_sampler=batches,
+        )
+        if self._is_thread_safe:
+            itr = BufferedIterator(itr, buffer_size=self.buffer_size)
+        return CountingIterator(itr)
 
 
 class GroupedIterator(object):
