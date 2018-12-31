@@ -28,9 +28,8 @@ def main(args):
         args.max_tokens = 6000
     print(args)
 
-    if not torch.cuda.is_available():
-        raise NotImplementedError('Training on CPU is not supported')
-    torch.cuda.set_device(args.device_id)
+    if torch.cuda.is_available() and not args.cpu:
+        torch.cuda.set_device(args.device_id)
     torch.manual_seed(args.seed)
 
     # Setup task, e.g., translation, language modeling, etc.
