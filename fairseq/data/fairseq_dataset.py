@@ -7,8 +7,6 @@
 
 import torch.utils.data
 
-from fairseq.data import data_utils
-
 
 class FairseqDataset(torch.utils.data.Dataset):
     """A dataset that provides helpers for batching."""
