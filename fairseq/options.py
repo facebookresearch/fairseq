@@ -128,6 +128,7 @@ def get_parser(desc, default_task='translation'):
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
+    parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
     parser.add_argument('--fp16', action='store_true', help='use FP16')
     parser.add_argument('--fp16-init-scale', default=2**7, type=int,
                         help='default FP16 loss scale')
@@ -178,7 +179,7 @@ def add_distributed_training_args(parser):
     group = parser.add_argument_group('Distributed training')
     # fmt: off
     group.add_argument('--distributed-world-size', type=int, metavar='N',
-                       default=torch.cuda.device_count(),
+                       default=max(1, torch.cuda.device_count()),
                        help='total number of GPUs across all nodes (default: all visible GPUs)')
     group.add_argument('--distributed-rank', default=0, type=int,
                        help='rank of the current worker')
@@ -280,7 +281,6 @@ def add_common_eval_args(group):
                        help='path(s) to model file(s), colon separated')
     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring')
-    group.add_argument('--cpu', action='store_true', help='generate on CPU')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
     group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
