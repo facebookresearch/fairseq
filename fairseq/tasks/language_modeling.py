@@ -153,7 +153,8 @@ class LanguageModelingTask(FairseqTask):
 
             loaded_datasets.append(
                 TokenBlockDataset(
-                    ds, self.args.tokens_per_sample, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
+                    ds, ds.sizes, self.args.tokens_per_sample,
+                    pad=self.dictionary.pad(), eos=self.dictionary.eos(),
                     break_mode=self.args.sample_break_mode, include_targets=True,
                 ))
 
