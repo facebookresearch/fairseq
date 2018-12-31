@@ -12,6 +12,7 @@ import os
 from fairseq.data import (
     ConcatDataset,
     Dictionary,
+    IndexedCachedDataset,
     IndexedDataset,
     IndexedRawTextDataset,
     MonolingualDataset,
@@ -65,6 +66,8 @@ class LanguageModelingTask(FairseqTask):
                                  'If set to "eos", includes only one sentence per sample.')
         parser.add_argument('--tokens-per-sample', default=1024, type=int,
                             help='max number of tokens per sample for LM dataset')
+        parser.add_argument('--lazy-load', action='store_true',
+                            help='load the dataset lazily')
         parser.add_argument('--raw-text', default=False, action='store_true',
                             help='load raw text dataset')
         parser.add_argument('--output-dictionary-size', default=-1, type=int,
@@ -144,7 +147,10 @@ class LanguageModelingTask(FairseqTask):
             if self.args.raw_text and IndexedRawTextDataset.exists(path):
                 ds = IndexedRawTextDataset(path, self.dictionary)
             elif not self.args.raw_text and IndexedDataset.exists(path):
-                ds = IndexedDataset(path, fix_lua_indexing=True)
+                if self.args.lazy_load:
+                    ds = IndexedDataset(path, fix_lua_indexing=True)
+                else:
+                    ds = IndexedCachedDataset(path, fix_lua_indexing=True)
             else:
                 if k > 0:
                     break
@@ -156,7 +162,8 @@ class LanguageModelingTask(FairseqTask):
                     ds, ds.sizes, self.args.tokens_per_sample,
                     pad=self.dictionary.pad(), eos=self.dictionary.eos(),
                     break_mode=self.args.sample_break_mode, include_targets=True,
-                ))
+                )
+            )
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
 

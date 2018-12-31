@@ -140,3 +140,7 @@ class TokenBlockDataset(FairseqDataset):
             for start_ds_idx, _, end_ds_idx in [self.block_to_dataset_index[index]]
             for ds_idx in range(start_ds_idx, end_ds_idx + 1)
         ))
+
+    @property
+    def is_thread_safe(self):
+        return getattr(self.dataset, 'is_thread_safe', False)

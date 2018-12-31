@@ -88,7 +88,7 @@ class IndexedDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         self.check_index(i)
-        tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
+        tensor_size = int(self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]])
         a = np.empty(tensor_size, dtype=self.dtype)
         with self._lock:
             self.data_file.seek(self.data_offsets[i] * self.element_size)
@@ -101,19 +101,16 @@ class IndexedDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.size
 
-    def read_into(self, start, dst):
-        with self._lock:
-            self.data_file.seek(start * self.element_size)
-            self.data_file.readinto(dst)
-        if self.fix_lua_indexing:
-            dst -= 1  # subtract 1 for 0-based indexing
-
     @staticmethod
     def exists(path):
         return (
             os.path.exists(index_file_path(path)) and
             os.path.exists(data_file_path(path))
         )
+
+    @property
+    def supports_prefetch(self):
+        return False  # avoid prefetching to save memory
 
     @property
     def is_thread_safe(self):
@@ -123,7 +120,7 @@ class IndexedDataset(torch.utils.data.Dataset):
 class IndexedCachedDataset(IndexedDataset):
 
     def __init__(self, path, fix_lua_indexing=False):
-        super().__init__(path, fix_lua_indexing, True)
+        super().__init__(path, fix_lua_indexing=fix_lua_indexing, read_data=True)
         self.cache = None
         self.cache_index = {}
 
@@ -162,34 +159,7 @@ class IndexedCachedDataset(IndexedDataset):
         return item
 
 
-class IndexedInMemoryDataset(IndexedDataset):
-    """Loader for TorchNet IndexedDataset, keeps all the data in memory"""
-
-    def read_data(self, path):
-        self.data_file = open(data_file_path(path), 'rb')
-        self.buffer = np.empty(self.data_offsets[-1], dtype=self.dtype)
-        self.data_file.readinto(self.buffer)
-        self.data_file.close()
-        if self.fix_lua_indexing:
-            self.buffer -= 1  # subtract 1 for 0-based indexing
-
-    def read_into(self, start, dst):
-        if self.token_blob is None:
-            self.token_blob = [t for l in self.tokens_list for t in l]
-        np.copyto(dst, self.token_blob[start:])
-
-    def __del__(self):
-        pass
-
-    def __getitem__(self, i):
-        self.check_index(i)
-        tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
-        a = np.empty(tensor_size, dtype=self.dtype)
-        np.copyto(a, self.buffer[self.data_offsets[i]:self.data_offsets[i + 1]])
-        return torch.from_numpy(a).long()
-
-
-class IndexedRawTextDataset(IndexedDataset):
+class IndexedRawTextDataset(torch.utils.data.Dataset):
     """Takes a text file as input and binarizes it in memory at instantiation.
     Original lines are also kept in memory"""
 
@@ -214,6 +184,10 @@ class IndexedRawTextDataset(IndexedDataset):
                 self.sizes.append(len(tokens))
         self.sizes = np.array(self.sizes)
 
+    def check_index(self, i):
+        if i < 0 or i >= self.size:
+            raise IndexError('index out of range')
+
     def __getitem__(self, i):
         self.check_index(i)
         return self.tokens_list[i]
@@ -231,6 +205,10 @@ class IndexedRawTextDataset(IndexedDataset):
     @staticmethod
     def exists(path):
         return os.path.exists(path)
+
+    @property
+    def is_thread_safe(self):
+        return True
 
 
 class IndexedDatasetBuilder(object):
