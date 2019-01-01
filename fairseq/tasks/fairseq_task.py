@@ -61,7 +61,7 @@ class FairseqTask(object):
     def get_batch_iterator(
         self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
         ignore_invalid_inputs=False, required_batch_size_multiple=1,
-        seed=1, num_shards=1, shard_id=0,
+        seed=1, num_shards=1, shard_id=0, num_workers=0,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -84,6 +84,9 @@ class FairseqTask(object):
                 shards (default: 1).
             shard_id (int, optional): which shard of the data iterator to
                 return (default: 0).
+            num_workers (int, optional): how many subprocesses to use for data
+                loading. 0 means the data will be loaded in the main process
+                (default: 0).
 
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
@@ -114,6 +117,7 @@ class FairseqTask(object):
             seed=seed,
             num_shards=num_shards,
             shard_id=shard_id,
+            num_workers=num_workers,
         )
 
     def build_model(self, args):

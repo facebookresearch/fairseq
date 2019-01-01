@@ -233,10 +233,3 @@ class LanguagePairDataset(FairseqDataset):
     def prefetch(self, indices):
         self.src.prefetch(indices)
         self.tgt.prefetch(indices)
-
-    @property
-    def is_thread_safe(self):
-        return (
-            getattr(self.src, 'is_thread_safe', False)
-            and getattr(self.tgt, 'is_thread_safe', False)
-        )

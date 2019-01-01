@@ -152,6 +152,8 @@ def get_parser(desc, default_task='translation'):
 def add_dataset_args(parser, train=False, gen=False):
     group = parser.add_argument_group('Dataset and data loading')
     # fmt: off
+    group.add_argument('--num-workers', default=0, type=int, metavar='N',
+                       help='how many subprocesses to use for data loading')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
                        help='ignore too long or too short lines in valid and test set')
     group.add_argument('--max-tokens', type=int, metavar='N',
@@ -194,7 +196,7 @@ def add_distributed_training_args(parser):
                             'establish initial connetion')
     group.add_argument('--distributed-port', default=-1, type=int,
                        help='port number (not required if using --distributed-init-method)')
-    group.add_argument('--device-id', default=0, type=int,
+    group.add_argument('--device-id', '--local_rank', default=0, type=int,
                        help='which GPU to use (usually configured automatically)')
     group.add_argument('--ddp-backend', default='c10d', type=str,
                        choices=['c10d', 'no_c10d'],

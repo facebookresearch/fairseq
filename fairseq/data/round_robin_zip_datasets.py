@@ -121,10 +121,3 @@ class RoundRobinZipDatasets(FairseqDataset):
     def prefetch(self, indices):
         for key, dataset in self.datasets.items():
             dataset.prefetch([self._map_index(key, index) for index in indices])
-
-    @property
-    def is_thread_safe(self):
-        return all(
-            getattr(dataset, 'is_thread_safe', False)
-            for dataset in self.datasets.values()
-        )
