@@ -75,6 +75,12 @@ class TestReproducibility(unittest.TestCase):
             '--fp16-init-scale', '4096',
         ])
 
+    def test_reproducibility_memory_efficient_fp16(self):
+        self._test_reproducibility('test_reproducibility_memory_efficient_fp16', [
+            '--memory-efficient-fp16',
+            '--fp16-init-scale', '4096',
+        ])
+
 
 if __name__ == '__main__':
     unittest.main()
