@@ -85,9 +85,10 @@ def main(parsed_args):
         max_positions=utils.resolve_max_positions(*[
             model.max_positions() for model in models
         ]),
+        ignore_invalid_inputs=True,
         num_shards=args.num_shards,
         shard_id=args.shard_id,
-        ignore_invalid_inputs=True,
+        num_workers=args.num_workers,
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()

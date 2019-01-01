@@ -73,6 +73,7 @@ def main(args):
         seed=args.seed,
         num_shards=args.distributed_world_size,
         shard_id=args.distributed_rank,
+        num_workers=args.num_workers,
     )
 
     # Load the latest checkpoint if one is available
@@ -210,6 +211,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
             seed=args.seed,
             num_shards=args.distributed_world_size,
             shard_id=args.distributed_rank,
+            num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
         progress = progress_bar.build_progress_bar(
             args, itr, epoch_itr.epoch,
@@ -349,19 +351,28 @@ if __name__ == '__main__':
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser)
 
+    # support torch.distributed.launch
+    if args.distributed_init_method is None:
+        env = os.environ
+        if all(key in env for key in ['MASTER_ADDR', 'MASTER_PORT', 'WORLD_SIZE', 'RANK']):
+            args.distributed_init_method = 'tcp://{addr}:{port}'.format(
+                addr=env['MASTER_ADDR'],
+                port=env['MASTER_PORT'],
+            )
+            args.distributed_world_size = int(env['WORLD_SIZE'])
+            args.distributed_rank = int(env['RANK'])
+
     if args.distributed_port > 0 or args.distributed_init_method is not None:
         from distributed_train import main as distributed_main
 
         distributed_main(args)
     elif args.distributed_world_size > 1:
-        from multiprocessing_train import main as multiprocessing_main
+        raise Exception(
+            '''
+            For multi-GPU training, please relaunch with:
 
-        # Set distributed training parameters for a single node.
-        args.distributed_world_size = torch.cuda.device_count()
-        port = random.randint(10000, 20000)
-        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
-        args.distributed_port = port + 1
-
-        multiprocessing_main(args)
+            python -m torch.distributed.launch --nproc_per_node {ngpu} train.py (...)
+            '''.format(ngpu=torch.cuda.device_count())
+        )
     else:
         main(args)
