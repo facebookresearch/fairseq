@@ -96,16 +96,19 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
+        params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
                 print('| WARNING: your device does NOT support faster training with --fp16, '
                       'please switch to FP32 which is likely to be faster')
-            params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-            self._optimizer = optim.FP16Optimizer.build_optimizer(self.args, params)
+            if self.args.memory_efficient_fp16:
+                self._optimizer = optim.MemoryEfficientFP16Optimizer.build_optimizer(self.args, params)
+            else:
+                self._optimizer = optim.FP16Optimizer.build_optimizer(self.args, params)
         else:
             if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
                 print('| NOTICE: your device may support faster training with --fp16')
-            self._optimizer = optim.build_optimizer(self.args, self.model.parameters())
+            self._optimizer = optim.build_optimizer(self.args, params)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""

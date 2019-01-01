@@ -107,6 +107,8 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
         args.update_freq = eval_str_list(args.update_freq, type=int)
     if hasattr(args, 'max_sentences_valid') and args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
+    if getattr(args, 'memory_efficient_fp16', False):
+        args.fp16 = True
 
     # Apply architecture configuration.
     if hasattr(args, 'arch'):
@@ -130,6 +132,8 @@ def get_parser(desc, default_task='translation'):
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
     parser.add_argument('--fp16', action='store_true', help='use FP16')
+    parser.add_argument('--memory-efficient-fp16', action='store_true',
+                        help='use a memory-efficient version of FP16 training; implies --fp16')
     parser.add_argument('--fp16-init-scale', default=2**7, type=int,
                         help='default FP16 loss scale')
     parser.add_argument('--fp16-scale-window', type=int,
