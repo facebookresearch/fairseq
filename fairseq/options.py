@@ -270,7 +270,9 @@ def add_checkpoint_args(parser):
     group.add_argument('--save-interval-updates', type=int, default=0, metavar='N',
                        help='save a checkpoint (and validate) every N updates')
     group.add_argument('--keep-interval-updates', type=int, default=-1, metavar='N',
-                       help='keep last N checkpoints saved with --save-interval-updates')
+                       help='keep the last N checkpoints saved with --save-interval-updates')
+    group.add_argument('--keep-last-epochs', type=int, default=-1, metavar='N',
+                       help='keep last N epoch checkpoints')
     group.add_argument('--no-save', action='store_true',
                        help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
