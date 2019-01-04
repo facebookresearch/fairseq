@@ -348,8 +348,10 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         models, _ = utils.load_ensemble_for_inference([args.lm_path], task, overrides)
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
 
+        print('seperator symbol: ', dictionary[dictionary.sep()])
+
         return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk(),
-                                                len(dictionary) - 1)
+                                                dictionary.sep())
 
 
 @register_model('hybrid_sentence_pair_classifier')
@@ -365,6 +367,9 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         self.language_model = language_model
         self.eos_idx = eos_idx
         self.pad_idx = pad_idx
+
+        self.mask_curr_state = args.last_mask
+        self.lm_scalar = args.lm_scalar
 
         self.lstm = nn.LSTM(
             input_size=args.model_dim,
@@ -398,9 +403,11 @@ class HybridSentencePairClassifier(BaseFairseqModel):
 
         bsz, tsz = src_tokens.size()
 
-        x, _ = self.language_model(src_tokens)
+        x, _ = self.language_model(src_tokens, mask_curr_state=self.mask_curr_state)
         if isinstance(x, list):
             x = x[0]
+
+        x *= self.lm_scalar
 
         x = self.ln(x)
         x = self.embedding_dropout(x)
@@ -436,6 +443,10 @@ class HybridSentencePairClassifier(BaseFairseqModel):
         parser.add_argument('--lstm-dim', type=int, metavar='D', help='lstm dim')
         parser.add_argument('--affine-layer-norm', action='store_true',
                             help='if true, and layer norm is enabled, it is affine')
+        parser.add_argument('--last-mask', choices=['full', 'none', 'curr'],
+                            help='full: full cloze loss masking, none: no masking at all, curr: same as full but remove masking only for current token')
+        parser.add_argument('--lm-scalar', type=float, metavar='D', default=1.0,
+                            help='scale output of lm this much before projection')
 
     @classmethod
     def build_model(cls, args, task):

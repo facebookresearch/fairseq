@@ -88,7 +88,7 @@ class SentencePairClassificationDataset(FairseqDataset):
             sent1 = torch.cat([sent1, eos, sent2])
             sent2 = sent2.new(0)
         elif self.concat_sentences_mode == 'sep':
-            sent1 = torch.cat([sent1[:-1], sent1.new_full((1,), len(self.vocab) - 1), sent2])
+            sent1 = torch.cat([sent1[:-1], sent1.new_full((1,), self.vocab.sep()), sent2])
             sent2 = sent2.new(0)
         else:
             raise Exception('unknown concat sentence mode ' + self.concat_sentences_mode)

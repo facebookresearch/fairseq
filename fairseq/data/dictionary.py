@@ -13,6 +13,7 @@ import torch
 
 class Dictionary(object):
     """A mapping from symbols to consecutive integers"""
+
     def __init__(self, pad='<pad>', eos='</s>', unk='<unk>'):
         self.unk_word, self.pad_word, self.eos_word = unk, pad, eos
         self.symbols = []
@@ -159,6 +160,13 @@ class Dictionary(object):
         """Helper to get index of unk symbol"""
         return self.unk_index
 
+    def sep(self):
+        sep_sym = '<SEP>'
+        if sep_sym in self.indices:
+            return self.indices[sep_sym]
+        else:
+            return len(self) - 1
+
     @classmethod
     def load(cls, f, ignore_utf_errors=False):
         """Loads the dictionary from a text file with the format:
@@ -187,7 +195,7 @@ class Dictionary(object):
         for line in f.readlines():
             idx = line.rfind(' ')
             word = line[:idx]
-            count = int(line[idx+1:])
+            count = int(line[idx + 1:])
             d.indices[word] = len(d.symbols)
             d.symbols.append(word)
             d.count.append(count)
@@ -206,6 +214,7 @@ class Dictionary(object):
         t = torch.Tensor(length).uniform_(self.nspecial + 1, len(self)).long()
         t[-1] = self.eos()
         return t
+
 
 class TruncatedDictionary(object):
 

@@ -99,6 +99,8 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='if set, uses a single tower for both bwd and fwd passes')
         parser.add_argument('--input-dropout', type=float, metavar='N',
                             help='percentage of input dropout (turn into pads)')
+        parser.add_argument('--decoder-learned-pos', action='store_true',
+                            help='use learned positional embeddings in the decoder')
 
     @classmethod
     def build_model(cls, args, task):
@@ -166,7 +168,9 @@ class BiTransformerDecoder(FairseqDecoder):
         self.input_dropout = torch.tensor(args.input_dropout) if args.input_dropout > 0 else None
 
         self.embed_positions = PositionalEmbedding(
-            args.max_target_positions, embed_dim, self.padding_idx,
+            args.max_target_positions + 1,
+            embed_dim,
+            self.padding_idx,
             left_pad=left_pad,
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
