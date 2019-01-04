@@ -355,32 +355,50 @@ def load_dataset_splits(task, splits):
                     raise e
 
 
+def distributed_main(i, args):
+    import socket
+    args.device_id = i
+    if args.distributed_rank is None:  # torch.multiprocessing.spawn
+        args.distributed_rank = i
+    args.distributed_rank = distributed_utils.distributed_init(args)
+    print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
+    main(args)
+
+
 if __name__ == '__main__':
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser)
 
-    # support torch.distributed.launch
     if args.distributed_init_method is None:
-        env = os.environ
-        if all(key in env for key in ['MASTER_ADDR', 'MASTER_PORT', 'WORLD_SIZE', 'RANK']):
-            args.distributed_init_method = 'tcp://{addr}:{port}'.format(
-                addr=env['MASTER_ADDR'],
-                port=env['MASTER_PORT'],
-            )
-            args.distributed_world_size = int(env['WORLD_SIZE'])
-            args.distributed_rank = int(env['RANK'])
+        distributed_utils.infer_init_method(args)
 
-    if args.distributed_port > 0 or args.distributed_init_method is not None:
-        from distributed_train import main as distributed_main
-
-        distributed_main(args)
+    if args.distributed_init_method is not None:
+        # distributed training
+        distributed_main(args.device_id, args)
+        args.distributed_rank = distributed_utils.distributed_init(args)
+        main(args)
     elif args.distributed_world_size > 1:
-        raise Exception(
-            '''
-            For multi-GPU training, please relaunch with:
+        # fallback for single node with multiple GPUs
+        port = random.randint(10000, 20000)
+        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
+        args.distributed_rank = None  # set based on device id
+        print(
+            '''| NOTE: you may get better performance with:
 
-            python -m torch.distributed.launch --nproc_per_node {ngpu} train.py (...)
-            '''.format(ngpu=torch.cuda.device_count())
+            python -m torch.distributed.launch --nproc_per_node {ngpu} train.py {no_c10d}(...)
+            '''.format(
+                ngpu=args.distributed_world_size,
+                no_c10d=(
+                    '--ddp-backend=no_c10d ' if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d'
+                    else ''
+                ),
+            )
+        )
+        torch.multiprocessing.spawn(
+            fn=distributed_main,
+            args=(args, ),
+            nprocs=args.distributed_world_size,
         )
     else:
+        # single GPU training
         main(args)
