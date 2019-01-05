@@ -179,10 +179,8 @@ class FConvEncoder(FairseqEncoder):
             connections are added between layers when ``residual=1`` (which is
             the default behavior).
         dropout (float, optional): dropout to be applied before each conv layer
-        normalization_constant (float, optional): multiplies the result of the
-            residual block by sqrt(value)
-        left_pad (bool, optional): whether the input is left-padded. Default:
-            ``True``
+        left_pad (bool, optional): whether the input is left-padded
+            (default: True).
     """
 
     def __init__(
@@ -215,7 +213,7 @@ class FConvEncoder(FairseqEncoder):
         self.residuals = []
 
         layer_in_channels = [in_channels]
-        for i, (out_channels, kernel_size, residual) in enumerate(convolutions):
+        for _, (out_channels, kernel_size, residual) in enumerate(convolutions):
             if residual == 0:
                 residual_dim = out_channels
             else:

@@ -30,22 +30,23 @@ class Trainer(object):
     """
 
     def __init__(self, args, task, model, criterion, dummy_batch, oom_batch=None):
-
-        if not torch.cuda.is_available():
-            raise NotImplementedError('Training on CPU is not supported')
-
         self.args = args
         self.task = task
 
         # copy model and criterion to current device
-        self.criterion = criterion.cuda()
+        self.criterion = criterion
+        self._model = model
+        self.cuda = torch.cuda.is_available() and not args.cpu
         if args.fp16:
-            self._model = model.half().cuda()
-        else:
-            self._model = model.cuda()
+            self._model = self._model.half()
+        if self.cuda:
+            self.criterion = self.criterion.cuda()
+            self._model = self._model.cuda()
 
         self._dummy_batch = dummy_batch
         self._oom_batch = oom_batch
+
+        self._lr_scheduler = None
         self._num_updates = 0
         self._optim_history = None
         self._optimizer = None
@@ -71,7 +72,6 @@ class Trainer(object):
         self.meters['wall'] = TimeMeter()      # wall time in seconds
         self.meters['train_wall'] = StopwatchMeter()  # train wall time in seconds
 
-
     @property
     def model(self):
         if self._wrapped_model is None:
@@ -89,19 +89,26 @@ class Trainer(object):
             self._build_optimizer()
         return self._optimizer
 
+    @property
+    def lr_scheduler(self):
+        if self._lr_scheduler is None:
+            self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+        return self._lr_scheduler
+
     def _build_optimizer(self):
+        params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
         if self.args.fp16:
-            if torch.cuda.get_device_capability(0)[0] < 7:
+            if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
                 print('| WARNING: your device does NOT support faster training with --fp16, '
                       'please switch to FP32 which is likely to be faster')
-            params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-            self._optimizer = optim.FP16Optimizer.build_optimizer(self.args, params)
+            if self.args.memory_efficient_fp16:
+                self._optimizer = optim.MemoryEfficientFP16Optimizer.build_optimizer(self.args, params)
+            else:
+                self._optimizer = optim.FP16Optimizer.build_optimizer(self.args, params)
         else:
-            if torch.cuda.get_device_capability(0)[0] >= 7:
+            if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
                 print('| NOTICE: your device may support faster training with --fp16')
-            self._optimizer = optim.build_optimizer(self.args, self.model.parameters())
-
-        self.lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self._optimizer)
+            self._optimizer = optim.build_optimizer(self.args, params)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
@@ -151,7 +158,8 @@ class Trainer(object):
         # reproducible results when resuming from checkpoints
         seed = self.args.seed + self.get_num_updates()
         torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
+        if self.cuda:
+            torch.cuda.manual_seed(seed)
 
         self.model.train()
         self.zero_grad()
@@ -296,7 +304,8 @@ class Trainer(object):
                     for p in self.model.parameters():
                         if p.grad is not None:
                             del p.grad  # free some memory
-                    torch.cuda.empty_cache()
+                    if self.cuda:
+                        torch.cuda.empty_cache()
                     return self.valid_step(sample, raise_oom=True)
                 else:
                     raise e
@@ -377,4 +386,6 @@ class Trainer(object):
     def _prepare_sample(self, sample):
         if sample is None or len(sample) == 0:
             return None
-        return utils.move_to_cuda(sample)
+        if self.cuda:
+            sample = utils.move_to_cuda(sample)
+        return sample

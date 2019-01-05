@@ -13,22 +13,19 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
     """Decay the LR based on the inverse square root of the update number.
 
     We also support a warmup phase where we linearly increase the learning rate
-    from some initial learning rate (`--warmup-init-lr`) until the configured
-    learning rate (`--lr`). Thereafter we decay proportional to the number of
+    from some initial learning rate (``--warmup-init-lr``) until the configured
+    learning rate (``--lr``). Thereafter we decay proportional to the number of
     updates, with a decay factor set to align with the configured learning rate.
 
-    During warmup:
+    During warmup::
 
       lrs = torch.linspace(args.warmup_init_lr, args.lr, args.warmup_updates)
       lr = lrs[update_num]
 
-    After warmup:
-
-      lr = decay_factor / sqrt(update_num)
-
-    where
+    After warmup::
 
       decay_factor = args.lr * sqrt(args.warmup_updates)
+      lr = decay_factor / sqrt(update_num)
     """
 
     def __init__(self, args, optimizer):

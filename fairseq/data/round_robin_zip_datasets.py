@@ -13,13 +13,16 @@ from . import FairseqDataset
 
 
 class RoundRobinZipDatasets(FairseqDataset):
-    """Zip multiple FairseqDatasets together, repeating shorter datasets in a
-    round-robin fashion to match the length of the longest one.
+    """Zip multiple :class:`~fairseq.data.FairseqDataset` instances together.
+
+    Shorter datasets are repeated in a round-robin fashion to match the length
+    of the longest one.
 
     Args:
-        datasets: a dictionary of FairseqDatasets
-        eval_key: an optional key used at evaluation time that causes this
-            instance to pass-through batches from `datasets[eval_key]`.
+        datasets (Dict[~fairseq.data.FairseqDataset]): a dictionary of
+            :class:`~fairseq.data.FairseqDataset` instances.
+        eval_key (str, optional): a key used at evaluation time that causes
+            this instance to pass-through batches from *datasets[eval_key]*.
     """
 
     def __init__(self, datasets, eval_key=None):
@@ -107,3 +110,14 @@ class RoundRobinZipDatasets(FairseqDataset):
             dataset.valid_size(self._map_index(key, index), max_positions[key])
             for key, dataset in self.datasets.items()
         )
+
+    @property
+    def supports_prefetch(self):
+        return all(
+            getattr(dataset, 'supports_prefetch', False)
+            for dataset in self.datasets.values()
+        )
+
+    def prefetch(self, indices):
+        for key, dataset in self.datasets.items():
+            dataset.prefetch([self._map_index(key, index) for index in indices])

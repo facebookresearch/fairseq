@@ -219,7 +219,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
         # make sure all arguments are present in older models
         base_lm_architecture(args)
 
-        if hasattr(args, 'no_tie_adaptive_proj') and args.no_tie_adaptive_proj == False:
+        if hasattr(args, 'no_tie_adaptive_proj') and args.no_tie_adaptive_proj is False:
             # backward compatibility
             args.tie_adaptive_proj = True
 
@@ -229,15 +229,17 @@ class TransformerLanguageModel(FairseqLanguageModel):
             args.max_target_positions = args.tokens_per_sample
 
         if args.character_embeddings:
-            embed_tokens = CharacterTokenEmbedder(task.dictionary, eval(args.character_filters),
-                                                  args.character_embedding_dim,
-                                                  args.decoder_embed_dim,
-                                                  args.char_embedder_highway_layers,
-                                                  )
+            embed_tokens = CharacterTokenEmbedder(
+                task.dictionary, eval(args.character_filters),
+                args.character_embedding_dim, args.decoder_embed_dim,
+                args.char_embedder_highway_layers,
+            )
         elif args.adaptive_input:
-            embed_tokens = AdaptiveInput(len(task.dictionary), task.dictionary.pad(), args.decoder_input_dim,
-                                         args.adaptive_input_factor, args.decoder_embed_dim,
-                                         options.eval_str_list(args.adaptive_input_cutoff, type=int))
+            embed_tokens = AdaptiveInput(
+                len(task.dictionary), task.dictionary.pad(), args.decoder_input_dim,
+                args.adaptive_input_factor, args.decoder_embed_dim,
+                options.eval_str_list(args.adaptive_input_cutoff, type=int),
+            )
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_input_dim, task.dictionary.pad())
 
@@ -248,7 +250,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
                 args.adaptive_softmax_cutoff, args.adaptive_input_cutoff)
             assert args.decoder_input_dim == args.decoder_output_dim
 
-        decoder = TransformerDecoder(args, task.output_dictionary, embed_tokens, no_encoder_attn=True, final_norm=False)
+        decoder = TransformerDecoder(
+            args, task.output_dictionary, embed_tokens, no_encoder_attn=True, final_norm=False,
+        )
         return TransformerLanguageModel(decoder)
 
 
@@ -261,8 +265,8 @@ class TransformerEncoder(FairseqEncoder):
         args (argparse.Namespace): parsed command-line arguments
         dictionary (~fairseq.data.Dictionary): encoding dictionary
         embed_tokens (torch.nn.Embedding): input embedding
-        left_pad (bool, optional): whether the input is left-padded. Default:
-            ``True``
+        left_pad (bool, optional): whether the input is left-padded
+            (default: True).
     """
 
     def __init__(self, args, dictionary, embed_tokens, left_pad=True):
@@ -382,10 +386,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         args (argparse.Namespace): parsed command-line arguments
         dictionary (~fairseq.data.Dictionary): decoding dictionary
         embed_tokens (torch.nn.Embedding): output embedding
-        no_encoder_attn (bool, optional): whether to attend to encoder outputs.
-            Default: ``False``
-        left_pad (bool, optional): whether the input is left-padded. Default:
-            ``False``
+        no_encoder_attn (bool, optional): whether to attend to encoder outputs
+            (default: False).
+        left_pad (bool, optional): whether the input is left-padded
+            (default: False).
+        final_norm (bool, optional): apply layer norm to the output of the
+            final decoder layer (default: True).
     """
 
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, left_pad=False, final_norm=True):
@@ -634,8 +640,8 @@ class TransformerDecoderLayer(nn.Module):
 
     Args:
         args (argparse.Namespace): parsed command-line arguments
-        no_encoder_attn (bool, optional): whether to attend to encoder outputs.
-            Default: ``False``
+        no_encoder_attn (bool, optional): whether to attend to encoder outputs
+            (default: False).
     """
 
     def __init__(self, args, no_encoder_attn=False):

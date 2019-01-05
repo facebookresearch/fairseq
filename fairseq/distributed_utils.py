@@ -6,7 +6,9 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import namedtuple
+import os
 import pickle
+import subprocess
 
 import torch
 from torch import nn
@@ -40,6 +42,38 @@ elif c10d_status.has_c10d:
     import torch.distributed as dist_no_c10d
 else:
     import torch.distributed as dist_no_c10d
+
+
+def infer_init_method(args):
+    if args.distributed_init_method is not None:
+        return
+
+    # support torch.distributed.launch
+    if all(key in os.environ for key in [
+        'MASTER_ADDR', 'MASTER_PORT', 'WORLD_SIZE', 'RANK'
+    ]):
+        args.distributed_init_method = 'tcp://{addr}:{port}'.format(
+            addr=os.environ['MASTER_ADDR'],
+            port=os.environ['MASTER_PORT'],
+        )
+        args.distributed_world_size = int(os.environ['WORLD_SIZE'])
+        args.distributed_rank = int(os.environ['RANK'])
+
+    # we can determine the init method automatically for Slurm
+    elif args.distributed_port > 0:
+        node_list = os.environ.get('SLURM_JOB_NODELIST')
+        if node_list is not None:
+            try:
+                hostnames = subprocess.check_output(['scontrol', 'show', 'hostnames', node_list])
+                args.distributed_init_method = 'tcp://{host}:{port}'.format(
+                    host=hostnames.split()[0].decode('utf-8'),
+                    port=args.distributed_port)
+                args.distributed_rank = int(os.environ.get('SLURM_PROCID'))
+                args.device_id = int(os.environ.get('SLURM_LOCALID'))
+            except subprocess.CalledProcessError as e:  # scontrol failed
+                raise e
+            except FileNotFoundError:  # Slurm is not installed
+                pass
 
 
 def distributed_init(args):
@@ -158,7 +192,7 @@ def all_gather_list(data, group=None, max_size=16384):
                     pickle.loads(bytes(out_buffer[2:size+2].tolist()))
                 )
         return result
-    except pickle.UnpicklingError as e:
+    except pickle.UnpicklingError:
         raise Exception(
             'Unable to unpickle data from other workers. all_gather_list requires all '
             'workers to enter the function together, so this error usually indicates '
@@ -167,4 +201,3 @@ def all_gather_list(data, group=None, max_size=16384):
             'in your training script that can cause one worker to finish an epoch '
             'while other workers are still iterating over their portions of the data.'
         )
-

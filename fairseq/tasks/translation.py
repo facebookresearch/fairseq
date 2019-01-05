@@ -6,13 +6,17 @@
 # can be found in the PATENTS file in the same directory.
 
 import itertools
-import numpy as np
 import os
 
 from fairseq import options, utils
 from fairseq.data import (
-    data_utils, Dictionary, LanguagePairDataset, ConcatDataset,
-    IndexedRawTextDataset, IndexedCachedDataset, IndexedDataset
+    ConcatDataset,
+    data_utils,
+    Dictionary,
+    IndexedCachedDataset,
+    IndexedDataset,
+    IndexedRawTextDataset,
+    LanguagePairDataset,
 )
 
 from . import FairseqTask, register_task
@@ -49,6 +53,8 @@ class TranslationTask(FairseqTask):
                             help='source language')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                             help='target language')
+        parser.add_argument('--lazy-load', action='store_true',
+                            help='load the dataset lazily')
         parser.add_argument('--raw-text', action='store_true',
                             help='load raw text dataset')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
@@ -132,7 +138,10 @@ class TranslationTask(FairseqTask):
             if self.args.raw_text:
                 return IndexedRawTextDataset(path, dictionary)
             elif IndexedDataset.exists(path):
-                return IndexedCachedDataset(path, fix_lua_indexing=True)
+                if self.args.lazy_load:
+                    return IndexedDataset(path, fix_lua_indexing=True)
+                else:
+                    return IndexedCachedDataset(path, fix_lua_indexing=True)
             return None
 
         src_datasets = []

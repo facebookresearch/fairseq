@@ -12,8 +12,12 @@ import torch
 
 from fairseq import options
 from fairseq.data import (
-    Dictionary, LanguagePairDataset, IndexedInMemoryDataset,
-    IndexedRawTextDataset, RoundRobinZipDatasets,
+    Dictionary,
+    IndexedCachedDataset,
+    IndexedDataset,
+    IndexedRawTextDataset,
+    LanguagePairDataset,
+    RoundRobinZipDatasets,
 )
 from fairseq.models import FairseqMultiModel
 
@@ -55,6 +59,8 @@ class MultilingualTranslationTask(FairseqTask):
                             help='source language (only needed for inference)')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                             help='target language (only needed for inference)')
+        parser.add_argument('--lazy-load', action='store_true',
+                            help='load the dataset lazily')
         parser.add_argument('--raw-text', action='store_true',
                             help='load raw text dataset')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
@@ -112,15 +118,18 @@ class MultilingualTranslationTask(FairseqTask):
             filename = os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, lang))
             if self.args.raw_text and IndexedRawTextDataset.exists(filename):
                 return True
-            elif not self.args.raw_text and IndexedInMemoryDataset.exists(filename):
+            elif not self.args.raw_text and IndexedDataset.exists(filename):
                 return True
             return False
 
         def indexed_dataset(path, dictionary):
             if self.args.raw_text:
                 return IndexedRawTextDataset(path, dictionary)
-            elif IndexedInMemoryDataset.exists(path):
-                return IndexedInMemoryDataset(path, fix_lua_indexing=True)
+            elif IndexedDataset.exists(path):
+                if self.args.lazy_load:
+                    return IndexedDataset(path, fix_lua_indexing=True)
+                else:
+                    return IndexedCachedDataset(path, fix_lua_indexing=True)
             return None
 
         def sort_lang_pair(lang_pair):

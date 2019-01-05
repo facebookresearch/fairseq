@@ -28,9 +28,8 @@ def main(args):
         args.max_tokens = 6000
     print(args)
 
-    if not torch.cuda.is_available():
-        raise NotImplementedError('Training on CPU is not supported')
-    torch.cuda.set_device(args.device_id)
+    if torch.cuda.is_available() and not args.cpu:
+        torch.cuda.set_device(args.device_id)
     torch.manual_seed(args.seed)
 
     # Setup task, e.g., translation, language modeling, etc.
@@ -74,6 +73,7 @@ def main(args):
         seed=args.seed,
         num_shards=args.distributed_world_size,
         shard_id=args.distributed_rank,
+        num_workers=args.num_workers,
     )
 
     # Load the latest checkpoint if one is available
@@ -211,6 +211,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
             seed=args.seed,
             num_shards=args.distributed_world_size,
             shard_id=args.distributed_rank,
+            num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
         progress = progress_bar.build_progress_bar(
             args, itr, epoch_itr.epoch,
@@ -306,7 +307,15 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         # remove old checkpoints; checkpoints are sorted in descending order
         checkpoints = utils.checkpoint_paths(args.save_dir, pattern=r'checkpoint_\d+_(\d+)\.pt')
         for old_chk in checkpoints[args.keep_interval_updates:]:
-            os.remove(old_chk)
+            if os.path.lexists(old_chk):
+                os.remove(old_chk)
+
+    if args.keep_last_epochs > 0:
+        # remove old epoch checkpoints; checkpoints are sorted in descending order
+        checkpoints = utils.checkpoint_paths(args.save_dir, pattern=r'checkpoint\d+\.pt')
+        for old_chk in checkpoints[args.keep_last_epochs:]:
+            if os.path.lexists(old_chk):
+                os.remove(old_chk)
 
 
 def load_checkpoint(args, trainer, epoch_itr):
@@ -346,23 +355,50 @@ def load_dataset_splits(task, splits):
                     raise e
 
 
+def distributed_main(i, args):
+    import socket
+    args.device_id = i
+    if args.distributed_rank is None:  # torch.multiprocessing.spawn
+        args.distributed_rank = i
+    args.distributed_rank = distributed_utils.distributed_init(args)
+    print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
+    main(args)
+
+
 if __name__ == '__main__':
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser)
 
-    if args.distributed_port > 0 or args.distributed_init_method is not None:
-        from distributed_train import main as distributed_main
+    if args.distributed_init_method is None:
+        distributed_utils.infer_init_method(args)
 
-        distributed_main(args)
+    if args.distributed_init_method is not None:
+        # distributed training
+        distributed_main(args.device_id, args)
+        args.distributed_rank = distributed_utils.distributed_init(args)
+        main(args)
     elif args.distributed_world_size > 1:
-        from multiprocessing_train import main as multiprocessing_main
-
-        # Set distributed training parameters for a single node.
-        args.distributed_world_size = torch.cuda.device_count()
+        # fallback for single node with multiple GPUs
         port = random.randint(10000, 20000)
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
-        args.distributed_port = port + 1
+        args.distributed_rank = None  # set based on device id
+        print(
+            '''| NOTE: you may get better performance with:
 
-        multiprocessing_main(args)
+            python -m torch.distributed.launch --nproc_per_node {ngpu} train.py {no_c10d}(...)
+            '''.format(
+                ngpu=args.distributed_world_size,
+                no_c10d=(
+                    '--ddp-backend=no_c10d ' if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d'
+                    else ''
+                ),
+            )
+        )
+        torch.multiprocessing.spawn(
+            fn=distributed_main,
+            args=(args, ),
+            nprocs=args.distributed_world_size,
+        )
     else:
+        # single GPU training
         main(args)

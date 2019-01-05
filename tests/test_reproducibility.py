@@ -12,10 +12,6 @@ import os
 import tempfile
 import unittest
 
-import torch
-
-from fairseq import options
-
 from . import test_binaries
 
 
@@ -76,6 +72,12 @@ class TestReproducibility(unittest.TestCase):
     def test_reproducibility_fp16(self):
         self._test_reproducibility('test_reproducibility_fp16', [
             '--fp16',
+            '--fp16-init-scale', '4096',
+        ])
+
+    def test_reproducibility_memory_efficient_fp16(self):
+        self._test_reproducibility('test_reproducibility_memory_efficient_fp16', [
+            '--memory-efficient-fp16',
             '--fp16-init-scale', '4096',
         ])
 

@@ -50,6 +50,14 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--fp16'])
                 generate_main(data_dir)
 
+    def test_memory_efficient_fp16(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_memory_efficient_fp16') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--memory-efficient-fp16'])
+                generate_main(data_dir)
+
     def test_update_freq(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_update_freq') as data_dir:
@@ -68,8 +76,7 @@ class TestTranslation(unittest.TestCase):
                         data_dir, 'fconv_iwslt_de_en', ['--max-target-positions', '5'],
                     )
                 self.assertTrue(
-                    'skip this example with --skip-invalid-size-inputs-valid-test' \
-                    in str(context.exception)
+                    'skip this example with --skip-invalid-size-inputs-valid-test' in str(context.exception)
                 )
                 train_translation_model(
                     data_dir, 'fconv_iwslt_de_en',

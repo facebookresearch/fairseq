@@ -11,7 +11,7 @@ Translate pre-processed data with a trained model.
 
 import torch
 
-from fairseq import bleu, data, options, progress_bar, tasks, tokenizer, utils
+from fairseq import bleu, options, progress_bar, tasks, tokenizer, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_generator import SequenceGenerator
 from fairseq.sequence_scorer import SequenceScorer
@@ -41,7 +41,9 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task, model_arg_overrides=eval(args.model_overrides))
+    models, _model_args = utils.load_ensemble_for_inference(
+        args.path.split(':'), task, model_arg_overrides=eval(args.model_overrides),
+    )
 
     # Optimize ensemble for generation
     for model in models:
@@ -69,6 +71,7 @@ def main(args):
         required_batch_size_multiple=8,
         num_shards=args.num_shards,
         shard_id=args.shard_id,
+        num_workers=args.num_workers,
     ).next_epoch_itr(shuffle=False)
 
     # Initialize generator

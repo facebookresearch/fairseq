@@ -378,6 +378,14 @@ def item(tensor):
     return tensor
 
 
+def clip_grad_norm_(tensor, max_norm):
+    grad_norm = item(torch.norm(tensor))
+    if grad_norm > max_norm > 0:
+        clip_coef = max_norm / (grad_norm + 1e-6)
+        tensor.mul_(clip_coef)
+    return grad_norm
+
+
 def fill_with_neg_inf(t):
     """FP16-compatible function that fills a tensor with -inf."""
     return t.float().fill_(float('-inf')).type_as(t)

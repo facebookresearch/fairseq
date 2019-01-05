@@ -7,8 +7,6 @@
 
 import torch.utils.data
 
-from fairseq.data import data_utils
-
 
 class FairseqDataset(torch.utils.data.Dataset):
     """A dataset that provides helpers for batching."""
@@ -51,7 +49,9 @@ class FairseqDataset(torch.utils.data.Dataset):
 
     @property
     def supports_prefetch(self):
+        """Whether this dataset supports prefetching."""
         return False
 
     def prefetch(self, indices):
+        """Prefetch the data required for this epoch."""
         raise NotImplementedError

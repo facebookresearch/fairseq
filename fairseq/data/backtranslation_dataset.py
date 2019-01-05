@@ -56,6 +56,28 @@ def backtranslate_samples(samples, collate_fn, generate_fn, cuda=True):
 
 
 class BacktranslationDataset(FairseqDataset):
+    """
+    Sets up a backtranslation dataset which takes a tgt batch, generates
+    a src using a tgt-src backtranslation function (*backtranslation_fn*),
+    and returns the corresponding `{generated src, input tgt}` batch.
+
+    Args:
+        tgt_dataset (~fairseq.data.FairseqDataset): the dataset to be
+            backtranslated. Only the source side of this dataset will be used.
+            After backtranslation, the source sentences in this dataset will be
+            returned as the targets.
+        backtranslation_fn (callable): function to call to generate
+            backtranslations. This is typically the `generate` method of a
+            :class:`~fairseq.sequence_generator.SequenceGenerator` object.
+        max_len_a, max_len_b (int, int): will be used to compute
+            `maxlen = max_len_a * src_len + max_len_b`, which will be passed
+            into *backtranslation_fn*.
+        output_collater (callable, optional): function to call on the
+            backtranslated samples to create the final batch
+            (default: ``tgt_dataset.collater``).
+        cuda: use GPU for generation
+    """
+
     def __init__(
         self,
         tgt_dataset,
@@ -66,27 +88,6 @@ class BacktranslationDataset(FairseqDataset):
         cuda=True,
         **kwargs
     ):
-        """
-        Sets up a backtranslation dataset which takes a tgt batch, generates
-        a src using a tgt-src backtranslation function (*backtranslation_fn*),
-        and returns the corresponding `{generated src, input tgt}` batch.
-
-        Args:
-            tgt_dataset (~fairseq.data.FairseqDataset): the dataset to be
-                backtranslated. Only the source side of this dataset will be
-                used. After backtranslation, the source sentences in this
-                dataset will be returned as the targets.
-            backtranslation_fn (callable): function to call to generate
-                backtranslations. This is typically the `generate` method of a
-                :class:`~fairseq.sequence_generator.SequenceGenerator` object.
-            max_len_a, max_len_b (int, int): will be used to compute
-                `maxlen = max_len_a * src_len + max_len_b`, which will be
-                passed into *backtranslation_fn*.
-            output_collater (callable, optional): function to call on the
-                backtranslated samples to create the final batch (default:
-                ``tgt_dataset.collater``)
-            cuda: use GPU for generation
-        """
         self.tgt_dataset = tgt_dataset
         self.backtranslation_fn = backtranslation_fn
         self.max_len_a = max_len_a
@@ -166,11 +167,10 @@ class BacktranslationDataset(FairseqDataset):
         """
         tgt_size = self.tgt_dataset.size(index)[0]
         return (tgt_size, tgt_size)
-    
+
     @property
     def supports_prefetch(self):
-        return self.tgt_dataset.supports_prefetch()
+        return getattr(self.tgt_dataset, 'supports_prefetch', False)
 
     def prefetch(self, indices):
         return self.tgt_dataset.prefetch(indices)
-

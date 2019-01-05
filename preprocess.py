@@ -18,7 +18,7 @@ import shutil
 
 from fairseq.data import indexed_dataset, dictionary
 from fairseq.tokenizer import Tokenizer, tokenize_line
-from multiprocessing import Pool, Manager, Process
+from multiprocessing import Pool
 
 
 def get_parser():

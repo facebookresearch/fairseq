@@ -11,7 +11,7 @@ from . import FairseqDataset
 
 
 class TransformEosDataset(FairseqDataset):
-    """A dataset wrapper that appends/prepends/strips EOS.
+    """A :class:`~fairseq.data.FairseqDataset` wrapper that appends/prepends/strips EOS.
 
     Note that the transformation is applied in :func:`collater`.
 
@@ -111,7 +111,7 @@ class TransformEosDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return self.dataset.supports_prefetch()
+        return getattr(self.dataset, 'supports_prefetch', False)
 
     def prefetch(self, indices):
         return self.dataset.prefetch(indices)

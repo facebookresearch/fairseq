@@ -107,6 +107,8 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
         args.update_freq = eval_str_list(args.update_freq, type=int)
     if hasattr(args, 'max_sentences_valid') and args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
+    if getattr(args, 'memory_efficient_fp16', False):
+        args.fp16 = True
 
     # Apply architecture configuration.
     if hasattr(args, 'arch'):
@@ -128,7 +130,10 @@ def get_parser(desc, default_task='translation'):
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
+    parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
     parser.add_argument('--fp16', action='store_true', help='use FP16')
+    parser.add_argument('--memory-efficient-fp16', action='store_true',
+                        help='use a memory-efficient version of FP16 training; implies --fp16')
     parser.add_argument('--fp16-init-scale', default=2**7, type=int,
                         help='default FP16 loss scale')
     parser.add_argument('--fp16-scale-window', type=int,
@@ -147,6 +152,8 @@ def get_parser(desc, default_task='translation'):
 def add_dataset_args(parser, train=False, gen=False):
     group = parser.add_argument_group('Dataset and data loading')
     # fmt: off
+    group.add_argument('--num-workers', default=0, type=int, metavar='N',
+                       help='how many subprocesses to use for data loading')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
                        help='ignore too long or too short lines in valid and test set')
     group.add_argument('--max-tokens', type=int, metavar='N',
@@ -178,7 +185,7 @@ def add_distributed_training_args(parser):
     group = parser.add_argument_group('Distributed training')
     # fmt: off
     group.add_argument('--distributed-world-size', type=int, metavar='N',
-                       default=torch.cuda.device_count(),
+                       default=max(1, torch.cuda.device_count()),
                        help='total number of GPUs across all nodes (default: all visible GPUs)')
     group.add_argument('--distributed-rank', default=0, type=int,
                        help='rank of the current worker')
@@ -189,7 +196,7 @@ def add_distributed_training_args(parser):
                             'establish initial connetion')
     group.add_argument('--distributed-port', default=-1, type=int,
                        help='port number (not required if using --distributed-init-method)')
-    group.add_argument('--device-id', default=0, type=int,
+    group.add_argument('--device-id', '--local_rank', default=0, type=int,
                        help='which GPU to use (usually configured automatically)')
     group.add_argument('--ddp-backend', default='c10d', type=str,
                        choices=['c10d', 'no_c10d'],
@@ -197,8 +204,8 @@ def add_distributed_training_args(parser):
     group.add_argument('--bucket-cap-mb', default=150, type=int, metavar='MB',
                        help='bucket size for reduction')
     group.add_argument('--fix-batches-to-gpus', action='store_true',
-                       help='Don\'t shuffle batches between GPUs, this reduces overall '
-                            'randomness and may affect precision but avoids the cost of'
+                       help='don\'t shuffle batches between GPUs; this reduces overall '
+                            'randomness and may affect precision but avoids the cost of '
                             're-reading the data')
     # fmt: on
     return group
@@ -263,7 +270,9 @@ def add_checkpoint_args(parser):
     group.add_argument('--save-interval-updates', type=int, default=0, metavar='N',
                        help='save a checkpoint (and validate) every N updates')
     group.add_argument('--keep-interval-updates', type=int, default=-1, metavar='N',
-                       help='keep last N checkpoints saved with --save-interval-updates')
+                       help='keep the last N checkpoints saved with --save-interval-updates')
+    group.add_argument('--keep-last-epochs', type=int, default=-1, metavar='N',
+                       help='keep last N epoch checkpoints')
     group.add_argument('--no-save', action='store_true',
                        help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
@@ -280,11 +289,11 @@ def add_common_eval_args(group):
                        help='path(s) to model file(s), colon separated')
     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring')
-    group.add_argument('--cpu', action='store_true', help='generate on CPU')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
     group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
-                       help='a dictionary used to override model args at generation that were used during model training')
+                       help='a dictionary used to override model args at generation '
+                            'that were used during model training')
     # fmt: on
 
 

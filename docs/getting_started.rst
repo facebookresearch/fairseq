@@ -27,21 +27,20 @@ interactively. Here, we use a beam size of 5:
     > MODEL_DIR=wmt14.en-fr.fconv-py
     > python interactive.py \
         --path $MODEL_DIR/model.pt $MODEL_DIR \
-        --beam 5
+        --beam 5 --source-lang en --target-lang fr
     | loading model(s) from wmt14.en-fr.fconv-py/model.pt
     | [en] dictionary: 44206 types
     | [fr] dictionary: 44463 types
     | Type the input sentence and press return:
     > Why is it rare to discover new marine mam@@ mal species ?
     O       Why is it rare to discover new marine mam@@ mal species ?
-    H       -0.06429661810398102    Pourquoi est-il rare de découvrir de nouvelles espèces de mammifères marins ?
-    A       0 1 3 3 5 6 6 8 8 8 7 11 12
+    H       -0.1525060087442398     Pourquoi est @-@ il rare de découvrir de nouvelles espèces de mammifères marins ?
+    P       -0.2221 -0.3122 -0.1289 -0.2673 -0.1711 -0.1930 -0.1101 -0.1660 -0.1003 -0.0740 -0.1101 -0.0814 -0.1238 -0.0985 -0.1288
 
-This generation script produces four types of outputs: a line prefixed
-with *S* shows the supplied source sentence after applying the
-vocabulary; *O* is a copy of the original source sentence; *H* is the
-hypothesis along with an average log-likelihood; and *A* is the
-attention maxima for each word in the hypothesis, including the
+This generation script produces three types of outputs: a line prefixed
+with *O* is a copy of the original source sentence; *H* is the
+hypothesis along with an average log-likelihood; and *P* is the
+positional score per token position, including the
 end-of-sentence marker which is omitted from the text.
 
 See the `README <https://github.com/pytorch/fairseq#pre-trained-models>`__ for a

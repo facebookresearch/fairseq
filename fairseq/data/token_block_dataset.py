@@ -14,32 +14,32 @@ from . import FairseqDataset
 
 
 class TokenBlockDataset(FairseqDataset):
-    """Break a 1d tensor of tokens into blocks.
-
-    The blocks are fetched from the original tensor so no additional memory is allocated.
+    """Break a Dataset of tokens into blocks.
 
     Args:
-        tokens: 1d tensor of tokens to break into blocks
-        sizes: sentence lengths (required for 'complete' and 'eos')
-        block_size: maximum block size (ignored in 'eos' break mode)
-        break_mode: Mode used for breaking tokens. Values can be one of:
+        dataset (~torch.utils.data.Dataset): dataset to break into blocks
+        sizes (List[int]): sentence lengths (required for 'complete' and 'eos')
+        block_size (int): maximum block size (ignored in 'eos' break mode)
+        break_mode (str, optional): Mode used for breaking tokens. Values can
+            be one of:
             - 'none': break tokens into equally sized blocks (up to block_size)
             - 'complete': break tokens into blocks (up to block_size) such that
                 blocks contains complete sentences, although block_size may be
                 exceeded if some sentences exceed block_size
             - 'eos': each block contains one sentence (block_size is ignored)
-        include_targets: return next tokens as targets
+        include_targets (bool, optional): return next tokens as targets
+            (default: False).
     """
 
-    def __init__(self, ds, block_size, pad, eos, break_mode=None, include_targets=False):
+    def __init__(self, dataset, sizes, block_size, pad, eos, break_mode=None, include_targets=False):
         super().__init__()
-        self.dataset = ds
+        self.dataset = dataset
         self.pad = pad
         self.eos = eos
         self.include_targets = include_targets
         self.slice_indices = []
-        self.cache_index = {}
-        sizes = ds.sizes
+
+        assert len(dataset) == len(sizes)
 
         if break_mode is None or break_mode == 'none':
             total_size = sum(sizes)
@@ -77,44 +77,66 @@ class TokenBlockDataset(FairseqDataset):
 
         self.sizes = np.array([e - s for s, e in self.slice_indices])
 
-    def __getitem__(self, index):
-        s, e = self.cache_index[index]
+        # build index mapping block indices to the underlying dataset indices
+        self.block_to_dataset_index = []
+        ds_idx, ds_remaining = -1, 0
+        for to_consume in self.sizes:
+            if ds_remaining == 0:
+                ds_idx += 1
+                ds_remaining = sizes[ds_idx]
+            start_ds_idx = ds_idx
+            start_offset = sizes[ds_idx] - ds_remaining
+            while to_consume > ds_remaining:
+                to_consume -= ds_remaining
+                ds_idx += 1
+                ds_remaining = sizes[ds_idx]
+            ds_remaining -= to_consume
+            self.block_to_dataset_index.append((
+                start_ds_idx,  # starting index in dataset
+                start_offset,  # starting offset within starting index
+                ds_idx,  # ending index in dataset
+            ))
+        assert ds_remaining == 0
+        assert ds_idx == len(self.dataset) - 1
 
-        item = torch.from_numpy(self.cache[s:e]).long()
+    def __getitem__(self, index):
+        start_ds_idx, start_offset, end_ds_idx = self.block_to_dataset_index[index]
+        buffer = torch.cat([
+            self.dataset[idx] for idx in range(start_ds_idx, end_ds_idx + 1)
+        ])
+        slice_s, slice_e = self.slice_indices[index]
+        length = slice_e - slice_s
+        s, e = start_offset, start_offset + length
+        item = buffer[s:e]
 
         if self.include_targets:
-            # target is the sentence, for source, rotate item one token to the left (would start with eos)
-            # past target is rotated to the left by 2 (padded if its first)
+            # *target* is the original sentence (=item)
+            # *source* is rotated left by 1 (maybe left-padded with eos)
+            # *past_target* is rotated left by 2 (left-padded as needed)
             if s == 0:
-                source = np.concatenate([[self.eos], self.cache[0:e - 1]])
-                past_target = np.concatenate([[self.pad, self.eos], self.cache[0:e - 2]])
+                source = torch.cat([item.new([self.eos]), buffer[0:e - 1]])
+                past_target = torch.cat([item.new([self.pad, self.eos]), buffer[0:e - 2]])
             else:
-                source = self.cache[s - 1: e - 1]
+                source = buffer[s - 1:e - 1]
                 if s == 1:
-                    past_target = np.concatenate([[self.eos], self.cache[0:e - 2]])
+                    past_target = torch.cat([item.new([self.eos]), buffer[0:e - 2]])
                 else:
-                    past_target = self.cache[s - 2:e - 2]
+                    past_target = buffer[s - 2:e - 2]
 
-            return torch.from_numpy(source).long(), item, torch.from_numpy(past_target).long()
+            return source, item, past_target
         return item
 
     def __len__(self):
         return len(self.slice_indices)
 
-    def prefetch(self, indices):
-        indices.sort()
-        total_size = 0
-        for idx in indices:
-            s, e = self.slice_indices[idx]
-            total_size += e - s
-        self.cache = np.empty(total_size, dtype=np.int32)
-        start = 0
-        for idx in indices:
-            s, e = self.slice_indices[idx]
-            self.dataset.read_into(s, self.cache[start:start + e - s])
-            self.cache_index[idx] = (start, start + e - s)
-            start += e - s
-
     @property
     def supports_prefetch(self):
-        return True
+        return getattr(self.dataset, 'supports_prefetch', False)
+
+    def prefetch(self, indices):
+        self.dataset.prefetch({
+            ds_idx
+            for index in indices
+            for start_ds_idx, _, end_ds_idx in [self.block_to_dataset_index[index]]
+            for ds_idx in range(start_ds_idx, end_ds_idx + 1)
+        })

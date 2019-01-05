@@ -39,8 +39,10 @@ def mock_dict():
 
 
 def get_trainer_and_epoch_itr(epoch, epoch_size, num_updates, iterations_in_epoch):
-    tokens = torch.LongTensor(list(range(epoch_size)))
-    tokens_ds = data.TokenBlockDataset(tokens, sizes=[len(tokens)], block_size=1, pad=0, eos=1, include_targets=False)
+    tokens = torch.LongTensor(list(range(epoch_size))).view(1, -1)
+    tokens_ds = data.TokenBlockDataset(
+        tokens, sizes=[tokens.size(-1)], block_size=1, pad=0, eos=1, include_targets=False,
+    )
     trainer = mock_trainer(epoch, num_updates, iterations_in_epoch)
     dataset = data.LanguagePairDataset(tokens_ds, tokens_ds.sizes, mock_dict(), shuffle=False)
     epoch_itr = data.EpochBatchIterator(
@@ -63,7 +65,6 @@ class TestLoadCheckpoint(unittest.TestCase):
         }
         self.applied_patches = [patch(p, d) for p, d in self.patches.items()]
         [p.start() for p in self.applied_patches]
-
 
     def test_load_partial_checkpoint(self):
         with contextlib.redirect_stdout(StringIO()):

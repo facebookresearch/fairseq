@@ -55,7 +55,9 @@ def main(parsed_args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(parsed_args.path))
-    models, args = utils.load_ensemble_for_inference(parsed_args.path.split(':'), task, model_arg_overrides=eval(parsed_args.model_overrides))
+    models, args = utils.load_ensemble_for_inference(
+        parsed_args.path.split(':'), task, model_arg_overrides=eval(parsed_args.model_overrides),
+    )
 
     for arg in vars(parsed_args).keys():
         if arg not in {'self_target', 'future_target', 'past_target', 'tokens_per_sample', 'output_size_dictionary'}:
@@ -83,9 +85,10 @@ def main(parsed_args):
         max_positions=utils.resolve_max_positions(*[
             model.max_positions() for model in models
         ]),
+        ignore_invalid_inputs=True,
         num_shards=args.num_shards,
         shard_id=args.shard_id,
-        ignore_invalid_inputs=True,
+        num_workers=args.num_workers,
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()

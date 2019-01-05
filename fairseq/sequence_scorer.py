@@ -87,4 +87,3 @@ class SequenceScorer(object):
             index=sample['target'].data.unsqueeze(-1),
         )
         return avg_probs.squeeze(2), avg_attn
-
