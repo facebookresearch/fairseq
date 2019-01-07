@@ -213,7 +213,7 @@ class FConvEncoder(FairseqEncoder):
         self.residuals = []
 
         layer_in_channels = [in_channels]
-        for i, (out_channels, kernel_size, residual) in enumerate(convolutions):
+        for _, (out_channels, kernel_size, residual) in enumerate(convolutions):
             if residual == 0:
                 residual_dim = out_channels
             else:

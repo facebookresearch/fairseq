@@ -5,7 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import atexit
 import itertools
 import math
 import queue
@@ -13,8 +12,6 @@ import threading
 
 import numpy as np
 import torch
-
-from fairseq import utils
 
 from . import data_utils
 

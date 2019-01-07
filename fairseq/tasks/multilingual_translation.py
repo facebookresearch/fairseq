@@ -13,6 +13,7 @@ import torch
 from fairseq import options
 from fairseq.data import (
     Dictionary,
+    IndexedCachedDataset,
     IndexedDataset,
     IndexedRawTextDataset,
     LanguagePairDataset,

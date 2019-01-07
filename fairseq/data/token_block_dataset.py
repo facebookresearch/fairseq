@@ -134,9 +134,9 @@ class TokenBlockDataset(FairseqDataset):
         return getattr(self.dataset, 'supports_prefetch', False)
 
     def prefetch(self, indices):
-        self.dataset.prefetch(set(
+        self.dataset.prefetch({
             ds_idx
             for index in indices
             for start_ds_idx, _, end_ds_idx in [self.block_to_dataset_index[index]]
             for ds_idx in range(start_ds_idx, end_ds_idx + 1)
-        ))
+        })
