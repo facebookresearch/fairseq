@@ -101,6 +101,10 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
                             help='percentage of input dropout (turn into pads)')
         parser.add_argument('--decoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the decoder')
+        parser.add_argument('--segment-embeddings', action='store_true',
+                            help='use segment embeddings (works only if <SEP> is defined and training is done with 2 fragments')
+        parser.add_argument('--segment-embeddings-incl-eos', action='store_true',
+                            help='include eos tokens in segment embeddings')
 
     @classmethod
     def build_model(cls, args, task):
@@ -143,6 +147,27 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         return {'self', 'past', 'future'}
 
 
+def segment_masks(src_tokens, sep, eos, incl_eos):
+    bsz, tsz = src_tokens.size()
+    rng = utils.buffered_arange(tsz).expand(bsz, tsz).to(src_tokens.device)
+    sep_idxs = src_tokens.eq(sep).nonzero()[:, 1].view(-1, 1)
+    seg1_mask = rng.lt(sep_idxs) if sep_idxs.numel() > 0 else rng.new_ones(rng.shape).byte()
+    if not incl_eos:
+        right_eos_msk = src_tokens[:, 1:].eq(eos)
+        right_eos_idxs = (right_eos_msk.nonzero()[:, 1] + 1).view(-1, 1)
+
+        seg1_mask[:, 0] = 0  # don't include first eos
+
+        if sep_idxs.numel() == 0:
+            seg1_mask[:, 1:][right_eos_msk] = 0  # don't include last eos
+            seg2_mask = rng.new_zeros(rng.shape)
+        else:
+            seg2_mask = rng.gt(sep_idxs) & rng.lt(right_eos_idxs)
+    else:
+        seg2_mask = rng.gt(sep_idxs) if sep_idxs.numel() > 0 else rng.new_zeros(rng.shape)
+    return seg1_mask, seg2_mask
+
+
 class BiTransformerDecoder(FairseqDecoder):
     """Transformer decoder."""
 
@@ -174,6 +199,14 @@ class BiTransformerDecoder(FairseqDecoder):
             left_pad=left_pad,
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
+
+        if args.segment_embeddings:
+            self.segment_embeddings = nn.Parameter(torch.zeros(2, embed_dim))
+            nn.init.xavier_uniform_(self.segment_embeddings)
+            self.sep_idx = dictionary.sep()
+            self.segment_embeddings_incl_eos = args.segment_embeddings_incl_eos
+        else:
+            self.segment_embeddings = None
 
         self.forward_layers = nn.ModuleList([TransformerDecoderLayer(args)
                                              for _ in range(args.decoder_layers)])
@@ -251,6 +284,13 @@ class BiTransformerDecoder(FairseqDecoder):
         x = self.embed_scale * self.embed_tokens(source_tokens)
         if positions is not None:
             x += positions
+
+        if self.segment_embeddings is not None:
+            seg1_mask, seg2_mask = segment_masks(source_tokens, self.sep_idx, self.eos_idx,
+                                                 self.segment_embeddings_incl_eos)
+            x[seg1_mask] += self.segment_embeddings[0]
+            x[seg2_mask] += self.segment_embeddings[1]
+
         x = F.dropout(x, p=self.dropout, training=self.training)
 
         # B x T x C -> T x B x C
@@ -498,6 +538,9 @@ def base_bi_lm_architecture(args):
     args.single_tower = getattr(args, 'single_tower', False)
 
     args.input_dropout = getattr(args, 'input_dropout', 0.)
+
+    args.segment_embeddings = getattr(args, 'segment_embeddings', False)
+    args.segment_embeddings_incl_eos = getattr(args, 'segment_embeddings_incl_eos', False)
 
     # otherwise model training is unstable
     args.decoder_normalize_before = True

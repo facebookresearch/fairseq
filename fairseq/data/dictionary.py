@@ -24,6 +24,7 @@ class Dictionary(object):
         self.pad_index = self.add_symbol(pad)
         self.eos_index = self.add_symbol(eos)
         self.unk_index = self.add_symbol(unk)
+        self.sep_index = None
         self.nspecial = len(self.symbols)
         self._optimized = False
 
@@ -40,6 +41,8 @@ class Dictionary(object):
         return len(self.symbols)
 
     def memory_optimize(self):
+        # make sure sep index is populated
+        self.sep_index = self.sep()
         self._optimized = True
         self.indices.clear()
 
@@ -161,11 +164,13 @@ class Dictionary(object):
         return self.unk_index
 
     def sep(self):
-        sep_sym = '<SEP>'
-        if sep_sym in self.indices:
-            return self.indices[sep_sym]
-        else:
-            return len(self) - 1
+        if self.sep_index is None:
+            sep_sym = '<SEP>'
+            if sep_sym in self.indices:
+                self.sep_index = self.indices[sep_sym]
+            else:
+                self.sep_index = len(self) - 1
+        return self.sep_index
 
     @classmethod
     def load(cls, f, ignore_utf_errors=False):
