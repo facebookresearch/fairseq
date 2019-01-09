@@ -375,8 +375,6 @@ if __name__ == '__main__':
     if args.distributed_init_method is not None:
         # distributed training
         distributed_main(args.device_id, args)
-        args.distributed_rank = distributed_utils.distributed_init(args)
-        main(args)
     elif args.distributed_world_size > 1:
         # fallback for single node with multiple GPUs
         port = random.randint(10000, 20000)
