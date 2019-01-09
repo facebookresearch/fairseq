@@ -162,6 +162,7 @@ class Trainer(object):
             torch.cuda.manual_seed(seed)
 
         self.model.train()
+        self.criterion.train()
         self.zero_grad()
 
         if not dummy_batch:
@@ -286,6 +287,7 @@ class Trainer(object):
         """Do forward pass in evaluation mode."""
         with torch.no_grad():
             self.model.eval()
+            self.criterion.eval()
 
             sample = self._prepare_sample(sample)
             if sample is None:
