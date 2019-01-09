@@ -4,7 +4,7 @@ These scripts provide an example of pre-processing data for the Language Modelin
 
 # prepare-wikitext-103.sh
 
-Provides an example of pre-processing for [WikiText-103 language modeling task](https://einstein.ai/research/the-wikitext-long-term-dependency-language-modeling-dataset):
+Provides an example of pre-processing for [WikiText-103 language modeling task](https://www.salesforce.com/products/einstein/ai-research/the-wikitext-dependency-language-modeling-dataset/):
 
 Example usage:
 ```
