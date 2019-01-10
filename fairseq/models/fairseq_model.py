@@ -117,7 +117,7 @@ class BaseFairseqModel(nn.Module):
 
         self.apply(apply_make_generation_fast_)
 
-        def train(mode):
+        def train(mode=True):
             if mode:
                 raise RuntimeError('cannot train after make_generation_fast')
 
