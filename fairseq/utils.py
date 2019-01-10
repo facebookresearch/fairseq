@@ -4,14 +4,15 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-
-from collections import defaultdict, OrderedDict
+import importlib.util
 import logging
 import os
 import re
-import torch
+import sys
 import traceback
+from collections import defaultdict, OrderedDict
 
+import torch
 from torch.serialization import default_restore_location
 
 
@@ -434,3 +435,12 @@ def resolve_max_positions(*args):
                     map(nullsafe_min, zip(max_positions, arg))
                 )
     return max_positions
+
+
+def import_user_module(module_path):
+    module_path = os.path.abspath(module_path)
+    module_parent, module_name = os.path.split(module_path)
+
+    sys.path.insert(0, module_parent)
+    importlib.import_module(module_name)
+    sys.path.pop(0)
