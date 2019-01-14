@@ -14,6 +14,7 @@ from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
 from fairseq.optim import OPTIMIZER_REGISTRY
 from fairseq.optim.lr_scheduler import LR_SCHEDULER_REGISTRY
 from fairseq.tasks import TASK_REGISTRY
+from fairseq.utils import import_user_module
 
 
 def get_training_parser(default_task='translation'):
@@ -121,6 +122,15 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
 
 
 def get_parser(desc, default_task='translation'):
+    # Before creating the true parser, we need to import optional user module
+    # in order to eagerly import custom tasks, optimizers, architectures, etc.
+    usr_parser = argparse.ArgumentParser()
+    usr_parser.add_argument('--user-dir', default=None)
+    usr_args, _ = usr_parser.parse_known_args()
+
+    if usr_args.user_dir is not None:
+        import_user_module(usr_args.user_dir)
+
     parser = argparse.ArgumentParser()
     # fmt: off
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
@@ -140,6 +150,8 @@ def get_parser(desc, default_task='translation'):
                         help='number of updates before increasing loss scale')
     parser.add_argument('--fp16-scale-tolerance', default=0.0, type=float,
                         help='pct of updates that can overflow before decreasing the loss scale')
+    parser.add_argument('--user-dir', default=None,
+                        help='path to a python module containing custom extensions (tasks and/or architectures)')
 
     # Task definitions can be found under fairseq/tasks/
     parser.add_argument('--task', metavar='TASK', default=default_task,
