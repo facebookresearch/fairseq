@@ -9,60 +9,15 @@
 Data pre-processing: build vocabularies and binarize training data.
 """
 
-import argparse
 from collections import Counter
 from itertools import zip_longest
 import os
 import shutil
 
-
+from fairseq import options
 from fairseq.data import indexed_dataset, dictionary
 from fairseq.tokenizer import Tokenizer, tokenize_line
 from multiprocessing import Pool
-
-
-def get_parser():
-    parser = argparse.ArgumentParser()
-    # fmt: off
-    parser.add_argument("-s", "--source-lang", default=None, metavar="SRC",
-                        help="source language")
-    parser.add_argument("-t", "--target-lang", default=None, metavar="TARGET",
-                        help="target language")
-    parser.add_argument("--trainpref", metavar="FP", default=None,
-                        help="train file prefix")
-    parser.add_argument("--validpref", metavar="FP", default=None,
-                        help="comma separated, valid file prefixes")
-    parser.add_argument("--testpref", metavar="FP", default=None,
-                        help="comma separated, test file prefixes")
-    parser.add_argument("--destdir", metavar="DIR", default="data-bin",
-                        help="destination dir")
-    parser.add_argument("--thresholdtgt", metavar="N", default=0, type=int,
-                        help="map words appearing less than threshold times to unknown")
-    parser.add_argument("--thresholdsrc", metavar="N", default=0, type=int,
-                        help="map words appearing less than threshold times to unknown")
-    parser.add_argument("--tgtdict", metavar="FP",
-                        help="reuse given target dictionary")
-    parser.add_argument("--srcdict", metavar="FP",
-                        help="reuse given source dictionary")
-    parser.add_argument("--nwordstgt", metavar="N", default=-1, type=int,
-                        help="number of target words to retain")
-    parser.add_argument("--nwordssrc", metavar="N", default=-1, type=int,
-                        help="number of source words to retain")
-    parser.add_argument("--alignfile", metavar="ALIGN", default=None,
-                        help="an alignment file (optional)")
-    parser.add_argument("--output-format", metavar="FORMAT", default="binary",
-                        choices=["binary", "raw"],
-                        help="output format (optional)")
-    parser.add_argument("--joined-dictionary", action="store_true",
-                        help="Generate joined dictionary")
-    parser.add_argument("--only-source", action="store_true",
-                        help="Only process the source language")
-    parser.add_argument("--padding-factor", metavar="N", default=8, type=int,
-                        help="Pad dictionary size to be multiple of N")
-    parser.add_argument("--workers", metavar="N", default=1, type=int,
-                        help="number of parallel workers")
-    # fmt: on
-    return parser
 
 
 def main(args):
@@ -329,6 +284,6 @@ def merge_files(files, outpath):
 
 
 if __name__ == "__main__":
-    parser = get_parser()
+    parser = options.get_preprocessing_parser()
     args = parser.parse_args()
     main(args)
