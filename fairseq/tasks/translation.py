@@ -8,7 +8,7 @@
 import itertools
 import os
 
-from fairseq import options, utils
+from fairseq import options, utils, tokenizer
 from fairseq.data import (
     ConcatDataset,
     data_utils,
@@ -17,7 +17,8 @@ from fairseq.data import (
     IndexedDataset,
     IndexedRawTextDataset,
     LanguagePairDataset,
-)
+    dictionary)
+from fairseq.tokenizer import Tokenizer
 
 from . import FairseqTask, register_task
 
@@ -93,6 +94,18 @@ class TranslationTask(FairseqTask):
         self.tgt_dict = tgt_dict
 
     @classmethod
+    def load_dictionary(cls, filename):
+        return Dictionary.load(filename)
+
+    @classmethod
+    def build_dictionary(cls, filenames, workers=1, threshold=-1, nwords=-1, padding_factor=8):
+        d = dictionary.Dictionary()
+        for filename in filenames:
+            Tokenizer.add_file_to_dictionary(filename, d, tokenizer.tokenize_line, workers)
+        d.finalize(threshold=threshold, nwords=nwords, padding_factor=padding_factor)
+        return d
+
+    @classmethod
     def setup_task(cls, args, **kwargs):
         """Setup the task (e.g., load dictionaries).
 
@@ -109,8 +122,8 @@ class TranslationTask(FairseqTask):
             raise Exception('Could not infer language pair, please provide it explicitly')
 
         # load dictionaries
-        src_dict = Dictionary.load(os.path.join(args.data[0], 'dict.{}.txt'.format(args.source_lang)))
-        tgt_dict = Dictionary.load(os.path.join(args.data[0], 'dict.{}.txt'.format(args.target_lang)))
+        src_dict = cls.load_dictionary(os.path.join(args.data[0], 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = cls.load_dictionary(os.path.join(args.data[0], 'dict.{}.txt'.format(args.target_lang)))
         assert src_dict.pad() == tgt_dict.pad()
         assert src_dict.eos() == tgt_dict.eos()
         assert src_dict.unk() == tgt_dict.unk()

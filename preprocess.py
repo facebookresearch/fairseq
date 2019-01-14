@@ -15,8 +15,9 @@ import os
 import shutil
 
 from fairseq import options
-from fairseq.data import indexed_dataset, dictionary
-from fairseq.tokenizer import Tokenizer, tokenize_line
+from fairseq.data import indexed_dataset
+from fairseq.tasks import TASK_REGISTRY
+from fairseq.tokenizer import Tokenizer
 from multiprocessing import Pool
 
 
@@ -24,6 +25,8 @@ def main(args):
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
+
+    task = TASK_REGISTRY[args.task]
 
     def train_path(lang):
         return "{}{}".format(args.trainpref, ("." + lang) if lang else "")
@@ -41,49 +44,45 @@ def main(args):
         return dest_path("dict", lang) + ".txt"
 
     if args.joined_dictionary:
-        assert not args.srcdict, "cannot combine --srcdict and --joined-dictionary"
-        assert not args.tgtdict, "cannot combine --tgtdict and --joined-dictionary"
-        src_dict = build_dictionary(
-            {train_path(lang) for lang in [args.source_lang, args.target_lang]},
-            args.workers,
-        )
-        tgt_dict = src_dict
-    else:
         if args.srcdict:
-            src_dict = dictionary.Dictionary.load(args.srcdict)
+            src_dict = task.load_dictionary(args.srcdict)
+        elif args.tgtdict:
+            src_dict = task.load_dictionary(args.tgtdict)
         else:
             assert (
                 args.trainpref
             ), "--trainpref must be set if --srcdict is not specified"
-            src_dict = build_dictionary([train_path(args.source_lang)], args.workers)
+            src_dict = task.build_dictionary(
+                {train_path(lang) for lang in [args.source_lang, args.target_lang]},
+                args.workers,
+            )
+        tgt_dict = src_dict
+    else:
+        if args.srcdict:
+            src_dict = task.load_dictionary(args.srcdict)
+        else:
+            assert (
+                args.trainpref
+            ), "--trainpref must be set if --srcdict is not specified"
+            src_dict = task.build_dictionary([train_path(args.source_lang)], args.workers)
+
         if target:
             if args.tgtdict:
-                tgt_dict = dictionary.Dictionary.load(args.tgtdict)
+                tgt_dict = task.load_dictionary(args.tgtdict)
             else:
                 assert (
                     args.trainpref
                 ), "--trainpref must be set if --tgtdict is not specified"
-                tgt_dict = build_dictionary(
-                    [train_path(args.target_lang)], args.workers
-                )
+                tgt_dict = task.build_dictionary([train_path(args.target_lang)], args.workers)
+        else:
+            tgt_dict = None
 
-    src_dict.finalize(
-        threshold=args.thresholdsrc,
-        nwords=args.nwordssrc,
-        padding_factor=args.padding_factor,
-    )
     src_dict.save(dict_path(args.source_lang))
-    if target:
-        if not args.joined_dictionary:
-            tgt_dict.finalize(
-                threshold=args.thresholdtgt,
-                nwords=args.nwordstgt,
-                padding_factor=args.padding_factor,
-            )
+    if target and tgt_dict is not None:
         tgt_dict.save(dict_path(args.target_lang))
 
     def make_binary_dataset(input_prefix, output_prefix, lang, num_workers):
-        dict = dictionary.Dictionary.load(dict_path(lang))
+        dict = task.load_dictionary(dict_path(lang))
         print("| [{}] Dictionary: {} types".format(lang, len(dict) - 1))
         n_seq_tok = [0, 0]
         replaced = Counter()
@@ -180,8 +179,6 @@ def main(args):
         assert args.trainpref, "--trainpref must be set if --alignfile is specified"
         src_file_name = train_path(args.source_lang)
         tgt_file_name = train_path(args.target_lang)
-        src_dict = dictionary.Dictionary.load(dict_path(args.source_lang))
-        tgt_dict = dictionary.Dictionary.load(dict_path(args.target_lang))
         freq_map = {}
         with open(args.alignfile, "r") as align_file:
             with open(src_file_name, "r") as src_file:
@@ -211,31 +208,14 @@ def main(args):
             align_dict[srcidx] = max(freq_map[srcidx], key=freq_map[srcidx].get)
 
         with open(
-            os.path.join(
-                args.destdir,
-                "alignment.{}-{}.txt".format(args.source_lang, args.target_lang),
-            ),
-            "w",
+                os.path.join(
+                    args.destdir,
+                    "alignment.{}-{}.txt".format(args.source_lang, args.target_lang),
+                ),
+                "w",
         ) as f:
             for k, v in align_dict.items():
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
-
-
-def build_and_save_dictionary(
-    train_path, output_path, num_workers, freq_threshold, max_words
-):
-    dict = build_dictionary([train_path], num_workers)
-    dict.finalize(threshold=freq_threshold, nwords=max_words)
-    dict_path = os.path.join(output_path, "dict.txt")
-    dict.save(dict_path)
-    return dict_path
-
-
-def build_dictionary(filenames, workers):
-    d = dictionary.Dictionary()
-    for filename in filenames:
-        Tokenizer.add_file_to_dictionary(filename, d, tokenize_line, workers)
-    return d
 
 
 def binarize(args, filename, dict, output_prefix, lang, offset, end):
@@ -249,12 +229,6 @@ def binarize(args, filename, dict, output_prefix, lang, offset, end):
     res = Tokenizer.binarize(filename, dict, consumer, offset=offset, end=end)
     ds.finalize(dataset_dest_file(args, output_prefix, lang, "idx"))
     return res
-
-
-def binarize_with_load(args, filename, dict_path, output_prefix, lang, offset, end):
-    dict = dictionary.Dictionary.load(dict_path)
-    binarize(args, filename, dict, output_prefix, lang, offset, end)
-    return dataset_dest_prefix(args, output_prefix, lang)
 
 
 def dataset_dest_prefix(args, output_prefix, lang):

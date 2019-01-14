@@ -25,6 +25,31 @@ class FairseqTask(object):
         self.datasets = {}
 
     @classmethod
+    def load_dictionary(cls, filename):
+        """Load the dictionary from the filename
+
+        Args:
+            filename (str): the filename
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def build_dictionary(cls, filenames, workers=1, threshold=-1, nwords=-1, padding_factor=8):
+        """Build the dictionary
+
+        Args:
+            filenames (list): list of filenames
+            workers (int): number of concurrent workers
+            threshold (int): defines the minimum word count
+            nwords (int): defines the total number of words in the final dictionary,
+                including special symbols
+            padding_factor (int): can be used to pad the dictionary size to be a
+                multiple of 8, which is important on some hardware (e.g., Nvidia
+                Tensor Cores).
+        """
+        raise NotImplementedError
+
+    @classmethod
     def setup_task(cls, args, **kwargs):
         """Setup the task (e.g., load dictionaries).
 
@@ -59,9 +84,9 @@ class FairseqTask(object):
         return self.datasets[split]
 
     def get_batch_iterator(
-        self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
-        ignore_invalid_inputs=False, required_batch_size_multiple=1,
-        seed=1, num_shards=1, shard_id=0, num_workers=0,
+            self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
+            ignore_invalid_inputs=False, required_batch_size_multiple=1,
+            seed=1, num_shards=1, shard_id=0, num_workers=0,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
