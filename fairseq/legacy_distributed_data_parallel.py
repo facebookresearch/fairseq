@@ -141,6 +141,8 @@ class LegacyDistributedDataParallel(nn.Module):
             for param in self.module.parameters():
                 if not param.requires_grad:
                     continue
+                if param.grad is None:
+                    param.grad = torch.zeros_like(param)
                 if param.grad.requires_grad:
                     raise RuntimeError("DistributedDataParallel only works "
                                        "with gradients that don't require "

@@ -1,4 +1,4 @@
-# Introduction
+# Introduction <img src="fairseq_logo.png" width="50"> 
 
 Fairseq(-py) is a sequence modeling toolkit that allows researchers and
 developers to train custom models for translation, summarization, language
