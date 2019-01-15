@@ -16,6 +16,7 @@ import torch
 from fairseq import options, progress_bar, tasks, utils
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
+from fairseq.utils import import_user_module
 
 
 class WordStat(object):
@@ -47,6 +48,8 @@ class WordStat(object):
 def main(parsed_args):
     assert parsed_args.path is not None, '--path required for evaluation!'
 
+    if parsed_args.user_dir is not None:
+        import_user_module(parsed_args.user_dir)
     print(parsed_args)
 
     use_cuda = torch.cuda.is_available() and not parsed_args.cpu
