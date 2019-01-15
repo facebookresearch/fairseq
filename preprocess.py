@@ -20,6 +20,8 @@ from fairseq.data import indexed_dataset, dictionary
 from fairseq.tokenizer import Tokenizer, tokenize_line
 from multiprocessing import Pool
 
+from fairseq.utils import import_user_module
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -66,6 +68,9 @@ def get_parser():
 
 
 def main(args):
+    if args.user_dir is not None:
+        import_user_module(args.user_dir)
+
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
