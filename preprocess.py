@@ -20,8 +20,13 @@ from fairseq.tasks import TASK_REGISTRY
 from fairseq.tokenizer import Tokenizer
 from multiprocessing import Pool
 
+from fairseq.utils import import_user_module
+
 
 def main(args):
+    if args.user_dir is not None:
+        import_user_module(args.user_dir)
+
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
