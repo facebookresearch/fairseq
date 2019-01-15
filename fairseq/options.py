@@ -124,7 +124,7 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
 def get_parser(desc, default_task='translation'):
     # Before creating the true parser, we need to import optional user module
     # in order to eagerly import custom tasks, optimizers, architectures, etc.
-    usr_parser = argparse.ArgumentParser()
+    usr_parser = argparse.ArgumentParser(add_help=False)
     usr_parser.add_argument('--user-dir', default=None)
     usr_args, _ = usr_parser.parse_known_args()
 
