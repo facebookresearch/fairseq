@@ -17,7 +17,7 @@ import torch
 
 from fairseq import data, options, tasks, tokenizer, utils
 from fairseq.sequence_generator import SequenceGenerator
-
+from fairseq.utils import import_user_module
 
 Batch = namedtuple('Batch', 'srcs tokens lengths')
 Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
@@ -56,6 +56,8 @@ def make_batches(lines, args, task, max_positions):
 
 
 def main(args):
+    import_user_module(args)
+
     if args.buffer_size < 1:
         args.buffer_size = 1
     if args.max_tokens is None and args.max_sentences is None:

@@ -21,9 +21,12 @@ from fairseq import distributed_utils, options, progress_bar, tasks, utils
 from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
+from fairseq.utils import import_user_module
 
 
 def main(args):
+    import_user_module(args)
+
     if args.max_tokens is None:
         args.max_tokens = 6000
     print(args)
