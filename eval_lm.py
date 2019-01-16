@@ -48,8 +48,8 @@ class WordStat(object):
 def main(parsed_args):
     assert parsed_args.path is not None, '--path required for evaluation!'
 
-    if parsed_args.user_dir is not None:
-        import_user_module(parsed_args.user_dir)
+    import_user_module(parsed_args)
+
     print(parsed_args)
 
     use_cuda = torch.cuda.is_available() and not parsed_args.cpu
