@@ -127,9 +127,7 @@ def get_parser(desc, default_task='translation'):
     usr_parser = argparse.ArgumentParser(add_help=False)
     usr_parser.add_argument('--user-dir', default=None)
     usr_args, _ = usr_parser.parse_known_args()
-
-    if usr_args.user_dir is not None:
-        import_user_module(usr_args.user_dir)
+    import_user_module(usr_args)
 
     parser = argparse.ArgumentParser()
     # fmt: off
