@@ -245,9 +245,9 @@ class FConvEncoder(FairseqEncoder):
             eo.index_select(0, new_order) for eo in encoder_out['encoder_out']
         )
 
-        encoder_out['encoder_padding_mask'] = tuple(
-            eo.index_select(0, new_order) for eo in encoder_out['encoder_padding_mask']
-        )
+        if encoder_out['encoder_padding_mask'] is not None:
+            encoder_out['encoder_padding_mask'] = \
+                encoder_out['encoder_padding_mask'].index_select(0, new_order)
 
         if 'pretrained' in encoder_out:
             encoder_out['pretrained']['encoder_out'] = tuple(
