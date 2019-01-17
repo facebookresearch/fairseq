@@ -92,7 +92,7 @@ class Trainer(object):
     @property
     def lr_scheduler(self):
         if self._lr_scheduler is None:
-            self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+            self._build_optimizer()  # this will initialize self._lr_scheduler
         return self._lr_scheduler
 
     def _build_optimizer(self):
@@ -109,6 +109,10 @@ class Trainer(object):
             if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
                 print('| NOTICE: your device may support faster training with --fp16')
             self._optimizer = optim.build_optimizer(self.args, params)
+
+        # We should initialize the learning rate scheduler immediately after
+        # building the optimizer, so that the initial learning rate is set.
+        self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
