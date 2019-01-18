@@ -59,8 +59,8 @@ def main():
 
     # create joined file
     joined_file = os.path.join(args.output_dir, 'text.joined')
-    with open(args.source_file, 'r') as src, open(args.target_file, 'r') as tgt:
-        with open(joined_file, 'w') as joined:
+    with open(args.source_file, 'r', encoding='utf-8') as src, open(args.target_file, 'r', encoding='utf-8') as tgt:
+        with open(joined_file, 'w', encoding='utf-8') as joined:
             for s, t in zip_longest(src, tgt):
                 print('{} ||| {}'.format(s.strip(), t.strip()), file=joined)
 
