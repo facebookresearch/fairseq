@@ -24,8 +24,7 @@ from fairseq.utils import import_user_module
 
 
 def main(args):
-    if args.user_dir is not None:
-        import_user_module(args.user_dir)
+    import_user_module(args)
 
     print(args)
     os.makedirs(args.destdir, exist_ok=True)

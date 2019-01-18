@@ -25,8 +25,7 @@ def main(args):
     assert args.replace_unk is None or args.raw_text, \
         '--replace-unk requires a raw text dataset (--raw-text)'
 
-    if args.user_dir is not None:
-        import_user_module(args.user_dir)
+    import_user_module(args)
 
     if args.max_tokens is None and args.max_sentences is None:
         args.max_tokens = 12000

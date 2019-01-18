@@ -25,8 +25,8 @@ from fairseq.utils import import_user_module
 
 
 def main(args):
-    if args.user_dir is not None:
-        import_user_module(args.user_dir)
+    import_user_module(args)
+
     if args.max_tokens is None:
         args.max_tokens = 6000
     print(args)
