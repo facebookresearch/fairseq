@@ -68,6 +68,8 @@ class LanguageModelingTask(FairseqTask):
                             help='include future target')
         parser.add_argument('--past-target', action='store_true',
                             help='include past target')
+        parser.add_argument('--ignore-targets', default='',
+                            help='space separated target tokens to ignore when computing loss')
 
     def __init__(self, args, dictionary, output_dictionary, targets=None):
         super().__init__(args)
@@ -86,7 +88,8 @@ class LanguageModelingTask(FairseqTask):
             args (argparse.Namespace): parsed command-line arguments
         """
         dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
-        dictionary.memory_optimize()
+        if not args.ignore_targets:
+            dictionary.memory_optimize()
         print('| dictionary: {} types'.format(len(dictionary)))
         output_dictionary = dictionary
         if hasattr(args, 'output_dictionary_size') and args.output_dictionary_size >= 0:
@@ -164,7 +167,7 @@ class LanguageModelingTask(FairseqTask):
         self.datasets[split] = MonolingualDataset(
             dataset, sizes, self.dictionary, self.output_dictionary,
             add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
-            targets=self.targets,
+            targets=self.targets, ignore_targets=list(filter(None, self.args.ignore_targets.split(' ')))
         )
 
     @property

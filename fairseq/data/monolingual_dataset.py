@@ -58,7 +58,7 @@ class MonolingualDataset(FairseqDataset):
     """
 
     def __init__(self, dataset, sizes, src_vocab, tgt_vocab, add_eos_for_other_targets, shuffle,
-                 targets=None):
+                 targets=None, ignore_targets=None):
         self.dataset = dataset
         self.sizes = np.array(sizes)
         self.vocab = src_vocab
@@ -71,6 +71,9 @@ class MonolingualDataset(FairseqDataset):
         if targets is not None and len(targets) == 0:
             targets = None
         self.targets = targets
+        self.ignore_targets = [] if ignore_targets is None else [tgt_vocab.index(x) for x in ignore_targets]
+        assert ignore_targets is None or tgt_vocab[
+            tgt_vocab.unk()] in ignore_targets or tgt_vocab.unk() not in self.ignore_targets
 
     def __getitem__(self, index):
         source, future_target, past_target = self.dataset[index]
@@ -111,7 +114,21 @@ class MonolingualDataset(FairseqDataset):
         else:
             target = future_target
 
-        return source, self._filter_vocab(target)
+        target = self._filter_vocab(target)
+
+        if len(self.ignore_targets) > 0:
+            target = target if isinstance(target, list) else [target]
+            for i in range(len(target)):
+                mask = target[i].eq(self.ignore_targets[0])
+                for j in range(1, len(self.ignore_targets)):
+                    mask |= target[i].eq(self.ignore_targets[j])
+                if mask.any():
+                    target[i] = target[i].clone() # target and source are the same underlying tensor
+                    target[i][mask] = self.tgt_vocab.pad()
+            if len(target) == 1:
+                target = target[0]
+
+        return source, target
 
     def _filter_vocab(self, target):
         if len(self.tgt_vocab) != len(self.vocab):
@@ -189,4 +206,3 @@ class MonolingualDataset(FairseqDataset):
 
     def prefetch(self, indices):
         self.dataset.prefetch(indices)
-
