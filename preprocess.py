@@ -184,9 +184,9 @@ def main(args):
         src_file_name = train_path(args.source_lang)
         tgt_file_name = train_path(args.target_lang)
         freq_map = {}
-        with open(args.alignfile, "r") as align_file:
-            with open(src_file_name, "r") as src_file:
-                with open(tgt_file_name, "r") as tgt_file:
+        with open(args.alignfile, "r", encoding='utf-8') as align_file:
+            with open(src_file_name, "r", encoding='utf-8') as src_file:
+                with open(tgt_file_name, "r", encoding='utf-8') as tgt_file:
                     for a, s, t in zip_longest(align_file, src_file, tgt_file):
                         si = Tokenizer.tokenize(s, src_dict, add_if_not_exist=False)
                         ti = Tokenizer.tokenize(t, tgt_dict, add_if_not_exist=False)
@@ -212,11 +212,11 @@ def main(args):
             align_dict[srcidx] = max(freq_map[srcidx], key=freq_map[srcidx].get)
 
         with open(
-                os.path.join(
-                    args.destdir,
-                    "alignment.{}-{}.txt".format(args.source_lang, args.target_lang),
-                ),
-                "w",
+            os.path.join(
+                args.destdir,
+                "alignment.{}-{}.txt".format(args.source_lang, args.target_lang),
+            ),
+            "w", encoding='utf-8'
         ) as f:
             for k, v in align_dict.items():
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)

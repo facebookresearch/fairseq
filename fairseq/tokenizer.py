@@ -36,7 +36,7 @@ class Tokenizer:
     @staticmethod
     def add_file_to_dictionary_single_worker(filename, tokenize, eos_word, worker_id=0, num_workers=1):
         counter = Counter()
-        with open(filename, 'r') as f:
+        with open(filename, 'r', encoding='utf-8') as f:
             size = os.fstat(f.fileno()).st_size
             chunk_size = size // num_workers
             offset = worker_id * chunk_size
@@ -86,7 +86,7 @@ class Tokenizer:
             if idx == dict.unk_index and word != dict.unk_word:
                 replaced.update([word])
 
-        with open(filename, 'r') as f:
+        with open(filename, 'r', encoding='utf-8') as f:
             f.seek(offset)
             # next(f) breaks f.tell(), hence readline() must be used
             line = safe_readline(f)
@@ -110,7 +110,7 @@ class Tokenizer:
 
     @staticmethod
     def find_offsets(filename, num_chunks):
-        with open(filename, 'r') as f:
+        with open(filename, 'r', encoding='utf-8') as f:
             size = os.fstat(f.fileno()).st_size
             chunk_size = size // num_chunks
             offsets = [0 for _ in range(num_chunks + 1)]
