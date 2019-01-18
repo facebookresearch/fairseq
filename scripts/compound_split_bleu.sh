@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ $# -ne 1]; then
+    echo "usage: $0 GENERATE_PY_OUTPUT"
+    exit 1
+fi
+
 GEN=$1
 
 SYS=$GEN.sys
