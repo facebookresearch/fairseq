@@ -32,12 +32,16 @@ class TokenBlockDataset(FairseqDataset):
         include_targets: return next tokens as targets
     """
 
-    def __init__(self, ds, block_size, pad, eos, break_mode=None, include_targets=False):
+    def __init__(self, ds, block_size, pad, eos, break_mode=None, include_targets=False, use_bos=False, bos=None):
         super().__init__()
         self.dataset = ds
         self.pad = pad
         self.eos = eos
+        self.bos = bos
         self.include_targets = include_targets
+        self.use_bos = use_bos
+        assert not self.use_bos or bos is not None
+        self.bos = bos
         self.slice_indices = []
         sizes = ds.sizes
 
@@ -88,17 +92,25 @@ class TokenBlockDataset(FairseqDataset):
         item = torch.from_numpy(self.cache[s:e]).long()
 
         if self.include_targets:
+            bos = self.bos if self.use_bos else self.eos
+
             # target is the sentence, for source, rotate item one token to the left (would start with eos)
             # past target is rotated to the left by 2 (padded if its first)
             if s == 0:
-                source = np.concatenate([[self.eos], self.cache[0:e - 1]])
-                past_target = np.concatenate([[self.pad, self.eos], self.cache[0:e - 2]])
+                source = np.concatenate([[bos], self.cache[0:e - 1]])
+                past_target = np.concatenate([[self.pad, bos], self.cache[0:e - 2]])
             else:
                 source = self.cache[s - 1: e - 1]
                 if s == 1:
-                    past_target = np.concatenate([[self.eos], self.cache[0:e - 2]])
+                    past_target = np.concatenate([[bos], self.cache[0:e - 2]])
                 else:
                     past_target = self.cache[s - 2:e - 2]
+
+                if self.use_bos and source[0] == self.eos:
+                    source = source.copy()
+                    source[0] = bos
+                    past_target = past_target.copy()
+                    past_target[1] = bos
 
             return torch.from_numpy(source).long(), item, torch.from_numpy(past_target).long()
         return item

@@ -70,6 +70,8 @@ class LanguageModelingTask(FairseqTask):
                             help='include past target')
         parser.add_argument('--ignore-targets', default='',
                             help='space separated target tokens to ignore when computing loss')
+        parser.add_argument('--use-bos', default=False, action='store_true',
+                            help='if true, uses a separate bos tokens to indicate beginning of string')
 
     def __init__(self, args, dictionary, output_dictionary, targets=None):
         super().__init__(args)
@@ -147,7 +149,8 @@ class LanguageModelingTask(FairseqTask):
             loaded_datasets.append(
                 TokenBlockDataset(
                     ds, self.args.tokens_per_sample, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
-                    break_mode=self.args.sample_break_mode, include_targets=True,
+                    break_mode=self.args.sample_break_mode, include_targets=True, use_bos=self.args.use_bos,
+                    bos=self.dictionary.bos()
                 ))
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
@@ -167,7 +170,7 @@ class LanguageModelingTask(FairseqTask):
         self.datasets[split] = MonolingualDataset(
             dataset, sizes, self.dictionary, self.output_dictionary,
             add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
-            targets=self.targets, ignore_targets=list(filter(None, self.args.ignore_targets.split(' ')))
+            targets=self.targets, ignore_targets=list(filter(None, self.args.ignore_targets.split(' '))),
         )
 
     @property
