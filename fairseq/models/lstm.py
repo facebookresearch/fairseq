@@ -57,6 +57,12 @@ class LSTMModel(FairseqModel):
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
+        parser.add_argument('--share-decoder-input-output-embed', default=False,
+                            action='store_true',
+                            help='share decoder input and output embeddings')
+        parser.add_argument('--share-all-embeddings', default=False, action='store_true',
+                            help='share encoder, decoder and output embeddings'
+                                 ' (requires shared dictionary and embed dim)')
 
         # Granular dropout settings (if not specified these default to --dropout)
         parser.add_argument('--encoder-dropout-in', type=float, metavar='D',
@@ -67,12 +73,6 @@ class LSTMModel(FairseqModel):
                             help='dropout probability for decoder input embedding')
         parser.add_argument('--decoder-dropout-out', type=float, metavar='D',
                             help='dropout probability for decoder output')
-        parser.add_argument('--share-decoder-input-output-embed', default=False,
-                            action='store_true',
-                            help='share decoder input and output embeddings')
-        parser.add_argument('--share-all-embeddings', default=False, action='store_true',
-                            help='share encoder, decoder and output embeddings'
-                                 ' (requires shared dictionary and embed dim)')
         # fmt: on
 
     @classmethod
