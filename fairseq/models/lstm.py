@@ -230,8 +230,8 @@ class LSTMEncoder(FairseqEncoder):
             state_size = 2 * self.num_layers, bsz, self.hidden_size
         else:
             state_size = self.num_layers, bsz, self.hidden_size
-        h0 = x.data.new(*state_size).zero_()
-        c0 = x.data.new(*state_size).zero_()
+        h0 = x.new_zeros(*state_size)
+        c0 = x.new_zeros(*state_size)
         packed_outs, (final_hiddens, final_cells) = self.lstm(packed_x, (h0, c0))
 
         # unpack outputs and apply dropout
@@ -327,13 +327,14 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             self.embed_tokens = pretrained_embed
 
         self.encoder_output_units = encoder_output_units
-        assert encoder_output_units == hidden_size, \
-            'encoder_output_units ({}) != hidden_size ({})'.format(encoder_output_units, hidden_size)
-        # TODO another Linear layer if not equal
-
+        if encoder_output_units != hidden_size:
+            self.encoder_hidden_proj = Linear(encoder_output_units, hidden_size)
+            self.encoder_cell_proj = Linear(encoder_output_units, hidden_size)
+        else:
+            self.encoder_hidden_proj = self.encoder_cell_proj = None
         self.layers = nn.ModuleList([
             LSTMCell(
-                input_size=encoder_output_units + embed_dim if layer == 0 else hidden_size,
+                input_size=hidden_size + embed_dim if layer == 0 else hidden_size,
                 hidden_size=hidden_size,
             )
             for layer in range(num_layers)
@@ -379,9 +380,12 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             num_layers = len(self.layers)
             prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
             prev_cells = [encoder_cells[i] for i in range(num_layers)]
-            input_feed = x.data.new(bsz, self.encoder_output_units).zero_()
+            if self.encoder_hidden_proj is not None:
+                prev_hiddens = [self.encoder_hidden_proj(x) for x in prev_hiddens]
+                prev_cells = [self.encoder_cell_proj(x) for x in prev_cells]
+            input_feed = x.new_zeros(bsz, self.hidden_size)
 
-        attn_scores = x.data.new(srclen, seqlen, bsz).zero_()
+        attn_scores = x.new_zeros(srclen, seqlen, bsz)
         outs = []
         for j in range(seqlen):
             # input feeding: concatenate context vector from previous time step
