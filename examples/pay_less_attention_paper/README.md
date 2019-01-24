@@ -35,14 +35,15 @@ DynamicConv | [WMT17 Chinese-English](http://statmt.org/wmt17/translation-task.h
 
 Please follow the instructions in [`examples/translation/README.md`](../translation/README.md) to preprocess the data.
 
-
-### Training options:
+### Training and evaluation options:
 To use the model without GLU, please set `--encoder-glu 0 --decoder-glu 0`.
 For LightConv, please use `--encoder-conv-type lightweight --decoder-conv-type lightweight`, otherwise the default is DynamicConv.
+For best BLEU results, lenpen may need to be manually tuned.
 
 ### IWSLT14 De-En
-Training DynamicConv (without GLU) on a GPU:
+Training and evaluating DynamicConv (without GLU) on a GPU:
 ```sh
+# Training
 SAVE="save/dynamic_conv_iwslt"
 mkdir -p $SAVE 
 CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
@@ -59,12 +60,15 @@ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
     --encoder-glu 0 --decoder-glu 0
 python scripts/average_checkpoints.py --inputs $SAVE \
     --num-epoch-checkpoints 10 --output "${SAVE}/checkpoint_last10_avg.pt"
-CUDA_VISIBLE_DEVICES=0 python generate.py data-bin/iwslt14.tokenized.de-en --path "${SAVE}/checkpoint_last10_avg.pt" -batch-size 128 --beam 4 --remove-bpe --lenpen 1 --gen-subset test --quiet 
+
+# Evaluation
+CUDA_VISIBLE_DEVICES=0 python generate.py data-bin/iwslt14.tokenized.de-en --path "${SAVE}/checkpoint_last10_avg.pt" --batch-size 128 --beam 4 --remove-bpe --lenpen 1 --gen-subset test --quiet 
 ```
 
 ### WMT16 En-De
-Training DynamicConv (with GLU) on WMT16 En-De using cosine scheduler on one machine with 8 V100 GPUs:
+Training and evaluating DynamicConv (with GLU) on WMT16 En-De using cosine scheduler on one machine with 8 V100 GPUs:
 ```sh
+# Training
 SAVE="save/dynamic_conv_wmt16en2de"
 mkdir -p $SAVE
 python -m torch.distributed.launch --nproc_per_node 8 train.py \
@@ -81,11 +85,16 @@ python -m torch.distributed.launch --nproc_per_node 8 train.py \
     --arch lightconv_wmt_en_de_big --save-dir $SAVE \
     --dropout 0.3 --attention-dropout 0.1 --weight-dropout 0.1 \
     --encoder-glu 1 --decoder-glu 1
+
+# Evaluation
+CUDA_VISIBLE_DEVICES=0 python generate.py data-bin/wmt16.en-de.joined-dict.newstest2014 --path "${SAVE}/checkpoint_best.pt" --batch-size 128 --beam 5 --remove-bpe --lenpen 0.5 --gen-subset test > wmt16_gen.txt
+bash scripts/compound_split_bleu.sh wmt16_gen.txt
 ```
 
 ### WMT14 En-Fr
 Training DynamicConv (with GLU) on WMT14 En-Fr using cosine scheduler on one machine with 8 V100 GPUs:
 ```sh
+# Training
 SAVE="save/dynamic_conv_wmt14en2fr"
 mkdir -p $SAVE
 python -m torch.distributed.launch --nproc_per_node 8 train.py \
@@ -102,4 +111,7 @@ python -m torch.distributed.launch --nproc_per_node 8 train.py \
     --arch lightconv_wmt_en_de_big --save-dir $SAVE \
     --dropout 0.1 --attention-dropout 0.1 --weight-dropout 0.1 \
     --encoder-glu 1 --decoder-glu 1
+
+# Evaluation
+CUDA_VISIBLE_DEVICES=0 python generate.py data-bin/wmt14.en-fr.joined-dict.newstest2014 --path "${SAVE}/checkpoint_best.pt" --batch-size 128 --beam 5 --remove-bpe --lenpen 0.9 --gen-subset test
 ```
