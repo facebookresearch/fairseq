@@ -5,7 +5,7 @@ First, download a pre-trained model along with its vocabularies:
 
 .. code-block:: console
 
-    > curl https://s3.amazonaws.com/fairseq-py/models/wmt14.v2.en-fr.fconv-py.tar.bz2 | tar xvjf -
+    > curl https://dl.fbaipublicfiles.com/fairseq/models/wmt14.v2.en-fr.fconv-py.tar.bz2 | tar xvjf -
 
 This model uses a `Byte Pair Encoding (BPE)
 vocabulary <https://arxiv.org/abs/1508.07909>`__, so we'll have to apply
