@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $# -ne 1]; then
+if [ $# -ne 1 ]; then
     echo "usage: $0 GENERATE_PY_OUTPUT"
     exit 1
 fi
