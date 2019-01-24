@@ -158,7 +158,6 @@ class LSTMModel(FairseqModel):
             dropout_in=args.decoder_dropout_in,
             dropout_out=args.decoder_dropout_out,
             attention=options.eval_bool(args.decoder_attention),
-            encoder_embed_dim=args.encoder_embed_dim,
             encoder_output_units=encoder.output_units,
             pretrained_embed=pretrained_decoder_embed,
             share_input_output_embed=args.share_decoder_input_output_embed,
@@ -272,11 +271,11 @@ class LSTMEncoder(FairseqEncoder):
 
 
 class AttentionLayer(nn.Module):
-    def __init__(self, input_embed_dim, output_embed_dim):
+    def __init__(self, input_embed_dim, source_embed_dim, output_embed_dim, bias=False):
         super().__init__()
 
-        self.input_proj = Linear(input_embed_dim, output_embed_dim, bias=False)
-        self.output_proj = Linear(input_embed_dim + output_embed_dim, output_embed_dim, bias=False)
+        self.input_proj = Linear(input_embed_dim, source_embed_dim, bias=bias)
+        self.output_proj = Linear(input_embed_dim + source_embed_dim, output_embed_dim, bias=bias)
 
     def forward(self, input, source_hids, encoder_padding_mask):
         # input: bsz x input_embed_dim
@@ -309,7 +308,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
     def __init__(
         self, dictionary, embed_dim=512, hidden_size=512, out_embed_dim=512,
         num_layers=1, dropout_in=0.1, dropout_out=0.1, attention=True,
-        encoder_embed_dim=512, encoder_output_units=512, pretrained_embed=None,
+        encoder_output_units=512, pretrained_embed=None,
         share_input_output_embed=False, adaptive_softmax_cutoff=None,
     ):
         super().__init__(dictionary)
@@ -339,7 +338,11 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             )
             for layer in range(num_layers)
         ])
-        self.attention = AttentionLayer(encoder_output_units, hidden_size) if attention else None
+        if attention:
+            # TODO make bias configurable
+            self.attention = AttentionLayer(hidden_size, encoder_output_units, hidden_size, bias=False)
+        else:
+            self.attention = None
         if hidden_size != out_embed_dim:
             self.additional_fc = Linear(hidden_size, out_embed_dim)
         if adaptive_softmax_cutoff is not None:
@@ -358,7 +361,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         bsz, seqlen = prev_output_tokens.size()
 
         # get outputs from encoder
-        encoder_outs, _, _ = encoder_out[:3]
+        encoder_outs, encoder_hiddens, encoder_cells = encoder_out[:3]
         srclen = encoder_outs.size(0)
 
         # embed tokens
@@ -373,7 +376,6 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         if cached_state is not None:
             prev_hiddens, prev_cells, input_feed = cached_state
         else:
-            _, encoder_hiddens, encoder_cells = encoder_out[:3]
             num_layers = len(self.layers)
             prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
             prev_cells = [encoder_cells[i] for i in range(num_layers)]
@@ -411,7 +413,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
         # cache previous states (no-op except during incremental generation)
         utils.set_incremental_state(
-            self, incremental_state, 'cached_state', (prev_hiddens, prev_cells, input_feed))
+            self, incremental_state, 'cached_state',
+            (prev_hiddens, prev_cells, input_feed),
+        )
 
         # collect outputs across time steps
         x = torch.cat(outs, dim=0).view(seqlen, bsz, self.hidden_size)
