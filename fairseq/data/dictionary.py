@@ -172,13 +172,15 @@ class Dictionary(object):
                         return cls.load(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe
-            except Exception:
+            except UnicodeError:
                 raise Exception("Incorrect encoding detected in {}, please "
                                 "rebuild the dataset".format(f))
 
         d = cls()
         for line in f.readlines():
             idx = line.rfind(' ')
+            if idx == -1:
+                raise ValueError("Incorrect dictionary format, expected '<token> <cnt>'")
             word = line[:idx]
             count = int(line[idx+1:])
             d.indices[word] = len(d.symbols)
