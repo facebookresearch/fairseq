@@ -307,16 +307,16 @@ def binarize_with_load(args, filename, dict_path, output_prefix, lang, offset, e
 
 
 def dataset_dest_prefix(args, output_prefix, lang):
-    base = f"{args.destdir}/{output_prefix}"
+    base = "{}/{}".format(args.destdir, output_prefix)
     lang_part = (
-        f".{args.source_lang}-{args.target_lang}.{lang}" if lang is not None else ""
+        ".{}-{}.{}".format(args.source_lang, args.target_lang, lang) if lang is not None else ""
     )
-    return f"{base}{lang_part}"
+    return "{}{}".format(base, lang_part)
 
 
 def dataset_dest_file(args, output_prefix, lang, extension):
     base = dataset_dest_prefix(args, output_prefix, lang)
-    return f"{base}.{extension}"
+    return "{}.{}".format(base, extension)
 
 
 def get_offsets(input_file, num_workers):
