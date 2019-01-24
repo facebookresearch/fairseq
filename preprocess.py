@@ -309,7 +309,7 @@ def binarize_with_load(args, filename, dict_path, output_prefix, lang, offset, e
 def dataset_dest_prefix(args, output_prefix, lang):
     base = "{}/{}".format(args.destdir, output_prefix)
     lang_part = (
-        "{}-{}.{}".format(args.source_lang, args.target_lang, lang) if lang is not None else ""
+        ".{}-{}.{}".format(args.source_lang, args.target_lang, lang) if lang is not None else ""
     )
     return "{}{}".format(base, lang_part)
 
