@@ -32,6 +32,8 @@ class LSTMModel(FairseqModel):
                             help='encoder embedding dimension')
         parser.add_argument('--encoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained encoder embedding')
+        parser.add_argument('--encoder-freeze-embed', action='store_true',
+                            help='freeze encoder embeddings')
         parser.add_argument('--encoder-hidden-size', type=int, metavar='N',
                             help='encoder hidden size')
         parser.add_argument('--encoder-layers', type=int, metavar='N',
@@ -42,6 +44,8 @@ class LSTMModel(FairseqModel):
                             help='decoder embedding dimension')
         parser.add_argument('--decoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained decoder embedding')
+        parser.add_argument('--decoder-freeze-embed', action='store_true',
+                            help='freeze decoder embeddings')
         parser.add_argument('--decoder-hidden-size', type=int, metavar='N',
                             help='decoder hidden size')
         parser.add_argument('--decoder-layers', type=int, metavar='N',
@@ -129,6 +133,11 @@ class LSTMModel(FairseqModel):
                 '--share-decoder-input-output-embeddings requires '
                 '--decoder-embed-dim to match --decoder-out-embed-dim'
             )
+
+        if args.encoder_freeze_embed:
+            pretrained_encoder_embed.weight.requires_grad = False
+        if args.decoder_freeze_embed:
+            pretrained_decoder_embed.weight.requires_grad = False
 
         encoder = LSTMEncoder(
             dictionary=task.source_dictionary,
@@ -486,6 +495,7 @@ def base_architecture(args):
     args.dropout = getattr(args, 'dropout', 0.1)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.encoder_embed_path = getattr(args, 'encoder_embed_path', None)
+    args.encoder_freeze_embed = getattr(args, 'encoder_freeze_embed', False)
     args.encoder_hidden_size = getattr(args, 'encoder_hidden_size', args.encoder_embed_dim)
     args.encoder_layers = getattr(args, 'encoder_layers', 1)
     args.encoder_bidirectional = getattr(args, 'encoder_bidirectional', False)
@@ -493,6 +503,7 @@ def base_architecture(args):
     args.encoder_dropout_out = getattr(args, 'encoder_dropout_out', args.dropout)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_embed_path = getattr(args, 'decoder_embed_path', None)
+    args.decoder_freeze_embed = getattr(args, 'decoder_freeze_embed', False)
     args.decoder_hidden_size = getattr(args, 'decoder_hidden_size', args.decoder_embed_dim)
     args.decoder_layers = getattr(args, 'decoder_layers', 1)
     args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 512)
