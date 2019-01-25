@@ -158,13 +158,7 @@ class Trainer(object):
 
     def train_step(self, samples, dummy_batch=False):
         """Do forward, backward and parameter update."""
-        # Set seed based on args.seed and the update number so that we get
-        # reproducible results when resuming from checkpoints
-        seed = self.args.seed + self.get_num_updates()
-        torch.manual_seed(seed)
-        if self.cuda:
-            torch.cuda.manual_seed(seed)
-
+        self._set_seed()
         self.model.train()
         self.criterion.train()
         self.zero_grad()
@@ -395,3 +389,11 @@ class Trainer(object):
         if self.cuda:
             sample = utils.move_to_cuda(sample)
         return sample
+
+    def _set_seed(self):
+        # Set seed based on args.seed and the update number so that we get
+        # reproducible results when resuming from checkpoints
+        seed = self.args.seed + self.get_num_updates()
+        torch.manual_seed(seed)
+        if self.cuda:
+            torch.cuda.manual_seed(seed)
