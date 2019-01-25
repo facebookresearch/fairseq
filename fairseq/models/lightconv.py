@@ -101,7 +101,7 @@ class LightConvModel(FairseqModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
-        
+
         """LightConv and DynamicConv arguments"""
         parser.add_argument('--encoder-kernel-size-list', type=lambda x: options.eval_str_list(x, int),
                             help='list of kernel size (default: "[3,7,15,31,31,31,31]")')
@@ -120,7 +120,6 @@ class LightConvModel(FairseqModel):
         parser.add_argument('--weight-softmax', default=True, type=options.eval_bool)
         parser.add_argument('--weight-dropout', type=float, metavar='D',
                             help='dropout probability for conv weights')
-
 
     @classmethod
     def build_model(cls, args, task):
@@ -925,7 +924,7 @@ def lightconv_wmt_en_fr_big(args):
 
 
 @register_model_architecture('lightconv', 'lightconv_wmt_zh_en_big')
-def lightconv_wmt_en_fr_big(args):
+def lightconv_wmt_zh_en_big(args):
     args.dropout = getattr(args, 'dropout', 0.2)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.2)
     args.weight_dropout = getattr(args, 'weight_dropout', 0.2)

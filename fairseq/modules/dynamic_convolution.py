@@ -29,7 +29,7 @@ class DynamicConv1dTBC(nn.Module):
         padding_l: padding to the left when using "same" padding
         num_heads: number of heads used. The weight is of shape (num_heads, 1, kernel_size)
         weight_dropout: the drop rate of the DropConnect to drop the weight
-        weight_softmax: normalize the weight with softmax before the convolution 
+        weight_softmax: normalize the weight with softmax before the convolution
         renorm_padding: re-normalize the filters to ignore the padded part (only the non-padding parts sum up to 1)
         bias: use bias
         conv_bias: bias of the convolution
@@ -86,7 +86,7 @@ class DynamicConv1dTBC(nn.Module):
             unfold: unfold the input or not. If not, we use the matrix trick instead
             query: use the specified query to predict the conv filters
         '''
-        unfold = x.size(0) > 512 if unfold is None else unfold # use unfold mode as default for long sequence to save memory
+        unfold = x.size(0) > 512 if unfold is None else unfold  # use unfold mode as default for long sequence to save memory
         unfold = unfold or (incremental_state is not None)
         assert query is None or not self.in_proj
 
@@ -103,7 +103,7 @@ class DynamicConv1dTBC(nn.Module):
         return output
 
     def _forward_unfolded(self, x, incremental_state, query):
-        '''The conventional implementation of convolutions. 
+        '''The conventional implementation of convolutions.
         Unfolding the input by having a window shifting to the right.'''
         T, B, C = x.size()
         K, H = self.kernel_size, self.num_heads
@@ -136,7 +136,7 @@ class DynamicConv1dTBC(nn.Module):
             # unfold the input: T x B x C --> T' x B x C x K
             x_unfold = unfold1d(x, K, padding_l, 0)
             x_unfold = x_unfold.view(T*B*H, R, K)
-        
+
         if self.weight_softmax and not self.renorm_padding:
             weight = F.softmax(weight, dim=1)
         weight = weight.narrow(1, 0, K)
@@ -156,7 +156,7 @@ class DynamicConv1dTBC(nn.Module):
 
     def _forward_expanded(self, x, incremental_stat, query):
         '''Turn the convolution filters into band matrices and do matrix multiplication.
-        This is faster when the sequence is short, but less memory efficient. 
+        This is faster when the sequence is short, but less memory efficient.
         This is not used in the decoder during inference.
         '''
         T, B, C = x.size()
@@ -200,7 +200,7 @@ class DynamicConv1dTBC(nn.Module):
         output = torch.bmm(weight_expanded, x)
         output = output.transpose(0, 1).contiguous().view(T, B, C)
         return output
-        
+
     def reorder_incremental_state(self, incremental_state, new_order):
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
