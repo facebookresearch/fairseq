@@ -107,7 +107,7 @@ python -m torch.distributed.launch --nproc_per_node 8 train.py \
     --lr-scheduler cosine --warmup-init-lr 1e-7 --warmup-updates 10000 \
     --lr-shrink 1 --max-lr 0.001 --lr 1e-7 --min-lr 1e-9 --warmup-init-lr 1e-07 \
     --t-mult 1 --lr-period-updates 70000 \
-    --arch lightconv_wmt_en_de_big --save-dir $SAVE \
+    --arch lightconv_wmt_en_fr_big --save-dir $SAVE \
     --dropout 0.1 --attention-dropout 0.1 --weight-dropout 0.1 \
     --encoder-glu 1 --decoder-glu 1
 

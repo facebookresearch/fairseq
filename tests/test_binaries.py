@@ -138,6 +138,28 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'transformer_iwslt_de_en')
                 generate_main(data_dir)
 
+    def test_lightconv(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_lightconv') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'lightconv_iwslt_de_en', [
+                    '--encoder-conv-type', 'lightweight',
+                    '--decoder-conv-type', 'lightweight',
+                ])
+                generate_main(data_dir)
+
+    def test_dynamicconv(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_dynamicconv') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'lightconv_iwslt_de_en', [
+                    '--encoder-conv-type', 'dynamic',
+                    '--decoder-conv-type', 'dynamic',
+                ])
+                generate_main(data_dir)
+
 
 class TestStories(unittest.TestCase):
 
