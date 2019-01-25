@@ -8,7 +8,7 @@ of various sequence-to-sequence models, including:
   - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](https://arxiv.org/abs/1612.08083)
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122)
   - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
-  - **_New_** [Fan et al. (2018): Hierarchical Neural Story Generation](https://arxiv.org/abs/1805.04833)
+  - [Fan et al. (2018): Hierarchical Neural Story Generation](https://arxiv.org/abs/1805.04833)
 - **LightConv and DynamicConv models**
   - **_New_** [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](https://openreview.net/pdf?id=SkVhlh09tX)
 - **Long Short-Term Memory (LSTM) networks**
@@ -16,8 +16,8 @@ of various sequence-to-sequence models, including:
   - [Wiseman and Rush (2016): Sequence-to-Sequence Learning as Beam-Search Optimization](https://arxiv.org/abs/1606.02960)
 - **Transformer (self-attention) networks**
   - [Vaswani et al. (2017): Attention Is All You Need](https://arxiv.org/abs/1706.03762)
-  - **_New_** [Ott et al. (2018): Scaling Neural Machine Translation](https://arxiv.org/abs/1806.00187)
-  - **_New_** [Edunov et al. (2018): Understanding Back-Translation at Scale](https://arxiv.org/abs/1808.09381)
+  - [Ott et al. (2018): Scaling Neural Machine Translation](https://arxiv.org/abs/1806.00187)
+  - [Edunov et al. (2018): Understanding Back-Translation at Scale](https://arxiv.org/abs/1808.09381)
 
 Fairseq features:
 - multi-GPU (distributed) training on one machine or across multiple machines
@@ -70,6 +70,8 @@ We also have more detailed READMEs to reproduce results from specific papers:
 - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
 - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
 - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
+- [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
+- [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/conv_lm/README.md)
 
 # Join the fairseq community
 

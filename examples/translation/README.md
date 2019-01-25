@@ -163,14 +163,3 @@ $ python generate.py data-bin/fconv_wmt_en_fr \
   --path checkpoints/fconv_wmt_en_fr/checkpoint_best.pt --beam 5 --remove-bpe
 
 ```
-
-## Citation
-
-```bibtex
-@inproceedings{gehring2017convs2s,
-  author = {Gehring, Jonas, and Auli, Michael and Grangier, David and Yarats, Denis and Dauphin, Yann N},
-  title = {Convolutional Sequence to Sequence Learning},
-  booktitle = {Proc. of ICML},
-  year = 2017,
-}
-```

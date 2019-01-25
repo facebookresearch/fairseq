@@ -41,16 +41,3 @@ $ python train.py --task language_modeling data-bin/wikitext-103 \
 $ python eval_lm.py data-bin/wikitext-103 --path 'checkpoints/wiki103/checkpoint_best.pt'
 
 ```
-
-## Citation
-
-```bibtex
-@inproceedings{dauphin2017language,
-  title={Language Modeling with Gated Convolutional Networks},
-  author={Dauphin, Yann N and Fan, Angela and Auli, Michael and Grangier, David},
-  booktitle={Proceedings of the 34th International Conference on Machine Learning-Volume 70},
-  pages={933--941},
-  year={2017},
-  organization={JMLR}
-}
-```
