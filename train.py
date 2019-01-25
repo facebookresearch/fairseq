@@ -344,7 +344,7 @@ def load_checkpoint(args, trainer, epoch_itr):
                 save_checkpoint.best = extra_state['best']
         return True
     else:
-        print('| cannot load checkpoint {}'.format(checkpoint_path))
+        print('| no existing checkpoint found {}'.format(checkpoint_path))
     return False
 
 
