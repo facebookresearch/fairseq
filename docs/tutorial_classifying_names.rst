@@ -26,7 +26,7 @@ of the data that is already tokenized into characters and split into separate
 train, valid and test sets.
 
 Download and extract the data from here:
-`tutorial_names.tar.gz <https://s3.amazonaws.com/fairseq-py/data/tutorial_names.tar.gz>`_
+`tutorial_names.tar.gz <https://dl.fbaipublicfiles.com/fairseq/data/tutorial_names.tar.gz>`_
 
 Once extracted, let's preprocess the data using the :ref:`preprocess.py`
 command-line tool to create the dictionaries. While this tool is primarily

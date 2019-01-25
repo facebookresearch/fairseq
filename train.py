@@ -328,7 +328,10 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 def load_checkpoint(args, trainer, epoch_itr):
     """Load a checkpoint and replay dataloader to match."""
     os.makedirs(args.save_dir, exist_ok=True)
-    checkpoint_path = os.path.join(args.save_dir, args.restore_file)
+    if os.path.isabs(args.restore_file):
+        checkpoint_path = args.restore_file
+    else:
+        checkpoint_path = os.path.join(args.save_dir, args.restore_file)
     if os.path.isfile(checkpoint_path):
         extra_state = trainer.load_checkpoint(checkpoint_path, args.reset_optimizer, args.reset_lr_scheduler,
                                               eval(args.optimizer_overrides))
@@ -344,6 +347,8 @@ def load_checkpoint(args, trainer, epoch_itr):
             if 'best' in extra_state:
                 save_checkpoint.best = extra_state['best']
         return True
+    else:
+        print('| no existing checkpoint found {}'.format(checkpoint_path))
     return False
 
 
