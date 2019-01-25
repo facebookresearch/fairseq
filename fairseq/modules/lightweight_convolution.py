@@ -24,7 +24,7 @@ class LightweightConv1d(nn.Module):
     kernel_size: convolution channels
     padding: padding
     num_heads: number of heads used. The weight is of shape (num_heads, 1, kernel_size)
-    weight_softmax: normalize the weight with softmax before the convolution 
+    weight_softmax: normalize the weight with softmax before the convolution
     Shape:
     Input: BxCxT, i.e. (batch_size, input_size, timesteps)
     Output: BxCxT, i.e. (batch_size, input_size, timesteps)
@@ -38,7 +38,7 @@ class LightweightConv1d(nn.Module):
     def __init__(self, input_size, kernel_size=1, padding=0, num_heads=1,
                  weight_softmax=False, bias=False, weight_dropout=0.):
         super().__init__()
-        self.input_size = input_size 
+        self.input_size = input_size
         self.kernel_size = kernel_size
         self.num_heads = num_heads
         self.padding = padding
@@ -46,7 +46,7 @@ class LightweightConv1d(nn.Module):
         self.weight = nn.Parameter(torch.Tensor(num_heads, 1, kernel_size))
 
         if bias:
-            self.bias = nn.Parameter(torch.Tensor(output_size))
+            self.bias = nn.Parameter(torch.Tensor(input_size))
         else:
             self.bias = None
         self.weight_dropout = weight_dropout
@@ -71,10 +71,10 @@ class LightweightConv1d(nn.Module):
 
         weight = F.dropout(weight, self.weight_dropout, training=self.training)
         # Merge every C/H entries into the batch dimension (C = self.input_size)
-        # B x C x T -> (B * C/H) x H x T 
+        # B x C x T -> (B * C/H) x H x T
         # One can also expand the weight to C x 1 x K by a factor of C/H
         # and do not reshape the input instead, which is slow though
-        input = input.view(-1, H, T) 
+        input = input.view(-1, H, T)
         output = F.conv1d(input, weight, padding=self.padding, groups=self.num_heads)
         output = output.view(B, C, T)
         if self.bias is not None:
@@ -91,7 +91,7 @@ class LightweightConv1dTBC(nn.Module):
         padding_l: padding to the left when using "same" padding
         num_heads: number of heads used. The weight is of shape (num_heads, 1, kernel_size)
         weight_dropout: the drop rate of the DropConnect to drop the weight
-        weight_softmax: normalize the weight with softmax before the convolution 
+        weight_softmax: normalize the weight with softmax before the convolution
         bias: use bias
 
     Shape:
@@ -145,7 +145,7 @@ class LightweightConv1dTBC(nn.Module):
         return output
 
     def _forward_unfolded(self, x, incremental_state):
-        '''The conventional implementation of convolutions. 
+        '''The conventional implementation of convolutions.
         Unfolding the input by having a window shifting to the right.'''
         T, B, C = x.size()
         K, H = self.kernel_size, self.num_heads
@@ -165,7 +165,7 @@ class LightweightConv1dTBC(nn.Module):
             # unfold the input: T x B x C --> T' x B x C x K
             x_unfold = unfold1d(x, self.kernel_size, self.padding_l, 0)
             x_unfold = x_unfold.view(T*B*H, R, K)
-    
+
         if self.weight_softmax:
             weight = F.softmax(weight.float(), dim=1).type_as(weight)
 
@@ -182,7 +182,7 @@ class LightweightConv1dTBC(nn.Module):
 
     def _forward_expanded(self, x, incremental_state):
         '''Turn the convolution filters into band matrices and do matrix multiplication.
-        This is faster when the sequence is short, but less memory efficient. 
+        This is faster when the sequence is short, but less memory efficient.
         This is not used in the decoder during inference.
         '''
         T, B, C = x.size()
