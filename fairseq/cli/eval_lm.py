@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -174,7 +173,7 @@ def main(parsed_args):
             print(ws)
 
 
-if __name__ == '__main__':
+def run_main():
     parser = options.get_eval_lm_parser()
     args = options.parse_args_and_arch(parser)
     main(args)

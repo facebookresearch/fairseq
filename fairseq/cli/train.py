@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -377,7 +376,7 @@ def distributed_main(i, args):
     main(args)
 
 
-if __name__ == '__main__':
+def run_main():
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser)
 
@@ -406,7 +405,7 @@ if __name__ == '__main__':
         )
         torch.multiprocessing.spawn(
             fn=distributed_main,
-            args=(args, ),
+            args=(args,),
             nprocs=args.distributed_world_size,
         )
     else:

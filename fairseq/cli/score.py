@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -30,7 +29,7 @@ def get_parser():
     return parser
 
 
-def main():
+def run_main():
     parser = get_parser()
     args = parser.parse_args()
     print(args)
@@ -63,7 +62,3 @@ def main():
     else:
         with open(args.sys, 'r') as f:
             score(f)
-
-
-if __name__ == '__main__':
-    main()

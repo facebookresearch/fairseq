@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -172,7 +171,7 @@ def main(args):
         print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
 
 
-if __name__ == '__main__':
+def run_main():
     parser = options.get_generation_parser()
     args = options.parse_args_and_arch(parser)
     main(args)
