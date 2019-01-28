@@ -43,4 +43,6 @@ setup(
     packages=find_packages(),
     ext_modules=[bleu],
     test_suite='tests',
+    scripts=['bin/fairseq-datagen', 'bin/fairseq-generate', 'bin/fairseq-lmeval',
+             'bin/fairseq-score', 'bin/fairseq-train', 'bin/fairseq-translate'],
 )

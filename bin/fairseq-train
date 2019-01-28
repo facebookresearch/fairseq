@@ -8,11 +8,7 @@
 """
 Train a new model on one or across multiple GPUs.
 """
-import sys
-
 from fairseq.cli import train_main
 
 if __name__ == '__main__':
-    print("WARNING - The train.py script has been deprecated. This is going to be removed in future release. "
-          "Please use the fairseq-train script instead.", file=sys.stderr, flush=True)
     train_main()
