@@ -20,8 +20,12 @@ from fairseq.tasks import TASK_REGISTRY
 from fairseq.tokenizer import Tokenizer
 from multiprocessing import Pool
 
+from fairseq.utils import import_user_module
+
 
 def main(args):
+    import_user_module(args)
+
     print(args)
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
@@ -180,9 +184,9 @@ def main(args):
         src_file_name = train_path(args.source_lang)
         tgt_file_name = train_path(args.target_lang)
         freq_map = {}
-        with open(args.alignfile, "r") as align_file:
-            with open(src_file_name, "r") as src_file:
-                with open(tgt_file_name, "r") as tgt_file:
+        with open(args.alignfile, "r", encoding='utf-8') as align_file:
+            with open(src_file_name, "r", encoding='utf-8') as src_file:
+                with open(tgt_file_name, "r", encoding='utf-8') as tgt_file:
                     for a, s, t in zip_longest(align_file, src_file, tgt_file):
                         si = Tokenizer.tokenize(s, src_dict, add_if_not_exist=False)
                         ti = Tokenizer.tokenize(t, tgt_dict, add_if_not_exist=False)
@@ -212,7 +216,7 @@ def main(args):
                     args.destdir,
                     "alignment.{}-{}.txt".format(args.source_lang, args.target_lang),
                 ),
-                "w",
+                "w", encoding='utf-8'
         ) as f:
             for k, v in align_dict.items():
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
@@ -232,16 +236,16 @@ def binarize(args, filename, dict, output_prefix, lang, offset, end):
 
 
 def dataset_dest_prefix(args, output_prefix, lang):
-    base = f"{args.destdir}/{output_prefix}"
+    base = "{}/{}".format(args.destdir, output_prefix)
     lang_part = (
-        f".{args.source_lang}-{args.target_lang}.{lang}" if lang is not None else ""
+        ".{}-{}.{}".format(args.source_lang, args.target_lang, lang) if lang is not None else ""
     )
-    return f"{base}{lang_part}"
+    return "{}{}".format(base, lang_part)
 
 
 def dataset_dest_file(args, output_prefix, lang, extension):
     base = dataset_dest_prefix(args, output_prefix, lang)
-    return f"{base}.{extension}"
+    return "{}.{}".format(base, extension)
 
 
 def get_offsets(input_file, num_workers):

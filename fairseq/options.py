@@ -130,12 +130,10 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
 def get_parser(desc, default_task='translation'):
     # Before creating the true parser, we need to import optional user module
     # in order to eagerly import custom tasks, optimizers, architectures, etc.
-    usr_parser = argparse.ArgumentParser()
+    usr_parser = argparse.ArgumentParser(add_help=False)
     usr_parser.add_argument('--user-dir', default=None)
     usr_args, _ = usr_parser.parse_known_args()
-
-    if usr_args.user_dir is not None:
-        import_user_module(usr_args.user_dir)
+    import_user_module(usr_args)
 
     parser = argparse.ArgumentParser()
     # fmt: off
@@ -263,7 +261,7 @@ def add_distributed_training_args(parser):
     group.add_argument('--ddp-backend', default='c10d', type=str,
                        choices=['c10d', 'no_c10d'],
                        help='DistributedDataParallel backend')
-    group.add_argument('--bucket-cap-mb', default=150, type=int, metavar='MB',
+    group.add_argument('--bucket-cap-mb', default=25, type=int, metavar='MB',
                        help='bucket size for reduction')
     group.add_argument('--fix-batches-to-gpus', action='store_true',
                        help='don\'t shuffle batches between GPUs; this reduces overall '

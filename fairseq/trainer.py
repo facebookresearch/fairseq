@@ -92,7 +92,7 @@ class Trainer(object):
     @property
     def lr_scheduler(self):
         if self._lr_scheduler is None:
-            self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+            self._build_optimizer()  # this will initialize self._lr_scheduler
         return self._lr_scheduler
 
     def _build_optimizer(self):
@@ -109,6 +109,10 @@ class Trainer(object):
             if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
                 print('| NOTICE: your device may support faster training with --fp16')
             self._optimizer = optim.build_optimizer(self.args, params)
+
+        # We should initialize the learning rate scheduler immediately after
+        # building the optimizer, so that the initial learning rate is set.
+        self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
@@ -154,13 +158,7 @@ class Trainer(object):
 
     def train_step(self, samples, dummy_batch=False):
         """Do forward, backward and parameter update."""
-        # Set seed based on args.seed and the update number so that we get
-        # reproducible results when resuming from checkpoints
-        seed = self.args.seed + self.get_num_updates()
-        torch.manual_seed(seed)
-        if self.cuda:
-            torch.cuda.manual_seed(seed)
-
+        self._set_seed()
         self.model.train()
         self.criterion.train()
         self.zero_grad()
@@ -391,3 +389,11 @@ class Trainer(object):
         if self.cuda:
             sample = utils.move_to_cuda(sample)
         return sample
+
+    def _set_seed(self):
+        # Set seed based on args.seed and the update number so that we get
+        # reproducible results when resuming from checkpoints
+        seed = self.args.seed + self.get_num_updates()
+        torch.manual_seed(seed)
+        if self.cuda:
+            torch.cuda.manual_seed(seed)

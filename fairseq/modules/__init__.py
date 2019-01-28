@@ -11,13 +11,16 @@ from .beamable_mm import BeamableMM
 from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
+from .dynamic_convolution import DynamicConv1dTBC
 from .grad_multiply import GradMultiply
 from .highway import Highway
 from .learned_positional_embedding import LearnedPositionalEmbedding
+from .lightweight_convolution import LightweightConv1dTBC
 from .linearized_convolution import LinearizedConvolution
 from .multihead_attention import MultiheadAttention
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
+from .unfold1d import unfold1d
 
 __all__ = [
     'AdaptiveInput',
@@ -26,11 +29,14 @@ __all__ = [
     'CharacterTokenEmbedder',
     'ConvTBC',
     'DownsampledMultiHeadAttention',
+    'DynamicConv1dTBC',
     'GradMultiply',
     'Highway',
     'LearnedPositionalEmbedding',
+    'LightweightConv1dTBC',
     'LinearizedConvolution',
     'MultiheadAttention',
     'ScalarBias',
     'SinusoidalPositionalEmbedding',
+    'unfold1d',
 ]

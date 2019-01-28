@@ -437,10 +437,15 @@ def resolve_max_positions(*args):
     return max_positions
 
 
-def import_user_module(module_path):
-    module_path = os.path.abspath(module_path)
-    module_parent, module_name = os.path.split(module_path)
+def import_user_module(args):
+    if hasattr(args, 'user_dir'):
+        module_path = args.user_dir
 
-    sys.path.insert(0, module_parent)
-    importlib.import_module(module_name)
-    sys.path.pop(0)
+        if module_path is not None:
+            module_path = os.path.abspath(args.user_dir)
+            module_parent, module_name = os.path.split(module_path)
+
+            if module_name not in sys.modules:
+                sys.path.insert(0, module_parent)
+                importlib.import_module(module_name)
+                sys.path.pop(0)

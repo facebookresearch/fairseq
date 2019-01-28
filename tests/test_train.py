@@ -62,6 +62,7 @@ class TestLoadCheckpoint(unittest.TestCase):
             'os.makedirs': MagicMock(),
             'os.path.join': MagicMock(),
             'os.path.isfile': MagicMock(return_value=True),
+            'os.path.isabs': MagicMock(return_value=False),
         }
         self.applied_patches = [patch(p, d) for p, d in self.patches.items()]
         [p.start() for p in self.applied_patches]
