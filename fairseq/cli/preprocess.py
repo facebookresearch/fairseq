@@ -7,18 +7,16 @@
 """
 Data pre-processing: build vocabularies and binarize training data.
 """
-
-from collections import Counter
-from itertools import zip_longest
 import os
 import shutil
+from collections import Counter
+from itertools import zip_longest
+from multiprocessing import Pool
 
 from fairseq import options
 from fairseq.data import indexed_dataset
 from fairseq.tasks import TASK_REGISTRY
 from fairseq.tokenizer import Tokenizer
-from multiprocessing import Pool
-
 from fairseq.utils import import_user_module
 
 
@@ -235,16 +233,16 @@ def binarize(args, filename, dict, output_prefix, lang, offset, end):
 
 
 def dataset_dest_prefix(args, output_prefix, lang):
-    base = f"{args.destdir}/{output_prefix}"
+    base = "{}/{}".format(args.destdir, output_prefix)
     lang_part = (
-        f".{args.source_lang}-{args.target_lang}.{lang}" if lang is not None else ""
+        ".{}-{}.{}".format(args.source_lang, args.target_lang, lang) if lang is not None else ""
     )
-    return f"{base}{lang_part}"
+    return "{}{}".format(base, lang_part)
 
 
 def dataset_dest_file(args, output_prefix, lang, extension):
     base = dataset_dest_prefix(args, output_prefix, lang)
-    return f"{base}.{extension}"
+    return "{}.{}".format(base, extension)
 
 
 def get_offsets(input_file, num_workers):
