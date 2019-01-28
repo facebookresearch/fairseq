@@ -17,11 +17,11 @@ import torch
 
 from fairseq import options
 
-import preprocess
-import train
-import generate
-import interactive
-import eval_lm
+from fairseq.cli import preprocess
+from fairseq.cli import train
+from fairseq.cli import generate
+from fairseq.cli import interactive
+from fairseq.cli import eval_lm
 
 
 class TestTranslation(unittest.TestCase):

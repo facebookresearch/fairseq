@@ -14,7 +14,7 @@ import torch
 
 from fairseq import data
 
-import train
+from fairseq.cli import train
 
 
 def mock_trainer(epoch, num_updates, iterations_in_epoch):
