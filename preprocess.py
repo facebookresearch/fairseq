@@ -271,17 +271,21 @@ def main(args):
 
 
 def build_and_save_dictionary(
-    train_path, output_path, num_workers, freq_threshold, max_words
+    train_path, output_path, num_workers, freq_threshold, max_words, dict_cls=dictionary.Dictionary,
 ):
-    dict = build_dictionary([train_path], num_workers)
+    dict = build_dictionary([train_path], num_workers, dict_cls)
     dict.finalize(threshold=freq_threshold, nwords=max_words)
     dict_path = os.path.join(output_path, "dict.txt")
     dict.save(dict_path)
     return dict_path
 
 
-def build_dictionary(filenames, workers):
-    d = dictionary.Dictionary()
+def build_dictionary(
+    filenames,
+    workers,
+    dict_cls=dictionary.Dictionary,
+):
+    d = dict_cls()
     for filename in filenames:
         Tokenizer.add_file_to_dictionary(filename, d, tokenize_line, workers)
     return d
@@ -300,8 +304,17 @@ def binarize(args, filename, dict, output_prefix, lang, offset, end):
     return res
 
 
-def binarize_with_load(args, filename, dict_path, output_prefix, lang, offset, end):
-    dict = dictionary.Dictionary.load(dict_path)
+def binarize_with_load(
+    args,
+    filename,
+    dict_path,
+    output_prefix,
+    lang,
+    offset,
+    end,
+    dict_cls=dictionary.Dictionary,
+):
+    dict = dict_cls.load(dict_path)
     binarize(args, filename, dict, output_prefix, lang, offset, end)
     return dataset_dest_prefix(args, output_prefix, lang)
 
