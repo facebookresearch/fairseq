@@ -15,7 +15,7 @@ echo 'Cloning Moses github repository (for tokenization scripts)...'
 git clone https://github.com/moses-smt/mosesdecoder.git
 
 SCRIPTS=mosesdecoder/scripts
-DETOKENIZER=$SCRIPTS/tokenizer/tokenizer.perl
+DETOKENIZER=$SCRIPTS/tokenizer/detokenizer.perl
 
 grep ^H $GEN \
 | sed 's/^H\-//' \

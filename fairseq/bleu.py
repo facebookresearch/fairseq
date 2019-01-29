@@ -35,6 +35,31 @@ class BleuStat(ctypes.Structure):
     ]
 
 
+class SacrebleuScorer(object):
+    def __init__(self):
+        import sacrebleu
+        self.sacrebleu = sacrebleu
+        self.reset()
+
+    def reset(self, one_init=False):
+        if one_init:
+            raise NotImplementedError
+        self.ref = []
+        self.sys = []
+
+    def add_string(self, ref, pred):
+        self.ref.append(ref)
+        self.sys.append(pred)
+
+    def score(self, order=4):
+        return self.result_string(order).bleu
+
+    def result_string(self, order=4):
+        if order != 4:
+            raise NotImplementedError
+        return self.sacrebleu.corpus_bleu(self.sys, [self.ref])
+
+
 class Scorer(object):
     def __init__(self, pad, eos, unk):
         self.stat = BleuStat()
