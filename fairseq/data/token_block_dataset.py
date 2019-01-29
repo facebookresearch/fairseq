@@ -66,18 +66,17 @@ class TokenBlockDataset(FairseqDataset):
             if curr_size > 0:
                 self.slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'eos':
-            self.slice_indices = np.empty((sum(sizes > 1), 2), dtype=int)
+            self.slice_indices = np.empty((len(sizes), 2), dtype=int)
             curr = 0
             for i, sz in enumerate(sizes):
-                # skip samples with just 1 example (which would be just the eos token)
-                if sz > 1:
-                    self.slice_indices[i] = (curr, curr + sz)
+                self.slice_indices[i] = (curr, curr + sz)
                 curr += sz
         else:
             raise ValueError('Invalid break_mode: ' + break_mode)
 
         self.sizes = np.array([e - s for s, e in self.slice_indices])
         self.slice_indices = np.array(self.slice_indices, dtype=int)
+
         # build index mapping block indices to the underlying dataset indices
         self.block_to_dataset_index = np.empty((len(self.slice_indices), 3), dtype=int)
         ds_idx, ds_remaining = -1, 0
