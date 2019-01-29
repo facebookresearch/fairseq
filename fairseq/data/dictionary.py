@@ -58,7 +58,8 @@ class Dictionary(object):
                 return self[i]
 
         if bpe_symbol == 'sentencepiece':
-            sent = ''.join(token_string(i) for i in tensor if i != self.eos()).replace('\u2581', ' ')
+            sent = ''.join(token_string(i) for i in tensor if i != self.eos())
+            sent = sent.replace('\u2581', ' ').strip()
         else:
             sent = ' '.join(token_string(i) for i in tensor if i != self.eos())
         if bpe_symbol is not None and bpe_symbol != 'sentencepiece':
