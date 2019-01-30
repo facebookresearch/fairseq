@@ -5,8 +5,10 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from fairseq.data import data_utils, FairseqDataset, iterators
 import torch
+
+from fairseq.data import data_utils, FairseqDataset, iterators, Dictionary
+from fairseq.tokenizer import Tokenizer
 
 
 class FairseqTask(object):
@@ -31,7 +33,7 @@ class FairseqTask(object):
         Args:
             filename (str): the filename
         """
-        raise NotImplementedError
+        return Dictionary.load(filename)
 
     @classmethod
     def build_dictionary(cls, filenames, workers=1, threshold=-1, nwords=-1, padding_factor=8):
@@ -47,7 +49,11 @@ class FairseqTask(object):
                 multiple of 8, which is important on some hardware (e.g., Nvidia
                 Tensor Cores).
         """
-        raise NotImplementedError
+        d = Dictionary()
+        for filename in filenames:
+            Tokenizer.add_file_to_dictionary(filename, d, tokenizer.tokenize_line, workers)
+        d.finalize(threshold=threshold, nwords=nwords, padding_factor=padding_factor)
+        return d
 
     @classmethod
     def setup_task(cls, args, **kwargs):
