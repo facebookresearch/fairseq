@@ -244,7 +244,7 @@ def binarize(args, filename, dict, output_prefix, lang, offset, end):
     ds.finalize(dataset_dest_file(args, output_prefix, lang, "idx"))
     return res
 
-
+  
 def dataset_dest_prefix(args, output_prefix, lang):
     base = "{}/{}".format(args.destdir, output_prefix)
     lang_part = (
