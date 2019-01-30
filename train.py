@@ -24,7 +24,7 @@ from fairseq.meters import AverageMeter, StopwatchMeter
 from fairseq.utils import import_user_module
 
 
-def main(args):
+def main(args, init_distributed=False):
     import_user_module(args)
 
     if args.max_tokens is None:
@@ -40,6 +40,12 @@ def main(args):
 
     # Load dataset splits
     load_dataset_splits(task, ['train', 'valid'])
+
+    # Initialize distributed training (after data loading)
+    if init_distributed:
+        import socket
+        args.distributed_rank = distributed_utils.distributed_init(args)
+        print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
 
     # Build model and criterion
     model = task.build_model(args)
@@ -368,13 +374,10 @@ def load_dataset_splits(task, splits):
 
 
 def distributed_main(i, args):
-    import socket
     args.device_id = i
     if args.distributed_rank is None:  # torch.multiprocessing.spawn
         args.distributed_rank = i
-    args.distributed_rank = distributed_utils.distributed_init(args)
-    print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
-    main(args)
+    main(args, init_distributed=True)
 
 
 if __name__ == '__main__':
