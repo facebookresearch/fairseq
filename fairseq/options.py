@@ -379,6 +379,8 @@ def add_interactive_args(parser):
     # fmt: off
     group.add_argument('--buffer-size', default=0, type=int, metavar='N',
                        help='read this many sentences into a buffer before processing them')
+    group.add_argument('--input', default='-', type=str, metavar='FILE',
+                       help='file to read from; use - for stdin')
     # fmt: on
 
 
