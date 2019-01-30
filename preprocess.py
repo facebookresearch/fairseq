@@ -14,9 +14,8 @@ from itertools import zip_longest
 import os
 import shutil
 
-from fairseq import options
+from fairseq import options, tasks
 from fairseq.data import indexed_dataset
-from fairseq.tasks import TASK_REGISTRY
 from fairseq.tokenizer import Tokenizer
 from multiprocessing import Pool
 
@@ -30,7 +29,7 @@ def main(args):
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
 
-    task = TASK_REGISTRY[args.task]
+    task = tasks.get_task(args.task)
 
     def train_path(lang):
         return "{}{}".format(args.trainpref, ("." + lang) if lang else "")
