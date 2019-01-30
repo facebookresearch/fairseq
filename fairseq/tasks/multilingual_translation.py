@@ -246,7 +246,8 @@ class MultilingualTranslationTask(FairseqTask):
             for k, v in agg_logging_output.items()
         }
         flat_logging_output['loss'] = sum_over_languages('loss')
-        flat_logging_output['nll_loss'] = sum_over_languages('nll_loss')
+        if any('nll_loss' in logging_output for logging_output in agg_logging_outputs.values()):
+            flat_logging_output['nll_loss'] = sum_over_languages('nll_loss')
         flat_logging_output['sample_size'] = sum_over_languages('sample_size')
         flat_logging_output['nsentences'] = sum_over_languages('nsentences')
         flat_logging_output['ntokens'] = sum_over_languages('ntokens')

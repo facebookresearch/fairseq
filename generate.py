@@ -95,7 +95,10 @@ def main(args):
         translator.cuda()
 
     # Generate and compute BLEU score
-    scorer = bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
+    if args.sacrebleu:
+        scorer = bleu.SacrebleuScorer()
+    else:
+        scorer = bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
     num_sentences = 0
     has_target = True
     with progress_bar.build_progress_bar(args, itr) as t:
@@ -160,7 +163,10 @@ def main(args):
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tokenizer.Tokenizer.tokenize(
                             target_str, tgt_dict, add_if_not_exist=True)
-                    scorer.add(target_tokens, hypo_tokens)
+                    if hasattr(scorer, 'add_string'):
+                        scorer.add_string(target_str, hypo_str)
+                    else:
+                        scorer.add(target_tokens, hypo_tokens)
 
             wps_meter.update(src_tokens.size(0))
             t.log({'wps': round(wps_meter.avg)})
