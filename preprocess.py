@@ -47,6 +47,10 @@ def main(args):
         return dest_path("dict", lang) + ".txt"
 
     if args.joined_dictionary:
+        assert (
+                not args.srcdict or not args.tgtdict
+        ), "cannot use both --srcdict and --tgtdict with --joined-dictionary"
+
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         elif args.tgtdict:
