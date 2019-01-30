@@ -10,9 +10,10 @@ Translate raw text with a trained model. Batches data on-the-fly.
 """
 
 from collections import namedtuple
-import numpy as np
+import fileinput
 import sys
 
+import numpy as np
 import torch
 
 from fairseq import data, options, tasks, tokenizer, utils
@@ -23,9 +24,9 @@ Batch = namedtuple('Batch', 'srcs tokens lengths')
 Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
 
 
-def buffered_read(buffer_size):
+def buffered_read(input, buffer_size):
     buffer = []
-    for src_str in sys.stdin:
+    for src_str in fileinput.input(files=[input], openhook=fileinput.hook_encoded("utf-8")):
         buffer.append(src_str.strip())
         if len(buffer) >= buffer_size:
             yield buffer
@@ -165,12 +166,12 @@ def main(args):
     if args.buffer_size > 1:
         print('| Sentence buffer size:', args.buffer_size)
     print('| Type the input sentence and press return:')
-    for inputs in buffered_read(args.buffer_size):
+    for inputs in buffered_read(args.input, args.buffer_size):
         indices = []
         results = []
         for batch, batch_indices in make_batches(inputs, args, task, max_positions):
             indices.extend(batch_indices)
-            results += process_batch(batch)
+            results.extend(process_batch(batch))
 
         for i in np.argsort(indices):
             result = results[i]
