@@ -46,6 +46,16 @@ def main(args):
     def dict_path(lang):
         return dest_path("dict", lang) + ".txt"
 
+    def build_dictionary(filenames, src=False, tgt=False):
+        assert src ^ tgt
+        return task.build_dictionary(
+            filenames,
+            workers=args.workers,
+            threshold=args.thresholdsrc if src else args.thresholdtgt,
+            nwords=args.nwordssrc if src else args.nwordstgt,
+            padding_factor=args.padding_factor,
+        )
+
     if args.joined_dictionary:
         assert (
                 not args.srcdict or not args.tgtdict
@@ -59,10 +69,7 @@ def main(args):
             assert (
                 args.trainpref
             ), "--trainpref must be set if --srcdict is not specified"
-            src_dict = task.build_dictionary(
-                {train_path(lang) for lang in [args.source_lang, args.target_lang]},
-                args.workers,
-            )
+            src_dict = build_dictionary({train_path(lang) for lang in [args.source_lang, args.target_lang]}, src=True)
         tgt_dict = src_dict
     else:
         if args.srcdict:
@@ -71,7 +78,7 @@ def main(args):
             assert (
                 args.trainpref
             ), "--trainpref must be set if --srcdict is not specified"
-            src_dict = task.build_dictionary([train_path(args.source_lang)], args.workers)
+            src_dict = build_dictionary([train_path(args.source_lang)], src=True)
 
         if target:
             if args.tgtdict:
@@ -80,7 +87,7 @@ def main(args):
                 assert (
                     args.trainpref
                 ), "--trainpref must be set if --tgtdict is not specified"
-                tgt_dict = task.build_dictionary([train_path(args.target_lang)], args.workers)
+                tgt_dict = build_dictionary([train_path(args.target_lang)], tgt=True)
         else:
             tgt_dict = None
 
