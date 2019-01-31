@@ -45,13 +45,14 @@ class SentencePairClassificationDataset(FairseqDataset):
           Default: ``True``
     """
 
-    def __init__(self, dataset1, dataset2, labels, sizes1, sizes2, dictionary, concat_sentences_mode):
+    def __init__(self, dataset1, dataset2, labels, sizes1, sizes2, dictionary, concat_sentences_mode, use_bos=False):
         self.dataset1, self.dataset2 = dataset1, dataset2
         self.sizes1, self.sizes2 = np.array(sizes1), np.array(sizes2)
         self.labels = np.array(labels)
         self.vocab = dictionary
         self.shuffle = True
         self.concat_sentences_mode = concat_sentences_mode
+        self.use_bos = use_bos
 
     def __getitem__(self, index):
         sent1 = self.dataset1[index]
@@ -66,7 +67,8 @@ class SentencePairClassificationDataset(FairseqDataset):
 
     def _join_sents(self, sent1, sent2):
         eos = sent1.new_full((1,), self.vocab.eos())
-        sent1 = torch.cat([eos, sent1])
+        bos = eos if not self.use_bos else sent1.new_full((1,), self.vocab.bos())
+        sent1 = torch.cat([bos, sent1])
 
         if self.concat_sentences_mode == 'none':
             sent2 = torch.cat([eos, sent2])

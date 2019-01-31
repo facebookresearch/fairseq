@@ -78,7 +78,7 @@ class SequenceScorer(object):
                     decoder_out = (decoder_out[0][self.target_idx], decoder_out[1])
                 attn = decoder_out[1]
 
-            probs = model.get_normalized_probs(decoder_out, log_probs=len(self.models) == 1, sample=sample).data
+            probs = model.get_normalized_probs(decoder_out, log_probs=len(self.models) == 1, sample=None).data
             if avg_probs is None:
                 avg_probs = probs
             else:

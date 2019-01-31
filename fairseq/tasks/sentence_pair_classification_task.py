@@ -47,6 +47,8 @@ class SentencePairClassificationTask(FairseqTask):
                             help='number of labels')
         parser.add_argument('--concat-sentences-mode', default='none',
                             help='concat sentences in the dataset. none = dont concat, eos = eos concat, unk = unk concat')
+        parser.add_argument('--use-bos', default=False, action='store_true',
+                            help='if true, uses a separate bos tokens to indicate beginning of string')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -54,6 +56,7 @@ class SentencePairClassificationTask(FairseqTask):
         self.padding_idx = -100
         self.num_labels = args.num_labels
         self.concat_sentences_mode = args.concat_sentences_mode
+        self.use_bos = args.use_bos
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -129,7 +132,8 @@ class SentencePairClassificationTask(FairseqTask):
             sizes2 = np.concatenate([ds.sizes for ds in loaded_datasets[1]])
 
         self.datasets[split] = SentencePairClassificationDataset(
-            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary, self.concat_sentences_mode
+            dataset1, dataset2, loaded_labels, sizes1, sizes2, self.dictionary, self.concat_sentences_mode,
+            use_bos=self.use_bos
         )
 
     def extra_meters(self):

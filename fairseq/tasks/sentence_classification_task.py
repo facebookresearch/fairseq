@@ -45,12 +45,15 @@ class SentenceClassificationTask(FairseqTask):
                             help='load raw text dataset')
         parser.add_argument('--num-labels', type=int, default=2,
                             help='number of labels')
+        parser.add_argument('--use-bos', default=False, action='store_true',
+                            help='if true, uses a separate bos tokens to indicate beginning of string')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
         self.padding_idx = -100
         self.num_labels = args.num_labels
+        self.use_bos = args.use_bos
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -91,7 +94,7 @@ class SentenceClassificationTask(FairseqTask):
             loaded_datasets.append(
                 TokenBlockDataset(
                     ds, 0, pad=self.dictionary.pad(), eos=self.dictionary.eos(),
-                    break_mode='eos', include_targets=False,
+                    break_mode='eos', include_targets=False, use_bos=self.use_bos, bos=self.dictionary.bos()
                 ))
 
             with open(path + '.lbl', 'r') as lbl_f:

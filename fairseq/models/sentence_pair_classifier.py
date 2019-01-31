@@ -202,11 +202,12 @@ class SentencePairClassifier(BaseFairseqModel):
 
 @register_model('finetuning_sentence_pair_classifier')
 class FinetuningSentencePairClassifier(BaseFairseqModel):
-    def __init__(self, args, language_model, eos_idx, pad_idx, unk_idx, sep_idx):
+    def __init__(self, args, language_model, eos_idx, pad_idx, unk_idx, sep_idx, bos_idx):
         super().__init__()
 
         self.language_model = language_model
         self.eos_idx = eos_idx
+        self.bos_idx = bos_idx
         self.pad_idx = pad_idx
         self.unk_idx = unk_idx if args.concat_sentences_mode != 'sep' else sep_idx
 
@@ -278,7 +279,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
             x = F.layer_norm(x, x.shape[-2:])
             # x = self.ln(x)
 
-        idxs = sentence1.eq(self.eos_idx)
+        idxs = sentence1.eq(self.eos_idx) | sentence1.eq(self.bos_idx)
         if self.proj_unk:
             idxs = idxs | sentence1.eq(self.unk_idx)
 
@@ -351,7 +352,7 @@ class FinetuningSentencePairClassifier(BaseFairseqModel):
         print('seperator symbol: ', dictionary[dictionary.sep()])
 
         return FinetuningSentencePairClassifier(args, models[0], dictionary.eos(), dictionary.pad(), dictionary.unk(),
-                                                dictionary.sep())
+                                                dictionary.sep(), dictionary.bos())
 
 
 @register_model('hybrid_sentence_pair_classifier')
