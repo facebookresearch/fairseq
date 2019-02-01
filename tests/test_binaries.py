@@ -223,7 +223,7 @@ def create_dummy_data(data_dir, num_examples=1000, maxlen=20):
 
 
 def preprocess_translation_data(data_dir, extra_flags=None):
-    preprocess_parser = preprocess.get_parser()
+    preprocess_parser = options.get_preprocessing_parser()
     preprocess_args = preprocess_parser.parse_args(
         [
             '--source-lang', 'in',
@@ -291,7 +291,7 @@ def generate_main(data_dir, extra_flags=None):
 
 
 def preprocess_lm_data(data_dir):
-    preprocess_parser = preprocess.get_parser()
+    preprocess_parser = options.get_preprocessing_parser()
     preprocess_args = preprocess_parser.parse_args([
         '--only-source',
         '--trainpref', os.path.join(data_dir, 'train.out'),
