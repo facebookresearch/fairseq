@@ -19,20 +19,29 @@ class MultiheadAttention(nn.Module):
     See "Attention Is All You Need" for more details.
     """
 
-    def __init__(self, embed_dim, num_heads, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False):
+    def __init__(self, embed_dim, num_heads, kv_dim=None, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False):
         super().__init__()
         self.embed_dim = embed_dim
+        self.kv_dim = kv_dim if kv_dim is not None else embed_dim
+        self.qkv_same_dim = self.kv_dim == embed_dim
+
         self.num_heads = num_heads
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
+        if self.qkv_same_dim:
+            self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
+        else:
+            self.kv_proj_weight = Parameter(torch.Tensor(2 * embed_dim, self.kv_dim))
+            self.q_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
+
         if bias:
             self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
+
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         if add_bias_kv:
@@ -51,7 +60,12 @@ class MultiheadAttention(nn.Module):
         self.onnx_trace = True
 
     def reset_parameters(self):
-        nn.init.xavier_uniform_(self.in_proj_weight)
+        if self.qkv_same_dim:
+            nn.init.xavier_uniform_(self.in_proj_weight)
+        else:
+            nn.init.xavier_uniform_(self.kv_proj_weight)
+            nn.init.xavier_uniform_(self.q_proj_weight)
+
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.in_proj_bias is not None:
             nn.init.constant_(self.in_proj_bias, 0.)
@@ -169,7 +183,7 @@ class MultiheadAttention(nn.Module):
             attn_weights += attn_mask
 
         if key_padding_mask is not None:
-            # don't attend to padding symbols
+            # don't attend to padding []symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             if self.onnx_trace:
                 attn_weights = torch.where(
@@ -195,14 +209,14 @@ class MultiheadAttention(nn.Module):
             attn = attn.contiguous().view(tgt_len, bsz, embed_dim)
         else:
             attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
-        attn = self.out_proj(attn)
+            attn = self.out_proj(attn)
 
-        if need_weights:
-            # average attention weights over heads
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights.sum(dim=1) / self.num_heads
-        else:
-            attn_weights = None
+            if need_weights:
+                # average attention weights over heads
+                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+                attn_weights = attn_weights.sum(dim=1) / self.num_heads
+            else:
+                attn_weights = None
 
         return attn, attn_weights
 
@@ -210,16 +224,43 @@ class MultiheadAttention(nn.Module):
         return self._in_proj(query).chunk(3, dim=-1)
 
     def in_proj_kv(self, key):
-        return self._in_proj(key, start=self.embed_dim).chunk(2, dim=-1)
+        if self.qkv_same_dim:
+            return self._in_proj(key, start=self.embed_dim).chunk(2, dim=-1)
+        else:
+            bias = self.in_proj_bias
+            if bias is not None:
+                bias = bias[self.embed_dim:]
+            return F.linear(key, self.kv_proj_weight, bias).chunk(2, dim=-1)
 
     def in_proj_q(self, query):
-        return self._in_proj(query, end=self.embed_dim)
+        if self.qkv_same_dim:
+            return self._in_proj(query, end=self.embed_dim)
+        else:
+            bias = self.in_proj_bias
+            if bias is not None:
+                bias = bias[:self.embed_dim]
+            return F.linear(query, self.q_proj_weight, bias)
 
     def in_proj_k(self, key):
-        return self._in_proj(key, start=self.embed_dim, end=2 * self.embed_dim)
+        if self.qkv_same_dim:
+            return self._in_proj(key, start=self.embed_dim, end=2 * self.embed_dim)
+        else:
+            weight = self.kv_proj_weight[:self.embed_dim, :]
+            bias = self.in_proj_bias
+            if bias is not None:
+                bias = bias[self.embed_dim:2 * self.embed_dim]
+            return F.linear(key, weight, bias)
+
 
     def in_proj_v(self, value):
-        return self._in_proj(value, start=2 * self.embed_dim)
+        if self.qkv_same_dim:
+            return self._in_proj(value, start=2 * self.embed_dim)
+        else:
+            weight = self.kv_proj_weight[self.embed_dim:, :]
+            bias = self.in_proj_bias
+            if bias is not None:
+                bias = bias[2 * self.embed_dim:]
+            return F.linear(value, weight, bias)
 
     def _in_proj(self, input, start=0, end=None):
         weight = self.in_proj_weight
