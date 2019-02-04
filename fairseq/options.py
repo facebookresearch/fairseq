@@ -348,7 +348,7 @@ def add_common_eval_args(group):
     group.add_argument('--path', metavar='FILE',
                        help='path(s) to model file(s), colon separated')
     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
-                       help='remove BPE tokens before scoring')
+                       help='remove BPE tokens before scoring (can be set to sentencepiece)')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
     group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
@@ -400,6 +400,8 @@ def add_generation_args(parser):
                        help='unknown word penalty: <0 produces more unks, >0 produces fewer')
     group.add_argument('--replace-unk', nargs='?', const=True, default=None,
                        help='perform unknown replacement (optionally with alignment dictionary)')
+    group.add_argument('--sacrebleu', action='store_true',
+                       help='score with sacrebleu')
     group.add_argument('--score-reference', action='store_true',
                        help='just score the reference translation')
     group.add_argument('--prefix-size', default=0, type=int, metavar='PS',
@@ -427,6 +429,8 @@ def add_interactive_args(parser):
     # fmt: off
     group.add_argument('--buffer-size', default=0, type=int, metavar='N',
                        help='read this many sentences into a buffer before processing them')
+    group.add_argument('--input', default='-', type=str, metavar='FILE',
+                       help='file to read from; use - for stdin')
     # fmt: on
 
 

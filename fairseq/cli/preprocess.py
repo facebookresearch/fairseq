@@ -7,16 +7,16 @@
 """
 Data pre-processing: build vocabularies and binarize training data.
 """
-import os
-import shutil
 from collections import Counter
 from itertools import zip_longest
+import os
+import shutil
+
+from fairseq import options, tasks
+from fairseq.data import indexed_dataset
+from fairseq.tokenizer import Tokenizer
 from multiprocessing import Pool
 
-from fairseq import options
-from fairseq.data import indexed_dataset
-from fairseq.tasks import TASK_REGISTRY
-from fairseq.tokenizer import Tokenizer
 from fairseq.utils import import_user_module
 
 
@@ -27,7 +27,7 @@ def main(args):
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
 
-    task = TASK_REGISTRY[args.task]
+    task = tasks.get_task(args.task)
 
     def train_path(lang):
         return "{}{}".format(args.trainpref, ("." + lang) if lang else "")
@@ -44,7 +44,21 @@ def main(args):
     def dict_path(lang):
         return dest_path("dict", lang) + ".txt"
 
+    def build_dictionary(filenames, src=False, tgt=False):
+        assert src ^ tgt
+        return task.build_dictionary(
+            filenames,
+            workers=args.workers,
+            threshold=args.thresholdsrc if src else args.thresholdtgt,
+            nwords=args.nwordssrc if src else args.nwordstgt,
+            padding_factor=args.padding_factor,
+        )
+
     if args.joined_dictionary:
+        assert (
+                not args.srcdict or not args.tgtdict
+        ), "cannot use both --srcdict and --tgtdict with --joined-dictionary"
+
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         elif args.tgtdict:
@@ -53,10 +67,7 @@ def main(args):
             assert (
                 args.trainpref
             ), "--trainpref must be set if --srcdict is not specified"
-            src_dict = task.build_dictionary(
-                {train_path(lang) for lang in [args.source_lang, args.target_lang]},
-                args.workers,
-            )
+            src_dict = build_dictionary({train_path(lang) for lang in [args.source_lang, args.target_lang]}, src=True)
         tgt_dict = src_dict
     else:
         if args.srcdict:
@@ -65,7 +76,7 @@ def main(args):
             assert (
                 args.trainpref
             ), "--trainpref must be set if --srcdict is not specified"
-            src_dict = task.build_dictionary([train_path(args.source_lang)], args.workers)
+            src_dict = build_dictionary([train_path(args.source_lang)], src=True)
 
         if target:
             if args.tgtdict:
@@ -74,7 +85,7 @@ def main(args):
                 assert (
                     args.trainpref
                 ), "--trainpref must be set if --tgtdict is not specified"
-                tgt_dict = task.build_dictionary([train_path(args.target_lang)], args.workers)
+                tgt_dict = build_dictionary([train_path(args.target_lang)], tgt=True)
         else:
             tgt_dict = None
 

@@ -94,18 +94,6 @@ class TranslationTask(FairseqTask):
         self.tgt_dict = tgt_dict
 
     @classmethod
-    def load_dictionary(cls, filename):
-        return Dictionary.load(filename)
-
-    @classmethod
-    def build_dictionary(cls, filenames, workers=1, threshold=-1, nwords=-1, padding_factor=8):
-        d = dictionary.Dictionary()
-        for filename in filenames:
-            Tokenizer.add_file_to_dictionary(filename, d, tokenizer.tokenize_line, workers)
-        d.finalize(threshold=threshold, nwords=nwords, padding_factor=padding_factor)
-        return d
-
-    @classmethod
     def setup_task(cls, args, **kwargs):
         """Setup the task (e.g., load dictionaries).
 
