@@ -174,7 +174,11 @@ def main(parsed_args):
             print(ws)
 
 
-if __name__ == '__main__':
+def cli_main():
     parser = options.get_eval_lm_parser()
     args = options.parse_args_and_arch(parser)
     main(args)
+
+
+if __name__ == '__main__':
+    cli_main()
