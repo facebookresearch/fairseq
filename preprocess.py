@@ -271,7 +271,11 @@ def merge_files(files, outpath):
     ds.finalize("{}.idx".format(outpath))
 
 
-if __name__ == "__main__":
+def cli_main():
     parser = options.get_preprocessing_parser()
     args = parser.parse_args()
     main(args)
+
+
+if __name__ == "__main__":
+    cli_main()

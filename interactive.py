@@ -183,7 +183,11 @@ def main(args):
                     print(align)
 
 
-if __name__ == '__main__':
+def cli_main():
     parser = options.get_generation_parser(interactive=True)
     args = options.parse_args_and_arch(parser)
     main(args)
+
+
+if __name__ == '__main__':
+    cli_main()

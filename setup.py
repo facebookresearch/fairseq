@@ -43,4 +43,14 @@ setup(
     packages=find_packages(),
     ext_modules=[bleu],
     test_suite='tests',
+    entry_points={
+        'console_scripts': [
+            'fairseq-eval-lm = eval_lm:cli_main',
+            'fairseq-generate = generate:cli_main',
+            'fairseq-interactive = interactive:cli_main',
+            'fairseq-preprocess = preprocess:cli_main',
+            'fairseq-train = train:cli_main',
+            'fairseq-score = score:main',
+        ],
+    },
 )
