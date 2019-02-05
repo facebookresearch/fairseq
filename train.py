@@ -380,7 +380,7 @@ def distributed_main(i, args):
     main(args, init_distributed=True)
 
 
-if __name__ == '__main__':
+def cli_main():
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser)
 
@@ -415,3 +415,7 @@ if __name__ == '__main__':
     else:
         # single GPU training
         main(args)
+
+
+if __name__ == '__main__':
+    cli_main()
