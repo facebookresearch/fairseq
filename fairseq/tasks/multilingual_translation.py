@@ -132,11 +132,8 @@ class MultilingualTranslationTask(FairseqTask):
                     return IndexedCachedDataset(path, fix_lua_indexing=True)
             return None
 
-        def sort_lang_pair(lang_pair):
-            return '-'.join(sorted(lang_pair.split('-')))
-
         src_datasets, tgt_datasets = {}, {}
-        for lang_pair in set(map(sort_lang_pair, self.args.lang_pairs)):
+        for lang_pair in self.args.lang_pairs:
             src, tgt = lang_pair.split('-')
             if split_exists(split, src, tgt, src):
                 prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, src, tgt))
@@ -153,11 +150,7 @@ class MultilingualTranslationTask(FairseqTask):
 
         def language_pair_dataset(lang_pair):
             src, tgt = lang_pair.split('-')
-            if lang_pair in src_datasets:
-                src_dataset, tgt_dataset = src_datasets[lang_pair], tgt_datasets[lang_pair]
-            else:
-                lang_pair = sort_lang_pair(lang_pair)
-                tgt_dataset, src_dataset = src_datasets[lang_pair], tgt_datasets[lang_pair]
+            src_dataset, tgt_dataset = src_datasets[lang_pair], tgt_datasets[lang_pair]
             return LanguagePairDataset(
                 src_dataset, src_dataset.sizes, self.dicts[src],
                 tgt_dataset, tgt_dataset.sizes, self.dicts[tgt],
