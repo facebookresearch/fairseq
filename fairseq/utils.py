@@ -39,7 +39,7 @@ def convert_state_dict_type(state_dict, ttype=torch.FloatTensor):
         return state_dict
 
 
-def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
+def save_state(filename, args, model_state_dict, criterion, optimizer, lr_scheduler,
                num_updates, optim_history=None, extra_state=None):
     if optim_history is None:
         optim_history = []
@@ -47,7 +47,7 @@ def save_state(filename, args, model, criterion, optimizer, lr_scheduler,
         extra_state = {}
     state_dict = {
         'args': args,
-        'model': model.state_dict() if model else {},
+        'model': model_state_dict if model_state_dict else {},
         'optimizer_history': optim_history + [
             {
                 'criterion_name': criterion.__class__.__name__,
