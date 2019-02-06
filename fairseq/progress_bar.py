@@ -242,12 +242,12 @@ class tensorboard_log_wrapper(progress_bar):
     def log(self, stats, tag='', step=None):
         """Log intermediate stats to tensorboard."""
         self._log_to_tensorboard(stats, tag, step)
-        self.wrapped_bar.log(stats)
+        self.wrapped_bar.log(stats, tag=tag, step=step)
 
     def print(self, stats, tag='', step=None):
         """Print end-of-epoch stats."""
         self._log_to_tensorboard(stats, tag, step)
-        self.wrapped_bar.print(stats)
+        self.wrapped_bar.print(stats, tag=tag, step=step)
 
     def _log_to_tensorboard(self, stats, tag='', step=None):
         writer = self._writer(tag)
