@@ -232,7 +232,7 @@ def main(args):
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
 
 
-def binarize(args, filename, dict, output_prefix, lang, offset, end):
+def binarize(args, filename, dict, output_prefix, lang, offset, end, append_eos=True):
     ds = indexed_dataset.IndexedDatasetBuilder(
         dataset_dest_file(args, output_prefix, lang, "bin")
     )
@@ -240,7 +240,14 @@ def binarize(args, filename, dict, output_prefix, lang, offset, end):
     def consumer(tensor):
         ds.add_item(tensor)
 
-    res = Tokenizer.binarize(filename, dict, consumer, offset=offset, end=end)
+    res = Tokenizer.binarize(
+        filename,
+        dict,
+        consumer,
+        offset=offset,
+        end=end,
+        append_eos=append_eos
+    )
     ds.finalize(dataset_dest_file(args, output_prefix, lang, "idx"))
     return res
 
