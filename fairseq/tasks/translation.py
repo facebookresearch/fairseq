@@ -33,8 +33,8 @@ class TranslationTask(FairseqTask):
 
     .. note::
 
-        The translation task is compatible with :mod:`train.py <train>`,
-        :mod:`generate.py <generate>` and :mod:`interactive.py <interactive>`.
+        The translation task is compatible with :mod:`fairseq-train`,
+        :mod:`fairseq-generate` and :mod:`fairseq-interactive`.
 
     The translation task provides the following additional command-line
     arguments:

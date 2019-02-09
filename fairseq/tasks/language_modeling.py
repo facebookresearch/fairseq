@@ -41,9 +41,9 @@ class LanguageModelingTask(FairseqTask):
 
     .. note::
 
-        The language modeling task is compatible with :mod:`train.py <train>`,
-        :mod:`generate.py <generate>`, :mod:`interactive.py <interactive>` and
-        :mod:`eval_lm.py <eval_lm>`.
+        The language modeling task is compatible with :mod:`fairseq-train`,
+        :mod:`fairseq-generate`, :mod:`fairseq-interactive` and
+        :mod:`fairseq-eval-lm`.
 
     The language modeling task provides the following additional command-line
     arguments:

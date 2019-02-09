@@ -18,17 +18,17 @@ Generation with the binarized test sets can be run in batch mode as follows, e.g
 $ mkdir -p data-bin
 $ curl https://dl.fbaipublicfiles.com/fairseq/models/wmt14.v2.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
 $ curl https://dl.fbaipublicfiles.com/fairseq/data/wmt14.v2.en-fr.newstest2014.tar.bz2 | tar xvjf - -C data-bin
-$ python generate.py data-bin/wmt14.en-fr.newstest2014  \
+$ fairseq-generate data-bin/wmt14.en-fr.newstest2014  \
   --path data-bin/wmt14.en-fr.fconv-py/model.pt \
   --beam 5 --batch-size 128 --remove-bpe | tee /tmp/gen.out
 ...
 | Translated 3003 sentences (96311 tokens) in 166.0s (580.04 tokens/s)
 | Generate test with beam=5: BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 
-# Scoring with score.py:
+# Compute BLEU score
 $ grep ^H /tmp/gen.out | cut -f3- > /tmp/gen.out.sys
 $ grep ^T /tmp/gen.out | cut -f2- > /tmp/gen.out.ref
-$ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
+$ fairseq-score --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
 BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 ```
 
@@ -48,20 +48,20 @@ $ cd ../..
 
 # Binarize the dataset:
 $ TEXT=examples/translation/iwslt14.tokenized.de-en
-$ python preprocess.py --source-lang de --target-lang en \
+$ fairseq-preprocess --source-lang de --target-lang en \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/iwslt14.tokenized.de-en
 
 # Train the model (better for a single GPU setup):
 $ mkdir -p checkpoints/fconv
-$ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
+$ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt14.tokenized.de-en \
   --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --lr-scheduler fixed --force-anneal 200 \
   --arch fconv_iwslt_de_en --save-dir checkpoints/fconv
 
 # Generate:
-$ python generate.py data-bin/iwslt14.tokenized.de-en \
+$ fairseq-generate data-bin/iwslt14.tokenized.de-en \
   --path checkpoints/fconv/checkpoint_best.pt \
   --batch-size 128 --beam 5 --remove-bpe
 
@@ -73,7 +73,7 @@ To train transformer model on IWSLT'14 German to English:
 
 # Train the model (better for a single GPU setup):
 $ mkdir -p checkpoints/transformer
-$ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
+$ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt14.tokenized.de-en \
   -a transformer_iwslt_de_en --optimizer adam --lr 0.0005 -s de -t en \
   --label-smoothing 0.1 --dropout 0.3 --max-tokens 4000 \
   --min-lr '1e-09' --lr-scheduler inverse_sqrt --weight-decay 0.0001 \
@@ -86,7 +86,7 @@ $ python scripts/average_checkpoints.py --inputs checkpoints/transformer \
    --num-epoch-checkpoints 10 --output checkpoints/transformer/model.pt
 
 # Generate:
-$ python generate.py data-bin/iwslt14.tokenized.de-en \
+$ fairseq-generate data-bin/iwslt14.tokenized.de-en \
   --path checkpoints/transformer/model.pt \
   --batch-size 128 --beam 5 --remove-bpe
 
@@ -113,21 +113,21 @@ $ cd ../..
 
 # Binarize the dataset:
 $ TEXT=examples/translation/wmt14_en_de
-$ python preprocess.py --source-lang en --target-lang de \
+$ fairseq-preprocess --source-lang en --target-lang de \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/wmt14_en_de --thresholdtgt 0 --thresholdsrc 0
 
 # Train the model:
 # If it runs out of memory, try to set --max-tokens 1500 instead
 $ mkdir -p checkpoints/fconv_wmt_en_de
-$ python train.py data-bin/wmt14_en_de \
+$ fairseq-train data-bin/wmt14_en_de \
   --lr 0.5 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_de --save-dir checkpoints/fconv_wmt_en_de
 
 # Generate:
-$ python generate.py data-bin/wmt14_en_de \
+$ fairseq-generate data-bin/wmt14_en_de \
   --path checkpoints/fconv_wmt_en_de/checkpoint_best.pt --beam 5 --remove-bpe
 
 ```
@@ -145,21 +145,21 @@ $ cd ../..
 
 # Binarize the dataset:
 $ TEXT=examples/translation/wmt14_en_fr
-$ python preprocess.py --source-lang en --target-lang fr \
+$ fairseq-preprocess --source-lang en --target-lang fr \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/wmt14_en_fr --thresholdtgt 0 --thresholdsrc 0
 
 # Train the model:
 # If it runs out of memory, try to set --max-tokens 1000 instead
 $ mkdir -p checkpoints/fconv_wmt_en_fr
-$ python train.py data-bin/wmt14_en_fr \
+$ fairseq-train data-bin/wmt14_en_fr \
   --lr 0.5 --clip-norm 0.1 --dropout 0.1 --max-tokens 3000 \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_fr --save-dir checkpoints/fconv_wmt_en_fr
 
 # Generate:
-$ python generate.py data-bin/fconv_wmt_en_fr \
+$ fairseq-generate data-bin/fconv_wmt_en_fr \
   --path checkpoints/fconv_wmt_en_fr/checkpoint_best.pt --beam 5 --remove-bpe
 
 ```

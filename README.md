@@ -45,10 +45,18 @@ Please follow the instructions here: https://github.com/pytorch/pytorch#installa
 If you use Docker make sure to increase the shared memory size either with
 `--ipc=host` or `--shm-size` as command line options to `nvidia-docker run`.
 
-After PyTorch is installed, you can install fairseq with:
+After PyTorch is installed, you can install fairseq with `pip`:
 ```
-pip install -r requirements.txt
-python setup.py build develop
+pip install fairseq
+```
+
+**Installing from source**
+
+To install fairseq from source and develop locally:
+```
+git clone https://github.com/pytorch/fairseq
+cd fairseq
+pip install --editable .
 ```
 
 # Getting Started

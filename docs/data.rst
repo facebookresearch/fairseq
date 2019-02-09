@@ -46,8 +46,6 @@ Dictionary
 Iterators
 ---------
 
-.. autoclass:: fairseq.data.BufferedIterator
-    :members:
 .. autoclass:: fairseq.data.CountingIterator
     :members:
 .. autoclass:: fairseq.data.EpochBatchIterator
