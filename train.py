@@ -395,18 +395,8 @@ def cli_main():
         port = random.randint(10000, 20000)
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
         args.distributed_rank = None  # set based on device id
-        print(
-            '''| NOTE: you may get better performance with:
-
-            python -m torch.distributed.launch --nproc_per_node {ngpu} train.py {no_c10d}(...)
-            '''.format(
-                ngpu=args.distributed_world_size,
-                no_c10d=(
-                    '--ddp-backend=no_c10d ' if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d'
-                    else ''
-                ),
-            )
-        )
+        if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
+            print('| NOTE: you may get better performance with: --ddp-backend=no_c10d')
         torch.multiprocessing.spawn(
             fn=distributed_main,
             args=(args, ),

@@ -49,7 +49,10 @@ new plug-ins.
 
 **Loading plug-ins from another directory**
 
-New plug-ins can be defined in a custom module stored in the user system. In order to import the module, and make the plugin available to *fairseq*, the command line supports the ``--user-dir`` flag that can be used to specify a custom location for additional modules to load into *fairseq*.
+New plug-ins can be defined in a custom module stored in the user system. In
+order to import the module, and make the plugin available to *fairseq*, the
+command line supports the ``--user-dir`` flag that can be used to specify a
+custom location for additional modules to load into *fairseq*.
 
 For example, assuming this directory tree::
 
@@ -65,6 +68,6 @@ with ``__init__.py``::
   def transformer_mmt_big(args):
       transformer_vaswani_wmt_en_de_big(args)
 
-it is possible to invoke the ``train.py`` script with the new architecture with::
+it is possible to invoke the :ref:`fairseq-train` script with the new architecture with::
 
-  python3 train.py ... --user-dir /home/user/my-module -a my_transformer --task translation
+  fairseq-train ... --user-dir /home/user/my-module -a my_transformer --task translation
