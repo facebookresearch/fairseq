@@ -45,7 +45,7 @@ Training and evaluating DynamicConv (without GLU) on a GPU:
 # Training
 SAVE="save/dynamic_conv_iwslt"
 mkdir -p $SAVE 
-CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
+CUDA_VISIBLE_DEVICES=0 $(which fairseq-train) data-bin/iwslt14.tokenized.de-en \
     --clip-norm 0 --optimizer adam --lr 0.0005 \
     --source-lang de --target-lang en --max-tokens 4000 --no-progress-bar \
     --log-interval 100 --min-lr '1e-09' --weight-decay 0.0001 \
@@ -61,7 +61,7 @@ python scripts/average_checkpoints.py --inputs $SAVE \
     --num-epoch-checkpoints 10 --output "${SAVE}/checkpoint_last10_avg.pt"
 
 # Evaluation
-CUDA_VISIBLE_DEVICES=0 python generate.py data-bin/iwslt14.tokenized.de-en --path "${SAVE}/checkpoint_last10_avg.pt" --batch-size 128 --beam 4 --remove-bpe --lenpen 1 --gen-subset test --quiet 
+CUDA_VISIBLE_DEVICES=0 fairseq-generate data-bin/iwslt14.tokenized.de-en --path "${SAVE}/checkpoint_last10_avg.pt" --batch-size 128 --beam 4 --remove-bpe --lenpen 1 --gen-subset test --quiet 
 ```
 
 ### WMT16 En-De
@@ -70,7 +70,7 @@ Training and evaluating DynamicConv (with GLU) on WMT16 En-De using cosine sched
 # Training
 SAVE="save/dynamic_conv_wmt16en2de"
 mkdir -p $SAVE
-python -m torch.distributed.launch --nproc_per_node 8 train.py \
+python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     data-bin/wmt16_en_de_bpe32k --fp16  --log-interval 100 --no-progress-bar \
     --max-update 30000 --share-all-embeddings --optimizer adam \
     --adam-betas '(0.9, 0.98)' --lr-scheduler inverse_sqrt \
@@ -86,7 +86,7 @@ python -m torch.distributed.launch --nproc_per_node 8 train.py \
     --encoder-glu 1 --decoder-glu 1
 
 # Evaluation
-CUDA_VISIBLE_DEVICES=0 python generate.py data-bin/wmt16.en-de.joined-dict.newstest2014 --path "${SAVE}/checkpoint_best.pt" --batch-size 128 --beam 5 --remove-bpe --lenpen 0.5 --gen-subset test > wmt16_gen.txt
+CUDA_VISIBLE_DEVICES=0 fairseq-generate data-bin/wmt16.en-de.joined-dict.newstest2014 --path "${SAVE}/checkpoint_best.pt" --batch-size 128 --beam 5 --remove-bpe --lenpen 0.5 --gen-subset test > wmt16_gen.txt
 bash scripts/compound_split_bleu.sh wmt16_gen.txt
 ```
 
@@ -96,7 +96,7 @@ Training DynamicConv (with GLU) on WMT14 En-Fr using cosine scheduler on one mac
 # Training
 SAVE="save/dynamic_conv_wmt14en2fr"
 mkdir -p $SAVE
-python -m torch.distributed.launch --nproc_per_node 8 train.py \
+python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     data-bin/wmt14_en_fr --fp16  --log-interval 100 --no-progress-bar \
     --max-update 30000 --share-all-embeddings --optimizer adam \
     --adam-betas '(0.9, 0.98)' --lr-scheduler inverse_sqrt \
@@ -112,5 +112,5 @@ python -m torch.distributed.launch --nproc_per_node 8 train.py \
     --encoder-glu 1 --decoder-glu 1
 
 # Evaluation
-CUDA_VISIBLE_DEVICES=0 python generate.py data-bin/wmt14.en-fr.joined-dict.newstest2014 --path "${SAVE}/checkpoint_best.pt" --batch-size 128 --beam 5 --remove-bpe --lenpen 0.9 --gen-subset test
+CUDA_VISIBLE_DEVICES=0 fairseq-generate data-bin/wmt14.en-fr.joined-dict.newstest2014 --path "${SAVE}/checkpoint_best.pt" --batch-size 128 --beam 5 --remove-bpe --lenpen 0.9 --gen-subset test
 ```

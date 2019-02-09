@@ -15,17 +15,17 @@ done with the
 script using the ``wmt14.en-fr.fconv-cuda/bpecodes`` file. ``@@`` is
 used as a continuation marker and the original text can be easily
 recovered with e.g. ``sed s/@@ //g`` or by passing the ``--remove-bpe``
-flag to :ref:`generate.py`. Prior to BPE, input text needs to be tokenized
+flag to :ref:`fairseq-generate`. Prior to BPE, input text needs to be tokenized
 using ``tokenizer.perl`` from
 `mosesdecoder <https://github.com/moses-smt/mosesdecoder>`__.
 
-Let's use :ref:`interactive.py` to generate translations
+Let's use :ref:`fairseq-interactive` to generate translations
 interactively. Here, we use a beam size of 5:
 
 .. code-block:: console
 
     > MODEL_DIR=wmt14.en-fr.fconv-py
-    > python interactive.py \
+    > fairseq-interactive \
         --path $MODEL_DIR/model.pt $MODEL_DIR \
         --beam 5 --source-lang en --target-lang fr
     | loading model(s) from wmt14.en-fr.fconv-py/model.pt
@@ -66,7 +66,7 @@ datasets: IWSLT 2014 (German-English), WMT 2014 (English-French) and WMT
     > bash prepare-iwslt14.sh
     > cd ../..
     > TEXT=examples/translation/iwslt14.tokenized.de-en
-    > python preprocess.py --source-lang de --target-lang en \
+    > fairseq-preprocess --source-lang de --target-lang en \
         --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
         --destdir data-bin/iwslt14.tokenized.de-en
 
@@ -76,17 +76,17 @@ This will write binarized data that can be used for model training to
 Training
 --------
 
-Use :ref:`train.py` to train a new model. Here a few example settings that work
+Use :ref:`fairseq-train` to train a new model. Here a few example settings that work
 well for the IWSLT 2014 dataset:
 
 .. code-block:: console
 
     > mkdir -p checkpoints/fconv
-    > CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
+    > CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt14.tokenized.de-en \
         --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
         --arch fconv_iwslt_de_en --save-dir checkpoints/fconv
 
-By default, :ref:`train.py` will use all available GPUs on your machine. Use the
+By default, :ref:`fairseq-train` will use all available GPUs on your machine. Use the
 ``CUDA_VISIBLE_DEVICES`` environment variable to select specific GPUs and/or to
 change the number of GPU devices that will be used.
 
@@ -98,12 +98,12 @@ Generation
 ----------
 
 Once your model is trained, you can generate translations using
-:ref:`generate.py` **(for binarized data)** or
-:ref:`interactive.py` **(for raw text)**:
+:ref:`fairseq-generate` **(for binarized data)** or
+:ref:`fairseq-interactive` **(for raw text)**:
 
 .. code-block:: console
 
-    > python generate.py data-bin/iwslt14.tokenized.de-en \
+    > fairseq-generate data-bin/iwslt14.tokenized.de-en \
         --path checkpoints/fconv/checkpoint_best.pt \
         --batch-size 128 --beam 5
     | [de] dictionary: 35475 types
@@ -136,7 +136,7 @@ to training on 8 GPUs:
 
 .. code-block:: console
 
-    > CUDA_VISIBLE_DEVICES=0 python train.py --update-freq 8 (...)
+    > CUDA_VISIBLE_DEVICES=0 fairseq-train --update-freq 8 (...)
 
 Training with half precision floating point (FP16)
 --------------------------------------------------
@@ -152,7 +152,7 @@ Fairseq supports FP16 training with the ``--fp16`` flag:
 
 .. code-block:: console
 
-    > python train.py --fp16 (...)
+    > fairseq-train --fp16 (...)
 
 Lazily loading large training datasets
 --------------------------------------
@@ -178,7 +178,7 @@ replacing ``node_rank=0`` with ``node_rank=1`` on the second node:
     > python -m torch.distributed.launch --nproc_per_node=8 \
         --nnodes=2 --node_rank=0 --master_addr="192.168.1.1" \
         --master_port=1234 \
-        train.py data-bin/wmt16_en_de_bpe32k \
+        $(which fairseq-train) data-bin/wmt16_en_de_bpe32k \
         --arch transformer_vaswani_wmt_en_de_big --share-all-embeddings \
         --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
         --lr-scheduler inverse_sqrt --warmup-init-lr 1e-07 --warmup-updates 4000 \
