@@ -222,7 +222,7 @@ class TranslationMoETask(TranslationTask):
             )
 
     def aggregate_logging_outputs(self, logging_outputs, criterion):
-        agg_logging_outputs = criterion._aggregate_logging_outputs(logging_outputs)
+        agg_logging_outputs = criterion.__class__.aggregate_logging_outputs(logging_outputs)
         agg_logging_outputs['posterior'] = sum(
             log['posterior'] for log in logging_outputs if 'posterior' in log
         )
