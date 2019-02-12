@@ -37,8 +37,12 @@ class FairseqDecoder(nn.Module):
         """Get normalized probabilities (or log probs) from a net's output."""
 
         if hasattr(self, 'adaptive_softmax') and self.adaptive_softmax is not None:
-            assert sample is not None and 'target' in sample
-            out = self.adaptive_softmax.get_log_prob(net_output[0], sample['target'])
+            if sample is not None:
+                assert 'target' in sample
+                target = sample['target']
+            else:
+                target = None
+            out = self.adaptive_softmax.get_log_prob(net_output[0], target=target)
             return out.exp_() if not log_probs else out
 
         logits = net_output[0].float()

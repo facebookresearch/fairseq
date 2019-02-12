@@ -171,10 +171,13 @@ class SequenceGenerator(object):
                 incremental_states[model] = None
 
             # compute the encoder output for each beam
-            encoder_out = model.encoder(**encoder_input)
-            new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
-            new_order = new_order.to(src_tokens.device).long()
-            encoder_out = model.encoder.reorder_encoder_out(encoder_out, new_order)
+            if hasattr(model, 'encoder'):
+                encoder_out = model.encoder(**encoder_input)
+                new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
+                new_order = new_order.to(src_tokens.device).long()
+                encoder_out = model.encoder.reorder_encoder_out(encoder_out, new_order)
+            else:
+                encoder_out = None
             encoder_outs.append(encoder_out)
 
         # initialize buffers
@@ -333,7 +336,8 @@ class SequenceGenerator(object):
                 for i, model in enumerate(self.models):
                     if isinstance(model.decoder, FairseqIncrementalDecoder):
                         model.decoder.reorder_incremental_state(incremental_states[model], reorder_state)
-                    encoder_outs[i] = model.encoder.reorder_encoder_out(encoder_outs[i], reorder_state)
+                    if encoder_outs is not None and hasattr(model, 'encoder'):
+                        encoder_outs[i] = model.encoder.reorder_encoder_out(encoder_outs[i], reorder_state)
 
             lprobs, avg_attn_scores = self._decode(tokens[:, :step + 1], encoder_outs, incremental_states)
 
@@ -564,7 +568,7 @@ class SequenceGenerator(object):
                 decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=incremental_states[model]))
             else:
                 decoder_out = list(model.decoder(tokens, encoder_out))
-            decoder_out[0] = decoder_out[0][:, -1, :]
+            decoder_out[0] = decoder_out[0][:, -1:, :]
             attn = decoder_out[1]
             if type(attn) is dict:
                 attn = attn['attn']
@@ -573,4 +577,5 @@ class SequenceGenerator(object):
                     attn = attn['attn']
                 attn = attn[:, -1, :]
         probs = model.get_normalized_probs(decoder_out, log_probs=log_probs)
+        probs = probs[:, -1, :]
         return probs, attn
