@@ -10,9 +10,9 @@ import numpy as np
 import os
 
 from fairseq.data import (
-    ConcatDataset, Dictionary, IndexedInMemoryDataset, IndexedRawTextDataset,
+    ConcatDataset, Dictionary, ExtraLabelDataset, IndexedRawTextDataset,
     MonolingualDataset, TokenBlockDataset, TruncatedDictionary,
-    IndexedCachedDataset, IndexedDataset)
+    IndexedDataset)
 
 from . import FairseqTask, register_task
 
@@ -72,6 +72,8 @@ class LanguageModelingTask(FairseqTask):
                             help='space separated target tokens to ignore when computing loss')
         parser.add_argument('--use-bos', default=False, action='store_true',
                             help='if true, uses a separate bos tokens to indicate beginning of string')
+        parser.add_argument('--next-sentence-prediction', default=False, action='store_true',
+                            help='if true, tries to load a lbl file containing next sentence prediction labels')
 
     def __init__(self, args, dictionary, output_dictionary, targets=None):
         super().__init__(args)
@@ -131,6 +133,7 @@ class LanguageModelingTask(FairseqTask):
         """
 
         loaded_datasets = []
+        extra_labels = []
 
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
@@ -152,6 +155,10 @@ class LanguageModelingTask(FairseqTask):
                     break_mode=self.args.sample_break_mode, include_targets=True, use_bos=self.args.use_bos,
                     bos=self.dictionary.bos()
                 ))
+            if self.args.next_sentence_prediction:
+                with open(path + '.lbl', 'r') as lbl_f:
+                    lines = lbl_f.readlines()
+                    extra_labels.extend(int(l) for l in lines)
 
             print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
 
@@ -172,6 +179,9 @@ class LanguageModelingTask(FairseqTask):
             add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
             targets=self.targets, ignore_targets=list(filter(None, self.args.ignore_targets.split(' '))),
         )
+
+        if self.args.next_sentence_prediction:
+            self.datasets[split] = ExtraLabelDataset(self.datasets[split], extra_labels)
 
     @property
     def target_dictionary(self):

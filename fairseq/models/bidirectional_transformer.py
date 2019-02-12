@@ -180,6 +180,7 @@ class BiTransformerDecoder(FairseqDecoder):
         self.padding_idx = embed_tokens.padding_idx
         self.unk_idx = dictionary.unk()
         self.eos_idx = dictionary.eos()
+        self.bos_idx = dictionary.bos()
         self.max_target_positions = args.max_target_positions
         self.output_dim = args.decoder_embed_dim
 
@@ -242,8 +243,12 @@ class BiTransformerDecoder(FairseqDecoder):
             elif not self.share_input_output_embed:
                 self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), embed_dim))
                 nn.init.normal_(self.embed_out, mean=0, std=embed_dim ** -0.5)
+
+            mult = 2 if self.self_target else 1
+            self.nsp_proj = Linear(args.decoder_embed_dim * mult, 2) if args.next_sentence_prediction else None
         else:
             self.share_input_output_embed = False
+            self.nsp_proj = None
 
     def forward(self, source_tokens, mask_curr_state='full', pos_embs=None, **unused):
         """ Forward pass for the bidirectional transformer
@@ -348,14 +353,22 @@ class BiTransformerDecoder(FairseqDecoder):
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
             if self.share_input_output_embed and hasattr(self.embed_tokens, 'weight'):
-                x = [F.linear(x, self.embed_tokens.weight) for x in x]
+                out = [F.linear(x, self.embed_tokens.weight) for x in x]
             elif self.embed_out is not None:
-                x = [F.linear(x, self.embed_out) for x in x]
+                out = [F.linear(x, self.embed_out) for x in x]
+        else:
+            out = x
 
-        if len(x) == 1:
-            x = x[0]
+        if self.nsp_proj:
+            assert len(x) == 1
+            idxs = source_tokens.eq(self.eos_idx) | source_tokens.eq(self.bos_idx)
+            term_states = x[0][idxs].view(source_tokens.size(0), 1, -1)  # assume only 2 bos/eos per sample
+            out.append(self.nsp_proj(term_states))
 
-        return x, {'attn': attn, 'inner_states': inner_states}
+        if len(out) == 1:
+            out = x[0]
+
+        return out, {'attn': attn, 'inner_states': inner_states}
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
@@ -544,6 +557,8 @@ def base_bi_lm_architecture(args):
 
     # otherwise model training is unstable
     args.decoder_normalize_before = True
+
+    args.next_sentence_prediction = getattr(args, 'next_sentence_prediction', False)
 
 
 @register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_big')

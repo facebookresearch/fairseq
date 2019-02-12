@@ -8,6 +8,7 @@
 from .dictionary import Dictionary, TruncatedDictionary
 from .fairseq_dataset import FairseqDataset
 from .concat_dataset import ConcatDataset
+from .extra_label_dataset import ExtraLabelDataset
 from .indexed_dataset import IndexedDataset, IndexedCachedDataset, IndexedInMemoryDataset, IndexedRawTextDataset
 from .language_pair_dataset import LanguagePairDataset
 from .monolingual_dataset import MonolingualDataset
@@ -28,6 +29,7 @@ __all__ = [
     'CountingIterator',
     'Dictionary',
     'EpochBatchIterator',
+    'ExtraLabelDataset',
     'FairseqDataset',
     'GroupedIterator',
     'IndexedCachedDataset',

@@ -48,6 +48,9 @@ class CompositeLoss(FairseqCriterion):
         def get_targets(self, *unused):
             return self.target
 
+        def get_normalized_probs(self, *args, **kwargs):
+            return self.model.get_normalized_probs(*args, **kwargs)
+
         @property
         def decoder(self):
             return self.model.decoder
@@ -57,17 +60,20 @@ class CompositeLoss(FairseqCriterion):
         targets = sample['target']
 
         bsz = targets[0].size(0)
-        loss = net_outputs[0][0].new(1 if reduce else bsz).zero_()
+        loss = net_outputs[0][0].new(1 if reduce else bsz).zero_().float()
 
         sample_size = 0
         logging_output = {}
         for i, (o, t) in enumerate(zip(net_outputs[0], targets)):
+            sample['target'] = t
             m = CompositeLoss.FakeModel(model, (o, net_outputs[1]), t)
             l, ss, logging_output = self.underlying_criterion(m, sample, reduce)
+            l = l.float()
             if self.weights is not None:
                 l *= self.weights[i]
             loss += l
             sample_size += ss
+        sample['target'] = targets
 
         loss.div_(len(targets))
         sample_size /= len(targets)

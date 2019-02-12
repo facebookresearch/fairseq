@@ -171,8 +171,9 @@ class MonolingualDataset(FairseqDataset):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
             tgt_len = min(tgt_len, max_positions)
         bsz = num_tokens // tgt_len
-        target = self.vocab.dummy_sentence(tgt_len + 2)
-        source, past_target, future_target = target[1:-1], target[2:], target[:-2]
+        sent = self.vocab.dummy_sentence(tgt_len + 2)
+        target = torch.cat([sent.new([self.vocab.bos()]), sent])
+        source, past_target, future_target = target, target, target
         source, target = self._make_source_target(source, past_target, future_target)
 
         return self.collater([
