@@ -39,7 +39,10 @@ def main(args):
     print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
 
     # Set dictionaries
-    src_dict = task.source_dictionary
+    try:
+        src_dict = getattr(task, 'source_dictionary', None)
+    except NotImplementedError:
+        src_dict = None
     tgt_dict = task.target_dictionary
 
     # Load ensemble
@@ -121,12 +124,16 @@ def main(args):
                 src_str = task.dataset(args.gen_subset).src.get_original_text(sample_id)
                 target_str = task.dataset(args.gen_subset).tgt.get_original_text(sample_id)
             else:
-                src_str = src_dict.string(src_tokens, args.remove_bpe)
+                if src_dict is not None:
+                    src_str = src_dict.string(src_tokens, args.remove_bpe)
+                else:
+                    src_str = ""
                 if has_target:
                     target_str = tgt_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
 
             if not args.quiet:
-                print('S-{}\t{}'.format(sample_id, src_str))
+                if src_dict is not None:
+                    print('S-{}\t{}'.format(sample_id, src_str))
                 if has_target:
                     print('T-{}\t{}'.format(sample_id, target_str))
 
