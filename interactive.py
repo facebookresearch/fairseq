@@ -43,7 +43,7 @@ def make_batches(lines, args, task, max_positions):
     ]
     lengths = np.array([t.numel() for t in tokens])
     itr = task.get_batch_iterator(
-        dataset=data.LanguagePairDataset(tokens, lengths, task.source_dictionary),
+        dataset=task.build_dataset_for_inference(tokens, lengths),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
         max_positions=max_positions,

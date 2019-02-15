@@ -76,6 +76,7 @@ class MultilingualTranslationTask(FairseqTask):
     def __init__(self, args, dicts, training):
         super().__init__(args)
         self.dicts = dicts
+        self.lang_pairs = args.lang_pairs
         self.langs = list(dicts.keys())
         self.training = training
 
@@ -165,7 +166,16 @@ class MultilingualTranslationTask(FairseqTask):
                 (lang_pair, language_pair_dataset(lang_pair))
                 for lang_pair in self.args.lang_pairs
             ]),
-            eval_key=None if self.training else self.args.lang_pairs[0],
+            eval_key=None if self.training else "%s-%s" % (self.args.source_lang, self.args.target_lang),
+        )
+
+    def build_dataset_for_inference(self, src_tokens, src_lengths):
+        lang_pair = "%s-%s" % (self.args.source_lang, self.args.target_lang)
+        return RoundRobinZipDatasets(
+            OrderedDict([
+                (lang_pair, LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary))
+            ]),
+            eval_key=lang_pair,
         )
 
     def build_model(self, args):

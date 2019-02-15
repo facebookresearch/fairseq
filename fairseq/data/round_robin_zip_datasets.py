@@ -104,13 +104,6 @@ class RoundRobinZipDatasets(FairseqDataset):
         """Ordered indices for batching."""
         return np.arange(len(self))
 
-    def valid_size(self, index, max_positions):
-        """Check if an example's size is valid according to max_positions."""
-        return all(
-            dataset.valid_size(self._map_index(key, index), max_positions[key])
-            for key, dataset in self.datasets.items()
-        )
-
     @property
     def supports_prefetch(self):
         return all(
