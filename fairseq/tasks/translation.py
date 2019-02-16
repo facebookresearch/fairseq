@@ -192,6 +192,9 @@ class TranslationTask(FairseqTask):
             max_target_positions=self.args.max_target_positions,
         )
 
+    def build_dataset_for_inference(self, src_tokens, src_lengths):
+        return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
+
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
         return (self.args.max_source_positions, self.args.max_target_positions)

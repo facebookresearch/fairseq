@@ -153,10 +153,6 @@ class BacktranslationDataset(FairseqDataset):
         """Just use the tgt dataset ordered_indices"""
         return self.tgt_dataset.ordered_indices()
 
-    def valid_size(self, index, max_positions):
-        """Just use the tgt dataset size"""
-        return self.tgt_dataset.valid_size(index, max_positions)
-
     def size(self, index):
         """Return an example's size as a float or tuple. This value is used
         when filtering a dataset with ``--max-positions``.

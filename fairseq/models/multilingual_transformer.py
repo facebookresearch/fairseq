@@ -67,8 +67,8 @@ class MultilingualTransformerModel(FairseqMultiModel):
         if not hasattr(args, 'max_target_positions'):
             args.max_target_positions = 1024
 
-        src_langs = [lang_pair.split('-')[0] for lang_pair in args.lang_pairs]
-        tgt_langs = [lang_pair.split('-')[1] for lang_pair in args.lang_pairs]
+        src_langs = [lang_pair.split('-')[0] for lang_pair in task.lang_pairs]
+        tgt_langs = [lang_pair.split('-')[1] for lang_pair in task.lang_pairs]
 
         if args.share_encoders:
             args.share_encoder_embeddings = True
@@ -158,11 +158,20 @@ class MultilingualTransformerModel(FairseqMultiModel):
             shared_decoder = get_decoder(tgt_langs[0])
 
         encoders, decoders = OrderedDict(), OrderedDict()
-        for lang_pair, src, tgt in zip(args.lang_pairs, src_langs, tgt_langs):
+        for lang_pair, src, tgt in zip(task.lang_pairs, src_langs, tgt_langs):
             encoders[lang_pair] = shared_encoder if shared_encoder is not None else get_encoder(src)
             decoders[lang_pair] = shared_decoder if shared_decoder is not None else get_decoder(tgt)
 
         return MultilingualTransformerModel(encoders, decoders)
+
+    def load_state_dict(self, state_dict, strict=True):
+        state_dict_subset = state_dict.copy()
+        for k, v in state_dict.items():
+            assert k.startswith('models.')
+            lang_pair = k.split('.')[1]
+            if lang_pair not in self.models:
+                del state_dict_subset[k]
+        super().load_state_dict(state_dict_subset, strict=strict)
 
 
 @register_model_architecture('multilingual_transformer', 'multilingual_transformer')

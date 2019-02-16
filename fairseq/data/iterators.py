@@ -30,9 +30,10 @@ class CountingIterator(object):
         self.iterable = iterable
         self.count = 0
         self.itr = iter(self)
+        self.len = len(iterable)
 
     def __len__(self):
-        return len(self.iterable)
+        return self.len
 
     def __iter__(self):
         for x in self.iterable:
@@ -49,6 +50,7 @@ class CountingIterator(object):
     def skip(self, num_to_skip):
         """Fast-forward the iterator by skipping *num_to_skip* elements."""
         next(itertools.islice(self.itr, num_to_skip, num_to_skip), None)
+        self.len -= num_to_skip
         return self
 
 
