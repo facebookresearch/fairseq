@@ -157,6 +157,10 @@ def get_parser(desc, default_task='translation'):
                         help='number of updates before increasing loss scale')
     parser.add_argument('--fp16-scale-tolerance', default=0.0, type=float,
                         help='pct of updates that can overflow before decreasing the loss scale')
+    parser.add_argument('--min-loss-scale', default=1e-4, type=float, metavar='D',
+                        help='minimum FP16 loss scale, after which training is stopped')
+    parser.add_argument('--threshold-loss-scale', type=float,
+                        help='threshold FP16 loss scale from below')
     parser.add_argument('--user-dir', default=None,
                         help='path to a python module containing custom extensions (tasks and/or architectures)')
 
@@ -309,8 +313,6 @@ def add_optimization_args(parser):
                        help='learning rate shrink factor for annealing, lr_new = (lr * lr_shrink)')
     group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
                        help='minimum learning rate')
-    group.add_argument('--min-loss-scale', default=1e-4, type=float, metavar='D',
-                       help='minimum loss scale (for FP16 training)')
     # fmt: on
     return group
 
