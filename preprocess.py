@@ -56,37 +56,37 @@ def main(args):
             padding_factor=args.padding_factor,
         )
 
+    if not args.srcdict and os.path.exists(dict_path(args.source_lang)):
+        raise FileExistsError(dict_path(args.source_lang))
+    if target and not args.tgtdict and os.path.exists(dict_path(args.target_lang)):
+        raise FileExistsError(dict_path(args.target_lang))
+
     if args.joined_dictionary:
-        assert (
-                not args.srcdict or not args.tgtdict
-        ), "cannot use both --srcdict and --tgtdict with --joined-dictionary"
+        assert not args.srcdict or not args.tgtdict, \
+            "cannot use both --srcdict and --tgtdict with --joined-dictionary"
 
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         elif args.tgtdict:
             src_dict = task.load_dictionary(args.tgtdict)
         else:
-            assert (
-                args.trainpref
-            ), "--trainpref must be set if --srcdict is not specified"
-            src_dict = build_dictionary({train_path(lang) for lang in [args.source_lang, args.target_lang]}, src=True)
+            assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
+            src_dict = build_dictionary(
+                {train_path(lang) for lang in [args.source_lang, args.target_lang]}, src=True
+            )
         tgt_dict = src_dict
     else:
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         else:
-            assert (
-                args.trainpref
-            ), "--trainpref must be set if --srcdict is not specified"
+            assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
             src_dict = build_dictionary([train_path(args.source_lang)], src=True)
 
         if target:
             if args.tgtdict:
                 tgt_dict = task.load_dictionary(args.tgtdict)
             else:
-                assert (
-                    args.trainpref
-                ), "--trainpref must be set if --tgtdict is not specified"
+                assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
                 tgt_dict = build_dictionary([train_path(args.target_lang)], tgt=True)
         else:
             tgt_dict = None

@@ -50,6 +50,7 @@ class Trainer(object):
         self._num_updates = 0
         self._optim_history = None
         self._optimizer = None
+        self._prev_grad_norm = None
         self._wrapped_model = None
 
         self.init_meters(args)
@@ -215,12 +216,15 @@ class Trainer(object):
 
         # gather logging outputs from all replicas
         if self.args.distributed_world_size > 1:
-            logging_outputs, sample_sizes, ooms = zip(*distributed_utils.all_gather_list(
-                [logging_outputs, sample_sizes, ooms],
-            ))
+            logging_outputs, sample_sizes, ooms, prev_norms = \
+                zip(*distributed_utils.all_gather_list(
+                    [logging_outputs, sample_sizes, ooms, self._prev_grad_norm],
+                ))
             logging_outputs = list(chain.from_iterable(logging_outputs))
             sample_sizes = list(chain.from_iterable(sample_sizes))
             ooms = sum(ooms)
+            assert all(norm == prev_norms[0] for norm in prev_norms), \
+                'Fatal error: gradients are inconsistent between workers'
 
         self.meters['oom'].update(ooms, len(samples))
         if ooms == self.args.distributed_world_size * len(samples):
@@ -246,6 +250,7 @@ class Trainer(object):
 
             # clip grads
             grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
+            self._prev_grad_norm = grad_norm
 
             # take an optimization step
             self.optimizer.step()
