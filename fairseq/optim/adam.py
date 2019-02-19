@@ -16,7 +16,11 @@ from . import FairseqOptimizer, register_optimizer
 class FairseqAdam(FairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args, params)
-        self._optimizer = Adam(params, **self.optimizer_config)
+        try:
+            from apex.optimizers import FusedAdam
+            self._optimizer = FusedAdam(params, **self.optimizer_config)
+        except ImportError:
+            self._optimizer = Adam(params, **self.optimizer_config)
 
     @staticmethod
     def add_args(parser):

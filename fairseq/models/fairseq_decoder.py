@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -45,11 +46,11 @@ class FairseqDecoder(nn.Module):
             out = self.adaptive_softmax.get_log_prob(net_output[0], target=target)
             return out.exp_() if not log_probs else out
 
-        logits = net_output[0].float()
+        logits = net_output[0]
         if log_probs:
-            return F.log_softmax(logits, dim=-1)
+            return F.log_softmax(logits, dim=-1, dtype=torch.float32)
         else:
-            return F.softmax(logits, dim=-1)
+            return F.softmax(logits, dim=-1, dtype=torch.float32)
 
     def max_positions(self):
         """Maximum input length supported by the decoder."""
