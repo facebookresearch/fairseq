@@ -205,11 +205,8 @@ class FP16Optimizer(optim.FairseqOptimizer):
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
-        self.fp32_optimizer.zero_grad()
         for p in self.params:
-            if p.grad is not None:
-                p.grad.detach_()
-                p.grad.zero_()
+            p.grad = None
         self._needs_sync = False
 
 
