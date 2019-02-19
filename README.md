@@ -5,19 +5,20 @@ developers to train custom models for translation, summarization, language
 modeling and other text generation tasks. It provides reference implementations
 of various sequence-to-sequence models, including:
 - **Convolutional Neural Networks (CNN)**
-  - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](https://arxiv.org/abs/1612.08083)
-  - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](https://arxiv.org/abs/1705.03122)
-  - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://arxiv.org/abs/1711.04956)
-  - [Fan et al. (2018): Hierarchical Neural Story Generation](https://arxiv.org/abs/1805.04833)
+  - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/conv_lm/README.md)
+  - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
+  - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
+  - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
 - **LightConv and DynamicConv models**
-  - **_New_** [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](https://openreview.net/pdf?id=SkVhlh09tX)
+  - **_New_** [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
 - **Long Short-Term Memory (LSTM) networks**
   - [Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation](https://arxiv.org/abs/1508.04025)
   - [Wiseman and Rush (2016): Sequence-to-Sequence Learning as Beam-Search Optimization](https://arxiv.org/abs/1606.02960)
 - **Transformer (self-attention) networks**
   - [Vaswani et al. (2017): Attention Is All You Need](https://arxiv.org/abs/1706.03762)
-  - [Ott et al. (2018): Scaling Neural Machine Translation](https://arxiv.org/abs/1806.00187)
+  - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
   - [Edunov et al. (2018): Understanding Back-Translation at Scale](https://arxiv.org/abs/1808.09381)
+  - **_New_** [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 
 Fairseq features:
 - multi-GPU (distributed) training on one machine or across multiple machines
@@ -74,6 +75,7 @@ as well as example training and evaluation commands.
 - [Language Modeling](examples/language_model/README.md): convolutional models are available
 
 We also have more detailed READMEs to reproduce results from specific papers:
+- [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 - [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
 - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
 - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)

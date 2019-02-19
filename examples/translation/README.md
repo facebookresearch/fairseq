@@ -112,22 +112,22 @@ $ bash prepare-wmt14en2de.sh
 $ cd ../..
 
 # Binarize the dataset:
-$ TEXT=examples/translation/wmt14_en_de
+$ TEXT=examples/translation/wmt17_en_de
 $ fairseq-preprocess --source-lang en --target-lang de \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
-  --destdir data-bin/wmt14_en_de --thresholdtgt 0 --thresholdsrc 0
+  --destdir data-bin/wmt17_en_de --thresholdtgt 0 --thresholdsrc 0
 
 # Train the model:
 # If it runs out of memory, try to set --max-tokens 1500 instead
 $ mkdir -p checkpoints/fconv_wmt_en_de
-$ fairseq-train data-bin/wmt14_en_de \
+$ fairseq-train data-bin/wmt17_en_de \
   --lr 0.5 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_de --save-dir checkpoints/fconv_wmt_en_de
 
 # Generate:
-$ fairseq-generate data-bin/wmt14_en_de \
+$ fairseq-generate data-bin/wmt17_en_de \
   --path checkpoints/fconv_wmt_en_de/checkpoint_best.pt --beam 5 --remove-bpe
 
 ```
