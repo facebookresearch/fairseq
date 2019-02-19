@@ -11,17 +11,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq import options
-from fairseq import utils
-
+from fairseq import options, utils
 from fairseq.modules import (
-    AdaptiveInput, AdaptiveSoftmax, CharacterTokenEmbedder, LearnedPositionalEmbedding, MultiheadAttention,
-    SinusoidalPositionalEmbedding
+    AdaptiveInput, AdaptiveSoftmax, CharacterTokenEmbedder, LayerNorm,
+    LearnedPositionalEmbedding, MultiheadAttention, SinusoidalPositionalEmbedding,
 )
 
 from . import (
-    FairseqIncrementalDecoder, FairseqEncoder, FairseqLanguageModel, FairseqModel, register_model,
-    register_model_architecture,
+    FairseqIncrementalDecoder, FairseqEncoder, FairseqLanguageModel,
+    FairseqModel, register_model, register_model_architecture,
 )
 
 
@@ -763,11 +761,6 @@ def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
     nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
-    return m
-
-
-def LayerNorm(embedding_dim):
-    m = nn.LayerNorm(embedding_dim)
     return m
 
 

@@ -92,4 +92,7 @@ class FairseqOptimizer(object):
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
+        for group in self.optimizer.param_groups:
+            for p in group['params']:
+                p.grad = None
         self.optimizer.zero_grad()

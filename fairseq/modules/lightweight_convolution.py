@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -167,7 +168,7 @@ class LightweightConv1dTBC(nn.Module):
             x_unfold = x_unfold.view(T*B*H, R, K)
 
         if self.weight_softmax:
-            weight = F.softmax(weight.float(), dim=1).type_as(weight)
+            weight = F.softmax(weight, dim=1, dtype=torch.float32).type_as(weight)
 
         if incremental_state is not None:
             weight = weight[:, -x_unfold.size(2):]
@@ -192,7 +193,7 @@ class LightweightConv1dTBC(nn.Module):
 
         weight = self.weight.view(H, K)
         if self.weight_softmax:
-            weight = F.softmax(weight.float(), dim=1).type_as(weight)
+            weight = F.softmax(weight, dim=1, dtype=torch.float32).type_as(weight)
         weight = weight.view(1, H, K).expand(T*B, H, K).contiguous()
         weight = weight.view(T, B*H, K).transpose(0, 1)
 
