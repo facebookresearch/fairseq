@@ -11,6 +11,9 @@ import pdb
 import sys
 
 
+__all__ = ['set_trace']
+
+
 class MultiprocessingPdb(pdb.Pdb):
     """A Pdb wrapper that works in a multiprocessing environment.
 
@@ -36,4 +39,6 @@ class MultiprocessingPdb(pdb.Pdb):
                 sys.stdin = stdin_bak
 
 
-pdb = MultiprocessingPdb()
+def set_trace():
+    pdb = MultiprocessingPdb()
+    pdb.set_trace(sys._getframe().f_back)
