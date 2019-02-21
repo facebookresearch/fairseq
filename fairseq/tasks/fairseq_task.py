@@ -180,6 +180,31 @@ class FairseqTask(object):
         from fairseq import criterions
         return criterions.build_criterion(args, self)
 
+    def build_generator(self, args):
+        if args.score_reference:
+            from fairseq.sequence_scorer import SequenceScorer
+            return SequenceScorer(self.target_dictionary)
+        else:
+            from fairseq.sequence_generator import SequenceGenerator
+            return SequenceGenerator(
+                self.target_dictionary,
+                beam_size=args.beam,
+                max_len_a=args.max_len_a,
+                max_len_b=args.max_len_b,
+                min_len=args.min_len,
+                stop_early=(not args.no_early_stop),
+                normalize_scores=(not args.unnormalized),
+                len_penalty=args.lenpen,
+                unk_penalty=args.unkpen,
+                sampling=args.sampling,
+                sampling_topk=args.sampling_topk,
+                sampling_temperature=args.sampling_temperature,
+                diverse_beam_groups=args.diverse_beam_groups,
+                diverse_beam_strength=args.diverse_beam_strength,
+                match_source_len=args.match_source_len,
+                no_repeat_ngram_size=args.no_repeat_ngram_size,
+            )
+
     def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
         """
         Do forward and backward, and return the loss as computed by *criterion*
@@ -214,11 +239,9 @@ class FairseqTask(object):
             loss, sample_size, logging_output = criterion(model, sample)
         return loss, sample_size, logging_output
 
-    def init_logging_output(self, sample):
-        return {
-            'ntokens': sample['ntokens'] if sample is not None else 0,
-            'nsentences': sample['target'].size(0) if sample is not None else 0,
-        }
+    def inference_step(self, generator, models, sample, prefix_tokens=None):
+        with torch.no_grad():
+            return generator.generate(models, sample, prefix_tokens=prefix_tokens)
 
     def grad_denom(self, sample_sizes, criterion):
         return criterion.__class__.grad_denom(sample_sizes)

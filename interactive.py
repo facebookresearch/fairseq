@@ -13,24 +13,24 @@ from collections import namedtuple
 import fileinput
 import sys
 
-import numpy as np
 import torch
 
 from fairseq import data, options, tasks, tokenizer, utils
 from fairseq.sequence_generator import SequenceGenerator
 from fairseq.utils import import_user_module
 
-Batch = namedtuple('Batch', 'srcs tokens lengths')
+Batch = namedtuple('Batch', 'ids src_tokens src_lengths')
 Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
 
 
 def buffered_read(input, buffer_size):
     buffer = []
-    for src_str in fileinput.input(files=[input], openhook=fileinput.hook_encoded("utf-8")):
-        buffer.append(src_str.strip())
-        if len(buffer) >= buffer_size:
-            yield buffer
-            buffer = []
+    with fileinput.input(files=[input], openhook=fileinput.hook_encoded("utf-8")) as h:
+        for src_str in h:
+            buffer.append(src_str.strip())
+            if len(buffer) >= buffer_size:
+                yield buffer
+                buffer = []
 
     if len(buffer) > 0:
         yield buffer
@@ -41,7 +41,7 @@ def make_batches(lines, args, task, max_positions):
         tokenizer.Tokenizer.tokenize(src_str, task.source_dictionary, add_if_not_exist=False).long()
         for src_str in lines
     ]
-    lengths = np.array([t.numel() for t in tokens])
+    lengths = torch.LongTensor([t.numel() for t in tokens])
     itr = task.get_batch_iterator(
         dataset=task.build_dataset_for_inference(tokens, lengths),
         max_tokens=args.max_tokens,
@@ -50,10 +50,9 @@ def make_batches(lines, args, task, max_positions):
     ).next_epoch_itr(shuffle=False)
     for batch in itr:
         yield Batch(
-            srcs=[lines[i] for i in batch['id']],
-            tokens=batch['net_input']['src_tokens'],
-            lengths=batch['net_input']['src_lengths'],
-        ), batch['id']
+            ids=batch['id'],
+            src_tokens=batch['net_input']['src_tokens'], src_lengths=batch['net_input']['src_lengths'],
+        )
 
 
 def main(args):
@@ -83,6 +82,7 @@ def main(args):
     )
 
     # Set dictionaries
+    src_dict = task.source_dictionary
     tgt_dict = task.target_dictionary
 
     # Optimize ensemble for generation
@@ -93,70 +93,15 @@ def main(args):
         )
         if args.fp16:
             model.half()
+        if use_cuda:
+            model.cuda()
 
     # Initialize generator
-    translator = SequenceGenerator(
-        models, tgt_dict, beam_size=args.beam, minlen=args.min_len,
-        stop_early=(not args.no_early_stop), normalize_scores=(not args.unnormalized),
-        len_penalty=args.lenpen, unk_penalty=args.unkpen,
-        sampling=args.sampling, sampling_topk=args.sampling_topk, sampling_temperature=args.sampling_temperature,
-        diverse_beam_groups=args.diverse_beam_groups, diverse_beam_strength=args.diverse_beam_strength,
-        match_source_len=args.match_source_len, no_repeat_ngram_size=args.no_repeat_ngram_size,
-    )
-
-    if use_cuda:
-        translator.cuda()
+    generator = task.build_generator(args)
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
-
-    def make_result(src_str, hypos):
-        result = Translation(
-            src_str='O\t{}'.format(src_str),
-            hypos=[],
-            pos_scores=[],
-            alignments=[],
-        )
-
-        # Process top predictions
-        for hypo in hypos[:min(len(hypos), args.nbest)]:
-            hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
-                hypo_tokens=hypo['tokens'].int().cpu(),
-                src_str=src_str,
-                alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
-                align_dict=align_dict,
-                tgt_dict=tgt_dict,
-                remove_bpe=args.remove_bpe,
-            )
-            result.hypos.append('H\t{}\t{}'.format(hypo['score'], hypo_str))
-            result.pos_scores.append('P\t{}'.format(
-                ' '.join(map(
-                    lambda x: '{:.4f}'.format(x),
-                    hypo['positional_scores'].tolist(),
-                ))
-            ))
-            result.alignments.append(
-                'A\t{}'.format(' '.join(map(lambda x: str(utils.item(x)), alignment)))
-                if args.print_alignment else None
-            )
-        return result
-
-    def process_batch(batch):
-        tokens = batch.tokens
-        lengths = batch.lengths
-
-        if use_cuda:
-            tokens = tokens.cuda()
-            lengths = lengths.cuda()
-
-        encoder_input = {'src_tokens': tokens, 'src_lengths': lengths}
-        translations = translator.generate(
-            encoder_input,
-            maxlen=int(args.max_len_a * tokens.size(1) + args.max_len_b),
-        )
-
-        return [make_result(batch.srcs[i], t) for i, t in enumerate(translations)]
 
     max_positions = utils.resolve_max_positions(
         task.max_positions(),
@@ -166,21 +111,55 @@ def main(args):
     if args.buffer_size > 1:
         print('| Sentence buffer size:', args.buffer_size)
     print('| Type the input sentence and press return:')
+    start_id = 0
     for inputs in buffered_read(args.input, args.buffer_size):
-        indices = []
         results = []
-        for batch, batch_indices in make_batches(inputs, args, task, max_positions):
-            indices.extend(batch_indices)
-            results.extend(process_batch(batch))
+        for batch in make_batches(inputs, args, task, max_positions):
+            src_tokens = batch.src_tokens
+            src_lengths = batch.src_lengths
+            if use_cuda:
+                src_tokens = src_tokens.cuda()
+                src_lengths = src_lengths.cuda()
 
-        for i in np.argsort(indices):
-            result = results[i]
-            print(result.src_str)
-            for hypo, pos_scores, align in zip(result.hypos, result.pos_scores, result.alignments):
-                print(hypo)
-                print(pos_scores)
-                if align is not None:
-                    print(align)
+            sample = {
+                'net_input': {
+                    'src_tokens': src_tokens,
+                    'src_lengths': src_lengths,
+                },
+            }
+            translations = task.inference_step(generator, models, sample)
+            for i, (id, hypos) in enumerate(zip(batch.ids.tolist(), translations)):
+                src_tokens_i = utils.strip_pad(src_tokens[i], tgt_dict.pad())
+                results.append((start_id + id, src_tokens_i, hypos))
+
+        # sort output to match input order
+        for id, src_tokens, hypos in sorted(results, key=lambda x: x[0]):
+            src_str = src_dict.string(src_tokens, args.remove_bpe)
+            print('S-{}\t{}'.format(id, src_str))
+
+            # Process top predictions
+            for hypo in hypos[:min(len(hypos), args.nbest)]:
+                hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                    hypo_tokens=hypo['tokens'].int().cpu(),
+                    src_str=src_str,
+                    alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
+                    align_dict=align_dict,
+                    tgt_dict=tgt_dict,
+                    remove_bpe=args.remove_bpe,
+                )
+                print('H-{}\t{}\t{}'.format(id, hypo['score'], hypo_str))
+                print('P-{}\t{}'.format(
+                    id,
+                    ' '.join(map(lambda x: '{:.4f}'.format(x), hypo['positional_scores'].tolist()))
+                ))
+                if args.print_alignment:
+                    print('A-{}\t{}'.format(
+                        id,
+                        ' '.join(map(lambda x: str(utils.item(x)), alignment))
+                    ))
+
+        # update running id counter
+        start_id += len(results)
 
 
 def cli_main():
