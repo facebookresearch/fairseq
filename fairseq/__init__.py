@@ -5,8 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from .multiprocessing_pdb import pdb
-
 __all__ = ['pdb']
 __version__ = '0.6.1'
 
@@ -15,4 +13,5 @@ import fairseq.models
 import fairseq.modules
 import fairseq.optim
 import fairseq.optim.lr_scheduler
+import fairseq.pdb
 import fairseq.tasks
