@@ -6,7 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 __all__ = ['pdb']
-__version__ = '0.6.1'
+__version__ = '0.6.2'
 
 import fairseq.criterions
 import fairseq.models
