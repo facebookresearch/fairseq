@@ -348,7 +348,7 @@ class BiTransformerDecoder(FairseqDecoder):
             x.append(bwd_x)
 
         # T x B x C -> B x T x C
-        x = [z.transpose(0, 1) for z in x]
+        out = x = [z.transpose(0, 1) for z in x]
 
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
@@ -356,8 +356,6 @@ class BiTransformerDecoder(FairseqDecoder):
                 out = [F.linear(x, self.embed_tokens.weight) for x in x]
             elif self.embed_out is not None:
                 out = [F.linear(x, self.embed_out) for x in x]
-        else:
-            out = x
 
         if self.nsp_proj:
             assert len(x) == 1
@@ -396,8 +394,9 @@ class BiTransformerDecoder(FairseqDecoder):
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             state_dict[name + '.embed_positions._float_tensor'] = torch.FloatTensor(1)
         if not self.load_softmax:
+            keys_to_remove = ['.adaptive_softmax.', '.nsp_proj.', '.embed_out']
             for k in list(state_dict.keys()):
-                if k.startswith(name + '.adaptive_softmax.') or k.startswith(name + '.embed_out'):
+                if any(k.startswith(name + ktr) for ktr in keys_to_remove):
                     del state_dict[k]
         return state_dict
 
