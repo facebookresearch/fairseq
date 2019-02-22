@@ -76,6 +76,8 @@ def main(parsed_args):
         model.make_generation_fast_()
         if args.fp16:
             model.half()
+        if use_cuda:
+            model.cuda()
 
     assert len(models) > 0
 
@@ -95,9 +97,7 @@ def main(parsed_args):
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
-    scorer = SequenceScorer(models, task.target_dictionary)
-    if use_cuda:
-        scorer.cuda()
+    scorer = SequenceScorer(task.target_dictionary)
 
     score_sum = 0.
     count = 0
@@ -113,10 +113,18 @@ def main(parsed_args):
     word_stats = dict()
 
     with progress_bar.build_progress_bar(args, itr) as t:
-        results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
         wps_meter = TimeMeter()
-        for _, src_tokens, __, hypos in results:
-            for hypo in hypos:
+        for sample in t:
+            sample = utils.move_to_cuda(sample) if use_cuda else sample
+            if 'net_input' not in sample:
+                continue
+
+            gen_timer.start()
+            hypos = scorer.generate(models, sample)
+            gen_timer.stop(sample['ntokens'])
+
+            for hypos_i in hypos:
+                hypo = hypos_i[0]
                 pos_scores = hypo['positional_scores']
 
                 skipped_toks = 0
@@ -162,7 +170,7 @@ def main(parsed_args):
                     if args.output_word_probs:
                         print('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
 
-            wps_meter.update(src_tokens.size(0))
+            wps_meter.update(sample['ntokens'])
             t.log({'wps': round(wps_meter.avg)})
 
     avg_nll_loss = -score_sum / count

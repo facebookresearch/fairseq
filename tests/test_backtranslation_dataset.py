@@ -44,14 +44,13 @@ class TestBacktranslationDataset(unittest.TestCase):
         )
 
         generator = SequenceGenerator(
-            models=[self.model],
             tgt_dict=self.tgt_dict,
+            max_len_a=0,
+            max_len_b=200,
             beam_size=2,
             unk_penalty=0,
             sampling=False,
         )
-        if self.cuda:
-            generator.cuda()
 
         backtranslation_dataset = BacktranslationDataset(
             tgt_dataset=TransformEosDataset(
@@ -60,9 +59,9 @@ class TestBacktranslationDataset(unittest.TestCase):
                 # remove eos from the input src
                 remove_eos_from_src=remove_eos_from_input_src,
             ),
-            backtranslation_fn=generator.generate,
-            max_len_a=0,
-            max_len_b=200,
+            backtranslation_fn=(
+                lambda net_input: generator.generate([self.model], {'net_input': net_input})
+            ),
             output_collater=TransformEosDataset(
                 dataset=tgt_dataset,
                 eos=self.tgt_dict.eos(),
