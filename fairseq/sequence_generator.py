@@ -98,7 +98,14 @@ class SequenceGenerator(object):
             self.search = search.BeamSearch(tgt_dict)
 
     @torch.no_grad()
-    def generate(self, models, sample=None, net_input=None, prefix_tokens=None, **kwargs):
+    def generate(
+        self,
+        models,
+        sample,
+        prefix_tokens=None,
+        bos_token=None,
+        **kwargs
+    ):
         """Generate a batch of translations.
 
         Args:
@@ -143,7 +150,7 @@ class SequenceGenerator(object):
         scores_buf = scores.clone()
         tokens = src_tokens.new(bsz * beam_size, max_len + 2).fill_(self.pad)
         tokens_buf = tokens.clone()
-        tokens[:, 0] = self.eos
+        tokens[:, 0] = bos_token or self.eos
         attn, attn_buf = None, None
         nonpad_idxs = None
 

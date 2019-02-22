@@ -18,6 +18,8 @@ from .layer_norm import LayerNorm
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .lightweight_convolution import LightweightConv1dTBC
 from .linearized_convolution import LinearizedConvolution
+from .logsumexp_moe import LogSumExpMoE
+from .mean_pool_gating_network import MeanPoolGatingNetwork
 from .multihead_attention import MultiheadAttention
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
@@ -37,6 +39,8 @@ __all__ = [
     'LearnedPositionalEmbedding',
     'LightweightConv1dTBC',
     'LinearizedConvolution',
+    'LogSumExpMoE',
+    'MeanPoolGatingNetwork',
     'MultiheadAttention',
     'ScalarBias',
     'SinusoidalPositionalEmbedding',
