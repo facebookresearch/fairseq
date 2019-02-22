@@ -17,7 +17,7 @@ of various sequence-to-sequence models, including:
 - **Transformer (self-attention) networks**
   - [Vaswani et al. (2017): Attention Is All You Need](https://arxiv.org/abs/1706.03762)
   - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
-  - [Edunov et al. (2018): Understanding Back-Translation at Scale](https://arxiv.org/abs/1808.09381)
+  - [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)
   - **_New_** [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 
 Fairseq features:
@@ -77,6 +77,7 @@ as well as example training and evaluation commands.
 We also have more detailed READMEs to reproduce results from specific papers:
 - [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 - [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
+- [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)
 - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
 - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
 - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
