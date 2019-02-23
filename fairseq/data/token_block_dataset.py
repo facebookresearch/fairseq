@@ -109,7 +109,7 @@ class TokenBlockDataset(FairseqDataset):
                 if self.use_bos and source[0] == self.eos:
                     source = source.copy()
                     source[0] = bos
-                    if past_target.numel() > 1:
+                    if len(past_target) > 1:
                         past_target = past_target.copy()
                         past_target[1] = bos
 
