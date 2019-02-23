@@ -364,7 +364,7 @@ class BiTransformerDecoder(FairseqDecoder):
             out.append(self.nsp_proj(term_states))
 
         if len(out) == 1:
-            out = x[0]
+            out = out[0]
 
         return out, {'attn': attn, 'inner_states': inner_states}
 
