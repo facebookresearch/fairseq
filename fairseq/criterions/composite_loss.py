@@ -72,7 +72,7 @@ class CompositeLoss(FairseqCriterion):
             if self.weights is not None:
                 w = self.weights[i]
                 if w == 'avg_num_tokens':
-                    w = 1 / logging_output['ntokens']
+                    w = logging_output['nsentences'] / logging_output['ntokens']
                 l *= w
             loss += l
             sample_size += ss

@@ -84,7 +84,7 @@ if __name__ == '__main__':
         required=True,
         metavar='FILE',
         help='Path for output',
-    )m
+    )
     parser.add_argument(
         '--sep',
         default='<SEP>',
