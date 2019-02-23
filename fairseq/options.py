@@ -46,15 +46,25 @@ def get_eval_lm_parser(default_task='language_modeling'):
     return parser
 
 
-def eval_str_list(x, type=float):
+def eval_str_list(x, type=float, keep_wrong_type=False):
     if x is None:
         return None
     if isinstance(x, str):
         x = eval(x)
+
+    def cast(v):
+        try:
+            return type(v)
+        except ValueError:
+            if keep_wrong_type:
+                return v
+            else:
+                raise
+
     try:
-        return list(map(type, x))
+        return list(map(cast, x))
     except TypeError:
-        return [type(x)]
+        return [cast(x)]
 
 
 def eval_bool(x, default=False):

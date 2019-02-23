@@ -33,7 +33,7 @@ class CompositeLoss(FairseqCriterion):
 
         self.underlying_criterion = task.build_criterion(args)
         args.criterion = saved_criterion
-        self.weights = options.eval_str_list(args.loss_weights, type=float)
+        self.weights = options.eval_str_list(args.loss_weights, type=float, keep_wrong_type=True)
 
     class FakeModel(nn.Module):
         def __init__(self, model, net_out, target):
@@ -70,7 +70,10 @@ class CompositeLoss(FairseqCriterion):
             l, ss, logging_output = self.underlying_criterion(m, sample, reduce)
             l = l.float()
             if self.weights is not None:
-                l *= self.weights[i]
+                w = self.weights[i]
+                if w == 'avg_num_tokens':
+                    w = 1 / logging_output['ntokens']
+                l *= w
             loss += l
             sample_size += ss
         sample['target'] = targets
