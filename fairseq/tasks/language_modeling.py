@@ -6,8 +6,10 @@
 # can be found in the PATENTS file in the same directory.
 
 import itertools
-import numpy as np
 import os
+
+import torch
+import numpy as np
 
 from fairseq.data import (
     ConcatDataset,
@@ -17,6 +19,7 @@ from fairseq.data import (
     IndexedRawTextDataset,
     MonolingualDataset,
     TokenBlockDataset,
+    TransformEosDataset,
     TruncatedDictionary,
 )
 
@@ -184,6 +187,43 @@ class LanguageModelingTask(FairseqTask):
             add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
             targets=self.targets,
         )
+
+    def build_dataset_for_inference(self, src_tokens, src_lengths):
+        return TransformEosDataset(
+            MonolingualDataset(
+                TokenBlockDataset(
+                    src_tokens,
+                    src_lengths,
+                    block_size=None,
+                    pad=self.source_dictionary.pad(),
+                    eos=self.source_dictionary.eos(),
+                    break_mode='eos',
+                    include_targets=False,
+                ),
+                src_lengths,
+                self.source_dictionary,
+                self.target_dictionary,
+                add_eos_for_other_targets=False,
+                shuffle=False,
+            ),
+            eos=self.source_dictionary.eos(),
+            # remove EOS since this will be used as a prefix for generation
+            remove_eos_from_src=True,
+            has_target=False,
+        )
+
+    def inference_step(self, generator, models, sample, prefix_tokens=None):
+        with torch.no_grad():
+            if prefix_tokens is None:
+                # note: EOS has already been removed in build_dataset_for_inference
+                prefix_tokens = sample['net_input']['src_tokens']
+            return generator.generate(models, sample, prefix_tokens=prefix_tokens)
+
+    @property
+    def source_dictionary(self):
+        """Return the :class:`~fairseq.data.Dictionary` for the language
+        model."""
+        return self.output_dictionary
 
     @property
     def target_dictionary(self):

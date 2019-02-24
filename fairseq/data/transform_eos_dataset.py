@@ -32,6 +32,7 @@ class TransformEosDataset(FairseqDataset):
         remove_eos_from_src=False,
         append_eos_to_tgt=False,
         remove_eos_from_tgt=False,
+        has_target=True,
     ):
         if not isinstance(dataset, FairseqDataset):
             raise ValueError('dataset must be an instance of FairseqDataset')
@@ -46,6 +47,7 @@ class TransformEosDataset(FairseqDataset):
         self.remove_eos_from_src = remove_eos_from_src
         self.append_eos_to_tgt = append_eos_to_tgt
         self.remove_eos_from_tgt = remove_eos_from_tgt
+        self.has_target = has_target
 
         # precompute how we should adjust the reported sizes
         self._src_delta = 0
@@ -64,7 +66,7 @@ class TransformEosDataset(FairseqDataset):
             self._checked_src = True
 
     def _check_tgt(self, tgt, expect_eos):
-        if not self._checked_tgt:
+        if self.has_target and not self._checked_tgt:
             assert (tgt[-1] == self.eos[0]) == expect_eos
             self._checked_tgt = True
 
@@ -101,8 +103,11 @@ class TransformEosDataset(FairseqDataset):
         return self.dataset.num_tokens(index)
 
     def size(self, index):
-        src_len, tgt_len = self.dataset.size(index)
-        return (src_len + self._src_delta, tgt_len + self._tgt_delta)
+        if self.has_target:
+            src_len, tgt_len = self.dataset.size(index)
+            return (src_len + self._src_delta, tgt_len + self._tgt_delta)
+        else:
+            return self.dataset.size(index)
 
     def ordered_indices(self):
         # NOTE: we assume that the ordering does not change based on the
