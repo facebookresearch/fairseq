@@ -103,8 +103,11 @@ def main(parsed_args):
     count = 0
 
     if args.remove_bpe is not None:
-        bpe_cont = args.remove_bpe.rstrip()
-        bpe_toks = set(i for i in range(len(task.dictionary)) if task.dictionary[i].endswith(bpe_cont))
+        if args.remove_bpe == 'sentencepiece':
+            raise NotImplementedError
+        else:
+            bpe_cont = args.remove_bpe.rstrip()
+            bpe_toks = set(i for i in range(len(task.dictionary)) if task.dictionary[i].endswith(bpe_cont))
         bpe_len = len(bpe_cont)
     else:
         bpe_toks = None

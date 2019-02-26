@@ -343,16 +343,31 @@ class SequenceGenerator(object):
                         banned_tokens = [[] for bbsz_idx in range(bsz * beam_size)]
 
                     for bbsz_idx in range(bsz * beam_size):
-                        lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = float('-Inf')
+                        lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = -math.inf
 
                 if prefix_tokens is not None and step < prefix_tokens.size(1):
                     probs_slice = lprobs.view(bsz, -1, lprobs.size(-1))[:, 0, :]
                     cand_scores = torch.gather(
                         probs_slice, dim=1,
                         index=prefix_tokens[:, step].view(-1, 1)
-                    ).expand(-1, cand_size)
-                    cand_indices = prefix_tokens[:, step].view(-1, 1).expand(bsz, cand_size)
+                    ).view(-1, 1).repeat(1, cand_size)
+                    if step > 0:
+                        # save cumulative scores for each hypothesis
+                        cand_scores.add_(scores[:, step - 1].view(bsz, beam_size).repeat(1, 2))
+                    cand_indices = prefix_tokens[:, step].view(-1, 1).repeat(1, cand_size)
                     cand_beams = torch.zeros_like(cand_indices)
+
+                    # handle prefixes of different lengths
+                    partial_prefix_mask = prefix_tokens[:, step].eq(self.pad)
+                    if partial_prefix_mask.any():
+                        partial_scores, partial_indices, partial_beams = self.search.step(
+                            step,
+                            lprobs.view(bsz, -1, self.vocab_size),
+                            scores.view(bsz, beam_size, -1)[:, :, :step],
+                        )
+                        cand_scores[partial_prefix_mask] = partial_scores[partial_prefix_mask]
+                        cand_indices[partial_prefix_mask] = partial_indices[partial_prefix_mask]
+                        cand_beams[partial_prefix_mask] = partial_beams[partial_prefix_mask]
                 else:
                     cand_scores, cand_indices, cand_beams = self.search.step(
                         step,
@@ -531,7 +546,13 @@ class EnsembleModel(torch.nn.Module):
     @torch.no_grad()
     def forward_decoder(self, tokens, encoder_outs):
         if len(self.models) == 1:
-            return self._decode_one(tokens, self.models[0], encoder_outs[0], self.incremental_states, log_probs=True)
+            return self._decode_one(
+                tokens,
+                self.models[0],
+                encoder_outs[0] if self.has_encoder() else None,
+                self.incremental_states,
+                log_probs=True,
+            )
 
         log_probs = []
         avg_attn = None
