@@ -39,12 +39,11 @@ class RoundRobinZipDatasets(FairseqDataset):
                 self.longest_dataset = dataset
                 self.longest_dataset_key = key
 
-        self._ordered_indices = OrderedDict([
-            (key, dataset.ordered_indices())
-            for key, dataset in datasets.items()
-        ])
+        self._ordered_indices = None
 
     def _map_index(self, key, index):
+        assert self._ordered_indices is not None, \
+                'Must call RoundRobinZipDatasets.ordered_indices() first'
         return self._ordered_indices[key][index % len(self.datasets[key])]
 
     def __getitem__(self, index):
@@ -102,6 +101,14 @@ class RoundRobinZipDatasets(FairseqDataset):
 
     def ordered_indices(self):
         """Ordered indices for batching."""
+        if self._ordered_indices is None:
+            # Call the underlying dataset's ordered_indices() here, so that we
+            # get the same random ordering as we would have from using the
+            # underlying dataset directly.
+            self._ordered_indices = OrderedDict([
+                (key, dataset.ordered_indices())
+                for key, dataset in self.datasets.items()
+            ])
         return np.arange(len(self))
 
     @property

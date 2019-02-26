@@ -75,7 +75,6 @@ class LegacyDistributedDataParallel(nn.Module):
         self._register_grad_hook()
 
     def forward(self, *inputs, **kwargs):
-        self.need_reduction = True
         return self.module(*inputs, **kwargs)
 
     def _register_grad_hook(self):
@@ -166,6 +165,7 @@ class LegacyDistributedDataParallel(nn.Module):
         for p in self.module.parameters():
 
             def allreduce_hook(*unused):
+                self.need_reduction = True
                 Variable._execution_engine.queue_callback(reduction_fn)
 
             if p.requires_grad:
