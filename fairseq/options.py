@@ -138,6 +138,9 @@ def get_parser(desc, default_task='translation'):
                         help='log progress every N batches (when progress bar is disabled)')
     parser.add_argument('--log-format', default=None, help='log format to use',
                         choices=['json', 'none', 'simple', 'tqdm'])
+    parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
+                        help='path to save logs for tensorboard, should match --logdir '
+                        'of running tensorboard (default: no tensorboard logging)')
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')

@@ -61,9 +61,9 @@ class TestReproducibility(unittest.TestCase):
             def cast(s):
                 return round(float(s), 3)
 
-            for k in ['loss', 'ppl', 'num_updates', 'gnorm']:
+            for k in ['train_loss', 'train_ppl', 'train_num_updates', 'train_gnorm']:
                 self.assertEqual(cast(train_log[k]), cast(train_res_log[k]))
-            for k in ['valid_loss', 'valid_ppl', 'num_updates', 'best']:
+            for k in ['valid_loss', 'valid_ppl', 'valid_num_updates', 'valid_best_loss']:
                 self.assertEqual(cast(valid_log[k]), cast(valid_res_log[k]))
 
     def test_reproducibility(self):
