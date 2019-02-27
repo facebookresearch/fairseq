@@ -65,6 +65,9 @@ def main(parsed_args):
     for arg in vars(parsed_args).keys():
         if arg not in {'self_target', 'future_target', 'past_target', 'tokens_per_sample', 'output_size_dictionary'}:
             setattr(args, arg, getattr(parsed_args, arg))
+
+    max_sample_len = args.tokens_per_sample
+    args.tokens_per_sample -= args.context_window
     task = tasks.setup_task(args)
 
     # Load dataset splits
@@ -94,10 +97,11 @@ def main(parsed_args):
         num_shards=args.num_shards,
         shard_id=args.shard_id,
         num_workers=args.num_workers,
+        order_by_size=args.context_window == 0,
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
-    scorer = SequenceScorer(task.target_dictionary)
+    scorer = SequenceScorer(task.target_dictionary, args.softmax_batch)
 
     score_sum = 0.
     count = 0
@@ -114,10 +118,40 @@ def main(parsed_args):
 
     with progress_bar.build_progress_bar(args, itr) as t:
         wps_meter = TimeMeter()
+
+        prev_tokens = np.empty([0])
+        context_window = args.context_window
+        pad = task.dictionary.pad()
+
         for sample in t:
-            sample = utils.move_to_cuda(sample) if use_cuda else sample
             if 'net_input' not in sample:
                 continue
+
+            bsz, tsz = sample['net_input']['src_tokens'].shape
+            if context_window > 0:
+                start_idxs = [0] * bsz
+                toks = sample['net_input']['src_tokens']
+                lengths = sample['net_input']['src_lengths']
+                tgt = sample['target']
+                new_toks = np.empty([bsz, tsz + context_window], dtype=np.int64)
+                new_tgt = np.full([bsz, tsz + context_window], pad, dtype=np.int64)
+                sample_lens = toks.ne(pad).long().sum(dim=1).cpu()
+                for i in range(bsz):
+                    sample_len = sample_lens[i]
+                    extra = len(prev_tokens) + sample_len - max_sample_len
+                    if extra > 0:
+                        prev_tokens = prev_tokens[extra:]
+                    pads = np.full(context_window - len(prev_tokens), pad)
+                    new_toks[i] = np.concatenate([prev_tokens, toks[i].numpy(), pads])
+                    new_tgt[i, len(prev_tokens):len(prev_tokens) + len(tgt[i])] = tgt[i]
+                    start_idxs[i] = len(prev_tokens)
+                    lengths[i] += len(prev_tokens)
+                    prev_tokens = new_toks[i][new_toks[i] != pad][-context_window:]
+                sample['net_input']['src_tokens'] = torch.from_numpy(new_toks)
+                sample['target'] = torch.from_numpy(new_tgt)
+                sample['start_indices'] = start_idxs
+
+            sample = utils.move_to_cuda(sample) if use_cuda else sample
 
             gen_timer.start()
             hypos = scorer.generate(models, sample)
@@ -125,12 +159,15 @@ def main(parsed_args):
 
             for hypos_i in hypos:
                 hypo = hypos_i[0]
-                pos_scores = hypo['positional_scores']
+
+                tokens = hypo['tokens']
+                tgt_len = tokens.numel()
+                pos_scores = hypo['positional_scores'].float()
 
                 skipped_toks = 0
                 if bpe_toks is not None:
-                    for i in range(len(hypo['tokens']) - 1):
-                        if hypo['tokens'][i].item() in bpe_toks:
+                    for i in range(tgt_len - 1):
+                        if tokens[i].item() in bpe_toks:
                             skipped_toks += 1
                             pos_scores[i + 1] += pos_scores[i]
                             pos_scores[i] = 0
@@ -138,7 +175,7 @@ def main(parsed_args):
                 inf_scores = pos_scores.eq(float('inf')) | pos_scores.eq(float('-inf'))
                 if inf_scores.any():
                     print('| Skipping tokens with inf scores:',
-                          task.target_dictionary.string(hypo['tokens'][inf_scores.nonzero()]))
+                          task.target_dictionary.string(tokens[inf_scores.nonzero()]))
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
                 score_sum += pos_scores.sum().cpu()
                 count += pos_scores.numel() - skipped_toks
@@ -147,8 +184,8 @@ def main(parsed_args):
                     w = ''
                     word_prob = []
                     is_bpe = False
-                    for i in range(len(hypo['tokens'])):
-                        w_ind = hypo['tokens'][i].item()
+                    for i in range(len(tokens)):
+                        w_ind = tokens[i].item()
                         w += task.dictionary[w_ind]
                         if bpe_toks is not None and w_ind in bpe_toks:
                             w = w[:-bpe_len]
@@ -158,7 +195,7 @@ def main(parsed_args):
 
                             next_prob = None
                             ind = i + 1
-                            while ind < len(hypo['tokens']):
+                            while ind < len(tokens):
                                 if pos_scores[ind].item() != 0:
                                     next_prob = pos_scores[ind]
                                     break
