@@ -189,7 +189,9 @@ class TranslationMoETask(TranslationTask):
             loss = -modules.LogSumExpMoE.apply(lprob_yz, prob_z_xy, 1)
 
         loss = loss.sum()
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        sample_size = sample['ntokens']
+        if getattr(self.args, 'sentence_avg', False):
+            sample_size = sample['target'].size(0)
         logging_output = {
             'loss': utils.item(loss.data),
             'ntokens': sample['ntokens'],

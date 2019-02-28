@@ -25,6 +25,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         # fmt: off
         parser.add_argument('--label-smoothing', default=0., type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
+        parser.add_argument('--sentence-avg', action='store_true',
+                            help='normalize gradients by num. sentences instead of num. tokens')
         # fmt: on
 
     def forward(self, model, sample, reduce=True):

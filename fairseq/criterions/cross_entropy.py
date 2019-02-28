@@ -16,8 +16,13 @@ from . import FairseqCriterion, register_criterion
 @register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, task):
-        super().__init__(args, task)
+    @staticmethod
+    def add_args(parser):
+        """Add criterion-specific arguments to the parser."""
+        # fmt: off
+        parser.add_argument('--sentence-avg', action='store_true',
+                            help='normalize gradients by num. sentences instead of num. tokens')
+        # fmt: on
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
