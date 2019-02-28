@@ -38,7 +38,7 @@ def buffered_read(input, buffer_size):
 
 def make_batches(lines, args, task, max_positions):
     tokens = [
-        tokenizer.Tokenizer.tokenize(src_str, task.source_dictionary, add_if_not_exist=False).long()
+        task.source_dictionary.encode_line(src_str, add_if_not_exist=False).long()
         for src_str in lines
     ]
     lengths = torch.LongTensor([t.numel() for t in tokens])

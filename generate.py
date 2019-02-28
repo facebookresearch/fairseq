@@ -165,8 +165,7 @@ def main(args):
                     if has_target and i == 0:
                         if align_dict is not None or args.remove_bpe is not None:
                             # Convert back to tokens for evaluation with unk replacement and/or without BPE
-                            target_tokens = tokenizer.Tokenizer.tokenize(
-                                target_str, tgt_dict, add_if_not_exist=True)
+                            target_tokens = tgt_dict.encode_line(target_str, add_if_not_exist=True)
                         if hasattr(scorer, 'add_string'):
                             scorer.add_string(target_str, hypo_str)
                         else:
