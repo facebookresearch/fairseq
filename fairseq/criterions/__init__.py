@@ -16,7 +16,7 @@ CRITERION_CLASS_NAMES = set()
 
 
 def build_criterion(args, task):
-    return CRITERION_REGISTRY[args.criterion](args, task)
+    return CRITERION_REGISTRY[args.criterion].build_criterion(args, task)
 
 
 def register_criterion(name):
