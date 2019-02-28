@@ -6,9 +6,14 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import Counter
+from multiprocessing import Pool
 import os
 
 import torch
+
+from fairseq.tokenizer import tokenize_line
+from fairseq.binarizer import safe_readline
+from fairseq.data import data_utils
 
 
 class Dictionary(object):
@@ -57,14 +62,8 @@ class Dictionary(object):
             else:
                 return self[i]
 
-        if bpe_symbol == 'sentencepiece':
-            sent = ''.join(token_string(i) for i in tensor if i != self.eos())
-            sent = sent.replace('\u2581', ' ').strip()
-        else:
-            sent = ' '.join(token_string(i) for i in tensor if i != self.eos())
-        if bpe_symbol is not None and bpe_symbol != 'sentencepiece':
-            sent = (sent + ' ').replace(bpe_symbol, '').rstrip()
-        return sent
+        sent = ''.join(token_string(i) for i in tensor if i != self.eos())
+        return data_utils.process_bpe_symbol(sent, bpe_symbol)
 
     def unk_string(self, escape=False):
         """Return unknown string, optionally escaped as: <<unk>>"""
@@ -181,31 +180,104 @@ class Dictionary(object):
                                 "rebuild the dataset".format(f))
 
         d = cls()
-        for line in f.readlines():
+        lines = f.readlines()
+        indices_start_line = d._load_meta(lines)
+        for line in lines[indices_start_line:]:
             idx = line.rfind(' ')
             if idx == -1:
                 raise ValueError("Incorrect dictionary format, expected '<token> <cnt>'")
             word = line[:idx]
-            count = int(line[idx+1:])
+            count = int(line[idx + 1:])
             d.indices[word] = len(d.symbols)
             d.symbols.append(word)
             d.count.append(count)
         return d
 
-    def save(self, f):
-        """Stores dictionary into a text file"""
+    def _save(self, f, kv_iterator):
         if isinstance(f, str):
             os.makedirs(os.path.dirname(f), exist_ok=True)
             with open(f, 'w', encoding='utf-8') as fd:
                 return self.save(fd)
-        for symbol, count in zip(self.symbols[self.nspecial:], self.count[self.nspecial:]):
-            print('{} {}'.format(symbol, count), file=f)
+        for k, v in kv_iterator:
+            print('{} {}'.format(k, v), file=f)
+
+    def _get_meta(self):
+        return [], []
+
+    def _load_meta(self, lines):
+        return 0
+
+    def save(self, f):
+        """Stores dictionary into a text file"""
+        ex_keys, ex_vals = self._get_meta()
+        self._save(f, zip(ex_keys + self.symbols[self.nspecial:], ex_vals + self.count[self.nspecial:]))
 
     def dummy_sentence(self, length):
         t = torch.Tensor(length).uniform_(self.nspecial + 1, len(self)).long()
         t[-1] = self.eos()
         return t
 
+    def encode_line(self, line, line_tokenizer=tokenize_line, add_if_not_exist=True,
+                    consumer=None, append_eos=True, reverse_order=False):
+        words = line_tokenizer(line)
+        if reverse_order:
+            words = list(reversed(words))
+        nwords = len(words)
+        ids = torch.IntTensor(nwords + 1 if append_eos else nwords)
+
+        for i, word in enumerate(words):
+            if add_if_not_exist:
+                idx = self.add_symbol(word)
+            else:
+                idx = self.index(word)
+            if consumer is not None:
+                consumer(word, idx)
+            ids[i] = idx
+        if append_eos:
+            ids[nwords] = self.eos_index
+        return ids
+
+    @staticmethod
+    def _add_file_to_dictionary_single_worker(filename, tokenize, eos_word, worker_id=0, num_workers=1):
+        counter = Counter()
+        with open(filename, 'r', encoding='utf-8') as f:
+            size = os.fstat(f.fileno()).st_size
+            chunk_size = size // num_workers
+            offset = worker_id * chunk_size
+            end = offset + chunk_size
+            f.seek(offset)
+            if offset > 0:
+                safe_readline(f)  # drop first incomplete line
+            line = f.readline()
+            while line:
+                for word in tokenize(line):
+                    counter.update([word])
+                counter.update([eos_word])
+                if f.tell() > end:
+                    break
+                line = f.readline()
+        return counter
+
+    @staticmethod
+    def add_file_to_dictionary(filename, dict, tokenize, num_workers):
+        def merge_result(counter):
+            for w, c in counter.items():
+                dict.add_symbol(w, c)
+
+        if num_workers > 1:
+            pool = Pool(processes=num_workers)
+            results = []
+            for worker_id in range(num_workers):
+                results.append(pool.apply_async(
+                    Dictionary._add_file_to_dictionary_single_worker,
+                    (filename, tokenize, dict.eos_word, worker_id, num_workers)
+                ))
+            pool.close()
+            pool.join()
+            for r in results:
+                merge_result(r.get())
+        else:
+            merge_result(Dictionary._add_file_to_dictionary_single_worker(filename, tokenize, dict.eos_word))
 
 class TruncatedDictionary(object):
 

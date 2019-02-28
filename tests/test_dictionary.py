@@ -11,7 +11,6 @@ import unittest
 import torch
 
 from fairseq.data import Dictionary
-from fairseq.tokenizer import Tokenizer
 
 
 class TestDictionary(unittest.TestCase):
@@ -39,12 +38,12 @@ class TestDictionary(unittest.TestCase):
         # build dictionary
         d = Dictionary()
         for line in txt:
-            Tokenizer.tokenize(line, d, add_if_not_exist=True)
+            d.encode_line(line, add_if_not_exist=True)
 
         def get_ids(dictionary):
             ids = []
             for line in txt:
-                ids.append(Tokenizer.tokenize(line, dictionary, add_if_not_exist=False))
+                ids.append(dictionary.encode_line(line, add_if_not_exist=False))
             return ids
 
         def assertMatch(ids, ref_ids):

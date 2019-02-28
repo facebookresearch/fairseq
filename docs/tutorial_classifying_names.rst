@@ -209,7 +209,6 @@ following contents::
 
   from fairseq.data import Dictionary, LanguagePairDataset
   from fairseq.tasks import FairseqTask, register_task
-  from fairseq.tokenizer import Tokenizer
 
 
   @register_task('simple_classification')
@@ -253,8 +252,8 @@ following contents::
                   sentence = line.strip()
 
                   # Tokenize the sentence, splitting on spaces
-                  tokens = Tokenizer.tokenize(
-                      sentence, self.input_vocab, add_if_not_exist=False,
+                  tokens = self.input_vocab.encode_line(
+                      sentence, add_if_not_exist=False,
                   )
 
                   sentences.append(tokens)
@@ -356,7 +355,6 @@ Finally we can write a short script to evaluate our model on new inputs. Create
 a new file named :file:`eval_classifier.py` with the following contents::
 
   from fairseq import data, options, tasks, utils
-  from fairseq.tokenizer import Tokenizer
 
   # Parse command-line arguments for generation
   parser = options.get_generation_parser(default_task='simple_classification')
@@ -375,8 +373,8 @@ a new file named :file:`eval_classifier.py` with the following contents::
 
       # Tokenize into characters
       chars = ' '.join(list(sentence.strip()))
-      tokens = Tokenizer.tokenize(
-          chars, task.source_dictionary, add_if_not_exist=False,
+      tokens = task.source_dictionary.encode_line(
+          chars, add_if_not_exist=False,
       )
 
       # Build mini-batch to feed to the model
