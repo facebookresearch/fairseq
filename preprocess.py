@@ -25,8 +25,8 @@ from fairseq.utils import import_user_module
 def main(args):
     import_user_module(args)
 
-    print('running preprocessing')
-    print('args: ', args)
+    print(args)
+
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
 
@@ -230,8 +230,7 @@ def main(args):
                 "w", encoding='utf-8'
         ) as f:
             for k, v in align_dict.items():
-               pass
-		# print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
+                print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
 
 
 def binarize(args, filename, dict, output_prefix, lang, offset, end, append_eos=True):
