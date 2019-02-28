@@ -13,7 +13,7 @@ import argparse
 import os
 import sys
 
-from fairseq import bleu, tokenizer
+from fairseq import bleu
 from fairseq.data import dictionary
 
 
@@ -62,8 +62,8 @@ def main():
             with open(args.ref) as fdref:
                 scorer = bleu.Scorer(dict.pad(), dict.eos(), dict.unk())
                 for sys_tok, ref_tok in zip(readlines(fdsys), readlines(fdref)):
-                    sys_tok = tokenizer.Tokenizer.tokenize(sys_tok, dict)
-                    ref_tok = tokenizer.Tokenizer.tokenize(ref_tok, dict)
+                    sys_tok = dict.encode_line(sys_tok)
+                    ref_tok = dict.encode_line(ref_tok)
                     scorer.add(ref_tok, sys_tok)
                 print(scorer.result_string(args.order))
 
