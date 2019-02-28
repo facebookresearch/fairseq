@@ -20,6 +20,10 @@ class FairseqCriterion(_Loss):
         """Add criterion-specific arguments to the parser."""
         pass
 
+    @classmethod
+    def build_criterion(cls, args, task):
+        return cls(args, task)
+
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
@@ -34,15 +38,6 @@ class FairseqCriterion(_Loss):
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
         raise NotImplementedError
-
-    def _aggregate_logging_outputs(self, logging_outputs):
-        """An instance method version of :func:`aggregate_logging_outputs`.
-
-        This can be overridden if needed, but please be careful not to rely
-        on shared state when aggregating logging outputs otherwise you may
-        get incorrect results.
-        """
-        return self.__class__.aggregate_logging_outputs(logging_outputs)
 
     @staticmethod
     def grad_denom(sample_sizes):
