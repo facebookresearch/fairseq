@@ -43,7 +43,7 @@ $ fairseq-generate data-bin/wmt17_en_de \
     --task translation_moe \
     --method hMoElp --mean-pool-gating-network \
     --num-experts 3 \
-    --gen-expert 0 \
+    --gen-expert 0
 ```
 
 ## Evaluate
