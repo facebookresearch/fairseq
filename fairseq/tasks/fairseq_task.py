@@ -245,7 +245,7 @@ class FairseqTask(object):
         return criterion.__class__.grad_denom(sample_sizes)
 
     def aggregate_logging_outputs(self, logging_outputs, criterion):
-        return criterion._aggregate_logging_outputs(logging_outputs)
+        return criterion.__class__.aggregate_logging_outputs(logging_outputs)
 
     def max_positions(self):
         """Return the max input length allowed by the task."""
