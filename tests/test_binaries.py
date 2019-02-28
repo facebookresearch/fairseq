@@ -160,6 +160,25 @@ class TestTranslation(unittest.TestCase):
                 ])
                 generate_main(data_dir)
 
+    def test_mixture_of_experts(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_moe') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'transformer_iwslt_de_en', [
+                    '--task', 'translation_moe',
+                    '--method', 'hMoElp',
+                    '--mean-pool-gating-network',
+                    '--num-experts', '3',
+                ])
+                generate_main(data_dir, [
+                    '--task', 'translation_moe',
+                    '--method', 'hMoElp',
+                    '--mean-pool-gating-network',
+                    '--num-experts', '3',
+                    '--gen-expert', '0'
+                ])
+
 
 class TestStories(unittest.TestCase):
 
