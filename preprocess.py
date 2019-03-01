@@ -178,11 +178,11 @@ def main(args):
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(",")):
                 outprefix = "valid{}".format(k) if k > 0 else "valid"
-                make_dataset(vocab, validpref, outprefix, lang)
+                make_dataset(vocab, validpref, outprefix, lang, num_workers=args.workers)
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(",")):
                 outprefix = "test{}".format(k) if k > 0 else "test"
-                make_dataset(vocab, testpref, outprefix, lang)
+                make_dataset(vocab, testpref, outprefix, lang, num_workers=args.workers)
 
     make_all(args.source_lang, src_dict)
     if target:
