@@ -19,11 +19,12 @@ class MultiheadAttention(nn.Module):
     See "Attention Is All You Need" for more details.
     """
 
-    def __init__(self, embed_dim, num_heads, kv_dim=None, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False):
+    def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False):
         super().__init__()
         self.embed_dim = embed_dim
-        self.kv_dim = kv_dim if kv_dim is not None else embed_dim
-        self.qkv_same_dim = self.kv_dim == embed_dim
+        self.kdim = kdim if kdim is not None else embed_dim
+        self.vdim = vdim if vdim is not None else embed_dim
+        self.qkv_same_dim = self.kdim == embed_dim and self.vdim == embed_dim
 
         self.num_heads = num_heads
         self.dropout = dropout
@@ -34,7 +35,8 @@ class MultiheadAttention(nn.Module):
         if self.qkv_same_dim:
             self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
         else:
-            self.kv_proj_weight = Parameter(torch.Tensor(2 * embed_dim, self.kv_dim))
+            self.k_proj_weight = Parameter(torch.Tensor(embed_dim, self.kdim))
+            self.v_proj_weight = Parameter(torch.Tensor(embed_dim, self.vdim))
             self.q_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
 
         if bias:
@@ -63,7 +65,8 @@ class MultiheadAttention(nn.Module):
         if self.qkv_same_dim:
             nn.init.xavier_uniform_(self.in_proj_weight)
         else:
-            nn.init.xavier_uniform_(self.kv_proj_weight)
+            nn.init.xavier_uniform_(self.k_proj_weight)
+            nn.init.xavier_uniform_(self.v_proj_weight)
             nn.init.xavier_uniform_(self.q_proj_weight)
 
         nn.init.xavier_uniform_(self.out_proj.weight)
@@ -92,7 +95,7 @@ class MultiheadAttention(nn.Module):
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
-        assert key.size() == value.size()
+        # assert key.size() == value.size()
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
@@ -115,7 +118,9 @@ class MultiheadAttention(nn.Module):
                 assert value is None
                 k = v = None
             else:
-                k, v = self.in_proj_kv(key)
+                k = self.in_proj_k(key)
+                v = self.in_proj_v(key)
+
         else:
             q = self.in_proj_q(query)
             k = self.in_proj_k(key)
@@ -223,15 +228,6 @@ class MultiheadAttention(nn.Module):
     def in_proj_qkv(self, query):
         return self._in_proj(query).chunk(3, dim=-1)
 
-    def in_proj_kv(self, key):
-        if self.qkv_same_dim:
-            return self._in_proj(key, start=self.embed_dim).chunk(2, dim=-1)
-        else:
-            bias = self.in_proj_bias
-            if bias is not None:
-                bias = bias[self.embed_dim:]
-            return F.linear(key, self.kv_proj_weight, bias).chunk(2, dim=-1)
-
     def in_proj_q(self, query):
         if self.qkv_same_dim:
             return self._in_proj(query, end=self.embed_dim)
@@ -245,18 +241,17 @@ class MultiheadAttention(nn.Module):
         if self.qkv_same_dim:
             return self._in_proj(key, start=self.embed_dim, end=2 * self.embed_dim)
         else:
-            weight = self.kv_proj_weight[:self.embed_dim, :]
+            weight = self.k_proj_weight
             bias = self.in_proj_bias
             if bias is not None:
                 bias = bias[self.embed_dim:2 * self.embed_dim]
             return F.linear(key, weight, bias)
 
-
     def in_proj_v(self, value):
         if self.qkv_same_dim:
             return self._in_proj(value, start=2 * self.embed_dim)
         else:
-            weight = self.kv_proj_weight[self.embed_dim:, :]
+            weight = self.v_proj_weight
             bias = self.in_proj_bias
             if bias is not None:
                 bias = bias[2 * self.embed_dim:]
