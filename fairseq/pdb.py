@@ -14,7 +14,6 @@ import sys
 __all__ = ['set_trace']
 
 
-_stdin_fd = sys.stdin.fileno()
 _stdin = [None]
 _stdin_lock = multiprocessing.Lock()
 
@@ -33,7 +32,7 @@ class MultiprocessingPdb(pdb.Pdb):
         with _stdin_lock:
             try:
                 if not _stdin[0]:
-                    _stdin[0] = os.fdopen(_stdin_fd)
+                    _stdin[0] = os.fdopen(stdin_bak.fileno())
                 sys.stdin = _stdin[0]
                 self.cmdloop()
             finally:
