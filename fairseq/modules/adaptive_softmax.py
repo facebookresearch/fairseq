@@ -80,7 +80,7 @@ class AdaptiveSoftmax(nn.Module):
         else:
             self.head = nn.Linear(input_dim, output_dim, bias=False)
 
-        self._make_tail(True, adaptive_inputs, tie_proj)
+        self._make_tail(adaptive_inputs, tie_proj)
 
         def init_weights(m):
             if hasattr(m, 'weight') and not isinstance(m, TiedLinear) and not isinstance(m, TiedHeadModule):
@@ -89,15 +89,11 @@ class AdaptiveSoftmax(nn.Module):
         self.apply(init_weights)
 
         self.register_buffer('version', torch.LongTensor([1]))
-        # versions prior to 1 had a bug that offset indices on the head by 1
-        self.buggy_offset = 0
 
-    def _make_tail(self, fix_exponent, adaptive_inputs=None, tie_proj=False):
-        extra_denom = 1 if fix_exponent else 0
-
+    def _make_tail(self, adaptive_inputs=None, tie_proj=False):
         self.tail = nn.ModuleList()
         for i in range(len(self.cutoff) - 1):
-            dim = int(self.input_dim // self.factor ** (i + extra_denom))
+            dim = int(self.input_dim // self.factor ** (i + 1))
 
             tied_emb, tied_proj = adaptive_inputs.weights_for_band(i + 1) \
                 if adaptive_inputs is not None else (None, None)
@@ -123,9 +119,7 @@ class AdaptiveSoftmax(nn.Module):
     def upgrade_state_dict_named(self, state_dict, name):
         version_name = name + '.version'
         if version_name not in state_dict:
-            self.buggy_offset = 1
-            self._make_tail(False)
-            state_dict[version_name] = torch.LongTensor([1])
+            raise Exception('This version of the model is no longer supported')
 
     def adapt_target(self, target):
         """
@@ -141,7 +135,7 @@ class AdaptiveSoftmax(nn.Module):
 
         for i in range(len(self.cutoff) - 1):
             mask = target.ge(self.cutoff[i]).mul(target.lt(self.cutoff[i + 1]))
-            new_target[0][mask] = self.cutoff[0] + i - self.buggy_offset
+            new_target[0][mask] = self.cutoff[0] + i
 
             if mask.any():
                 target_idxs.append(mask.nonzero().squeeze(1))
@@ -194,7 +188,7 @@ class AdaptiveSoftmax(nn.Module):
 
         head_sz = self.cutoff[0] + len(self.tail)
         log_probs[:, :head_sz] = self.lsm(head_y)
-        tail_priors = log_probs[:, self.cutoff[0] - self.buggy_offset: head_sz - self.buggy_offset].clone()
+        tail_priors = log_probs[:, self.cutoff[0]: head_sz].clone()
 
         for i in range(len(self.tail)):
             start = self.cutoff[i]
