@@ -233,6 +233,8 @@ def add_dataset_args(parser, train=False, gen=False):
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
                            help='maximum number of sentences in a validation batch'
                                 ' (defaults to --max-sentences)')
+        group.add_argument('--curriculum', default=0, type=int, metavar='N',
+                           help='don\'t shuffle batches for first N epochs')
     if gen:
         group.add_argument('--gen-subset', default='test', metavar='SPLIT',
                            help='data subset to generate (train, valid, test)')
