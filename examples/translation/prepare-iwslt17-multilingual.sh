@@ -114,13 +114,13 @@ for SRC in "${SRCS[@]}"; do
         python "$SPM_ENCODE" \
             --model "$DATA/sentencepiece.bpe.model" \
             --output_format=piece \
-            --inputs "$DATA/train.${SRC}-${TGT}.${SRC} $DATA/train.${SRC}-${TGT}.${TGT}" \
-            --outputs "$DATA/train.bpe.${SRC}-${TGT}.${SRC} $DATA/train.bpe.${SRC}-${TGT}.${TGT}" \
+            --inputs $DATA/train.${SRC}-${TGT}.${SRC} $DATA/train.${SRC}-${TGT}.${TGT} \
+            --outputs $DATA/train.bpe.${SRC}-${TGT}.${SRC} $DATA/train.bpe.${SRC}-${TGT}.${TGT} \
             --min-len $TRAIN_MINLEN --max-len $TRAIN_MAXLEN
         python "$SPM_ENCODE" \
             --model "$DATA/sentencepiece.bpe.model" \
             --output_format=piece \
-            --inputs "$DATA/valid.${SRC}-${TGT}.${SRC} $DATA/valid.${SRC}-${TGT}.${TGT}" \
-            --outputs "$DATA/valid.bpe.${SRC}-${TGT}.${SRC} $DATA/valid.bpe.${SRC}-${TGT}.${TGT}"
+            --inputs $DATA/valid.${SRC}-${TGT}.${SRC} $DATA/valid.${SRC}-${TGT}.${TGT} \
+            --outputs $DATA/valid.bpe.${SRC}-${TGT}.${SRC} $DATA/valid.bpe.${SRC}-${TGT}.${TGT}
     done
 done
