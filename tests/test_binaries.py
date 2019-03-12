@@ -234,6 +234,7 @@ class TestCommonOptions(unittest.TestCase):
                     if os.path.exists(last_checkpoint):
                         os.remove(last_checkpoint)
                     train_translation_model(data_dir, 'lstm', [
+                        '--required-batch-size-multiple', '1',
                         '--encoder-layers', '1',
                         '--encoder-hidden-size', '32',
                         '--decoder-layers', '1',

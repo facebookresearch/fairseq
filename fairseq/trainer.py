@@ -202,7 +202,7 @@ class Trainer(object):
                     sample_sizes.append(sample_size)
             except RuntimeError as e:
                 if 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory, skipping batch')
+                    print(('| WARNING: ran out of memory with exception: {};\n Skipping batch').format(str(e)))
                     ooms += 1
                     self.zero_grad()
                 else:

@@ -223,6 +223,8 @@ def add_dataset_args(parser, train=False, gen=False):
                        help='maximum number of tokens in a batch')
     group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
                        help='maximum number of sentences in a batch')
+    group.add_argument('--required-batch-size-multiple', default=8, type=int, metavar='N',
+                       help='batch size will be a multiplier of this value')
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
                            choices=['train', 'valid', 'test'],
@@ -359,6 +361,8 @@ def add_common_eval_args(group):
     group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
                        help='a dictionary used to override model args at generation '
                             'that were used during model training')
+    group.add_argument('--results-path', metavar='RESDIR', type=str, default=None,
+                       help='path to save eval results (optional)"')
     # fmt: on
 
 

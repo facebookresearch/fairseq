@@ -127,7 +127,10 @@ class SequenceGenerator(object):
 
         src_tokens = encoder_input['src_tokens']
         src_lengths = (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
-        bsz, src_len = src_tokens.size()
+        input_size = src_tokens.size()
+        # batch dimension goes first followed by source lengths
+        bsz = input_size[0]
+        src_len = input_size[1]
         beam_size = self.beam_size
 
         if self.match_source_len:
@@ -148,7 +151,7 @@ class SequenceGenerator(object):
         # initialize buffers
         scores = src_tokens.new(bsz * beam_size, max_len + 1).float().fill_(0)
         scores_buf = scores.clone()
-        tokens = src_tokens.new(bsz * beam_size, max_len + 2).fill_(self.pad)
+        tokens = src_tokens.data.new(bsz * beam_size, max_len + 2).long().fill_(self.pad)
         tokens_buf = tokens.clone()
         tokens[:, 0] = bos_token or self.eos
         attn, attn_buf = None, None

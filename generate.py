@@ -74,7 +74,7 @@ def main(args):
             *[model.max_positions() for model in models]
         ),
         ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
-        required_batch_size_multiple=8,
+        required_batch_size_multiple=args.required_batch_size_multiple,
         num_shards=args.num_shards,
         shard_id=args.shard_id,
         num_workers=args.num_workers,
