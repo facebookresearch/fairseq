@@ -220,6 +220,28 @@ class TestLanguageModeling(unittest.TestCase):
                 eval_lm_main(data_dir)
 
 
+class TestCommonOptions(unittest.TestCase):
+
+    def test_optimizers(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_optimizers') as data_dir:
+                # Use just a bit of data and tiny model to keep this test runtime reasonable
+                create_dummy_data(data_dir, num_examples=10, maxlen=5)
+                preprocess_translation_data(data_dir)
+                optimizers = ['adafactor', 'adam', 'nag', 'adagrad', 'sgd', 'adadelta']
+                last_checkpoint = os.path.join(data_dir, 'checkpoint_last.pt')
+                for optimizer in optimizers:
+                    if os.path.exists(last_checkpoint):
+                        os.remove(last_checkpoint)
+                    train_translation_model(data_dir, 'lstm', [
+                        '--encoder-layers', '1',
+                        '--encoder-hidden-size', '32',
+                        '--decoder-layers', '1',
+                        '--optimizer', optimizer,
+                    ])
+                    generate_main(data_dir)
+
+
 def create_dummy_data(data_dir, num_examples=1000, maxlen=20):
 
     def _create_dummy_data(filename):
@@ -267,7 +289,6 @@ def train_translation_model(data_dir, arch, extra_flags=None):
             data_dir,
             '--save-dir', data_dir,
             '--arch', arch,
-            '--optimizer', 'nag',
             '--lr', '0.05',
             '--max-tokens', '500',
             '--max-epoch', '1',
