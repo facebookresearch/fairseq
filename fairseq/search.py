@@ -183,7 +183,7 @@ class Sampling(Search):
             lprobs = lprobs[:, ::beam_size, :].contiguous()
 
         # we exclude the first two vocab items, one of which is pad
-        assert self.pad == 1, 'sampling assumes the first two symbols can be ignored'
+        assert self.pad <= 1, 'sampling assumes the first two symbols can be ignored'
         lprobs_nopad = lprobs[:, :, 2:]
 
         # only sample from top-k candidates
