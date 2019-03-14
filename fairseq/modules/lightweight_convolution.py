@@ -122,6 +122,8 @@ class LightweightConv1dTBC(nn.Module):
 
         self.reset_parameters()
 
+        self.onnx_trace = False
+
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.weight)
         if self.bias is not None:
@@ -144,6 +146,9 @@ class LightweightConv1dTBC(nn.Module):
         if self.bias is not None:
             output = output + self.bias.view(1, 1, -1)
         return output
+
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True
 
     def _forward_unfolded(self, x, incremental_state):
         '''The conventional implementation of convolutions.
@@ -168,7 +173,7 @@ class LightweightConv1dTBC(nn.Module):
             x_unfold = x_unfold.view(T*B*H, R, K)
 
         if self.weight_softmax:
-            weight = F.softmax(weight, dim=1, dtype=torch.float32).type_as(weight)
+            weight = utils.softmax(weight, dim=1, onnx_trace=self.onnx_trace).type_as(weight)
 
         if incremental_state is not None:
             weight = weight[:, -x_unfold.size(2):]
@@ -193,7 +198,7 @@ class LightweightConv1dTBC(nn.Module):
 
         weight = self.weight.view(H, K)
         if self.weight_softmax:
-            weight = F.softmax(weight, dim=1, dtype=torch.float32).type_as(weight)
+            weight = utils.softmax(weight, dim=1, onnx_trace=self.onnx_trace).type_as(weight)
         weight = weight.view(1, H, K).expand(T*B, H, K).contiguous()
         weight = weight.view(T, B*H, K).transpose(0, 1)
 
