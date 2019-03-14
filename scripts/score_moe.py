@@ -14,6 +14,7 @@ See `"Mixture Models for Diverse Machine Translation: Tricks of the Trade"
 """
 
 import argparse
+from itertools import chain
 import sys
 import numpy as np
 import random
@@ -155,27 +156,35 @@ def multi_ref(refs, hypos):
     hypos = list(zip(*hypos))
 
     # compute average corpus BLEU
-    bleus = []
     k = len(hypos)
-    concat_hypos = [h for hs in hypos for h in hs]
-    for i, _ref_to_exclude in enumerate(refs):
+    m = len(refs)
+    concat_hypos = []
+    concat_refs = [[] for j in range(m - 1)]
+    for i in range(m):
+        concat_hypos.append([h for hs in hypos for h in hs])
         rest = refs[:i] + refs[i+1:]
-        concat_refs = [refs_i*k for refs_i in rest]
-        bleu = corpus_bleu(concat_hypos, concat_refs)
-        bleus.append(bleu)
-    print('average multi-reference BLEU (leave-one-out): %.2f' % np.mean(bleus))
+        for j in range(m - 1):
+            concat_refs[j].extend(rest[j] * k)
+    concat_hypos = list(chain.from_iterable(concat_hypos))
+    bleu = corpus_bleu(concat_hypos, concat_refs)
+    print('multi-reference BLEU (leave-one-out): %.2f' % bleu)
 
 
 def intra_ref(refs):
     print('ref pairwise BLEU: %.2f' % pairwise(refs))
     _ref, _hypo = [], []
     refs = list(zip(*refs))
-    bleus = []
+    m = len(refs)
+    concat_h = []
+    concat_rest = [[] for j in range(m - 1)]
     for i, h in enumerate(refs):
         rest = refs[:i] + refs[i+1:]
-        bleu = corpus_bleu(h, rest)
-        bleus.append(bleu)
-    print('average multi-reference BLEU (leave-one-out): %.2f' % np.mean(bleus))
+        concat_h.append(h)
+        for j in range(m - 1):
+            concat_rest[j].extend(rest[j])
+    concat_h = list(chain.from_iterable(concat_h))
+    bleu = corpus_bleu(concat_h, concat_rest)
+    print('multi-reference BLEU (leave-one-out): %.2f' % bleu)
 
 
 if __name__ == '__main__':
