@@ -99,7 +99,7 @@ def merge(src, tgt, hypos, log_probs, path):
             f.write(t + '\n')
             f.write('\n')
             for h, lp in zip(hs, lps):
-                f.write('%f\t' % lp + h)
+                f.write('\t%f\t%s\n' % (lp, h.strip()))
             f.write('------------------------------------------------------\n')
 
 
@@ -110,7 +110,6 @@ def corpus_bleu(sys_stream, ref_streams):
 
 def sentence_bleu(hypothesis, reference):
     bleu = _corpus_bleu(hypothesis, reference)
-    counts = bleu.counts
     for i in range(1, 4):
         bleu.counts[i] += 1
         bleu.totals[i] += 1
@@ -172,7 +171,6 @@ def multi_ref(refs, hypos):
 
 def intra_ref(refs):
     print('ref pairwise BLEU: %.2f' % pairwise(refs))
-    _ref, _hypo = [], []
     refs = list(zip(*refs))
     m = len(refs)
     concat_h = []
