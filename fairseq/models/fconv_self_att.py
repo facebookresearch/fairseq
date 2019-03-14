@@ -13,8 +13,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq.modules import (
-    DownsampledMultiHeadAttention, GradMultiply, LearnedPositionalEmbedding,
-    LinearizedConvolution,
+    DownsampledMultiHeadAttention, GradMultiply, LayerNorm,
+    LearnedPositionalEmbedding, LinearizedConvolution,
 )
 from fairseq import utils
 
@@ -351,13 +351,13 @@ class FConvDecoder(FairseqDecoder):
             # pretrained and trained models are joined
             self.joining = nn.Sequential(
                 Linear(out_embed_dim*2, out_embed_dim*2),
-                nn.LayerNorm(out_embed_dim*2),
+                LayerNorm(out_embed_dim*2),
                 nn.GLU(),
                 Linear(out_embed_dim, out_embed_dim*2),
-                nn.LayerNorm(out_embed_dim*2),
+                LayerNorm(out_embed_dim*2),
                 nn.GLU(),
                 Linear(out_embed_dim, out_embed_dim),
-                nn.LayerNorm(out_embed_dim)
+                LayerNorm(out_embed_dim)
             )
             # pretrained model contains an output layer that is nhid -> vocab size
             # but the models are combined in their hidden state
@@ -470,7 +470,7 @@ class SelfAttention(nn.Module):
         self.in_proj_q = Linear(out_channels, embed_dim)
         self.in_proj_k = Linear(out_channels, embed_dim)
         self.in_proj_v = Linear(out_channels, embed_dim)
-        self.ln = nn.LayerNorm(out_channels)
+        self.ln = LayerNorm(out_channels)
 
     def forward(self, x):
         residual = x

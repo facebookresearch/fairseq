@@ -36,12 +36,12 @@ translation and language modeling datasets.
 ![Model](fairseq.gif)
 
 # Requirements and Installation
-* A [PyTorch installation](http://pytorch.org/)
-* For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
-* Python version 3.6
 
-Currently fairseq requires PyTorch version >= 1.0.0.
-Please follow the instructions here: https://github.com/pytorch/pytorch#installation.
+* [PyTorch](http://pytorch.org/) version >= 1.0.0
+* Python version >= 3.6
+* For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
+
+Please follow the instructions here to install PyTorch: https://github.com/pytorch/pytorch#installation.
 
 If you use Docker make sure to increase the shared memory size either with
 `--ipc=host` or `--shm-size` as command line options to `nvidia-docker run`.
@@ -59,6 +59,12 @@ git clone https://github.com/pytorch/fairseq
 cd fairseq
 pip install --editable .
 ```
+
+**Improved training speed**
+
+Training speed can be further improved by installing NVIDIA's
+[apex](https://github.com/NVIDIA/apex) library with the `--cuda_ext` option.
+fairseq will automatically switch to the faster modules provided by apex.
 
 # Getting Started
 

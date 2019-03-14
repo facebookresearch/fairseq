@@ -4,15 +4,17 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
+
+from collections import defaultdict, OrderedDict
 import importlib.util
 import logging
 import os
 import re
 import sys
 import traceback
-from collections import defaultdict, OrderedDict
 
 import torch
+import torch.nn.functional as F
 from torch.serialization import default_restore_location
 
 
@@ -447,3 +449,17 @@ def import_user_module(args):
             sys.path.insert(0, module_parent)
             importlib.import_module(module_name)
             sys.path.pop(0)
+
+
+def softmax(x, dim, onnx_trace=False):
+    if onnx_trace:
+        return F.softmax(x.float(), dim=dim)
+    else:
+        return F.softmax(x, dim=dim, dtype=torch.float32)
+
+
+def log_softmax(x, dim, onnx_trace=False):
+    if onnx_trace:
+        return F.log_softmax(x.float(), dim=dim)
+    else:
+        return F.log_softmax(x, dim=dim, dtype=torch.float32)

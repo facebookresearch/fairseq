@@ -6,7 +6,8 @@
 # can be found in the PATENTS file in the same directory.
 
 import torch.nn as nn
-import torch.nn.functional as F
+
+from fairseq import utils
 
 
 class FairseqDecoder(nn.Module):
@@ -15,6 +16,7 @@ class FairseqDecoder(nn.Module):
     def __init__(self, dictionary):
         super().__init__()
         self.dictionary = dictionary
+        self.onnx_trace = False
 
     def forward(self, prev_output_tokens, encoder_out):
         """
@@ -33,6 +35,9 @@ class FairseqDecoder(nn.Module):
         """
         raise NotImplementedError
 
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True
+
     def get_normalized_probs(self, net_output, log_probs, sample):
         """Get normalized probabilities (or log probs) from a net's output."""
 
@@ -45,11 +50,11 @@ class FairseqDecoder(nn.Module):
             out = self.adaptive_softmax.get_log_prob(net_output[0], target=target)
             return out.exp_() if not log_probs else out
 
-        logits = net_output[0].float()
+        logits = net_output[0]
         if log_probs:
-            return F.log_softmax(logits, dim=-1)
+            return utils.log_softmax(logits, dim=-1, onnx_trace=self.onnx_trace)
         else:
-            return F.softmax(logits, dim=-1)
+            return utils.softmax(logits, dim=-1, onnx_trace=self.onnx_trace)
 
     def max_positions(self):
         """Maximum input length supported by the decoder."""

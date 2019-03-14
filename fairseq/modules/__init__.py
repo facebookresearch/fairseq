@@ -14,6 +14,7 @@ from .downsampled_multihead_attention import DownsampledMultiHeadAttention
 from .dynamic_convolution import DynamicConv1dTBC
 from .grad_multiply import GradMultiply
 from .highway import Highway
+from .layer_norm import LayerNorm
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .lightweight_convolution import LightweightConv1dTBC
 from .linearized_convolution import LinearizedConvolution
@@ -34,6 +35,7 @@ __all__ = [
     'DynamicConv1dTBC',
     'GradMultiply',
     'Highway',
+    'LayerNorm',
     'LearnedPositionalEmbedding',
     'LightweightConv1dTBC',
     'LinearizedConvolution',
