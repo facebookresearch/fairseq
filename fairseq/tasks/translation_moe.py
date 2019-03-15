@@ -212,13 +212,14 @@ class TranslationMoETask(TranslationTask):
             loss, sample_size, logging_output = self._get_loss(sample, model, criterion)
         return loss, sample_size, logging_output
 
-    def inference_step(self, generator, models, sample, prefix_tokens=None):
+    def inference_step(self, generator, models, sample, prefix_tokens=None, expert=None):
+        expert = expert or self.args.gen_expert
         with torch.no_grad():
             return generator.generate(
                 models,
                 sample,
                 prefix_tokens=prefix_tokens,
-                bos_token=self.expert_index(self.args.gen_expert),
+                bos_token=self.expert_index(expert),
             )
 
     def aggregate_logging_outputs(self, logging_outputs, criterion):
