@@ -5,7 +5,7 @@ developers to train custom models for translation, summarization, language
 modeling and other text generation tasks. It provides reference implementations
 of various sequence-to-sequence models, including:
 - **Convolutional Neural Networks (CNN)**
-  - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/conv_lm/README.md)
+  - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/language_model/conv_lm/README.md)
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
   - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
   - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
@@ -18,7 +18,8 @@ of various sequence-to-sequence models, including:
   - [Vaswani et al. (2017): Attention Is All You Need](https://arxiv.org/abs/1706.03762)
   - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
   - [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)
-  - **_New_** [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
+  - **_New_** [Baevski and Auli (2018): Adaptive Input Representations for Neural Language Modeling](examples/language_model/transformer_lm/README.md)
+  - **_New_** [Shen et al. (2019): Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 
 Fairseq features:
 - multi-GPU (distributed) training on one machine or across multiple machines
@@ -88,7 +89,7 @@ We also have more detailed READMEs to reproduce results from specific papers:
 - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
 - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
 - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
-- [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/conv_lm/README.md)
+- [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/language_model/conv_lm/README.md)
 
 # Join the fairseq community
 

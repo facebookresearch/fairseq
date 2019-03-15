@@ -8,6 +8,7 @@
 import argparse
 
 import torch
+import sys
 
 from fairseq.criterions import CRITERION_REGISTRY
 from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
@@ -140,7 +141,7 @@ def get_parser(desc, default_task='translation'):
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
                         help='path to save logs for tensorboard, should match --logdir '
-                        'of running tensorboard (default: no tensorboard logging)')
+                             'of running tensorboard (default: no tensorboard logging)')
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
@@ -374,6 +375,12 @@ def add_eval_lm_args(parser):
                        help='if set, outputs words and their predicted log probabilities to standard output')
     group.add_argument('--output-word-stats', action='store_true',
                        help='if set, outputs word statistics such as word count, average probability, etc')
+    group.add_argument('--context-window', default=0, type=int, metavar='N',
+                       help='ensures that every evaluated token has access to a context of at least this size,'
+                            ' if possible')
+    group.add_argument('--softmax-batch', default=sys.maxsize, type=int, metavar='N',
+                       help='if BxT is more than this, will batch the softmax over vocab to this amount of tokens'
+                            ' in order to fit into GPU memory')
     # fmt: on
 
 
