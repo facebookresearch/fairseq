@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from fairseq import options, progress_bar, tasks, utils
+from fairseq.data import LMContextWindowDataset
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
 from fairseq.utils import import_user_module
@@ -66,13 +67,21 @@ def main(parsed_args):
         if arg not in {'self_target', 'future_target', 'past_target', 'tokens_per_sample', 'output_size_dictionary'}:
             setattr(args, arg, getattr(parsed_args, arg))
 
-    max_sample_len = args.tokens_per_sample
+    # reduce tokens per sample by the required context window size
     args.tokens_per_sample -= args.context_window
     task = tasks.setup_task(args)
 
     # Load dataset splits
     task.load_dataset(args.gen_subset)
-    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
+    dataset = task.dataset(args.gen_subset)
+    if args.context_window > 0:
+        dataset = LMContextWindowDataset(
+            dataset=dataset,
+            tokens_per_sample=args.tokens_per_sample,
+            context_window=args.context_window,
+            pad_idx=task.source_dictionary.pad(),
+        )
+    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset)))
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
@@ -87,7 +96,7 @@ def main(parsed_args):
     print('num. model params: {}'.format(sum(p.numel() for p in models[0].parameters())))
 
     itr = task.get_batch_iterator(
-        dataset=task.dataset(args.gen_subset),
+        dataset=dataset,
         max_tokens=args.max_tokens or 36000,
         max_sentences=args.max_sentences,
         max_positions=utils.resolve_max_positions(*[
@@ -97,7 +106,6 @@ def main(parsed_args):
         num_shards=args.num_shards,
         shard_id=args.shard_id,
         num_workers=args.num_workers,
-        order_by_size=args.context_window == 0,
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
@@ -111,7 +119,11 @@ def main(parsed_args):
             raise NotImplementedError
         else:
             bpe_cont = args.remove_bpe.rstrip()
-            bpe_toks = set(i for i in range(len(task.dictionary)) if task.dictionary[i].endswith(bpe_cont))
+            bpe_toks = set(
+                i
+                for i in range(len(task.source_dictionary))
+                if task.source_dictionary[i].endswith(bpe_cont)
+            )
         bpe_len = len(bpe_cont)
     else:
         bpe_toks = None
@@ -122,37 +134,9 @@ def main(parsed_args):
     with progress_bar.build_progress_bar(args, itr) as t:
         wps_meter = TimeMeter()
 
-        prev_tokens = np.empty([0])
-        context_window = args.context_window
-        pad = task.dictionary.pad()
-
         for sample in t:
             if 'net_input' not in sample:
                 continue
-
-            bsz, tsz = sample['net_input']['src_tokens'].shape
-            if context_window > 0:
-                start_idxs = [0] * bsz
-                toks = sample['net_input']['src_tokens']
-                lengths = sample['net_input']['src_lengths']
-                tgt = sample['target']
-                new_toks = np.empty([bsz, tsz + context_window], dtype=np.int64)
-                new_tgt = np.full([bsz, tsz + context_window], pad, dtype=np.int64)
-                sample_lens = toks.ne(pad).long().sum(dim=1).cpu()
-                for i in range(bsz):
-                    sample_len = sample_lens[i]
-                    extra = len(prev_tokens) + sample_len - max_sample_len
-                    if extra > 0:
-                        prev_tokens = prev_tokens[extra:]
-                    pads = np.full(context_window - len(prev_tokens), pad)
-                    new_toks[i] = np.concatenate([prev_tokens, toks[i].numpy(), pads])
-                    new_tgt[i, len(prev_tokens):len(prev_tokens) + len(tgt[i])] = tgt[i]
-                    start_idxs[i] = len(prev_tokens)
-                    lengths[i] += len(prev_tokens)
-                    prev_tokens = new_toks[i][new_toks[i] != pad][-context_window:]
-                sample['net_input']['src_tokens'] = torch.from_numpy(new_toks)
-                sample['target'] = torch.from_numpy(new_tgt)
-                sample['start_indices'] = start_idxs
 
             sample = utils.move_to_cuda(sample) if use_cuda else sample
 
@@ -189,7 +173,7 @@ def main(parsed_args):
                     is_bpe = False
                     for i in range(len(tokens)):
                         w_ind = tokens[i].item()
-                        w += task.dictionary[w_ind]
+                        w += task.source_dictionary[w_ind]
                         if bpe_toks is not None and w_ind in bpe_toks:
                             w = w[:-bpe_len]
                             is_bpe = True

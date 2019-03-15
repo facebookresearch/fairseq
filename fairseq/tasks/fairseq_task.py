@@ -5,7 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import numpy as np
 import torch
 
 from fairseq import tokenizer
@@ -93,7 +92,7 @@ class FairseqTask(object):
     def get_batch_iterator(
             self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
             ignore_invalid_inputs=False, required_batch_size_multiple=1,
-            seed=1, num_shards=1, shard_id=0, num_workers=0, order_by_size=True,
+            seed=1, num_shards=1, shard_id=0, num_workers=0,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -126,12 +125,9 @@ class FairseqTask(object):
         """
         assert isinstance(dataset, FairseqDataset)
 
-        if order_by_size:
-            # get indices ordered by example size
-            with data_utils.numpy_seed(seed):
-                indices = dataset.ordered_indices()
-        else:
-            indices = np.arange(len(dataset))
+        # get indices ordered by example size
+        with data_utils.numpy_seed(seed):
+            indices = dataset.ordered_indices()
 
         # filter examples that are too large
         indices = data_utils.filter_by_size(

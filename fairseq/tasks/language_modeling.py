@@ -223,7 +223,7 @@ class LanguageModelingTask(FairseqTask):
     def source_dictionary(self):
         """Return the :class:`~fairseq.data.Dictionary` for the language
         model."""
-        return self.output_dictionary
+        return self.dictionary
 
     @property
     def target_dictionary(self):
