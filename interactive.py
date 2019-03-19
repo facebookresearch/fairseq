@@ -15,7 +15,7 @@ import sys
 
 import torch
 
-from fairseq import data, options, tasks, tokenizer, utils
+from fairseq import options, tasks, utils
 from fairseq.sequence_generator import SequenceGenerator
 from fairseq.utils import import_user_module
 
