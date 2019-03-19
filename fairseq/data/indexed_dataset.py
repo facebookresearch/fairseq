@@ -261,7 +261,7 @@ class IndexedDatasetBuilder(object):
         index.close()
 
 
-class MMapIndexedDataset(object):
+class MMapIndexedDataset(torch.utils.data.Dataset):
     class Index(object):
         _HDR_MAGIC = b'MMIDIDX\x00\x00'
         _ENTRY_SIZE = 8 + 4
