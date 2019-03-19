@@ -4,8 +4,8 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-
 import os
+import shutil
 import struct
 
 import numpy as np
@@ -37,6 +37,7 @@ def code(dtype):
     for k in dtypes.keys():
         if dtypes[k] == dtype:
             return k
+    raise ValueError(dtype)
 
 
 def index_file_path(prefix_path):
@@ -100,8 +101,8 @@ class IndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and
-            os.path.exists(data_file_path(path))
+                os.path.exists(index_file_path(path)) and
+                os.path.exists(data_file_path(path))
         )
 
     @property
@@ -135,7 +136,7 @@ class IndexedCachedDataset(IndexedDataset):
         for i in indices:
             self.cache_index[i] = ptx
             size = self.data_offsets[i + 1] - self.data_offsets[i]
-            a = self.cache[ptx : ptx + size]
+            a = self.cache[ptx: ptx + size]
             self.data_file.seek(self.data_offsets[i] * self.element_size)
             self.data_file.readinto(a)
             ptx += size
@@ -145,7 +146,7 @@ class IndexedCachedDataset(IndexedDataset):
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
         a = np.empty(tensor_size, dtype=self.dtype)
         ptx = self.cache_index[i]
-        np.copyto(a, self.cache[ptx : ptx + a.size])
+        np.copyto(a, self.cache[ptx: ptx + a.size])
         item = torch.from_numpy(a).long()
         if self.fix_lua_indexing:
             item -= 1  # subtract 1 for 0-based indexing
@@ -258,3 +259,126 @@ class IndexedDatasetBuilder(object):
         write_longs(index, self.data_offsets)
         write_longs(index, self.sizes)
         index.close()
+
+
+class MMapIndexedDataset(object):
+    class Index(object):
+        _HDR_MAGIC = b'MMIDIDX\x00\x00'
+        _ENTRY_SIZE = 8 + 4
+
+        @classmethod
+        def writer(cls, path, dtype):
+            class _Writer(object):
+                def __enter__(self):
+                    self._file = open(path, 'wb')
+                    self._ptr = 0
+                    self._dtype_size = dtype().itemsize
+
+                    self._file.write(cls._HDR_MAGIC)
+                    self._file.write(struct.pack('<Q', 1))
+                    self._file.write(struct.pack('<B', code(dtype)))
+
+                    return self
+
+                def write(self, size):
+                    self._file.write(struct.pack('<QI', self._ptr, size))
+                    self._ptr += size * self._dtype_size
+
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    self._file.close()
+
+            return _Writer()
+
+        def __init__(self, path):
+            self._path = path
+            self._file = None
+            self._dtype = None
+
+        @property
+        def dtype(self):
+            return self._dtype
+
+        def __enter__(self):
+            self._file = open(self._path, 'rb')
+
+            magic_test = self._file.read(9)
+            assert self._HDR_MAGIC == magic_test
+            version = struct.unpack('<Q', self._file.read(8))
+            assert (1,) == version
+
+            dtype_code, = struct.unpack('<B', self._file.read(1))
+            self._dtype = dtypes[dtype_code]
+
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self._file.close()
+
+        def __iter__(self):
+            while True:
+                buffer = self._file.read(self._ENTRY_SIZE)
+                if buffer:
+                    yield struct.unpack('<QI', buffer)
+                else:
+                    raise StopIteration
+
+    def __init__(self, path):
+        super().__init__()
+
+        bin_buffer = memoryview(np.memmap(data_file_path(path), mode='r', order='C'))
+
+        with self.Index(index_file_path(path)) as index:
+            self._dtype = index.dtype
+            self._entries = []
+
+            for ptr, size in index:
+                tensor = torch.from_numpy(np.frombuffer(bin_buffer, dtype=self._dtype, count=size, offset=ptr))
+                self._entries.append(tensor)
+
+    def __len__(self):
+        return len(self._entries)
+
+    def __getitem__(self, i):
+        return self._entries[i]
+
+    @staticmethod
+    def exists(path):
+        return (
+                os.path.exists(index_file_path(path)) and
+                os.path.exists(data_file_path(path))
+        )
+
+    @property
+    def supports_prefetch(self):
+        return False
+
+
+class MMapIndexedDatasetBuilder(object):
+    def __init__(self, out_file, dtype=np.int32):
+        self._data_file = open(out_file, 'wb')
+        self._dtype = dtype
+        self._sizes = []
+
+    def add_item(self, tensor):
+        np_array = np.array(tensor.numpy(), dtype=self._dtype)
+        self._data_file.write(np_array.tobytes(order='C'))
+        self._sizes.append(np_array.size)
+
+    def merge_file_(self, another_file):
+        # Concatenate index
+        with MMapIndexedDataset.Index(index_file_path(another_file)) as index:
+            assert index.dtype == self._dtype
+
+            for _, size in index:
+                self._sizes.append(size)
+
+        # Concatenate data
+        with open(data_file_path(another_file), 'rb') as f:
+            shutil.copyfileobj(f, self._data_file)
+
+    def finalize(self, index_file):
+        self._data_file.close()
+
+        with MMapIndexedDataset.Index.writer(index_file, self._dtype) as index:
+            for size in self._sizes:
+                index.write(size)
