@@ -198,9 +198,8 @@ def add_preprocess_args(parser):
                        help="number of source words to retain")
     group.add_argument("--alignfile", metavar="ALIGN", default=None,
                        help="an alignment file (optional)")
-    group.add_argument("--output-format", metavar="FORMAT", default="binary",
-                       choices=["binary", "raw"],
-                       help="output format (optional)")
+    parser.add_argument('--dataset-impl', metavar="FORMAT", help='output dataset implementation',
+                        choices=['raw', 'lazy', 'cached', 'mmap'], default='lazy')
     group.add_argument("--joined-dictionary", action="store_true",
                        help="Generate joined dictionary")
     group.add_argument("--only-source", action="store_true",

@@ -12,6 +12,13 @@ import numpy as np
 import torch
 
 
+def make_builder(out_file, impl, dtype=np.int32):
+    if impl == 'mmap':
+        return MMapIndexedDatasetBuilder(out_file, dtype=dtype)
+    else:
+        return IndexedDatasetBuilder(out_file, dtype=dtype)
+
+
 def read_longs(f, n):
     a = np.empty(n, dtype=np.int64)
     f.readinto(a)
