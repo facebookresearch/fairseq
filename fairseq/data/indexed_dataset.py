@@ -354,7 +354,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 else:
                     raise StopIteration
 
-    def __init__(self, path):
+    def __init__(self, path, warmup=True):
         super().__init__()
 
         bin_buffer = memoryview(np.memmap(data_file_path(path), mode='r', order='C'))
@@ -366,6 +366,9 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
             for ptr, size in index:
                 tensor = torch.from_numpy(np.frombuffer(bin_buffer, dtype=self._dtype, count=size, offset=ptr))
+                if warmup:
+                    torch.max(tensor)  # force reading tensor content
+
                 self._entries.append(tensor)
                 self._sizes.append(size)
 
