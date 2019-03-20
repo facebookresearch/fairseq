@@ -13,11 +13,9 @@ import torch
 from fairseq import options
 from fairseq.data import (
     Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
     LanguagePairDataset,
     RoundRobinZipDatasets,
+    indexed_dataset
 )
 from fairseq.models import FairseqMultiModel
 
@@ -59,10 +57,6 @@ class MultilingualTranslationTask(FairseqTask):
                             help='source language (only needed for inference)')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                             help='target language (only needed for inference)')
-        parser.add_argument('--lazy-load', action='store_true',
-                            help='load the dataset lazily')
-        parser.add_argument('--raw-text', action='store_true',
-                            help='load raw text dataset')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
                             help='pad the source on the left (default: True)')
         parser.add_argument('--left-pad-target', default='False', type=str, metavar='BOOL',
@@ -117,21 +111,7 @@ class MultilingualTranslationTask(FairseqTask):
 
         def split_exists(split, src, tgt, lang):
             filename = os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, lang))
-            if self.args.raw_text and IndexedRawTextDataset.exists(filename):
-                return True
-            elif not self.args.raw_text and IndexedDataset.exists(filename):
-                return True
-            return False
-
-        def indexed_dataset(path, dictionary):
-            if self.args.raw_text:
-                return IndexedRawTextDataset(path, dictionary)
-            elif IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    return IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    return IndexedCachedDataset(path, fix_lua_indexing=True)
-            return None
+            return indexed_dataset.dataset_exists(filename, impl=self.args.dataset_impl)
 
         src_datasets, tgt_datasets = {}, {}
         for lang_pair in self.args.lang_pairs:
@@ -142,8 +122,10 @@ class MultilingualTranslationTask(FairseqTask):
                 prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, tgt, src))
             else:
                 continue
-            src_datasets[lang_pair] = indexed_dataset(prefix + src, self.dicts[src])
-            tgt_datasets[lang_pair] = indexed_dataset(prefix + tgt, self.dicts[tgt])
+            src_datasets[lang_pair] = indexed_dataset.make_dataset(prefix + src, impl=self.args.dataset_impl,
+                                                                   fix_lua_indexing=True, dictionary=self.dicts[src])
+            tgt_datasets[lang_pair] = indexed_dataset.make_dataset(prefix + tgt, impl=self.args.dataset_impl,
+                                                                   fix_lua_indexing=True, dictionary=self.dicts[tgt])
             print('| {} {} {} examples'.format(self.args.data, split, len(src_datasets[lang_pair])))
 
         if len(src_datasets) == 0:

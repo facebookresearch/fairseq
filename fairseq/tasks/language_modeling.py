@@ -8,21 +8,18 @@
 import itertools
 import os
 
-import torch
 import numpy as np
+import torch
 
 from fairseq.data import (
     ConcatDataset,
     Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
     MonolingualDataset,
     TokenBlockDataset,
     TransformEosDataset,
     TruncatedDictionary,
+    indexed_dataset
 )
-
 from . import FairseqTask, register_task
 
 
@@ -69,10 +66,6 @@ class LanguageModelingTask(FairseqTask):
                                  'If set to "eos", includes only one sentence per sample.')
         parser.add_argument('--tokens-per-sample', default=1024, type=int,
                             help='max number of tokens per sample for LM dataset')
-        parser.add_argument('--lazy-load', action='store_true',
-                            help='load the dataset lazily')
-        parser.add_argument('--raw-text', default=False, action='store_true',
-                            help='load raw text dataset')
         parser.add_argument('--output-dictionary-size', default=-1, type=int,
                             help='limit the size of output dictionary')
         parser.add_argument('--self-target', action='store_true',
@@ -146,15 +139,10 @@ class LanguageModelingTask(FairseqTask):
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
             path = os.path.join(self.args.data, split_k)
+            ds = indexed_dataset.make_dataset(path, impl=self.args.dataset_impl,
+                                              fix_lua_indexing=True, dictionary=self.dictionary)
 
-            if self.args.raw_text and IndexedRawTextDataset.exists(path):
-                ds = IndexedRawTextDataset(path, self.dictionary)
-            elif not self.args.raw_text and IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    ds = IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    ds = IndexedCachedDataset(path, fix_lua_indexing=True)
-            else:
+            if ds is None:
                 if k > 0:
                     break
                 else:

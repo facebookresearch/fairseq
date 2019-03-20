@@ -8,17 +8,8 @@ import contextlib
 
 import torch
 
-from fairseq import modules, options, utils
-from fairseq.data import (
-    ConcatDataset,
-    data_utils,
-    Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
-    LanguagePairDataset,
-)
-
+from fairseq import modules, utils
+from fairseq.data import Dictionary
 from . import register_task
 from .translation import TranslationTask
 

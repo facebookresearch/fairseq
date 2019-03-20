@@ -10,8 +10,7 @@
 import argparse
 
 from fairseq.data import Dictionary
-from fairseq.data import IndexedDataset
-from fairseq.data.indexed_dataset import MMapIndexedDataset
+from fairseq.data import indexed_dataset
 
 
 def get_parser():
@@ -32,8 +31,9 @@ def main():
     args = parser.parse_args()
 
     dictionary = Dictionary.load(args.dict) if args.dict is not None else None
-    dataset = MMapIndexedDataset(args.input) if args.dataset_impl == 'mmap' else IndexedDataset(args.input,
-                                                                                                fix_lua_indexing=True)
+    dataset = indexed_dataset.make_dataset(args.input, impl=args.dataset_impl,
+                                           fix_lua_indexing=True, dictionary=dictionary)
+
     for tensor_line in dataset:
         if dictionary is None:
             line = ' '.join([str(int(x)) for x in tensor_line])
