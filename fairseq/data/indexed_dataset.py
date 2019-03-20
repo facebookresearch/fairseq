@@ -362,16 +362,24 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         with self.Index(index_file_path(path)) as index:
             self._dtype = index.dtype
             self._entries = []
+            self._sizes = []
 
             for ptr, size in index:
                 tensor = torch.from_numpy(np.frombuffer(bin_buffer, dtype=self._dtype, count=size, offset=ptr))
                 self._entries.append(tensor)
+                self._sizes.append(size)
+
+            self._sizes = np.array(self._sizes)
 
     def __len__(self):
         return len(self._entries)
 
     def __getitem__(self, i):
         return self._entries[i]
+
+    @property
+    def sizes(self):
+        return self._sizes
 
     @staticmethod
     def exists(path):
