@@ -264,15 +264,12 @@ class IndexedDatasetBuilder(object):
 class MMapIndexedDataset(torch.utils.data.Dataset):
     class Index(object):
         _HDR_MAGIC = b'MMIDIDX\x00\x00'
-        _ENTRY_SIZE = 8 + 4
 
         @classmethod
         def writer(cls, path, dtype):
             class _Writer(object):
                 def __enter__(self):
                     self._file = open(path, 'wb')
-                    self._ptr = 0
-                    self._dtype_size = dtype().itemsize
 
                     self._file.write(cls._HDR_MAGIC)
                     self._file.write(struct.pack('<Q', 1))
@@ -281,8 +278,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                     return self
 
                 def write(self, size):
-                    self._file.write(struct.pack('<QI', self._ptr, size))
-                    self._ptr += size * self._dtype_size
+                    self._file.write(struct.pack('<I', size))
 
                 def __exit__(self, exc_type, exc_val, exc_tb):
                     self._file.close()
@@ -293,6 +289,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
             self._path = path
             self._file = None
             self._dtype = None
+            self._dtype_size = None
 
         @property
         def dtype(self):
@@ -308,6 +305,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
             dtype_code, = struct.unpack('<B', self._file.read(1))
             self._dtype = dtypes[dtype_code]
+            self._dtype_size = self._dtype().itemsize
 
             return self
 
@@ -315,10 +313,14 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
             self._file.close()
 
         def __iter__(self):
+            ptr = 0
+
             while True:
-                buffer = self._file.read(self._ENTRY_SIZE)
+                buffer = self._file.read(4)
                 if buffer:
-                    yield struct.unpack('<QI', buffer)
+                    size, = struct.unpack('<I', buffer)
+                    yield ptr, size
+                    ptr += size * self._dtype_size
                 else:
                     raise StopIteration
 
