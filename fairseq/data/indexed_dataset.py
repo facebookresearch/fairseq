@@ -12,11 +12,11 @@ import numpy as np
 import torch
 
 
-def make_builder(out_file, impl, dtype=np.int32):
+def make_builder(out_file, impl):
     if impl == 'mmap':
-        return MMapIndexedDatasetBuilder(out_file, dtype=dtype)
+        return MMapIndexedDatasetBuilder(out_file)
     else:
-        return IndexedDatasetBuilder(out_file, dtype=dtype)
+        return IndexedDatasetBuilder(out_file)
 
 
 def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
@@ -375,7 +375,10 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         return len(self._entries)
 
     def __getitem__(self, i):
-        return self._entries[i]
+        if self._dtype == np.int64:
+            return self._entries[i]
+        else:
+            return self._entries[i].long()
 
     @property
     def sizes(self):
@@ -394,7 +397,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
 
 class MMapIndexedDatasetBuilder(object):
-    def __init__(self, out_file, dtype=np.int32):
+    def __init__(self, out_file, dtype=np.int64):
         self._data_file = open(out_file, 'wb')
         self._dtype = dtype
         self._sizes = []
