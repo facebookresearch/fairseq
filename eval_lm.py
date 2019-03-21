@@ -65,7 +65,10 @@ def main(parsed_args):
     )
 
     for arg in vars(parsed_args).keys():
-        if arg not in {'self_target', 'future_target', 'past_target', 'tokens_per_sample', 'output_size_dictionary'}:
+        if arg not in {
+            'self_target', 'future_target', 'past_target', 'tokens_per_sample',
+            'output_size_dictionary', 'add_bos_token',
+        }:
             setattr(args, arg, getattr(parsed_args, arg))
 
     # reduce tokens per sample by the required context window size
@@ -151,6 +154,11 @@ def main(parsed_args):
                 tokens = hypo['tokens']
                 tgt_len = tokens.numel()
                 pos_scores = hypo['positional_scores'].float()
+
+                if args.add_bos_token:
+                    assert hypo['tokens'][0].item() == task.target_dictionary.bos()
+                    hypo['tokens'] = hypo['tokens'][1:]
+                    pos_scores = pos_scores[1:]
 
                 skipped_toks = 0
                 if bpe_toks is not None:
