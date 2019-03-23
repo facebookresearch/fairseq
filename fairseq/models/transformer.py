@@ -110,6 +110,8 @@ class TransformerModel(FairseqModel):
                             help='if set, masks last state in bilm as is done during training')
         parser.add_argument('--bilm-add-bos', action='store_true',
                             help='if set, adds bos to input')
+        parser.add_argument('--elmo-affine', default=False, action='store_true',
+                            help='if set, uses affine layer norm for elmo')
         parser.add_argument('--decoder-embed-scale', type=float,
                             help='scaling factor for embeddings used in decoder')
         parser.add_argument('--encoder-embed-scale', type=float,
@@ -141,8 +143,8 @@ class TransformerModel(FairseqModel):
                     embedder = ElmoTokenEmbedder(models[0], dictionary.eos(), dictionary.pad(), add_bos=is_encoder,
                                                  remove_bos=is_encoder, combine_tower_states=is_encoder,
                                                  projection_dim=embed_dim, add_final_predictive=is_encoder,
-                                                 add_final_context=is_encoder)
-                    return embedder, 1
+                                                 add_final_context=is_encoder, affine_layer_norm=args.elmo_affine)
+                    return embedder
                 elif path.startswith('bilm:'):
                     lm_path = path[5:]
                     task = LanguageModelingTask(args, dictionary, dictionary)
@@ -176,7 +178,7 @@ class TransformerModel(FairseqModel):
             if args.decoder_embed_path and (
                     args.decoder_embed_path != args.encoder_embed_path):
                 raise RuntimeError('--share-all-embeddings not compatible with --decoder-embed-path')
-            encoder_embed_tokens, emb_scale = build_embedding(
+            encoder_embed_tokens = build_embedding(
                 src_dict, args.encoder_embed_dim, args.encoder_embed_path
             )
             decoder_embed_tokens = encoder_embed_tokens
