@@ -5,7 +5,7 @@ This page includes pre-trained models from the paper paper [Pre-trained Language
 ## Pre-trained models
 
 Description | Dataset | Model
----|---|---|---
+---|---|---
 English to German Transformer with pre-trained encoder | [WMT'18 English-German](http://www.statmt.org/wmt18/translation-task.html) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/pretraining/en2de_mt.tar.gz)
 Abstractive summarization, transformer | CNN-DailyMail dataset | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/pretraining/cnn_dailymail.tar.gz)
 
