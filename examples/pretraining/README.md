@@ -1,6 +1,17 @@
 # Pre-trained Language Model Representations for Language Generation
 
-This page includes pre-trained models from the paper paper [Pre-trained Language Model Representations for Language Generation (Edunov et al., 2019)](https://arxiv.org/abs/1903.09722).
+This page includes pre-trained models from the paper [Pre-trained Language Model Representations for Language Generation (Edunov et al., 2019)](https://arxiv.org/abs/1903.09722).
+
+## Citation:
+
+```bibtex
+@article{edunov2019pre,
+    author = {{Edunov}, S. and {Baevski}, A. and {Auli}, M.},
+    title = "{Pre-trained Language Model Representations for Language Generation}",
+    year = 2019,
+    url = {https://arxiv.org/pdf/1903.09722.pdf}
+}
+```
 
 ## Pre-trained models
 
