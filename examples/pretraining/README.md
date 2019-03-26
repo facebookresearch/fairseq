@@ -1,4 +1,13 @@
-Examples for the paper "Pre-trained Language Model Representations for Language Generation"
+# Pre-trained Language Model Representations for Language Generation
+
+This page includes pre-trained models from the paper paper [Pre-trained Language Model Representations for Language Generation (Edunov et al., 2019)](https://arxiv.org/abs/1903.09722).
+
+## Pre-trained models
+
+Description | Dataset | Model
+---|---|---|---
+English to German Transformer with pre-trained encoder | [WMT'18 English-German](http://www.statmt.org/wmt18/translation-task.html) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/pretraining/en2de_mt.tar.gz)
+Abstractive summarization, transformer | CNN-DailyMail dataset | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/pretraining/cnn_dailymail.tar.gz)
 
 
 # Pre-training for Machine Translation
@@ -36,17 +45,18 @@ $ python train.py ${MT_DATA} -a transformer_wmt_en_de_big --no-enc-token-positio
    --encoder-embed-path elmo:${LM_CHECKPOINT_PATH}/checkpoint_best.pt
 ```
 
-# To generate using the pre-trained model
+## To generate using the pre-trained model
 
 ```
-curl ${URL} | tar xvzf -
+curl https://dl.fbaipublicfiles.com/fairseq/models/pretraining/en2de_mt.tar.gz | tar xvzf -
 cd en2de_mt
 
-$MOSES=... # path to moses tokenizer
-$BPEROOT=... # path to subword-nmt
+MOSES=... # path to moses tokenizer
+BPEROOT=... # path to subword-nmt
+FAIRSEQ=... #path to fairseq
 sacrebleu -t wmt18 -l en-de --echo src | $MOSES/tokenizer/normalize-punctuation.perl -l en \
   | $MOSES/tokenizer/tokenizer.perl -a -l en -q | python $BPEROOT/apply_bpe.py -c en2de_mt.bpe.code \
-  |python ${FAIRSEQ}/interactive.py . --path en2de_mt.pt --remove-bpe --buffer-size 1024 --batch-size 8 \
+  |python $FAIRSEQ/interactive.py . --path en2de_mt.pt --remove-bpe --buffer-size 1024 --batch-size 8 \
    -s en -t de |grep -P '^H' |cut -f 3- | $MOSES/tokenizer/detokenizer.perl -l de -q \
   | sacrebleu -t wmt18 -l en-de
 
@@ -86,13 +96,14 @@ python train.py /private/home/edunov/cnn-dailymail/cnn-dailymail/finished_files/
 ```
 
 
-# To generate using the pre-trained model
+## To generate using the pre-trained model
 
 ```
-curl ${URL} | tar xvzf -
+curl https://dl.fbaipublicfiles.com/fairseq/models/pretraining/cnn_dailymail.tar.gz | tar xvzf -
 cd cnn_dailymail
+FAIRSEQ=... #path to fairseq
 
-python ${FAIRSEQ}/generate.py . --path cnn_dailymail.pt --remove-bpe --gen-subset test \
+python $FAIRSEQ/generate.py . --path cnn_dailymail.pt --remove-bpe --gen-subset test \
    --batch-size 1 --min-len 60 --no-repeat-ngram 3 | tee cnn_dailymail.out
 
 cat cnn_dailymail.out |grep -P '^H' | sort -nr -k1.2 | cut -f3- > cnn_dailymail.h.out
