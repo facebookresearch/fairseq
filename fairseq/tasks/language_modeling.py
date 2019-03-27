@@ -207,6 +207,7 @@ class LanguageModelingTask(FairseqTask):
                 self.target_dictionary,
                 add_eos_for_other_targets=False,
                 shuffle=False,
+                add_bos_token=self.args.add_bos_token,
             ),
             eos=self.source_dictionary.eos(),
             # remove EOS since this will be used as a prefix for generation
