@@ -157,7 +157,7 @@ def main(parsed_args):
 
                 if args.add_bos_token:
                     assert hypo['tokens'][0].item() == task.target_dictionary.bos()
-                    hypo['tokens'] = hypo['tokens'][1:]
+                    tokens = tokens[1:]
                     pos_scores = pos_scores[1:]
 
                 skipped_toks = 0
