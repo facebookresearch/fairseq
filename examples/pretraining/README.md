@@ -1,15 +1,15 @@
 # Pre-trained Language Model Representations for Language Generation
 
-This page includes pre-trained models from the paper [Pre-trained Language Model Representations for Language Generation (Edunov et al., 2019)](https://arxiv.org/abs/1903.09722).
+This page includes pre-trained models for the paper [Pre-trained Language Model Representations for Language Generation (Edunov et al., 2019)](https://arxiv.org/abs/1903.09722).
 
 ## Citation:
 
 ```bibtex
-@article{edunov2019pre,
-    author = {{Edunov}, S. and {Baevski}, A. and {Auli}, M.},
-    title = "{Pre-trained Language Model Representations for Language Generation}",
-    year = 2019,
-    url = {https://arxiv.org/pdf/1903.09722.pdf}
+@inproceedings{edunov2019pre,
+    author = {Sergey Edunov and Alexei Baevski and Michael Auli},
+    title = {Pre-trained Language Model Representations for Language Generation},
+    booktitle = {Proc. of NAACL},
+    year = {2019},
 }
 ```
 
@@ -23,7 +23,7 @@ Abstractive summarization, transformer | CNN-DailyMail dataset | [download (.tar
 
 # Pre-training for Machine Translation
 
-First step is to train a language model.
+The first step is to train a language model.
 ${LM_DATA} has to point to a folder with processed monolingual dataset, e.g. newscrawl. It is essential
 to process the dataset with the same BPE and dictionary as the source side of machine translation data.
 
