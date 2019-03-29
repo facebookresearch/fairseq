@@ -23,7 +23,7 @@ from .mean_pool_gating_network import MeanPoolGatingNetwork
 from .multihead_attention import MultiheadAttention
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
-from .unfold1d import unfold1d
+from .unfold import unfold1d
 
 __all__ = [
     'AdaptiveInput',
