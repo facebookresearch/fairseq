@@ -9,7 +9,7 @@ Adaptive Inputs <br> ([Baevski and Auli, 2018](https://arxiv.org/abs/1809.10853)
 
 ## Example usage
 
-See the [language modeling README](../language_model/README.md) for instructions on reproducing results for WikiText-103
+See the [language modeling README](../README.md) for instructions on reproducing results for WikiText-103
 using the `transformer_lm_wiki103` model architecture.
 
 ## Citation
