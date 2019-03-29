@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import traceback
+import warnings
 
 import torch
 import torch.nn.functional as F
@@ -463,3 +464,8 @@ def log_softmax(x, dim, onnx_trace=False):
         return F.log_softmax(x.float(), dim=dim)
     else:
         return F.log_softmax(x, dim=dim, dtype=torch.float32)
+
+
+def deprecation_warning(message, stacklevel=3):
+    # don't use DeprecationWarning, since it's ignored by default
+    warnings.warn(message, stacklevel=stacklevel)
