@@ -160,7 +160,7 @@ def main(args):
                     ))
 
         # update running id counter
-        start_id += len(results)
+        start_id += len(inputs)
 
 
 def cli_main():
