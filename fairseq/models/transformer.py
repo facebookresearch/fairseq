@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 from fairseq import options, utils
 from fairseq.modules import (
-    AdaptiveInput, AdaptiveSoftmax, CharacterTokenEmbedder, LayerNorm,
+    AdaptiveInput, AdaptiveSoftmax, CharacterTokenEmbedder, gelu, LayerNorm,
     LearnedPositionalEmbedding, MultiheadAttention, SinusoidalPositionalEmbedding,
 )
 
@@ -164,6 +164,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='dropout probability after ReLU in FFN')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
+        parser.add_argument('--gelu', action='store_true',
+                            help='use GELU instead of ReLU')
         parser.add_argument('--decoder-output-dim', type=int, metavar='N',
                             help='decoder output dimension')
         parser.add_argument('--decoder-input-dim', type=int, metavar='N',
@@ -652,6 +654,7 @@ class TransformerDecoderLayer(nn.Module):
         self.dropout = args.dropout
         self.relu_dropout = args.relu_dropout
         self.normalize_before = args.decoder_normalize_before
+        self.activation = F.relu if not args.gelu else gelu
 
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
 
@@ -734,7 +737,7 @@ class TransformerDecoderLayer(nn.Module):
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
-        x = F.relu(self.fc1(x))
+        x = self.activation(self.fc1(x))
         x = F.dropout(x, p=self.relu_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -784,6 +787,7 @@ def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad, le
 
 @register_model_architecture('transformer_lm', 'transformer_lm')
 def base_lm_architecture(args):
+    args.gelu = getattr(args, 'gelu', False)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
