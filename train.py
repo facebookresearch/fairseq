@@ -11,8 +11,8 @@ Train a new model on one or across multiple GPUs.
 
 import collections
 import itertools
-import os
 import math
+import os
 import random
 
 import torch
@@ -281,6 +281,10 @@ def get_perplexity(loss):
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
     if args.no_save or not distributed_utils.is_master(args):
         return
+
+    write_timer = StopwatchMeter()
+    write_timer.start()
+
     epoch = epoch_itr.epoch
     end_of_epoch = epoch_itr.end_of_epoch()
     updates = trainer.get_num_updates()
@@ -332,6 +336,11 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[args.keep_last_epochs:]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+
+    write_timer.stop()
+
+    print('| saved checkpoint {} (epoch {} @ {} updates) (writing took {} seconds)'.format(
+        checkpoints[0], epoch, updates, write_timer.sum))
 
 
 def load_checkpoint(args, trainer, epoch_itr):
