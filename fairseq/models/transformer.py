@@ -588,6 +588,7 @@ class TransformerEncoderLayer(nn.Module):
         self.dropout = args.dropout
         self.relu_dropout = args.relu_dropout
         self.normalize_before = args.encoder_normalize_before
+        self.activation = F.relu if not args.gelu else gelu
         self.fc1 = Linear(self.embed_dim, args.encoder_ffn_embed_dim)
         self.fc2 = Linear(args.encoder_ffn_embed_dim, self.embed_dim)
         self.layer_norms = nn.ModuleList([LayerNorm(self.embed_dim) for i in range(2)])
@@ -611,7 +612,7 @@ class TransformerEncoderLayer(nn.Module):
 
         residual = x
         x = self.maybe_layer_norm(1, x, before=True)
-        x = F.relu(self.fc1(x))
+        x = self.activation(self.fc1(x))
         x = F.dropout(x, p=self.relu_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -787,7 +788,6 @@ def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad, le
 
 @register_model_architecture('transformer_lm', 'transformer_lm')
 def base_lm_architecture(args):
-    args.gelu = getattr(args, 'gelu', False)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
@@ -796,6 +796,7 @@ def base_lm_architecture(args):
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
     args.adaptive_softmax_factor = getattr(args, 'adaptive_softmax_factor', 4)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
+    args.gelu = getattr(args, 'gelu', False)
 
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 
@@ -870,6 +871,7 @@ def base_architecture(args):
     args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
     args.adaptive_input = getattr(args, 'adaptive_input', False)
+    args.gelu = getattr(args, 'gelu', False)
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
     args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)
