@@ -29,10 +29,7 @@ def infer_init_method(args):
     if all(key in os.environ for key in [
         'MASTER_ADDR', 'MASTER_PORT', 'WORLD_SIZE', 'RANK'
     ]):
-        args.distributed_init_method = 'tcp://{addr}:{port}'.format(
-            addr=os.environ['MASTER_ADDR'],
-            port=os.environ['MASTER_PORT'],
-        )
+        args.distributed_init_method = 'env://'
         args.distributed_world_size = int(os.environ['WORLD_SIZE'])
         args.distributed_rank = int(os.environ['RANK'])
 
