@@ -145,6 +145,11 @@ class MultiheadAttention(nn.Module):
 
         src_len = k.size(1)
 
+        # This is part of a workaround to get around fork/join parallelism
+        # not supporting Optional types.
+        if key_padding_mask is not None and key_padding_mask.shape == torch.Size([]):
+            key_padding_mask = None
+
         if key_padding_mask is not None:
             assert key_padding_mask.size(0) == bsz
             assert key_padding_mask.size(1) == src_len
