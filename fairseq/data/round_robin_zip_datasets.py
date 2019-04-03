@@ -113,10 +113,11 @@ class RoundRobinZipDatasets(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return all(
+        assert all(
             getattr(dataset, 'supports_prefetch', False)
             for dataset in self.datasets.values()
         )
+        return True
 
     def prefetch(self, indices):
         for key, dataset in self.datasets.items():

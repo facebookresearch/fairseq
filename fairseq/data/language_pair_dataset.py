@@ -68,6 +68,19 @@ def collate(
     return batch
 
 
+def generate_dummy_batch(num_tokens, collate_fn, src_dict, src_len=128, tgt_dict=None, tgt_len=128):
+    """Return a dummy batch with a given number of tokens."""
+    bsz = num_tokens // max(src_len, tgt_len)
+    return collate_fn([
+        {
+            'id': i,
+            'source': src_dict.dummy_sentence(src_len),
+            'target': tgt_dict.dummy_sentence(tgt_len) if tgt_dict is not None else None,
+        }
+        for i in range(bsz)
+    ])
+
+
 class LanguagePairDataset(FairseqDataset):
     """
     A pair of torch.utils.data.Datasets.
@@ -192,15 +205,7 @@ class LanguagePairDataset(FairseqDataset):
             max_positions,
             (self.max_source_positions, self.max_target_positions),
         )
-        bsz = max(num_tokens // max(src_len, tgt_len), 1)
-        return self.collater([
-            {
-                'id': i,
-                'source': self.src_dict.dummy_sentence(src_len),
-                'target': self.tgt_dict.dummy_sentence(tgt_len) if self.tgt_dict is not None else None,
-            }
-            for i in range(bsz)
-        ])
+        return generate_dummy_batch(num_tokens, self.collater, self.src_dict, src_len, self.tgt_dict, tgt_len)
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
@@ -227,9 +232,10 @@ class LanguagePairDataset(FairseqDataset):
     def supports_prefetch(self):
         return (
             getattr(self.src, 'supports_prefetch', False)
-            and getattr(self.tgt, 'supports_prefetch', False)
+            and (getattr(self.tgt, 'supports_prefetch', False) or self.tgt is None)
         )
 
     def prefetch(self, indices):
         self.src.prefetch(indices)
-        self.tgt.prefetch(indices)
+        if self.tgt is not None:
+            self.tgt.prefetch(indices)
