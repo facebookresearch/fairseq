@@ -116,7 +116,7 @@ class Dictionary(object):
         new_symbols = self.symbols[:self.nspecial]
         new_count = self.count[:self.nspecial]
 
-        c = Counter(dict(zip(self.symbols[self.nspecial:], self.count[self.nspecial:])))
+        c = Counter(dict(sorted(zip(self.symbols[self.nspecial:], self.count[self.nspecial:]))))
         for symbol, count in c.most_common(nwords - self.nspecial):
             if count >= threshold:
                 new_indices[symbol] = len(new_symbols)
@@ -261,7 +261,7 @@ class Dictionary(object):
     @staticmethod
     def add_file_to_dictionary(filename, dict, tokenize, num_workers):
         def merge_result(counter):
-            for w, c in counter.items():
+            for w, c in sorted(counter.items()):
                 dict.add_symbol(w, c)
 
         if num_workers > 1:
