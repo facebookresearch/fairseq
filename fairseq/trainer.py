@@ -271,6 +271,10 @@ class Trainer(object):
                 1. if grad_norm > self.args.clip_norm and self.args.clip_norm > 0 else 0.
             )
             self.meters['train_loss'].update(logging_output.get('loss', 0), sample_size)
+            if 'train_acc' in self.meters:
+                self.meters['train_acc'].update(
+                    logging_output.get('acc', 0), sample_size)
+
             if 'nll_loss' in logging_output:
                 self.meters['train_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
         except OverflowError as e:
@@ -340,6 +344,10 @@ class Trainer(object):
         # update meters for validation
         ntokens = logging_output.get('ntokens', 0)
         self.meters['valid_loss'].update(logging_output.get('loss', 0), sample_size)
+        if 'valid_acc' in self.meters:
+            self.meters['valid_acc'].update(
+                logging_output.get('acc', 0), sample_size)
+
         if 'nll_loss' in logging_output:
             self.meters['valid_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
 
