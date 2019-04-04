@@ -77,6 +77,12 @@ class MultilingualTranslationTask(FairseqTask):
         super().__init__(args)
         self.dicts = dicts
         self.lang_pairs = args.lang_pairs
+        # eval_lang_pairs for multilingual translation is usually all of the
+        # lang_pairs. However for other multitask settings or when we want to
+        # optimize for certain languages we want to use a different subset. Thus
+        # the eval_lang_pairs class variable is provided for classes that extend
+        # this class.
+        self.eval_lang_pairs = args.lang_pairs
         self.langs = list(dicts.keys())
         self.training = training
 
@@ -205,7 +211,7 @@ class MultilingualTranslationTask(FairseqTask):
         model.eval()
         with torch.no_grad():
             agg_loss, agg_sample_size, agg_logging_output = 0., 0., {}
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.eval_lang_pairs:
                 if sample[lang_pair] is None or len(sample[lang_pair]) == 0:
                     continue
                 loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
@@ -236,7 +242,7 @@ class MultilingualTranslationTask(FairseqTask):
             lang_pair: criterion.__class__.aggregate_logging_outputs([
                 logging_output.get(lang_pair, {}) for logging_output in logging_outputs
             ])
-            for lang_pair in self.args.lang_pairs
+            for lang_pair in self.eval_lang_pairs
         }
 
         def sum_over_languages(key):
