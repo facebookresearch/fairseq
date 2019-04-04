@@ -8,6 +8,7 @@
 from .adaptive_input import AdaptiveInput
 from .adaptive_softmax import AdaptiveSoftmax
 from .beamable_mm import BeamableMM
+from .bert_layer_norm import BertLayerNorm
 from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
@@ -23,12 +24,15 @@ from .mean_pool_gating_network import MeanPoolGatingNetwork
 from .multihead_attention import MultiheadAttention
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
+from .transformer_sentence_encoder_layer import TransformerSentenceEncoderLayer
+from .transformer_sentence_encoder import TransformerSentenceEncoder
 from .unfold import unfold1d
 
 __all__ = [
     'AdaptiveInput',
     'AdaptiveSoftmax',
     'BeamableMM',
+    'BertLayerNorm',
     'CharacterTokenEmbedder',
     'ConvTBC',
     'DownsampledMultiHeadAttention',
@@ -44,5 +48,7 @@ __all__ = [
     'MultiheadAttention',
     'ScalarBias',
     'SinusoidalPositionalEmbedding',
+    'TransformerSentenceEncoderLayer',
+    'TransformerSentenceEncoder',
     'unfold1d',
 ]
