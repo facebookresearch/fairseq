@@ -37,8 +37,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
         dropout: float = 0.1,
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
-        encoder_normalize_before: bool = True,
-        use_bert_layer_norm: bool = True,
+        encoder_normalize_before: bool = False,
+        use_bert_layer_norm: bool = False,
         use_gelu: bool = True,
     ) -> None:
 
@@ -108,6 +108,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self._maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
+
         residual = x
         x = self._maybe_layer_norm(self.final_layer_norm, x, before=True)
         x = self.activation_fn(self.fc1(x))
