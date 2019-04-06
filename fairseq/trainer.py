@@ -11,10 +11,11 @@ Train a network across multiple GPUs.
 
 from collections import OrderedDict
 from itertools import chain
+import os
 
 import torch
 
-from fairseq import distributed_utils, models, optim, utils
+from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.optim import lr_scheduler
 
@@ -119,16 +120,31 @@ class Trainer(object):
         """Save all training state in a checkpoint file."""
         if distributed_utils.is_master(self.args):  # only save one checkpoint
             extra_state['train_meters'] = self.meters
-            utils.save_state(
+            checkpoint_utils.save_state(
                 filename, self.args, self.get_model().state_dict(), self.criterion, self.optimizer,
                 self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
             )
 
     def load_checkpoint(self, filename, reset_optimizer=False, reset_lr_scheduler=False, optimizer_overrides=None):
         """Load all training state from a checkpoint file."""
-        extra_state, self._optim_history, last_optim_state = utils.load_model_state(
-            filename, self.get_model(),
-        )
+        extra_state, self._optim_history, last_optim_state = None, [], None
+
+        if os.path.exists(filename):
+            state = checkpoint_utils.load_checkpoint_to_cpu(filename)
+
+            # load model parameters
+            try:
+                self.get_model().load_state_dict(state['model'], strict=True)
+            except Exception:
+                raise Exception(
+                    'Cannot load model parameters from checkpoint, '
+                    'please ensure that the architectures match.'
+                )
+
+            extra_state = state['extra_state']
+            self._optim_history = state['optimizer_history']
+            last_optim_state = state['last_optimizer_state']
+
         if last_optim_state is not None and not reset_optimizer:
             # rebuild optimizer after loading model, since params may have changed
             self._build_optimizer()
@@ -136,9 +152,9 @@ class Trainer(object):
             # only reload optimizer and lr_scheduler if they match
             last_optim = self._optim_history[-1]
             assert last_optim['criterion_name'] == self.criterion.__class__.__name__, \
-                'criterion does not match; please reset the optimizer (--reset-optimizer)'
+                'Criterion does not match; please reset the optimizer (--reset-optimizer).'
             assert last_optim['optimizer_name'] == self.optimizer.__class__.__name__, \
-                'optimizer does not match; please reset the optimizer (--reset-optimizer)'
+                'Optimizer does not match; please reset the optimizer (--reset-optimizer).'
 
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
