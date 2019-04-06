@@ -15,9 +15,8 @@ import sys
 
 import torch
 
-from fairseq import options, tasks, utils
+from fairseq import checkpoint_utils, options, tasks, utils
 from fairseq.sequence_generator import SequenceGenerator
-from fairseq.utils import import_user_module
 
 Batch = namedtuple('Batch', 'ids src_tokens src_lengths')
 Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
@@ -56,7 +55,7 @@ def make_batches(lines, args, task, max_positions):
 
 
 def main(args):
-    import_user_module(args)
+    utils.import_user_module(args)
 
     if args.buffer_size < 1:
         args.buffer_size = 1
@@ -77,8 +76,10 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    models, _model_args = utils.load_ensemble_for_inference(
-        args.path.split(':'), task, model_arg_overrides=eval(args.model_overrides),
+    models, _model_args = checkpoint_utils.load_model_ensemble(
+        args.path.split(':'),
+        arg_overrides=eval(args.model_overrides),
+        task=task,
     )
 
     # Set dictionaries

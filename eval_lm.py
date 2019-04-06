@@ -13,11 +13,10 @@ Evaluate the perplexity of a trained language model.
 import numpy as np
 import torch
 
-from fairseq import options, progress_bar, tasks, utils
+from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
 from fairseq.data import LMContextWindowDataset
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
-from fairseq.utils import import_user_module
 
 
 class WordStat(object):
@@ -49,7 +48,7 @@ class WordStat(object):
 def main(parsed_args):
     assert parsed_args.path is not None, '--path required for evaluation!'
 
-    import_user_module(parsed_args)
+    utils.import_user_module(parsed_args)
 
     print(parsed_args)
 
@@ -59,8 +58,10 @@ def main(parsed_args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(parsed_args.path))
-    models, args = utils.load_ensemble_for_inference(
-        parsed_args.path.split(':'), task, model_arg_overrides=eval(parsed_args.model_overrides),
+    models, args = checkpoint_utils.load_model_ensemble(
+        parsed_args.path.split(':'),
+        arg_overrides=eval(parsed_args.model_overrides),
+        task=task,
     )
 
     for arg in vars(parsed_args).keys():
