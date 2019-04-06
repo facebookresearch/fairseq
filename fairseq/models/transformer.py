@@ -895,7 +895,7 @@ def transformer_wmt_en_de(args):
     base_architecture(args)
 
 
-# parameters used in the "Attention Is All You Need" paper (Vaswani, et al, 2017)
+# parameters used in the "Attention Is All You Need" paper (Vaswani et al., 2017)
 @register_model_architecture('transformer', 'transformer_vaswani_wmt_en_de_big')
 def transformer_vaswani_wmt_en_de_big(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
