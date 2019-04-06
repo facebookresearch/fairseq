@@ -24,6 +24,14 @@ class ReduceLROnPlateau(FairseqLRScheduler):
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer.optimizer, patience=0, factor=args.lr_shrink)
 
+    @staticmethod
+    def add_args(parser):
+        """Add arguments to the parser for this LR scheduler."""
+        # fmt: off
+        parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
+                            help='shrink factor for annealing, lr_new = (lr * lr_shrink)')
+        # fmt: on
+
     def state_dict(self):
         """Return the LR scheduler state dict."""
         return {
