@@ -41,12 +41,6 @@ def main(args, init_distributed=False):
     # Load dataset splits
     load_dataset_splits(args, task)
 
-    # Initialize distributed training (after data loading)
-    if init_distributed:
-        import socket
-        args.distributed_rank = distributed_utils.distributed_init(args)
-        print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
-
     # Build model and criterion
     model = task.build_model(args)
     criterion = task.build_criterion(args)
@@ -88,6 +82,12 @@ def main(args, init_distributed=False):
         shard_id=args.distributed_rank,
         num_workers=args.num_workers,
     )
+
+    # Initialize distributed training (after data loading)
+    if init_distributed:
+        import socket
+        args.distributed_rank = distributed_utils.distributed_init(args)
+        print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
 
     # Load the latest checkpoint if one is available
     if not load_checkpoint(args, trainer, epoch_itr):
