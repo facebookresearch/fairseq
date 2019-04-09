@@ -342,7 +342,11 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
 def load_checkpoint(args, trainer, epoch_itr):
     """Load a checkpoint and replay dataloader to match."""
-    os.makedirs(args.save_dir, exist_ok=True)
+
+    # Only rank 0 should attempt to create the required dir
+    if args.distributed_rank == 0:
+        os.makedirs(args.save_dir, exist_ok=True)
+
     if os.path.isabs(args.restore_file):
         checkpoint_path = args.restore_file
     else:
