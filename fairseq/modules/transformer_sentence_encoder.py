@@ -106,7 +106,7 @@ class TransformerSentenceEncoder(nn.Module):
         self.use_position_embeddings = use_position_embeddings
         self.apply_bert_init = apply_bert_init
 
-        self.token_embeddings = nn.Embedding(
+        self.embed_tokens = nn.Embedding(
             self.vocab_size, self.embedding_dim, self.padding_idx
         )
 
@@ -116,7 +116,7 @@ class TransformerSentenceEncoder(nn.Module):
             else None
         )
 
-        self.position_embeddings = (
+        self.embed_positions = (
             PositionalEmbedding(
                 self.max_seq_len,
                 self.embedding_dim,
@@ -161,8 +161,8 @@ class TransformerSentenceEncoder(nn.Module):
 
         # embed positions
         positions = (
-            self.position_embeddings(tokens)
-            if self.position_embeddings is not None else None
+            self.embed_positions(tokens)
+            if self.embed_positions is not None else None
         )
 
         # embed segments
@@ -172,7 +172,7 @@ class TransformerSentenceEncoder(nn.Module):
             else None
         )
 
-        x = self.token_embeddings(tokens)
+        x = self.embed_tokens(tokens)
         if positions is not None:
             x += positions
         if segments is not None:
