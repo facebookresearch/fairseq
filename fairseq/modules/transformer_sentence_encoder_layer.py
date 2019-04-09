@@ -51,7 +51,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
         # Initialize blocks
         self.activation_fn = gelu if use_gelu else F.relu
-        self.self_attention = MultiheadAttention(
+        self.self_attn = MultiheadAttention(
             self.embedding_dim, num_attention_heads, dropout=attention_dropout
         )
 
@@ -97,7 +97,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
         residual = x
         x = self._maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
-        x, attn = self.self_attention(
+        x, attn = self.self_attn(
             query=x,
             key=x,
             value=x,
