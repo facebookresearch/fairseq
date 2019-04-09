@@ -798,6 +798,7 @@ def base_lm_architecture(args):
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.gelu = getattr(args, 'gelu', False)
 
+    args.add_bos_token = getattr(args, 'add_bos_token', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
