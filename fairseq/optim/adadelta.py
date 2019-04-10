@@ -23,6 +23,7 @@ class Adadelta(FairseqOptimizer):
                             help='coefficient used for computing a running average of squared gradients')
         parser.add_argument('--adadelta-eps', type=float, default=1e-6, metavar='EPS',
                             help='term added to the denominator to improve numerical stability')
+        parser.add_argument('--anneal-eps', action='store_true', help='flag to anneal eps')
 
     @property
     def optimizer_config(self):
