@@ -13,9 +13,11 @@ from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTex
 from .language_pair_dataset import LanguagePairDataset
 from .lm_context_window_dataset import LMContextWindowDataset
 from .monolingual_dataset import MonolingualDataset
+from .noising import NoisingDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
 from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
+from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
 
 from .iterators import (
     CountingIterator,
@@ -38,8 +40,10 @@ __all__ = [
     'LanguagePairDataset',
     'LMContextWindowDataset',
     'MonolingualDataset',
+    'NoisingDataset',
     'RoundRobinZipDatasets',
     'ShardedIterator',
     'TokenBlockDataset',
     'TransformEosDataset',
+    'TransformEosLangPairDataset',
 ]

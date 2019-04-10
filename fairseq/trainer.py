@@ -259,6 +259,9 @@ class Trainer(object):
             # update learning rate
             self.lr_scheduler.step_update(self._num_updates)
 
+            # task specific update per step
+            self.task.update_step(self._num_updates)
+
             # update meters
             ntokens = logging_output.get('ntokens', 0)
             nsentences = logging_output.get('nsentences', 0)

@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import defaultdict, OrderedDict
+import copy
 import importlib.util
 import logging
 import os
@@ -417,6 +418,15 @@ def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
 def resolve_max_positions(*args):
     """Resolve max position constraints from multiple sources."""
 
+    def map_value_update(d1, d2):
+        updated_value = copy.deepcopy(d1)
+        for key in d2:
+            if key not in updated_value:
+                updated_value[key] = d2[key]
+            else:
+                updated_value[key] = min(d1[key], d2[key])
+        return updated_value
+
     def nullsafe_min(l):
         minim = None
         for item in l:
@@ -433,10 +443,13 @@ def resolve_max_positions(*args):
         elif arg is not None:
             if isinstance(arg, float) or isinstance(arg, int):
                 max_positions = min(max_positions, arg)
+            elif isinstance(arg, dict):
+                max_positions = map_value_update(max_positions, arg)
             else:
                 max_positions = tuple(
                     map(nullsafe_min, zip(max_positions, arg))
                 )
+
     return max_positions
 
 
