@@ -301,3 +301,11 @@ class NoisingDataset(torch.utils.data.Dataset):
         The length of the noising dataset is the length of src.
         """
         return len(self.src_dataset)
+
+    @property
+    def supports_prefetch(self):
+        return self.src_dataset.supports_prefetch
+
+    def prefetch(self, indices):
+        if self.src_dataset.supports_prefetch:
+            self.src_dataset.prefetch(indices)

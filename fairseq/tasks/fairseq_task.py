@@ -241,6 +241,11 @@ class FairseqTask(object):
         with torch.no_grad():
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)
 
+    def update_step(self, num_updates):
+        """Task level update when number of update increases. This is called after optimization step and
+           learning rate update of each step"""
+        pass
+
     def grad_denom(self, sample_sizes, criterion):
         return criterion.__class__.grad_denom(sample_sizes)
 
