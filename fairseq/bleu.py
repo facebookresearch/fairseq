@@ -52,7 +52,7 @@ class SacrebleuScorer(object):
         self.sys.append(pred)
 
     def score(self, order=4):
-        return self.result_string(order).bleu
+        return self.result_string(order).score
 
     def result_string(self, order=4):
         if order != 4:
