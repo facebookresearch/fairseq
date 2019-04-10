@@ -26,6 +26,7 @@ class Adadelta(FairseqOptimizer):
                             help='term added to the denominator to improve numerical stability')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
+        parser.add_argument('--anneal-eps', action='store_true', help='flag to anneal eps')
         # fmt: on
 
     @property
