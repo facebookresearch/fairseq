@@ -368,18 +368,8 @@ class TransformerEncoder(FairseqEncoder):
             state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
         for i in range(len(self.layers)):
             # update layer norms
-            layer_norm_map = {
-                '0': 'self_attn_layer_norm',
-                '1': 'final_layer_norm'
-            }
-            for old, new in layer_norm_map.items():
-                for m in ('weight', 'bias'):
-                    k = '{}.layers.{}.layer_norms.{}.{}'.format(name, i, old, m)
-                    if k in state_dict:
-                        state_dict[
-                            '{}.layers.{}.{}.{}'.format(name, i, new, m)
-                        ] = state_dict[k]
-                        del state_dict[k]
+            self.layers[i].upgrade_state_dict_named(state_dict, f"{name}.layers.{i}")
+
         version_key = '{}.version'.format(name)
         if utils.item(state_dict.get(version_key, torch.Tensor([1]))[0]) < 2:
             # earlier checkpoints did not normalize after the stack of layers
@@ -604,6 +594,25 @@ class TransformerEncoderLayer(nn.Module):
         self.fc1 = Linear(self.embed_dim, args.encoder_ffn_embed_dim)
         self.fc2 = Linear(args.encoder_ffn_embed_dim, self.embed_dim)
         self.final_layer_norm = LayerNorm(self.embed_dim)
+
+    def upgrade_state_dict_named(self, state_dict, name):
+        """
+        Rename layer norm states from `...layer_norms.0.weight` to
+        `...self_attn_layer_norm.weight` and `...layer_norms.1.weight` to
+        `...final_layer_norm.weight`
+        """
+        layer_norm_map = {
+            '0': 'self_attn_layer_norm',
+            '1': 'final_layer_norm'
+        }
+        for old, new in layer_norm_map.items():
+            for m in ('weight', 'bias'):
+                k = f'{name}.layer_norms.{old}.{m}'
+                if k in state_dict:
+                    state_dict[
+                        f'{name}.{new}.{m}'
+                    ] = state_dict[k]
+                    del state_dict[k]
 
     def forward(self, x, encoder_padding_mask):
         """
