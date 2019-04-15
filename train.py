@@ -320,6 +320,10 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         for cp in checkpoints:
             trainer.save_checkpoint(cp, extra_state)
 
+        write_timer.stop()
+        print('| saved checkpoint {} (epoch {} @ {} updates) (writing took {} seconds)'.format(
+            checkpoints[0], epoch, updates, write_timer.sum))
+
     if not end_of_epoch and args.keep_interval_updates > 0:
         # remove old checkpoints; checkpoints are sorted in descending order
         checkpoints = utils.checkpoint_paths(args.save_dir, pattern=r'checkpoint_\d+_(\d+)\.pt')
@@ -333,11 +337,6 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[args.keep_last_epochs:]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
-
-    write_timer.stop()
-
-    print('| saved checkpoint {} (epoch {} @ {} updates) (writing took {} seconds)'.format(
-        checkpoints[0], epoch, updates, write_timer.sum))
 
 
 def load_checkpoint(args, trainer, epoch_itr):
