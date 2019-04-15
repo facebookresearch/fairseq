@@ -17,15 +17,13 @@ from fairseq import utils
 class SinusoidalPositionalEmbedding(nn.Module):
     """This module produces sinusoidal positional embeddings of any length.
 
-    Padding symbols are ignored, but it is necessary to specify whether padding
-    is added on the left side (left_pad=True) or right side (left_pad=False).
+    Padding symbols are ignored.
     """
 
-    def __init__(self, embedding_dim, padding_idx, left_pad, init_size=1024):
+    def __init__(self, embedding_dim, padding_idx, init_size=1024):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx
-        self.left_pad = left_pad
         self.weights = SinusoidalPositionalEmbedding.get_embedding(
             init_size,
             embedding_dim,
@@ -76,7 +74,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
                 return self.weights[self.padding_idx + pos, :].unsqueeze(1).repeat(bsz, 1, 1)
             return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
 
-        positions = utils.make_positions(input, self.padding_idx, self.left_pad, self.onnx_trace)
+        positions = utils.make_positions(input, self.padding_idx, onnx_trace=self.onnx_trace)
         if self.onnx_trace:
             flat_embeddings = self.weights.detach().index_select(0, positions.view(-1))
             embedding_shape = torch.cat((bsz.view(1), seq_len.view(1), torch.LongTensor([-1])))

@@ -69,11 +69,11 @@ class TestUtils(unittest.TestCase):
 
         self.assertAlmostEqual(
             left_pad_output,
-            utils.make_positions(left_pad_input, pad, left_pad=True),
+            utils.make_positions(left_pad_input, pad),
         )
         self.assertAlmostEqual(
             right_pad_output,
-            utils.make_positions(right_pad_input, pad, left_pad=False),
+            utils.make_positions(right_pad_input, pad),
         )
 
     def assertAlmostEqual(self, t1, t2):
