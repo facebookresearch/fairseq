@@ -179,17 +179,14 @@ class FConvEncoder(FairseqEncoder):
             connections are added between layers when ``residual=1`` (which is
             the default behavior).
         dropout (float, optional): dropout to be applied before each conv layer
-        left_pad (bool, optional): whether the input is left-padded
-            (default: True).
     """
 
     def __init__(
-            self, dictionary, embed_dim=512, embed_dict=None, max_positions=1024,
-            convolutions=((512, 3),) * 20, dropout=0.1, left_pad=True,
+        self, dictionary, embed_dim=512, embed_dict=None, max_positions=1024,
+        convolutions=((512, 3),) * 20, dropout=0.1,
     ):
         super().__init__(dictionary)
         self.dropout = dropout
-        self.left_pad = left_pad
         self.num_attention_layers = None
 
         num_embeddings = len(dictionary)
@@ -202,7 +199,6 @@ class FConvEncoder(FairseqEncoder):
             max_positions,
             embed_dim,
             self.padding_idx,
-            left_pad=self.left_pad,
         )
 
         convolutions = extend_conv_spec(convolutions)
@@ -387,16 +383,14 @@ class FConvDecoder(FairseqIncrementalDecoder):
     """Convolutional decoder"""
 
     def __init__(
-            self, dictionary, embed_dim=512, embed_dict=None, out_embed_dim=256,
-            max_positions=1024, convolutions=((512, 3),) * 20, attention=True,
-            dropout=0.1, share_embed=False, positional_embeddings=True,
-            adaptive_softmax_cutoff=None, adaptive_softmax_dropout=0,
-            left_pad=False,
+        self, dictionary, embed_dim=512, embed_dict=None, out_embed_dim=256,
+        max_positions=1024, convolutions=((512, 3),) * 20, attention=True,
+        dropout=0.1, share_embed=False, positional_embeddings=True,
+        adaptive_softmax_cutoff=None, adaptive_softmax_dropout=0,
     ):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
         self.dropout = dropout
-        self.left_pad = left_pad
         self.need_attn = True
 
         convolutions = extend_conv_spec(convolutions)
@@ -418,7 +412,6 @@ class FConvDecoder(FairseqIncrementalDecoder):
             max_positions,
             embed_dim,
             padding_idx,
-            left_pad=self.left_pad,
         ) if positional_embeddings else None
 
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)
@@ -616,8 +609,8 @@ def Embedding(num_embeddings, embedding_dim, padding_idx):
     return m
 
 
-def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad):
-    m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad)
+def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx):
+    m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx)
     nn.init.normal_(m.weight, 0, 0.1)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m

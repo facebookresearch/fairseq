@@ -40,13 +40,13 @@ def init_bert_params(module):
 
 
 def PositionalEmbedding(
-        num_embeddings: int,
-        embedding_dim: int,
-        padding_idx: int,
-        left_pad: bool
+    num_embeddings: int,
+    embedding_dim: int,
+    padding_idx: int,
 )-> nn.Embedding:
     m = LearnedPositionalEmbedding(
-        num_embeddings + padding_idx + 1, embedding_dim, padding_idx, left_pad)
+        num_embeddings + padding_idx + 1, embedding_dim, padding_idx,
+    )
     nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
@@ -121,7 +121,6 @@ class TransformerSentenceEncoder(nn.Module):
                 self.max_seq_len,
                 self.embedding_dim,
                 self.padding_idx,
-                left_pad=False,
             )
             if self.use_position_embeddings
             else None

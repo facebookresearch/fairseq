@@ -263,11 +263,9 @@ class TransformerEncoder(FairseqEncoder):
         args (argparse.Namespace): parsed command-line arguments
         dictionary (~fairseq.data.Dictionary): encoding dictionary
         embed_tokens (torch.nn.Embedding): input embedding
-        left_pad (bool, optional): whether the input is left-padded
-            (default: True).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, left_pad=True):
+    def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
         self.dropout = args.dropout
 
@@ -279,7 +277,6 @@ class TransformerEncoder(FairseqEncoder):
         self.embed_scale = math.sqrt(embed_dim)
         self.embed_positions = PositionalEmbedding(
             args.max_source_positions, embed_dim, self.padding_idx,
-            left_pad=left_pad,
             learned=args.encoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
@@ -390,13 +387,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         embed_tokens (torch.nn.Embedding): output embedding
         no_encoder_attn (bool, optional): whether to attend to encoder outputs
             (default: False).
-        left_pad (bool, optional): whether the input is left-padded
-            (default: False).
         final_norm (bool, optional): apply layer norm to the output of the
             final decoder layer (default: True).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, left_pad=False, final_norm=True):
+    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, final_norm=True):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
@@ -415,7 +410,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.embed_positions = PositionalEmbedding(
             args.max_target_positions, embed_dim, padding_idx,
-            left_pad=left_pad,
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
@@ -796,13 +790,17 @@ def Linear(in_features, out_features, bias=True):
     return m
 
 
-def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad, learned=False):
+def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, learned=False):
     if learned:
-        m = LearnedPositionalEmbedding(num_embeddings + padding_idx + 1, embedding_dim, padding_idx, left_pad)
+        m = LearnedPositionalEmbedding(
+            num_embeddings + padding_idx + 1, embedding_dim, padding_idx,
+        )
         nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
         nn.init.constant_(m.weight[padding_idx], 0)
     else:
-        m = SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, num_embeddings + padding_idx + 1)
+        m = SinusoidalPositionalEmbedding(
+            embedding_dim, padding_idx, init_size=num_embeddings + padding_idx + 1,
+        )
     return m
 
 
