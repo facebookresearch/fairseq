@@ -6,7 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import OrderedDict
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 import numpy as np
 
@@ -16,13 +16,13 @@ from . import FairseqDataset
 class MultiCorpusSampledDataset(FairseqDataset):
     """
     Stores multiple instances of FairseqDataset together and in every iteration
-    creates a batch by first sampling a dataset occording to a specified
+    creates a batch by first sampling a dataset according to a specified
     probability distribution and then getting instances from that dataset.
 
     Args:
         datasets: an OrderedDict of FairseqDataset instances.
-        sampling_dist: the sampling distribution used to select the dataset
-            from which the batch is created in a given iteration.
+        sampling_func: A function for sampling over list of dataset keys.
+                Default strategy is to sample uniformly.
         default_key: string which specifies the default key to be used for
             generating dummy batches etc.
     """
@@ -30,14 +30,17 @@ class MultiCorpusSampledDataset(FairseqDataset):
     def __init__(
         self,
         datasets: Dict[str, FairseqDataset],
-        sampling_dist: str = "uniform",
+        sampling_func: Callable[[List], int] = (
+            # Sample from uniform distribution
+            lambda x: np.random.choice(x, 1).item()
+        ),
         default_key: str = "",
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
         assert default_key in datasets
         self.datasets = datasets
-        self.sampling_dist = sampling_dist
+        self.sampling_func = sampling_func
         self.default_key = default_key
 
         self.total_num_instances = 0
@@ -105,15 +108,9 @@ class MultiCorpusSampledDataset(FairseqDataset):
         if len(samples) == 0:
             return None
 
-        if self.sampling_dist == "uniform":
-            candidates = list(self.datasets.keys())
-            selected_key = np.random.choice(candidates, 1).item()
-            selected_samples = [sample[selected_key] for sample in samples]
-            return self.datasets[selected_key].collater(selected_samples)
-        else:
-            raise NotImplementedError(
-                "Specified sampling is currently not Implemented."
-            )
+        selected_key = self.sampling_func(list(self.datasets.keys()))
+        selected_samples = [sample[selected_key] for sample in samples]
+        return self.datasets[selected_key].collater(selected_samples)
 
     def get_dummy_batch(self, num_tokens: int, max_positions: int):
         """
