@@ -19,11 +19,15 @@ class Adadelta(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--adadelta-rho', type=float, default=0.9, metavar='RHO',
                             help='coefficient used for computing a running average of squared gradients')
         parser.add_argument('--adadelta-eps', type=float, default=1e-6, metavar='EPS',
                             help='term added to the denominator to improve numerical stability')
+        parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
+                            help='weight decay')
         parser.add_argument('--anneal-eps', action='store_true', help='flag to anneal eps')
+        # fmt: on
 
     @property
     def optimizer_config(self):

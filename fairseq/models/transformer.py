@@ -815,6 +815,7 @@ def base_lm_architecture(args):
     args.adaptive_softmax_factor = getattr(args, 'adaptive_softmax_factor', 4)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
 
+    args.add_bos_token = getattr(args, 'add_bos_token', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
@@ -911,7 +912,7 @@ def transformer_wmt_en_de(args):
     base_architecture(args)
 
 
-# parameters used in the "Attention Is All You Need" paper (Vaswani, et al, 2017)
+# parameters used in the "Attention Is All You Need" paper (Vaswani et al., 2017)
 @register_model_architecture('transformer', 'transformer_vaswani_wmt_en_de_big')
 def transformer_vaswani_wmt_en_de_big(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)

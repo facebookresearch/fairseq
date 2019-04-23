@@ -141,7 +141,7 @@ class FConvLanguageModel(FairseqLanguageModel):
         # make sure all arguments are present in older models
         base_lm_architecture(args)
 
-        if hasattr(args, 'max_target_positions'):
+        if hasattr(args, 'max_target_positions') and not hasattr(args, 'tokens_per_sample'):
             args.tokens_per_sample = args.max_target_positions
 
         decoder = FConvDecoder(

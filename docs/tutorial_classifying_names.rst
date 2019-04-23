@@ -354,7 +354,7 @@ The model files should appear in the :file:`checkpoints/` directory.
 Finally we can write a short script to evaluate our model on new inputs. Create
 a new file named :file:`eval_classifier.py` with the following contents::
 
-  from fairseq import data, options, tasks, utils
+  from fairseq import checkpoint_utils, data, options, tasks
 
   # Parse command-line arguments for generation
   parser = options.get_generation_parser(default_task='simple_classification')
@@ -365,7 +365,7 @@ a new file named :file:`eval_classifier.py` with the following contents::
 
   # Load model
   print('| loading model from {}'.format(args.path))
-  models, _model_args = utils.load_ensemble_for_inference([args.path], task)
+  models, _model_args = checkpoint_utils.load_model_ensemble([args.path], task=task)
   model = models[0]
 
   while True:

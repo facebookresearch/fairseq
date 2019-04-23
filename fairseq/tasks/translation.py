@@ -83,7 +83,6 @@ class TranslationTask(FairseqTask):
 
         task = TranslationTask(args, src_dict, tgt_dict)
         model = task.build_model(args)
-        model.upgrade_state_dict(state_dict)
         model.load_state_dict(state_dict, strict=True)
         return model
 
@@ -101,6 +100,10 @@ class TranslationTask(FairseqTask):
         """
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
+
+        # upgrade old checkpoints
+        if isinstance(args.data, str):
+            args.data = [args.data]
 
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
@@ -147,9 +150,7 @@ class TranslationTask(FairseqTask):
         src_datasets = []
         tgt_datasets = []
 
-        data_paths = self.args.data
-
-        for dk, data_path in enumerate(data_paths):
+        for dk, data_path in enumerate(self.args.data):
             for k in itertools.count():
                 split_k = split + (str(k) if k > 0 else '')
 
