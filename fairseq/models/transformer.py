@@ -52,8 +52,8 @@ class TransformerModel(FairseqModel):
                             help='dropout probability')
         parser.add_argument('--attention-dropout', type=float, metavar='D',
                             help='dropout probability for attention weights')
-        parser.add_argument('--relu-dropout', type=float, metavar='D',
-                            help='dropout probability after ReLU in FFN')
+        parser.add_argument('--activation-dropout', '--relu-dropout', type=float, metavar='D',
+                            help='dropout probability after activation in FFN.')
         parser.add_argument('--encoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained encoder embedding')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
@@ -94,6 +94,8 @@ class TransformerModel(FairseqModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        parser.add_argument('--activation-fn', choices=['relu', 'gelu', 'gelu_fast'],
+                            help='Which activation function to use')
         # fmt: on
 
     @classmethod
@@ -583,7 +585,13 @@ class TransformerEncoderLayer(nn.Module):
         )
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
         self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
+        self.activation_fn = utils.get_activation_fn(
+            activation=getattr(args, 'activation_fn', 'relu')
+        )
+        self.activation_dropout = getattr(args, 'activation_dropout', 0)
+        if self.activation_dropout == 0:
+            # for backwards compatibility with models that use args.relu_dropout
+            self.activation_dropout = getattr(args, 'relu_dropout', 0)
         self.normalize_before = args.encoder_normalize_before
         self.fc1 = Linear(self.embed_dim, args.encoder_ffn_embed_dim)
         self.fc2 = Linear(args.encoder_ffn_embed_dim, self.embed_dim)
@@ -627,8 +635,8 @@ class TransformerEncoderLayer(nn.Module):
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.activation_fn(self.fc1(x))
+        x = F.dropout(x, p=self.activation_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
@@ -668,7 +676,13 @@ class TransformerDecoderLayer(nn.Module):
             dropout=args.attention_dropout,
         )
         self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
+        self.activation_fn = utils.get_activation_fn(
+            activation=getattr(args, 'activation_fn', 'relu')
+        )
+        self.activation_dropout = getattr(args, 'activation_dropout', 0)
+        if self.activation_dropout == 0:
+            # for backwards compatibility with models that use args.relu_dropout
+            self.activation_dropout = getattr(args, 'relu_dropout', 0)
         self.normalize_before = args.decoder_normalize_before
 
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
@@ -752,8 +766,8 @@ class TransformerDecoderLayer(nn.Module):
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.activation_fn(self.fc1(x))
+        x = F.dropout(x, p=self.activation_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
@@ -814,6 +828,7 @@ def base_lm_architecture(args):
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
     args.adaptive_softmax_factor = getattr(args, 'adaptive_softmax_factor', 4)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
+    args.activation_fn = getattr(args, 'activation_fn', 'relu')
 
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 
@@ -851,7 +866,7 @@ def transformer_lm_wiki103(args):
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '20000,60000')
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0.2)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.relu_dropout = getattr(args, 'relu_dropout', 0.1)
+    args.activation_dropout = getattr(args, 'activation_dropout', 0.1)
     transformer_lm_big(args)
 
 
@@ -880,7 +895,8 @@ def base_architecture(args):
     args.decoder_normalize_before = getattr(args, 'decoder_normalize_before', False)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.)
-    args.relu_dropout = getattr(args, 'relu_dropout', 0.)
+    args.activation_dropout = getattr(args, 'activation_dropout', 0.)
+    args.activation_fn = getattr(args, 'activation_fn', 'relu')
     args.dropout = getattr(args, 'dropout', 0.1)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
@@ -943,5 +959,5 @@ def transformer_wmt_en_de_big_t2t(args):
     args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', True)
     args.decoder_normalize_before = getattr(args, 'decoder_normalize_before', True)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.relu_dropout = getattr(args, 'relu_dropout', 0.1)
+    args.activation_dropout = getattr(args, 'activation_dropout', 0.1)
     transformer_vaswani_wmt_en_de_big(args)
