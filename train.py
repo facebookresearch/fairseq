@@ -362,7 +362,7 @@ def load_checkpoint(args, trainer, epoch_itr):
 
             trainer.lr_step(epoch_itr.epoch)
             trainer.lr_step_update(trainer.get_num_updates())
-            if 'best' in extra_state:
+            if 'best' in extra_state and not args.reset_optimizer:
                 save_checkpoint.best = extra_state['best']
         return True
     else:
