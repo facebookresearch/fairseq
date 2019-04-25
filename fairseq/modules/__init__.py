@@ -13,6 +13,7 @@ from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
 from .dynamic_convolution import DynamicConv1dTBC
+from .gelu import gelu, gelu_fast
 from .grad_multiply import GradMultiply
 from .highway import Highway
 from .layer_norm import LayerNorm
@@ -37,6 +38,8 @@ __all__ = [
     'ConvTBC',
     'DownsampledMultiHeadAttention',
     'DynamicConv1dTBC',
+    'gelu',
+    'gelu_fast',
     'GradMultiply',
     'Highway',
     'LayerNorm',

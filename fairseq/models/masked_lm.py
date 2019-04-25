@@ -136,7 +136,7 @@ class MaskedLMEncoder(FairseqEncoder):
         )
         encoder_normalize_before = getattr(args, 'encoder_normalize_before', False)
         use_bert_layer_norm = getattr(args, 'bert_layer_norm', False)
-        use_gelu = getattr(args, 'use_gelu', False)
+        use_gelu = getattr(args, 'gelu', False)
         apply_bert_init = getattr(args, 'apply_bert_init', False)
 
         self.sentence_encoder = TransformerSentenceEncoder(
