@@ -32,6 +32,16 @@ class TransformerFromPretrainedXLMModel(TransformerModel):
             metavar="STR",
             help="XLM model to use for initializing transformer encoder and/or decoder",
         )
+        parser.add_argument(
+            "--init-encoder-only",
+            action="store_true",
+            help="if set, don't load the XLM weights and embeddings into decoder",
+        )
+        parser.add_argument(
+            "--init-decoder-only",
+            action="store_true",
+            help="if set, don't load the XLM weights and embeddings into encoder",
+        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -48,7 +58,10 @@ class TransformerFromPretrainedXLMModel(TransformerModel):
             "For translation, you may want to use --task "
             "translation_from_pretrained_xlm"
         )
-
+        assert not (
+            getattr(args, "init_encoder_only", False)
+            and getattr(args, "init_decoder_only", False)
+        ), "Only one of --init-encoder-only and --init-decoder-only can be set."
         return super().build_model(args, task)
 
     @classmethod
@@ -100,6 +113,10 @@ def upgrade_state_dict_with_xlm_weights(
 class TransformerEncoderFromPretrainedXLM(TransformerEncoder):
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(args, dictionary, embed_tokens)
+        if getattr(args, 'init_decoder_only', False):
+            # Don't load XLM weights for encoder if --init-decoder-only
+            return
+
         assert hasattr(args, "pretrained_xlm_checkpoint"), (
             "--pretrained-xlm-checkpoint must be specified to load Transformer "
             "encoder from pretrained XLM"
@@ -118,6 +135,9 @@ class TransformerDecoderFromPretrainedXLM(TransformerDecoder):
         super().__init__(
             args, dictionary, embed_tokens, no_encoder_attn, final_norm
         )
+        if getattr(args, 'init_encoder_only', False):
+            # Don't load XLM weights for decoder if --init-encoder-only
+            return
         assert hasattr(args, "pretrained_xlm_checkpoint"), (
             "--pretrained-xlm-checkpoint must be specified to load Transformer "
             "decoder from pretrained XLM"

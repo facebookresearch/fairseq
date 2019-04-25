@@ -276,6 +276,54 @@ class TestMaskedLanguageModel(unittest.TestCase):
                         task="translation_from_pretrained_xlm",
                     )
 
+    def test_pretrained_masked_lm_for_translation_encoder_only(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_language_model(data_dir, arch="xlm_base")
+                with tempfile.TemporaryDirectory(
+                    "test_mlm_translation"
+                ) as translation_dir:
+                    create_dummy_data(translation_dir)
+                    preprocess_translation_data(
+                        translation_dir, extra_flags=["--joined-dictionary"]
+                    )
+                    # Train transformer with data_dir/checkpoint_last.pt
+                    train_translation_model(
+                        translation_dir,
+                        arch="transformer_from_pretrained_xlm",
+                        extra_flags=[
+                            "--decoder-layers",
+                            "1",
+                            "--decoder-embed-dim",
+                            "32",
+                            "--decoder-attention-heads",
+                            "1",
+                            "--decoder-ffn-embed-dim",
+                            "32",
+                            "--encoder-layers",
+                            "1",
+                            "--encoder-embed-dim",
+                            "32",
+                            "--encoder-attention-heads",
+                            "1",
+                            "--encoder-ffn-embed-dim",
+                            "32",
+                            "--pretrained-xlm-checkpoint",
+                            f"{data_dir}/checkpoint_last.pt",
+                            "--encoder-learned-pos",
+                            "--decoder-learned-pos",
+                            "--activation-fn",
+                            "gelu",
+                            "--max-source-positions",
+                            "500",
+                            "--max-target-positions",
+                            "500",
+                            "--init-encoder-only",
+                        ],
+                        task="translation_from_pretrained_xlm",
+                    )
 
 def train_masked_language_model(data_dir, arch):
     train_parser = options.get_training_parser()
