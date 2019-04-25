@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import defaultdict, OrderedDict
+from typing import Callable
 import copy
 import importlib.util
 import logging
@@ -18,6 +19,8 @@ import warnings
 import torch
 import torch.nn.functional as F
 from torch.serialization import default_restore_location
+
+from fairseq.modules import gelu, gelu_fast
 
 
 def torch_persistent_save(*args, **kwargs):
@@ -462,3 +465,15 @@ def log_softmax(x, dim, onnx_trace=False):
 def deprecation_warning(message, stacklevel=3):
     # don't use DeprecationWarning, since it's ignored by default
     warnings.warn(message, stacklevel=stacklevel)
+
+
+def get_activation_fn(activation: str) -> Callable:
+    """ Returns the activation function corresponding to `activation` """
+    if activation == 'relu':
+        return F.relu
+    elif activation == 'gelu':
+        return gelu
+    elif activation == 'gelu_fast':
+        return gelu_fast
+    else:
+        raise RuntimeError(f"--activation-fn {activation} not supported")
