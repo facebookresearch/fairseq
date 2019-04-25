@@ -220,6 +220,126 @@ class TestLanguageModeling(unittest.TestCase):
                 eval_lm_main(data_dir)
 
 
+class TestMaskedLanguageModel(unittest.TestCase):
+    def test_masked_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_language_model(data_dir, "xlm_base")
+
+    def test_pretrained_masked_lm_for_translation(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_language_model(data_dir, arch="xlm_base")
+                with tempfile.TemporaryDirectory(
+                    "test_mlm_translation"
+                ) as translation_dir:
+                    create_dummy_data(translation_dir)
+                    preprocess_translation_data(
+                        translation_dir, extra_flags=["--joined-dictionary"]
+                    )
+                    # Train transformer with data_dir/checkpoint_last.pt
+                    train_translation_model(
+                        translation_dir,
+                        arch="transformer_from_pretrained_xlm",
+                        extra_flags=[
+                            "--decoder-layers",
+                            "1",
+                            "--decoder-embed-dim",
+                            "32",
+                            "--decoder-attention-heads",
+                            "1",
+                            "--decoder-ffn-embed-dim",
+                            "32",
+                            "--encoder-layers",
+                            "1",
+                            "--encoder-embed-dim",
+                            "32",
+                            "--encoder-attention-heads",
+                            "1",
+                            "--encoder-ffn-embed-dim",
+                            "32",
+                            "--pretrained-xlm-checkpoint",
+                            f"{data_dir}/checkpoint_last.pt",
+                            "--encoder-learned-pos",
+                            "--decoder-learned-pos",
+                            "--activation-fn",
+                            "gelu",
+                            "--max-source-positions",
+                            "500",
+                            "--max-target-positions",
+                            "500",
+                        ],
+                        task="translation_from_pretrained_xlm",
+                    )
+
+
+def train_masked_language_model(data_dir, arch):
+    train_parser = options.get_training_parser()
+    # TODO: langs should be in and out right?
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            "--task",
+            "cross_lingual_lm",
+            data_dir,
+            "--arch",
+            arch,
+            # Optimizer args
+            "--optimizer",
+            "adam",
+            "--lr-scheduler",
+            "reduce_lr_on_plateau",
+            "--lr-shrink",
+            "0.5",
+            "--lr",
+            "0.0001",
+            "--min-lr",
+            "1e-09",
+            # dropout, attention args
+            "--dropout",
+            "0.1",
+            "--no-bias-kv",
+            "--attention-dropout",
+            "0.1",
+            # MLM args
+            "--criterion",
+            "masked_lm_loss",
+            "--masked-lm-only",
+            "--monolingual-langs",
+            "in,out",
+            "--num-segment",
+            "5",
+            # Transformer args: use a small transformer model for fast training
+            "--encoder-layers",
+            "1",
+            "--encoder-embed-dim",
+            "32",
+            "--encoder-attention-heads",
+            "1",
+            "--encoder-ffn-embed-dim",
+            "32",
+            # Other training args
+            "--max-tokens",
+            "500",
+            "--tokens-per-sample",
+            "500",
+            "--save-dir",
+            data_dir,
+            "--max-epoch",
+            "1",
+            "--no-progress-bar",
+            "--distributed-world-size",
+            "1",
+            "--raw-text",
+        ],
+    )
+    train.main(train_args)
+
+
 class TestCommonOptions(unittest.TestCase):
 
     def test_optimizers(self):
@@ -281,12 +401,12 @@ def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess.main(preprocess_args)
 
 
-def train_translation_model(data_dir, arch, extra_flags=None):
+def train_translation_model(data_dir, arch, extra_flags=None, task='translation'):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
         [
-            '--task', 'translation',
+            '--task', task,
             data_dir,
             '--save-dir', data_dir,
             '--arch', arch,
