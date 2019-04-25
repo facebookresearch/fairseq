@@ -10,14 +10,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fairseq.modules import MultiheadAttention, BertLayerNorm
-
-
-def gelu(x: torch.Tensor) -> torch.Tensor:
-    """
-    Implementation of the gelu activation function.
-    """
-    return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+from fairseq.modules import gelu, MultiheadAttention, BertLayerNorm
 
 
 class TransformerSentenceEncoderLayer(nn.Module):
