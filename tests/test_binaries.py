@@ -114,6 +114,9 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lstm_wiseman_iwslt_de_en', [
                     '--encoder-layers', '2',
                     '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--decoder-out-embed-dim', '8',
                 ])
                 generate_main(data_dir)
 
@@ -125,7 +128,10 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lstm', [
                     '--encoder-layers', '2',
                     '--encoder-bidirectional',
-                    '--encoder-hidden-size', '256',
+                    '--encoder-hidden-size', '16',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--decoder-out-embed-dim', '8',
                     '--decoder-layers', '2',
                 ])
                 generate_main(data_dir)
@@ -135,7 +141,12 @@ class TestTranslation(unittest.TestCase):
             with tempfile.TemporaryDirectory('test_transformer') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
-                train_translation_model(data_dir, 'transformer_iwslt_de_en')
+                train_translation_model(data_dir, 'transformer_iwslt_de_en', [
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                ])
                 generate_main(data_dir)
 
     def test_lightconv(self):
@@ -146,6 +157,8 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lightconv_iwslt_de_en', [
                     '--encoder-conv-type', 'lightweight',
                     '--decoder-conv-type', 'lightweight',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
                 ])
                 generate_main(data_dir)
 
@@ -157,6 +170,8 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lightconv_iwslt_de_en', [
                     '--encoder-conv-type', 'dynamic',
                     '--decoder-conv-type', 'dynamic',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
                 ])
                 generate_main(data_dir)
 
@@ -170,6 +185,10 @@ class TestTranslation(unittest.TestCase):
                     '--method', 'hMoElp',
                     '--mean-pool-gating-network',
                     '--num-experts', '3',
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
                 ])
                 generate_main(data_dir, [
                     '--task', 'translation_moe',
@@ -188,13 +207,17 @@ class TestStories(unittest.TestCase):
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 config = [
-                    '--encoder-layers', '[(512, 3)] * 2',
-                    '--decoder-layers', '[(512, 3)] * 2',
+                    '--encoder-layers', '[(128, 3)] * 2',
+                    '--decoder-layers', '[(128, 3)] * 2',
                     '--decoder-attention', 'True',
                     '--encoder-attention', 'False',
                     '--gated-attention', 'True',
                     '--self-attention', 'True',
                     '--project-input', 'True',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--decoder-out-embed-dim', '8',
+                    '--multihead-self-attention-nheads', '2'
                 ]
                 train_translation_model(data_dir, 'fconv_self_att_wp', config)
                 generate_main(data_dir)
