@@ -25,6 +25,9 @@ class FairseqIncrementalDecoder(FairseqDecoder):
     The :class:`FairseqIncrementalDecoder` interface also defines the
     :func:`reorder_incremental_state` method, which is used during beam search
     to select and reorder the incremental state based on the selection of beams.
+	
+    To learn more about how incremental decoding works, refer to `this blog
+    <http://www.telesens.co/2019/04/21/understanding-incremental-decoding-in-fairseq/>`_.
     """
 
     def __init__(self, dictionary):
