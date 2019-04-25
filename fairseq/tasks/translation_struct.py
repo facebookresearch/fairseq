@@ -11,7 +11,7 @@ import os
 import numpy as np
 import torch
 
-from fairseq import bleu, options, tokenizer, utils
+from fairseq import bleu, utils
 from fairseq.data import Dictionary, language_pair_dataset
 from fairseq.sequence_generator import SequenceGenerator
 from fairseq.tasks import register_task, translation
@@ -30,12 +30,12 @@ class BleuScorer(object):
 
     def preprocess_ref(self, ref):
         ref = self.tgt_dict.string(ref, bpe_symbol=self.bpe_symbol, escape_unk=True)
-        return tokenizer.Tokenizer.tokenize(ref, self.scoring_dict, add_if_not_exist=True)
+        return self.scoring_dict.encode_line(ref, add_if_not_exist=True)
 
     def preprocess_hypo(self, hypo):
         hypo = hypo['tokens']
         hypo = self.tgt_dict.string(hypo.int().cpu(), bpe_symbol=self.bpe_symbol)
-        return tokenizer.Tokenizer.tokenize(hypo, self.scoring_dict, add_if_not_exist=True)
+        return self.scoring_dict.encode_line(hypo, add_if_not_exist=True)
 
     def get_cost(self, ref, hypo):
         self.scorer.reset(one_init=True)
@@ -181,23 +181,18 @@ class TranslationStructuredPredictionTask(translation.TranslationTask):
         # initialize generator
         if self._generator is None:
             self._generator = SequenceGenerator(
-                [model],
                 self.target_dictionary,
+                beam_size=self.args.seq_beam,
+                max_len_a=self.args.seq_max_len_a,
+                max_len_b=self.args.seq_max_len_b,
                 unk_penalty=self.args.seq_unkpen,
                 sampling=self.args.seq_sampling,
             )
-            self._generator.cuda()
 
         # generate hypotheses
-        net_input = sample['net_input']
-        src_len = net_input['src_tokens'].size(1)
         sample['hypos'] = self._generator.generate(
-            encoder_input={
-                'src_tokens': net_input['src_tokens'],
-                'src_lengths': net_input['src_lengths'],
-            },
-            maxlen=int(self.args.seq_max_len_a * src_len + self.args.seq_max_len_b),
-            beam_size=self.args.seq_beam,
+            [model],
+            sample,
         )
 
         # add reference to the set of hypotheses

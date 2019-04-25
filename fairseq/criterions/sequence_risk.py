@@ -52,7 +52,7 @@ class SequenceRiskCriterion(FairseqSequenceCriterion):
         scores = lprobs.gather(3, hypotheses)
         scores *= pad_mask.float()
         avg_scores = scores.sum(dim=2) / lengths
-        probs = F.softmax(avg_scores.exp_(), dim=1).squeeze(-1)
+        probs = F.softmax(avg_scores.exp(), dim=1).squeeze(-1)
         loss = (probs * costs).sum()
 
         sample_size = bsz
