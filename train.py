@@ -17,7 +17,7 @@ import random
 
 import torch
 
-from fairseq import distributed_utils, options, progress_bar, tasks, utils
+from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
 from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
