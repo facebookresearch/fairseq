@@ -677,8 +677,11 @@ class TransformerDecoderLayer(nn.Module):
             self.encoder_attn = None
             self.encoder_attn_layer_norm = None
         else:
+            encoder_embed_dim = args.encoder_embed_dim
             self.encoder_attn = MultiheadAttention(
                 self.embed_dim, args.decoder_attention_heads,
+                kdim=encoder_embed_dim,
+                vdim=encoder_embed_dim,
                 dropout=args.attention_dropout,
             )
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim)
@@ -900,7 +903,7 @@ def transformer_iwslt_de_en(args):
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 1024)
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 4)
     args.encoder_layers = getattr(args, 'encoder_layers', 6)
-    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 256)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 1024)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 4)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
