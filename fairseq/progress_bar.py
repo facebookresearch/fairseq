@@ -41,7 +41,7 @@ def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', 
         raise ValueError('Unknown log format: {}'.format(args.log_format))
 
     if args.tensorboard_logdir and distributed_utils.is_master(args):
-        bar = tensorboard_log_wrapper(bar, args.tensorboard_logdir)
+        bar = tensorboard_log_wrapper(bar, args.tensorboard_logdir, args)
 
     return bar
 
@@ -214,9 +214,10 @@ class tqdm_progress_bar(progress_bar):
 class tensorboard_log_wrapper(progress_bar):
     """Log to tensorboard."""
 
-    def __init__(self, wrapped_bar, tensorboard_logdir):
+    def __init__(self, wrapped_bar, tensorboard_logdir, args):
         self.wrapped_bar = wrapped_bar
         self.tensorboard_logdir = tensorboard_logdir
+        self.args = args
 
         try:
             from tensorboardX import SummaryWriter
@@ -234,6 +235,8 @@ class tensorboard_log_wrapper(progress_bar):
             self._writers[key] = self.SummaryWriter(
                 log_dir=os.path.join(self.tensorboard_logdir, key),
             )
+            self._writers[key].add_text('args', str(vars(self.args)))
+            self._writers[key].add_text('sys.argv', " ".join(sys.argv))
         return self._writers[key]
 
     def __iter__(self):
