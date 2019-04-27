@@ -78,6 +78,14 @@ class MonolingualDataset(FairseqDataset):
 
     def __getitem__(self, index):
         if self.targets is not None:
+            # *future_target* is the original sentence
+            # *source* is shifted right by 1 (maybe left-padded with eos)
+            # *past_target* is shifted right by 2 (left-padded as needed)
+            #
+            # Left-to-right language models should condition on *source* and
+            # predict *future_target*.
+            # Right-to-left language models should condition on *source* and
+            # predict *past_target*.
             source, future_target, past_target = self.dataset[index]
             source, target = self._make_source_target(source, future_target, past_target)
         else:
