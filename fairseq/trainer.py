@@ -184,7 +184,7 @@ class Trainer(object):
                     # Whenever *samples* contains more than one mini-batch, we
                     # want to accumulate gradients locally and only call
                     # all-reduce in the last backwards pass. Currently the
-                    # *need_reduction* flag is only supported by
+                    # *accumulate_grads* flag is only supported by
                     # LegacyDistributedDataParallel.
                     if i < len(samples) - 1:
                         self.model.accumulate_grads = True

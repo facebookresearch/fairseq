@@ -101,9 +101,15 @@ fairseq(-py) is BSD-licensed.
 The license applies to the pre-trained models as well.
 We also provide an additional patent grant.
 
-# Credits
-This is a PyTorch version of
-[fairseq](https://github.com/facebookresearch/fairseq), a sequence-to-sequence
-learning toolkit from Facebook AI Research. The original authors of this
-reimplementation are (in no particular order) Sergey Edunov, Myle Ott, and Sam
-Gross.
+# Citation
+
+Please cite as:
+
+```bibtex
+@inproceedings{ott2019fairseq,
+  title = {fairseq: A Fast, Extensible Toolkit for Sequence Modeling},
+  author = {Myle Ott and Sergey Edunov and Alexei Baevski and Angela Fan and Sam Gross and Nathan Ng and David Grangier and Michael Auli},
+  booktitle = {Proceedings of NAACL-HLT 2019: Demonstrations},
+  year = {2019},
+}
+```
