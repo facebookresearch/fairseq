@@ -56,7 +56,7 @@ Use the following command to train the model on 5 languages.
 ```
 fairseq-train -- \
 --task cross_lingual_lm monolingual_data/processed \
---save-dir checkpoints/mlm
+--save-dir checkpoints/mlm \
 --max-update 2400000 --save-interval 1 --no-epoch-checkpoints \
 --arch xlm_base \
 --optimizer adam --lr-scheduler reduce_lr_on_plateau \
