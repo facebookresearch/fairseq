@@ -25,7 +25,7 @@ mkdir -p monolingual_data/fairseq_processed
 for lg in ar de en hi fr
 do
 
-  fairseq-preprocess -- \
+  fairseq-preprocess \
   --task cross_lingual_lm \
   --srcdict monolingual_data/processed/vocab_mlm \
   --only-source \
@@ -54,9 +54,9 @@ done
 Use the following command to train the model on 5 languages.
 
 ```
-fairseq-train -- \
+fairseq-train \
 --task cross_lingual_lm monolingual_data/processed \
---save-dir checkpoints/mlm
+--save-dir checkpoints/mlm \
 --max-update 2400000 --save-interval 1 --no-epoch-checkpoints \
 --arch xlm_base \
 --optimizer adam --lr-scheduler reduce_lr_on_plateau \
