@@ -308,8 +308,8 @@ def add_optimization_args(parser):
     group.add_argument('--lr-scheduler', default='fixed',
                        choices=LR_SCHEDULER_REGISTRY.keys(),
                        help='Learning Rate Scheduler')
-    group.add_argument('--min-lr', default=1e-7, type=float, metavar='LR',
-                       help='stop training when the learning rate reaches this minimum')
+    group.add_argument('--min-lr', default=-1, type=float, metavar='LR',
+                       help='minimum learning rate')
     # fmt: on
     return group
 

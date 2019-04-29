@@ -86,7 +86,7 @@ This matches row 3 from Table 7 in the paper.
 @article{shen2019mixture,
   title = {Mixture Models for Diverse Machine Translation: Tricks of the Trade},
   author = {Tianxiao Shen and Myle Ott and Michael Auli and Marc'Aurelio Ranzato},
-  journal = {arXiv preprint arXiv:1902.07816},
+  journal = {International Conference on Machine Learning},
   year = 2019,
 }
 ```
