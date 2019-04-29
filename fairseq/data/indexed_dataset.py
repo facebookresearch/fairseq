@@ -85,7 +85,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         if not self.data_file:
             self.read_data(self.path)
         self.check_index(i)
-        tensor_size = int(self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]])
+        tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
         a = np.empty(tensor_size, dtype=self.dtype)
         self.data_file.seek(self.data_offsets[i] * self.element_size)
         self.data_file.readinto(a)
