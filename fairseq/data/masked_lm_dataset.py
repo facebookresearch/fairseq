@@ -17,6 +17,7 @@ from . import FairseqDataset, data_utils
 from fairseq.data import Dictionary
 from fairseq.data.block_pair_dataset import BlockPairDataset
 from fairseq.data.token_block_dataset import TokenBlockDataset
+from fairseq.data.concat_dataset import ConcatDataset
 
 
 class MaskedLMDataset(FairseqDataset):
@@ -77,8 +78,10 @@ class MaskedLMDataset(FairseqDataset):
         # Make sure the input datasets are the ones supported
         assert (
             isinstance(dataset, TokenBlockDataset) or
-            isinstance(dataset, BlockPairDataset)
-        ), "MaskedLMDataset only wraps TokenBlockDataset or  BlockPairDataset"
+            isinstance(dataset, BlockPairDataset) or
+            isinstance(dataset, ConcatDataset)
+        ), "MaskedLMDataset only wraps TokenBlockDataset or BlockPairDataset or " \
+           "ConcatDataset"
 
         self.dataset = dataset
         self.sizes = np.array(sizes)
