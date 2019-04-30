@@ -95,7 +95,6 @@ class MultiheadAttention(nn.Module):
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
-        # assert key.size() == value.size()
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
@@ -193,7 +192,7 @@ class MultiheadAttention(nn.Module):
             attn_weights += attn_mask
 
         if key_padding_mask is not None:
-            # don't attend to padding []symbols
+            # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             if self.onnx_trace:
                 attn_weights = torch.where(
@@ -221,14 +220,14 @@ class MultiheadAttention(nn.Module):
             attn = attn.contiguous().view(tgt_len, bsz, embed_dim)
         else:
             attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
-            attn = self.out_proj(attn)
+        attn = self.out_proj(attn)
 
-            if need_weights:
-                # average attention weights over heads
-                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-                attn_weights = attn_weights.sum(dim=1) / self.num_heads
-            else:
-                attn_weights = None
+        if need_weights:
+            # average attention weights over heads
+            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+            attn_weights = attn_weights.sum(dim=1) / self.num_heads
+        else:
+            attn_weights = None
 
         return attn, attn_weights
 
