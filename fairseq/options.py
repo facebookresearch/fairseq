@@ -303,19 +303,13 @@ def add_optimization_args(parser):
                        metavar='LR_1,LR_2,...,LR_N',
                        help='learning rate for the first N epochs; all epochs >N using LR_N'
                             ' (note: this may be interpreted differently depending on --lr-scheduler)')
-    group.add_argument('--momentum', default=0.99, type=float, metavar='M',
-                       help='momentum factor')
-    group.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
-                       help='weight decay')
 
     # Learning rate schedulers can be found under fairseq/optim/lr_scheduler/
-    group.add_argument('--lr-scheduler', default='reduce_lr_on_plateau',
+    group.add_argument('--lr-scheduler', default='fixed',
                        choices=LR_SCHEDULER_REGISTRY.keys(),
                        help='Learning Rate Scheduler')
-    group.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
-                       help='learning rate shrink factor for annealing, lr_new = (lr * lr_shrink)')
     group.add_argument('--min-lr', default=-1, type=float, metavar='LR',
-                       help='minimum learning rate')
+                       help='stop training when the learning rate reaches this minimum')
     # fmt: on
     return group
 

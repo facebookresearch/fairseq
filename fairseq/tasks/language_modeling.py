@@ -81,6 +81,8 @@ class LanguageModelingTask(FairseqTask):
                             help='include future target')
         parser.add_argument('--past-target', action='store_true',
                             help='include past target')
+        parser.add_argument('--add-bos-token', action='store_true',
+                            help='prepend beginning of sentence token (<s>)')
         # fmt: on
 
     def __init__(self, args, dictionary, output_dictionary, targets=None):
@@ -185,7 +187,7 @@ class LanguageModelingTask(FairseqTask):
         self.datasets[split] = MonolingualDataset(
             dataset, sizes, self.dictionary, self.output_dictionary,
             add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
-            targets=self.targets,
+            targets=self.targets, add_bos_token=self.args.add_bos_token,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths):
@@ -205,6 +207,7 @@ class LanguageModelingTask(FairseqTask):
                 self.target_dictionary,
                 add_eos_for_other_targets=False,
                 shuffle=False,
+                add_bos_token=self.args.add_bos_token,
             ),
             eos=self.source_dictionary.eos(),
             # remove EOS since this will be used as a prefix for generation

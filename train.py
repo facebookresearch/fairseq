@@ -17,15 +17,14 @@ import random
 
 import torch
 
-from fairseq import distributed_utils, options, progress_bar, tasks, utils
+from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
 from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
-from fairseq.utils import import_user_module
 
 
 def main(args, init_distributed=False):
-    import_user_module(args)
+    utils.import_user_module(args)
 
     if args.max_tokens is None:
         args.max_tokens = 6000
@@ -326,14 +325,18 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
     if not end_of_epoch and args.keep_interval_updates > 0:
         # remove old checkpoints; checkpoints are sorted in descending order
-        checkpoints = utils.checkpoint_paths(args.save_dir, pattern=r'checkpoint_\d+_(\d+)\.pt')
+        checkpoints = checkpoint_utils.checkpoint_paths(
+            args.save_dir, pattern=r'checkpoint_\d+_(\d+)\.pt',
+        )
         for old_chk in checkpoints[args.keep_interval_updates:]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
 
     if args.keep_last_epochs > 0:
         # remove old epoch checkpoints; checkpoints are sorted in descending order
-        checkpoints = utils.checkpoint_paths(args.save_dir, pattern=r'checkpoint(\d+)\.pt')
+        checkpoints = checkpoint_utils.checkpoint_paths(
+            args.save_dir, pattern=r'checkpoint(\d+)\.pt',
+        )
         for old_chk in checkpoints[args.keep_last_epochs:]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)

@@ -21,6 +21,7 @@ class FairseqAdafactor(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--adafactor-eps', default='(1e-30, 1e-3)', metavar="E",
                             help='epsilons for Adafactor optimizer')
         parser.add_argument('--clip-threshold', type=float, default=1.0, metavar="C",
@@ -31,11 +32,14 @@ class FairseqAdafactor(FairseqOptimizer):
                             help='beta for first moment estimator. Optional')
         parser.add_argument('--scale-parameter', action='store_true',
                             help='scale learning rate by root mean square of parameter.')
+        parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
+                            help='weight decay')
         parser.add_argument('--warmup-init', action='store_true',
                             help='use relative step for warm-up learning rate schedule')
         parser.add_argument('--relative-step', action='store_true',
                             help='set learning rate to inverse square root of timestep.'
                                  'If false, external learning rate applied')
+        # fmt: on
 
     @property
     def optimizer_config(self):

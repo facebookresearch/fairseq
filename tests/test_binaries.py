@@ -239,7 +239,20 @@ class TestLanguageModeling(unittest.TestCase):
             with tempfile.TemporaryDirectory('test_fconv_lm') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
-                train_language_model(data_dir, 'fconv_lm')
+                train_language_model(data_dir, 'fconv_lm', [
+                    '--decoder-layers', '[(850, 3)] * 2 + [(1024,4)]',
+                    '--decoder-embed-dim', '280',
+                    '--optimizer', 'nag',
+                    '--lr', '0.1',
+                ])
+                eval_lm_main(data_dir)
+
+    def test_transformer_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_transformer_lm') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_language_model(data_dir, 'transformer_lm', ['--add-bos-token'])
                 eval_lm_main(data_dir)
 
 
@@ -534,7 +547,7 @@ def preprocess_lm_data(data_dir):
     preprocess.main(preprocess_args)
 
 
-def train_language_model(data_dir, arch):
+def train_language_model(data_dir, arch, extra_flags=None):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
@@ -542,12 +555,10 @@ def train_language_model(data_dir, arch):
             '--task', 'language_modeling',
             data_dir,
             '--arch', arch,
-            '--optimizer', 'nag',
-            '--lr', '0.1',
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
             '--criterion', 'adaptive_loss',
             '--adaptive-softmax-cutoff', '5,10,15',
-            '--decoder-layers', '[(850, 3)] * 2 + [(1024,4)]',
-            '--decoder-embed-dim', '280',
             '--max-tokens', '500',
             '--tokens-per-sample', '500',
             '--save-dir', data_dir,
@@ -555,7 +566,7 @@ def train_language_model(data_dir, arch):
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
-        ],
+        ] + (extra_flags or []),
     )
     train.main(train_args)
 

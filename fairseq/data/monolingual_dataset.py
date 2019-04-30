@@ -62,13 +62,14 @@ class MonolingualDataset(FairseqDataset):
     """
 
     def __init__(self, dataset, sizes, src_vocab, tgt_vocab, add_eos_for_other_targets, shuffle,
-                 targets=None):
+                 targets=None, add_bos_token=False):
         self.dataset = dataset
         self.sizes = np.array(sizes)
         self.vocab = src_vocab
         self.tgt_vocab = tgt_vocab
         self.add_eos_for_other_targets = add_eos_for_other_targets
         self.shuffle = shuffle
+        self.add_bos_token = add_bos_token
 
         assert targets is None or all(t in {'self', 'future', 'past'} for t in targets), \
             "targets must be none or one of 'self', 'future', 'past'"
@@ -91,6 +92,7 @@ class MonolingualDataset(FairseqDataset):
         else:
             source = self.dataset[index]
             target = None
+        source, target = self._maybe_add_bos(source, target)
         return {'id': index, 'source': source, 'target': target}
 
     def __len__(self):
@@ -128,6 +130,13 @@ class MonolingualDataset(FairseqDataset):
             target = future_target
 
         return source, self._filter_vocab(target)
+
+    def _maybe_add_bos(self, source, target):
+        if self.add_bos_token:
+            source = torch.cat([source.new([self.vocab.bos()]), source])
+            if target is not None:
+                target = torch.cat([target.new([self.tgt_vocab.bos()]), target])
+        return source, target
 
     def _filter_vocab(self, target):
         if len(self.tgt_vocab) != len(self.vocab):
@@ -173,6 +182,7 @@ class MonolingualDataset(FairseqDataset):
         target = self.vocab.dummy_sentence(tgt_len + 2)
         source, past_target, future_target = target[1:-1], target[2:], target[:-2]
         source, target = self._make_source_target(source, past_target, future_target)
+        source, target = self._maybe_add_bos(source, target)
 
         return self.collater([
             {'id': i, 'source': source, 'target': target}

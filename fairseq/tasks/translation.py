@@ -8,7 +8,7 @@
 import itertools
 import os
 
-from fairseq import options, utils
+from fairseq import options
 from fairseq.data import (
     ConcatDataset,
     data_utils,
@@ -69,24 +69,6 @@ class TranslationTask(FairseqTask):
                             help='amount to upsample primary dataset')
         # fmt: on
 
-    @staticmethod
-    def load_pretrained_model(path, src_dict_path, tgt_dict_path, arg_overrides=None):
-        model = utils.load_checkpoint_to_cpu(path)
-        args = model['args']
-        state_dict = model['model']
-        args = utils.override_model_args(args, arg_overrides)
-        src_dict = Dictionary.load(src_dict_path)
-        tgt_dict = Dictionary.load(tgt_dict_path)
-        assert src_dict.pad() == tgt_dict.pad()
-        assert src_dict.eos() == tgt_dict.eos()
-        assert src_dict.unk() == tgt_dict.unk()
-
-        task = TranslationTask(args, src_dict, tgt_dict)
-        model = task.build_model(args)
-        model.upgrade_state_dict(state_dict)
-        model.load_state_dict(state_dict, strict=True)
-        return model
-
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args)
         self.src_dict = src_dict
@@ -101,6 +83,10 @@ class TranslationTask(FairseqTask):
         """
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
+
+        # upgrade old checkpoints
+        if isinstance(args.data, str):
+            args.data = [args.data]
 
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
@@ -147,9 +133,7 @@ class TranslationTask(FairseqTask):
         src_datasets = []
         tgt_datasets = []
 
-        data_paths = self.args.data
-
-        for dk, data_path in enumerate(data_paths):
+        for dk, data_path in enumerate(self.args.data):
             for k in itertools.count():
                 split_k = split + (str(k) if k > 0 else '')
 

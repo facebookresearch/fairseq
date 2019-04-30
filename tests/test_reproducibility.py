@@ -38,7 +38,7 @@ class TestReproducibility(unittest.TestCase):
                     ] + extra_flags,
                 )
             stdout = stdout.getvalue()
-            train_log, valid_log = map(json.loads, stdout.split('\n')[-4:-2])
+            train_log, valid_log = map(json.loads, stdout.split('\n')[-5:-3])
 
             # train epoch 2, resuming from previous checkpoint 1
             os.rename(
@@ -56,7 +56,7 @@ class TestReproducibility(unittest.TestCase):
                     ] + extra_flags,
                 )
             stdout = stdout.getvalue()
-            train_res_log, valid_res_log = map(json.loads, stdout.split('\n')[-4:-2])
+            train_res_log, valid_res_log = map(json.loads, stdout.split('\n')[-5:-3])
 
             def cast(s):
                 return round(float(s), 3)

@@ -46,6 +46,8 @@ class TriangularSchedule(FairseqLRScheduler):
                             help='max learning rate, must be more than args.lr')
         parser.add_argument('--lr-period-updates', default=5000, type=float, metavar='LR',
                             help='initial number of updates per period (cycle length)')
+        parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
+                            help='shrink factor for annealing')
         parser.add_argument('--shrink-min', action='store_true',
                             help='if set, also shrinks min lr')
         # fmt: on
