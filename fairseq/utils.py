@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from typing import Callable
 import copy
 import importlib.util
