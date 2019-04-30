@@ -156,7 +156,10 @@ def batch_by_size(
     for idx in indices:
         sample_lens.append(num_tokens_fn(idx))
         sample_len = max(sample_len, sample_lens[-1])
-        assert sample_len <= max_tokens, "sentence at index {idx} exceeds max_tokens limit!".format(idx=idx)
+        assert sample_len <= max_tokens, (
+            f"sentence at index {idx} of size {sample_len} exceeds max_tokens "
+            f"limit of {max_tokens}!"
+        )
         num_tokens = (len(batch) + 1) * sample_len
         if is_batch_full(num_tokens):
             mod_len = max(
