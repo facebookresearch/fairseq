@@ -16,6 +16,8 @@ import warnings
 import torch
 import torch.nn.functional as F
 
+from fairseq.modules import gelu, gelu_fast
+
 
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     from fairseq import checkpoint_utils

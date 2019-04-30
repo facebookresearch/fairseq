@@ -8,7 +8,7 @@
 import os
 from typing import Any, Dict
 
-from fairseq import utils
+from fairseq import checkpoint_utils
 from fairseq.data.masked_lm_dictionary import MaskedLMDictionary
 from fairseq.models.transformer import (
     TransformerDecoder,
@@ -92,7 +92,7 @@ def upgrade_state_dict_with_xlm_weights(
     if not os.path.exists(pretrained_xlm_checkpoint):
         raise IOError(f"Model file not found: {pretrained_xlm_checkpoint}")
 
-    state = utils.load_checkpoint_to_cpu(pretrained_xlm_checkpoint)
+    state = checkpoint_utils.load_checkpoint_to_cpu(pretrained_xlm_checkpoint)
     xlm_state_dict = state["model"]
     for key in xlm_state_dict.keys():
 

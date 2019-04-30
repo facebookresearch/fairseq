@@ -20,7 +20,7 @@ class SGD(FairseqOptimizer):
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
         # fmt: off
-        parser.add_argument('--momentum', default=0.99, type=float, metavar='M',
+        parser.add_argument('--momentum', default=0.0, type=float, metavar='M',
                             help='momentum factor')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
