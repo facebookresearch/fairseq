@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import mmap
 import os
 import struct
 
@@ -55,6 +56,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         self.fix_lua_indexing = fix_lua_indexing
         self.read_index(path)
         self.data_file = None
+        self.data_mmap = None
         self.path = path
 
     def read_index(self, path):
@@ -71,24 +73,30 @@ class IndexedDataset(torch.utils.data.Dataset):
             self.sizes = read_longs(f, self.s)
 
     def read_data(self, path):
-        self.data_file = open(data_file_path(path), 'rb', buffering=0)
+        self.data_file = open(data_file_path(path), 'rb')
+        self.data_mmap = mmap.mmap(self.data_file.fileno(), 0, prot=mmap.PROT_READ)
 
     def check_index(self, i):
         if i < 0 or i >= self.size:
             raise IndexError('index out of range')
 
     def __del__(self):
+        if self.data_mmap:
+            self.data_mmap.close()
         if self.data_file:
             self.data_file.close()
 
     def __getitem__(self, i):
-        if not self.data_file:
+        if not self.data_mmap:
             self.read_data(self.path)
         self.check_index(i)
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
-        a = np.empty(tensor_size, dtype=self.dtype)
-        self.data_file.seek(self.data_offsets[i] * self.element_size)
-        self.data_file.readinto(a)
+        a = np.frombuffer(
+            self.data_mmap,
+            dtype=self.dtype,
+            count=tensor_size,
+            offset=self.data_offsets[i] * self.element_size,
+        )
         item = torch.from_numpy(a).long()
         if self.fix_lua_indexing:
             item -= 1  # subtract 1 for 0-based indexing
@@ -123,7 +131,7 @@ class IndexedCachedDataset(IndexedDataset):
     def prefetch(self, indices):
         if all(i in self.cache_index for i in indices):
             return
-        if not self.data_file:
+        if not self.data_mmap:
             self.read_data(self.path)
         indices = sorted(set(indices))
         total_size = 0
@@ -135,10 +143,19 @@ class IndexedCachedDataset(IndexedDataset):
         for i in indices:
             self.cache_index[i] = ptx
             size = self.data_offsets[i + 1] - self.data_offsets[i]
-            a = self.cache[ptx : ptx + size]
-            self.data_file.seek(self.data_offsets[i] * self.element_size)
-            self.data_file.readinto(a)
+            self.cache[ptx : ptx + size] = np.frombuffer(
+                self.data_mmap,
+                dtype=self.dtype,
+                count=size,
+                offset=self.data_offsets[i] * self.element_size,
+            )
             ptx += size
+        if self.data_mmap:
+            # close data file after prefetch so we can pickle
+            self.data_mmap.close()
+            self.data_mmap = None
+            self.data_file.close()
+            self.data_file = None
 
     def __getitem__(self, i):
         self.check_index(i)
