@@ -8,7 +8,7 @@
 import contextlib
 import os
 import numpy as np
-
+from collections import Iterable
 
 def infer_language_pair(path):
     """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
@@ -96,6 +96,9 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
                 for key in intersect_keys
             )
         else:
+            # For MultiCorpusSampledDataset, will generalize it later
+            if not isinstance(size_fn(idx), Iterable):
+                return all(size_fn(idx) <= b for b in max_positions)
             return all(a is None or b is None or a <= b
                        for a, b in zip(size_fn(idx), max_positions))
 
