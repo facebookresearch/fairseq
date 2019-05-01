@@ -72,10 +72,13 @@ class WordDropout(WordNoising):
     then dropped words will be removed. Otherwise, it will be replaced by the
     blank_idx."""
 
-    def __init__(self, dictionary, bpe_cont_marker="@@", bpe_end_marker=None):
+    def __init__(self, dictionary, default_dropout_prob=0.1, bpe_cont_marker="@@", bpe_end_marker=None):
         super().__init__(dictionary, bpe_cont_marker, bpe_end_marker)
+        self.default_dropout_prob = default_dropout_prob
 
-    def noising(self, x, lengths, dropout_prob=0.1, blank_idx=None):
+    def noising(self, x, lengths, dropout_prob=None, blank_idx=None):
+        if dropout_prob is None:
+            dropout_prob = self.default_dropout_prob
         # x: (T x B), lengths: B
         if dropout_prob == 0:
             return x, lengths
@@ -143,10 +146,13 @@ class WordDropout(WordNoising):
 class WordShuffle(WordNoising):
     """Shuffle words by no more than k positions."""
 
-    def __init__(self, dictionary, bpe_cont_marker="@@", bpe_end_marker=None):
+    def __init__(self, dictionary, default_max_shuffle_distance=3, bpe_cont_marker="@@", bpe_end_marker=None):
         super().__init__(dictionary, bpe_cont_marker, bpe_end_marker)
+        self.default_max_shuffle_distance = 3
 
-    def noising(self, x, lengths, max_shuffle_distance=3):
+    def noising(self, x, lengths, max_shuffle_distance=None):
+        if max_shuffle_distance is None:
+            max_shuffle_distance = self.default_max_shuffle_distance
         # x: (T x B), lengths: B
         if max_shuffle_distance == 0:
             return x, lengths
