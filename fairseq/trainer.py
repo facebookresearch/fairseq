@@ -331,7 +331,7 @@ class Trainer(object):
                     print('| WARNING: ran out of memory, retrying batch')
                     for p in self.model.parameters():
                         if p.grad is not None:
-                            del p.grad  # free some memory
+                            p.grad = None  # free some memory
                     if self.cuda:
                         torch.cuda.empty_cache()
                     return self.valid_step(sample, raise_oom=True)
