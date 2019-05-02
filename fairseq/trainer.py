@@ -11,6 +11,7 @@ Train a network across multiple GPUs.
 
 from collections import OrderedDict
 from itertools import chain
+import math
 import os
 
 import torch
@@ -239,8 +240,10 @@ class Trainer(object):
             logging_outputs = list(chain.from_iterable(logging_outputs))
             sample_sizes = list(chain.from_iterable(sample_sizes))
             ooms = sum(ooms)
-            assert all(norm == prev_norms[0] for norm in prev_norms), \
-                'Fatal error: gradients are inconsistent between workers'
+            assert (
+                all(norm == prev_norms[0] for norm in prev_norms)
+                or all(math.isnan(norm) or math.isinf(norm) for norm in prev_norms)
+            ), 'Fatal error: gradients are inconsistent between workers'
 
         self.meters['oom'].update(ooms, len(samples))
         if ooms == self.args.distributed_world_size * len(samples):
