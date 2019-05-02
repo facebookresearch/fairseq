@@ -9,6 +9,7 @@ from collections import namedtuple
 import os
 import pickle
 import subprocess
+import warnings
 
 import torch
 import torch.distributed as dist
@@ -54,18 +55,22 @@ def distributed_init(args):
     if args.distributed_world_size == 1:
         raise ValueError('Cannot initialize distributed with distributed_world_size=1')
 
-    print('| distributed init (rank {}): {}'.format(
-        args.distributed_rank, args.distributed_init_method), flush=True)
+    if torch.distributed.is_initialized():
+        warnings.warn('Distributed is already initialized, cannot initialize twice!')
+    else:
+        print('| distributed init (rank {}): {}'.format(
+            args.distributed_rank, args.distributed_init_method), flush=True)
 
-    dist.init_process_group(
-        backend=args.distributed_backend,
-        init_method=args.distributed_init_method,
-        world_size=args.distributed_world_size,
-        rank=args.distributed_rank,
-    )
+        dist.init_process_group(
+            backend=args.distributed_backend,
+            init_method=args.distributed_init_method,
+            world_size=args.distributed_world_size,
+            rank=args.distributed_rank,
+        )
 
-    suppress_output(is_master(args))
+        suppress_output(is_master(args))
 
+    args.distributed_rank = torch.distributed.get_rank()
     return args.distributed_rank
 
 

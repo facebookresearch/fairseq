@@ -23,7 +23,7 @@ from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
 
 
-def main(args, init_distributed=False):
+def main(args):
     utils.import_user_module(args)
 
     if args.max_tokens is None:
@@ -81,12 +81,6 @@ def main(args, init_distributed=False):
         shard_id=args.distributed_rank,
         num_workers=args.num_workers,
     )
-
-    # Initialize distributed training (after data loading)
-    if init_distributed:
-        import socket
-        args.distributed_rank = distributed_utils.distributed_init(args)
-        print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
 
     # Load the latest checkpoint if one is available
     if not load_checkpoint(args, trainer, epoch_itr):
@@ -390,7 +384,7 @@ def distributed_main(i, args):
     args.device_id = i
     if args.distributed_rank is None:  # torch.multiprocessing.spawn
         args.distributed_rank = i
-    main(args, init_distributed=True)
+    main(args)
 
 
 def cli_main():
