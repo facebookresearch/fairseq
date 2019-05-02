@@ -174,21 +174,6 @@ class MonolingualDataset(FairseqDataset):
         """
         return collate(samples, self.vocab.pad(), self.vocab.eos())
 
-    def get_dummy_batch(self, num_tokens, max_positions, tgt_len=128):
-        """Return a dummy batch with a given number of tokens."""
-        if isinstance(max_positions, float) or isinstance(max_positions, int):
-            tgt_len = min(tgt_len, max_positions)
-        bsz = max(num_tokens // tgt_len, 1)
-        target = self.vocab.dummy_sentence(tgt_len + 2)
-        source, past_target, future_target = target[1:-1], target[2:], target[:-2]
-        source, target = self._make_source_target(source, past_target, future_target)
-        source, target = self._maybe_add_bos(source, target)
-
-        return self.collater([
-            {'id': i, 'source': source, 'target': target}
-            for i in range(bsz)
-        ])
-
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
         enforce ``--max-tokens`` during batching."""

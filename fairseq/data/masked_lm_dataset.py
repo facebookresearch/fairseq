@@ -294,33 +294,6 @@ class MaskedLMDataset(FairseqDataset):
         """
         return self._collate(samples, self.vocab.pad(), self.vocab.eos())
 
-    def get_dummy_batch(
-            self,
-            num_tokens: int,
-            max_positions: Union[float, int],
-            tgt_len: int = 12
-    ):
-        """
-        Return a dummy batch with a given number of tokens.
-        """
-        if isinstance(max_positions, float) or isinstance(max_positions, int):
-            tgt_len = min(tgt_len, max_positions)
-        source = self.vocab.dummy_sentence(tgt_len)
-        sentence_target = 0
-        bsz = num_tokens // tgt_len
-
-        return self.collater(
-            [
-                {
-                    "id": i,
-                    "block_one": source,
-                    "block_two": source if self.has_pairs else None,
-                    "sentence_target": sentence_target if self.has_pairs else None,
-                }
-                for i in range(bsz)
-            ]
-        )
-
     def num_tokens(
             self,
             index: int

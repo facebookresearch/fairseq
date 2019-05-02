@@ -116,15 +116,6 @@ class MultiCorpusSampledDataset(FairseqDataset):
         selected_samples = [sample[selected_key] for sample in samples]
         return self.datasets[selected_key].collater(selected_samples)
 
-    def get_dummy_batch(self, num_tokens: int, max_positions: int):
-        """
-        Return a dummy batch with a given number of tokens. Assumes that the
-        max_positions specified is the same for all underlying datasets.
-        """
-        return self.datasets[self.default_key].get_dummy_batch(
-            num_tokens, max_positions
-        )
-
     def num_tokens(self, index: int):
         """
         Return an example's length (number of tokens), used for batching. Here
