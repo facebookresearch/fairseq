@@ -32,6 +32,8 @@ class BlockPairDataset(FairseqDataset):
             doc: respect document boundaries and each part of the pair should belong to on document
             none: don't respect any boundary and cut tokens evenly
         short_seq_prob: probability for generating shorter block pairs
+        doc_break_size: Size for empty line separating documents. Typically 1 if
+                        the sentences have eos, 0 otherwise.
     """
 
     def __init__(
@@ -42,6 +44,7 @@ class BlockPairDataset(FairseqDataset):
         block_size,
         break_mode="doc",
         short_seq_prob=0.1,
+        doc_break_size=1,
     ):
         super().__init__()
         self.dataset = dataset
@@ -60,8 +63,12 @@ class BlockPairDataset(FairseqDataset):
         if break_mode == "doc":
             cur_doc = []
             for sent_id, sz in enumerate(sizes):
+                assert doc_break_size == 0 or sz != 0, (
+                    "when doc_break_size is non-zero, we expect documents to be"
+                    "separated by a blank line with a single eos."
+                )
                 # empty line as document separator
-                if sz == 0:
+                if sz == doc_break_size:
                     if len(cur_doc) == 0:
                         continue
                     self.block_indices.append(cur_doc)
