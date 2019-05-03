@@ -13,6 +13,7 @@ from collections import OrderedDict
 from itertools import chain
 import math
 import os
+import sys
 
 import torch
 
@@ -174,7 +175,7 @@ class Trainer(object):
 
         return extra_state
 
-    def train_step(self, samples, dummy_batch=False):
+    def train_step(self, samples, dummy_batch=False, raise_oom=False):
         """Do forward, backward and parameter update."""
         self._set_seed()
         self.model.train()
@@ -219,7 +220,18 @@ class Trainer(object):
                     sample_sizes.append(sample_size)
             except RuntimeError as e:
                 if 'out of memory' in str(e):
-                    print(('| WARNING: ran out of memory with exception: {};\n Skipping batch').format(str(e)))
+                    msg = (
+                        '| WARNING: ran out of memory with exception: '
+                        + '{};'.format(e)
+                        + '\n Skipping batch'
+                    )
+                    # TODO: print should really go to logger, this print goes
+                    # to stdout, which is buffered, which in many case is not
+                    # printed out if another exception happens
+                    # print(msg)
+                    print(msg, file=sys.stderr)
+                    if raise_oom:
+                        raise ValueError(msg)
                     ooms += 1
                     self.zero_grad()
                 else:
