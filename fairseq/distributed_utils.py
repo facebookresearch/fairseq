@@ -67,6 +67,7 @@ def distributed_init(args):
             world_size=args.distributed_world_size,
             rank=args.distributed_rank,
         )
+        dist.barrier()
 
         suppress_output(is_master(args))
 
