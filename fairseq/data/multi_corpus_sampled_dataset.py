@@ -13,6 +13,11 @@ import numpy as np
 from . import FairseqDataset
 
 
+def uniform_sampler(x):
+    # Sample from uniform distribution
+    return np.random.choice(x, 1).item()
+
+
 class MultiCorpusSampledDataset(FairseqDataset):
     """
     Stores multiple instances of FairseqDataset together and in every iteration
@@ -30,16 +35,15 @@ class MultiCorpusSampledDataset(FairseqDataset):
     def __init__(
         self,
         datasets: Dict[str, FairseqDataset],
-        sampling_func: Callable[[List], int] = (
-            # Sample from uniform distribution
-            lambda x: np.random.choice(x, 1).item()
-        ),
+        sampling_func: Callable[[List], int] = None,
         default_key: str = "",
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
         assert default_key in datasets
         self.datasets = datasets
+        if sampling_func is None:
+            sampling_func = uniform_sampler
         self.sampling_func = sampling_func
         self.default_key = default_key
 

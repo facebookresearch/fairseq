@@ -23,7 +23,7 @@ from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
 
 
-def main(args, init_distributed=False):
+def main(args):
     utils.import_user_module(args)
 
     if args.max_tokens is None:
@@ -82,12 +82,6 @@ def main(args, init_distributed=False):
         num_workers=args.num_workers,
     )
 
-    # Initialize distributed training (after data loading)
-    if init_distributed:
-        import socket
-        args.distributed_rank = distributed_utils.distributed_init(args)
-        print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
-
     # Load the latest checkpoint if one is available
     if not load_checkpoint(args, trainer, epoch_itr):
         trainer.dummy_train_step([dummy_batch])
@@ -134,7 +128,7 @@ def train(args, trainer, task, epoch_itr):
     )
 
     extra_meters = collections.defaultdict(lambda: AverageMeter())
-    first_valid = args.valid_subset.split(',')[0]
+    valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
     for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
         log_output = trainer.train_step(samples)
@@ -159,7 +153,7 @@ def train(args, trainer, task, epoch_itr):
 
         num_updates = trainer.get_num_updates()
         if args.save_interval_updates > 0 and num_updates % args.save_interval_updates == 0 and num_updates > 0:
-            valid_losses = validate(args, trainer, task, epoch_itr, [first_valid])
+            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
             save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
         if num_updates >= max_update:
@@ -390,7 +384,7 @@ def distributed_main(i, args):
     args.device_id = i
     if args.distributed_rank is None:  # torch.multiprocessing.spawn
         args.distributed_rank = i
-    main(args, init_distributed=True)
+    main(args)
 
 
 def cli_main():

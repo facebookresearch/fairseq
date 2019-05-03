@@ -139,6 +139,10 @@ class IndexedCachedDataset(IndexedDataset):
             self.data_file.seek(self.data_offsets[i] * self.element_size)
             self.data_file.readinto(a)
             ptx += size
+        if self.data_file:
+            # close and delete data file after prefetch so we can pickle
+            self.data_file.close()
+            self.data_file = None
 
     def __getitem__(self, i):
         self.check_index(i)
