@@ -294,6 +294,15 @@ def base_bert_architecture(args):
     base_architecture(args)
 
 
+@register_model_architecture('masked_lm', 'bert_large')
+def bert_large_architecture(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
+    args.encoder_layers = getattr(args, 'encoder_layers', 24)
+    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
+    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
+    base_bert_architecture(args)
+
+
 @register_model_architecture('masked_lm', 'xlm_base')
 def xlm_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
