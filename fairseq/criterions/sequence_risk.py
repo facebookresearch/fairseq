@@ -24,6 +24,14 @@ class SequenceRiskCriterion(FairseqSequenceCriterion):
                 'sequence_risk criterion requires `--task=translation_struct`'
             )
 
+    @staticmethod
+    def add_args(parser):
+        """Add criterion-specific arguments to the parser."""
+        # fmt: off
+        parser.add_argument('--normalize-costs', action='store_true',
+                            help='normalize costs within each hypothesis')
+        # fmt: on
+
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
@@ -37,6 +45,14 @@ class SequenceRiskCriterion(FairseqSequenceCriterion):
 
         # get costs for hypotheses using --seq-scorer (defaults to 1. - BLEU)
         costs = self.task.get_costs(sample)
+
+        if self.args.normalize_costs:
+            unnormalized_costs = costs.clone()
+            max_costs = costs.max(dim=1, keepdim=True)[0]
+            min_costs = costs.min(dim=1, keepdim=True)[0]
+            costs = (costs - min_costs) / (max_costs - min_costs).clamp_(min=1e-6)
+        else:
+            unnormalized_costs = None
 
         # generate a new sample from the given hypotheses
         new_sample = self.task.get_new_sample_for_hypotheses(sample)
@@ -56,14 +72,26 @@ class SequenceRiskCriterion(FairseqSequenceCriterion):
         loss = (probs * costs).sum()
 
         sample_size = bsz
+        assert bsz == utils.item(costs.size(dim=0))
         logging_output = {
             'loss': utils.item(loss.data),
-            'sum_cost': utils.item(costs.sum()),
             'num_cost': costs.numel(),
             'ntokens': sample['ntokens'],
             'nsentences': bsz,
             'sample_size': sample_size,
         }
+
+        def add_cost_stats(costs, prefix=''):
+            logging_output.update({
+                prefix + 'sum_cost': utils.item(costs.sum()),
+                prefix + 'min_cost': utils.item(costs.min(dim=1)[0].sum()),
+                prefix + 'cost_at_1': utils.item(costs[:, 0].sum()),
+            })
+
+        add_cost_stats(costs)
+        if unnormalized_costs is not None:
+            add_cost_stats(unnormalized_costs, 'unnormalized_')
+
         return loss, sample_size, logging_output
 
     @staticmethod
@@ -72,10 +100,22 @@ class SequenceRiskCriterion(FairseqSequenceCriterion):
         ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
         nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
-        return {
+        num_costs = sum(log.get('num_cost', 0) for log in logging_outputs)
+        agg_outputs = {
             'loss': sum(log.get('loss', 0) for log in logging_outputs) / sample_size,
-            'avg_cost': sum(log.get('sum_cost', 0) for log in logging_outputs) /
-                sum(log.get('num_cost', 0) for log in logging_outputs),
             'ntokens': ntokens,
             'nsentences': nsentences,
         }
+
+        def add_cost_stats(prefix=''):
+            agg_outputs.update({
+                prefix + 'avg_cost': sum(log.get(prefix + 'sum_cost', 0) for log in logging_outputs) / num_costs,
+                prefix + 'min_cost': sum(log.get(prefix + 'min_cost', 0) for log in logging_outputs) / nsentences,
+                prefix + 'cost_at_1': sum(log.get(prefix + 'cost_at_1', 0) for log in logging_outputs) / nsentences,
+            })
+
+        add_cost_stats()
+        if any('unnormalized_sum_cost' in log for log in logging_outputs):
+            add_cost_stats('unnormalized_')
+
+        return agg_outputs

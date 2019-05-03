@@ -46,16 +46,6 @@ class BleuScorer(object):
         return costs
 
 
-class NormalizedBleuScorer(BleuScorer):
-
-    key = 'normalized_bleu'
-
-    def postprocess_costs(self, costs):
-        max_costs = costs.max(dim=1, keepdim=True)[0]
-        min_costs = costs.min(dim=1, keepdim=True)[0]
-        return (costs - min_costs) / (max_costs - min_costs)
-
-
 @register_task('translation_struct')
 class TranslationStructuredPredictionTask(translation.TranslationTask):
     """
@@ -90,7 +80,7 @@ class TranslationStructuredPredictionTask(translation.TranslationTask):
         parser.add_argument('--seq-keep-reference', default=False, action='store_true',
                             help='retain the reference in the list of hypos')
         parser.add_argument('--seq-scorer', default='bleu', metavar='SCORER',
-                            choices=['bleu', 'normalized_bleu'],
+                            choices=['bleu'],
                             help='optimization metric for sequence level training')
 
         parser.add_argument('--seq-gen-with-dropout', default=False, action='store_true',
@@ -242,9 +232,9 @@ class TranslationStructuredPredictionTask(translation.TranslationTask):
         if scorer not in self._scorers:
             tgt_dict = self.target_dictionary
             if scorer == 'bleu':
-                self._scorers[scorer] = BleuScorer(tgt_dict, bpe_symbol=self.args.seq_remove_bpe)
-            elif scorer == 'normalized_bleu':
-                self._scorers[scorer] = NormalizedBleuScorer(tgt_dict, bpe_symbol=self.args.seq_remove_bpe)
+                self._scorers[scorer] = BleuScorer(
+                    tgt_dict, bpe_symbol=self.args.seq_remove_bpe,
+                )
             else:
                 raise ValueError('Unknown sequence scorer {}'.format(scorer))
         return self._scorers[scorer]
