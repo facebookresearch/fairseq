@@ -32,7 +32,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion, dummy_batch, oom_batch=None):
+    def __init__(self, args, task, model, criterion, dummy_batch=None, oom_batch=None):
         self.args = args
         self.task = task
 
@@ -47,7 +47,7 @@ class Trainer(object):
             self._model = self._model.cuda()
 
         self._dummy_batch = dummy_batch
-        self._oom_batch = oom_batch
+        self._oom_batch = oom_batch or dummy_batch
 
         self._lr_scheduler = None
         self._num_updates = 0
@@ -177,6 +177,9 @@ class Trainer(object):
 
     def train_step(self, samples, dummy_batch=False, raise_oom=False):
         """Do forward, backward and parameter update."""
+        if self._dummy_batch is None:
+            self._dummy_batch = samples[0]
+
         self._set_seed()
         self.model.train()
         self.criterion.train()

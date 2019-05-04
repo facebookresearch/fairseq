@@ -72,17 +72,6 @@ class RoundRobinZipDatasets(FairseqDataset):
             # at evaluation time it's useful to pass-through batches from a single key
             return self.datasets[self.eval_key].collater(samples)
 
-    def get_dummy_batch(self, max_tokens, max_positions):
-        if self.eval_key is None:
-            # TODO should max_tokens be used independently for each batch like this?
-            return OrderedDict([
-                (key, dataset.get_dummy_batch(max_tokens, max_positions[key]))
-                for key, dataset in self.datasets.items()
-            ])
-        else:
-            # at evaluation time it's useful to return a single batch directly
-            return self.datasets[self.eval_key].get_dummy_batch(max_tokens, max_positions[self.eval_key])
-
     def num_tokens(self, index):
         """Return an example's length (number of tokens), used for batching."""
         # TODO make it configurable whether to use max() or sum() here

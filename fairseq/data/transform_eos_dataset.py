@@ -96,9 +96,6 @@ class TransformEosDataset(FairseqDataset):
         samples = list(map(transform, samples))
         return self.dataset.collater(samples)
 
-    def get_dummy_batch(self, *args, **kwargs):
-        return self.dataset.get_dummy_batch(*args, **kwargs)
-
     def num_tokens(self, index):
         return self.dataset.num_tokens(index)
 

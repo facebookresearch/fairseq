@@ -50,18 +50,8 @@ def main(args):
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
-    # Make a dummy batch to (i) warm the caching allocator and (ii) as a
-    # placeholder DistributedDataParallel when there's an uneven number of
-    # batches per worker.
-    max_positions = utils.resolve_max_positions(
-        task.max_positions(),
-        model.max_positions(),
-    )
-    dummy_batch = task.dataset(args.train_subset).get_dummy_batch(args.max_tokens, max_positions)
-    oom_batch = task.dataset(args.train_subset).get_dummy_batch(1, max_positions)
-
     # Build trainer
-    trainer = Trainer(args, task, model, criterion, dummy_batch, oom_batch)
+    trainer = Trainer(args, task, model, criterion)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
@@ -73,7 +63,10 @@ def main(args):
         dataset=task.dataset(args.train_subset),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
-        max_positions=max_positions,
+        max_positions=utils.resolve_max_positions(
+            task.max_positions(),
+            model.max_positions(),
+        ),
         ignore_invalid_inputs=True,
         required_batch_size_multiple=args.required_batch_size_multiple,
         seed=args.seed,
@@ -83,8 +76,7 @@ def main(args):
     )
 
     # Load the latest checkpoint if one is available
-    if not load_checkpoint(args, trainer, epoch_itr):
-        trainer.dummy_train_step([dummy_batch])
+    load_checkpoint(args, trainer, epoch_itr)
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
