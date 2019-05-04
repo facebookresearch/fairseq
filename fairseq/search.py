@@ -168,10 +168,9 @@ class DiverseBeamSearch(Search):
 
 class Sampling(Search):
 
-    def __init__(self, tgt_dict, sampling_topk=-1, sampling_temperature=1.):
+    def __init__(self, tgt_dict, sampling_topk=-1):
         super().__init__(tgt_dict)
         self.sampling_topk = sampling_topk
-        self.sampling_temperature = sampling_temperature
 
     def step(self, step, lprobs, scores):
         super()._init_buffers(lprobs)
@@ -189,10 +188,6 @@ class Sampling(Search):
         # only sample from top-k candidates
         if self.sampling_topk > 0:
             lprobs_nopad, topk_indices = lprobs_nopad.topk(self.sampling_topk)
-
-        # sampling temperature
-        if self.sampling_temperature != 1.:
-            lprobs_nopad = lprobs_nopad.div_(self.sampling_temperature)
 
         # sample
         probs_nopad = lprobs_nopad.exp_()
