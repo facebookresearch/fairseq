@@ -28,7 +28,7 @@ class SequenceGenerator(object):
         retain_dropout=False,
         sampling=False,
         sampling_topk=-1,
-        sampling_temperature=1.,
+        temperature=1.,
         diverse_beam_groups=-1,
         diverse_beam_strength=0.5,
         match_source_len=False,
@@ -58,9 +58,9 @@ class SequenceGenerator(object):
                 (default: False)
             sampling_topk (int, optional): only sample among the top-k choices
                 at each step (default: -1)
-            sampling_temperature (float, optional): temperature for sampling,
-                where values >1.0 produces more uniform sampling and values
-                <1.0 produces sharper sampling (default: 1.0)
+            temperature (float, optional): temperature, where values
+                >1.0 produce more uniform samples and values <1.0 produce
+                sharper samples (default: 1.0)
             diverse_beam_groups/strength (float, optional): parameters for
                 Diverse Beam Search sampling
             match_source_len (bool, optional): outputs should match the source
@@ -81,13 +81,15 @@ class SequenceGenerator(object):
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
         self.retain_dropout = retain_dropout
+        self.temperature = temperature
         self.match_source_len = match_source_len
         self.no_repeat_ngram_size = no_repeat_ngram_size
 
         assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
+        assert temperature > 0, '--temperature must be greater than 0'
 
         if sampling:
-            self.search = search.Sampling(tgt_dict, sampling_topk, sampling_temperature)
+            self.search = search.Sampling(tgt_dict, sampling_topk)
         elif diverse_beam_groups > 0:
             self.search = search.DiverseBeamSearch(tgt_dict, diverse_beam_groups, diverse_beam_strength)
         elif match_source_len:
@@ -304,7 +306,9 @@ class SequenceGenerator(object):
                 model.reorder_incremental_state(reorder_state)
                 model.reorder_encoder_out(encoder_outs, reorder_state)
 
-            lprobs, avg_attn_scores = model.forward_decoder(tokens[:, :step + 1], encoder_outs)
+            lprobs, avg_attn_scores = model.forward_decoder(
+                tokens[:, :step + 1], encoder_outs, temperature=self.temperature,
+            )
 
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
@@ -547,7 +551,7 @@ class EnsembleModel(torch.nn.Module):
         return [model.encoder(**encoder_input) for model in self.models]
 
     @torch.no_grad()
-    def forward_decoder(self, tokens, encoder_outs):
+    def forward_decoder(self, tokens, encoder_outs, temperature=1.):
         if len(self.models) == 1:
             return self._decode_one(
                 tokens,
@@ -555,12 +559,20 @@ class EnsembleModel(torch.nn.Module):
                 encoder_outs[0] if self.has_encoder() else None,
                 self.incremental_states,
                 log_probs=True,
+                temperature=temperature,
             )
 
         log_probs = []
         avg_attn = None
         for model, encoder_out in zip(self.models, encoder_outs):
-            probs, attn = self._decode_one(tokens, model, encoder_out, self.incremental_states, log_probs=True)
+            probs, attn = self._decode_one(
+                tokens,
+                model,
+                encoder_out,
+                self.incremental_states,
+                log_probs=True,
+                temperature=temperature,
+            )
             log_probs.append(probs)
             if attn is not None:
                 if avg_attn is None:
@@ -572,12 +584,17 @@ class EnsembleModel(torch.nn.Module):
             avg_attn.div_(len(self.models))
         return avg_probs, avg_attn
 
-    def _decode_one(self, tokens, model, encoder_out, incremental_states, log_probs):
+    def _decode_one(
+        self, tokens, model, encoder_out, incremental_states, log_probs,
+        temperature=1.,
+    ):
         if self.incremental_states is not None:
             decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=self.incremental_states[model]))
         else:
             decoder_out = list(model.decoder(tokens, encoder_out))
         decoder_out[0] = decoder_out[0][:, -1:, :]
+        if temperature != 1.:
+            decoder_out[0].div_(temperature)
         attn = decoder_out[1]
         if type(attn) is dict:
             attn = attn['attn']
