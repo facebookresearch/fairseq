@@ -143,7 +143,7 @@ class MultiCorpusSampledDataset(FairseqDataset):
         dataset with max-positions.
         """
         return max(
-            dataset.num_tokens(self._map_index_to_dataset(key, index))
+            dataset.size(self._map_index_to_dataset(key, index))
             for key, dataset in self.datasets.items()
         )
 
