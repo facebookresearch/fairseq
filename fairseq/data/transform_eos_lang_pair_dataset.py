@@ -60,9 +60,6 @@ class TransformEosLangPairDataset(FairseqDataset):
 
         return samples
 
-    def get_dummy_batch(self, *args, **kwargs):
-        return self.dataset.get_dummy_batch(*args, **kwargs)
-
     def num_tokens(self, index):
         return self.dataset.num_tokens(index)
 

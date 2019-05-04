@@ -68,19 +68,6 @@ def collate(
     return batch
 
 
-def generate_dummy_batch(num_tokens, collate_fn, src_dict, src_len=128, tgt_dict=None, tgt_len=128):
-    """Return a dummy batch with a given number of tokens."""
-    bsz = num_tokens // max(src_len, tgt_len)
-    return collate_fn([
-        {
-            'id': i,
-            'source': src_dict.dummy_sentence(src_len),
-            'target': tgt_dict.dummy_sentence(tgt_len) if tgt_dict is not None else None,
-        }
-        for i in range(bsz)
-    ])
-
-
 class LanguagePairDataset(FairseqDataset):
     """
     A pair of torch.utils.data.Datasets.
@@ -197,15 +184,6 @@ class LanguagePairDataset(FairseqDataset):
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
             input_feeding=self.input_feeding,
         )
-
-    def get_dummy_batch(self, num_tokens, max_positions, src_len=128, tgt_len=128):
-        """Return a dummy batch with a given number of tokens."""
-        src_len, tgt_len = utils.resolve_max_positions(
-            (src_len, tgt_len),
-            max_positions,
-            (self.max_source_positions, self.max_target_positions),
-        )
-        return generate_dummy_batch(num_tokens, self.collater, self.src_dict, src_len, self.tgt_dict, tgt_len)
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
