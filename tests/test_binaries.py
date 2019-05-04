@@ -94,7 +94,7 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'fconv_iwslt_de_en')
                 generate_main(data_dir, [
                     '--sampling',
-                    '--sampling-temperature', '2',
+                    '--temperature', '2',
                     '--beam', '2',
                     '--nbest', '2',
                 ])

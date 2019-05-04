@@ -197,7 +197,7 @@ class FairseqTask(object):
                 unk_penalty=args.unkpen,
                 sampling=args.sampling,
                 sampling_topk=args.sampling_topk,
-                sampling_temperature=args.sampling_temperature,
+                temperature=args.temperature,
                 diverse_beam_groups=args.diverse_beam_groups,
                 diverse_beam_strength=args.diverse_beam_strength,
                 match_source_len=args.match_source_len,
