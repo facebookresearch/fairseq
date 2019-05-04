@@ -10,6 +10,7 @@ import os
 import pickle
 import socket
 import subprocess
+import warnings
 
 import torch
 import torch.distributed as dist
@@ -83,8 +84,9 @@ def distributed_init(args):
         # perform a dummy all-reduce to initialize the NCCL communicator
         dist.all_reduce(torch.rand(1).cuda())
 
-    suppress_output(is_master(args))
+        suppress_output(is_master(args))
 
+    args.distributed_rank = torch.distributed.get_rank()
     return args.distributed_rank
 
 

@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from typing import Tuple
 
 from fairseq.modules import (
-    MultiheadAttention, LearnedPositionalEmbedding, TransformerSentenceEncoderLayer
+    MultiheadAttention, PositionalEmbedding, TransformerSentenceEncoderLayer
 )
 
 
@@ -37,19 +37,6 @@ def init_bert_params(module):
         module.weight.data.normal_(mean=0.0, std=0.02)
     if isinstance(module, MultiheadAttention):
         module.in_proj_weight.data.normal_(mean=0.0, std=0.02)
-
-
-def PositionalEmbedding(
-    num_embeddings: int,
-    embedding_dim: int,
-    padding_idx: int,
-)-> nn.Embedding:
-    m = LearnedPositionalEmbedding(
-        num_embeddings + padding_idx + 1, embedding_dim, padding_idx,
-    )
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
-    nn.init.constant_(m.weight[padding_idx], 0)
-    return m
 
 
 class TransformerSentenceEncoder(nn.Module):
@@ -94,6 +81,7 @@ class TransformerSentenceEncoder(nn.Module):
         use_bert_layer_norm: bool = False,
         use_gelu: bool = True,
         apply_bert_init: bool = False,
+        learned_pos_embedding: bool = True,
     ) -> None:
 
         super().__init__()
@@ -105,6 +93,7 @@ class TransformerSentenceEncoder(nn.Module):
         self.num_segments = num_segments
         self.use_position_embeddings = use_position_embeddings
         self.apply_bert_init = apply_bert_init
+        self.learned_pos_embedding = learned_pos_embedding
 
         self.embed_tokens = nn.Embedding(
             self.vocab_size, self.embedding_dim, self.padding_idx
@@ -121,6 +110,7 @@ class TransformerSentenceEncoder(nn.Module):
                 self.max_seq_len,
                 self.embedding_dim,
                 self.padding_idx,
+                self.learned_pos_embedding,
             )
             if self.use_position_embeddings
             else None
