@@ -307,85 +307,99 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
                     return self
 
-                def write(self, size):
-                    self._file.write(struct.pack('<I', size))
+                @staticmethod
+                def _get_pointers(sizes):
+                    dtype_size = dtype().itemsize
+                    address = 0
+                    pointers = []
+
+                    for size in sizes:
+                        pointers.append(address)
+                        address += size * dtype_size
+
+                    return pointers
+
+                def write(self, sizes):
+                    pointers = self._get_pointers(sizes)
+
+                    self._file.write(struct.pack('<Q', len(sizes)))
+
+                    sizes = np.array(sizes, dtype=np.int32)
+                    self._file.write(sizes.tobytes(order='C'))
+                    del sizes
+
+                    pointers = np.array(pointers, dtype=np.int64)
+                    self._file.write(pointers.tobytes(order='C'))
+                    del pointers
 
                 def __exit__(self, exc_type, exc_val, exc_tb):
                     self._file.close()
 
             return _Writer()
 
-        def __init__(self, path):
-            self._path = path
-            self._file = None
-            self._dtype = None
-            self._dtype_size = None
+        def __init__(self, path, warmup=True):
+            with open(path, 'rb') as stream:
+                magic_test = stream.read(9)
+                assert self._HDR_MAGIC == magic_test
+                version = struct.unpack('<Q', stream.read(8))
+                assert (1,) == version
+
+                dtype_code, = struct.unpack('<B', stream.read(1))
+                self._dtype = dtypes[dtype_code]
+                self._dtype_size = self._dtype().itemsize
+
+                self._len = struct.unpack('<Q', stream.read(8))[0]
+                offset = stream.tell()
+
+            self._bin_buffer = memoryview(np.memmap(path, mode='r', order='C'))
+
+            if warmup:
+                for _ in self._bin_buffer:
+                    pass
+
+            self._sizes = np.frombuffer(self._bin_buffer, dtype=np.int32, count=self._len, offset=offset)
+            self._pointers = np.frombuffer(self._bin_buffer, dtype=np.int64, count=self._len,
+                                           offset=offset + self._sizes.nbytes)
 
         @property
         def dtype(self):
             return self._dtype
 
-        def __enter__(self):
-            self._file = open(self._path, 'rb')
+        @property
+        def sizes(self):
+            return self._sizes
 
-            magic_test = self._file.read(9)
-            assert self._HDR_MAGIC == magic_test
-            version = struct.unpack('<Q', self._file.read(8))
-            assert (1,) == version
+        def __getitem__(self, i):
+            return self._pointers[i], self._sizes[i]
 
-            dtype_code, = struct.unpack('<B', self._file.read(1))
-            self._dtype = dtypes[dtype_code]
-            self._dtype_size = self._dtype().itemsize
-
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            self._file.close()
-
-        def __iter__(self):
-            ptr = 0
-
-            while True:
-                buffer = self._file.read(4)
-                if buffer:
-                    size, = struct.unpack('<I', buffer)
-                    yield ptr, size
-                    ptr += size * self._dtype_size
-                else:
-                    raise StopIteration
+        def __len__(self):
+            return self._len
 
     def __init__(self, path, warmup=True):
         super().__init__()
 
-        bin_buffer = memoryview(np.memmap(data_file_path(path), mode='r', order='C'))
+        self._index = self.Index(index_file_path(path), warmup=warmup)
+        self._dtype = self._index.dtype
+        self._bin_buffer = memoryview(np.memmap(data_file_path(path), mode='r', order='C'))
 
-        with self.Index(index_file_path(path)) as index:
-            self._dtype = index.dtype
-            self._entries = []
-            self._sizes = []
-
-            for ptr, size in index:
-                tensor = torch.from_numpy(np.frombuffer(bin_buffer, dtype=self._dtype, count=size, offset=ptr))
-                if warmup:
-                    torch.max(tensor)  # force reading tensor content
-
-                self._entries.append(tensor)
-                self._sizes.append(size)
-
-            self._sizes = np.array(self._sizes)
+        if warmup:
+            for _ in self._bin_buffer:
+                pass
 
     def __len__(self):
-        return len(self._entries)
+        return len(self._index)
 
     def __getitem__(self, i):
+        ptr, size = self._index[i]
+        tensor = torch.from_numpy(np.frombuffer(self._bin_buffer, dtype=self._dtype, count=size, offset=ptr))
         if self._dtype == np.int64:
-            return self._entries[i]
+            return tensor
         else:
-            return self._entries[i].long()
+            return tensor.long()
 
     @property
     def sizes(self):
-        return self._sizes
+        return self._index.sizes
 
     @staticmethod
     def exists(path):
@@ -412,11 +426,11 @@ class MMapIndexedDatasetBuilder(object):
 
     def merge_file_(self, another_file):
         # Concatenate index
-        with MMapIndexedDataset.Index(index_file_path(another_file)) as index:
-            assert index.dtype == self._dtype
+        index = MMapIndexedDataset.Index(index_file_path(another_file))
+        assert index.dtype == self._dtype
 
-            for _, size in index:
-                self._sizes.append(size)
+        for size in index.sizes:
+            self._sizes.append(size)
 
         # Concatenate data
         with open(data_file_path(another_file), 'rb') as f:
@@ -426,5 +440,4 @@ class MMapIndexedDatasetBuilder(object):
         self._data_file.close()
 
         with MMapIndexedDataset.Index.writer(index_file, self._dtype) as index:
-            for size in self._sizes:
-                index.write(size)
+            index.write(self._sizes)
