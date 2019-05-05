@@ -24,7 +24,7 @@ class TestTokenBlockDataset(unittest.TestCase):
     def test_eos_break_mode(self):
         data = [
             torch.LongTensor([5, 4, 3, 2, 1]),
-            torch.LongTensor([1]),  # this should be filtered
+            torch.LongTensor([1]),
             torch.LongTensor([8, 7, 6, 1]),
         ]
         ds = self._build_dataset(data, block_size=None, pad=0, eos=1, break_mode='eos')
@@ -35,7 +35,7 @@ class TestTokenBlockDataset(unittest.TestCase):
         data = [
             torch.LongTensor([5, 4, 3, 2, 1]),
             torch.LongTensor([8, 7, 6, 1]),
-            torch.LongTensor([1]),  # this should be filtered
+            torch.LongTensor([1]),
         ]
         ds = self._build_dataset(data, block_size=None, pad=0, eos=1, break_mode='eos')
         self.assertEqual(ds[0].tolist(), [5, 4, 3, 2, 1])
