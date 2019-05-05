@@ -14,6 +14,7 @@ import itertools
 import math
 import os
 import random
+import shutil
 
 import torch
 
@@ -282,16 +283,16 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
     checkpoint_conds = collections.OrderedDict()
     checkpoint_conds['checkpoint{}.pt'.format(epoch)] = (
-            end_of_epoch and not args.no_epoch_checkpoints and
-            epoch % args.save_interval == 0
+        end_of_epoch and not args.no_epoch_checkpoints and
+        epoch % args.save_interval == 0
     )
     checkpoint_conds['checkpoint_{}_{}.pt'.format(epoch, updates)] = (
-            not end_of_epoch and args.save_interval_updates > 0 and
-            updates % args.save_interval_updates == 0
+        not end_of_epoch and args.save_interval_updates > 0 and
+        updates % args.save_interval_updates == 0
     )
     checkpoint_conds['checkpoint_best.pt'] = (
-            val_loss is not None and
-            (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
+        val_loss is not None and
+        (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
     )
     checkpoint_conds['checkpoint_last.pt'] = True  # keep this last so that it's a symlink
 
@@ -307,8 +308,9 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
     checkpoints = [os.path.join(args.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond]
     if len(checkpoints) > 0:
-        for cp in checkpoints:
-            trainer.save_checkpoint(cp, extra_state)
+        trainer.save_checkpoint(checkpoints[0], extra_state)
+        for cp in checkpoints[1:]:
+            shutil.copyfile(checkpoints[0], cp)
 
         write_timer.stop()
         print('| saved checkpoint {} (epoch {} @ {} updates) (writing took {} seconds)'.format(
