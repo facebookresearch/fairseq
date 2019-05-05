@@ -73,8 +73,8 @@ class TokenBlockDataset(FairseqDataset):
         else:
             raise ValueError('Invalid break_mode: ' + break_mode)
 
-        self.sizes = self.slice_indices[:, 1] - self.slice_indices[:, 0]
         self.slice_indices = np.array(self.slice_indices, dtype=int)
+        self.sizes = self.slice_indices[:, 1] - self.slice_indices[:, 0]
 
         # build index mapping block indices to the underlying dataset indices
         if break_mode == 'eos':
