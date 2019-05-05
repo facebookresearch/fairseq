@@ -14,12 +14,16 @@ from . import FairseqOptimizer, register_optimizer
 
 @register_optimizer('adam')
 class FairseqAdam(FairseqOptimizer):
+
     def __init__(self, args, params):
         super().__init__(args, params)
-        try:
-            from apex.optimizers import FusedAdam
-            self._optimizer = FusedAdam(params, **self.optimizer_config)
-        except ImportError:
+        if torch.cuda.is_available():
+            try:
+                from apex.optimizers import FusedAdam
+                self._optimizer = FusedAdam(params, **self.optimizer_config)
+            except ImportError:
+                self._optimizer = Adam(params, **self.optimizer_config)
+        else:
             self._optimizer = Adam(params, **self.optimizer_config)
 
     @staticmethod
