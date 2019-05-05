@@ -8,6 +8,7 @@
 from collections import namedtuple
 import os
 import pickle
+import socket
 import subprocess
 import warnings
 
@@ -42,9 +43,20 @@ def infer_init_method(args):
                 hostnames = subprocess.check_output(['scontrol', 'show', 'hostnames', node_list])
                 args.distributed_init_method = 'tcp://{host}:{port}'.format(
                     host=hostnames.split()[0].decode('utf-8'),
-                    port=args.distributed_port)
-                args.distributed_rank = int(os.environ.get('SLURM_PROCID'))
-                args.device_id = int(os.environ.get('SLURM_LOCALID'))
+                    port=args.distributed_port,
+                )
+                nnodes = int(os.environ.get('SLURM_NNODES'))
+                ntasks_per_node = int(os.environ.get('SLURM_NTASKS_PER_NODE'))
+                if ntasks_per_node == 1:
+                    assert args.distributed_world_size % nnodes == 0
+                    gpus_per_node = args.distributed_world_size // nnodes
+                    node_id = int(os.environ.get('SLURM_NODEID'))
+                    args.distributed_rank = node_id * gpus_per_node
+                else:
+                    assert ntasks_per_node == args.distributed_world_size // nnodes
+                    args.distributed_no_spawn = True
+                    args.distributed_rank = int(os.environ.get('SLURM_PROCID'))
+                    args.device_id = int(os.environ.get('SLURM_LOCALID'))
             except subprocess.CalledProcessError as e:  # scontrol failed
                 raise e
             except FileNotFoundError:  # Slurm is not installed
@@ -60,13 +72,17 @@ def distributed_init(args):
     else:
         print('| distributed init (rank {}): {}'.format(
             args.distributed_rank, args.distributed_init_method), flush=True)
-
         dist.init_process_group(
             backend=args.distributed_backend,
             init_method=args.distributed_init_method,
             world_size=args.distributed_world_size,
             rank=args.distributed_rank,
         )
+        print('| initialized host {} as rank {}'.format(
+            socket.gethostname(), args.distributed_rank), flush=True)
+
+        # perform a dummy all-reduce to initialize the NCCL communicator
+        dist.all_reduce(torch.rand(1).cuda())
 
         suppress_output(is_master(args))
 
