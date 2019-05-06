@@ -79,11 +79,12 @@ class EpochBatchIterator(object):
         num_workers (int, optional): how many subprocesses to use for data
             loading. 0 means the data will be loaded in the main process
             (default: 0).
+        epoch (int, optional): The epoch to start the iterator from.
     """
 
     def __init__(
         self, dataset, collate_fn, batch_sampler, seed=1, num_shards=1, shard_id=0,
-        num_workers=0,
+        num_workers=0, epoch=0,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -94,7 +95,7 @@ class EpochBatchIterator(object):
         self.shard_id = shard_id
         self.num_workers = num_workers
 
-        self.epoch = 0
+        self.epoch = epoch
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
         self._supports_prefetch = getattr(dataset, 'supports_prefetch', False)
