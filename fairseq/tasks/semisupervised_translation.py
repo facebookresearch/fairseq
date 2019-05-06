@@ -345,7 +345,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
 
         if self.lambda_parallel > 0.0:
             for lang_pair in self.args.lang_pairs:
-                forward_backward(model.models[lang_pair], sample[lang_pair], self.lambda_parallel)
+                forward_backward(model.models[lang_pair], sample[lang_pair], lang_pair, self.lambda_parallel)
 
         if self.lambda_otf_bt > 0.0:
             for lang_pair in self.args.lang_pairs:
