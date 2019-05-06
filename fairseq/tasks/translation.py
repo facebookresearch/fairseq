@@ -48,7 +48,8 @@ class TranslationTask(FairseqTask):
     def add_args(parser):
         """Add task-specific arguments to the parser."""
         # fmt: off
-        parser.add_argument('data', nargs='+', help='path(s) to data directorie(s)')
+        parser.add_argument('data', help='colon separated path to data directories list, \
+                            will be iterated upon during epochs in round-robin manner')
         parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                             help='source language')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
@@ -84,19 +85,17 @@ class TranslationTask(FairseqTask):
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
 
-        # upgrade old checkpoints
-        if isinstance(args.data, str):
-            args.data = [args.data]
-
+        paths = args.data.split(':')
+        assert len(paths) > 0
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
-            args.source_lang, args.target_lang = data_utils.infer_language_pair(args.data[0])
+            args.source_lang, args.target_lang = data_utils.infer_language_pair(paths[0])
         if args.source_lang is None or args.target_lang is None:
             raise Exception('Could not infer language pair, please provide it explicitly')
 
         # load dictionaries
-        src_dict = cls.load_dictionary(os.path.join(args.data[0], 'dict.{}.txt'.format(args.source_lang)))
-        tgt_dict = cls.load_dictionary(os.path.join(args.data[0], 'dict.{}.txt'.format(args.target_lang)))
+        src_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.target_lang)))
         assert src_dict.pad() == tgt_dict.pad()
         assert src_dict.eos() == tgt_dict.eos()
         assert src_dict.unk() == tgt_dict.unk()
@@ -105,12 +104,15 @@ class TranslationTask(FairseqTask):
 
         return cls(args, src_dict, tgt_dict)
 
-    def load_dataset(self, split, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
+        paths = self.args.data.split(':')
+        assert len(paths) > 0
+        data_path = paths[epoch % len(paths)]
 
         def split_exists(split, src, tgt, lang, data_path):
             filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
@@ -133,29 +135,28 @@ class TranslationTask(FairseqTask):
         src_datasets = []
         tgt_datasets = []
 
-        for dk, data_path in enumerate(self.args.data):
-            for k in itertools.count():
-                split_k = split + (str(k) if k > 0 else '')
+        for k in itertools.count():
+            split_k = split + (str(k) if k > 0 else '')
 
-                # infer langcode
-                src, tgt = self.args.source_lang, self.args.target_lang
-                if split_exists(split_k, src, tgt, src, data_path):
-                    prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, src, tgt))
-                elif split_exists(split_k, tgt, src, src, data_path):
-                    prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
-                else:
-                    if k > 0 or dk > 0:
-                        break
-                    else:
-                        raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
-
-                src_datasets.append(indexed_dataset(prefix + src, self.src_dict))
-                tgt_datasets.append(indexed_dataset(prefix + tgt, self.tgt_dict))
-
-                print('| {} {} {} examples'.format(data_path, split_k, len(src_datasets[-1])))
-
-                if not combine:
+            # infer langcode
+            src, tgt = self.args.source_lang, self.args.target_lang
+            if split_exists(split_k, src, tgt, src, data_path):
+                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, src, tgt))
+            elif split_exists(split_k, tgt, src, src, data_path):
+                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
+            else:
+                if k > 0:
                     break
+                else:
+                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
+
+            src_datasets.append(indexed_dataset(prefix + src, self.src_dict))
+            tgt_datasets.append(indexed_dataset(prefix + tgt, self.tgt_dict))
+
+            print('| {} {} {} examples'.format(data_path, split_k, len(src_datasets[-1])))
+
+            if not combine:
+                break
 
         assert len(src_datasets) == len(tgt_datasets)
 

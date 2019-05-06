@@ -132,14 +132,18 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
         dicts, training = MultilingualTranslationTask.prepare(args, **kwargs)
         return cls(args, dicts, training)
 
-    def load_dataset(self, split, **kwargs):
+    def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
+
+        paths = self.args.data.split(':')
+        assert len(paths) > 0
+        data_path = paths[epoch % len(paths)]
 
         def split_exists(split, src, tgt, lang):
             if src is not None:
-                filename = os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, lang))
+                filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
             else:
-                filename = os.path.join(self.args.data, '{}.{}-None.{}'.format(split, src, tgt))
+                filename = os.path.join(data_path, '{}.{}-None.{}'.format(split, src, tgt))
             if self.args.raw_text and IndexedRawTextDataset.exists(filename):
                 return True
             elif not self.args.raw_text and IndexedDataset.exists(filename):
@@ -162,16 +166,16 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             for lang_pair in self.args.lang_pairs:
                 src, tgt = lang_pair.split('-')
                 if split_exists(split, src, tgt, src):
-                    prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, src, tgt))
+                    prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, src, tgt))
                 elif split_exists(split, tgt, src, src):
-                    prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, tgt, src))
+                    prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, tgt, src))
                 else:
                     continue
                 src_datasets[lang_pair] = indexed_dataset(prefix + src, self.dicts[src])
                 tgt_datasets[lang_pair] = indexed_dataset(prefix + tgt, self.dicts[tgt])
-                print('| parallel-{} {} {} examples'.format(self.args.data, split, len(src_datasets[lang_pair])))
+                print('| parallel-{} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
             if len(src_datasets) == 0:
-                raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
+                raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
         # back translation datasets
         backtranslate_datasets = {}
@@ -179,8 +183,8 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             for lang_pair in self.args.lang_pairs:
                 src, tgt = lang_pair.split('-')
                 if not split_exists(split, tgt, None, tgt):
-                    raise FileNotFoundError('Dataset not found: backtranslation {} ({})'.format(split, self.args.data))
-                filename = os.path.join(self.args.data, '{}.{}-None.{}'.format(split, tgt, tgt))
+                    raise FileNotFoundError('Dataset not found: backtranslation {} ({})'.format(split, data_path))
+                filename = os.path.join(data_path, '{}.{}-None.{}'.format(split, tgt, tgt))
                 dataset = indexed_dataset(filename, self.dicts[tgt])
                 lang_pair_dataset_tgt = LanguagePairDataset(
                     dataset,
@@ -216,7 +220,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     ).collater,
                 )
                 print('| backtranslate-{}: {} {} {} examples'.format(
-                    tgt, self.args.data, split, len(backtranslate_datasets[lang_pair]),
+                    tgt, data_path, split, len(backtranslate_datasets[lang_pair]),
                 ))
                 self.backtranslate_datasets[lang_pair] = backtranslate_datasets[lang_pair]
 
@@ -227,7 +231,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 _, tgt = lang_pair.split('-')
                 if not split_exists(split, tgt, None, tgt):
                     continue
-                filename = os.path.join(self.args.data, '{}.{}-None.{}'.format(split, tgt, tgt))
+                filename = os.path.join(data_path, '{}.{}-None.{}'.format(split, tgt, tgt))
                 tgt_dataset1 = indexed_dataset(filename, self.dicts[tgt])
                 tgt_dataset2 = indexed_dataset(filename, self.dicts[tgt])
                 noising_dataset = NoisingDataset(
@@ -255,7 +259,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     tgt_lang=tgt,
                 )
                 print('| denoising-{}: {} {} {} examples'.format(
-                    tgt, self.args.data, split, len(noising_datasets[lang_pair]),
+                    tgt, data_path, split, len(noising_datasets[lang_pair]),
                 ))
 
         def language_pair_dataset(lang_pair):
