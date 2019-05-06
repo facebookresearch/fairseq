@@ -29,10 +29,6 @@ def DistributedFairseqModel(args, model):
         args (argparse.Namespace): fairseq args
         model (BaseFairseqModel): model to wrap
     """
-    # rendezvous with other workers
-    args.distributed_rank = distributed_utils.distributed_init(args)
-    print('| initialized host {} as rank {}'.format(socket.gethostname(), args.distributed_rank))
-
     # determine which DDP class to extend
     assert isinstance(model, BaseFairseqModel)
     if args.ddp_backend == 'c10d':
