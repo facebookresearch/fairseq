@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from fairseq import options, utils
 from fairseq.modules import (
     AdaptiveInput, AdaptiveSoftmax, CharacterTokenEmbedder, LayerNorm,
-    LearnedPositionalEmbedding, MultiheadAttention, SinusoidalPositionalEmbedding,
+    MultiheadAttention, PositionalEmbedding, SinusoidalPositionalEmbedding,
 )
 
 from . import (
@@ -52,8 +52,8 @@ class TransformerModel(FairseqModel):
                             help='dropout probability')
         parser.add_argument('--attention-dropout', type=float, metavar='D',
                             help='dropout probability for attention weights')
-        parser.add_argument('--relu-dropout', type=float, metavar='D',
-                            help='dropout probability after ReLU in FFN')
+        parser.add_argument('--activation-dropout', '--relu-dropout', type=float, metavar='D',
+                            help='dropout probability after activation in FFN.')
         parser.add_argument('--encoder-embed-path', type=str, metavar='STR',
                             help='path to pre-trained encoder embedding')
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
@@ -94,6 +94,8 @@ class TransformerModel(FairseqModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        parser.add_argument('--activation-fn', choices=['relu', 'gelu', 'gelu_fast'],
+                            help='Which activation function to use')
         # fmt: on
 
     @classmethod
@@ -263,11 +265,9 @@ class TransformerEncoder(FairseqEncoder):
         args (argparse.Namespace): parsed command-line arguments
         dictionary (~fairseq.data.Dictionary): encoding dictionary
         embed_tokens (torch.nn.Embedding): input embedding
-        left_pad (bool, optional): whether the input is left-padded
-            (default: True).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, left_pad=True):
+    def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
         self.dropout = args.dropout
 
@@ -279,7 +279,6 @@ class TransformerEncoder(FairseqEncoder):
         self.embed_scale = math.sqrt(embed_dim)
         self.embed_positions = PositionalEmbedding(
             args.max_source_positions, embed_dim, self.padding_idx,
-            left_pad=left_pad,
             learned=args.encoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
@@ -366,6 +365,10 @@ class TransformerEncoder(FairseqEncoder):
             if weights_key in state_dict:
                 del state_dict[weights_key]
             state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
+        for i in range(len(self.layers)):
+            # update layer norms
+            self.layers[i].upgrade_state_dict_named(state_dict, f"{name}.layers.{i}")
+
         version_key = '{}.version'.format(name)
         if utils.item(state_dict.get(version_key, torch.Tensor([1]))[0]) < 2:
             # earlier checkpoints did not normalize after the stack of layers
@@ -386,13 +389,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         embed_tokens (torch.nn.Embedding): output embedding
         no_encoder_attn (bool, optional): whether to attend to encoder outputs
             (default: False).
-        left_pad (bool, optional): whether the input is left-padded
-            (default: False).
         final_norm (bool, optional): apply layer norm to the output of the
             final decoder layer (default: True).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, left_pad=False, final_norm=True):
+    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, final_norm=True):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
@@ -411,7 +412,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.embed_positions = PositionalEmbedding(
             args.max_target_positions, embed_dim, padding_idx,
-            left_pad=left_pad,
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
@@ -583,12 +583,38 @@ class TransformerEncoderLayer(nn.Module):
             self.embed_dim, args.encoder_attention_heads,
             dropout=args.attention_dropout,
         )
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim)
         self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
+        self.activation_fn = utils.get_activation_fn(
+            activation=getattr(args, 'activation_fn', 'relu')
+        )
+        self.activation_dropout = getattr(args, 'activation_dropout', 0)
+        if self.activation_dropout == 0:
+            # for backwards compatibility with models that use args.relu_dropout
+            self.activation_dropout = getattr(args, 'relu_dropout', 0)
         self.normalize_before = args.encoder_normalize_before
         self.fc1 = Linear(self.embed_dim, args.encoder_ffn_embed_dim)
         self.fc2 = Linear(args.encoder_ffn_embed_dim, self.embed_dim)
-        self.layer_norms = nn.ModuleList([LayerNorm(self.embed_dim) for i in range(2)])
+        self.final_layer_norm = LayerNorm(self.embed_dim)
+
+    def upgrade_state_dict_named(self, state_dict, name):
+        """
+        Rename layer norm states from `...layer_norms.0.weight` to
+        `...self_attn_layer_norm.weight` and `...layer_norms.1.weight` to
+        `...final_layer_norm.weight`
+        """
+        layer_norm_map = {
+            '0': 'self_attn_layer_norm',
+            '1': 'final_layer_norm'
+        }
+        for old, new in layer_norm_map.items():
+            for m in ('weight', 'bias'):
+                k = f'{name}.layer_norms.{old}.{m}'
+                if k in state_dict:
+                    state_dict[
+                        f'{name}.{new}.{m}'
+                    ] = state_dict[k]
+                    del state_dict[k]
 
     def forward(self, x, encoder_padding_mask):
         """
@@ -601,26 +627,26 @@ class TransformerEncoderLayer(nn.Module):
             encoded output of shape `(batch, src_len, embed_dim)`
         """
         residual = x
-        x = self.maybe_layer_norm(0, x, before=True)
+        x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
         x, _ = self.self_attn(query=x, key=x, value=x, key_padding_mask=encoder_padding_mask)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
-        x = self.maybe_layer_norm(0, x, after=True)
+        x = self.maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
 
         residual = x
-        x = self.maybe_layer_norm(1, x, before=True)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
+        x = self.activation_fn(self.fc1(x))
+        x = F.dropout(x, p=self.activation_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
-        x = self.maybe_layer_norm(1, x, after=True)
+        x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
         return x
 
-    def maybe_layer_norm(self, i, x, before=False, after=False):
+    def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
         assert before ^ after
         if after ^ self.normalize_before:
-            return self.layer_norms[i](x)
+            return layer_norm(x)
         else:
             return x
 
@@ -650,7 +676,13 @@ class TransformerDecoderLayer(nn.Module):
             dropout=args.attention_dropout,
         )
         self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
+        self.activation_fn = utils.get_activation_fn(
+            activation=getattr(args, 'activation_fn', 'relu')
+        )
+        self.activation_dropout = getattr(args, 'activation_dropout', 0)
+        if self.activation_dropout == 0:
+            # for backwards compatibility with models that use args.relu_dropout
+            self.activation_dropout = getattr(args, 'relu_dropout', 0)
         self.normalize_before = args.decoder_normalize_before
 
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
@@ -734,8 +766,8 @@ class TransformerDecoderLayer(nn.Module):
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.activation_fn(self.fc1(x))
+        x = F.dropout(x, p=self.activation_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
@@ -772,16 +804,6 @@ def Linear(in_features, out_features, bias=True):
     return m
 
 
-def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, left_pad, learned=False):
-    if learned:
-        m = LearnedPositionalEmbedding(num_embeddings + padding_idx + 1, embedding_dim, padding_idx, left_pad)
-        nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
-        nn.init.constant_(m.weight[padding_idx], 0)
-    else:
-        m = SinusoidalPositionalEmbedding(embedding_dim, padding_idx, left_pad, num_embeddings + padding_idx + 1)
-    return m
-
-
 @register_model_architecture('transformer_lm', 'transformer_lm')
 def base_lm_architecture(args):
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
@@ -792,7 +814,9 @@ def base_lm_architecture(args):
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
     args.adaptive_softmax_factor = getattr(args, 'adaptive_softmax_factor', 4)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
+    args.activation_fn = getattr(args, 'activation_fn', 'relu')
 
+    args.add_bos_token = getattr(args, 'add_bos_token', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
@@ -829,7 +853,7 @@ def transformer_lm_wiki103(args):
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '20000,60000')
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0.2)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.relu_dropout = getattr(args, 'relu_dropout', 0.1)
+    args.activation_dropout = getattr(args, 'activation_dropout', 0.1)
     transformer_lm_big(args)
 
 
@@ -858,7 +882,8 @@ def base_architecture(args):
     args.decoder_normalize_before = getattr(args, 'decoder_normalize_before', False)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.)
-    args.relu_dropout = getattr(args, 'relu_dropout', 0.)
+    args.activation_dropout = getattr(args, 'activation_dropout', 0.)
+    args.activation_fn = getattr(args, 'activation_fn', 'relu')
     args.dropout = getattr(args, 'dropout', 0.1)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
@@ -889,7 +914,7 @@ def transformer_wmt_en_de(args):
     base_architecture(args)
 
 
-# parameters used in the "Attention Is All You Need" paper (Vaswani, et al, 2017)
+# parameters used in the "Attention Is All You Need" paper (Vaswani et al., 2017)
 @register_model_architecture('transformer', 'transformer_vaswani_wmt_en_de_big')
 def transformer_vaswani_wmt_en_de_big(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
@@ -921,5 +946,5 @@ def transformer_wmt_en_de_big_t2t(args):
     args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', True)
     args.decoder_normalize_before = getattr(args, 'decoder_normalize_before', True)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.relu_dropout = getattr(args, 'relu_dropout', 0.1)
+    args.activation_dropout = getattr(args, 'activation_dropout', 0.1)
     transformer_vaswani_wmt_en_de_big(args)

@@ -59,8 +59,9 @@ class TestBacktranslationDataset(unittest.TestCase):
                 # remove eos from the input src
                 remove_eos_from_src=remove_eos_from_input_src,
             ),
+            src_dict=self.tgt_dict,
             backtranslation_fn=(
-                lambda net_input: generator.generate([self.model], {'net_input': net_input})
+                lambda sample: generator.generate([self.model], sample)
             ),
             output_collater=TransformEosDataset(
                 dataset=tgt_dataset,

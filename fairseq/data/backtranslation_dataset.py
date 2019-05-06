@@ -36,22 +36,18 @@ def backtranslate_samples(samples, collate_fn, generate_fn, cuda=True):
     """
     collated_samples = collate_fn(samples)
     s = utils.move_to_cuda(collated_samples) if cuda else collated_samples
-    generated_sources = generate_fn(s['net_input'])
+    generated_sources = generate_fn(s)
 
-    def update_sample(sample, generated_source):
-        sample['target'] = sample['source']  # the original source becomes the target
-        sample['source'] = generated_source
-        return sample
+    id_to_src = {
+        sample['id']: sample['source'] for sample in samples
+    }
 
     # Go through each tgt sentence in batch and its corresponding best
     # generated hypothesis and create a backtranslation data pair
     # {id: id, source: generated backtranslation, target: original tgt}
     return [
-        update_sample(
-            sample=input_sample,
-            generated_source=hypos[0]['tokens'].cpu(),  # highest scoring hypo is first
-        )
-        for input_sample, hypos in zip(samples, generated_sources)
+        {'id': id.item(), 'target': id_to_src[id.item()], 'source': hypos[0]['tokens'].cpu()}
+        for id, hypos in zip(collated_samples['id'], generated_sources)
     ]
 
 
@@ -66,9 +62,15 @@ class BacktranslationDataset(FairseqDataset):
             backtranslated. Only the source side of this dataset will be used.
             After backtranslation, the source sentences in this dataset will be
             returned as the targets.
-        backtranslation_fn (callable): function to call to generate
+        src_dict (~fairseq.data.Dictionary): the dictionary of backtranslated
+            sentences.
+        tgt_dict (~fairseq.data.Dictionary, optional): the dictionary of
+            sentences to be backtranslated.
+        backtranslation_fn (callable, optional): function to call to generate
             backtranslations. This is typically the `generate` method of a
             :class:`~fairseq.sequence_generator.SequenceGenerator` object.
+            Pass in None when it is not available at initialization time, and
+            use set_backtranslation_fn function to set it when available.
         output_collater (callable, optional): function to call on the
             backtranslated samples to create the final batch
             (default: ``tgt_dataset.collater``).
@@ -78,7 +80,9 @@ class BacktranslationDataset(FairseqDataset):
     def __init__(
         self,
         tgt_dataset,
-        backtranslation_fn,
+        src_dict,
+        tgt_dict=None,
+        backtranslation_fn=None,
         output_collater=None,
         cuda=True,
         **kwargs
@@ -88,6 +92,8 @@ class BacktranslationDataset(FairseqDataset):
         self.output_collater = output_collater if output_collater is not None \
             else tgt_dataset.collater
         self.cuda = cuda if torch.cuda.is_available() else False
+        self.src_dict = src_dict
+        self.tgt_dict = tgt_dict
 
     def __getitem__(self, index):
         """
@@ -99,6 +105,9 @@ class BacktranslationDataset(FairseqDataset):
 
     def __len__(self):
         return len(self.tgt_dataset)
+
+    def set_backtranslation_fn(self, backtranslation_fn):
+        self.backtranslation_fn = backtranslation_fn
 
     def collater(self, samples):
         """Merge and backtranslate a list of samples to form a mini-batch.
@@ -119,6 +128,8 @@ class BacktranslationDataset(FairseqDataset):
         Returns:
             dict: a mini-batch with keys coming from *output_collater*
         """
+        if samples[0].get('is_dummy', False):
+            return samples
         samples = backtranslate_samples(
             samples=samples,
             collate_fn=self.tgt_dataset.collater,
@@ -128,10 +139,6 @@ class BacktranslationDataset(FairseqDataset):
             cuda=self.cuda,
         )
         return self.output_collater(samples)
-
-    def get_dummy_batch(self, num_tokens, max_positions):
-        """Just use the tgt dataset get_dummy_batch"""
-        return self.tgt_dataset.get_dummy_batch(num_tokens, max_positions)
 
     def num_tokens(self, index):
         """Just use the tgt dataset num_tokens"""

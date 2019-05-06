@@ -18,13 +18,12 @@ from fairseq.data import data_utils
 
 class Dictionary(object):
     """A mapping from symbols to consecutive integers"""
-    def __init__(self, pad='<pad>', eos='</s>', unk='<unk>'):
+    def __init__(self, pad='<pad>', eos='</s>', unk='<unk>', bos='<s>'):
         self.unk_word, self.pad_word, self.eos_word = unk, pad, eos
         self.symbols = []
         self.count = []
         self.indices = {}
-        # dictionary indexing starts at 1 for consistency with Lua
-        self.add_symbol('<Lua heritage>')
+        self.bos_index = self.add_symbol(bos)
         self.pad_index = self.add_symbol(pad)
         self.eos_index = self.add_symbol(eos)
         self.unk_index = self.add_symbol(unk)
@@ -116,7 +115,7 @@ class Dictionary(object):
         new_symbols = self.symbols[:self.nspecial]
         new_count = self.count[:self.nspecial]
 
-        c = Counter(dict(zip(self.symbols[self.nspecial:], self.count[self.nspecial:])))
+        c = Counter(dict(sorted(zip(self.symbols[self.nspecial:], self.count[self.nspecial:]))))
         for symbol, count in c.most_common(nwords - self.nspecial):
             if count >= threshold:
                 new_indices[symbol] = len(new_symbols)
@@ -142,6 +141,10 @@ class Dictionary(object):
         self.count = list(new_count)
         self.symbols = list(new_symbols)
         self.indices = new_indices
+
+    def bos(self):
+        """Helper to get index of beginning-of-sentence symbol"""
+        return self.bos_index
 
     def pad(self):
         """Helper to get index of pad symbol"""
@@ -261,7 +264,7 @@ class Dictionary(object):
     @staticmethod
     def add_file_to_dictionary(filename, dict, tokenize, num_workers):
         def merge_result(counter):
-            for w, c in counter.items():
+            for w, c in sorted(counter.items()):
                 dict.add_symbol(w, c)
 
         if num_workers > 1:

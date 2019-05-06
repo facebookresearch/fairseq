@@ -62,7 +62,7 @@ class FairseqTask(object):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
-        return cls(args)
+        return cls(args, **kwargs)
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
@@ -197,7 +197,7 @@ class FairseqTask(object):
                 unk_penalty=args.unkpen,
                 sampling=args.sampling,
                 sampling_topk=args.sampling_topk,
-                sampling_temperature=args.sampling_temperature,
+                temperature=args.temperature,
                 diverse_beam_groups=args.diverse_beam_groups,
                 diverse_beam_strength=args.diverse_beam_strength,
                 match_source_len=args.match_source_len,
@@ -240,6 +240,11 @@ class FairseqTask(object):
     def inference_step(self, generator, models, sample, prefix_tokens=None):
         with torch.no_grad():
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)
+
+    def update_step(self, num_updates):
+        """Task level update when number of update increases. This is called after optimization step and
+           learning rate update of each step"""
+        pass
 
     def grad_denom(self, sample_sizes, criterion):
         return criterion.__class__.grad_denom(sample_sizes)

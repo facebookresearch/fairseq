@@ -267,6 +267,8 @@ def add_distributed_training_args(parser):
                        help='port number (not required if using --distributed-init-method)')
     group.add_argument('--device-id', '--local_rank', default=0, type=int,
                        help='which GPU to use (usually configured automatically)')
+    group.add_argument('--distributed-no-spawn', action='store_true',
+                       help='do not spawn multiple processes even if multiple GPUs are visible')
     group.add_argument('--ddp-backend', default='c10d', type=str,
                        choices=['c10d', 'no_c10d'],
                        help='DistributedDataParallel backend')
@@ -304,19 +306,13 @@ def add_optimization_args(parser):
                        metavar='LR_1,LR_2,...,LR_N',
                        help='learning rate for the first N epochs; all epochs >N using LR_N'
                             ' (note: this may be interpreted differently depending on --lr-scheduler)')
-    group.add_argument('--momentum', default=0.99, type=float, metavar='M',
-                       help='momentum factor')
-    group.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
-                       help='weight decay')
 
     # Learning rate schedulers can be found under fairseq/optim/lr_scheduler/
-    group.add_argument('--lr-scheduler', default='reduce_lr_on_plateau',
+    group.add_argument('--lr-scheduler', default='fixed',
                        choices=LR_SCHEDULER_REGISTRY.keys(),
                        help='Learning Rate Scheduler')
-    group.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
-                       help='learning rate shrink factor for annealing, lr_new = (lr * lr_shrink)')
-    group.add_argument('--min-lr', default=1e-5, type=float, metavar='LR',
-                       help='minimum learning rate')
+    group.add_argument('--min-lr', default=-1, type=float, metavar='LR',
+                       help='stop training when the learning rate reaches this minimum')
     # fmt: on
     return group
 
@@ -429,8 +425,8 @@ def add_generation_args(parser):
                        help='sample hypotheses instead of using beam search')
     group.add_argument('--sampling-topk', default=-1, type=int, metavar='PS',
                        help='sample from top K likely next words instead of all words')
-    group.add_argument('--sampling-temperature', default=1, type=float, metavar='N',
-                       help='temperature for random sampling')
+    group.add_argument('--temperature', default=1., type=float, metavar='N',
+                       help='temperature for generation')
     group.add_argument('--diverse-beam-groups', default=-1, type=int, metavar='N',
                        help='number of groups for Diverse Beam Search')
     group.add_argument('--diverse-beam-strength', default=0.5, type=float, metavar='N',

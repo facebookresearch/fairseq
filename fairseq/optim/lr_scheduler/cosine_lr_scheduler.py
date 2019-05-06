@@ -85,6 +85,8 @@ class CosineSchedule(FairseqLRScheduler):
                             help='factor to grow the length of each period')
         parser.add_argument('--lr-period-updates', default=-1, type=float, metavar='LR',
                             help='initial number of updates per period')
+        parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
+                            help='shrink factor for annealing')
         # fmt: on
 
     def step(self, epoch, val_loss=None):

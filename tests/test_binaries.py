@@ -94,7 +94,7 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'fconv_iwslt_de_en')
                 generate_main(data_dir, [
                     '--sampling',
-                    '--sampling-temperature', '2',
+                    '--temperature', '2',
                     '--beam', '2',
                     '--nbest', '2',
                 ])
@@ -114,6 +114,9 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lstm_wiseman_iwslt_de_en', [
                     '--encoder-layers', '2',
                     '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--decoder-out-embed-dim', '8',
                 ])
                 generate_main(data_dir)
 
@@ -125,7 +128,10 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lstm', [
                     '--encoder-layers', '2',
                     '--encoder-bidirectional',
-                    '--encoder-hidden-size', '256',
+                    '--encoder-hidden-size', '16',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--decoder-out-embed-dim', '8',
                     '--decoder-layers', '2',
                 ])
                 generate_main(data_dir)
@@ -135,7 +141,12 @@ class TestTranslation(unittest.TestCase):
             with tempfile.TemporaryDirectory('test_transformer') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
-                train_translation_model(data_dir, 'transformer_iwslt_de_en')
+                train_translation_model(data_dir, 'transformer_iwslt_de_en', [
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                ])
                 generate_main(data_dir)
 
     def test_lightconv(self):
@@ -146,6 +157,8 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lightconv_iwslt_de_en', [
                     '--encoder-conv-type', 'lightweight',
                     '--decoder-conv-type', 'lightweight',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
                 ])
                 generate_main(data_dir)
 
@@ -157,6 +170,8 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'lightconv_iwslt_de_en', [
                     '--encoder-conv-type', 'dynamic',
                     '--decoder-conv-type', 'dynamic',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
                 ])
                 generate_main(data_dir)
 
@@ -170,6 +185,10 @@ class TestTranslation(unittest.TestCase):
                     '--method', 'hMoElp',
                     '--mean-pool-gating-network',
                     '--num-experts', '3',
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
                 ])
                 generate_main(data_dir, [
                     '--task', 'translation_moe',
@@ -188,13 +207,17 @@ class TestStories(unittest.TestCase):
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 config = [
-                    '--encoder-layers', '[(512, 3)] * 2',
-                    '--decoder-layers', '[(512, 3)] * 2',
+                    '--encoder-layers', '[(128, 3)] * 2',
+                    '--decoder-layers', '[(128, 3)] * 2',
                     '--decoder-attention', 'True',
                     '--encoder-attention', 'False',
                     '--gated-attention', 'True',
                     '--self-attention', 'True',
                     '--project-input', 'True',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--decoder-out-embed-dim', '8',
+                    '--multihead-self-attention-nheads', '2'
                 ]
                 train_translation_model(data_dir, 'fconv_self_att_wp', config)
                 generate_main(data_dir)
@@ -216,8 +239,189 @@ class TestLanguageModeling(unittest.TestCase):
             with tempfile.TemporaryDirectory('test_fconv_lm') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
-                train_language_model(data_dir, 'fconv_lm')
+                train_language_model(data_dir, 'fconv_lm', [
+                    '--decoder-layers', '[(850, 3)] * 2 + [(1024,4)]',
+                    '--decoder-embed-dim', '280',
+                    '--optimizer', 'nag',
+                    '--lr', '0.1',
+                ])
                 eval_lm_main(data_dir)
+
+    def test_transformer_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_transformer_lm') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_language_model(data_dir, 'transformer_lm', ['--add-bos-token'])
+                eval_lm_main(data_dir)
+
+
+class TestMaskedLanguageModel(unittest.TestCase):
+    def test_masked_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_language_model(data_dir, "xlm_base")
+
+    def test_pretrained_masked_lm_for_translation(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_language_model(data_dir, arch="xlm_base")
+                with tempfile.TemporaryDirectory(
+                    "test_mlm_translation"
+                ) as translation_dir:
+                    create_dummy_data(translation_dir)
+                    preprocess_translation_data(
+                        translation_dir, extra_flags=["--joined-dictionary"]
+                    )
+                    # Train transformer with data_dir/checkpoint_last.pt
+                    train_translation_model(
+                        translation_dir,
+                        arch="transformer_from_pretrained_xlm",
+                        extra_flags=[
+                            "--decoder-layers",
+                            "1",
+                            "--decoder-embed-dim",
+                            "32",
+                            "--decoder-attention-heads",
+                            "1",
+                            "--decoder-ffn-embed-dim",
+                            "32",
+                            "--encoder-layers",
+                            "1",
+                            "--encoder-embed-dim",
+                            "32",
+                            "--encoder-attention-heads",
+                            "1",
+                            "--encoder-ffn-embed-dim",
+                            "32",
+                            "--pretrained-xlm-checkpoint",
+                            f"{data_dir}/checkpoint_last.pt",
+                            "--encoder-learned-pos",
+                            "--decoder-learned-pos",
+                            "--activation-fn",
+                            "gelu",
+                            "--max-source-positions",
+                            "500",
+                            "--max-target-positions",
+                            "500",
+                        ],
+                        task="translation_from_pretrained_xlm",
+                    )
+
+    def test_pretrained_masked_lm_for_translation_encoder_only(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_language_model(data_dir, arch="xlm_base")
+                with tempfile.TemporaryDirectory(
+                    "test_mlm_translation"
+                ) as translation_dir:
+                    create_dummy_data(translation_dir)
+                    preprocess_translation_data(
+                        translation_dir, extra_flags=["--joined-dictionary"]
+                    )
+                    # Train transformer with data_dir/checkpoint_last.pt
+                    train_translation_model(
+                        translation_dir,
+                        arch="transformer_from_pretrained_xlm",
+                        extra_flags=[
+                            "--decoder-layers",
+                            "1",
+                            "--decoder-embed-dim",
+                            "32",
+                            "--decoder-attention-heads",
+                            "1",
+                            "--decoder-ffn-embed-dim",
+                            "32",
+                            "--encoder-layers",
+                            "1",
+                            "--encoder-embed-dim",
+                            "32",
+                            "--encoder-attention-heads",
+                            "1",
+                            "--encoder-ffn-embed-dim",
+                            "32",
+                            "--pretrained-xlm-checkpoint",
+                            f"{data_dir}/checkpoint_last.pt",
+                            "--encoder-learned-pos",
+                            "--decoder-learned-pos",
+                            "--activation-fn",
+                            "gelu",
+                            "--max-source-positions",
+                            "500",
+                            "--max-target-positions",
+                            "500",
+                            "--init-encoder-only",
+                        ],
+                        task="translation_from_pretrained_xlm",
+                    )
+
+def train_masked_language_model(data_dir, arch):
+    train_parser = options.get_training_parser()
+    # TODO: langs should be in and out right?
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            "--task",
+            "cross_lingual_lm",
+            data_dir,
+            "--arch",
+            arch,
+            # Optimizer args
+            "--optimizer",
+            "adam",
+            "--lr-scheduler",
+            "reduce_lr_on_plateau",
+            "--lr-shrink",
+            "0.5",
+            "--lr",
+            "0.0001",
+            "--min-lr",
+            "1e-09",
+            # dropout, attention args
+            "--dropout",
+            "0.1",
+            "--no-bias-kv",
+            "--attention-dropout",
+            "0.1",
+            # MLM args
+            "--criterion",
+            "masked_lm_loss",
+            "--masked-lm-only",
+            "--monolingual-langs",
+            "in,out",
+            "--num-segment",
+            "5",
+            # Transformer args: use a small transformer model for fast training
+            "--encoder-layers",
+            "1",
+            "--encoder-embed-dim",
+            "32",
+            "--encoder-attention-heads",
+            "1",
+            "--encoder-ffn-embed-dim",
+            "32",
+            # Other training args
+            "--max-tokens",
+            "500",
+            "--tokens-per-sample",
+            "500",
+            "--save-dir",
+            data_dir,
+            "--max-epoch",
+            "1",
+            "--no-progress-bar",
+            "--distributed-world-size",
+            "1",
+            "--raw-text",
+        ],
+    )
+    train.main(train_args)
 
 
 class TestCommonOptions(unittest.TestCase):
@@ -281,12 +485,12 @@ def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess.main(preprocess_args)
 
 
-def train_translation_model(data_dir, arch, extra_flags=None):
+def train_translation_model(data_dir, arch, extra_flags=None, task='translation'):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
         [
-            '--task', 'translation',
+            '--task', task,
             data_dir,
             '--save-dir', data_dir,
             '--arch', arch,
@@ -343,7 +547,7 @@ def preprocess_lm_data(data_dir):
     preprocess.main(preprocess_args)
 
 
-def train_language_model(data_dir, arch):
+def train_language_model(data_dir, arch, extra_flags=None):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
@@ -351,12 +555,10 @@ def train_language_model(data_dir, arch):
             '--task', 'language_modeling',
             data_dir,
             '--arch', arch,
-            '--optimizer', 'nag',
-            '--lr', '0.1',
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
             '--criterion', 'adaptive_loss',
             '--adaptive-softmax-cutoff', '5,10,15',
-            '--decoder-layers', '[(850, 3)] * 2 + [(1024,4)]',
-            '--decoder-embed-dim', '280',
             '--max-tokens', '500',
             '--tokens-per-sample', '500',
             '--save-dir', data_dir,
@@ -364,7 +566,7 @@ def train_language_model(data_dir, arch):
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
-        ],
+        ] + (extra_flags or []),
     )
     train.main(train_args)
 

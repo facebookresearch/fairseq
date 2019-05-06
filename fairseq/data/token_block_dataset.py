@@ -112,8 +112,8 @@ class TokenBlockDataset(FairseqDataset):
 
         if self.include_targets:
             # *target* is the original sentence (=item)
-            # *source* is rotated left by 1 (maybe left-padded with eos)
-            # *past_target* is rotated left by 2 (left-padded as needed)
+            # *source* is shifted right by 1 (maybe left-padded with eos)
+            # *past_target* is shifted right by 2 (left-padded as needed)
             if s == 0:
                 source = torch.cat([item.new([self.eos]), buffer[0:e - 1]])
                 past_target = torch.cat([item.new([self.pad, self.eos]), buffer[0:e - 2]])

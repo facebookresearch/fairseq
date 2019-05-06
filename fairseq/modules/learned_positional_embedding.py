@@ -13,13 +13,11 @@ from fairseq import utils
 class LearnedPositionalEmbedding(nn.Embedding):
     """This module learns positional embeddings up to a fixed maximum size.
 
-    Padding symbols are ignored, but it is necessary to specify whether padding
-    is added on the left side (left_pad=True) or right side (left_pad=False).
+    Padding symbols are ignored.
     """
 
-    def __init__(self, num_embeddings, embedding_dim, padding_idx, left_pad):
+    def __init__(self, num_embeddings, embedding_dim, padding_idx):
         super().__init__(num_embeddings, embedding_dim, padding_idx)
-        self.left_pad = left_pad
         self.onnx_trace = False
 
     def forward(self, input, incremental_state=None):
@@ -28,7 +26,9 @@ class LearnedPositionalEmbedding(nn.Embedding):
             # positions is the same for every token when decoding a single step
             positions = input.data.new(1, 1).fill_(self.padding_idx + input.size(1))
         else:
-            positions = utils.make_positions(input.data, self.padding_idx, self.left_pad, self.onnx_trace)
+            positions = utils.make_positions(
+                input.data, self.padding_idx, onnx_trace=self.onnx_trace,
+            )
         return super().forward(positions)
 
     def max_positions(self):

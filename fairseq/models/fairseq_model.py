@@ -326,6 +326,17 @@ class FairseqEncoderModel(BaseFairseqModel):
         """
         return self.encoder(src_tokens, src_lengths)
 
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        encoder_out = net_output['encoder_out']
+        if torch.is_tensor(encoder_out):
+            logits = encoder_out.float()
+            if log_probs:
+                return F.log_softmax(logits, dim=-1)
+            else:
+                return F.softmax(logits, dim=-1)
+        raise NotImplementedError
+
     def max_positions(self):
         """Maximum length supported by the model."""
         return self.encoder.max_positions()

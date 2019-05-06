@@ -11,10 +11,13 @@ Train a network across multiple GPUs.
 
 from collections import OrderedDict
 from itertools import chain
+import math
+import os
+import sys
 
 import torch
 
-from fairseq import distributed_utils, models, optim, utils
+from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.optim import lr_scheduler
 
@@ -29,7 +32,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion, dummy_batch, oom_batch=None):
+    def __init__(self, args, task, model, criterion, dummy_batch=None, oom_batch=None):
         self.args = args
         self.task = task
 
@@ -44,7 +47,7 @@ class Trainer(object):
             self._model = self._model.cuda()
 
         self._dummy_batch = dummy_batch
-        self._oom_batch = oom_batch
+        self._oom_batch = oom_batch or dummy_batch
 
         self._lr_scheduler = None
         self._num_updates = 0
@@ -119,16 +122,31 @@ class Trainer(object):
         """Save all training state in a checkpoint file."""
         if distributed_utils.is_master(self.args):  # only save one checkpoint
             extra_state['train_meters'] = self.meters
-            utils.save_state(
+            checkpoint_utils.save_state(
                 filename, self.args, self.get_model().state_dict(), self.criterion, self.optimizer,
                 self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
             )
 
     def load_checkpoint(self, filename, reset_optimizer=False, reset_lr_scheduler=False, optimizer_overrides=None):
         """Load all training state from a checkpoint file."""
-        extra_state, self._optim_history, last_optim_state = utils.load_model_state(
-            filename, self.get_model(),
-        )
+        extra_state, self._optim_history, last_optim_state = None, [], None
+
+        if os.path.exists(filename):
+            state = checkpoint_utils.load_checkpoint_to_cpu(filename)
+
+            # load model parameters
+            try:
+                self.get_model().load_state_dict(state['model'], strict=True)
+            except Exception:
+                raise Exception(
+                    'Cannot load model parameters from checkpoint, '
+                    'please ensure that the architectures match.'
+                )
+
+            extra_state = state['extra_state']
+            self._optim_history = state['optimizer_history']
+            last_optim_state = state['last_optimizer_state']
+
         if last_optim_state is not None and not reset_optimizer:
             # rebuild optimizer after loading model, since params may have changed
             self._build_optimizer()
@@ -136,9 +154,9 @@ class Trainer(object):
             # only reload optimizer and lr_scheduler if they match
             last_optim = self._optim_history[-1]
             assert last_optim['criterion_name'] == self.criterion.__class__.__name__, \
-                'criterion does not match; please reset the optimizer (--reset-optimizer)'
+                'Criterion does not match; please reset the optimizer (--reset-optimizer).'
             assert last_optim['optimizer_name'] == self.optimizer.__class__.__name__, \
-                'optimizer does not match; please reset the optimizer (--reset-optimizer)'
+                'Optimizer does not match; please reset the optimizer (--reset-optimizer).'
 
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
@@ -157,8 +175,11 @@ class Trainer(object):
 
         return extra_state
 
-    def train_step(self, samples, dummy_batch=False):
+    def train_step(self, samples, dummy_batch=False, raise_oom=False):
         """Do forward, backward and parameter update."""
+        if self._dummy_batch is None:
+            self._dummy_batch = samples[0]
+
         self._set_seed()
         self.model.train()
         self.criterion.train()
@@ -184,7 +205,7 @@ class Trainer(object):
                     # Whenever *samples* contains more than one mini-batch, we
                     # want to accumulate gradients locally and only call
                     # all-reduce in the last backwards pass. Currently the
-                    # *need_reduction* flag is only supported by
+                    # *accumulate_grads* flag is only supported by
                     # LegacyDistributedDataParallel.
                     if i < len(samples) - 1:
                         self.model.accumulate_grads = True
@@ -202,7 +223,18 @@ class Trainer(object):
                     sample_sizes.append(sample_size)
             except RuntimeError as e:
                 if 'out of memory' in str(e):
-                    print(('| WARNING: ran out of memory with exception: {};\n Skipping batch').format(str(e)))
+                    msg = (
+                        '| WARNING: ran out of memory with exception: '
+                        + '{};'.format(e)
+                        + '\n Skipping batch'
+                    )
+                    # TODO: print should really go to logger, this print goes
+                    # to stdout, which is buffered, which in many case is not
+                    # printed out if another exception happens
+                    # print(msg)
+                    print(msg, file=sys.stderr)
+                    if raise_oom:
+                        raise ValueError(msg)
                     ooms += 1
                     self.zero_grad()
                 else:
@@ -223,8 +255,10 @@ class Trainer(object):
             logging_outputs = list(chain.from_iterable(logging_outputs))
             sample_sizes = list(chain.from_iterable(sample_sizes))
             ooms = sum(ooms)
-            assert all(norm == prev_norms[0] for norm in prev_norms), \
-                'Fatal error: gradients are inconsistent between workers'
+            assert (
+                all(norm == prev_norms[0] for norm in prev_norms)
+                or all(math.isnan(norm) or math.isinf(norm) for norm in prev_norms)
+            ), 'Fatal error: gradients are inconsistent between workers'
 
         self.meters['oom'].update(ooms, len(samples))
         if ooms == self.args.distributed_world_size * len(samples):
@@ -259,6 +293,9 @@ class Trainer(object):
             # update learning rate
             self.lr_scheduler.step_update(self._num_updates)
 
+            # task specific update per step
+            self.task.update_step(self._num_updates)
+
             # update meters
             ntokens = logging_output.get('ntokens', 0)
             nsentences = logging_output.get('nsentences', 0)
@@ -271,6 +308,10 @@ class Trainer(object):
                 1. if grad_norm > self.args.clip_norm and self.args.clip_norm > 0 else 0.
             )
             self.meters['train_loss'].update(logging_output.get('loss', 0), sample_size)
+            if 'train_acc' in self.meters:
+                self.meters['train_acc'].update(
+                    logging_output.get('acc', 0), sample_size)
+
             if 'nll_loss' in logging_output:
                 self.meters['train_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
         except OverflowError as e:
@@ -308,7 +349,7 @@ class Trainer(object):
                     print('| WARNING: ran out of memory, retrying batch')
                     for p in self.model.parameters():
                         if p.grad is not None:
-                            del p.grad  # free some memory
+                            p.grad = None  # free some memory
                     if self.cuda:
                         torch.cuda.empty_cache()
                     return self.valid_step(sample, raise_oom=True)
@@ -340,6 +381,10 @@ class Trainer(object):
         # update meters for validation
         ntokens = logging_output.get('ntokens', 0)
         self.meters['valid_loss'].update(logging_output.get('loss', 0), sample_size)
+        if 'valid_acc' in self.meters:
+            self.meters['valid_acc'].update(
+                logging_output.get('acc', 0), sample_size)
+
         if 'nll_loss' in logging_output:
             self.meters['valid_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
 
