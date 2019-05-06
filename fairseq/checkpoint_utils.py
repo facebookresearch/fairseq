@@ -6,6 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import OrderedDict
+from typing import Union
 import logging
 import os
 import re
@@ -15,7 +16,7 @@ import torch
 from torch.serialization import default_restore_location
 
 from fairseq import tasks
-
+from fairseq.models import FairseqEncoder, FairseqDecoder
 
 def load_checkpoint_to_cpu(path):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility)."""
@@ -175,3 +176,34 @@ def _upgrade_state_dict(state):
             'iterations_in_epoch': state['extra_state'].get('batch_offset', 0),
         }
     return state
+
+
+def load_pretrained_component_from_model(
+    component: Union[FairseqEncoder, FairseqDecoder], checkpoint: str
+):
+    """
+    Load a pretrained FairseqEncoder or FairseqDecoder from checkpoint into the
+    provided `component` object. If state_dict fails to load, there may be a
+    mismatch in the architecture of the corresponding `component` found in the
+    `checkpoint` file.
+    """
+    if not os.path.exists(checkpoint):
+        raise IOError('Model file not found: {}'.format(checkpoint))
+    state = load_checkpoint_to_cpu(checkpoint)
+    if isinstance(component, FairseqEncoder):
+        component_type = "encoder"
+    elif isinstance(component, FairseqDecoder):
+        component_type = "decoder"
+    else:
+        raise ValueError(
+            "component to load must be either a FairseqEncoder or "
+            "FairseqDecoder. Loading other component types are not supported."
+        )
+    component_state_dict = OrderedDict()
+    for key in state["model"].keys():
+        if key.startswith(component_type):
+            # encoder.input_layers.0.0.weight --> input_layers.0.0.weight
+            component_subkey = key[len(component_type) + 1:]
+            component_state_dict[component_subkey] = state["model"][key]
+    component.load_state_dict(component_state_dict, strict=True)
+    return component
