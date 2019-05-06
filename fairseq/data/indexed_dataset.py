@@ -291,6 +291,12 @@ class IndexedDatasetBuilder(object):
         index.close()
 
 
+def _warmup_mmap_file(path):
+    with open(path, 'rb') as stream:
+        while stream.read(100 * 1024 * 1024):
+            pass
+
+
 class MMapIndexedDataset(torch.utils.data.Dataset):
     class Index(object):
         _HDR_MAGIC = b'MMIDIDX\x00\x00'
@@ -351,12 +357,9 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 self._len = struct.unpack('<Q', stream.read(8))[0]
                 offset = stream.tell()
 
+            _warmup_mmap_file(path)
+
             self._bin_buffer = memoryview(np.memmap(path, mode='r', order='C'))
-
-            # warmup
-            for _ in self._bin_buffer:
-                pass
-
             self._sizes = np.frombuffer(self._bin_buffer, dtype=np.int32, count=self._len, offset=offset)
             self._pointers = np.frombuffer(self._bin_buffer, dtype=np.int64, count=self._len,
                                            offset=offset + self._sizes.nbytes)
@@ -393,11 +396,9 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     def _do_init(self, path):
         self._path = path
         self._index = self.Index(index_file_path(self._path))
-        self._bin_buffer = memoryview(np.memmap(data_file_path(self._path), mode='r', order='C'))
 
-        # warmup
-        for _ in self._bin_buffer:
-            pass
+        _warmup_mmap_file(data_file_path(self._path))
+        self._bin_buffer = memoryview(np.memmap(data_file_path(self._path), mode='r', order='C'))
 
     def __len__(self):
         return len(self._index)
