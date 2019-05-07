@@ -196,6 +196,7 @@ class LanguagePairDataset(FairseqDataset):
     def ordered_indices(self):
         """Return an ordered list of indices. Batches will be constructed based
         on this order."""
+
         if self.shuffle:
             indices = np.random.permutation(len(self))
         else:

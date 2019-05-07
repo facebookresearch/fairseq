@@ -23,7 +23,7 @@ bleu = Extension(
         'fairseq/clib/libbleu/libbleu.cpp',
         'fairseq/clib/libbleu/module.cpp',
     ],
-    extra_compile_args=['-std=c++11'],
+    extra_compile_args=['-std=c++11', '-mmacosx-version-min=10.11'],
 )
 
 
