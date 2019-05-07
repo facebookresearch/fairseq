@@ -223,7 +223,9 @@ class LSTMEncoder(FairseqEncoder):
         x = x.transpose(0, 1)
 
         # pack embedded source tokens into a PackedSequence
-        packed_x = nn.utils.rnn.pack_padded_sequence(x, src_lengths.data.tolist())
+        packed_x = nn.utils.rnn.pack_padded_sequence(
+            x, src_lengths.data.tolist(), enforce_sorted=False,
+        )
 
         # apply LSTM
         if self.bidirectional:

@@ -15,7 +15,7 @@ from . import data_utils, FairseqDataset
 
 def collate(
     samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
-    input_feeding=True,
+    input_feeding=True, sort=True,
 ):
     if len(samples) == 0:
         return {}
@@ -28,17 +28,20 @@ def collate(
 
     src_tokens = merge('source', left_pad=left_pad_source)
     id = src_tokens.new([s['id'] for s in samples])
-    # sort by descending source length
     src_lengths = src_tokens.new([s['source'].numel() for s in samples])
-    src_lengths, sort_order = src_lengths.sort(descending=True)
-    id = id.index_select(0, sort_order)
-    src_tokens = src_tokens.index_select(0, sort_order)
+
+    if sort:
+        # sort by descending source length
+        src_lengths, sort_order = src_lengths.sort(descending=True)
+        id = id.index_select(0, sort_order)
+        src_tokens = src_tokens.index_select(0, sort_order)
 
     prev_output_tokens = None
     target = None
     if samples[0].get('target', None) is not None:
         target = merge('target', left_pad=left_pad_target)
-        target = target.index_select(0, sort_order)
+        if sort:
+            target = target.index_select(0, sort_order)
         ntokens = sum(len(s['target']) for s in samples)
 
         if input_feeding:
@@ -49,7 +52,8 @@ def collate(
                 left_pad=left_pad_target,
                 move_eos_to_beginning=True,
             )
-            prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
+            if sort:
+                prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
         ntokens = sum(len(s['source']) for s in samples)
 

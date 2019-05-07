@@ -219,7 +219,7 @@ class TranslationStructuredPredictionTask(translation.TranslationTask):
 
     def get_new_sample_for_hypotheses(self, orig_sample):
         """
-        Extract hypotheses from *orig_sample* and return a new sample where the target
+        Extract hypotheses from *orig_sample* and return a new collated sample.
         """
         ids = orig_sample['id'].tolist()
         pad_idx = self.source_dictionary.pad()
@@ -235,6 +235,7 @@ class TranslationStructuredPredictionTask(translation.TranslationTask):
         return language_pair_dataset.collate(
             samples, pad_idx=pad_idx, eos_idx=self.source_dictionary.eos(),
             left_pad_source=self.args.left_pad_source, left_pad_target=self.args.left_pad_target,
+            sort=False,
         )
 
     def get_sequence_scorer(self, scorer):
