@@ -100,7 +100,7 @@ class TransformerSentenceEncoder(nn.Module):
         )
 
         self.segment_embeddings = (
-            nn.Embedding(self.num_segments, self.embedding_dim, self.padding_idx)
+            nn.Embedding(self.num_segments, self.embedding_dim, padding_idx=None)
             if self.num_segments > 0
             else None
         )
@@ -110,7 +110,7 @@ class TransformerSentenceEncoder(nn.Module):
                 self.max_seq_len,
                 self.embedding_dim,
                 self.padding_idx,
-                self.learned_pos_embedding,
+                learned=self.learned_pos_embedding,
             )
             if self.use_position_embeddings
             else None
@@ -162,11 +162,16 @@ class TransformerSentenceEncoder(nn.Module):
         )
 
         x = self.embed_tokens(tokens)
+
         if positions is not None:
             x += positions
         if segments is not None:
             x += segments
         x = F.dropout(x, p=self.dropout, training=self.training)
+
+        # account for padding while computing the representation
+        if padding_mask is not None:
+            x *= (1 - padding_mask.unsqueeze(-1).float())
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
