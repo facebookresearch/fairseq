@@ -8,15 +8,13 @@
 import itertools
 import os
 
-from fairseq import options
+from fairseq import options, utils
 from fairseq.data import (
     ConcatDataset,
     data_utils,
     Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
     LanguagePairDataset,
+    indexed_dataset
 )
 
 from . import FairseqTask, register_task
@@ -56,7 +54,7 @@ class TranslationTask(FairseqTask):
                             help='target language')
         parser.add_argument('--lazy-load', action='store_true',
                             help='load the dataset lazily')
-        parser.add_argument('--raw-text', action='store_true',
+        parser.add_argument('--raw-text', default=False, action='store_true',
                             help='load raw text dataset')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
                             help='pad the source on the left')
@@ -84,6 +82,12 @@ class TranslationTask(FairseqTask):
         """
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
+        if getattr(args, 'raw_text', False):
+            utils.deprecation_warning('--raw-text is deprecated, please use --dataset-impl=raw')
+            args.dataset_impl = 'raw'
+        elif getattr(args, 'lazy_load', False):
+            utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
+            args.dataset_impl = 'lazy'
 
         paths = args.data.split(':')
         assert len(paths) > 0
@@ -116,21 +120,7 @@ class TranslationTask(FairseqTask):
 
         def split_exists(split, src, tgt, lang, data_path):
             filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
-            if self.args.raw_text and IndexedRawTextDataset.exists(filename):
-                return True
-            elif not self.args.raw_text and IndexedDataset.exists(filename):
-                return True
-            return False
-
-        def indexed_dataset(path, dictionary):
-            if self.args.raw_text:
-                return IndexedRawTextDataset(path, dictionary)
-            elif IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    return IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    return IndexedCachedDataset(path, fix_lua_indexing=True)
-            return None
+            return indexed_dataset.dataset_exists(filename, impl=self.args.dataset_impl)
 
         src_datasets = []
         tgt_datasets = []
@@ -150,8 +140,10 @@ class TranslationTask(FairseqTask):
                 else:
                     raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
-            src_datasets.append(indexed_dataset(prefix + src, self.src_dict))
-            tgt_datasets.append(indexed_dataset(prefix + tgt, self.tgt_dict))
+            src_datasets.append(indexed_dataset.make_dataset(prefix + src, impl=self.args.dataset_impl,
+                                                             fix_lua_indexing=True, dictionary=self.src_dict))
+            tgt_datasets.append(indexed_dataset.make_dataset(prefix + tgt, impl=self.args.dataset_impl,
+                                                             fix_lua_indexing=True, dictionary=self.tgt_dict))
 
             print('| {} {} {} examples'.format(data_path, split_k, len(src_datasets[-1])))
 

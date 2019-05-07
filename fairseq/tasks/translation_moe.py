@@ -8,17 +8,7 @@ import contextlib
 
 import torch
 
-from fairseq import modules, options, utils
-from fairseq.data import (
-    ConcatDataset,
-    data_utils,
-    Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
-    LanguagePairDataset,
-)
-
+from fairseq import modules, utils
 from . import register_task
 from .translation import TranslationTask
 
@@ -40,8 +30,8 @@ class TranslationMoETask(TranslationTask):
     (Shen et al., 2019) <https://arxiv.org/abs/1902.07816>`_.
 
     Args:
-        src_dict (Dictionary): dictionary for the source language
-        tgt_dict (Dictionary): dictionary for the target language
+        src_dict (~fairseq.data.Dictionary): dictionary for the source language
+        tgt_dict (~fairseq.data.Dictionary): dictionary for the target language
 
     .. note::
 

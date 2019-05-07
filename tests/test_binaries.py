@@ -38,9 +38,9 @@ class TestTranslation(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_fconv_raw') as data_dir:
                 create_dummy_data(data_dir)
-                preprocess_translation_data(data_dir, ['--output-format', 'raw'])
-                train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--raw-text'])
-                generate_main(data_dir, ['--raw-text'])
+                preprocess_translation_data(data_dir, ['--dataset-impl', 'raw'])
+                train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--dataset-impl', 'raw'])
+                generate_main(data_dir, ['--dataset-impl', 'raw'])
 
     def test_fp16(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -418,7 +418,8 @@ def train_masked_language_model(data_dir, arch):
             "--no-progress-bar",
             "--distributed-world-size",
             "1",
-            "--raw-text",
+            "--dataset-impl",
+            "raw",
         ],
     )
     train.main(train_args)
