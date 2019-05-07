@@ -9,7 +9,7 @@ from .dictionary import Dictionary, TruncatedDictionary
 from .fairseq_dataset import FairseqDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .concat_dataset import ConcatDataset
-from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset
+from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset, MMapIndexedDataset
 from .language_pair_dataset import LanguagePairDataset
 from .lm_context_window_dataset import LMContextWindowDataset
 from .monolingual_dataset import MonolingualDataset
@@ -39,6 +39,7 @@ __all__ = [
     'IndexedRawTextDataset',
     'LanguagePairDataset',
     'LMContextWindowDataset',
+    'MMapIndexedDataset',
     'MonolingualDataset',
     'NoisingDataset',
     'RoundRobinZipDatasets',

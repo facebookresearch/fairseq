@@ -8,21 +8,19 @@
 import itertools
 import os
 
-import torch
 import numpy as np
+import torch
 
+from fairseq import utils
 from fairseq.data import (
     ConcatDataset,
     Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
     MonolingualDataset,
     TokenBlockDataset,
     TransformEosDataset,
     TruncatedDictionary,
+    indexed_dataset
 )
-
 from . import FairseqTask, register_task
 
 
@@ -101,6 +99,13 @@ class LanguageModelingTask(FairseqTask):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
+        if getattr(args, 'raw_text', False):
+            utils.deprecation_warning('--raw-text is deprecated, please use --dataset-impl=raw')
+            args.dataset_impl = 'raw'
+        elif getattr(args, 'lazy_load', False):
+            utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
+            args.dataset_impl = 'lazy'
+
         dictionary = None
         output_dictionary = None
         if args.data:
@@ -154,15 +159,10 @@ class LanguageModelingTask(FairseqTask):
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
             path = os.path.join(data_path, split_k)
+            ds = indexed_dataset.make_dataset(path, impl=self.args.dataset_impl,
+                                              fix_lua_indexing=True, dictionary=self.dictionary)
 
-            if self.args.raw_text and IndexedRawTextDataset.exists(path):
-                ds = IndexedRawTextDataset(path, self.dictionary)
-            elif not self.args.raw_text and IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    ds = IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    ds = IndexedCachedDataset(path, fix_lua_indexing=True)
-            else:
+            if ds is None:
                 if k > 0:
                     break
                 else:
