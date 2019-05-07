@@ -129,7 +129,9 @@ class MultilingualTranslationTask(FairseqTask):
         # load dictionaries
         dicts = OrderedDict()
         for lang in sorted_langs:
-            dicts[lang] = Dictionary.load(os.path.join(args.data, 'dict.{}.txt'.format(lang)))
+            paths = args.data.split(':')
+            assert len(paths) > 0
+            dicts[lang] = Dictionary.load(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
             if len(dicts) > 0:
                 assert dicts[lang].pad() == dicts[sorted_langs[0]].pad()
                 assert dicts[lang].eos() == dicts[sorted_langs[0]].eos()
@@ -179,30 +181,34 @@ class MultilingualTranslationTask(FairseqTask):
             new_tgt_bos=new_tgt_bos,
         )
 
-    def load_dataset(self, split, **kwargs):
+    def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
 
+        paths = self.args.data.split(':')
+        assert len(paths) > 0
+        data_path = paths[epoch % len(paths)]
+
         def split_exists(split, src, tgt, lang):
-            filename = os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, lang))
+            filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
             return indexed_dataset.dataset_exists(filename, impl=self.args.dataset_impl)
 
         src_datasets, tgt_datasets = {}, {}
         for lang_pair in self.args.lang_pairs:
             src, tgt = lang_pair.split('-')
             if split_exists(split, src, tgt, src):
-                prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, src, tgt))
+                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, src, tgt))
             elif split_exists(split, tgt, src, src):
-                prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, tgt, src))
+                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, tgt, src))
             else:
                 continue
             src_datasets[lang_pair] = indexed_dataset.make_dataset(prefix + src, impl=self.args.dataset_impl,
                                                                    fix_lua_indexing=True, dictionary=self.dicts[src])
             tgt_datasets[lang_pair] = indexed_dataset.make_dataset(prefix + tgt, impl=self.args.dataset_impl,
                                                                    fix_lua_indexing=True, dictionary=self.dicts[tgt])
-            print('| {} {} {} examples'.format(self.args.data, split, len(src_datasets[lang_pair])))
+            print('| {} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
 
         if len(src_datasets) == 0:
-            raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
+            raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
         def language_pair_dataset(lang_pair):
             src, tgt = lang_pair.split('-')

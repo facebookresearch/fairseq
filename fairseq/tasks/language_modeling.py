@@ -97,7 +97,9 @@ class LanguageModelingTask(FairseqTask):
         dictionary = None
         output_dictionary = None
         if args.data:
-            dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
+            paths = args.data.split(':')
+            assert len(paths) > 0
+            dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
             print('| dictionary: {} types'.format(len(dictionary)))
             output_dictionary = dictionary
             if args.output_dictionary_size >= 0:
@@ -129,7 +131,7 @@ class LanguageModelingTask(FairseqTask):
 
         return model
 
-    def load_dataset(self, split, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -138,9 +140,13 @@ class LanguageModelingTask(FairseqTask):
 
         loaded_datasets = []
 
+        paths = self.args.data.split(':')
+        assert len(paths) > 0
+        data_path = paths[epoch % len(paths)]
+
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
-            path = os.path.join(self.args.data, split_k)
+            path = os.path.join(data_path, split_k)
             ds = indexed_dataset.make_dataset(path, impl=self.args.dataset_impl,
                                               fix_lua_indexing=True, dictionary=self.dictionary)
 
@@ -148,7 +154,7 @@ class LanguageModelingTask(FairseqTask):
                 if k > 0:
                     break
                 else:
-                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
+                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
             loaded_datasets.append(
                 TokenBlockDataset(
@@ -158,7 +164,7 @@ class LanguageModelingTask(FairseqTask):
                 )
             )
 
-            print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
+            print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
 
             if not combine:
                 break

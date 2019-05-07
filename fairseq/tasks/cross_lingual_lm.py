@@ -42,7 +42,8 @@ class CrossLingualLMTask(FairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('data', help='path to data directory')
+        parser.add_argument('data', help='colon separated path to data directories list, \
+                            will be iterated upon during epochs in round-robin manner')
         parser.add_argument('--tokens-per-sample', default=512, type=int,
                             help='max number of total tokens over all segments'
                                  ' per sample')
@@ -106,12 +107,16 @@ class CrossLingualLMTask(FairseqTask):
 
         return cls(args, dictionary)
 
-    def _load_single_lang_dataset(self, split):
+    def _load_single_lang_dataset(self, split, epoch):
         loaded_datasets = []
+
+        paths = self.args.data.split(':')
+        assert len(paths) > 0
+        data_path = paths[epoch % len(paths)]
 
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
-            path = os.path.join(self.args.data, split_k)
+            path = os.path.join(data_path, split_k)
 
             if self.args.raw_text and IndexedRawTextDataset.exists(path):
                 ds = IndexedRawTextDataset(path, self.dictionary)
@@ -124,7 +129,7 @@ class CrossLingualLMTask(FairseqTask):
                 if k > 0:
                     break
                 else:
-                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
+                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
             # Since we append each block with the classification_token,
             # we need to effectively create blocks of length
@@ -136,7 +141,7 @@ class CrossLingualLMTask(FairseqTask):
                 )
             )
 
-            print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
+            print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
 
         if len(loaded_datasets) == 1:
             dataset = loaded_datasets[0]
@@ -147,7 +152,7 @@ class CrossLingualLMTask(FairseqTask):
 
         return dataset, sizes
 
-    def load_dataset(self, split, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
         Args:
             split (str): name of the split (e.g., train, valid, test)
@@ -162,7 +167,7 @@ class CrossLingualLMTask(FairseqTask):
             # Datasets are expected to be in "split.lang" format (Eg: train.en)
             language_split = '{}.{}'.format(split, lang)
 
-            block_dataset, sizes = self._load_single_lang_dataset(split=language_split)
+            block_dataset, sizes = self._load_single_lang_dataset(split=language_split, epoch=epoch)
 
             dataset_map[lang] = MaskedLMDataset(
                 dataset=block_dataset,
@@ -182,6 +187,6 @@ class CrossLingualLMTask(FairseqTask):
             dataset_map, default_key=self.default_key
         )
         print('| {} {} {} examples'.format(
-            self.args.data, split, len(self.datasets[split])
+            self.args.data.split(':')[epoch], split, len(self.datasets[split])
             )
         )

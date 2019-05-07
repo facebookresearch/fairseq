@@ -44,7 +44,9 @@ def main(args, init_distributed=False):
     task = tasks.setup_task(args)
 
     # Load dataset splits
-    load_dataset_splits(args, task)
+    task.load_dataset(args.train_subset, combine=True, epoch=0)
+    for valid_sub_split in args.valid_subset.split(','):
+        task.load_dataset(valid_sub_split, combine=True, epoch=0)
 
     # Build model and criterion
     model = task.build_model(args)
@@ -64,15 +66,16 @@ def main(args, init_distributed=False):
         args.max_sentences,
     ))
 
+    max_positions = utils.resolve_max_positions(
+        task.max_positions(),
+        model.max_positions(),
+    )
     # Initialize dataloader
     epoch_itr = task.get_batch_iterator(
         dataset=task.dataset(args.train_subset),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
-        max_positions=utils.resolve_max_positions(
-            task.max_positions(),
-            model.max_positions(),
-        ),
+        max_positions=max_positions,
         ignore_invalid_inputs=True,
         required_batch_size_multiple=args.required_batch_size_multiple,
         seed=args.seed,
@@ -82,7 +85,7 @@ def main(args, init_distributed=False):
     )
 
     # Load the latest checkpoint if one is available
-    load_checkpoint(args, trainer, epoch_itr)
+    load_checkpoint(args, trainer, epoch_itr, max_positions, task)
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
@@ -105,8 +108,32 @@ def main(args, init_distributed=False):
         # save checkpoint
         if epoch_itr.epoch % args.save_interval == 0:
             save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+
+        epoch_itr = reload_train(args, epoch_itr, max_positions, task)
     train_meter.stop()
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
+
+
+def reload_train(args, epoch_itr, max_positions, task):
+    # nothing needs to be done when the dataset is not sharded.
+    if len(args.data.split(":")) == 1:
+        return epoch_itr
+    print("| Reloading shard of train data at epoch: ", epoch_itr.epoch)
+    task.load_dataset(args.train_subset, combine=True, epoch=epoch_itr.epoch)
+    epoch_itr = task.get_batch_iterator(
+        dataset=task.dataset(args.train_subset),
+        max_tokens=args.max_tokens,
+        max_sentences=args.max_sentences,
+        max_positions=max_positions,
+        ignore_invalid_inputs=True,
+        required_batch_size_multiple=args.required_batch_size_multiple,
+        seed=args.seed,
+        num_shards=args.distributed_world_size,
+        shard_id=args.distributed_rank,
+        num_workers=args.num_workers,
+        epoch=epoch_itr.epoch,
+    )
+    return epoch_itr
 
 
 def train(args, trainer, task, epoch_itr):
@@ -335,9 +362,8 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
                 os.remove(old_chk)
 
 
-def load_checkpoint(args, trainer, epoch_itr):
+def load_checkpoint(args, trainer, epoch_itr, max_positions, task):
     """Load a checkpoint and replay dataloader to match."""
-
     # Only rank 0 should attempt to create the required dir
     if args.distributed_rank == 0:
         os.makedirs(args.save_dir, exist_ok=True)
@@ -351,7 +377,14 @@ def load_checkpoint(args, trainer, epoch_itr):
                                               eval(args.optimizer_overrides))
         if extra_state is not None:
             # replay train iterator to match checkpoint
-            epoch_itr.load_state_dict(extra_state['train_iterator'])
+            epoch_itr_state = extra_state['train_iterator']
+
+            # If the loaded checkpoint is not at epoch 0, reload train dataset,
+            # as it could be potentially sharded.
+            if epoch_itr_state['epoch'] != 0:
+                epoch_itr = reload_train(args, epoch_itr, max_positions, task)
+
+            epoch_itr.load_state_dict(epoch_itr_state)
 
             print('| loaded checkpoint {} (epoch {} @ {} updates)'.format(
                 checkpoint_path, epoch_itr.epoch, trainer.get_num_updates()))
@@ -364,19 +397,6 @@ def load_checkpoint(args, trainer, epoch_itr):
     else:
         print('| no existing checkpoint found {}'.format(checkpoint_path))
     return False
-
-
-def load_dataset_splits(args, task):
-    task.load_dataset(args.train_subset, combine=True)
-    for split in args.valid_subset.split(','):
-        for k in itertools.count():
-            split_k = split + (str(k) if k > 0 else '')
-            try:
-                task.load_dataset(split_k, combine=False)
-            except FileNotFoundError as e:
-                if k > 0:
-                    break
-                raise e
 
 
 def distributed_main(i, args, start_rank=0):
