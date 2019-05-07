@@ -67,38 +67,50 @@ class TokenBlockDataset(FairseqDataset):
                 self.slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'eos':
             self.slice_indices = np.empty((len(sizes), 2), dtype=int)
-            curr = 0
-            for i, sz in enumerate(sizes):
-                self.slice_indices[i] = (curr, curr + sz)
-                curr += sz
+            if not torch.is_tensor(sizes):
+                sizes = torch.tensor(sizes)
+            cumsum = torch.cumsum(sizes, dim=0)
+            self.slice_indices[0, 1] = sizes[0]
+            self.slice_indices[1:] = cumsum.unfold(0, 2, 1)
         else:
             raise ValueError('Invalid break_mode: ' + break_mode)
 
-        self.sizes = np.array([e - s for s, e in self.slice_indices])
         self.slice_indices = np.array(self.slice_indices, dtype=int)
+        self.sizes = self.slice_indices[:, 1] - self.slice_indices[:, 0]
 
         # build index mapping block indices to the underlying dataset indices
-        self.block_to_dataset_index = np.empty((len(self.slice_indices), 3), dtype=int)
-        ds_idx, ds_remaining = -1, 0
-        for i, (s, e) in enumerate(self.slice_indices):
-            to_consume = e - s
-            if ds_remaining == 0:
-                ds_idx += 1
-                ds_remaining = sizes[ds_idx]
-            start_ds_idx = ds_idx
-            start_offset = sizes[ds_idx] - ds_remaining
-            while to_consume > ds_remaining:
-                to_consume -= ds_remaining
-                ds_idx += 1
-                ds_remaining = sizes[ds_idx]
-            ds_remaining -= to_consume
-            self.block_to_dataset_index[i] = (
-                start_ds_idx,  # starting index in dataset
-                start_offset,  # starting offset within starting index
-                ds_idx,  # ending index in dataset
+        if break_mode == 'eos':
+            # much faster version for eos break mode
+            self.block_to_dataset_index = np.stack(
+                [
+                    np.arange(len(sizes)),  # starting index in dataset
+                    np.zeros(len(sizes), dtype=np.long),  # starting offset within starting index
+                    np.arange(len(sizes))  # ending index in dataset
+                ],
+                1,
             )
-        assert ds_remaining == 0
-        assert ds_idx == len(self.dataset) - 1
+        else:
+            self.block_to_dataset_index = np.empty((len(self.slice_indices), 3), dtype=int)
+            ds_idx, ds_remaining = -1, 0
+            for i, (s, e) in enumerate(self.slice_indices):
+                to_consume = e - s
+                if ds_remaining == 0:
+                    ds_idx += 1
+                    ds_remaining = sizes[ds_idx]
+                start_ds_idx = ds_idx
+                start_offset = sizes[ds_idx] - ds_remaining
+                while to_consume > ds_remaining:
+                    to_consume -= ds_remaining
+                    ds_idx += 1
+                    ds_remaining = sizes[ds_idx]
+                ds_remaining -= to_consume
+                self.block_to_dataset_index[i] = (
+                    start_ds_idx,  # starting index in dataset
+                    start_offset,  # starting offset within starting index
+                    ds_idx,  # ending index in dataset
+                )
+            assert ds_remaining == 0
+            assert ds_idx == len(self.dataset) - 1
 
     def __getitem__(self, index):
         start_ds_idx, start_offset, end_ds_idx = self.block_to_dataset_index[index]

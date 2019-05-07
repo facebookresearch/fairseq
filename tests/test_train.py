@@ -85,6 +85,18 @@ class TestLoadCheckpoint(unittest.TestCase):
             self.assertEqual(next(itr)['net_input']['src_tokens'][0].item(), 50)
             self.assertEqual(epoch_itr.iterations_in_epoch, 51)
 
+            for _ in range(150 - 52):
+                next(itr)
+            self.assertEqual(epoch_itr.iterations_in_epoch, 149)
+            self.assertTrue(itr.has_next())
+            next(itr)
+            self.assertFalse(itr.has_next())
+
+            itr = epoch_itr.next_epoch_itr(shuffle=False)
+            self.assertTrue(itr.has_next())
+            self.assertEqual(epoch_itr.epoch, 3)
+            self.assertEqual(epoch_itr.iterations_in_epoch, 0)
+
     def test_load_full_checkpoint(self):
         with contextlib.redirect_stdout(StringIO()):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 300, 150)
