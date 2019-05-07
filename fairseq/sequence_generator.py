@@ -158,6 +158,8 @@ class SequenceGenerator(object):
         tokens[:, 0] = bos_token or self.eos
         attn, attn_buf = None, None
         nonpad_idxs = None
+        if prefix_tokens is not None:
+            partial_prefix_mask_buf = torch.zeros_like(src_lengths).byte()
 
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
@@ -367,6 +369,10 @@ class SequenceGenerator(object):
                     # handle prefixes of different lengths
                     partial_prefix_mask = prefix_tokens[:, step].eq(self.pad)
                     if partial_prefix_mask.any():
+                        # track new free-decoding batches, at whose very first step
+                        # only use the first beam to eliminate repeats
+                        prefix_step0_mask = partial_prefix_mask ^ partial_prefix_mask_buf
+                        lprobs.view(bsz, beam_size, -1)[prefix_step0_mask, 1:] = -math.inf
                         partial_scores, partial_indices, partial_beams = self.search.step(
                             step,
                             lprobs.view(bsz, -1, self.vocab_size),
@@ -375,6 +381,8 @@ class SequenceGenerator(object):
                         cand_scores[partial_prefix_mask] = partial_scores[partial_prefix_mask]
                         cand_indices[partial_prefix_mask] = partial_indices[partial_prefix_mask]
                         cand_beams[partial_prefix_mask] = partial_beams[partial_prefix_mask]
+                        partial_prefix_mask_buf = partial_prefix_mask
+
                 else:
                     cand_scores, cand_indices, cand_beams = self.search.step(
                         step,
@@ -442,6 +450,7 @@ class SequenceGenerator(object):
                 cand_indices = cand_indices[batch_idxs]
                 if prefix_tokens is not None:
                     prefix_tokens = prefix_tokens[batch_idxs]
+                    partial_prefix_mask_buf = partial_prefix_mask_buf[batch_idxs]
                 src_lengths = src_lengths[batch_idxs]
 
                 scores = scores.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
