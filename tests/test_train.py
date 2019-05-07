@@ -68,10 +68,13 @@ class TestLoadCheckpoint(unittest.TestCase):
         [p.start() for p in self.applied_patches]
 
     def test_load_partial_checkpoint(self):
+
         with contextlib.redirect_stdout(StringIO()):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 200, 50)
 
-            train.load_checkpoint(self.args_mock, trainer, epoch_itr)
+            with patch('train.reload_train', return_value=epoch_itr):
+                train.load_checkpoint(self.args_mock, trainer, epoch_itr, 512, None)
+
             self.assertEqual(epoch_itr.epoch, 2)
             self.assertEqual(epoch_itr.iterations_in_epoch, 50)
 
@@ -82,11 +85,24 @@ class TestLoadCheckpoint(unittest.TestCase):
             self.assertEqual(next(itr)['net_input']['src_tokens'][0].item(), 50)
             self.assertEqual(epoch_itr.iterations_in_epoch, 51)
 
+            for _ in range(150 - 52):
+                next(itr)
+            self.assertEqual(epoch_itr.iterations_in_epoch, 149)
+            self.assertTrue(itr.has_next())
+            next(itr)
+            self.assertFalse(itr.has_next())
+
+            itr = epoch_itr.next_epoch_itr(shuffle=False)
+            self.assertTrue(itr.has_next())
+            self.assertEqual(epoch_itr.epoch, 3)
+            self.assertEqual(epoch_itr.iterations_in_epoch, 0)
+
     def test_load_full_checkpoint(self):
         with contextlib.redirect_stdout(StringIO()):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 300, 150)
 
-            train.load_checkpoint(self.args_mock, trainer, epoch_itr)
+            with patch('train.reload_train', return_value=epoch_itr):
+                train.load_checkpoint(self.args_mock, trainer, epoch_itr, 512, None)
             itr = epoch_itr.next_epoch_itr(shuffle=False)
 
             self.assertEqual(epoch_itr.epoch, 3)
@@ -98,7 +114,7 @@ class TestLoadCheckpoint(unittest.TestCase):
             trainer, epoch_itr = get_trainer_and_epoch_itr(0, 150, 0, 0)
             self.patches['os.path.isfile'].return_value = False
 
-            train.load_checkpoint(self.args_mock, trainer, epoch_itr)
+            train.load_checkpoint(self.args_mock, trainer, epoch_itr, 512, None)
             itr = epoch_itr.next_epoch_itr(shuffle=False)
 
             self.assertEqual(epoch_itr.epoch, 1)

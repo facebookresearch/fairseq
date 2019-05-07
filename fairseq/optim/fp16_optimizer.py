@@ -12,11 +12,15 @@ from fairseq import optim, utils
 
 class DynamicLossScaler(object):
 
-    def __init__(self, init_scale=2.**15, scale_factor=2., scale_window=2000, tolerance=0.05):
+    def __init__(
+        self, init_scale=2.**15, scale_factor=2., scale_window=2000,
+        tolerance=0.05, threshold=None,
+    ):
         self.loss_scale = init_scale
         self.scale_factor = scale_factor
         self.scale_window = scale_window
         self.tolerance = tolerance
+        self.threshold = threshold
         self._iter = 0
         self._last_overflow_iter = -1
         self._last_rescale_iter = -1
@@ -29,13 +33,18 @@ class DynamicLossScaler(object):
             self._overflows_since_rescale += 1
             pct_overflow = self._overflows_since_rescale / float(iter_since_rescale)
             if pct_overflow >= self.tolerance:
-                self.loss_scale /= self.scale_factor
+                self._decrease_loss_scale()
                 self._last_rescale_iter = self._iter
                 self._overflows_since_rescale = 0
         elif (self._iter - self._last_overflow_iter) % self.scale_window == 0:
             self.loss_scale *= self.scale_factor
             self._last_rescale_iter = self._iter
         self._iter += 1
+
+    def _decrease_loss_scale(self):
+        self.loss_scale /= self.scale_factor
+        if self.threshold is not None:
+            self.loss_scale = max(self.loss_scale, self.threshold)
 
     @staticmethod
     def has_overflow(grad_norm):
@@ -69,6 +78,7 @@ class FP16Optimizer(optim.FairseqOptimizer):
             init_scale=args.fp16_init_scale,
             scale_window=scale_window,
             tolerance=args.fp16_scale_tolerance,
+            threshold=args.threshold_loss_scale,
         )
 
     @classmethod
@@ -195,11 +205,8 @@ class FP16Optimizer(optim.FairseqOptimizer):
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
-        self.fp32_optimizer.zero_grad()
         for p in self.params:
-            if p.grad is not None:
-                p.grad.detach_()
-                p.grad.zero_()
+            p.grad = None
         self._needs_sync = False
 
 
@@ -279,6 +286,7 @@ class MemoryEfficientFP16Optimizer(optim.FairseqOptimizer):
             init_scale=args.fp16_init_scale,
             scale_window=scale_window,
             tolerance=args.fp16_scale_tolerance,
+            threshold=args.threshold_loss_scale,
         )
 
     @classmethod

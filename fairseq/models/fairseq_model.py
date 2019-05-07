@@ -297,3 +297,54 @@ class FairseqLanguageModel(BaseFairseqModel):
     def remove_head(self):
         """Removes the head of the model (e.g. the softmax layer) to conserve space when it is not needed"""
         raise NotImplementedError()
+
+
+class FairseqEncoderModel(BaseFairseqModel):
+    """Base class for encoder-only models.
+
+    Args:
+        encoder (FairseqEncoder): the encoder
+    """
+
+    def __init__(self, encoder):
+        super().__init__()
+        self.encoder = encoder
+        assert isinstance(self.encoder, FairseqEncoder)
+
+    def forward(self, src_tokens, src_lengths, **kwargs):
+        """
+        Run the forward pass for a encoder-only model.
+
+        Feeds a batch of tokens through the encoder to generate logits.
+
+        Args:
+            src_tokens (LongTensor): input tokens of shape `(batch, src_len)`
+            src_lengths (LongTensor): source sentence lengths of shape `(batch)`
+
+        Returns:
+            the encoder's output, typically of shape `(batch, seq_len, vocab)`
+        """
+        return self.encoder(src_tokens, src_lengths)
+
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        encoder_out = net_output['encoder_out']
+        if torch.is_tensor(encoder_out):
+            logits = encoder_out.float()
+            if log_probs:
+                return F.log_softmax(logits, dim=-1)
+            else:
+                return F.softmax(logits, dim=-1)
+        raise NotImplementedError
+
+    def max_positions(self):
+        """Maximum length supported by the model."""
+        return self.encoder.max_positions()
+
+    @property
+    def supported_targets(self):
+        return {'future'}
+
+    def remove_head(self):
+        """Removes the head of the model (e.g. the softmax layer) to conserve space when it is not needed"""
+        raise NotImplementedError()

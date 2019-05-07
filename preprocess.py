@@ -11,21 +11,21 @@ Data pre-processing: build vocabularies and binarize training data.
 
 from collections import Counter
 from itertools import zip_longest
+
+from fairseq import options, tasks, utils
+from fairseq.data import indexed_dataset
+from fairseq.binarizer import Binarizer
+from multiprocessing import Pool
+
 import os
 import shutil
 
-from fairseq import options, tasks
-from fairseq.data import indexed_dataset
-from fairseq.tokenizer import Tokenizer
-from multiprocessing import Pool
-
-from fairseq.utils import import_user_module
-
 
 def main(args):
-    import_user_module(args)
+    utils.import_user_module(args)
 
     print(args)
+
     os.makedirs(args.destdir, exist_ok=True)
     target = not args.only_source
 
@@ -56,37 +56,37 @@ def main(args):
             padding_factor=args.padding_factor,
         )
 
+    if not args.srcdict and os.path.exists(dict_path(args.source_lang)):
+        raise FileExistsError(dict_path(args.source_lang))
+    if target and not args.tgtdict and os.path.exists(dict_path(args.target_lang)):
+        raise FileExistsError(dict_path(args.target_lang))
+
     if args.joined_dictionary:
-        assert (
-                not args.srcdict or not args.tgtdict
-        ), "cannot use both --srcdict and --tgtdict with --joined-dictionary"
+        assert not args.srcdict or not args.tgtdict, \
+            "cannot use both --srcdict and --tgtdict with --joined-dictionary"
 
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         elif args.tgtdict:
             src_dict = task.load_dictionary(args.tgtdict)
         else:
-            assert (
-                args.trainpref
-            ), "--trainpref must be set if --srcdict is not specified"
-            src_dict = build_dictionary({train_path(lang) for lang in [args.source_lang, args.target_lang]}, src=True)
+            assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
+            src_dict = build_dictionary(
+                {train_path(lang) for lang in [args.source_lang, args.target_lang]}, src=True
+            )
         tgt_dict = src_dict
     else:
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         else:
-            assert (
-                args.trainpref
-            ), "--trainpref must be set if --srcdict is not specified"
+            assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
             src_dict = build_dictionary([train_path(args.source_lang)], src=True)
 
         if target:
             if args.tgtdict:
                 tgt_dict = task.load_dictionary(args.tgtdict)
             else:
-                assert (
-                    args.trainpref
-                ), "--trainpref must be set if --tgtdict is not specified"
+                assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
                 tgt_dict = build_dictionary([train_path(args.target_lang)], tgt=True)
         else:
             tgt_dict = None
@@ -95,9 +95,8 @@ def main(args):
     if target and tgt_dict is not None:
         tgt_dict.save(dict_path(args.target_lang))
 
-    def make_binary_dataset(input_prefix, output_prefix, lang, num_workers):
-        dict = task.load_dictionary(dict_path(lang))
-        print("| [{}] Dictionary: {} types".format(lang, len(dict) - 1))
+    def make_binary_dataset(vocab, input_prefix, output_prefix, lang, num_workers):
+        print("| [{}] Dictionary: {} types".format(lang, len(vocab) - 1))
         n_seq_tok = [0, 0]
         replaced = Counter()
 
@@ -109,7 +108,7 @@ def main(args):
         input_file = "{}{}".format(
             input_prefix, ("." + lang) if lang is not None else ""
         )
-        offsets = Tokenizer.find_offsets(input_file, num_workers)
+        offsets = Binarizer.find_offsets(input_file, num_workers)
         pool = None
         if num_workers > 1:
             pool = Pool(processes=num_workers - 1)
@@ -120,22 +119,21 @@ def main(args):
                     (
                         args,
                         input_file,
-                        dict,
+                        vocab,
                         prefix,
                         lang,
                         offsets[worker_id],
-                        offsets[worker_id + 1],
+                        offsets[worker_id + 1]
                     ),
-                    callback=merge_result,
+                    callback=merge_result
                 )
             pool.close()
 
-        ds = indexed_dataset.IndexedDatasetBuilder(
-            dataset_dest_file(args, output_prefix, lang, "bin")
-        )
+        ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"), impl=args.dataset_impl)
         merge_result(
-            Tokenizer.binarize(
-                input_file, dict, lambda t: ds.add_item(t), offset=0, end=offsets[1]
+            Binarizer.binarize(
+                input_file, vocab, lambda t: ds.add_item(t),
+                offset=0, end=offsets[1]
             )
         )
         if num_workers > 1:
@@ -156,36 +154,36 @@ def main(args):
                 n_seq_tok[0],
                 n_seq_tok[1],
                 100 * sum(replaced.values()) / n_seq_tok[1],
-                dict.unk_word,
+                vocab.unk_word,
             )
         )
 
-    def make_dataset(input_prefix, output_prefix, lang, num_workers=1):
-        if args.output_format == "binary":
-            make_binary_dataset(input_prefix, output_prefix, lang, num_workers)
-        elif args.output_format == "raw":
+    def make_dataset(vocab, input_prefix, output_prefix, lang, num_workers=1):
+        if args.dataset_impl == "raw":
             # Copy original text file to destination folder
             output_text_file = dest_path(
                 output_prefix + ".{}-{}".format(args.source_lang, args.target_lang),
                 lang,
             )
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
+        else:
+            make_binary_dataset(vocab, input_prefix, output_prefix, lang, num_workers)
 
-    def make_all(lang):
+    def make_all(lang, vocab):
         if args.trainpref:
-            make_dataset(args.trainpref, "train", lang, num_workers=args.workers)
+            make_dataset(vocab, args.trainpref, "train", lang, num_workers=args.workers)
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(",")):
                 outprefix = "valid{}".format(k) if k > 0 else "valid"
-                make_dataset(validpref, outprefix, lang)
+                make_dataset(vocab, validpref, outprefix, lang, num_workers=args.workers)
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(",")):
                 outprefix = "test{}".format(k) if k > 0 else "test"
-                make_dataset(testpref, outprefix, lang)
+                make_dataset(vocab, testpref, outprefix, lang, num_workers=args.workers)
 
-    make_all(args.source_lang)
+    make_all(args.source_lang, src_dict)
     if target:
-        make_all(args.target_lang)
+        make_all(args.target_lang, tgt_dict)
 
     print("| Wrote preprocessed data to {}".format(args.destdir))
 
@@ -198,8 +196,8 @@ def main(args):
             with open(src_file_name, "r", encoding='utf-8') as src_file:
                 with open(tgt_file_name, "r", encoding='utf-8') as tgt_file:
                     for a, s, t in zip_longest(align_file, src_file, tgt_file):
-                        si = Tokenizer.tokenize(s, src_dict, add_if_not_exist=False)
-                        ti = Tokenizer.tokenize(t, tgt_dict, add_if_not_exist=False)
+                        si = src_dict.encode_line(s, add_if_not_exist=False)
+                        ti = tgt_dict.encode_line(t, add_if_not_exist=False)
                         ai = list(map(lambda x: tuple(x.split("-")), a.split()))
                         for sai, tai in ai:
                             srcidx = si[int(sai)]
@@ -232,22 +230,14 @@ def main(args):
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
 
 
-def binarize(args, filename, dict, output_prefix, lang, offset, end, append_eos=True):
-    ds = indexed_dataset.IndexedDatasetBuilder(
-        dataset_dest_file(args, output_prefix, lang, "bin")
-    )
+def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos=True):
+    ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"), impl=args.dataset_impl)
 
     def consumer(tensor):
         ds.add_item(tensor)
 
-    res = Tokenizer.binarize(
-        filename,
-        dict,
-        consumer,
-        offset=offset,
-        end=end,
-        append_eos=append_eos
-    )
+    res = Binarizer.binarize(filename, vocab, consumer, append_eos=append_eos,
+                             offset=offset, end=end)
     ds.finalize(dataset_dest_file(args, output_prefix, lang, "idx"))
     return res
 
@@ -266,16 +256,7 @@ def dataset_dest_file(args, output_prefix, lang, extension):
 
 
 def get_offsets(input_file, num_workers):
-    return Tokenizer.find_offsets(input_file, num_workers)
-
-
-def merge_files(files, outpath):
-    ds = indexed_dataset.IndexedDatasetBuilder("{}.bin".format(outpath))
-    for file in files:
-        ds.merge_file_(file)
-        os.remove(indexed_dataset.data_file_path(file))
-        os.remove(indexed_dataset.index_file_path(file))
-    ds.finalize("{}.idx".format(outpath))
+    return Binarizer.find_offsets(input_file, num_workers)
 
 
 def cli_main():

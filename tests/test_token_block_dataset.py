@@ -23,9 +23,9 @@ class TestTokenBlockDataset(unittest.TestCase):
 
     def test_eos_break_mode(self):
         data = [
-            torch.LongTensor([5, 4, 3, 2, 1]),
-            torch.LongTensor([1]),  # this should be filtered
-            torch.LongTensor([8, 7, 6, 1]),
+            torch.tensor([5, 4, 3, 2, 1], dtype=torch.long),
+            torch.tensor([1], dtype=torch.long),
+            torch.tensor([8, 7, 6, 1], dtype=torch.long),
         ]
         ds = self._build_dataset(data, block_size=None, pad=0, eos=1, break_mode='eos')
         self.assertEqual(ds[0].tolist(), [5, 4, 3, 2, 1])
@@ -33,9 +33,9 @@ class TestTokenBlockDataset(unittest.TestCase):
         self.assertEqual(ds[2].tolist(), [8, 7, 6, 1])
 
         data = [
-            torch.LongTensor([5, 4, 3, 2, 1]),
-            torch.LongTensor([8, 7, 6, 1]),
-            torch.LongTensor([1]),  # this should be filtered
+            torch.tensor([5, 4, 3, 2, 1], dtype=torch.long),
+            torch.tensor([8, 7, 6, 1], dtype=torch.long),
+            torch.tensor([1], dtype=torch.long),
         ]
         ds = self._build_dataset(data, block_size=None, pad=0, eos=1, break_mode='eos')
         self.assertEqual(ds[0].tolist(), [5, 4, 3, 2, 1])
@@ -44,9 +44,9 @@ class TestTokenBlockDataset(unittest.TestCase):
 
     def test_block_break_mode(self):
         data = [
-            torch.LongTensor([5, 4, 3, 2, 1]),
-            torch.LongTensor([8, 7, 6, 1]),
-            torch.LongTensor([9, 1]),
+            torch.tensor([5, 4, 3, 2, 1], dtype=torch.long),
+            torch.tensor([8, 7, 6, 1], dtype=torch.long),
+            torch.tensor([9, 1], dtype=torch.long),
         ]
         ds = self._build_dataset(data, block_size=3, pad=0, eos=1, break_mode='none')
         self.assertEqual(ds[0].tolist(), [5, 4, 3])
@@ -56,19 +56,19 @@ class TestTokenBlockDataset(unittest.TestCase):
 
     def test_complete_break_mode(self):
         data = [
-            torch.LongTensor([5, 4, 3, 2, 1]),
-            torch.LongTensor([8, 7, 6, 1]),
-            torch.LongTensor([9, 1]),
+            torch.tensor([5, 4, 3, 2, 1], dtype=torch.long),
+            torch.tensor([8, 7, 6, 1], dtype=torch.long),
+            torch.tensor([9, 1], dtype=torch.long),
         ]
         ds = self._build_dataset(data, block_size=6, pad=0, eos=1, break_mode='complete')
         self.assertEqual(ds[0].tolist(), [5, 4, 3, 2, 1])
         self.assertEqual(ds[1].tolist(), [8, 7, 6, 1, 9, 1])
 
         data = [
-            torch.LongTensor([4, 3, 2, 1]),
-            torch.LongTensor([5, 1]),
-            torch.LongTensor([1]),
-            torch.LongTensor([6, 1]),
+            torch.tensor([4, 3, 2, 1], dtype=torch.long),
+            torch.tensor([5, 1], dtype=torch.long),
+            torch.tensor([1], dtype=torch.long),
+            torch.tensor([6, 1], dtype=torch.long),
         ]
         ds = self._build_dataset(data, block_size=3, pad=0, eos=1, break_mode='complete')
         self.assertEqual(ds[0].tolist(), [4, 3, 2, 1])

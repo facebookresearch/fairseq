@@ -1,4 +1,0 @@
-cffi
-numpy
-torch
-tqdm

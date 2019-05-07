@@ -28,7 +28,7 @@ train, valid and test sets.
 Download and extract the data from here:
 `tutorial_names.tar.gz <https://dl.fbaipublicfiles.com/fairseq/data/tutorial_names.tar.gz>`_
 
-Once extracted, let's preprocess the data using the :ref:`preprocess.py`
+Once extracted, let's preprocess the data using the :ref:`fairseq-preprocess`
 command-line tool to create the dictionaries. While this tool is primarily
 intended for sequence-to-sequence problems, we're able to reuse it here by
 treating the label as a "target" sequence of length 1. We'll also output the
@@ -37,7 +37,7 @@ enhance readability:
 
 .. code-block:: console
 
-  > python preprocess.py \
+  > fairseq-preprocess \
     --trainpref names/train --validpref names/valid --testpref names/test \
     --source-lang input --target-lang label \
     --destdir names-bin --output-format raw
@@ -209,7 +209,6 @@ following contents::
 
   from fairseq.data import Dictionary, LanguagePairDataset
   from fairseq.tasks import FairseqTask, register_task
-  from fairseq.tokenizer import Tokenizer
 
 
   @register_task('simple_classification')
@@ -253,8 +252,8 @@ following contents::
                   sentence = line.strip()
 
                   # Tokenize the sentence, splitting on spaces
-                  tokens = Tokenizer.tokenize(
-                      sentence, self.input_vocab, add_if_not_exist=False,
+                  tokens = self.input_vocab.encode_line(
+                      sentence, add_if_not_exist=False,
                   )
 
                   sentences.append(tokens)
@@ -324,7 +323,7 @@ following contents::
 4. Training the Model
 ---------------------
 
-Now we're ready to train the model. We can use the existing :ref:`train.py`
+Now we're ready to train the model. We can use the existing :ref:`fairseq-train`
 command-line tool for this, making sure to specify our new Task (``--task
 simple_classification``) and Model architecture (``--arch
 pytorch_tutorial_rnn``):
@@ -332,11 +331,11 @@ pytorch_tutorial_rnn``):
 .. note::
 
   You can also configure the dimensionality of the hidden state by passing the
-  ``--hidden-dim`` argument to :ref:`train.py`.
+  ``--hidden-dim`` argument to :ref:`fairseq-train`.
 
 .. code-block:: console
 
-  > python train.py names-bin \
+  > fairseq-train names-bin \
     --task simple_classification \
     --arch pytorch_tutorial_rnn \
     --optimizer adam --lr 0.001 --lr-shrink 0.5 \
@@ -355,8 +354,7 @@ The model files should appear in the :file:`checkpoints/` directory.
 Finally we can write a short script to evaluate our model on new inputs. Create
 a new file named :file:`eval_classifier.py` with the following contents::
 
-  from fairseq import data, options, tasks, utils
-  from fairseq.tokenizer import Tokenizer
+  from fairseq import checkpoint_utils, data, options, tasks
 
   # Parse command-line arguments for generation
   parser = options.get_generation_parser(default_task='simple_classification')
@@ -367,7 +365,7 @@ a new file named :file:`eval_classifier.py` with the following contents::
 
   # Load model
   print('| loading model from {}'.format(args.path))
-  models, _model_args = utils.load_ensemble_for_inference([args.path], task)
+  models, _model_args = checkpoint_utils.load_model_ensemble([args.path], task=task)
   model = models[0]
 
   while True:
@@ -375,8 +373,8 @@ a new file named :file:`eval_classifier.py` with the following contents::
 
       # Tokenize into characters
       chars = ' '.join(list(sentence.strip()))
-      tokens = Tokenizer.tokenize(
-          chars, task.source_dictionary, add_if_not_exist=False,
+      tokens = task.source_dictionary.encode_line(
+          chars, add_if_not_exist=False,
       )
 
       # Build mini-batch to feed to the model

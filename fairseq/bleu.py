@@ -13,7 +13,7 @@ try:
     from fairseq import libbleu
 except ImportError as e:
     import sys
-    sys.stderr.write('ERROR: missing libbleu.so. run `python setup.py build develop`\n')
+    sys.stderr.write('ERROR: missing libbleu.so. run `pip install --editable .`\n')
     raise e
 
 
@@ -52,7 +52,7 @@ class SacrebleuScorer(object):
         self.sys.append(pred)
 
     def score(self, order=4):
-        return self.result_string(order).bleu
+        return self.result_string(order).score
 
     def result_string(self, order=4):
         if order != 4:

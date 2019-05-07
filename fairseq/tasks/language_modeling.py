@@ -6,20 +6,21 @@
 # can be found in the PATENTS file in the same directory.
 
 import itertools
-import numpy as np
 import os
 
+import numpy as np
+import torch
+
+from fairseq import utils
 from fairseq.data import (
     ConcatDataset,
     Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
     MonolingualDataset,
     TokenBlockDataset,
+    TransformEosDataset,
     TruncatedDictionary,
+    indexed_dataset
 )
-
 from . import FairseqTask, register_task
 
 
@@ -41,9 +42,9 @@ class LanguageModelingTask(FairseqTask):
 
     .. note::
 
-        The language modeling task is compatible with :mod:`train.py <train>`,
-        :mod:`generate.py <generate>`, :mod:`interactive.py <interactive>` and
-        :mod:`eval_lm.py <eval_lm>`.
+        The language modeling task is compatible with :mod:`fairseq-train`,
+        :mod:`fairseq-generate`, :mod:`fairseq-interactive` and
+        :mod:`fairseq-eval-lm`.
 
     The language modeling task provides the following additional command-line
     arguments:
@@ -78,6 +79,8 @@ class LanguageModelingTask(FairseqTask):
                             help='include future target')
         parser.add_argument('--past-target', action='store_true',
                             help='include past target')
+        parser.add_argument('--add-bos-token', action='store_true',
+                            help='prepend beginning of sentence token (<s>)')
         # fmt: on
 
     def __init__(self, args, dictionary, output_dictionary, targets=None):
@@ -96,10 +99,19 @@ class LanguageModelingTask(FairseqTask):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
+        if getattr(args, 'raw_text', False):
+            utils.deprecation_warning('--raw-text is deprecated, please use --dataset-impl=raw')
+            args.dataset_impl = 'raw'
+        elif getattr(args, 'lazy_load', False):
+            utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
+            args.dataset_impl = 'lazy'
+
         dictionary = None
         output_dictionary = None
         if args.data:
-            dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
+            paths = args.data.split(':')
+            assert len(paths) > 0
+            dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
             print('| dictionary: {} types'.format(len(dictionary)))
             output_dictionary = dictionary
             if args.output_dictionary_size >= 0:
@@ -131,7 +143,7 @@ class LanguageModelingTask(FairseqTask):
 
         return model
 
-    def load_dataset(self, split, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -140,22 +152,21 @@ class LanguageModelingTask(FairseqTask):
 
         loaded_datasets = []
 
+        paths = self.args.data.split(':')
+        assert len(paths) > 0
+        data_path = paths[epoch % len(paths)]
+
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
-            path = os.path.join(self.args.data, split_k)
+            path = os.path.join(data_path, split_k)
+            ds = indexed_dataset.make_dataset(path, impl=self.args.dataset_impl,
+                                              fix_lua_indexing=True, dictionary=self.dictionary)
 
-            if self.args.raw_text and IndexedRawTextDataset.exists(path):
-                ds = IndexedRawTextDataset(path, self.dictionary)
-            elif not self.args.raw_text and IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    ds = IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    ds = IndexedCachedDataset(path, fix_lua_indexing=True)
-            else:
+            if ds is None:
                 if k > 0:
                     break
                 else:
-                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
+                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
             loaded_datasets.append(
                 TokenBlockDataset(
@@ -165,7 +176,7 @@ class LanguageModelingTask(FairseqTask):
                 )
             )
 
-            print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
+            print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
 
             if not combine:
                 break
@@ -182,8 +193,46 @@ class LanguageModelingTask(FairseqTask):
         self.datasets[split] = MonolingualDataset(
             dataset, sizes, self.dictionary, self.output_dictionary,
             add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
-            targets=self.targets,
+            targets=self.targets, add_bos_token=self.args.add_bos_token,
         )
+
+    def build_dataset_for_inference(self, src_tokens, src_lengths):
+        return TransformEosDataset(
+            MonolingualDataset(
+                TokenBlockDataset(
+                    src_tokens,
+                    src_lengths,
+                    block_size=None,
+                    pad=self.source_dictionary.pad(),
+                    eos=self.source_dictionary.eos(),
+                    break_mode='eos',
+                    include_targets=False,
+                ),
+                src_lengths,
+                self.source_dictionary,
+                self.target_dictionary,
+                add_eos_for_other_targets=False,
+                shuffle=False,
+                add_bos_token=self.args.add_bos_token,
+            ),
+            eos=self.source_dictionary.eos(),
+            # remove EOS since this will be used as a prefix for generation
+            remove_eos_from_src=True,
+            has_target=False,
+        )
+
+    def inference_step(self, generator, models, sample, prefix_tokens=None):
+        with torch.no_grad():
+            if prefix_tokens is None:
+                # note: EOS has already been removed in build_dataset_for_inference
+                prefix_tokens = sample['net_input']['src_tokens']
+            return generator.generate(models, sample, prefix_tokens=prefix_tokens)
+
+    @property
+    def source_dictionary(self):
+        """Return the :class:`~fairseq.data.Dictionary` for the language
+        model."""
+        return self.dictionary
 
     @property
     def target_dictionary(self):

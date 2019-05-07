@@ -28,19 +28,24 @@ def collate(samples, pad_idx, eos_idx):
                 [s[key] for s in samples], pad_idx, eos_idx, left_pad=False,
             )
 
-    is_target_list = isinstance(samples[0]['target'], list)
+    src_tokens = merge('source')
+    if samples[0]['target'] is not None:
+        is_target_list = isinstance(samples[0]['target'], list)
+        target = merge('target', is_target_list)
+    else:
+        target = src_tokens
 
     return {
         'id': torch.LongTensor([s['id'] for s in samples]),
         'nsentences': len(samples),
         'ntokens': sum(len(s['source']) for s in samples),
         'net_input': {
-            'src_tokens': merge('source'),
+            'src_tokens': src_tokens,
             'src_lengths': torch.LongTensor([
                 s['source'].numel() for s in samples
             ]),
         },
-        'target': merge('target', is_target_list),
+        'target': target,
     }
 
 
@@ -57,13 +62,14 @@ class MonolingualDataset(FairseqDataset):
     """
 
     def __init__(self, dataset, sizes, src_vocab, tgt_vocab, add_eos_for_other_targets, shuffle,
-                 targets=None):
+                 targets=None, add_bos_token=False):
         self.dataset = dataset
         self.sizes = np.array(sizes)
         self.vocab = src_vocab
         self.tgt_vocab = tgt_vocab
         self.add_eos_for_other_targets = add_eos_for_other_targets
         self.shuffle = shuffle
+        self.add_bos_token = add_bos_token
 
         assert targets is None or all(t in {'self', 'future', 'past'} for t in targets), \
             "targets must be none or one of 'self', 'future', 'past'"
@@ -72,8 +78,21 @@ class MonolingualDataset(FairseqDataset):
         self.targets = targets
 
     def __getitem__(self, index):
-        source, future_target, past_target = self.dataset[index]
-        source, target = self._make_source_target(source, future_target, past_target)
+        if self.targets is not None:
+            # *future_target* is the original sentence
+            # *source* is shifted right by 1 (maybe left-padded with eos)
+            # *past_target* is shifted right by 2 (left-padded as needed)
+            #
+            # Left-to-right language models should condition on *source* and
+            # predict *future_target*.
+            # Right-to-left language models should condition on *source* and
+            # predict *past_target*.
+            source, future_target, past_target = self.dataset[index]
+            source, target = self._make_source_target(source, future_target, past_target)
+        else:
+            source = self.dataset[index]
+            target = None
+        source, target = self._maybe_add_bos(source, target)
         return {'id': index, 'source': source, 'target': target}
 
     def __len__(self):
@@ -112,6 +131,13 @@ class MonolingualDataset(FairseqDataset):
 
         return source, self._filter_vocab(target)
 
+    def _maybe_add_bos(self, source, target):
+        if self.add_bos_token:
+            source = torch.cat([source.new([self.vocab.bos()]), source])
+            if target is not None:
+                target = torch.cat([target.new([self.tgt_vocab.bos()]), target])
+        return source, target
+
     def _filter_vocab(self, target):
         if len(self.tgt_vocab) != len(self.vocab):
             def _filter(target):
@@ -147,20 +173,6 @@ class MonolingualDataset(FairseqDataset):
                   on the right.
         """
         return collate(samples, self.vocab.pad(), self.vocab.eos())
-
-    def get_dummy_batch(self, num_tokens, max_positions, tgt_len=128):
-        """Return a dummy batch with a given number of tokens."""
-        if isinstance(max_positions, float) or isinstance(max_positions, int):
-            tgt_len = min(tgt_len, max_positions)
-        bsz = max(num_tokens // tgt_len, 1)
-        target = self.vocab.dummy_sentence(tgt_len + 2)
-        source, past_target, future_target = target[1:-1], target[2:], target[:-2]
-        source, target = self._make_source_target(source, past_target, future_target)
-
-        return self.collater([
-            {'id': i, 'source': source, 'target': target}
-            for i in range(bsz)
-        ])
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to

@@ -168,10 +168,9 @@ class DiverseBeamSearch(Search):
 
 class Sampling(Search):
 
-    def __init__(self, tgt_dict, sampling_topk=-1, sampling_temperature=1.):
+    def __init__(self, tgt_dict, sampling_topk=-1):
         super().__init__(tgt_dict)
         self.sampling_topk = sampling_topk
-        self.sampling_temperature = sampling_temperature
 
     def step(self, step, lprobs, scores):
         super()._init_buffers(lprobs)
@@ -183,16 +182,12 @@ class Sampling(Search):
             lprobs = lprobs[:, ::beam_size, :].contiguous()
 
         # we exclude the first two vocab items, one of which is pad
-        assert self.pad == 1, 'sampling assumes the first two symbols can be ignored'
+        assert self.pad <= 1, 'sampling assumes the first two symbols can be ignored'
         lprobs_nopad = lprobs[:, :, 2:]
 
         # only sample from top-k candidates
         if self.sampling_topk > 0:
             lprobs_nopad, topk_indices = lprobs_nopad.topk(self.sampling_topk)
-
-        # sampling temperature
-        if self.sampling_temperature != 1.:
-            lprobs_nopad = lprobs_nopad.div_(self.sampling_temperature)
 
         # sample
         probs_nopad = lprobs_nopad.exp_()

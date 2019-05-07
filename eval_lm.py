@@ -13,10 +13,10 @@ Evaluate the perplexity of a trained language model.
 import numpy as np
 import torch
 
-from fairseq import options, progress_bar, tasks, utils
+from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
+from fairseq.data import LMContextWindowDataset
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
-from fairseq.utils import import_user_module
 
 
 class WordStat(object):
@@ -48,7 +48,7 @@ class WordStat(object):
 def main(parsed_args):
     assert parsed_args.path is not None, '--path required for evaluation!'
 
-    import_user_module(parsed_args)
+    utils.import_user_module(parsed_args)
 
     print(parsed_args)
 
@@ -58,31 +58,49 @@ def main(parsed_args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(parsed_args.path))
-    models, args = utils.load_ensemble_for_inference(
-        parsed_args.path.split(':'), task, model_arg_overrides=eval(parsed_args.model_overrides),
+    models, args = checkpoint_utils.load_model_ensemble(
+        parsed_args.path.split(':'),
+        arg_overrides=eval(parsed_args.model_overrides),
+        task=task,
     )
 
     for arg in vars(parsed_args).keys():
-        if arg not in {'self_target', 'future_target', 'past_target', 'tokens_per_sample', 'output_size_dictionary'}:
+        if arg not in {
+            'self_target', 'future_target', 'past_target', 'tokens_per_sample',
+            'output_size_dictionary', 'add_bos_token',
+        }:
             setattr(args, arg, getattr(parsed_args, arg))
+
+    # reduce tokens per sample by the required context window size
+    args.tokens_per_sample -= args.context_window
     task = tasks.setup_task(args)
 
     # Load dataset splits
     task.load_dataset(args.gen_subset)
-    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
+    dataset = task.dataset(args.gen_subset)
+    if args.context_window > 0:
+        dataset = LMContextWindowDataset(
+            dataset=dataset,
+            tokens_per_sample=args.tokens_per_sample,
+            context_window=args.context_window,
+            pad_idx=task.source_dictionary.pad(),
+        )
+    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset)))
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
         model.make_generation_fast_()
         if args.fp16:
             model.half()
+        if use_cuda:
+            model.cuda()
 
     assert len(models) > 0
 
     print('num. model params: {}'.format(sum(p.numel() for p in models[0].parameters())))
 
     itr = task.get_batch_iterator(
-        dataset=task.dataset(args.gen_subset),
+        dataset=dataset,
         max_tokens=args.max_tokens or 36000,
         max_sentences=args.max_sentences,
         max_positions=utils.resolve_max_positions(*[
@@ -95,16 +113,21 @@ def main(parsed_args):
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
-    scorer = SequenceScorer(models, task.target_dictionary)
-    if use_cuda:
-        scorer.cuda()
+    scorer = SequenceScorer(task.target_dictionary, args.softmax_batch)
 
     score_sum = 0.
     count = 0
 
     if args.remove_bpe is not None:
-        bpe_cont = args.remove_bpe.rstrip()
-        bpe_toks = set(i for i in range(len(task.dictionary)) if task.dictionary[i].endswith(bpe_cont))
+        if args.remove_bpe == 'sentencepiece':
+            raise NotImplementedError
+        else:
+            bpe_cont = args.remove_bpe.rstrip()
+            bpe_toks = set(
+                i
+                for i in range(len(task.source_dictionary))
+                if task.source_dictionary[i].endswith(bpe_cont)
+            )
         bpe_len = len(bpe_cont)
     else:
         bpe_toks = None
@@ -113,16 +136,34 @@ def main(parsed_args):
     word_stats = dict()
 
     with progress_bar.build_progress_bar(args, itr) as t:
-        results = scorer.score_batched_itr(t, cuda=use_cuda, timer=gen_timer)
         wps_meter = TimeMeter()
-        for _, src_tokens, __, hypos in results:
-            for hypo in hypos:
-                pos_scores = hypo['positional_scores']
+
+        for sample in t:
+            if 'net_input' not in sample:
+                continue
+
+            sample = utils.move_to_cuda(sample) if use_cuda else sample
+
+            gen_timer.start()
+            hypos = scorer.generate(models, sample)
+            gen_timer.stop(sample['ntokens'])
+
+            for hypos_i in hypos:
+                hypo = hypos_i[0]
+
+                tokens = hypo['tokens']
+                tgt_len = tokens.numel()
+                pos_scores = hypo['positional_scores'].float()
+
+                if args.add_bos_token:
+                    assert hypo['tokens'][0].item() == task.target_dictionary.bos()
+                    tokens = tokens[1:]
+                    pos_scores = pos_scores[1:]
 
                 skipped_toks = 0
                 if bpe_toks is not None:
-                    for i in range(len(hypo['tokens']) - 1):
-                        if hypo['tokens'][i].item() in bpe_toks:
+                    for i in range(tgt_len - 1):
+                        if tokens[i].item() in bpe_toks:
                             skipped_toks += 1
                             pos_scores[i + 1] += pos_scores[i]
                             pos_scores[i] = 0
@@ -130,7 +171,7 @@ def main(parsed_args):
                 inf_scores = pos_scores.eq(float('inf')) | pos_scores.eq(float('-inf'))
                 if inf_scores.any():
                     print('| Skipping tokens with inf scores:',
-                          task.target_dictionary.string(hypo['tokens'][inf_scores.nonzero()]))
+                          task.target_dictionary.string(tokens[inf_scores.nonzero()]))
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
                 score_sum += pos_scores.sum().cpu()
                 count += pos_scores.numel() - skipped_toks
@@ -139,9 +180,9 @@ def main(parsed_args):
                     w = ''
                     word_prob = []
                     is_bpe = False
-                    for i in range(len(hypo['tokens'])):
-                        w_ind = hypo['tokens'][i].item()
-                        w += task.dictionary[w_ind]
+                    for i in range(len(tokens)):
+                        w_ind = tokens[i].item()
+                        w += task.source_dictionary[w_ind]
                         if bpe_toks is not None and w_ind in bpe_toks:
                             w = w[:-bpe_len]
                             is_bpe = True
@@ -150,7 +191,7 @@ def main(parsed_args):
 
                             next_prob = None
                             ind = i + 1
-                            while ind < len(hypo['tokens']):
+                            while ind < len(tokens):
                                 if pos_scores[ind].item() != 0:
                                     next_prob = pos_scores[ind]
                                     break
@@ -162,7 +203,7 @@ def main(parsed_args):
                     if args.output_word_probs:
                         print('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
 
-            wps_meter.update(src_tokens.size(0))
+            wps_meter.update(sample['ntokens'])
             t.log({'wps': round(wps_meter.avg)})
 
     avg_nll_loss = -score_sum / count

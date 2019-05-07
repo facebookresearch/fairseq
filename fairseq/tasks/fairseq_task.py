@@ -9,7 +9,6 @@ import torch
 
 from fairseq import tokenizer
 from fairseq.data import data_utils, FairseqDataset, iterators, Dictionary
-from fairseq.tokenizer import Tokenizer
 
 
 class FairseqTask(object):
@@ -52,7 +51,7 @@ class FairseqTask(object):
         """
         d = Dictionary()
         for filename in filenames:
-            Tokenizer.add_file_to_dictionary(filename, d, tokenizer.tokenize_line, workers)
+            Dictionary.add_file_to_dictionary(filename, d, tokenizer.tokenize_line, workers)
         d.finalize(threshold=threshold, nwords=nwords, padding_factor=padding_factor)
         return d
 
@@ -63,7 +62,7 @@ class FairseqTask(object):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
-        return cls(args)
+        return cls(args, **kwargs)
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
@@ -91,9 +90,9 @@ class FairseqTask(object):
         return self.datasets[split]
 
     def get_batch_iterator(
-            self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
-            ignore_invalid_inputs=False, required_batch_size_multiple=1,
-            seed=1, num_shards=1, shard_id=0, num_workers=0,
+        self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
+        ignore_invalid_inputs=False, required_batch_size_multiple=1,
+        seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=0,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -119,6 +118,7 @@ class FairseqTask(object):
             num_workers (int, optional): how many subprocesses to use for data
                 loading. 0 means the data will be loaded in the main process
                 (default: 0).
+            epoch (int, optional): The epoch to start the iterator from.
 
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
@@ -150,6 +150,7 @@ class FairseqTask(object):
             num_shards=num_shards,
             shard_id=shard_id,
             num_workers=num_workers,
+            epoch=epoch,
         )
 
     def build_model(self, args):
@@ -180,6 +181,31 @@ class FairseqTask(object):
         from fairseq import criterions
         return criterions.build_criterion(args, self)
 
+    def build_generator(self, args):
+        if args.score_reference:
+            from fairseq.sequence_scorer import SequenceScorer
+            return SequenceScorer(self.target_dictionary)
+        else:
+            from fairseq.sequence_generator import SequenceGenerator
+            return SequenceGenerator(
+                self.target_dictionary,
+                beam_size=args.beam,
+                max_len_a=args.max_len_a,
+                max_len_b=args.max_len_b,
+                min_len=args.min_len,
+                stop_early=(not args.no_early_stop),
+                normalize_scores=(not args.unnormalized),
+                len_penalty=args.lenpen,
+                unk_penalty=args.unkpen,
+                sampling=args.sampling,
+                sampling_topk=args.sampling_topk,
+                temperature=args.temperature,
+                diverse_beam_groups=args.diverse_beam_groups,
+                diverse_beam_strength=args.diverse_beam_strength,
+                match_source_len=args.match_source_len,
+                no_repeat_ngram_size=args.no_repeat_ngram_size,
+            )
+
     def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
         """
         Do forward and backward, and return the loss as computed by *criterion*
@@ -201,7 +227,6 @@ class FairseqTask(object):
                 - logging outputs to display while training
         """
         model.train()
-
         loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
@@ -214,17 +239,20 @@ class FairseqTask(object):
             loss, sample_size, logging_output = criterion(model, sample)
         return loss, sample_size, logging_output
 
-    def init_logging_output(self, sample):
-        return {
-            'ntokens': sample['ntokens'] if sample is not None else 0,
-            'nsentences': sample['target'].size(0) if sample is not None else 0,
-        }
+    def inference_step(self, generator, models, sample, prefix_tokens=None):
+        with torch.no_grad():
+            return generator.generate(models, sample, prefix_tokens=prefix_tokens)
+
+    def update_step(self, num_updates):
+        """Task level update when number of update increases. This is called after optimization step and
+           learning rate update of each step"""
+        pass
 
     def grad_denom(self, sample_sizes, criterion):
         return criterion.__class__.grad_denom(sample_sizes)
 
     def aggregate_logging_outputs(self, logging_outputs, criterion):
-        return criterion._aggregate_logging_outputs(logging_outputs)
+        return criterion.__class__.aggregate_logging_outputs(logging_outputs)
 
     def max_positions(self):
         """Return the max input length allowed by the task."""

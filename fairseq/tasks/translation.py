@@ -13,10 +13,8 @@ from fairseq.data import (
     ConcatDataset,
     data_utils,
     Dictionary,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
     LanguagePairDataset,
+    indexed_dataset
 )
 
 from . import FairseqTask, register_task
@@ -33,8 +31,8 @@ class TranslationTask(FairseqTask):
 
     .. note::
 
-        The translation task is compatible with :mod:`train.py <train>`,
-        :mod:`generate.py <generate>` and :mod:`interactive.py <interactive>`.
+        The translation task is compatible with :mod:`fairseq-train`,
+        :mod:`fairseq-generate` and :mod:`fairseq-interactive`.
 
     The translation task provides the following additional command-line
     arguments:
@@ -48,14 +46,15 @@ class TranslationTask(FairseqTask):
     def add_args(parser):
         """Add task-specific arguments to the parser."""
         # fmt: off
-        parser.add_argument('data', nargs='+', help='path(s) to data directorie(s)')
+        parser.add_argument('data', help='colon separated path to data directories list, \
+                            will be iterated upon during epochs in round-robin manner')
         parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                             help='source language')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                             help='target language')
         parser.add_argument('--lazy-load', action='store_true',
                             help='load the dataset lazily')
-        parser.add_argument('--raw-text', action='store_true',
+        parser.add_argument('--raw-text', default=False, action='store_true',
                             help='load raw text dataset')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
                             help='pad the source on the left')
@@ -68,24 +67,6 @@ class TranslationTask(FairseqTask):
         parser.add_argument('--upsample-primary', default=1, type=int,
                             help='amount to upsample primary dataset')
         # fmt: on
-
-    @staticmethod
-    def load_pretrained_model(path, src_dict_path, tgt_dict_path, arg_overrides=None):
-        model = utils.load_checkpoint_to_cpu(path)
-        args = model['args']
-        state_dict = model['model']
-        args = utils.override_model_args(args, arg_overrides)
-        src_dict = Dictionary.load(src_dict_path)
-        tgt_dict = Dictionary.load(tgt_dict_path)
-        assert src_dict.pad() == tgt_dict.pad()
-        assert src_dict.eos() == tgt_dict.eos()
-        assert src_dict.unk() == tgt_dict.unk()
-
-        task = TranslationTask(args, src_dict, tgt_dict)
-        model = task.build_model(args)
-        model.upgrade_state_dict(state_dict)
-        model.load_state_dict(state_dict, strict=True)
-        return model
 
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args)
@@ -101,16 +82,24 @@ class TranslationTask(FairseqTask):
         """
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
+        if getattr(args, 'raw_text', False):
+            utils.deprecation_warning('--raw-text is deprecated, please use --dataset-impl=raw')
+            args.dataset_impl = 'raw'
+        elif getattr(args, 'lazy_load', False):
+            utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
+            args.dataset_impl = 'lazy'
 
+        paths = args.data.split(':')
+        assert len(paths) > 0
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
-            args.source_lang, args.target_lang = data_utils.infer_language_pair(args.data[0])
+            args.source_lang, args.target_lang = data_utils.infer_language_pair(paths[0])
         if args.source_lang is None or args.target_lang is None:
             raise Exception('Could not infer language pair, please provide it explicitly')
 
         # load dictionaries
-        src_dict = cls.load_dictionary(os.path.join(args.data[0], 'dict.{}.txt'.format(args.source_lang)))
-        tgt_dict = cls.load_dictionary(os.path.join(args.data[0], 'dict.{}.txt'.format(args.target_lang)))
+        src_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.target_lang)))
         assert src_dict.pad() == tgt_dict.pad()
         assert src_dict.eos() == tgt_dict.eos()
         assert src_dict.unk() == tgt_dict.unk()
@@ -119,59 +108,47 @@ class TranslationTask(FairseqTask):
 
         return cls(args, src_dict, tgt_dict)
 
-    def load_dataset(self, split, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
+        paths = self.args.data.split(':')
+        assert len(paths) > 0
+        data_path = paths[epoch % len(paths)]
 
         def split_exists(split, src, tgt, lang, data_path):
             filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
-            if self.args.raw_text and IndexedRawTextDataset.exists(filename):
-                return True
-            elif not self.args.raw_text and IndexedDataset.exists(filename):
-                return True
-            return False
-
-        def indexed_dataset(path, dictionary):
-            if self.args.raw_text:
-                return IndexedRawTextDataset(path, dictionary)
-            elif IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    return IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    return IndexedCachedDataset(path, fix_lua_indexing=True)
-            return None
+            return indexed_dataset.dataset_exists(filename, impl=self.args.dataset_impl)
 
         src_datasets = []
         tgt_datasets = []
 
-        data_paths = self.args.data
+        for k in itertools.count():
+            split_k = split + (str(k) if k > 0 else '')
 
-        for dk, data_path in enumerate(data_paths):
-            for k in itertools.count():
-                split_k = split + (str(k) if k > 0 else '')
-
-                # infer langcode
-                src, tgt = self.args.source_lang, self.args.target_lang
-                if split_exists(split_k, src, tgt, src, data_path):
-                    prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, src, tgt))
-                elif split_exists(split_k, tgt, src, src, data_path):
-                    prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
-                else:
-                    if k > 0 or dk > 0:
-                        break
-                    else:
-                        raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
-
-                src_datasets.append(indexed_dataset(prefix + src, self.src_dict))
-                tgt_datasets.append(indexed_dataset(prefix + tgt, self.tgt_dict))
-
-                print('| {} {} {} examples'.format(data_path, split_k, len(src_datasets[-1])))
-
-                if not combine:
+            # infer langcode
+            src, tgt = self.args.source_lang, self.args.target_lang
+            if split_exists(split_k, src, tgt, src, data_path):
+                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, src, tgt))
+            elif split_exists(split_k, tgt, src, src, data_path):
+                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
+            else:
+                if k > 0:
                     break
+                else:
+                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
+
+            src_datasets.append(indexed_dataset.make_dataset(prefix + src, impl=self.args.dataset_impl,
+                                                             fix_lua_indexing=True, dictionary=self.src_dict))
+            tgt_datasets.append(indexed_dataset.make_dataset(prefix + tgt, impl=self.args.dataset_impl,
+                                                             fix_lua_indexing=True, dictionary=self.tgt_dict))
+
+            print('| {} {} {} examples'.format(data_path, split_k, len(src_datasets[-1])))
+
+            if not combine:
+                break
 
         assert len(src_datasets) == len(tgt_datasets)
 
@@ -191,6 +168,9 @@ class TranslationTask(FairseqTask):
             max_source_positions=self.args.max_source_positions,
             max_target_positions=self.args.max_target_positions,
         )
+
+    def build_dataset_for_inference(self, src_tokens, src_lengths):
+        return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""

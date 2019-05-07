@@ -18,17 +18,17 @@ Generation with the binarized test sets can be run in batch mode as follows, e.g
 $ mkdir -p data-bin
 $ curl https://dl.fbaipublicfiles.com/fairseq/models/wmt14.v2.en-fr.fconv-py.tar.bz2 | tar xvjf - -C data-bin
 $ curl https://dl.fbaipublicfiles.com/fairseq/data/wmt14.v2.en-fr.newstest2014.tar.bz2 | tar xvjf - -C data-bin
-$ python generate.py data-bin/wmt14.en-fr.newstest2014  \
+$ fairseq-generate data-bin/wmt14.en-fr.newstest2014  \
   --path data-bin/wmt14.en-fr.fconv-py/model.pt \
   --beam 5 --batch-size 128 --remove-bpe | tee /tmp/gen.out
 ...
 | Translated 3003 sentences (96311 tokens) in 166.0s (580.04 tokens/s)
 | Generate test with beam=5: BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 
-# Scoring with score.py:
+# Compute BLEU score
 $ grep ^H /tmp/gen.out | cut -f3- > /tmp/gen.out.sys
 $ grep ^T /tmp/gen.out | cut -f2- > /tmp/gen.out.ref
-$ python score.py --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
+$ fairseq-score --sys /tmp/gen.out.sys --ref /tmp/gen.out.ref
 BLEU4 = 40.83, 67.5/46.9/34.4/25.5 (BP=1.000, ratio=1.006, syslen=83262, reflen=82787)
 ```
 
@@ -48,20 +48,20 @@ $ cd ../..
 
 # Binarize the dataset:
 $ TEXT=examples/translation/iwslt14.tokenized.de-en
-$ python preprocess.py --source-lang de --target-lang en \
+$ fairseq-preprocess --source-lang de --target-lang en \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/iwslt14.tokenized.de-en
 
 # Train the model (better for a single GPU setup):
 $ mkdir -p checkpoints/fconv
-$ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
+$ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt14.tokenized.de-en \
   --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --lr-scheduler fixed --force-anneal 200 \
   --arch fconv_iwslt_de_en --save-dir checkpoints/fconv
 
 # Generate:
-$ python generate.py data-bin/iwslt14.tokenized.de-en \
+$ fairseq-generate data-bin/iwslt14.tokenized.de-en \
   --path checkpoints/fconv/checkpoint_best.pt \
   --batch-size 128 --beam 5 --remove-bpe
 
@@ -73,7 +73,7 @@ To train transformer model on IWSLT'14 German to English:
 
 # Train the model (better for a single GPU setup):
 $ mkdir -p checkpoints/transformer
-$ CUDA_VISIBLE_DEVICES=0 python train.py data-bin/iwslt14.tokenized.de-en \
+$ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt14.tokenized.de-en \
   -a transformer_iwslt_de_en --optimizer adam --lr 0.0005 -s de -t en \
   --label-smoothing 0.1 --dropout 0.3 --max-tokens 4000 \
   --min-lr '1e-09' --lr-scheduler inverse_sqrt --weight-decay 0.0001 \
@@ -86,12 +86,11 @@ $ python scripts/average_checkpoints.py --inputs checkpoints/transformer \
    --num-epoch-checkpoints 10 --output checkpoints/transformer/model.pt
 
 # Generate:
-$ python generate.py data-bin/iwslt14.tokenized.de-en \
+$ fairseq-generate data-bin/iwslt14.tokenized.de-en \
   --path checkpoints/transformer/model.pt \
   --batch-size 128 --beam 5 --remove-bpe
 
 ```
-
 
 ### prepare-wmt14en2de.sh
 
@@ -112,22 +111,22 @@ $ bash prepare-wmt14en2de.sh
 $ cd ../..
 
 # Binarize the dataset:
-$ TEXT=examples/translation/wmt14_en_de
-$ python preprocess.py --source-lang en --target-lang de \
+$ TEXT=examples/translation/wmt17_en_de
+$ fairseq-preprocess --source-lang en --target-lang de \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
-  --destdir data-bin/wmt14_en_de --thresholdtgt 0 --thresholdsrc 0
+  --destdir data-bin/wmt17_en_de --thresholdtgt 0 --thresholdsrc 0
 
 # Train the model:
 # If it runs out of memory, try to set --max-tokens 1500 instead
 $ mkdir -p checkpoints/fconv_wmt_en_de
-$ python train.py data-bin/wmt14_en_de \
+$ fairseq-train data-bin/wmt17_en_de \
   --lr 0.5 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_de --save-dir checkpoints/fconv_wmt_en_de
 
 # Generate:
-$ python generate.py data-bin/wmt14_en_de \
+$ fairseq-generate data-bin/wmt17_en_de \
   --path checkpoints/fconv_wmt_en_de/checkpoint_best.pt --beam 5 --remove-bpe
 
 ```
@@ -145,21 +144,89 @@ $ cd ../..
 
 # Binarize the dataset:
 $ TEXT=examples/translation/wmt14_en_fr
-$ python preprocess.py --source-lang en --target-lang fr \
+$ fairseq-preprocess --source-lang en --target-lang fr \
   --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
   --destdir data-bin/wmt14_en_fr --thresholdtgt 0 --thresholdsrc 0
 
 # Train the model:
 # If it runs out of memory, try to set --max-tokens 1000 instead
 $ mkdir -p checkpoints/fconv_wmt_en_fr
-$ python train.py data-bin/wmt14_en_fr \
+$ fairseq-train data-bin/wmt14_en_fr \
   --lr 0.5 --clip-norm 0.1 --dropout 0.1 --max-tokens 3000 \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --lr-scheduler fixed --force-anneal 50 \
   --arch fconv_wmt_en_fr --save-dir checkpoints/fconv_wmt_en_fr
 
 # Generate:
-$ python generate.py data-bin/fconv_wmt_en_fr \
+$ fairseq-generate data-bin/fconv_wmt_en_fr \
   --path checkpoints/fconv_wmt_en_fr/checkpoint_best.pt --beam 5 --remove-bpe
 
+```
+
+## Multilingual Translation
+
+We also support training multilingual translation models. In this example we'll
+train a multilingual `{de,fr}-en` translation model using the IWSLT'17 datasets.
+
+Note that we use slightly different preprocessing here than for the IWSLT'14
+En-De data above. In particular we learn a joint BPE code for all three
+languages and use interactive.py and sacrebleu for scoring the test set.
+
+```
+# First install sacrebleu and sentencepiece
+$ pip install sacrebleu sentencepiece
+
+# Then download and preprocess the data
+$ cd examples/translation/
+$ bash prepare-iwslt17-multilingual.sh
+$ cd ../..
+
+# Binarize the de-en dataset
+$ TEXT=examples/translation/iwslt17.de_fr.en.bpe16k
+$ fairseq-preprocess --source-lang de --target-lang en \
+  --trainpref $TEXT/train.bpe.de-en --validpref $TEXT/valid.bpe.de-en \
+  --joined-dictionary \
+  --destdir data-bin/iwslt17.de_fr.en.bpe16k \
+  --workers 10
+
+# Binarize the fr-en dataset
+# NOTE: it's important to reuse the en dictionary from the previous step
+$ fairseq-preprocess --source-lang fr --target-lang en \
+  --trainpref $TEXT/train.bpe.fr-en --validpref $TEXT/valid.bpe.fr-en \
+  --joined-dictionary --tgtdict data-bin/iwslt17.de_fr.en.bpe16k/dict.en.txt \
+  --destdir data-bin/iwslt17.de_fr.en.bpe16k \
+  --workers 10
+
+# Train a multilingual transformer model
+# NOTE: the command below assumes 1 GPU, but accumulates gradients from
+#       8 fwd/bwd passes to simulate training on 8 GPUs
+$ mkdir -p checkpoints/multilingual_transformer
+$ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt17.de_fr.en.bpe16k/ \
+  --max-epoch 50 \
+  --ddp-backend=no_c10d \
+  --task multilingual_translation --lang-pairs de-en,fr-en \
+  --arch multilingual_transformer_iwslt_de_en \
+  --share-decoders --share-decoder-input-output-embed \
+  --optimizer adam --adam-betas '(0.9, 0.98)' \
+  --lr 0.0005 --lr-scheduler inverse_sqrt --min-lr '1e-09' \
+  --warmup-updates 4000 --warmup-init-lr '1e-07' \
+  --label-smoothing 0.1 --criterion label_smoothed_cross_entropy \
+  --dropout 0.3 --weight-decay 0.0001 \
+  --save-dir checkpoints/multilingual_transformer \
+  --max-tokens 4000 \
+  --update-freq 8
+
+# Generate and score the test set with sacrebleu
+$ SRC=de
+$ sacrebleu --test-set iwslt17 --language-pair ${SRC}-en --echo src \
+  | python scripts/spm_encode.py --model examples/translation/iwslt17.de_fr.en.bpe16k/sentencepiece.bpe.model \
+  > iwslt17.test.${SRC}-en.${SRC}.bpe
+$ cat iwslt17.test.${SRC}-en.${SRC}.bpe | fairseq-interactive data-bin/iwslt17.de_fr.en.bpe16k/ \
+  --task multilingual_translation --source-lang ${SRC} --target-lang en \
+  --path checkpoints/multilingual_transformer/checkpoint_best.pt \
+  --buffer 2000 --batch-size 128 \
+  --beam 5 --remove-bpe=sentencepiece \
+  > iwslt17.test.${SRC}-en.en.sys
+$ grep ^H iwslt17.test.${SRC}-en.en.sys | cut -f3 \
+  | sacrebleu --test-set iwslt17 --language-pair ${SRC}-en
 ```

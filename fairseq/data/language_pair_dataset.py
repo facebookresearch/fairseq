@@ -185,23 +185,6 @@ class LanguagePairDataset(FairseqDataset):
             input_feeding=self.input_feeding,
         )
 
-    def get_dummy_batch(self, num_tokens, max_positions, src_len=128, tgt_len=128):
-        """Return a dummy batch with a given number of tokens."""
-        src_len, tgt_len = utils.resolve_max_positions(
-            (src_len, tgt_len),
-            max_positions,
-            (self.max_source_positions, self.max_target_positions),
-        )
-        bsz = max(num_tokens // max(src_len, tgt_len), 1)
-        return self.collater([
-            {
-                'id': i,
-                'source': self.src_dict.dummy_sentence(src_len),
-                'target': self.tgt_dict.dummy_sentence(tgt_len) if self.tgt_dict is not None else None,
-            }
-            for i in range(bsz)
-        ])
-
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
         enforce ``--max-tokens`` during batching."""
@@ -227,9 +210,10 @@ class LanguagePairDataset(FairseqDataset):
     def supports_prefetch(self):
         return (
             getattr(self.src, 'supports_prefetch', False)
-            and getattr(self.tgt, 'supports_prefetch', False)
+            and (getattr(self.tgt, 'supports_prefetch', False) or self.tgt is None)
         )
 
     def prefetch(self, indices):
         self.src.prefetch(indices)
-        self.tgt.prefetch(indices)
+        if self.tgt is not None:
+            self.tgt.prefetch(indices)

@@ -23,7 +23,7 @@ $ tar -xzvf wmt16_en_de.tar.gz -C $TEXT
 
 2. Preprocess the dataset with a joined dictionary:
 ```
-$ python preprocess.py --source-lang en --target-lang de \
+$ fairseq-preprocess --source-lang en --target-lang de \
   --trainpref $TEXT/train.tok.clean.bpe.32000 \
   --validpref $TEXT/newstest2013.tok.bpe.32000 \
   --testpref $TEXT/newstest2014.tok.bpe.32000 \
@@ -34,7 +34,7 @@ $ python preprocess.py --source-lang en --target-lang de \
 
 3. Train a model:
 ```
-$ python train.py data-bin/wmt16_en_de_bpe32k \
+$ fairseq-train data-bin/wmt16_en_de_bpe32k \
   --arch transformer_vaswani_wmt_en_de_big --share-all-embeddings \
   --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
   --lr-scheduler inverse_sqrt --warmup-init-lr 1e-07 --warmup-updates 4000 \

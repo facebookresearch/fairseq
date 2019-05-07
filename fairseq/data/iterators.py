@@ -26,13 +26,14 @@ class CountingIterator(object):
         count (int): number of elements consumed from this iterator
     """
 
-    def __init__(self, iterable):
+    def __init__(self, iterable, start=0):
         self.iterable = iterable
-        self.count = 0
+        self.count = start
         self.itr = iter(self)
+        self.len = start + len(iterable)
 
     def __len__(self):
-        return len(self.iterable)
+        return self.len
 
     def __iter__(self):
         for x in self.iterable:
@@ -77,11 +78,12 @@ class EpochBatchIterator(object):
         num_workers (int, optional): how many subprocesses to use for data
             loading. 0 means the data will be loaded in the main process
             (default: 0).
+        epoch (int, optional): The epoch to start the iterator from.
     """
 
     def __init__(
         self, dataset, collate_fn, batch_sampler, seed=1, num_shards=1, shard_id=0,
-        num_workers=0,
+        num_workers=0, epoch=0,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -92,7 +94,7 @@ class EpochBatchIterator(object):
         self.shard_id = shard_id
         self.num_workers = num_workers
 
-        self.epoch = 0
+        self.epoch = epoch
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
         self._supports_prefetch = getattr(dataset, 'supports_prefetch', False)
@@ -146,11 +148,13 @@ class EpochBatchIterator(object):
         itr_pos = state_dict.get('iterations_in_epoch', 0)
         if itr_pos > 0:
             # fast-forward epoch iterator
-            itr = self._get_iterator_for_epoch(self.epoch, state_dict.get('shuffle', True))
-            if itr_pos < len(itr):
-                self._next_epoch_itr = itr.skip(itr_pos)
+            self._next_epoch_itr = self._get_iterator_for_epoch(
+                self.epoch,
+                shuffle=state_dict.get('shuffle', True),
+                offset=itr_pos,
+            )
 
-    def _get_iterator_for_epoch(self, epoch, shuffle, fix_batches_to_gpus=False):
+    def _get_iterator_for_epoch(self, epoch, shuffle, fix_batches_to_gpus=False, offset=0):
 
         def shuffle_batches(batches, seed):
             # set seed based on the seed and epoch number so that we get
@@ -166,25 +170,33 @@ class EpochBatchIterator(object):
                 batches = shuffle_batches(list(batches), self.seed + epoch)
 
             batches = list(ShardedIterator(
-                batches, self.num_shards, self.shard_id, fill_value=[]))
+                batches, self.num_shards, self.shard_id, fill_value=[]
+            ))
             self.dataset.prefetch([i for s in batches for i in s])
 
             if shuffle and fix_batches_to_gpus:
                 batches = shuffle_batches(batches, self.seed + epoch + self.shard_id)
-
         else:
             if shuffle:
                 batches = shuffle_batches(list(self.frozen_batches), self.seed + epoch)
             else:
                 batches = self.frozen_batches
-            batches = ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[])
+            batches = list(ShardedIterator(
+                batches, self.num_shards, self.shard_id, fill_value=[]
+            ))
 
-        return CountingIterator(torch.utils.data.DataLoader(
-            self.dataset,
-            collate_fn=self.collate_fn,
-            batch_sampler=batches,
-            num_workers=self.num_workers,
-        ))
+        if offset > 0 and offset >= len(batches):
+            return None
+
+        return CountingIterator(
+            torch.utils.data.DataLoader(
+                self.dataset,
+                collate_fn=self.collate_fn,
+                batch_sampler=batches[offset:],
+                num_workers=self.num_workers,
+            ),
+            start=offset,
+        )
 
 
 class GroupedIterator(object):

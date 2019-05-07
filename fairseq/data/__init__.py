@@ -9,12 +9,15 @@ from .dictionary import Dictionary, TruncatedDictionary
 from .fairseq_dataset import FairseqDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .concat_dataset import ConcatDataset
-from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset
+from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset, MMapIndexedDataset
 from .language_pair_dataset import LanguagePairDataset
+from .lm_context_window_dataset import LMContextWindowDataset
 from .monolingual_dataset import MonolingualDataset
+from .noising import NoisingDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
 from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
+from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
 
 from .iterators import (
     CountingIterator,
@@ -35,9 +38,13 @@ __all__ = [
     'IndexedDataset',
     'IndexedRawTextDataset',
     'LanguagePairDataset',
+    'LMContextWindowDataset',
+    'MMapIndexedDataset',
     'MonolingualDataset',
+    'NoisingDataset',
     'RoundRobinZipDatasets',
     'ShardedIterator',
     'TokenBlockDataset',
     'TransformEosDataset',
+    'TransformEosLangPairDataset',
 ]

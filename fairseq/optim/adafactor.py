@@ -21,6 +21,7 @@ class FairseqAdafactor(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
+        # fmt: off
         parser.add_argument('--adafactor-eps', default='(1e-30, 1e-3)', metavar="E",
                             help='epsilons for Adafactor optimizer')
         parser.add_argument('--clip-threshold', type=float, default=1.0, metavar="C",
@@ -31,11 +32,14 @@ class FairseqAdafactor(FairseqOptimizer):
                             help='beta for first moment estimator. Optional')
         parser.add_argument('--scale-parameter', action='store_true',
                             help='scale learning rate by root mean square of parameter.')
+        parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
+                            help='weight decay')
         parser.add_argument('--warmup-init', action='store_true',
                             help='use relative step for warm-up learning rate schedule')
         parser.add_argument('--relative-step', action='store_true',
                             help='set learning rate to inverse square root of timestep.'
                                  'If false, external learning rate applied')
+        # fmt: on
 
     @property
     def optimizer_config(self):
@@ -89,7 +93,7 @@ class Adafactor(torch.optim.Optimizer):
     """
 
     def __init__(self, params, lr=None, eps=(1e-30, 1e-3), clip_threshold=1.0,
-                 decay_rate=-0.8, beta1=None,  weight_decay=0.0, scale_parameter=True,
+                 decay_rate=-0.8, beta1=None, weight_decay=0.0, scale_parameter=True,
                  relative_step=True, warmup_init=False):
         defaults = dict(lr=lr, eps=eps, clip_threshold=clip_threshold, decay_rate=decay_rate,
                         beta1=beta1, weight_decay=weight_decay, scale_parameter=scale_parameter,
@@ -159,7 +163,7 @@ class Adafactor(torch.optim.Optimizer):
 
                 state['step'] += 1
                 state['RMS'] = self._rms(p.data)
-                lr = self._get_lr(group, state)
+                group['lr'] = self._get_lr(group, state)
 
                 beta2t = 1.0 - math.pow(state['step'], group['decay_rate'])
                 update = (grad**2) + group['eps'][0]
@@ -180,7 +184,7 @@ class Adafactor(torch.optim.Optimizer):
                     torch.rsqrt(exp_avg_sq, out=update).mul_(grad)
 
                 update.div_(max(1.0, self._rms(update) / group['clip_threshold']))
-                update.mul_(lr)
+                update.mul_(group['lr'])
 
                 if use_first_moment:
                     exp_avg = state['exp_avg']
@@ -188,7 +192,7 @@ class Adafactor(torch.optim.Optimizer):
                     update = exp_avg
 
                 if group['weight_decay'] != 0:
-                    p.data.add_(-group['weight_decay'] * lr, p.data)
+                    p.data.add_(-group['weight_decay'] * group['lr'], p.data)
 
                 p.data.add_(-update)
 
