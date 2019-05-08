@@ -83,15 +83,18 @@ class IndexedDataset(torch.utils.data.Dataset):
 
     def __init__(self, path, fix_lua_indexing=False):
         super().__init__()
-        self.fix_lua_indexing = fix_lua_indexing
-        self.read_index(path)
-        self.data_file = None
         self.path = path
+        self.fix_lua_indexing = fix_lua_indexing
+        self.data_file = None
+        self.read_index(path)
 
     def read_index(self, path):
         with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
-            assert magic == b'TNTIDX\x00\x00'
+            assert magic == b'TNTIDX\x00\x00', (
+                'Index file doesn\'t match expected format. '
+                'Make sure that --dataset-impl is configured properly.'
+            )
             version = f.read(8)
             assert struct.unpack('<Q', version) == (1,)
             code, self.element_size = struct.unpack('<QQ', f.read(16))
@@ -350,7 +353,10 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         def __init__(self, path):
             with open(path, 'rb') as stream:
                 magic_test = stream.read(9)
-                assert self._HDR_MAGIC == magic_test
+                assert self._HDR_MAGIC == magic_test, (
+                    'Index file doesn\'t match expected format. '
+                    'Make sure that --dataset-impl is configured properly.'
+                )
                 version = struct.unpack('<Q', stream.read(8))
                 assert (1,) == version
 
