@@ -47,4 +47,5 @@ __all__ = [
     'TokenBlockDataset',
     'TransformEosDataset',
     'TransformEosLangPairDataset',
+    'TruncatedDictionary',
 ]

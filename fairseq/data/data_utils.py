@@ -10,6 +10,7 @@ import os
 import numpy as np
 from collections import Iterable
 
+
 def infer_language_pair(path):
     """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
     src, dst = None, None
@@ -182,7 +183,7 @@ def batch_by_size(
 
 def process_bpe_symbol(sentence: str, bpe_symbol: str):
     if bpe_symbol == 'sentencepiece':
-        sentence = sentence.replace(' ','').replace('\u2581', ' ').strip()
+        sentence = sentence.replace(' ', '').replace('\u2581', ' ').strip()
     elif bpe_symbol is not None:
         sentence = (sentence + ' ').replace(bpe_symbol, '').rstrip()
     return sentence

@@ -21,7 +21,7 @@ from fairseq.data import (
     TruncatedDictionary,
     indexed_dataset
 )
-from . import FairseqTask, register_task
+from fairseq.tasks import FairseqTask, register_task
 
 
 @register_task('language_modeling')

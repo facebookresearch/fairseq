@@ -10,7 +10,6 @@ Train a new model on one or across multiple GPUs.
 """
 
 import collections
-import itertools
 import math
 import os
 import random
@@ -140,7 +139,7 @@ def train(args, trainer, task, epoch_itr):
     """Train the model for one epoch."""
     # Update parameters every N batches
     update_freq = args.update_freq[epoch_itr.epoch - 1] \
-            if epoch_itr.epoch <= len(args.update_freq) else args.update_freq[-1]
+        if epoch_itr.epoch <= len(args.update_freq) else args.update_freq[-1]
 
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(

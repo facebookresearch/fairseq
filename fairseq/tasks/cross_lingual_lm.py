@@ -78,7 +78,6 @@ class CrossLingualLMTask(FairseqTask):
             lang2id[lang] = id
         return lang2id
 
-
     @classmethod
     def load_dictionary(cls, filename):
         return MaskedLMDictionary.load(filename)

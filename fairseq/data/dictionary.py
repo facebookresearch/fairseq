@@ -18,6 +18,7 @@ from fairseq.data import data_utils
 
 class Dictionary(object):
     """A mapping from symbols to consecutive integers"""
+
     def __init__(self, pad='<pad>', eos='</s>', unk='<unk>', bos='<s>'):
         self.unk_word, self.pad_word, self.eos_word = unk, pad, eos
         self.symbols = []
@@ -281,6 +282,7 @@ class Dictionary(object):
                 merge_result(r.get())
         else:
             merge_result(Dictionary._add_file_to_dictionary_single_worker(filename, tokenize, dict.eos_word))
+
 
 class TruncatedDictionary(object):
 

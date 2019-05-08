@@ -5,12 +5,16 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import math
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fairseq.modules import gelu, MultiheadAttention, BertLayerNorm, LayerNorm
+
+from fairseq.modules import (
+    BertLayerNorm,
+    gelu,
+    LayerNorm,
+    MultiheadAttention,
+)
 
 
 class TransformerSentenceEncoderLayer(nn.Module):

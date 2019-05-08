@@ -6,14 +6,11 @@
 # can be found in the PATENTS file in the same directory.
 
 import inspect
-import socket
 
 from torch.nn import parallel
 
-from fairseq import distributed_utils
 from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
-
-from . import BaseFairseqModel
+from fairseq.models import BaseFairseqModel
 
 
 def DistributedFairseqModel(args, model):
