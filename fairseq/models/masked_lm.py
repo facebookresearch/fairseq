@@ -99,8 +99,8 @@ class MaskedLMModel(BaseFairseqModel):
                             help='Use gelu activation function in encoder'
                             ' layer')
 
-    def forward(self, tokens, segment_labels):
-        return self.encoder(tokens, segment_labels)
+    def forward(self, src_tokens, segment_labels, **kwargs):
+        return self.encoder(src_tokens, segment_labels, **kwargs)
 
     def max_positions(self):
         return self.encoder.max_positions
@@ -109,10 +109,8 @@ class MaskedLMModel(BaseFairseqModel):
     def build_model(cls, args, task):
         """Build a new model instance."""
 
-        if args.task == 'bert':
-            base_bert_architecture(args)
-        else:
-            xlm_architecture(args)
+        # make sure all arguments are present in older models
+        base_architecture(args)
 
         if not hasattr(args, 'max_positions'):
             args.max_positions = args.tokens_per_sample
@@ -178,7 +176,7 @@ class MaskedLMEncoder(FairseqEncoder):
                     bias=False
                 )
 
-    def forward(self, tokens, segment_labels, **unused):
+    def forward(self, src_tokens, segment_labels, **unused):
         """
         Forward pass for Masked LM encoder. This first computes the token
         embedding using the token embedding matrix, position embeddings (if
@@ -188,7 +186,7 @@ class MaskedLMEncoder(FairseqEncoder):
         output of the classification_token (see bert_task or cross_lingual_lm
         task for more details).
         Args:
-            - tokens: B x T matrix representing sentences
+            - src_tokens: B x T matrix representing sentences
             - segment_labels: B x T matrix representing segment label for tokens
         Returns:
             - a tuple of the following:
@@ -202,7 +200,7 @@ class MaskedLMEncoder(FairseqEncoder):
                   this is specified in the input arguments.
         """
 
-        inner_states, sentence_rep = self.sentence_encoder(tokens, segment_labels)
+        inner_states, sentence_rep = self.sentence_encoder(src_tokens, segment_labels)
         x = inner_states[-1].transpose(0, 1)
 
         # project back to size of vocabulary
@@ -269,7 +267,7 @@ def base_architecture(args):
 
 
 @register_model_architecture('masked_lm', 'bert_base')
-def base_bert_architecture(args):
+def bert_base_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 768)
     args.share_encoder_input_output_embed = getattr(
         args, 'share_encoder_input_output_embed', True)
@@ -285,7 +283,7 @@ def base_bert_architecture(args):
     args.no_bias_kv = getattr(args, 'no_bias_kv', True)
 
     args.sent_loss = getattr(args, 'sent_loss', True)
-    args.sentence_class_num = getattr(args, 'sentence-class-num', 2)
+    args.sentence_class_num = getattr(args, 'sentence_class_num', 2)
 
     args.apply_bert_init = getattr(args, 'apply_bert_init', True)
 
@@ -303,7 +301,7 @@ def bert_large_architecture(args):
     args.encoder_layers = getattr(args, 'encoder_layers', 24)
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
-    base_bert_architecture(args)
+    bert_base_architecture(args)
 
 
 @register_model_architecture('masked_lm', 'xlm_base')

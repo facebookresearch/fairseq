@@ -171,7 +171,7 @@ class TransformerSentenceEncoder(nn.Module):
 
         # account for padding while computing the representation
         if padding_mask is not None:
-            x *= (1 - padding_mask.unsqueeze(-1).float())
+            x *= (1 - padding_mask.unsqueeze(-1).type_as(x))
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
