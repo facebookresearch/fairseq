@@ -166,7 +166,7 @@ class MaskedLMDataset(FairseqDataset):
 
                 # replace with random token if probability is less than
                 # masking_prob + random_token_prob (Eg: 0.9)
-            elif rand < (self.masking_ratio + self.random_token_prob):
+                elif rand < (self.masking_ratio + self.random_token_prob):
                     # sample random token from dictionary
                     masked_sent[i] = (
                         np.random.randint(
