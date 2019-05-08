@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from . import FairseqDecoder
+from fairseq.models import FairseqDecoder
 
 
 class FairseqIncrementalDecoder(FairseqDecoder):
@@ -25,7 +25,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
     The :class:`FairseqIncrementalDecoder` interface also defines the
     :func:`reorder_incremental_state` method, which is used during beam search
     to select and reorder the incremental state based on the selection of beams.
-	
+
     To learn more about how incremental decoding works, refer to `this blog
     <http://www.telesens.co/2019/04/21/understanding-incremental-decoding-in-fairseq/>`_.
     """
