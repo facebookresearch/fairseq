@@ -12,6 +12,13 @@ from .fairseq_optimizer import FairseqOptimizer
 from .fp16_optimizer import FP16Optimizer, MemoryEfficientFP16Optimizer
 
 
+__all__ = [
+    'FairseqOptimizer',
+    'FP16Optimizer',
+    'MemoryEfficientFP16Optimizer',
+]
+
+
 OPTIMIZER_REGISTRY = {}
 OPTIMIZER_CLASS_NAMES = set()
 

@@ -12,14 +12,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import checkpoint_utils
-from fairseq.modules import (
-    DownsampledMultiHeadAttention, GradMultiply, LayerNorm,
-    LearnedPositionalEmbedding, LinearizedConvolution,
+from fairseq.models import (
+    CompositeEncoder,
+    FairseqDecoder,
+    FairseqEncoder,
+    FairseqModel,
+    register_model,
+    register_model_architecture,
 )
-
-from . import (
-    FairseqEncoder, CompositeEncoder, FairseqDecoder, FairseqModel,
-    register_model, register_model_architecture,
+from fairseq.modules import (
+    DownsampledMultiHeadAttention,
+    GradMultiply,
+    LayerNorm,
+    LearnedPositionalEmbedding,
+    LinearizedConvolution,
 )
 
 

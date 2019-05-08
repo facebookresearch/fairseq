@@ -9,8 +9,8 @@ import contextlib
 import torch
 
 from fairseq import modules, utils
-from . import register_task
-from .translation import TranslationTask
+from fairseq.tasks import register_task
+from fairseq.tasks.translation import TranslationTask
 
 
 @contextlib.contextmanager

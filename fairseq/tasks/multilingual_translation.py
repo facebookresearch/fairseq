@@ -13,10 +13,8 @@ import torch
 
 from fairseq import options, utils
 from fairseq.data import (
-    BacktranslationDataset,
     Dictionary,
     LanguagePairDataset,
-    NoisingDataset,
     RoundRobinZipDatasets,
     TransformEosLangPairDataset,
     indexed_dataset,

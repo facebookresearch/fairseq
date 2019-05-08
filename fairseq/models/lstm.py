@@ -10,11 +10,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import options, utils
-from fairseq.modules import AdaptiveSoftmax
-from . import (
-    FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model,
+from fairseq.models import (
+    FairseqEncoder,
+    FairseqIncrementalDecoder,
+    FairseqModel,
+    register_model,
     register_model_architecture,
 )
+from fairseq.modules import AdaptiveSoftmax
 
 
 @register_model('lstm')
@@ -299,7 +302,7 @@ class AttentionLayer(nn.Module):
         # sum weighted sources
         x = (attn_scores.unsqueeze(2) * source_hids).sum(dim=0)
 
-        x = F.tanh(self.output_proj(torch.cat((x, input), dim=1)))
+        x = torch.tanh(self.output_proj(torch.cat((x, input), dim=1)))
         return x, attn_scores
 
 

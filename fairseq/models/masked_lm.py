@@ -9,8 +9,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import (
-    BaseFairseqModel, FairseqEncoder, register_model, register_model_architecture,
+from fairseq.models import (
+    BaseFairseqModel,
+    FairseqEncoder,
+    register_model,
+    register_model_architecture,
 )
 from fairseq.modules import (
     SinusoidalPositionalEmbedding,
