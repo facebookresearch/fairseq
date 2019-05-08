@@ -70,7 +70,7 @@ class TokenBlockDataset(FairseqDataset):
             if not torch.is_tensor(sizes):
                 sizes = torch.tensor(sizes)
             cumsum = torch.cumsum(sizes, dim=0)
-            self.slice_indices[0, 1] = sizes[0]
+            self.slice_indices[0] = [0, sizes[0]]
             self.slice_indices[1:] = cumsum.unfold(0, 2, 1)
         else:
             raise ValueError('Invalid break_mode: ' + break_mode)
