@@ -260,7 +260,7 @@ class MaskedLMDataset(FairseqDataset):
             "id": torch.LongTensor([s["id"] for s in samples]),
             "ntokens": sum(len(s["source"]) for s in samples),
             "net_input": {
-                "tokens": merge("source"),
+                "src_tokens": merge("source"),
                 "segment_labels": merge("segment_labels"),
             },
             "lm_target": merge("lm_target"),
