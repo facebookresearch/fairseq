@@ -10,7 +10,7 @@ import math
 import numpy as np
 import torch
 
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 from . import FairseqDataset, data_utils
 

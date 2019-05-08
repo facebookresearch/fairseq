@@ -7,7 +7,6 @@
 
 from fairseq import options
 from fairseq.models import (
-    FairseqIncrementalDecoder,
     FairseqLanguageModel,
     register_model,
     register_model_architecture,

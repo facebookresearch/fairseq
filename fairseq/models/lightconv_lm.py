@@ -5,13 +5,16 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from fairseq import options, utils
+from fairseq import options
 from fairseq.models import (
     FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
-from fairseq.models.lightconv import LightConvDecoder
+from fairseq.models.lightconv import (
+    Embedding,
+    LightConvDecoder,
+)
 from fairseq.modules import (
     AdaptiveInput,
     CharacterTokenEmbedder,

@@ -20,9 +20,7 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.modules import (
-    AdaptiveInput,
     AdaptiveSoftmax,
-    CharacterTokenEmbedder,
     DynamicConv1dTBC,
     LayerNorm,
     LearnedPositionalEmbedding,

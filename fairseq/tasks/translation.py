@@ -12,9 +12,8 @@ from fairseq import options, utils
 from fairseq.data import (
     ConcatDataset,
     data_utils,
-    Dictionary,
+    indexed_dataset,
     LanguagePairDataset,
-    indexed_dataset
 )
 
 from . import FairseqTask, register_task
@@ -26,8 +25,8 @@ class TranslationTask(FairseqTask):
     Translate from one (source) language to another (target) language.
 
     Args:
-        src_dict (Dictionary): dictionary for the source language
-        tgt_dict (Dictionary): dictionary for the target language
+        src_dict (~fairseq.data.Dictionary): dictionary for the source language
+        tgt_dict (~fairseq.data.Dictionary): dictionary for the target language
 
     .. note::
 

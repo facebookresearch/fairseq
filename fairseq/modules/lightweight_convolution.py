@@ -5,14 +5,12 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import math
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import utils
-from .unfold import unfold1d
+from fairseq.modules.unfold import unfold1d
 
 
 class LightweightConv1d(nn.Module):
@@ -182,7 +180,7 @@ class LightweightConv1dTBC(nn.Module):
         weight = weight.view(1, H, K).expand(T*B, H, K).contiguous().view(T*B*H, K, 1)
 
         weight = F.dropout(weight, self.weight_dropout, training=self.training)
-        output = torch.bmm(x_unfold, weight) # T*B*H x R x 1
+        output = torch.bmm(x_unfold, weight)  # T*B*H x R x 1
         output = output.view(T, B, C)
         return output
 
