@@ -116,7 +116,7 @@ def main(args, init_distributed=False):
 
 def reload_train(args, epoch_itr, max_positions, task):
     # nothing needs to be done when the dataset is not sharded.
-    if len(args.data.split(":")) == 1:
+    if "data" not in args or ("data" in args and len(args.data.split(":")) == 1):
         return epoch_itr
     print("| Reloading shard of train data at epoch: ", epoch_itr.epoch)
     task.load_dataset(args.train_subset, combine=True, epoch=epoch_itr.epoch)
