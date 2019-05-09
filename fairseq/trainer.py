@@ -117,6 +117,7 @@ class Trainer(object):
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+        self._lr_scheduler.step_update(0)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
