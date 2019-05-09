@@ -40,6 +40,7 @@ class TokenBlockDataset(FairseqDataset):
         self.slice_indices = []
 
         assert len(dataset) == len(sizes)
+        assert len(dataset) > 0
         sizes = np.array(sizes, dtype=int)
         if break_mode is None or break_mode == 'none':
             total_size = sum(sizes)
@@ -71,7 +72,8 @@ class TokenBlockDataset(FairseqDataset):
                 sizes = torch.tensor(sizes)
             cumsum = torch.cumsum(sizes, dim=0)
             self.slice_indices[0] = [0, sizes[0]]
-            self.slice_indices[1:] = cumsum.unfold(0, 2, 1)
+            if len(cumsum) > 1:
+                self.slice_indices[1:] = cumsum.unfold(0, 2, 1)
         else:
             raise ValueError('Invalid break_mode: ' + break_mode)
 
