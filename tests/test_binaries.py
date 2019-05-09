@@ -386,7 +386,6 @@ def train_masked_language_model(data_dir, arch):
             # dropout, attention args
             "--dropout",
             "0.1",
-            "--no-bias-kv",
             "--attention-dropout",
             "0.1",
             # MLM args

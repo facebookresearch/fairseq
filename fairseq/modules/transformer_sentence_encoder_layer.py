@@ -37,6 +37,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
         encoder_normalize_before: bool = False,
         use_bert_layer_norm: bool = False,
         use_gelu: bool = True,
+        add_bias_kv: bool = False,
+        add_zero_attn: bool = False,
     ) -> None:
 
         super().__init__()
@@ -49,7 +51,11 @@ class TransformerSentenceEncoderLayer(nn.Module):
         # Initialize blocks
         self.activation_fn = gelu if use_gelu else F.relu
         self.self_attn = MultiheadAttention(
-            self.embedding_dim, num_attention_heads, dropout=attention_dropout
+            self.embedding_dim,
+            num_attention_heads,
+            dropout=attention_dropout,
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
         )
 
         # layer norm associated with the self attention layer

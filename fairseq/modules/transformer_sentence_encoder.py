@@ -82,6 +82,8 @@ class TransformerSentenceEncoder(nn.Module):
         use_gelu: bool = True,
         apply_bert_init: bool = False,
         learned_pos_embedding: bool = True,
+        add_bias_kv: bool = False,
+        add_zero_attn: bool = False,
     ) -> None:
 
         super().__init__()
@@ -128,6 +130,8 @@ class TransformerSentenceEncoder(nn.Module):
                     encoder_normalize_before=encoder_normalize_before,
                     use_bert_layer_norm=use_bert_layer_norm,
                     use_gelu=use_gelu,
+                    add_bias_kv=add_bias_kv,
+                    add_zero_attn=add_zero_attn,
                 )
                 for _ in range(num_encoder_layers)
             ]
