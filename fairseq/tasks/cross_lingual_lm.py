@@ -181,6 +181,5 @@ class CrossLingualLMTask(FairseqTask):
             dataset_map, default_key=self.default_key
         )
         print('| {} {} {} examples'.format(
-            self.args.data.split(':')[epoch], split, len(self.datasets[split])
-            )
+            self.args.data.split(':')[epoch], split, len(self.datasets[split]))
         )
