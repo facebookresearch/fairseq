@@ -43,7 +43,7 @@ class RoundRobinZipDatasets(FairseqDataset):
 
     def _map_index(self, key, index):
         assert self._ordered_indices is not None, \
-                'Must call RoundRobinZipDatasets.ordered_indices() first'
+            'Must call RoundRobinZipDatasets.ordered_indices() first'
         return self._ordered_indices[key][index % len(self.datasets[key])]
 
     def __getitem__(self, index):
