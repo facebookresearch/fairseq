@@ -22,7 +22,8 @@ class ReduceLROnPlateau(FairseqLRScheduler):
                 ' Consider --lr-scheduler=fixed instead.'
             )
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer.optimizer, patience=0, factor=args.lr_shrink)
+            self.optimizer.optimizer, patience=0, factor=args.lr_shrink,
+            threshold=args.lr_threshold)
 
     @staticmethod
     def add_args(parser):
@@ -30,6 +31,9 @@ class ReduceLROnPlateau(FairseqLRScheduler):
         # fmt: off
         parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
                             help='shrink factor for annealing, lr_new = (lr * lr_shrink)')
+        parser.add_argument('--lr-threshold', default=1e-4, type=float, metavar='LT',
+                            help='Threshold for measuring the new optimum, \
+                            to only focus on significant changes')
         # fmt: on
 
     def state_dict(self):
