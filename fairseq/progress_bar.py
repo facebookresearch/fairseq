@@ -252,6 +252,11 @@ class tensorboard_log_wrapper(progress_bar):
         self._log_to_tensorboard(stats, tag, step)
         self.wrapped_bar.print(stats, tag=tag, step=step)
 
+    def __exit__(self, *exc):
+        for writer in getattr(self, '_writers', {}).values():
+            writer.close()
+        return False
+
     def _log_to_tensorboard(self, stats, tag='', step=None):
         writer = self._writer(tag)
         if writer is None:
