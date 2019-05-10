@@ -1,13 +1,15 @@
 #!/usr/bin/env python3 -u
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
 
 """
-Evaluate the perplexity of a trained language model.
+Evaluate accuracy for prompt ranking task.
+Based on eval_lm.py.
+
+To run:
+
+python prompt_ranking.py data-bin/writingPromptsPromptRanking \
+--path path/to/fusion_checkpoint.pt  \
+--model-overrides "{'pretrained_checkpoint': 'path/to/pretrained_checkpoint.pt'}" \
+--task translation
 """
 
 import numpy as np
@@ -18,8 +20,6 @@ from fairseq.data import LMContextWindowDataset
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
 
-NUM_STORIES = 1000 
-NUM_FAKE_PROMPTS = 9
 
 class WordStat(object):
     def __init__(self, word, is_bpe):
@@ -46,27 +46,9 @@ class WordStat(object):
         return '{}\t{}\t{}\t{}\t{}\t{}'.format(self.word, self.count, self.log_prob, self.is_bpe,
                                                self.next_word_prob, self.count - self.missing_next_words)
 
-def get_sentence(tokens, task, src_or_tgt, diff=None):
-    w = ''
-    is_bpe = False
-
-    if src_or_tgt == 'src':
-        decode_dict = task.source_dictionary
-    elif src_or_tgt == 'tgt':
-        decode_dict = task.target_dictionary
-
-    for i in range(len(tokens)):
-        w_ind = tokens[i].item()
-        if diff is None:
-            w += decode_dict[w_ind] + " "
-        else:
-            w += decode_dict[w_ind] + "({0:.2f})".format(diff[i]) + " "
-
-    return w
 
 def main(parsed_args):
     assert parsed_args.path is not None, '--path required for evaluation!'
-    assert parsed_args.max_sentences == 1 # Max sentences must be one for preserving order
 
     utils.import_user_module(parsed_args)
 
@@ -122,7 +104,6 @@ def main(parsed_args):
         num_shards=args.num_shards,
         shard_id=args.shard_id,
         num_workers=args.num_workers,
-        sort_by_length = False
     ).next_epoch_itr(shuffle=False)
 
     gen_timer = StopwatchMeter()
@@ -130,7 +111,7 @@ def main(parsed_args):
 
     score_sum = 0.
     count = 0
-    prompt_ranking_scores = []
+    prompt_ranking_scores = {}  # maps from sample_id (i.e. line number in the input file) to story score (i.e. sum of the log probs)
 
     if args.remove_bpe is not None:
         if args.remove_bpe == 'sentencepiece':
@@ -182,10 +163,14 @@ def main(parsed_args):
                     print('| Skipping tokens with inf scores:',
                           task.target_dictionary.string(tokens[inf_scores.nonzero()]))
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
-                curr_pos_score = pos_scores.sum().cpu()
-                score_sum += curr_pos_score
+                score_sum += pos_scores.sum().cpu()
                 count += pos_scores.numel() - skipped_toks
-                prompt_ranking_scores.append(curr_pos_score.item())
+
+                prompt_ranking_scores[sample['id'][i].item()] = pos_scores.sum().cpu().item()
+                # print("\n sample %i\n" % sample['id'][i].item())
+                # print(task.source_dictionary.string(sample['net_input']['src_tokens'][i,:]) + "\n")
+                # print(task.target_dictionary.string(sample['target'][i,:]) + "\n")
+                # import pdb; pdb.set_trace()
 
                 if args.output_word_probs or args.output_word_stats:
                     w = ''
@@ -217,14 +202,15 @@ def main(parsed_args):
             wps_meter.update(sample['ntokens'])
             t.log({'wps': round(wps_meter.avg)})
 
-    final_results = []
-    for i in range(0, len(prompt_ranking_scores), 10): 
-        curr_vals = np.array(prompt_ranking_scores[i: i + 10])
-        max_val_idx = np.argmax(curr_vals)
-        final_results.append(max_val_idx == 0)
+    final_results = []  # will be a list length 1000 containing bools
+    for i in range(0, len(prompt_ranking_scores), 10):
+        curr_scores = np.array([prompt_ranking_scores[j] for j in range(i, i+10)])  # scores for the 10 alternatives
+        # curr_scores = np.array(prompt_ranking_scores[i: i + 10])  # scores for the 10 alternatives
+        max_val_idx = np.argmax(curr_scores)  # idx of the best score
+        final_results.append(max_val_idx == 0)  # correct iff the true (prompt, story) pair is best
 
     final_accuracy = sum(final_results)/len(final_results)
-    print('Final Accuracy for Prompt Ranking Task is: {}'.format(final_accuracy))
+    print('Final Accuracy for Prompt Ranking Task is: {}/{}={} percent'.format(sum(final_results), len(final_results), final_accuracy*100))
 
     avg_nll_loss = -score_sum / count
     print('| Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)'.format(gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))

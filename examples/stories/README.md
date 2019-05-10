@@ -55,6 +55,39 @@ $ fairseq-train data-bin/writingPrompts -a fconv_self_att_wp --lr 0.25 --clip-no
 
 $ fairseq-generate data-bin/writingPrompts --path /path/to/trained/model/checkpoint_best.pt --batch-size 32 --beam 1 --sampling --sampling-topk 10 --sampling-temperature 0.8 --nbest 1 --model-overrides "{'pretrained_checkpoint':'/path/to/pretrained/model/checkpoint'}"
 ```
+# Running the prompt ranking task
+
+The two files for running the prompt ranking task are `make_prompt_ranking.py` and `prompt_ranking.py`. `make_prompt_ranking.py` creates a plaintext file of 1000 randomly sampled gold (prompt, story) pairs from the test set and for each one, randomly samples 9 'fake prompts', and writes the fake (prompt, story) pair to file. 
+
+After binarizing the output files of `make_prompt_ranking.py`, `prompt_ranking.py` takes the binarized data and model checkpoints, and runs the prompt ranking task, where the score is determined as a 10-way classification of whether the gold prompt-story pair is scored higher than all the fake prompt-gold story pairs. `prompt_ranking.py` is adapted from `eval_lm.py`, with very few differences.
+
+**make_prompt_ranking.py**
+
+This simple script takes input .wp_source and .wp_target files and outputs a .wp_source and .wp_target plaintext file for prompt ranking. The script samples 1000 gold prompt-story pairs and for each one, writes the gold prompt and 9 randomly sampled prompts to the .wp_source file and writes the gold story to the .wp_target file 10 times. 
+
+To run, execute the command:
+
+```
+$ python make_prompt_ranking.py --datapath /path/to/wpsource_and_target_files
+```
+
+Then, use the fairseq  `preprocess.py` script to generate the binarized data format for the output .wp_source and .wp_target files that are created from the previous step, ensuring that you point to the source and target dictionaries generated on the full writingPrompts dataset (so that the binarized data is compatible with the pretrained model). For example, run the command:
+
+```
+$ python preprocess.py  --source-lang wp_source --target-lang wp_target --testpref /path/to/text_data --destdir data-bin/writingPromptsPromptRanking --srcdict /path/to/writingPrompts/dict.wp_source.txt --tgtdict dict.wp_target.txt
+```
+
+**prompt_ranking.py**
+
+This script takes binarized data, the paths for the fusion checkpoint and pretrained checkpoint, and runs the prompt ranking task. This script is largely based off of the eval_lm.py script, and uses the scorer to score the prompt-story pairs. After all pairs are scored, the script computes the number of gold prompt-story pairs for which they were scored with a higher log probability than the fake prompt-story pairs. 
+
+Note: It's important to run with the flag `--max-sentences` set to 1 so that the prompt-story pairs are processed in the order they were originally written to the text file.
+
+To run prompt_ranking, execute the command:
+
+```
+$ python prompt_ranking.py data-bin/writingPromptsPromptRanking/ --path path/to/fusion_checkpoint.pt  --model-overrides “{‘pretrained_checkpoint’: ‘path/to/pretrained_checkpoint.pt’}” --task translation --max-sentences 1
+```
 
 ## Citation
 ```bibtex

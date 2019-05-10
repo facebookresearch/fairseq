@@ -6,7 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 import torch
-import numpy as np
+
 from fairseq import tokenizer
 from fairseq.data import data_utils, FairseqDataset, iterators, Dictionary
 
@@ -92,7 +92,7 @@ class FairseqTask(object):
     def get_batch_iterator(
         self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
         ignore_invalid_inputs=False, required_batch_size_multiple=1,
-        seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=0, sort_by_length=True
+        seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=0,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -130,17 +130,14 @@ class FairseqTask(object):
         with data_utils.numpy_seed(seed):
             indices = dataset.ordered_indices()
 
-        if not sort_by_length:
-            indices = np.sort(indices)
-
         # filter examples that are too large
-        indices_post_filter = data_utils.filter_by_size(
+        indices = data_utils.filter_by_size(
             indices, dataset.size, max_positions, raise_exception=(not ignore_invalid_inputs),
         )
-        
+
         # create mini-batches with given size constraints
         batch_sampler = data_utils.batch_by_size(
-            indices_post_filter, dataset.num_tokens, max_tokens=max_tokens, max_sentences=max_sentences,
+            indices, dataset.num_tokens, max_tokens=max_tokens, max_sentences=max_sentences,
             required_batch_size_multiple=required_batch_size_multiple,
         )
 
