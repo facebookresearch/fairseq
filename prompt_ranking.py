@@ -111,7 +111,7 @@ def main(parsed_args):
 
     score_sum = 0.
     count = 0
-    prompt_ranking_scores = {}  # maps from sample_id (i.e. line number in the input file) to story score (i.e. sum of the log probs)
+    prompt_ranking_scores = {}  # maps from sample_id (i.e. line number in the input file) to (prompt_txt, story_txt, score)
 
     if args.remove_bpe is not None:
         if args.remove_bpe == 'sentencepiece':
@@ -166,11 +166,12 @@ def main(parsed_args):
                 score_sum += pos_scores.sum().cpu()
                 count += pos_scores.numel() - skipped_toks
 
-                prompt_ranking_scores[sample['id'][i].item()] = pos_scores.sum().cpu().item()
-                # print("\n sample %i\n" % sample['id'][i].item())
-                # print(task.source_dictionary.string(sample['net_input']['src_tokens'][i,:]) + "\n")
-                # print(task.target_dictionary.string(sample['target'][i,:]) + "\n")
-                # import pdb; pdb.set_trace()
+                score = pos_scores.sum().cpu().item()  # float, the sum of the log probs
+                prompt_txt = task.source_dictionary.string(sample['net_input']['src_tokens'][i,:])
+                story_txt = task.target_dictionary.string(sample['target'][i,:])
+                sample_id = sample['id'][i].item()
+                # print("\nsample %i, score %f:\n\n%s\n\n%s\n" % (sample_id, score, prompt_txt, story_txt))  # uncomment this to see the (prompt,story) pairs and their scores
+                prompt_ranking_scores[sample_id] = (prompt_txt, story_txt, score)
 
                 if args.output_word_probs or args.output_word_stats:
                     w = ''
@@ -204,13 +205,14 @@ def main(parsed_args):
 
     final_results = []  # will be a list length 1000 containing bools
     for i in range(0, len(prompt_ranking_scores), 10):
-        curr_scores = np.array([prompt_ranking_scores[j] for j in range(i, i+10)])  # scores for the 10 alternatives
-        # curr_scores = np.array(prompt_ranking_scores[i: i + 10])  # scores for the 10 alternatives
+        curr_scores = np.array([prompt_ranking_scores[j][2] for j in range(i, i+10)])  # scores for the 10 alternatives
         max_val_idx = np.argmax(curr_scores)  # idx of the best score
         final_results.append(max_val_idx == 0)  # correct iff the true (prompt, story) pair is best
 
     final_accuracy = sum(final_results)/len(final_results)
     print('Final Accuracy for Prompt Ranking Task is: {}/{}={} percent'.format(sum(final_results), len(final_results), final_accuracy*100))
+
+    # import pdb; pdb.set_trace()  # uncomment this to inspect prompt_ranking_scores before the script finishes
 
     avg_nll_loss = -score_sum / count
     print('| Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)'.format(gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
