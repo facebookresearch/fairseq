@@ -20,7 +20,11 @@ from fairseq import utils
 from fairseq.modules.character_token_embedder import CHAR_PAD_IDX
 
 from fairseq.models.transformer import (
-    Embedding, LayerNorm, Linear, PositionalEmbedding,
+    Embedding,
+    LayerNorm,
+    Linear,
+    PositionalEmbedding,
+    TransformerDecoderLayer,
 )
 
 from fairseq.modules import (
@@ -41,12 +45,14 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
+        parser.add_argument('--activation-fn', choices=['relu', 'gelu', 'gelu_fast'],
+                            help='Which activation function to use')
         parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--attention-dropout', default=0., type=float, metavar='D',
                             help='dropout probability for attention weights')
-        parser.add_argument('--relu-dropout', default=0., type=float, metavar='D',
-                            help='dropout probability after ReLU in FFN')
+        parser.add_argument('--activation-dropout', '--relu-dropout', type=float, metavar='D',
+                            help='dropout probability after activation in FFN.')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
         parser.add_argument('--decoder-ffn-embed-dim', type=int, metavar='N',
@@ -156,10 +162,24 @@ class BiTransformerDecoder(FairseqDecoder):
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
-        self.forward_layers = nn.ModuleList([TransformerDecoderLayer(args)
-                                             for _ in range(args.decoder_layers)])
-        self.backward_layers = nn.ModuleList([TransformerDecoderLayer(args)
-                                              for _ in range(args.decoder_layers)])
+        self.forward_layers = nn.ModuleList([
+            TransformerDecoderLayer(
+                args,
+                no_encoder_attn=True,
+                add_bias_kv=not args.no_bias_kv,
+                add_zero_attn=args.no_bias_kv,
+            )
+            for _ in range(args.decoder_layers)
+        ])
+        self.backward_layers = nn.ModuleList([
+            TransformerDecoderLayer(
+                args,
+                no_encoder_attn=True,
+                add_bias_kv=not args.no_bias_kv,
+                add_zero_attn=args.no_bias_kv,
+            )
+            for _ in range(args.decoder_layers)
+        ])
 
         self.full_attn_layer = None
         self.full_linear_layer = None
@@ -364,61 +384,6 @@ class BiTransformerDecoder(FairseqDecoder):
         }
 
 
-class TransformerDecoderLayer(nn.Module):
-    """Decoder layer block."""
-
-    def __init__(self, args):
-        super().__init__()
-        self.embed_dim = args.decoder_embed_dim
-        self.self_attn = MultiheadAttention(
-            self.embed_dim, args.decoder_attention_heads,
-            dropout=args.attention_dropout, add_bias_kv=not args.no_bias_kv, add_zero_attn=args.no_bias_kv,
-        )
-        self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
-        self.normalize_before = args.decoder_normalize_before
-
-        # char_inputs could tell if this is during exporting of the model
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=args.char_inputs)
-
-        self.fc1 = Linear(self.embed_dim, args.decoder_ffn_embed_dim)
-        self.fc2 = Linear(args.decoder_ffn_embed_dim, self.embed_dim)
-
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=args.char_inputs)
-
-    def forward(self, x, self_attn_mask=None, self_attn_padding_mask=None):
-        residual = x
-        x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
-        x, attn = self.self_attn(
-            query=x,
-            key=x,
-            value=x,
-            key_padding_mask=self_attn_padding_mask,
-            need_weights=False,
-            attn_mask=self_attn_mask,
-        )
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = residual + x
-        x = self.maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
-
-        residual = x
-        x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
-        x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = residual + x
-        x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
-        return x, attn
-
-    def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
-        assert before ^ after
-        if after ^ self.normalize_before:
-            return layer_norm(x)
-        else:
-            return x
-
-
 class BidirectionalTransformerDecoderLayer(nn.Module):
     """Decoder layer block."""
 
@@ -431,7 +396,13 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
             mask_curr_state=not args.unmask_curr_state,
         )
         self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
+        self.activation_fn = utils.get_activation_fn(
+            activation=getattr(args, 'activation_fn', 'relu')
+        )
+        self.activation_dropout = getattr(args, 'activation_dropout', 0)
+        if self.activation_dropout == 0:
+            # for backwards compatibility with models that use args.relu_dropout
+            self.activation_dropout = getattr(args, 'relu_dropout', 0)
         self.normalize_before = args.decoder_normalize_before
 
         self.fwd_layer_norm = LayerNorm(self.embed_dim, export=args.char_inputs)
@@ -455,8 +426,8 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.activation_fn(self.fc1(x))
+        x = F.dropout(x, p=self.activation_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x

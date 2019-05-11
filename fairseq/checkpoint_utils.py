@@ -18,6 +18,7 @@ from torch.serialization import default_restore_location
 from fairseq import tasks
 from fairseq.models import FairseqEncoder, FairseqDecoder
 
+
 def load_checkpoint_to_cpu(path):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility)."""
     state = torch.load(
