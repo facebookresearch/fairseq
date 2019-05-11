@@ -14,12 +14,14 @@ python prompt_ranking.py data-bin/writingPromptsPromptRanking \
 
 import numpy as np
 import torch
+import json
 
 from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
 from fairseq.data import LMContextWindowDataset
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
 
+from make_prompt_ranking import NUM_STORIES, NUM_FAKE_PROMPTS
 
 class WordStat(object):
     def __init__(self, word, is_bpe):
@@ -204,15 +206,17 @@ def main(parsed_args):
             t.log({'wps': round(wps_meter.avg)})
 
     final_results = []  # will be a list length 1000 containing bools
-    for i in range(0, len(prompt_ranking_scores), 10):
-        curr_scores = np.array([prompt_ranking_scores[j][2] for j in range(i, i+10)])  # scores for the 10 alternatives
+    for i in range(0, len(prompt_ranking_scores), NUM_FAKE_PROMPTS+1):
+        curr_scores = np.array([prompt_ranking_scores[j][2] for j in range(i, i+NUM_FAKE_PROMPTS+1)])  # scores for the 10 alternatives
         max_val_idx = np.argmax(curr_scores)  # idx of the best score
         final_results.append(max_val_idx == 0)  # correct iff the true (prompt, story) pair is best
 
     final_accuracy = sum(final_results)/len(final_results)
     print('Final Accuracy for Prompt Ranking Task is: {}/{}={} percent'.format(sum(final_results), len(final_results), final_accuracy*100))
 
-    # import pdb; pdb.set_trace()  # uncomment this to inspect prompt_ranking_scores before the script finishes
+    print('Writing output to prompt_ranking.json...')
+    with open('prompt_ranking.json', 'w') as f:
+        json.dump(prompt_ranking_scores, f, indent=0)
 
     avg_nll_loss = -score_sum / count
     print('| Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)'.format(gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
