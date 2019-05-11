@@ -63,4 +63,6 @@ if __name__=="__main__":
     parser.add_argument('--datapath', type=str, required=True, help='Path/prefix for the .wp_source and .wp_target files to format into promptranking text')
     args = parser.parse_args()
 
+    np.random.seed(0)  # set random seed
+
     main(args)
