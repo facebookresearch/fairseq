@@ -99,7 +99,11 @@ python prompt_ranking.py data-bin/writingPromptsPromptRanking \
 
 This script is based on the `eval_lm.py` script.
 It reads the 10,000 (prompt, story) pairs, runs the fusion model on them, and records the score (i.e. sum of log probabilities over the story) for each pair.
-After all pairs are score, it computes the number successes - i.e. number of examples where the gold (prompt, story) pair was ranked higher than the 9 (fake prompt, story) pairs.
+After all pairs are scored, it reports the number of successes - i.e. number of examples where the gold (prompt, story) pair was ranked higher than all the 9 (fake prompt, story) pairs.
+
+We get 39.8% accuracy when we run this script.
+
+The script also saves the 10,000 (prompt, story, score) results to `prompt_ranking.json` for later inspection.
 
 Note: we set `--max-sentences 8` to make it fit on our GPU. 
 
