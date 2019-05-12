@@ -9,6 +9,9 @@ __pycache__/
 # C extensions
 *.so
 
+# macOS dir files
+.DS_Store
+
 # Distribution / packaging
 .Python
 env/
