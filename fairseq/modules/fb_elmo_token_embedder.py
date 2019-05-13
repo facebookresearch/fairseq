@@ -24,30 +24,31 @@ class ElmoTokenEmbedder(nn.Module):
     https://github.com/allenai/allennlp/blob/master/tutorials/how_to/elmo.md
     """
 
-    def __init__(self,
-                 language_model: FairseqLanguageModel,
-                 eos: int,
-                 pad: int,
-                 tune_lm: bool = False,
-                 lm_frozen_layers: int = 0,
-                 lm_tune_embedding: bool = False,
-                 weights_dropout: float = 0.,
-                 final_dropout: float = 0.,
-                 layer_norm: bool = True,
-                 affine_layer_norm: bool = False,
-                 projection_dim: int = None,
-                 apply_softmax: bool = True,
-                 combine_tower_states: bool = True,
-                 add_final_predictive: bool = True,
-                 add_final_context: bool = True,
-                 add_bos: bool = False,
-                 add_eos: bool = False,
-                 remove_bos: bool = False,
-                 remove_eos: bool = False,
-                 char_inputs: bool = False,
-                 max_char_len: int = 50,
-                 use_boundary_tokens: bool=False
-                 ):
+    def __init__(
+        self,
+        language_model: FairseqLanguageModel,
+        eos: int,
+        pad: int,
+        tune_lm: bool = False,
+        lm_frozen_layers: int = 0,
+        lm_tune_embedding: bool = False,
+        weights_dropout: float = 0.,
+        final_dropout: float = 0.,
+        layer_norm: bool = True,
+        affine_layer_norm: bool = False,
+        projection_dim: int = None,
+        apply_softmax: bool = True,
+        combine_tower_states: bool = True,
+        add_final_predictive: bool = True,
+        add_final_context: bool = True,
+        add_bos: bool = False,
+        add_eos: bool = False,
+        remove_bos: bool = False,
+        remove_eos: bool = False,
+        char_inputs: bool = False,
+        max_char_len: int = 50,
+        use_boundary_tokens: bool = False,
+    ):
 
         super().__init__()
 
@@ -173,7 +174,7 @@ class ElmoTokenEmbedder(nn.Module):
         if self.softmax is None:
             nn.init.constant_(self.weights, 1 / (self.num_layers * 2))
 
-    def _lm_states(self, input:torch.Tensor, eos_idx_mask=None):
+    def _lm_states(self, input: torch.Tensor, eos_idx_mask=None):
         """apply the language model on the input and get internal states
         Args:
             input: the sentence tensor
