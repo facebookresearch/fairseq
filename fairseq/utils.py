@@ -16,7 +16,7 @@ import warnings
 import torch
 import torch.nn.functional as F
 
-from fairseq.modules import gelu, gelu_fast
+from fairseq.modules import gelu, gelu_accurate
 
 
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
@@ -298,6 +298,9 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == 'gelu':
         return gelu
     elif activation == 'gelu_fast':
-        return gelu_fast
+        deprecation_warning('--activation-fn=gelu_fast has been renamed to gelu_accurate')
+        return gelu_accurate
+    elif activation == 'gelu_accurate':
+        return gelu_accurate
     else:
         raise RuntimeError(f"--activation-fn {activation} not supported")
