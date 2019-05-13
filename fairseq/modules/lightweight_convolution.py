@@ -19,19 +19,21 @@ class LightweightConv1d(nn.Module):
     We don't use this module in the model.
 
     Args:
-    input_size: # of channels of the input and output
-    kernel_size: convolution channels
-    padding: padding
-    num_heads: number of heads used. The weight is of shape (num_heads, 1, kernel_size)
-    weight_softmax: normalize the weight with softmax before the convolution
+        input_size: # of channels of the input and output
+        kernel_size: convolution channels
+        padding: padding
+        num_heads: number of heads used. The weight is of shape
+            `(num_heads, 1, kernel_size)`
+        weight_softmax: normalize the weight with softmax before the convolution
+
     Shape:
-    Input: BxCxT, i.e. (batch_size, input_size, timesteps)
-    Output: BxCxT, i.e. (batch_size, input_size, timesteps)
+        Input: BxCxT, i.e. (batch_size, input_size, timesteps)
+        Output: BxCxT, i.e. (batch_size, input_size, timesteps)
 
     Attributes:
-    weight: the learnable weights of the module of shape
-    `(num_heads, 1, kernel_size)`
-    bias:   the learnable bias of the module of shape `(input_size)`
+        weight: the learnable weights of the module of shape
+            `(num_heads, 1, kernel_size)`
+        bias: the learnable bias of the module of shape `(input_size)`
     '''
 
     def __init__(self, input_size, kernel_size=1, padding=0, num_heads=1,
