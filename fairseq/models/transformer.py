@@ -53,7 +53,7 @@ class TransformerModel(FairseqModel):
     def add_args(parser):
         """Add model-specific arguments to the parser."""
         # fmt: off
-        parser.add_argument('--activation-fn', choices=['relu', 'gelu', 'gelu_fast'],
+        parser.add_argument('--activation-fn', choices=['relu', 'gelu', 'gelu_accurate'],
                             help='Which activation function to use')
         parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
