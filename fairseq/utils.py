@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import Callable
 import copy
 import importlib.util
+import math
 import os
 import sys
 import warnings
@@ -284,6 +285,13 @@ def log_softmax(x, dim, onnx_trace=False):
         return F.log_softmax(x.float(), dim=dim)
     else:
         return F.log_softmax(x, dim=dim, dtype=torch.float32)
+
+
+def get_perplexity(loss):
+    try:
+        return '{:.2f}'.format(math.pow(2, loss))
+    except OverflowError:
+        return float('inf')
 
 
 def deprecation_warning(message, stacklevel=3):

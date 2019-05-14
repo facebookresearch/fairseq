@@ -12,9 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from fairseq import data
-
-import train
+from fairseq import data, checkpoint_utils
 
 
 def mock_trainer(epoch, num_updates, iterations_in_epoch):
@@ -72,8 +70,9 @@ class TestLoadCheckpoint(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 200, 50)
 
-            with patch('train.reload_train', return_value=epoch_itr):
-                train.load_checkpoint(self.args_mock, trainer, epoch_itr, 512, None)
+            with patch('fairseq.checkpoint_utils.reload_train', return_value=epoch_itr):
+                checkpoint_utils.load_checkpoint(
+                    self.args_mock, trainer, epoch_itr, 512, None)
 
             self.assertEqual(epoch_itr.epoch, 2)
             self.assertEqual(epoch_itr.iterations_in_epoch, 50)
@@ -101,8 +100,9 @@ class TestLoadCheckpoint(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 300, 150)
 
-            with patch('train.reload_train', return_value=epoch_itr):
-                train.load_checkpoint(self.args_mock, trainer, epoch_itr, 512, None)
+            with patch('fairseq.checkpoint_utils.reload_train', return_value=epoch_itr):
+                checkpoint_utils.load_checkpoint(
+                    self.args_mock, trainer, epoch_itr, 512, None)
             itr = epoch_itr.next_epoch_itr(shuffle=False)
 
             self.assertEqual(epoch_itr.epoch, 3)
@@ -114,7 +114,7 @@ class TestLoadCheckpoint(unittest.TestCase):
             trainer, epoch_itr = get_trainer_and_epoch_itr(0, 150, 0, 0)
             self.patches['os.path.isfile'].return_value = False
 
-            train.load_checkpoint(self.args_mock, trainer, epoch_itr, 512, None)
+            checkpoint_utils.load_checkpoint(self.args_mock, trainer, epoch_itr, 512, None)
             itr = epoch_itr.next_epoch_itr(shuffle=False)
 
             self.assertEqual(epoch_itr.epoch, 1)
