@@ -325,7 +325,7 @@ class FairseqEncoderModel(BaseFairseqModel):
         Returns:
             the encoder's output, typically of shape `(batch, seq_len, vocab)`
         """
-        return self.encoder(src_tokens, src_lengths)
+        return self.encoder(src_tokens, src_lengths, **kwargs)
 
     def get_normalized_probs(self, net_output, log_probs, sample=None):
         """Get normalized probabilities (or log probs) from a net's output."""
