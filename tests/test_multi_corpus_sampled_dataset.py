@@ -53,13 +53,12 @@ class TestMultiCorpusSampledDataset(unittest.TestCase):
         np.random.seed(0)
         if sampling_func is None:
             m = MultiCorpusSampledDataset(
-                OrderedDict({0: self.dataset_1, 1: self.dataset_2}), default_key=0
+                OrderedDict({0: self.dataset_1, 1: self.dataset_2}),
             )
         else:
             m = MultiCorpusSampledDataset(
                 OrderedDict({0: self.dataset_1, 1: self.dataset_2}),
                 sampling_func=sampling_func,
-                default_key=0,
             )
         m.ordered_indices()
         count_sample_from_first_dataset = 0

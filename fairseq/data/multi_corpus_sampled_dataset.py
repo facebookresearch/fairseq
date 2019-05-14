@@ -28,24 +28,19 @@ class MultiCorpusSampledDataset(FairseqDataset):
         datasets: an OrderedDict of FairseqDataset instances.
         sampling_func: A function for sampling over list of dataset keys.
                 Default strategy is to sample uniformly.
-        default_key: string which specifies the default key to be used for
-            generating dummy batches etc.
     """
 
     def __init__(
         self,
         datasets: Dict[str, FairseqDataset],
         sampling_func: Callable[[List], int] = None,
-        default_key: str = "",
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
-        assert default_key in datasets
         self.datasets = datasets
         if sampling_func is None:
             sampling_func = uniform_sampler
         self.sampling_func = sampling_func
-        self.default_key = default_key
 
         self.total_num_instances = 0
         for _, dataset in datasets.items():

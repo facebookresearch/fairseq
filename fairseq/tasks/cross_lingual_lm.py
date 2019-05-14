@@ -62,7 +62,6 @@ class CrossLingualLMTask(FairseqTask):
         self.seed = args.seed
         self.distributed_world_size = args.distributed_world_size
         self.langs2id = self._lang_to_id(args.monolingual_langs)
-        self.default_key = None
 
     def _lang_to_id(
             self,
@@ -155,9 +154,6 @@ class CrossLingualLMTask(FairseqTask):
         dataset_map = OrderedDict()
 
         for lang in self.langs2id.keys():
-            if self.default_key is None:
-                self.default_key = lang
-
             # Datasets are expected to be in "split.lang" format (Eg: train.en)
             language_split = '{}.{}'.format(split, lang)
 
@@ -177,9 +173,7 @@ class CrossLingualLMTask(FairseqTask):
                 seed=self.seed,
             )
 
-        self.datasets[split] = MultiCorpusSampledDataset(
-            dataset_map, default_key=self.default_key
-        )
+        self.datasets[split] = MultiCorpusSampledDataset(dataset_map)
         print('| {} {} {} examples'.format(
             self.args.data.split(':')[epoch], split, len(self.datasets[split]))
         )
