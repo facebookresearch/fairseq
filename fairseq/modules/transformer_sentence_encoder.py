@@ -152,7 +152,8 @@ class TransformerSentenceEncoder(nn.Module):
     def forward(
         self,
         tokens: torch.Tensor,
-        segment_labels: torch.Tensor
+        segment_labels: torch.Tensor,
+        last_state_only: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # compute padding mask. This is needed for multi-head attention
@@ -181,18 +182,25 @@ class TransformerSentenceEncoder(nn.Module):
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
-        inner_states = [x]
+
+        inner_states = []
+        if not last_state_only:
+            inner_states.append(x)
 
         for layer in self.layers:
             x, _ = layer(
                 x,
                 self_attn_padding_mask=padding_mask,
             )
-            inner_states.append(x)
+            if not last_state_only:
+                inner_states.append(x)
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
 
         sentence_rep = x[:, 0, :]
+
+        if last_state_only:
+            inner_states = [x]
 
         return inner_states, sentence_rep
