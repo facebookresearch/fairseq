@@ -310,5 +310,7 @@ def get_activation_fn(activation: str) -> Callable:
         return gelu_accurate
     elif activation == 'gelu_accurate':
         return gelu_accurate
+    elif activation == 'tanh':
+        return F.tanh
     else:
         raise RuntimeError(f"--activation-fn {activation} not supported")
