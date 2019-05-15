@@ -16,7 +16,7 @@ from fairseq.models import (
     CompositeEncoder,
     FairseqDecoder,
     FairseqEncoder,
-    FairseqModel,
+    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
@@ -30,7 +30,7 @@ from fairseq.modules import (
 
 
 @register_model('fconv_self_att')
-class FConvModelSelfAtt(FairseqModel):
+class FConvModelSelfAtt(FairseqEncoderDecoderModel):
     def __init__(self, encoder, decoder, pretrained_encoder=None):
         super().__init__(encoder, decoder)
         self.encoder.num_attention_layers = sum(layer is not None for layer in decoder.attention)
@@ -371,9 +371,9 @@ class FConvDecoder(FairseqDecoder):
 
             self.pretrained_decoder.fc2.register_forward_hook(save_output())
 
-    def forward(self, prev_output_tokens, encoder_out_dict):
-        encoder_out = encoder_out_dict['encoder']['encoder_out']
-        trained_encoder_out = encoder_out_dict['pretrained'] if self.pretrained else None
+    def forward(self, prev_output_tokens, encoder_out):
+        trained_encoder_out = encoder_out['pretrained'] if self.pretrained else None
+        encoder_out = encoder_out['encoder']['encoder_out']
 
         encoder_a, encoder_b = self._split_encoder_out(encoder_out)
 

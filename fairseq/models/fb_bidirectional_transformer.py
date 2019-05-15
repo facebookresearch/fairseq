@@ -11,14 +11,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import (
-    FairseqDecoder, FairseqLanguageModel, register_model, register_model_architecture,
+from fairseq import options, utils
+from fairseq.models import (
+    FairseqDecoder,
+    FairseqLanguageModel,
+    register_model,
+    register_model_architecture,
 )
-
-from fairseq import options
-from fairseq import utils
-from fairseq.modules.character_token_embedder import CHAR_PAD_IDX
-
 from fairseq.models.transformer import (
     Embedding,
     LayerNorm,
@@ -26,19 +25,21 @@ from fairseq.models.transformer import (
     PositionalEmbedding,
     TransformerDecoderLayer,
 )
-
 from fairseq.modules import (
-    AdaptiveSoftmax, CharacterTokenEmbedder, MultiheadAttention,
-    SinusoidalPositionalEmbedding
+    AdaptiveSoftmax,
+    CharacterTokenEmbedder,
+    MultiheadAttention,
+    SinusoidalPositionalEmbedding,
 )
-
+from fairseq.modules.character_token_embedder import CHAR_PAD_IDX
 from fairseq.modules.fb_bidirectional_multihead_attention import (
-    BidirectionalMultiheadSelfAttention
+    BidirectionalMultiheadSelfAttention,
 )
 
 
 @register_model('bi_transformer_lm')
 class BiTransformerLanguageModel(FairseqLanguageModel):
+
     def __init__(self, decoder):
         super().__init__(decoder)
 
@@ -119,7 +120,7 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
 
-        print("Model args: ", args)
+        print("Model args:", args)
 
         decoder = BiTransformerDecoder(args, task.output_dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)
@@ -136,10 +137,36 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         ]
 
 
+class BiTransformerClassificationHead(nn.Module):
+
+    def __init__(self, embed_dim, num_classes):
+        super().__init__()
+        self.proj = Linear(2 * embed_dim, num_classes)
+
+    def forward(self, features, padding_mask=None, **kwargs):
+        assert features.size(1) >= 2  # B x T x C
+
+        # extract endpoints for classification
+        x = features
+        if x.size(1) == 2:
+            x = x.view(x.size(0), -1)
+        else:
+            left = x[:, 0, :]
+            if padding_mask is None:
+                right = x[:, -1, :]
+            else:
+                eos_idx = (~padding_mask).int().sum(dim=1) - 1
+                eos_idx += (torch.arange(eos_idx.size(0)) * x.size(1)).type_as(eos_idx)
+                right = x.contiguous().view(-1, x.size(-1))[eos_idx]
+            x = torch.cat([left, right], dim=1)
+
+        return self.proj(x)
+
+
 class BiTransformerDecoder(FairseqDecoder):
     """Transformer decoder."""
 
-    def __init__(self, args, dictionary, embed_tokens):
+    def __init__(self, args, dictionary, embed_tokens, classification_head=None):
         super().__init__(dictionary)
         self.onnx_trace = False
         self.dropout = args.dropout
@@ -194,6 +221,7 @@ class BiTransformerDecoder(FairseqDecoder):
         self.load_softmax = not getattr(args, 'remove_head', False)
         self.embed_out = None
         self.adaptive_softmax = None
+        self.classification_head = classification_head
 
         if self.load_softmax:
             if args.adaptive_softmax_cutoff is not None:
@@ -209,15 +237,18 @@ class BiTransformerDecoder(FairseqDecoder):
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
-    def forward(self, source_tokens, **unused):
-        """ Forward pass for the bidirectional transformer
+    def forward(self, src_tokens, **kwargs):
+        x, extra = self.extract_features(src_tokens, **kwargs)
+        x = self.output_layer(x)
+        return x, extra
 
-        Args:
-            - source tokens: B x T matrix representing sentences
+    def extract_features(self, src_tokens, **kwargs):
+        """
+        Similar to *forward* but only return features.
 
         Returns:
-            - a tuple of the following:
-                - logits for predictions in format B x T x C to be used in softmax afterwards
+            tuple:
+                - the decoder's features of shape `(batch, seq_len, embed_dim)`
                 - a dictionary of additional data, where 'attn' contains the attention over the final
                   states (concatenated from forward and backward towers) and 'inner_states' is a list
                   of internal model states used to compute the predictions (for example to use in ELMO).
@@ -227,20 +258,19 @@ class BiTransformerDecoder(FairseqDecoder):
                   equivalent to the logits if adaptive softmax is used.
                   NOTE: unlike the logits, the format for all hidden states is T x B x C
         """
-
         # compute padding mask
         if self.char_inputs:
             # casting to byte for onnx
-            padding_mask = source_tokens[:, :, 0].eq(CHAR_PAD_IDX).byte()
+            padding_mask = src_tokens[:, :, 0].eq(CHAR_PAD_IDX).byte()
         else:
-            padding_mask = source_tokens.eq(self.padding_idx).byte()
+            padding_mask = src_tokens.eq(self.padding_idx).byte()
 
         # embed positions
         positional_input = self.padding_idx * padding_mask.long()
         positions = self.embed_positions(positional_input) if self.embed_positions is not None else None
 
         # embed tokens and positions
-        x = self.embed_scale * self.embed_tokens(source_tokens)
+        x = self.embed_scale * self.embed_tokens(src_tokens)
         if positions is not None:
             x += positions
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -298,6 +328,21 @@ class BiTransformerDecoder(FairseqDecoder):
         # T x B x C -> B x T x C
         x = [z.transpose(0, 1) for z in x]
 
+        if len(x) == 1:
+            x = x[0]
+
+        return x, {'attn': attn, 'inner_states': inner_states}
+
+    def output_layer(self, features, **kwargs):
+        """Project features to the vocabulary size."""
+        if self.classification_head:
+            return self.classification_head(features, **kwargs)
+
+        x = features
+
+        if not isinstance(x, list):
+            x = [x]
+
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
             if self.share_input_output_embed and hasattr(self.embed_tokens, 'weight'):
@@ -308,7 +353,7 @@ class BiTransformerDecoder(FairseqDecoder):
         if len(x) == 1:
             x = x[0]
 
-        return x, {'attn': attn, 'inner_states': inner_states}
+        return x
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
@@ -485,9 +530,36 @@ def bi_transformer_lm_big(args):
     base_bi_lm_architecture(args)
 
 
+@register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_bpe_large')
+def bi_transformer_lm_bpe_large(args):
+    args.self_target = True
+    # TODO support query formulation
+    args.decoder_layers = getattr(args, 'decoder_layers', 12)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 1024)
+    args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 4096)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 32)
+    base_bi_lm_architecture(args)
+
+
 @register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_big_non_cloze')
 def bi_transformer_lm_big_non_cloze(args):
     bi_transformer_lm_big(args)
     args.self_target = False
     args.future_target = True
     args.past_target = True
+
+
+@register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_huge')
+def bi_transformer_lm_huge(args):
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 2048)  # 2.6B params
+    args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 8192)
+    args.decoder_layers = getattr(args, 'decoder_layers', 24)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 32)
+    args.activation_fn = getattr(args, 'activation_fn', 'gelu_fast')
+    base_bi_lm_architecture(args)
+
+
+@register_model_architecture('bi_transformer_lm', 'bi_transformer_lm_huge_relu')
+def bi_transformer_lm_huge_relu(args):
+    args.activation_fn = getattr(args, 'activation_fn', 'relu')
+    bi_transformer_lm_huge(args)

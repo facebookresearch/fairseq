@@ -41,7 +41,7 @@ New plug-ins are *registered* through a set of ``@register`` function
 decorators, for example::
 
   @register_model('my_lstm')
-  class MyLSTM(FairseqModel):
+  class MyLSTM(FairseqEncoderDecoderModel):
       (...)
 
 Once registered, new plug-ins can be used with the existing :ref:`Command-line

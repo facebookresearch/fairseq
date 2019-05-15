@@ -83,10 +83,10 @@ class LanguageModelingTask(FairseqTask):
                             help='prepend beginning of sentence token (<s>)')
         # fmt: on
 
-    def __init__(self, args, dictionary, output_dictionary, targets=None):
+    def __init__(self, args, dictionary, output_dictionary=None, targets=None):
         super().__init__(args)
         self.dictionary = dictionary
-        self.output_dictionary = output_dictionary
+        self.output_dictionary = output_dictionary or dictionary
 
         if targets is None:
             targets = ['future']

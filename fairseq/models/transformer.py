@@ -15,7 +15,7 @@ from fairseq import options, utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
-    FairseqModel,
+    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
@@ -29,7 +29,7 @@ from fairseq.modules import (
 
 
 @register_model('transformer')
-class TransformerModel(FairseqModel):
+class TransformerModel(FairseqEncoderDecoderModel):
     """
     Transformer model from `"Attention Is All You Need" (Vaswani, et al, 2017)
     <https://arxiv.org/abs/1706.03762>`_.
@@ -298,7 +298,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         input_embed_dim = embed_tokens.embedding_dim
         embed_dim = args.decoder_embed_dim
-        output_embed_dim = args.decoder_output_dim
+        self.output_embed_dim = args.decoder_output_dim
 
         padding_idx = embed_tokens.padding_idx
         self.max_target_positions = args.max_target_positions
@@ -321,13 +321,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.adaptive_softmax = None
 
-        self.project_out_dim = Linear(embed_dim, output_embed_dim, bias=False) \
-            if embed_dim != output_embed_dim and not args.tie_adaptive_weights else None
+        self.project_out_dim = Linear(embed_dim, self.output_embed_dim, bias=False) \
+            if embed_dim != self.output_embed_dim and not args.tie_adaptive_weights else None
 
         if args.adaptive_softmax_cutoff is not None:
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary),
-                output_embed_dim,
+                self.output_embed_dim,
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
                 dropout=args.adaptive_softmax_dropout,
                 adaptive_inputs=embed_tokens if args.tie_adaptive_weights else None,
@@ -335,14 +335,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 tie_proj=args.tie_adaptive_proj,
             )
         elif not self.share_input_output_embed:
-            self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), output_embed_dim))
-            nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim ** -0.5)
+            self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), self.output_embed_dim))
+            nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
         self.register_buffer('version', torch.Tensor([2]))
         self.normalize = args.decoder_normalize_before and final_norm
         if self.normalize:
             self.layer_norm = LayerNorm(embed_dim)
 
-    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **unused):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
@@ -354,10 +354,21 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         Returns:
             tuple:
-                - the last decoder layer's output of shape `(batch, tgt_len,
-                  vocab)`
-                - the last decoder layer's attention weights of shape `(batch,
-                  tgt_len, src_len)`
+                - the decoder's output of shape `(batch, tgt_len, vocab)`
+                - a dictionary with any model-specific outputs
+        """
+        x, extra = self.extract_features(prev_output_tokens, encoder_out, incremental_state)
+        x = self.output_layer(x)
+        return x, extra
+
+    def extract_features(self, prev_output_tokens, encoder_out=None, incremental_state=None, **unused):
+        """
+        Similar to *forward* but only return features.
+
+        Returns:
+            tuple:
+                - the decoder's features of shape `(batch, tgt_len, embed_dim)`
+                - a dictionary with any model-specific outputs
         """
         # embed positions
         positions = self.embed_positions(
@@ -406,14 +417,18 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
+        return x, {'attn': attn, 'inner_states': inner_states}
+
+    def output_layer(self, features, **kwargs):
+        """Project features to the vocabulary size."""
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
             if self.share_input_output_embed:
-                x = F.linear(x, self.embed_tokens.weight)
+                return F.linear(features, self.embed_tokens.weight)
             else:
-                x = F.linear(x, self.embed_out)
-
-        return x, {'attn': attn, 'inner_states': inner_states}
+                return F.linear(features, self.embed_out)
+        else:
+            return features
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""

@@ -15,7 +15,7 @@ class FairseqEncoder(nn.Module):
         super().__init__()
         self.dictionary = dictionary
 
-    def forward(self, src_tokens, src_lengths):
+    def forward(self, src_tokens, src_lengths=None, **kwargs):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
