@@ -15,7 +15,7 @@ from fairseq import options, utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
-    FairseqModel,
+    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
@@ -31,7 +31,7 @@ from fairseq.modules import (
 
 
 @register_model('lightconv')
-class LightConvModel(FairseqModel):
+class LightConvModel(FairseqEncoderDecoderModel):
     """
     LightConv and DynamicConv model from `"Pay Less Attention with Lightweight and Dynamic Convolutions" (Wu, et al, 2019)
     <https://openreview.net/pdf?id=SkVhlh09tX>`_.
@@ -213,13 +213,11 @@ class LightConvEncoder(FairseqEncoder):
         if self.normalize:
             self.layer_norm = LayerNorm(embed_dim)
 
-    def forward(self, src_tokens, src_lengths):
+    def forward(self, src_tokens, **unused):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
                 `(batch, src_len)`
-            src_lengths (torch.LongTensor): lengths of each source sentence of
-                shape `(batch)`
 
         Returns:
             dict:

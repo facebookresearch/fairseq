@@ -13,7 +13,7 @@ from fairseq import options, utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
-    FairseqModel,
+    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
@@ -21,7 +21,7 @@ from fairseq.modules import AdaptiveSoftmax
 
 
 @register_model('lstm')
-class LSTMModel(FairseqModel):
+class LSTMModel(FairseqEncoderDecoderModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
@@ -356,9 +356,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         elif not self.share_input_output_embed:
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None):
-        encoder_out = encoder_out_dict['encoder_out']
-        encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+        encoder_padding_mask = encoder_out['encoder_padding_mask']
+        encoder_out = encoder_out['encoder_out']
 
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]

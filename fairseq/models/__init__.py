@@ -14,10 +14,11 @@ from .fairseq_encoder import FairseqEncoder
 from .fairseq_incremental_decoder import FairseqIncrementalDecoder
 from .fairseq_model import (
     BaseFairseqModel,
+    FairseqEncoderModel,
+    FairseqEncoderDecoderModel,
+    FairseqLanguageModel,
     FairseqModel,
     FairseqMultiModel,
-    FairseqLanguageModel,
-    FairseqEncoderModel,
 )
 
 from .composite_encoder import CompositeEncoder
@@ -30,6 +31,7 @@ __all__ = [
     'DistributedFairseqModel',
     'FairseqDecoder',
     'FairseqEncoder',
+    'FairseqEncoderDecoderModel',
     'FairseqEncoderModel',
     'FairseqIncrementalDecoder',
     'FairseqLanguageModel',
@@ -56,12 +58,13 @@ def register_model(name):
     For example::
 
         @register_model('lstm')
-        class LSTM(FairseqModel):
+        class LSTM(FairseqEncoderDecoderModel):
             (...)
 
     .. note:: All models must implement the :class:`BaseFairseqModel` interface.
-        Typically you will extend :class:`FairseqModel` for sequence-to-sequence
-        tasks or :class:`FairseqLanguageModel` for language modeling tasks.
+        Typically you will extend :class:`FairseqEncoderDecoderModel` for
+        sequence-to-sequence tasks or :class:`FairseqLanguageModel` for
+        language modeling tasks.
 
     Args:
         name (str): the name of the model

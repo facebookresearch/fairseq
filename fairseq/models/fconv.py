@@ -14,7 +14,7 @@ from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
-    FairseqModel,
+    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
@@ -25,7 +25,7 @@ from fairseq.modules import (
 
 
 @register_model('fconv')
-class FConvModel(FairseqModel):
+class FConvModel(FairseqEncoderDecoderModel):
     """
     A fully convolutional model, i.e. a convolutional encoder and a
     convolutional decoder, as described in `"Convolutional Sequence to Sequence
@@ -406,10 +406,10 @@ class FConvDecoder(FairseqIncrementalDecoder):
             else:
                 self.fc3 = Linear(out_embed_dim, num_embeddings, dropout=dropout)
 
-    def forward(self, prev_output_tokens, encoder_out_dict=None, incremental_state=None):
-        if encoder_out_dict is not None:
-            encoder_out = encoder_out_dict['encoder_out']
-            encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **unused):
+        if encoder_out is not None:
+            encoder_padding_mask = encoder_out['encoder_padding_mask']
+            encoder_out = encoder_out['encoder_out']
 
             # split and transpose encoder outputs
             encoder_a, encoder_b = self._split_encoder_out(encoder_out, incremental_state)
