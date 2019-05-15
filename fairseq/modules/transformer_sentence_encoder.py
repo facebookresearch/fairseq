@@ -5,13 +5,17 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from typing import Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple
 
 from fairseq.modules import (
-    MultiheadAttention, PositionalEmbedding, TransformerSentenceEncoderLayer
+    LayerNorm,
+    MultiheadAttention,
+    PositionalEmbedding,
+    TransformerSentenceEncoderLayer,
 )
 
 
@@ -78,12 +82,12 @@ class TransformerSentenceEncoder(nn.Module):
         num_segments: int = 2,
         use_position_embeddings: bool = True,
         encoder_normalize_before: bool = False,
-        use_bert_layer_norm: bool = False,
-        use_gelu: bool = True,
         apply_bert_init: bool = False,
+        activation_fn: str = 'relu',
         learned_pos_embedding: bool = True,
         add_bias_kv: bool = False,
         add_zero_attn: bool = False,
+        embed_scale: float = None,
     ) -> None:
 
         super().__init__()
@@ -98,8 +102,9 @@ class TransformerSentenceEncoder(nn.Module):
         self.learned_pos_embedding = learned_pos_embedding
 
         self.embed_tokens = nn.Embedding(
-            self.vocab_size, self.embedding_dim, self.padding_idx
+            self.vocab_size, self.embedding_dim, self.padding_idx,
         )
+        self.embed_scale = embed_scale
 
         self.segment_embeddings = (
             nn.Embedding(self.num_segments, self.embedding_dim, padding_idx=None)
@@ -127,15 +132,18 @@ class TransformerSentenceEncoder(nn.Module):
                     dropout=self.dropout,
                     attention_dropout=attention_dropout,
                     activation_dropout=activation_dropout,
-                    encoder_normalize_before=encoder_normalize_before,
-                    use_bert_layer_norm=use_bert_layer_norm,
-                    use_gelu=use_gelu,
+                    activation_fn=activation_fn,
                     add_bias_kv=add_bias_kv,
                     add_zero_attn=add_zero_attn,
                 )
                 for _ in range(num_encoder_layers)
             ]
         )
+
+        if encoder_normalize_before:
+            self.emb_layer_norm = LayerNorm(self.embedding_dim)
+        else:
+            self.emb_layer_norm = None
 
         # Apply initialization of model params after building the model
         if self.apply_bert_init:
@@ -152,30 +160,24 @@ class TransformerSentenceEncoder(nn.Module):
         if not padding_mask.any():
             padding_mask = None
 
-        # embed positions
-        positions = (
-            self.embed_positions(tokens)
-            if self.embed_positions is not None else None
-        )
-
-        # embed segments
-        segments = (
-            self.segment_embeddings(segment_labels)
-            if self.segment_embeddings is not None
-            else None
-        )
-
         x = self.embed_tokens(tokens)
+        if self.embed_scale is not None:
+            x *= self.embed_scale
 
-        if positions is not None:
-            x += positions
-        if segments is not None:
-            x += segments
+        if self.embed_positions is not None:
+            x += self.embed_positions(tokens)
+
+        if self.segment_embeddings is not None and segment_labels is not None:
+            x += self.segment_embeddings(segment_labels)
+
+        if self.emb_layer_norm is not None:
+            x = self.emb_layer_norm(x)
+
         x = F.dropout(x, p=self.dropout, training=self.training)
 
         # account for padding while computing the representation
         if padding_mask is not None:
-            x *= (1 - padding_mask.unsqueeze(-1).type_as(x))
+            x *= (~padding_mask).unsqueeze(-1).type_as(x)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)

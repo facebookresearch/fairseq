@@ -12,9 +12,7 @@ import os
 from fairseq import tokenizer
 from fairseq.data import (
     ConcatDataset,
-    IndexedCachedDataset,
-    IndexedDataset,
-    IndexedRawTextDataset,
+    indexed_dataset,
     data_utils,
 )
 
@@ -42,10 +40,7 @@ class MaskedLMTask(FairseqTask):
         parser.add_argument('--tokens-per-sample', default=512, type=int,
                             help='max number of total tokens over all segments'
                                  ' per sample for BERT dataset')
-        parser.add_argument('--raw-text', default=False, action='store_true',
-                            help='load raw text dataset')
         parser.add_argument('--break-mode', default="doc", type=str, help='mode for breaking sentence')
-        parser.add_argument('--lazy-load', action='store_true', help='load the dataset lazily')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -94,19 +89,19 @@ class MaskedLMTask(FairseqTask):
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
             path = os.path.join(data_path, split_k)
+            ds = indexed_dataset.make_dataset(
+                path,
+                impl=self.args.dataset_impl,
+                fix_lua_indexing=True,
+                dictionary=self.dictionary,
+            )
 
-            if self.args.raw_text and IndexedRawTextDataset.exists(path):
-                ds = IndexedRawTextDataset(path, self.dictionary)
-            elif not self.args.raw_text and IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    ds = IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    ds = IndexedCachedDataset(path, fix_lua_indexing=True)
-            else:
+            if ds is None:
                 if k > 0:
                     break
                 else:
                     raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
+
             with data_utils.numpy_seed(self.seed + k):
                 loaded_datasets.append(
                     BlockPairDataset(
@@ -116,7 +111,8 @@ class MaskedLMTask(FairseqTask):
                         self.args.tokens_per_sample,
                         break_mode=self.args.break_mode,
                         doc_break_size=1,
-                    ))
+                    )
+                )
 
             print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
 

@@ -17,7 +17,7 @@ from fairseq.models import (
 )
 from fairseq.modules import (
     SinusoidalPositionalEmbedding,
-    TransformerSentenceEncoder
+    TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
@@ -89,16 +89,11 @@ class MaskedLMModel(BaseFairseqModel):
         parser.add_argument('--apply-bert-init', action='store_true',
                             help='use custom param initialization for BERT')
 
-        # layer norm layers
-        parser.add_argument('--bert-layer-norm', action='store_true',
-                            help='use custom Layer Norm module for BERT')
-
         # misc params
+        parser.add_argument('--activation-fn', choices=['relu', 'gelu', 'gelu_accurate'],
+                            help='Which activation function to use')
         parser.add_argument('--encoder-normalize-before', action='store_true',
                             help='apply layernorm before each encoder block')
-        parser.add_argument('--gelu', action='store_true',
-                            help='Use gelu activation function in encoder'
-                            ' layer')
 
     def forward(self, src_tokens, segment_labels, **kwargs):
         return self.encoder(src_tokens, segment_labels, **kwargs)
@@ -148,9 +143,8 @@ class MaskedLMEncoder(FairseqEncoder):
             num_segments=args.num_segment,
             use_position_embeddings=not args.no_token_positional_embeddings,
             encoder_normalize_before=args.encoder_normalize_before,
-            use_bert_layer_norm=args.bert_layer_norm,
-            use_gelu=args.gelu,
             apply_bert_init=args.apply_bert_init,
+            activation_fn=args.activation_fn,
             learned_pos_embedding=args.encoder_learned_pos,
             add_bias_kv=args.bias_kv,
             add_zero_attn=args.zero_attn,
@@ -263,11 +257,9 @@ def base_architecture(args):
     args.sent_loss = getattr(args, 'sent_loss', False)
 
     args.apply_bert_init = getattr(args, 'apply_bert_init', False)
-    args.bert_layer_norm = getattr(args, 'bert_layer_norm', False)
 
-    args.encoder_normalize_before = getattr(
-        args, 'encoder_normalize_before', False)
-    args.gelu = getattr(args, 'gelu', False)
+    args.activation_fn = getattr(args, 'activation_fn', 'relu')
+    args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', False)
 
 
 @register_model_architecture('masked_lm', 'bert_base')
@@ -287,16 +279,13 @@ def bert_base_architecture(args):
     args.bias_kv = getattr(args, 'bias_kv', False)
     args.zero_attn = getattr(args, 'zero_attn', False)
 
-    args.sent_loss = getattr(args, 'sent_loss', True)
     args.sentence_class_num = getattr(args, 'sentence_class_num', 2)
+    args.sent_loss = getattr(args, 'sent_loss', True)
 
     args.apply_bert_init = getattr(args, 'apply_bert_init', True)
 
-    # TODO: validate setups for layernorm
-    args.encoder_normalize_before = getattr(
-        args, 'encoder_normalize_before', True)
-    args.bert_layer_norm = getattr(args, 'bert_layer_norm', True)
-    args.gelu = getattr(args, 'gelu', True)
+    args.activation_fn = getattr(args, 'activation_fn', 'gelu')
+    args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', True)
     base_architecture(args)
 
 
@@ -328,9 +317,6 @@ def xlm_architecture(args):
 
     args.sent_loss = getattr(args, 'sent_loss', False)
 
-    args.encoder_normalize_before = getattr(
-        args, 'encoder_normalize_before', False)
-    args.bert_layer_norm = getattr(args, 'bert_layer_norm', False)
-    args.gelu = getattr(args, 'gelu', True)
-    args.apply_bert_init = getattr(args, 'apply_bert_init', True)
+    args.activation_fn = getattr(args, 'activation_fn', 'gelu')
+    args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', False)
     base_architecture(args)
