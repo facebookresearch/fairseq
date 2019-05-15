@@ -601,7 +601,11 @@ class TransformerDecoderLayer(nn.Module):
             self.activation_dropout = getattr(args, 'relu_dropout', 0)
         self.normalize_before = args.decoder_normalize_before
 
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim)
+        # use layerNorm rather than FusedLayerNorm for exporting.
+        # char_inputs can be used to determint this.
+        # TODO  remove this once we update apex with the fix
+        export = getattr(args, 'char_inputs', False)
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
 
         if no_encoder_attn:
             self.encoder_attn = None
@@ -611,12 +615,12 @@ class TransformerDecoderLayer(nn.Module):
                 self.embed_dim, args.decoder_attention_heads,
                 dropout=args.attention_dropout,
             )
-            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim)
+            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
 
         self.fc1 = Linear(self.embed_dim, args.decoder_ffn_embed_dim)
         self.fc2 = Linear(args.decoder_ffn_embed_dim, self.embed_dim)
 
-        self.final_layer_norm = LayerNorm(self.embed_dim)
+        self.final_layer_norm = LayerNorm(self.embed_dim, export=export)
         self.need_attn = True
 
         self.onnx_trace = False
