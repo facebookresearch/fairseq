@@ -41,6 +41,7 @@ class MaskedLMTask(FairseqTask):
                             help='max number of total tokens over all segments'
                                  ' per sample for BERT dataset')
         parser.add_argument('--break-mode', default="doc", type=str, help='mode for breaking sentence')
+        parser.add_argument('--shuffle-dataset', default=False)
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -134,6 +135,6 @@ class MaskedLMTask(FairseqTask):
             mask_idx=self.dictionary.mask(),
             classif_token_idx=self.dictionary.cls(),
             sep_token_idx=self.dictionary.sep(),
-            shuffle=True,
+            shuffle=self.args.shuffle_dataset,
             seed=self.seed,
         )
