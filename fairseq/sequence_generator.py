@@ -355,6 +355,8 @@ class SequenceGenerator(object):
                         lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = -math.inf
 
                 if prefix_tokens is not None and step < prefix_tokens.size(1):
+                    assert isinstance(self.search, search.BeamSearch), \
+                            "currently only BeamSearch supports decoding with prefix_tokens"
                     probs_slice = lprobs.view(bsz, -1, lprobs.size(-1))[:, 0, :]
                     cand_scores = torch.gather(
                         probs_slice, dim=1,
@@ -366,8 +368,13 @@ class SequenceGenerator(object):
                     cand_indices = prefix_tokens[:, step].view(-1, 1).repeat(1, cand_size)
                     cand_beams = torch.zeros_like(cand_indices)
 
-                    # handle prefixes of different lengths
-                    partial_prefix_mask = prefix_tokens[:, step].eq(self.pad)
+                # handle prefixes of different lengths
+                # when step == prefix_tokens.size(1), we'll have new free-decoding batches
+                if prefix_tokens is not None and step <= prefix_tokens.size(1):
+                    if step < prefix_tokens.size(1):
+                        partial_prefix_mask = prefix_tokens[:, step].eq(self.pad)
+                    else:   #  all prefixes finished force-decoding
+                        partial_prefix_mask = torch.ones(bsz).to(prefix_tokens).byte()
                     if partial_prefix_mask.any():
                         # track new free-decoding batches, at whose very first step
                         # only use the first beam to eliminate repeats
