@@ -159,6 +159,7 @@ class MaskedLMEncoder(FairseqEncoder):
         self.embed_out = None
         self.sentence_projection_layer = None
         self.sentence_out_dim = args.sentence_class_num
+        self.lm_output_learned_bias = None
 
         # Remove head is set to true during fine-tuning
         self.load_softmax = not getattr(args, 'remove_head', False)
@@ -252,7 +253,11 @@ class MaskedLMEncoder(FairseqEncoder):
             ] = torch.FloatTensor(1)
         if not self.load_softmax:
             for k in list(state_dict.keys()):
-                if "embed_out.weight" in k or "sentence_projection_layer.weight" in k:
+                if (
+                    "embed_out.weight" in k or
+                    "sentence_projection_layer.weight" in k or
+                    "lm_output_learned_bias" in k
+                ):
                     del state_dict[k]
         return state_dict
 
