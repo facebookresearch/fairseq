@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -18,7 +18,7 @@ pt_regexp_epoch_based = re.compile(r'checkpoint(\d+)\.pt')
 pt_regexp_update_based = re.compile(r'checkpoint_\d+_(\d+)\.pt')
 
 
-def last_n_checkpoints(files, n):
+def parse_checkpoints(files):
     entries = []
     for f in files:
         m = pt_regexp_epoch_based.fullmatch(f)
@@ -28,20 +28,17 @@ def last_n_checkpoints(files, n):
             m = pt_regexp_update_based.fullmatch(f)
             if m is not None:
                 entries.append((int(m.group(1)), m.group(0)))
+    return entries
+
+
+def last_n_checkpoints(files, n):
+    entries = parse_checkpoints(files)
     return [x[1] for x in sorted(entries, reverse=True)[:n]]
 
 
 def every_n_checkpoints(files, n):
-    entries = []
-    for f in files:
-        m = pt_regexp_epoch_based.fullmatch(f)
-        if m is not None:
-            entries.append((int(m.group(1)), m.group(0)))
-        else:
-            m = pt_regexp_update_based.fullmatch(f)
-            if m is not None:
-                entries.append((int(m.group(1)), m.group(0)))
-    return [x[1] for x in sorted(entries)[n-1::n]]
+    entries = parse_checkpoints(files)
+    return [x[1] for x in sorted(sorted(entries)[::-n])]
 
 
 def main():
@@ -67,11 +64,11 @@ def main():
     for root_dir in args.root_dirs:
         for root, _subdirs, files in os.walk(root_dir):
             if args.save_last > 0:
-                to_save = set(last_n_checkpoints(files, args.save_last))
+                to_save = last_n_checkpoints(files, args.save_last)
             else:
-                to_save = set()
+                to_save = []
             if args.save_every > 0:
-                to_save = to_save | set(every_n_checkpoints(files, args.save_every))
+                to_save += every_n_checkpoints(files, args.save_every)
             for file in files:
                 if not pt_regexp.fullmatch(file):
                     continue
@@ -97,6 +94,10 @@ def main():
     if len(files_to_desymlink) == 0 and len(files_to_delete) == 0:
         print('Nothing to do.')
         sys.exit(0)
+
+    files_to_desymlink = sorted(files_to_desymlink)
+    files_to_preserve = sorted(files_to_preserve)
+    files_to_delete = sorted(files_to_delete)
 
     print('Operations to perform (in order):')
     if len(files_to_desymlink) > 0:
