@@ -20,6 +20,7 @@ from fairseq.data import (
     indexed_dataset,
 )
 from fairseq.models import FairseqMultiModel
+from fairseq.tasks.translation import load_langpair_dataset
 
 
 from . import FairseqTask, register_task
@@ -84,6 +85,8 @@ class MultilingualTranslationTask(FairseqTask):
                             help='max number of tokens in the source sequence')
         parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
                             help='max number of tokens in the target sequence')
+        parser.add_argument('--upsample-primary', default=1, type=int,
+                            help='amount to upsample primary dataset')
         parser.add_argument('--encoder-langtok', default=None, type=str, choices=['src', 'tgt'],
                             metavar='SRCTGT',
                             help='replace beginning-of-sentence in source sentence with source or target '
@@ -196,40 +199,19 @@ class MultilingualTranslationTask(FairseqTask):
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
-        def split_exists(split, src, tgt, lang):
-            filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
-            return indexed_dataset.dataset_exists(filename, impl=self.args.dataset_impl)
-
-        src_datasets, tgt_datasets = {}, {}
-        for lang_pair in self.args.lang_pairs:
-            src, tgt = lang_pair.split('-')
-            if split_exists(split, src, tgt, src):
-                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, src, tgt))
-            elif split_exists(split, tgt, src, src):
-                prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, tgt, src))
-            else:
-                continue
-            src_datasets[lang_pair] = indexed_dataset.make_dataset(prefix + src, impl=self.args.dataset_impl,
-                                                                   fix_lua_indexing=True, dictionary=self.dicts[src])
-            tgt_datasets[lang_pair] = indexed_dataset.make_dataset(prefix + tgt, impl=self.args.dataset_impl,
-                                                                   fix_lua_indexing=True, dictionary=self.dicts[tgt])
-            print('| {} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
-
-        if len(src_datasets) == 0:
-            raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
-
         def language_pair_dataset(lang_pair):
             src, tgt = lang_pair.split('-')
-            src_dataset, tgt_dataset = src_datasets[lang_pair], tgt_datasets[lang_pair]
+            langpair_dataset = load_langpair_dataset(
+                data_path, split, src, self.dicts[src], tgt, self.dicts[tgt],
+                combine=True, dataset_impl=self.args.dataset_impl,
+                upsample_primary=self.args.upsample_primary,
+                left_pad_source=self.args.left_pad_source,
+                left_pad_target=self.args.left_pad_target,
+                max_source_positions=self.args.max_source_positions,
+                max_target_positions=self.args.max_target_positions,
+            )
             return self.alter_dataset_langtok(
-                LanguagePairDataset(
-                    src_dataset, src_dataset.sizes, self.dicts[src],
-                    tgt_dataset, tgt_dataset.sizes, self.dicts[tgt],
-                    left_pad_source=self.args.left_pad_source,
-                    left_pad_target=self.args.left_pad_target,
-                    max_source_positions=self.args.max_source_positions,
-                    max_target_positions=self.args.max_target_positions,
-                ),
+                langpair_dataset,
                 src_eos=self.dicts[tgt].eos(),
                 src_lang=src,
                 tgt_lang=tgt,
