@@ -330,6 +330,8 @@ def add_checkpoint_args(parser):
                        help='if set, does not load lr scheduler state from the checkpoint')
     group.add_argument('--optimizer-overrides', default="{}", type=str, metavar='DICT',
                        help='a dictionary used to override optimizer args when loading a checkpoint')
+    group.add_argument('--reset-meters', action='store_true',
+                       help='if set, does not load meters from the checkpoint')
     group.add_argument('--save-interval', type=int, default=1, metavar='N',
                        help='save a checkpoint every N epochs')
     group.add_argument('--save-interval-updates', type=int, default=0, metavar='N',

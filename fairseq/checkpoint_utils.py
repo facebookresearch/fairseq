@@ -103,6 +103,7 @@ def load_checkpoint(args, trainer):
         args.reset_optimizer,
         args.reset_lr_scheduler,
         eval(args.optimizer_overrides),
+        reset_meters=args.reset_meters,
     )
 
     if extra_state is not None and 'best' in extra_state and not args.reset_optimizer:

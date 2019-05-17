@@ -21,7 +21,7 @@ class FairseqDataset(torch.utils.data.Dataset):
         """Merge a list of samples to form a mini-batch.
 
         Args:
-            samples (List[int]): sample indices to collate
+            samples (List[dict]): samples to collate
 
         Returns:
             dict: a mini-batch suitable for forwarding with a Model

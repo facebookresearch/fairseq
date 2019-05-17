@@ -4,12 +4,15 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
+
 import os
 import shutil
 import struct
 
 import numpy as np
 import torch
+
+from . import FairseqDataset
 
 
 def make_builder(out_file, impl):
@@ -78,7 +81,7 @@ def data_file_path(prefix_path):
     return prefix_path + '.bin'
 
 
-class IndexedDataset(torch.utils.data.Dataset):
+class IndexedDataset(FairseqDataset):
     """Loader for TorchNet IndexedDataset"""
 
     def __init__(self, path, fix_lua_indexing=False):
@@ -99,16 +102,16 @@ class IndexedDataset(torch.utils.data.Dataset):
             assert struct.unpack('<Q', version) == (1,)
             code, self.element_size = struct.unpack('<QQ', f.read(16))
             self.dtype = dtypes[code]
-            self.size, self.s = struct.unpack('<QQ', f.read(16))
-            self.dim_offsets = read_longs(f, self.size + 1)
-            self.data_offsets = read_longs(f, self.size + 1)
+            self._len, self.s = struct.unpack('<QQ', f.read(16))
+            self.dim_offsets = read_longs(f, self._len + 1)
+            self.data_offsets = read_longs(f, self._len + 1)
             self.sizes = read_longs(f, self.s)
 
     def read_data(self, path):
         self.data_file = open(data_file_path(path), 'rb', buffering=0)
 
     def check_index(self, i):
-        if i < 0 or i >= self.size:
+        if i < 0 or i >= self._len:
             raise IndexError('index out of range')
 
     def __del__(self):
@@ -129,7 +132,13 @@ class IndexedDataset(torch.utils.data.Dataset):
         return item
 
     def __len__(self):
-        return self.size
+        return self._len
+
+    def num_tokens(self, index):
+        return self.sizes[index]
+
+    def size(self, index):
+        return self.sizes[index]
 
     @staticmethod
     def exists(path):
@@ -189,7 +198,7 @@ class IndexedCachedDataset(IndexedDataset):
         return item
 
 
-class IndexedRawTextDataset(torch.utils.data.Dataset):
+class IndexedRawTextDataset(FairseqDataset):
     """Takes a text file as input and binarizes it in memory at instantiation.
     Original lines are also kept in memory"""
 
@@ -231,6 +240,12 @@ class IndexedRawTextDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.size
+
+    def num_tokens(self, index):
+        return self.sizes[index]
+
+    def size(self, index):
+        return self.sizes[index]
 
     @staticmethod
     def exists(path):
