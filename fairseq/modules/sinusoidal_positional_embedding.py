@@ -80,6 +80,9 @@ class SinusoidalPositionalEmbedding(nn.Module):
             embedding_shape = torch.cat((bsz.view(1), seq_len.view(1), torch.LongTensor([-1])))
             embeddings = torch.onnx.operators.reshape_from_tensor_shape(flat_embeddings, embedding_shape)
             return embeddings
+        print(f'{self.weights.device} is device of weights, '
+              f'{positions.device} is device of positions, '
+              f'{input.device} is device of input')
         return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
 
     def max_positions(self):
