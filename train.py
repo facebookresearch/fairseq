@@ -64,27 +64,9 @@ def main(args, init_distributed=False):
         args.max_sentences,
     ))
 
-    max_positions = utils.resolve_max_positions(
-        task.max_positions(),
-        model.max_positions(),
-    )
-    # Initialize dataloader
-    epoch_itr = task.get_batch_iterator(
-        dataset=task.dataset(args.train_subset),
-        max_tokens=args.max_tokens,
-        max_sentences=args.max_sentences,
-        max_positions=max_positions,
-        ignore_invalid_inputs=True,
-        required_batch_size_multiple=args.required_batch_size_multiple,
-        seed=args.seed,
-        num_shards=args.distributed_world_size,
-        shard_id=args.distributed_rank,
-        num_workers=args.num_workers,
-    )
-
-    # Load the latest checkpoint if one is available
-    checkpoint_utils.load_checkpoint(
-        args, trainer, epoch_itr, max_positions, task)
+    # Load the latest checkpoint if one is available and restore the
+    # corresponding train iterator
+    extra_state, epoch_itr = checkpoint_utils.load_checkpoint(args, trainer)
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
@@ -106,10 +88,11 @@ def main(args, init_distributed=False):
 
         # save checkpoint
         if epoch_itr.epoch % args.save_interval == 0:
-            checkpoint_utils.save_checkpoint(
-                args, trainer, epoch_itr, valid_losses[0])
+            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
-        epoch_itr = checkpoint_utils.reload_train(args, epoch_itr, max_positions, task)
+        if ':' in args.data:
+            # sharded data: get train iterator for next epoch
+            epoch_itr = trainer.get_train_iterator(epoch_itr.epoch)
     train_meter.stop()
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
 

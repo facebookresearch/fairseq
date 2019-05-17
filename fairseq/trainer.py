@@ -124,8 +124,9 @@ class Trainer(object):
         if distributed_utils.is_master(self.args):  # only save one checkpoint
             extra_state['train_meters'] = self.meters
             checkpoint_utils.save_state(
-                filename, self.args, self.get_model().state_dict(), self.criterion, self.optimizer,
-                self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
+                filename, self.args, self.get_model().state_dict(), self.criterion,
+                self.optimizer, self.lr_scheduler, self._num_updates,
+                self._optim_history, extra_state,
             )
 
     def load_checkpoint(self, filename, reset_optimizer=False, reset_lr_scheduler=False, optimizer_overrides=None):
@@ -165,16 +166,47 @@ class Trainer(object):
 
             self._num_updates = last_optim['num_updates']
 
-        if extra_state is not None and 'train_meters' in extra_state:
-            self.meters.update(extra_state['train_meters'])
-            del extra_state['train_meters']
+        if extra_state is not None:
+            epoch = extra_state['train_iterator']['epoch']
+            print('| loaded checkpoint {} (epoch {} @ {} updates)'.format(
+                filename, epoch, self.get_num_updates()))
 
-            # reset TimeMeters, since their start times don't make sense anymore
-            for meter in self.meters.values():
-                if isinstance(meter, TimeMeter):
-                    meter.reset()
+            self.lr_step(epoch)
+            self.lr_step_update(self.get_num_updates())
+
+            if 'train_meters' in extra_state:
+                self.meters.update(extra_state['train_meters'])
+                del extra_state['train_meters']
+
+                # reset TimeMeters, since their start times don't make sense anymore
+                for meter in self.meters.values():
+                    if isinstance(meter, TimeMeter):
+                        meter.reset()
+        else:
+            print('| no existing checkpoint found {}'.format(filename))
 
         return extra_state
+
+    def get_train_iterator(self, epoch, combine=True):
+        """Return an EpochBatchIterator over the training set for a given epoch."""
+        print('| loading train data for epoch {}'.format(epoch))
+        self.task.load_dataset(self.args.train_subset, epoch=epoch, combine=combine)
+        return self.task.get_batch_iterator(
+            dataset=self.task.dataset(self.args.train_subset),
+            max_tokens=self.args.max_tokens,
+            max_sentences=self.args.max_sentences,
+            max_positions=utils.resolve_max_positions(
+                self.task.max_positions(),
+                self.model.max_positions(),
+            ),
+            ignore_invalid_inputs=True,
+            required_batch_size_multiple=self.args.required_batch_size_multiple,
+            seed=self.args.seed,
+            num_shards=self.args.distributed_world_size,
+            shard_id=self.args.distributed_rank,
+            num_workers=self.args.num_workers,
+            epoch=epoch,
+        )
 
     def train_step(self, samples, dummy_batch=False, raise_oom=False):
         """Do forward, backward and parameter update."""
