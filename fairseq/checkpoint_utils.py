@@ -87,9 +87,9 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
                 os.remove(old_chk)
 
 
-def load_checkpoint(args, trainer, epoch_itr, max_positions, task):
-    """Load a checkpoint and replay dataloader to match."""
-    # Only rank 0 should attempt to create the required dir
+def load_checkpoint(args, trainer):
+    """Load a checkpoint and restore the training iterator."""
+    # only one worker should attempt to create the required dir
     if args.distributed_rank == 0:
         os.makedirs(args.save_dir, exist_ok=True)
 
@@ -97,32 +97,26 @@ def load_checkpoint(args, trainer, epoch_itr, max_positions, task):
         checkpoint_path = args.restore_file
     else:
         checkpoint_path = os.path.join(args.save_dir, args.restore_file)
-    if os.path.isfile(checkpoint_path):
-        extra_state = trainer.load_checkpoint(checkpoint_path, args.reset_optimizer, args.reset_lr_scheduler,
-                                              eval(args.optimizer_overrides))
-        if extra_state is not None:
-            # replay train iterator to match checkpoint
-            epoch_itr_state = extra_state['train_iterator']
 
-            # If the loaded checkpoint is not at epoch 0, reload train dataset,
-            # as it could be potentially sharded.
-            if epoch_itr_state['epoch'] != 0:
-                epoch_itr = reload_train(args, epoch_itr, max_positions, task)
+    extra_state = trainer.load_checkpoint(
+        checkpoint_path,
+        args.reset_optimizer,
+        args.reset_lr_scheduler,
+        eval(args.optimizer_overrides),
+    )
 
-            epoch_itr.load_state_dict(epoch_itr_state)
+    if extra_state is not None and 'best' in extra_state and not args.reset_optimizer:
+        save_checkpoint.best = extra_state['best']
 
-            print('| loaded checkpoint {} (epoch {} @ {} updates)'.format(
-                checkpoint_path, epoch_itr.epoch, trainer.get_num_updates()))
-
-            trainer.lr_step(epoch_itr.epoch)
-            trainer.lr_step_update(trainer.get_num_updates())
-            if 'best' in extra_state and not args.reset_optimizer:
-                save_checkpoint.best = extra_state['best']
-        return True
+    if extra_state is not None:
+        # restore iterator from checkpoint
+        itr_state = extra_state['train_iterator']
+        epoch_itr = trainer.get_train_iterator(epoch=itr_state['epoch'])
+        epoch_itr.load_state_dict(itr_state)
     else:
-        print('| no existing checkpoint found {}'.format(checkpoint_path))
-    return False
+        epoch_itr = trainer.get_train_iterator(epoch=0)
 
+    return extra_state, epoch_itr
 
 
 def load_checkpoint_to_cpu(path):
@@ -163,28 +157,6 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None):
         ensemble.append(model)
 
     return ensemble, args
-
-
-def reload_train(args, epoch_itr, max_positions, task):
-    # nothing needs to be done when the dataset is not sharded.
-    if "data" not in args or ("data" in args and len(args.data.split(":")) == 1):
-        return epoch_itr
-    print("| Reloading shard of train data at epoch: ", epoch_itr.epoch)
-    task.load_dataset(args.train_subset, combine=True, epoch=epoch_itr.epoch)
-    epoch_itr = task.get_batch_iterator(
-        dataset=task.dataset(args.train_subset),
-        max_tokens=args.max_tokens,
-        max_sentences=args.max_sentences,
-        max_positions=max_positions,
-        ignore_invalid_inputs=True,
-        required_batch_size_multiple=args.required_batch_size_multiple,
-        seed=args.seed,
-        num_shards=args.distributed_world_size,
-        shard_id=args.distributed_rank,
-        num_workers=args.num_workers,
-        epoch=epoch_itr.epoch,
-    )
-    return epoch_itr
 
 
 def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):

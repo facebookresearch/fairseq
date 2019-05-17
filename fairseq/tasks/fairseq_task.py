@@ -118,7 +118,8 @@ class FairseqTask(object):
             num_workers (int, optional): how many subprocesses to use for data
                 loading. 0 means the data will be loaded in the main process
                 (default: 0).
-            epoch (int, optional): The epoch to start the iterator from.
+            epoch (int, optional): the epoch to start the iterator from
+                (default: 0).
 
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
