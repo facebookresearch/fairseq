@@ -50,11 +50,12 @@ class ConcatDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return all([d.supports_prefetch for d in self.datasets])
+        return any(getattr(d, 'supports_prefetch', False) for d in self.datasets)
 
     def prefetch(self, indices):
         frm = 0
         for to, ds in zip(self.cumulative_sizes, self.datasets):
             real_size = len(ds)
-            ds.prefetch([(i - frm) % real_size for i in indices if frm <= i < to])
+            if getattr(ds, 'supports_prefetch', False):
+                ds.prefetch([(i - frm) % real_size for i in indices if frm <= i < to])
             frm = to
