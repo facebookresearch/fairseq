@@ -82,7 +82,8 @@ class SinusoidalPositionalEmbedding(nn.Module):
             return embeddings
         print(f'{self.weights.device} is device of weights, '
               f'{positions.device} is device of positions, '
-              f'{input.device} is device of input')
+              f'{input.device} is device of input, '
+              f'{self._float_tensor.device} is device of _float_tensor')
         return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
 
     def max_positions(self):
