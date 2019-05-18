@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 import torch.nn as nn
@@ -81,6 +81,7 @@ class TransformerSentenceEncoder(nn.Module):
         max_seq_len: int = 256,
         num_segments: int = 2,
         use_position_embeddings: bool = True,
+        offset_positions_by_padding: bool = True,
         encoder_normalize_before: bool = False,
         apply_bert_init: bool = False,
         activation_fn: str = 'relu',
@@ -116,7 +117,10 @@ class TransformerSentenceEncoder(nn.Module):
             PositionalEmbedding(
                 self.max_seq_len,
                 self.embedding_dim,
-                self.padding_idx,
+                padding_idx=(
+                    self.padding_idx if offset_positions_by_padding
+                    else None
+                ),
                 learned=self.learned_pos_embedding,
             )
             if self.use_position_embeddings
@@ -154,6 +158,7 @@ class TransformerSentenceEncoder(nn.Module):
         tokens: torch.Tensor,
         segment_labels: torch.Tensor,
         last_state_only: bool = False,
+        positions: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # compute padding mask. This is needed for multi-head attention
@@ -162,11 +167,12 @@ class TransformerSentenceEncoder(nn.Module):
             padding_mask = None
 
         x = self.embed_tokens(tokens)
+
         if self.embed_scale is not None:
             x *= self.embed_scale
 
         if self.embed_positions is not None:
-            x += self.embed_positions(tokens)
+            x += self.embed_positions(tokens, positions=positions)
 
         if self.segment_embeddings is not None and segment_labels is not None:
             x += self.segment_embeddings(segment_labels)
