@@ -2,7 +2,7 @@
 Vineet Kumar, sioom corp
 From old dataset, create new dataset that works with the fairseq code base
 From directory examples/transaction_bot/, issue following command:
-python3 create-fairseq-dialog-dataset.py
+python3 create-fairseq-dialog-dataset.py data-bin/transaction_bot
 '''
 import sys
 import pathlib
@@ -23,6 +23,7 @@ logger.addHandler(console)
 # In general, try-except is not used because cannot recover from those failures
 tbotDirP = pathlib.Path(sys.argv[0]).parents[0].resolve()
 baseDirP = tbotDirP.parents[1]  # fairseq base directory
+dialogIndexDirP = baseDirP.joinpath(sys.argv[1]).resolve()
 oldDatasetDirP = tbotDirP.joinpath('dialog-bAbI-tasks')
 if not oldDatasetDirP.exists():
     sys.exit(f'**Error** Program ended prematurely.\n\
@@ -31,6 +32,7 @@ Run this program after downloading the dataset at {oldDatasetDirP}')
 logger.debug(f'create directories for new dataset')
 newDatasetDirP = tbotDirP.joinpath('fairseq-dialog-dataset')
 shutil.rmtree(newDatasetDirP, ignore_errors=True)
+shutil.rmtree(dialogIndexDirP, ignore_errors=True)
 fileNameCmpnts0 = {'task1', 'task1-OOV'}
 # fileNameCmpnts0 = {'task1', 'task1-OOV', 'task2', 'task2-OOV', 'task3',
 #                   'task3-OOV', 'task4', 'task4-OOV', 'task5',
@@ -39,6 +41,7 @@ fileNameCmpnts1 = {'dev', 'trn', 'tst'}
 fileNameCmpnts2 = {'OOV'}
 for fileNameCmpnt0 in fileNameCmpnts0:
     newDatasetDirP.joinpath(fileNameCmpnt0).mkdir(parents=True)
+    dialogIndexDirP.joinpath(fileNameCmpnt0).mkdir(parents=True)
 
 logger.debug(f'create files for new dataset')
 for oldFileP in oldDatasetDirP.glob('dialog-babi-task*.txt'):
@@ -50,7 +53,7 @@ for oldFileP in oldDatasetDirP.glob('dialog-babi-task*.txt'):
                 f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}.bot')
         newHmnFile = newDatasetDirP.joinpath(oldFileNameCmpnts[0]).joinpath(
                 f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}.hmn')
-        dialogIndexFile = newDatasetDirP.joinpath(
+        dialogIndexFile = dialogIndexDirP.joinpath(
                 oldFileNameCmpnts[0]).joinpath(
                f'dialog-index-{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}')
     elif len(oldFileNameCmpnts) == 3 and oldFileNameCmpnts[0] in \
@@ -62,7 +65,7 @@ for oldFileP in oldDatasetDirP.glob('dialog-babi-task*.txt'):
         newHmnFile = newDatasetDirP.joinpath(
             f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[2]}').joinpath(f'\
 {oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}-{oldFileNameCmpnts[2]}.hmn')
-        dialogIndexFile = newDatasetDirP.joinpath(
+        dialogIndexFile = dialogIndexDirP.joinpath(
             f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[2]}').joinpath(f'\
 dialog-index-{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}-{oldFileNameCmpnts[2]}')
     else:

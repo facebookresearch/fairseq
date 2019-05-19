@@ -7,7 +7,7 @@ $ cd examples/transaction_bot/
 # (1) Go to https://fb-public.app.box.com/s/chnq60iivzv5uckpvj2n2vijlyepze6w 
 # (2) Download dialog-bAbI-tasks_1_.tgz in directory fairseq/examples/transaction_bot
 $ tar zxvf dialog-bAbI-tasks_1_.tgz
-$ python3 create-fairseq-dialog-dataset.py
+$ python3 create-fairseq-dialog-dataset.py data-bin/transaction_bot
 
 $ mkdir pretrained-word-vectors
 $ cd pretrained-word-vectors
