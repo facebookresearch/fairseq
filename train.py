@@ -90,7 +90,7 @@ def main(args, init_distributed=False):
         if epoch_itr.epoch % args.save_interval == 0:
             checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
-        if ':' in args.data:
+        if ':' in getattr(args, 'data', ''):
             # sharded data: get train iterator for next epoch
             epoch_itr = trainer.get_train_iterator(epoch_itr.epoch)
     train_meter.stop()
