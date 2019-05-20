@@ -38,6 +38,7 @@ fileNameCmpnts0 = {'task1', 'task1-OOV'}
 #                   'task3-OOV', 'task4', 'task4-OOV', 'task5',
 #                   'task5-OOV', 'task6'}
 fileNameCmpnts1 = {'dev', 'trn', 'tst'}
+fileNameCmpnts1Dict = {'dev': 'valid', 'trn': 'train', 'tst': 'test'}
 fileNameCmpnts2 = {'OOV'}
 for fileNameCmpnt0 in fileNameCmpnts0:
     newDatasetDirP.joinpath(fileNameCmpnt0).mkdir(parents=True)
@@ -55,7 +56,7 @@ for oldFileP in oldDatasetDirP.glob('dialog-babi-task*.txt'):
                 f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}.hmn')
         dialogIndexFile = dialogIndexDirP.joinpath(
                 oldFileNameCmpnts[0]).joinpath(
-               f'dialog-index-{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}')
+                f'dialog-index-{fileNameCmpnts1Dict[oldFileNameCmpnts[1]]}')
     elif len(oldFileNameCmpnts) == 3 and oldFileNameCmpnts[0] in \
             fileNameCmpnts0 and oldFileNameCmpnts[1] in fileNameCmpnts1 \
             and oldFileNameCmpnts[2] in fileNameCmpnts2:
@@ -66,8 +67,8 @@ for oldFileP in oldDatasetDirP.glob('dialog-babi-task*.txt'):
             f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[2]}').joinpath(f'\
 {oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}-{oldFileNameCmpnts[2]}.hmn')
         dialogIndexFile = dialogIndexDirP.joinpath(
-            f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[2]}').joinpath(f'\
-dialog-index-{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[1]}-{oldFileNameCmpnts[2]}')
+            f'{oldFileNameCmpnts[0]}-{oldFileNameCmpnts[2]}').joinpath(
+                f'dialog-index-{fileNameCmpnts1Dict[oldFileNameCmpnts[1]]}')
     else:
         continue
     newBotFile.touch(exist_ok=False)
@@ -112,7 +113,7 @@ Line: {line}')
     with newHmnFile.open('r') as hmnFile:
         # the sum expression calculates the number of lines in the file;
         # the sum expression is a generator so it cannot be used again unless
-        # the file is closed and then opened again 
+        # the file is closed and then opened again
         if hmnBotFileLineCount - sum(1 for _ in hmnFile):
             logger.critical(f'line count is wrong')
     with newHmnFile.open('r') as hmnFile:
