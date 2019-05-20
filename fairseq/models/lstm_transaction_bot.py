@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 # Vineet Kumar @ sioom: This file is a copy of lstm.py, with changes made for
-# the transaction bot
+# the transaction bot implementation
 
 import torch
 import torch.nn as nn

@@ -4,9 +4,10 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
-# Vineet Kumar @ sioom: This file is a copy of lstm.py, with changes made for
-# the transaction bot
+# Vineet Kumar @ sioom: This file is a copy of translation.py, with changes
+# made for the transaction bot implementation
 
+import pickle
 import itertools
 import os
 
@@ -15,13 +16,13 @@ from fairseq.data import (
     ConcatDataset,
     data_utils,
     indexed_dataset,
-    LanguagePairDataset,
+    dialog_dataset,
 )
 
 from . import FairseqTask, register_task
 
 
-def load_langpair_dataset(
+def load_dialog_dataset(
     data_path, split,
     src, src_dict,
     tgt, tgt_dict,
@@ -54,6 +55,10 @@ def load_langpair_dataset(
         tgt_datasets.append(indexed_dataset.make_dataset(prefix + tgt, impl=dataset_impl,
                                                          fix_lua_indexing=True, dictionary=tgt_dict))
 
+        with open(
+                os.path.join(data_path, f'dialog-index-{split_k}'), 'rb') as f:
+            dialog_index = pickle.load(f)
+
         print('| {} {} {}-{} {} examples'.format(data_path, split_k, src, tgt, len(src_datasets[-1])))
 
         if not combine:
@@ -69,13 +74,14 @@ def load_langpair_dataset(
         src_dataset = ConcatDataset(src_datasets, sample_ratios)
         tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
 
-    return LanguagePairDataset(
+    return dialog_dataset.dialogDataset(
         src_dataset, src_dataset.sizes, src_dict,
         tgt_dataset, tgt_dataset.sizes, tgt_dict,
         left_pad_source=left_pad_source,
         left_pad_target=left_pad_target,
         max_source_positions=max_source_positions,
         max_target_positions=max_target_positions,
+        dialog_index=dialog_index,
     )
 
 
@@ -180,7 +186,7 @@ class TransactionBotTask(FairseqTask):
         # infer langcode
         src, tgt = self.args.source_lang, self.args.target_lang
 
-        self.datasets[split] = load_langpair_dataset(
+        self.datasets[split] = load_dialog_dataset(
             data_path, split, src, self.src_dict, tgt, self.tgt_dict,
             combine=combine, dataset_impl=self.args.dataset_impl,
             upsample_primary=self.args.upsample_primary,
@@ -191,7 +197,7 @@ class TransactionBotTask(FairseqTask):
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths):
-        return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
+        return dialog_dataset.dialogDataset(src_tokens, src_lengths, self.source_dictionary)
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
