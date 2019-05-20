@@ -152,7 +152,7 @@ class MaskedLMDataset(FairseqDataset):
         masked_sent = np.copy(sentence)
         sent_length = len(sentence)
         mask_num = math.ceil(sent_length * self.masking_ratio)
-        mask = np.random.choice(sent_length, mask_num)
+        mask = np.random.choice(sent_length, mask_num, replace=False)
         target = np.copy(sentence)
 
         for i in range(sent_length):
