@@ -17,7 +17,7 @@ $ cd ../..
 
 # Binarize the dataset:
 $ TEXT=examples/transaction_bot/fairseq-dialog-dataset/task1
-$ python3 -m pdb preprocess.py --task transaction_bot --source-lang hmn --target-lang bot --joined-dictionary --trainpref $TEXT/task1-trn --validpref $TEXT/task1-dev --testpref $TEXT/task1-tst --destdir data-bin/transaction_bot/task1
+$ python3 preprocess.py --task transaction_bot --source-lang hmn --target-lang bot --joined-dictionary --trainpref $TEXT/task1-trn --validpref $TEXT/task1-dev --testpref $TEXT/task1-tst --destdir data-bin/transaction_bot/task1
 
 # Train the model (better for a single GPU setup):
 # ***NOTE*** if Training must be started from the beginning then the checkpoint files
