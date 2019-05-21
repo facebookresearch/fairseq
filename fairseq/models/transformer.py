@@ -53,8 +53,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
     def add_args(parser):
         """Add model-specific arguments to the parser."""
         # fmt: off
-        parser.add_argument('--activation-fn', choices=['relu', 'gelu', 'gelu_accurate'],
-                            help='Which activation function to use')
+        parser.add_argument('--activation-fn',
+                            choices=utils.get_available_activation_fns(),
+                            help='activation function to use')
         parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--attention-dropout', type=float, metavar='D',
@@ -73,6 +74,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='num encoder attention heads')
         parser.add_argument('--encoder-normalize-before', action='store_true',
                             help='apply layernorm before each encoder block')
+        parser.add_argument('--decoder-final-norm', default=False, action='store_true',
+                            help='apply layernorm before each decoder block')
         parser.add_argument('--encoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the encoder')
         parser.add_argument('--decoder-embed-path', type=str, metavar='STR',

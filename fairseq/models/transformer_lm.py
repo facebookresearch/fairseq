@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from fairseq import options
+from fairseq import options, utils
 from fairseq.models import (
     FairseqLanguageModel,
     register_model,
@@ -30,6 +30,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
     def add_args(parser):
         """Add model-specific arguments to the parser."""
         # fmt: off
+        parser.add_argument('--activation-fn',
+                            choices=utils.get_available_activation_fns(),
+                            help='activation function to use')
         parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
                             help='dropout probability')
         parser.add_argument('--attention-dropout', default=0., type=float, metavar='D',
@@ -49,6 +52,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--decoder-attention-heads', type=int, metavar='N',
                             help='num decoder attention heads')
         parser.add_argument('--decoder-normalize-before', default=False, action='store_true',
+                            help='apply layernorm before each decoder block')
+        parser.add_argument('--decoder-final-norm', default=False, action='store_true',
                             help='apply layernorm before each decoder block')
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
@@ -123,7 +128,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
             assert args.decoder_input_dim == args.decoder_output_dim
 
         decoder = TransformerDecoder(
-            args, task.output_dictionary, embed_tokens, no_encoder_attn=True, final_norm=False,
+            args, task.output_dictionary, embed_tokens, no_encoder_attn=True,
+            final_norm=args.decoder_final_norm,
         )
         return TransformerLanguageModel(decoder)
 

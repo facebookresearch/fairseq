@@ -6,12 +6,12 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import defaultdict
-from typing import Callable
 import copy
 import importlib.util
 import math
 import os
 import sys
+from typing import Callable, List
 import warnings
 
 import torch
@@ -314,3 +314,13 @@ def get_activation_fn(activation: str) -> Callable:
         return F.tanh
     else:
         raise RuntimeError(f"--activation-fn {activation} not supported")
+
+
+def get_available_activation_fns() -> List:
+    return [
+        'relu',
+        'gelu',
+        'gelu_fast',  # deprecated
+        'gelu_accurate',
+        'tanh',
+    ]
