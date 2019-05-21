@@ -388,3 +388,10 @@ def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
             idx = int(m.group(1)) if len(m.groups()) > 0 else i
             entries.append((idx, m.group(0)))
     return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
+
+
+def inspect_grad(name, who, table):
+    if table is None:
+        return
+    table[name] = who
+    who.retain_grad()

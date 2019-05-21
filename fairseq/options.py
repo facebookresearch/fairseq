@@ -113,6 +113,8 @@ def get_parser(desc, default_task='translation'):
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
     parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
                         help='log progress every N batches (when progress bar is disabled)')
+    parser.add_argument('--tb-log-interval', type=int, default=100, metavar='N',
+                        help='tensorboard log progress every N updates (when TensorboardX is available')
     parser.add_argument('--log-format', default=None, help='log format to use',
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--seed', default=1, type=int, metavar='N',
@@ -232,6 +234,8 @@ def add_checkpoint_args(parser):
                        help='only store last and best checkpoints')
     group.add_argument('--validate-interval', type=int, default=1, metavar='N',
                        help='validate every N epochs')
+    group.add_argument('--save-last-checkpoints', type=int, default=10000, metavar='N',
+                       help='only save the last N checkpoints')
     return group
 
 

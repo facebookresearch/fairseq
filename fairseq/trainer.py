@@ -55,6 +55,7 @@ class Trainer(object):
         self.meters['gnorm'] = AverageMeter()  # gradient norm
         self.meters['clip'] = AverageMeter()   # % of updates clipped
         self.meters['oom'] = AverageMeter()    # out of memory
+        self.meters['gnorm_detail'] = {}
         self.meters['wall'] = TimeMeter()      # wall time in seconds
 
         self._buffered_stats = defaultdict(lambda: [])
@@ -149,6 +150,8 @@ class Trainer(object):
             try:
                 # all-reduce and rescale gradients, then take an optimization step
                 grad_norm = self._all_reduce_and_rescale(grad_denom)
+                # before grad is cleaned
+                self._update_gnorm_detail(self.meters['gnorm_detail'], self.model)
                 self._opt()
 
                 # update meters
@@ -347,3 +350,16 @@ class Trainer(object):
         if sample is None or len(sample) == 0:
             return None
         return utils.move_to_cuda(sample)
+
+    def _update_gnorm_detail(self, meters, model):
+        if not hasattr(model, 'inspected_grads'):
+            return
+        #gnorms = {}
+        for name, p in model.inspected_grads().items():
+            if p.grad is None:
+                continue
+            gn = utils.item(torch.norm(p.grad.data))
+            name = 'grad_%s' % name
+            if name not in meters:
+                meters[name] = AverageMeter()
+            meters[name].update(gn)

@@ -105,3 +105,9 @@ ENV/
 
 # Generated files
 fairseq/temporal_convolution_tbc
+
+# Pycharm
+.idea
+
+# binary dataset
+data-bin

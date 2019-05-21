@@ -16,12 +16,50 @@ from fairseq import data, distributed_utils, options, progress_bar, tasks, utils
 from fairseq.fp16_trainer import FP16Trainer
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
+tensor_board = None
+
+
+def write_tensorboard(args, step, content, is_training=True):
+    interval = args.tb_log_interval if is_training else 1
+    label = 'train' if is_training else 'valid'
+    if tensor_board is not None and step % interval == 0:
+        for k, v in content.items():
+            if k not in ['num_updates', 'wall', 'clip', 'best']:
+                if str.startswith(k, 'grad_'):
+                    k = k.replace('_', '/').replace('self/attn', 'self_attn').replace('encoder/attn', 'encoder_attn')
+                    fields = k.split('/')
+                    assert len(fields) >= 3
+                    k2 = fields[2]
+                    if len(fields) == 3:
+                        k1 = fields[1]
+                    else:
+                        k1 = fields[1] + "_" + '_'.join(fields[3:])
+                    tensor_board.add_scalar('{}/{}'.format(k1, k2), float(v), step)
+                else:
+                    tensor_board.add_scalar('{}/{}'.format(label, k), float(v), step)
+        if is_training and 'grad_encoder_1' in content and 'grad_encoder_top' in content:
+            tensor_board.add_scalar('encoder_r',
+                                    float(content['grad_encoder_1']) / float(
+                                        content['grad_encoder_top']),
+                                    step)
+        if is_training and 'grad_decoder_1' in content and 'grad_decoder_top' in content:
+            tensor_board.add_scalar('decoder_r',
+                                    float(content['grad_decoder_1']) / float(
+                                        content['grad_decoder_top']),
+                                    step)
 
 
 def main(args):
     if args.max_tokens is None:
         args.max_tokens = 6000
     print(args)
+    # use tensor board
+    try:
+        from tensorboardX import SummaryWriter
+        global tensor_board
+        tensor_board = SummaryWriter(args.save_dir)
+    except ImportError:
+        raise RuntimeError('Can not use TensorBoard')
 
     if not torch.cuda.is_available():
         raise NotImplementedError('Training on CPU is not supported')
@@ -36,9 +74,10 @@ def main(args):
 
     # Build model and criterion
     model = task.build_model(args)
+    print(model)
     criterion = task.build_criterion(args)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
-    print('| num. model params: {}'.format(sum(p.numel() for p in model.parameters())))
+    print('| num. model params: {:,}'.format(sum(p.numel() for p in model.parameters())))
 
     # Build trainer
     if args.fp16:
@@ -88,6 +127,9 @@ def main(args):
 
         if epoch_itr.epoch % args.validate_interval == 0:
             valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+            stats = get_training_stats(trainer)
+            content = {'valid_loss_%d'%(i+1):vl for i, vl in enumerate(valid_losses)}
+            write_tensorboard(args, stats['num_updates'], content, is_training=False)
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
@@ -96,6 +138,11 @@ def main(args):
         if epoch_itr.epoch % args.save_interval == 0:
             save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
     train_meter.stop()
+    # export and close tensorboard
+    if tensor_board is not None:
+        import os
+        tensor_board.export_scalars_to_json(os.path.join(args.save_dir, 'train.json'))
+        tensor_board.close()
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
 
 
@@ -135,6 +182,10 @@ def train(args, trainer, task, epoch_itr):
                 extra_meters[k].update(v)
             stats[k] = extra_meters[k].avg
         progress.log(stats)
+        # add detailed gnorms
+        for k, v in trainer.get_meter('gnorm_detail').items():
+            stats[k] = v.avg
+        write_tensorboard(args, stats['num_updates'], stats, is_training=True)
 
         # ignore the first mini-batch in words-per-second calculation
         if i == 0:
@@ -304,6 +355,14 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[args.keep_interval_updates:]:
             os.remove(old_chk)
 
+    # remove old checkpoints to save space; checkpoints are sorted in descending order
+    checkpoints = utils.checkpoint_paths(args.save_dir, pattern=r'checkpoint(\d+)\.pt')
+    # remove the oldest checkpoint (except the best checkpoint)
+    if len(checkpoints) > args.save_last_checkpoints:
+        for ck in checkpoints[args.save_last_checkpoints:]:
+            if os.path.basename(ck) == os.path.basename(os.readlink(os.path.join(args.save_dir, 'checkpoint_best.pt'))):
+                continue
+            os.remove(ck)
 
 def load_checkpoint(args, trainer, epoch_itr):
     """Load a checkpoint and replay dataloader to match."""

@@ -114,10 +114,12 @@ class SequenceGenerator(object):
                 incremental_states[model] = None
 
             # compute the encoder output for each beam
-            encoder_out = model.encoder(
-                src_tokens.repeat(1, beam_size).view(-1, srclen),
-                src_lengths.expand(beam_size, src_lengths.numel()).t().contiguous().view(-1),
-            )
+            encoder_out = model.encoder(src_tokens, src_lengths)
+            encoder_out['encoder_out'] = encoder_out['encoder_out'].repeat(1, 1, beam_size).view(
+                srclen, bsz * beam_size, -1)
+            if encoder_out['encoder_padding_mask'] is not None:
+                encoder_out['encoder_padding_mask'] = encoder_out['encoder_padding_mask'].repeat(1, beam_size).view(
+                    -1, srclen)
             encoder_outs.append(encoder_out)
 
         # initialize buffers
