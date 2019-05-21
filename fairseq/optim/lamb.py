@@ -28,9 +28,9 @@ class FairseqLamb(FairseqOptimizer):
         """Add optimizer-specific arguments to the parser."""
         # fmt: off
         parser.add_argument('--lamb-betas', default='(0.9, 0.999)', metavar='B',
-                            help='betas for Adam optimizer')
+                            help='betas for LAMB optimizer')
         parser.add_argument('--lamb-eps', type=float, default=1e-8, metavar='D',
-                            help='epsilon for Adam optimizer')
+                            help='epsilon for LAMB optimizer')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
         # fmt: on
