@@ -23,10 +23,9 @@ from fairseq.modules import (
     AdaptiveSoftmax,
     DynamicConv1dTBC,
     LayerNorm,
-    LearnedPositionalEmbedding,
+    PositionalEmbedding,
     LightweightConv1dTBC,
     MultiheadAttention,
-    SinusoidalPositionalEmbedding,
 )
 
 
@@ -662,20 +661,6 @@ def Linear(in_features, out_features, bias=True):
     nn.init.xavier_uniform_(m.weight)
     if bias:
         nn.init.constant_(m.bias, 0.)
-    return m
-
-
-def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx, learned=False):
-    if learned:
-        m = LearnedPositionalEmbedding(
-            num_embeddings + padding_idx + 1, embedding_dim, padding_idx,
-        )
-        nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
-        nn.init.constant_(m.weight[padding_idx], 0)
-    else:
-        m = SinusoidalPositionalEmbedding(
-            embedding_dim, padding_idx, init_size=num_embeddings + padding_idx + 1,
-        )
     return m
 
 
