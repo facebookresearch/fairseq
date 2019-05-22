@@ -347,5 +347,6 @@ class MultilingualTranslationTask(FairseqTask):
                     (self.args.max_source_positions, self.args.max_target_positions)}
         return OrderedDict([
             (key, (self.args.max_source_positions, self.args.max_target_positions))
-            for key in next(iter(self.datasets.values())).datasets.keys()
+            for split in self.datasets.keys()
+            for key in self.datasets[split].datasets.keys()
         ])

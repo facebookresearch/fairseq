@@ -126,6 +126,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             ]
             self.model_lang_pairs += denoising_lang_pairs
         self.backtranslate_datasets = {}
+        self.backtranslators = {}
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -210,6 +211,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                         src_lang=tgt,
                         tgt_lang=src,
                     ),
+                    backtranslation_fn=self.backtranslators[lang_pair],
                     src_dict=self.dicts[src], tgt_dict=self.dicts[tgt],
                     output_collater=self.alter_dataset_langtok(
                         lang_pair_dataset=lang_pair_dataset,
@@ -324,7 +326,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                         sample,
                         bos_token=bos_token,
                     )
-                self.backtranslate_datasets[lang_pair].set_backtranslation_fn(backtranslate_fn)
+                self.backtranslators[lang_pair] = backtranslate_fn
 
         return model
 
