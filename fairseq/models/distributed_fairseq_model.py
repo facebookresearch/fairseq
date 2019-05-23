@@ -36,7 +36,6 @@ def DistributedFairseqModel(args, model):
             output_device=args.device_id,
             broadcast_buffers=False,
             bucket_cap_mb=args.bucket_cap_mb,
-            find_unused_parameters=args.find_unused_parameters
         )
         # Maintain backward compatibility
         if 'check_reduction' in inspect.getargspec(ddp_class)[0]:
