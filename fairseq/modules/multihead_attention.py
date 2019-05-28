@@ -91,6 +91,13 @@ class MultiheadAttention(nn.Module):
         batch x src_len, where padding elements are indicated by 1s.
         """
 
+        qkv_same = query.data_ptr() == key.data_ptr() == value.data_ptr()
+        kv_same = key.data_ptr() == value.data_ptr()
+
+        tgt_len, bsz, embed_dim = query.size()
+        assert embed_dim == self.embed_dim
+        assert list(query.size()) == [tgt_len, bsz, embed_dim]
+
         if self.enable_torch_version and not self.onnx_trace and incremental_state is None and not static_kv:
             # Apply torch.nn.MultiheadAttention module
             if self.qkv_same_dim:
@@ -98,7 +105,7 @@ class MultiheadAttention(nn.Module):
                 k_proj_weight = self.in_proj_weight[embed_dim:(embed_dim * 2), :]
                 v_proj_weight = self.in_proj_weight[(embed_dim * 2):, :]
             else:
-                q_proj_weight = self.k_proj_weight
+                q_proj_weight = self.q_proj_weight
                 k_proj_weight = self.k_proj_weight
                 v_proj_weight = self.v_proj_weight
 
@@ -110,14 +117,7 @@ class MultiheadAttention(nn.Module):
                                                    self.out_proj.weight, self.out_proj.bias,
                                                    self.training, key_padding_mask, need_weights,
                                                    attn_mask, None, None)
-
-        qkv_same = query.data_ptr() == key.data_ptr() == value.data_ptr()
-        kv_same = key.data_ptr() == value.data_ptr()
-
-        tgt_len, bsz, embed_dim = query.size()
-        assert embed_dim == self.embed_dim
-        assert list(query.size()) == [tgt_len, bsz, embed_dim]
-
+ 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
             if 'prev_key' in saved_state:
