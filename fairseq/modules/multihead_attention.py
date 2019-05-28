@@ -83,6 +83,7 @@ class MultiheadAttention(nn.Module):
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None,
                 need_weights=True, static_kv=False, attn_mask=None):
         """Input shape: Time x Batch x Channel
+
         Self-attention can be implemented by passing in the same arguments for
         query, key and value. Timesteps can be masked by supplying a T x T mask in the
         `attn_mask` argument. Padding elements can be excluded from
@@ -90,9 +91,7 @@ class MultiheadAttention(nn.Module):
         batch x src_len, where padding elements are indicated by 1s.
         """
 
-        if self.enable_torch_version and not self.onnx_trace 
-                                     and incremental_state is None 
-                                     and not static_kv:
+        if self.enable_torch_version and not self.onnx_trace and incremental_state is None and not static_kv:
             # Apply torch.nn.MultiheadAttention module
             if self.qkv_same_dim:
                 q_proj_weight = self.in_proj_weight[:embed_dim, :]
@@ -104,7 +103,7 @@ class MultiheadAttention(nn.Module):
                 v_proj_weight = self.v_proj_weight
 
             return  F.multi_head_attention_forward(query, key, value, 
-                                                   self.embed_dim, self.num_heads
+                                                   self.embed_dim, self.num_heads,
                                                    q_proj_weight, k_proj_weight, v_proj_weight,
                                                    self.in_proj_bias, self.bias_k, self.bias_v,
                                                    self.add_zero_attn, self.dropout,
