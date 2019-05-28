@@ -149,7 +149,7 @@ class dialogDataset(FairseqDataset):
         }
 
     def __len__(self):
-        return len(self.src)
+        return len(self.dialog_index)
 
     def collater(self, samples):
         """Merge a list of samples to form a mini-batch.
@@ -186,26 +186,43 @@ class dialogDataset(FairseqDataset):
             input_feeding=self.input_feeding,
         )
 
-    def num_tokens(self, index):
-        """Return the number of tokens in a sample. This value is used to
+    def _seq_indices(self, dlg_idx):
+        # Return sequence indices associated with dialog index
+        return [seq_idx for seq_idx in range(self.dialog_index[dlg_idx],
+                self.dialog_index[dlg_idx+1]
+                if dlg_idx+1 != len(self.dialog_index)
+                else len(self.src))]
+
+    def _num_tokens_src_tgt_dialogs(self, dlg_idx):
+        """Return the number of tokens in the dialog. This value is used to
         enforce ``--max-tokens`` during batching."""
-        return max(self.src_sizes[index], self.tgt_sizes[index] if self.tgt_sizes is not None else 0)
+        src_dialog_size = tgt_dialog_size = 0
+        for seq_idx in self._seq_indices(dlg_idx):
+            src_dialog_size += self.src_sizes[seq_idx]
+            tgt_dialog_size += self.tgt_sizes[seq_idx]
+        return src_dialog_size, tgt_dialog_size
+
+    def num_tokens(self, index):
+        """Return the number of tokens in a dialog. This value is used to
+        enforce ``--max-tokens`` during batching."""
+        return max(self._num_tokens_src_tgt_dialogs(index))
 
     def size(self, index):
-        """Return an example's size as a float or tuple. This value is used when
+        """Return an dialog's size as a float or tuple. This value is used when
         filtering a dataset with ``--max-positions``."""
-        return (self.src_sizes[index], self.tgt_sizes[index] if self.tgt_sizes is not None else 0)
+        return self._num_tokens_src_tgt_dialogs(index)
 
     def ordered_indices(self):
         """Return an ordered list of indices. Batches will be constructed based
         on this order."""
         if self.shuffle:
-            indices = np.random.permutation(len(self))
+            return np.random.permutation(len(self))
         else:
-            indices = np.arange(len(self))
-        if self.tgt_sizes is not None:
-            indices = indices[np.argsort(self.tgt_sizes[indices], kind='mergesort')]
-        return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
+            return np.arange(len(self))
+        # In Translation application, sequences are ordered from those with
+        # least # of tokens to those with max # of tokens. Doesn't make sense
+        # to order dialogs based on the # of tokens they have. No other way of
+        # ordering dialog indices makes sense, so ordering is not implemented
 
     @property
     def supports_prefetch(self):
@@ -215,6 +232,8 @@ class dialogDataset(FairseqDataset):
         )
 
     def prefetch(self, indices):
-        self.src.prefetch(indices)
+        seq_indices = [seq_idx for dlg_idx in indices
+                       for seq_idx in self._seq_indices(dlg_idx)]
+        self.src.prefetch(seq_indices)
         if self.tgt is not None:
-            self.tgt.prefetch(indices)
+            self.tgt.prefetch(seq_indices)
