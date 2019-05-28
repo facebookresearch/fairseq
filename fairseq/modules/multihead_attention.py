@@ -58,7 +58,9 @@ class MultiheadAttention(nn.Module):
 
         self.onnx_trace = False
 
-        self.enable_torch_version = True
+        self.enable_torch_version = False
+        if torch.__version__[:5] >= '1.2.0':
+            self.enable_torch_version = True
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
