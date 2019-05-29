@@ -233,7 +233,7 @@ class tensorboard_log_wrapper(progress_bar):
             return None
         if key not in self._writers:
             self._writers[key] = self.SummaryWriter(
-                logdir=os.path.join(self.tensorboard_logdir, key),
+                os.path.join(self.tensorboard_logdir, key),
             )
             self._writers[key].add_text('args', str(vars(self.args)))
             self._writers[key].add_text('sys.argv', " ".join(sys.argv))
