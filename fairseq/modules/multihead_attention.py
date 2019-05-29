@@ -201,10 +201,10 @@ class MultiheadAttention(nn.Module):
                     attn_weights.float()
                 ).type_as(attn_weights)
             else:
-                attn_weights = attn_weights.float().masked_fill(
+                attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2),
                     float('-inf'),
-                ).type_as(attn_weights)  # FP16 support: cast to float and back
+                )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         attn_weights = utils.softmax(
