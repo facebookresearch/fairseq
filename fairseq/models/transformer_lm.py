@@ -20,6 +20,9 @@ from fairseq.modules import (
     CharacterTokenEmbedder,
 )
 
+DEFAULT_MAX_SOURCE_POSITIONS = 1024
+DEFAULT_MAX_TARGET_POSITIONS = 1024
+
 
 @register_model('transformer_lm')
 class TransformerLanguageModel(FairseqLanguageModel):
@@ -101,24 +104,24 @@ class TransformerLanguageModel(FairseqLanguageModel):
             args.tie_adaptive_proj = True
 
         if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = args.tokens_per_sample
+            args.max_source_positions = getattr(args, 'tokens_per_sample', DEFAULT_MAX_SOURCE_POSITIONS)
         if not hasattr(args, 'max_target_positions'):
-            args.max_target_positions = args.tokens_per_sample
+            args.max_target_positions = getattr(args, 'tokens_per_sample', DEFAULT_MAX_TARGET_POSITIONS)
 
         if args.character_embeddings:
             embed_tokens = CharacterTokenEmbedder(
-                task.dictionary, eval(args.character_filters),
+                task.source_dictionary, eval(args.character_filters),
                 args.character_embedding_dim, args.decoder_embed_dim,
                 args.char_embedder_highway_layers,
             )
         elif args.adaptive_input:
             embed_tokens = AdaptiveInput(
-                len(task.dictionary), task.dictionary.pad(), args.decoder_input_dim,
+                len(task.source_dictionary), task.source_dictionary.pad(), args.decoder_input_dim,
                 args.adaptive_input_factor, args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_input_cutoff, type=int),
             )
         else:
-            embed_tokens = Embedding(len(task.dictionary), args.decoder_input_dim, task.dictionary.pad())
+            embed_tokens = Embedding(len(task.source_dictionary), args.decoder_input_dim, task.source_dictionary.pad())
 
         if args.tie_adaptive_weights:
             assert args.adaptive_input
@@ -128,7 +131,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
             assert args.decoder_input_dim == args.decoder_output_dim
 
         decoder = TransformerDecoder(
-            args, task.output_dictionary, embed_tokens, no_encoder_attn=True,
+            args, task.target_dictionary, embed_tokens, no_encoder_attn=True,
             final_norm=args.decoder_final_norm,
         )
         return TransformerLanguageModel(decoder)
