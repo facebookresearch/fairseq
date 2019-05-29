@@ -225,7 +225,7 @@ class tensorboard_log_wrapper(progress_bar):
             self._writers = {}
         except ImportError:
             print("tensorboard or required dependencies not found, "
-                  "please see README for using tensorboard.")
+                  "please see README for using tensorboard. (e.g. pip install tensorboardX)")
             self.SummaryWriter = None
 
     def _writer(self, key):
@@ -233,7 +233,7 @@ class tensorboard_log_wrapper(progress_bar):
             return None
         if key not in self._writers:
             self._writers[key] = self.SummaryWriter(
-                log_dir=os.path.join(self.tensorboard_logdir, key),
+                os.path.join(self.tensorboard_logdir, key),
             )
             self._writers[key].add_text('args', str(vars(self.args)))
             self._writers[key].add_text('sys.argv', " ".join(sys.argv))
