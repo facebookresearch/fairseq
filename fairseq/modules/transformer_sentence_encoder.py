@@ -89,6 +89,7 @@ class TransformerSentenceEncoder(nn.Module):
         add_bias_kv: bool = False,
         add_zero_attn: bool = False,
         embed_scale: float = None,
+        export: bool = False,
     ) -> None:
 
         super().__init__()
@@ -139,13 +140,14 @@ class TransformerSentenceEncoder(nn.Module):
                     activation_fn=activation_fn,
                     add_bias_kv=add_bias_kv,
                     add_zero_attn=add_zero_attn,
+                    export=export,
                 )
                 for _ in range(num_encoder_layers)
             ]
         )
 
         if encoder_normalize_before:
-            self.emb_layer_norm = LayerNorm(self.embedding_dim)
+            self.emb_layer_norm = LayerNorm(self.embedding_dim, export=export)
         else:
             self.emb_layer_norm = None
 
@@ -184,7 +186,7 @@ class TransformerSentenceEncoder(nn.Module):
 
         # account for padding while computing the representation
         if padding_mask is not None:
-            x *= (~padding_mask).unsqueeze(-1).type_as(x)
+            x *= (1 - padding_mask.unsqueeze(-1).type_as(x))
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
