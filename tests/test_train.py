@@ -56,6 +56,9 @@ class TestLoadCheckpoint(unittest.TestCase):
     def setUp(self):
         self.args_mock = MagicMock()
         self.args_mock.optimizer_overrides = '{}'
+        self.args_mock.reset_dataloader = False
+        self.args_mock.reset_meters = False
+        self.args_mock.reset_optimizer = False
         self.patches = {
             'os.makedirs': MagicMock(),
             'os.path.join': MagicMock(),

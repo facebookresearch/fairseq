@@ -125,7 +125,7 @@ class Trainer(object):
             extra_state['train_meters'] = self.meters
             checkpoint_utils.save_state(
                 filename, self.args, self.get_model().state_dict(), self.criterion,
-                self.optimizer, self.lr_scheduler, self._num_updates,
+                self.optimizer, self.lr_scheduler, self.get_num_updates(),
                 self._optim_history, extra_state,
             )
 
@@ -171,7 +171,7 @@ class Trainer(object):
                 self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
-            self._num_updates = last_optim['num_updates']
+            self.set_num_updates(last_optim['num_updates'])
 
         if extra_state is not None:
             epoch = extra_state['train_iterator']['epoch']
@@ -179,7 +179,6 @@ class Trainer(object):
                 filename, epoch, self.get_num_updates()))
 
             self.lr_step(epoch)
-            self.lr_step_update(self.get_num_updates())
 
             if 'train_meters' in extra_state:
                 self.meters.update(extra_state['train_meters'])
@@ -328,10 +327,7 @@ class Trainer(object):
 
             # take an optimization step
             self.optimizer.step()
-            self._num_updates += 1
-
-            # update learning rate
-            self.lr_scheduler.step_update(self._num_updates)
+            self.set_num_updates(self.get_num_updates() + 1)
 
             # task specific update per step
             self.task.update_step(self._num_updates)
@@ -449,11 +445,13 @@ class Trainer(object):
 
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate based on the validation loss."""
-        return self.lr_scheduler.step(epoch, val_loss)
+        _lr = self.lr_scheduler.step(epoch, val_loss)
+        # prefer updating the LR based on the number of steps
+        return self.lr_step_update()
 
-    def lr_step_update(self, num_updates):
+    def lr_step_update(self):
         """Update the learning rate after each update."""
-        return self.lr_scheduler.step_update(num_updates)
+        return self.lr_scheduler.step_update(self.get_num_updates())
 
     def get_lr(self):
         """Get the current learning rate."""
@@ -472,6 +470,11 @@ class Trainer(object):
     def get_num_updates(self):
         """Get the number of parameters updates."""
         return self._num_updates
+
+    def set_num_updates(self, num_updates):
+        """Set the number of parameters updates."""
+        self._num_updates = num_updates
+        self.lr_step_update()
 
     def _prepare_sample(self, sample):
         if sample is None or len(sample) == 0:
