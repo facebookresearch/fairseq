@@ -96,3 +96,9 @@ class FairseqOptimizer(object):
             for p in group['params']:
                 p.grad = None
         self.optimizer.zero_grad()
+
+    @property
+    def supports_memory_efficient_fp16(self):
+        if hasattr(self.optimizer, 'supports_memory_efficient_fp16'):
+            return self.optimizer.supports_memory_efficient_fp16
+        return False
