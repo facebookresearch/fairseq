@@ -28,7 +28,7 @@ Fairseq features:
   - Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
   - sampling (unconstrained and top-k)
 - large mini-batch training even on a single GPU via delayed updates
-- fast half-precision floating point (FP16) training
+- mixed precision training (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
 - extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
 
 We also provide [pre-trained models](#pre-trained-models-and-examples) for several benchmark
