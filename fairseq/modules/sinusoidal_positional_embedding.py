@@ -65,7 +65,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
                 self.embedding_dim,
                 self.padding_idx,
             )
-        self.weights = self.weights.type_as(self._float_tensor)
+        self.weights = self.weights.to(self._float_tensor)
 
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step
