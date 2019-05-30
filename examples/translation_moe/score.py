@@ -6,7 +6,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 """
-Scoring script for computing pairwise BLEU and oracle BLEU over a set of
+Scoring script for computing pairwise BLEU and multi-ref BLEU over a set of
 candidate hypotheses.
 
 See `"Mixture Models for Diverse Machine Translation: Tricks of the Trade"
@@ -16,9 +16,9 @@ See `"Mixture Models for Diverse Machine Translation: Tricks of the Trade"
 import argparse
 from itertools import chain
 import sys
-import numpy as np
 import random
 
+import numpy as np
 from sacrebleu import compute_bleu, corpus_bleu as _corpus_bleu
 
 
@@ -37,6 +37,7 @@ def main():
         print('pairwise BLEU: %.2f' % pairwise(hypos))
         if args.output:
             merge(src, tgt, hypos, log_probs, args.output)
+
     if args.ref:
         _, _, refs = load_ref(args.ref)
         if args.sys:
@@ -154,19 +155,20 @@ def multi_ref(refs, hypos):
     refs = list(zip(*refs))
     hypos = list(zip(*hypos))
 
-    # compute average corpus BLEU
+    # compute multi-ref corpus BLEU (leave-one-out to be comparable to intra_ref)
     k = len(hypos)
     m = len(refs)
-    concat_hypos = []
-    concat_refs = [[] for j in range(m - 1)]
-    for i in range(m):
-        concat_hypos.append([h for hs in hypos for h in hs])
-        rest = refs[:i] + refs[i+1:]
-        for j in range(m - 1):
-            concat_refs[j].extend(rest[j] * k)
-    concat_hypos = list(chain.from_iterable(concat_hypos))
-    bleu = corpus_bleu(concat_hypos, concat_refs)
-    print('multi-reference BLEU (leave-one-out): %.2f' % bleu)
+    flat_hypos = [hypos[j][i] for i in range(len(hypos[0])) for j in range(k)]
+    duplicated_refs = [
+        [ref for ref in refs_i for _ in range(k)]
+        for refs_i in refs
+    ]
+    loo_bleus = []
+    for held_out_ref in range(m):
+        remaining_refs = duplicated_refs[:held_out_ref] + duplicated_refs[held_out_ref+1:]
+        assert len(remaining_refs) == m - 1
+        loo_bleus.append(corpus_bleu(flat_hypos, remaining_refs))
+    print('average multi-reference BLEU (leave-one-out): %.2f' % np.mean(loo_bleus))
 
 
 def intra_ref(refs):
