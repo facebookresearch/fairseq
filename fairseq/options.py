@@ -142,6 +142,8 @@ def get_parser(desc, default_task='translation'):
     parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
                         help='path to save logs for tensorboard, should match --logdir '
                              'of running tensorboard (default: no tensorboard logging)')
+    parser.add_argument("--tbmf-wrapper", action="store_true",
+                        help="[FB only] ")
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
