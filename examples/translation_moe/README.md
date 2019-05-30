@@ -38,12 +38,12 @@ Once a model is trained, we can generate translations from different experts usi
 For example, to generate from expert 0:
 ```
 $ fairseq-generate data-bin/wmt17_en_de \
-    --path checkpoints/checkpoint_best.pt \
-    --beam 1 --remove-bpe \
-    --task translation_moe \
-    --method hMoElp --mean-pool-gating-network \
-    --num-experts 3 \
-    --gen-expert 0
+  --path checkpoints/checkpoint_best.pt \
+  --beam 1 --remove-bpe \
+  --task translation_moe \
+  --method hMoElp --mean-pool-gating-network \
+  --num-experts 3 \
+  --gen-expert 0
 ```
 
 ## Evaluate
@@ -63,20 +63,20 @@ $ for EXPERT in $(seq 0 2); do \
       fairseq-interactive data-bin/wmt17_en_de \
         --path checkpoints/checkpoint_best.pt \
         --beam 1 --remove-bpe \
-        --buffer 500 --max-tokens 6000 ; \
+        --buffer-size 500 --max-tokens 6000 \
         --task translation_moe \
         --method hMoElp --mean-pool-gating-network \
         --num-experts 3 \
-        --gen-expert $EXPERT \
+        --gen-expert $EXPERT ; \
   done > wmt14-en-de.extra_refs.tok.gen.3experts
 ```
 
-Finally use `scripts/score_moe.py` to compute pairwise BLUE and average oracle BLEU:
+Finally use `score_moe.py` to compute pairwise BLUE and average oracle BLEU:
 ```
-$ python scripts/score_moe.py --sys wmt14-en-de.extra_refs.tok.gen.3experts --ref wmt14-en-de.extra_refs.tok
+$ python examples/translation_moe/score.py --sys wmt14-en-de.extra_refs.tok.gen.3experts --ref wmt14-en-de.extra_refs.tok
 pairwise BLEU: 48.26
-avg oracle BLEU: 49.50
 #refs covered: 2.11
+multi-reference BLEU (leave-one-out): 59.46
 ```
 This matches row 3 from Table 7 in the paper.
 
