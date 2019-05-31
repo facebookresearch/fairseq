@@ -21,6 +21,7 @@ from fairseq.models.transformer import (
 
 @register_model("transformer_from_pretrained_xlm")
 class TransformerFromPretrainedXLMModel(TransformerModel):
+
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
@@ -110,6 +111,7 @@ def upgrade_state_dict_with_xlm_weights(
 
 
 class TransformerEncoderFromPretrainedXLM(TransformerEncoder):
+
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(args, dictionary, embed_tokens)
         if getattr(args, 'init_decoder_only', False):
@@ -128,12 +130,9 @@ class TransformerEncoderFromPretrainedXLM(TransformerEncoder):
 
 
 class TransformerDecoderFromPretrainedXLM(TransformerDecoder):
-    def __init__(
-        self, args, dictionary, embed_tokens, no_encoder_attn=False, final_norm=True
-    ):
-        super().__init__(
-            args, dictionary, embed_tokens, no_encoder_attn, final_norm
-        )
+
+    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
+        super().__init__(args, dictionary, embed_tokens, no_encoder_attn)
         if getattr(args, 'init_encoder_only', False):
             # Don't load XLM weights for decoder if --init-encoder-only
             return

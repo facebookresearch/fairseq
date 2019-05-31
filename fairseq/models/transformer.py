@@ -74,8 +74,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='num encoder attention heads')
         parser.add_argument('--encoder-normalize-before', action='store_true',
                             help='apply layernorm before each encoder block')
-        parser.add_argument('--decoder-final-norm', default=False, action='store_true',
-                            help='apply layernorm before each decoder block')
         parser.add_argument('--encoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the encoder')
         parser.add_argument('--decoder-embed-path', type=str, metavar='STR',
@@ -170,6 +168,8 @@ class TransformerEncoder(FairseqEncoder):
 
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
+        self.register_buffer('version', torch.Tensor([3]))
+
         self.dropout = args.dropout
 
         embed_dim = embed_tokens.embedding_dim
@@ -188,10 +188,11 @@ class TransformerEncoder(FairseqEncoder):
             TransformerEncoderLayer(args)
             for i in range(args.encoder_layers)
         ])
-        self.register_buffer('version', torch.Tensor([2]))
-        self.normalize = args.encoder_normalize_before
-        if self.normalize:
+
+        if args.encoder_normalize_before:
             self.layer_norm = LayerNorm(embed_dim)
+        else:
+            self.layer_norm = None
 
     def forward(self, src_tokens, src_lengths):
         """
@@ -226,7 +227,7 @@ class TransformerEncoder(FairseqEncoder):
         for layer in self.layers:
             x = layer(x, encoder_padding_mask)
 
-        if self.normalize:
+        if self.layer_norm:
             x = self.layer_norm(x)
 
         return {
@@ -290,12 +291,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         embed_tokens (torch.nn.Embedding): output embedding
         no_encoder_attn (bool, optional): whether to attend to encoder outputs
             (default: False).
-        final_norm (bool, optional): apply layer norm to the output of the
-            final decoder layer (default: True).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, final_norm=True):
+    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
         super().__init__(dictionary)
+        self.register_buffer('version', torch.Tensor([3]))
+
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
@@ -340,10 +341,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         elif not self.share_input_output_embed:
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), self.output_embed_dim))
             nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
-        self.register_buffer('version', torch.Tensor([2]))
-        self.normalize = args.decoder_normalize_before and final_norm
-        if self.normalize:
+
+        if args.decoder_normalize_before and not getattr(args, 'no_decoder_final_norm', False):
             self.layer_norm = LayerNorm(embed_dim)
+        else:
+            self.layer_norm = None
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **unused):
         """
@@ -411,7 +413,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             )
             inner_states.append(x)
 
-        if self.normalize:
+        if self.layer_norm:
             x = self.layer_norm(x)
 
         # T x B x C -> B x T x C
