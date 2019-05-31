@@ -29,7 +29,15 @@ def zeus_distributed_main(device_id, args, start_rank, log_path=None):
 
 if __name__ == '__main__':
     parser = options.get_training_parser()
+    parser.add_argument("--tensorboard-manifold", action="store_true",
+                        help="[FB only] send tensorboard plots to manifold")
     args = options.parse_args_and_arch(parser)
+    if args.tensorboard_logdir and args.tensorboard_manifold:
+        raise ValueError(
+            "Invalid Args: --tensorboard_logdir and --tensorboard_manifold are both specified."
+        )
+    if args.tensorboard_manifold:
+        args.tbmf_wrapper = True
     if args.distributed_init_method is not None:
         # distributed training
         log_path = os.path.join(args.save_dir, 'train.log')
