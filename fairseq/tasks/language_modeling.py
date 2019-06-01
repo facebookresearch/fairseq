@@ -81,7 +81,7 @@ class LanguageModelingTask(FairseqTask):
                             help='include past target')
         parser.add_argument('--add-bos-token', action='store_true',
                             help='prepend beginning of sentence token (<s>)')
-        parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
+        parser.add_argument('--max-target-positions', type=int, metavar='N',
                             help='max number of tokens in the target sequence')
         # fmt: on
 
