@@ -20,7 +20,6 @@ from fairseq.modules import (
     CharacterTokenEmbedder,
 )
 
-DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 
@@ -103,9 +102,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
             # backward compatibility
             args.tie_adaptive_proj = True
 
-        if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = getattr(args, 'tokens_per_sample', DEFAULT_MAX_SOURCE_POSITIONS)
-        if not hasattr(args, 'max_target_positions'):
+        if getattr(args, 'max_target_positions', None) is None:
             args.max_target_positions = getattr(args, 'tokens_per_sample', DEFAULT_MAX_TARGET_POSITIONS)
 
         if args.character_embeddings:

@@ -27,6 +27,9 @@ from fairseq.modules import (
     SinusoidalPositionalEmbedding,
 )
 
+DEFAULT_MAX_SOURCE_POSITIONS = 1024
+DEFAULT_MAX_TARGET_POSITIONS = 1024
+
 
 @register_model('transformer')
 class TransformerModel(FairseqEncoderDecoderModel):
@@ -112,9 +115,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
         base_architecture(args)
 
         if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = 1024
+            args.max_source_positions = DEFAULT_MAX_SOURCE_POSITIONS
         if not hasattr(args, 'max_target_positions'):
-            args.max_target_positions = 1024
+            args.max_target_positions = DEFAULT_MAX_TARGET_POSITIONS
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
