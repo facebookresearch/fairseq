@@ -98,10 +98,6 @@ class TransformerLanguageModel(FairseqLanguageModel):
         # make sure all arguments are present in older models
         base_lm_architecture(args)
 
-        if hasattr(args, 'no_tie_adaptive_proj') and args.no_tie_adaptive_proj is False:
-            # backward compatibility
-            args.tie_adaptive_proj = True
-
         if getattr(args, 'max_target_positions', None) is None:
             args.max_target_positions = getattr(args, 'tokens_per_sample', DEFAULT_MAX_TARGET_POSITIONS)
 
@@ -135,6 +131,14 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
 @register_model_architecture('transformer_lm', 'transformer_lm')
 def base_lm_architecture(args):
+    # backward compatibility for older model checkpoints
+    if hasattr(args, 'no_tie_adaptive_proj') and args.no_tie_adaptive_proj is False:
+        args.tie_adaptive_proj = True
+    if hasattr(args, 'decoder_final_norm'):
+        args.no_decoder_final_norm = not args.decoder_final_norm
+    if not hasattr(args, 'no_decoder_final_norm'):
+        args.no_decoder_final_norm = True  # old models always set this to True
+
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
@@ -154,6 +158,7 @@ def base_lm_architecture(args):
 
     # Model training is not stable without this
     args.decoder_normalize_before = True
+    args.no_decoder_final_norm = getattr(args, 'no_decoder_final_norm', False)
 
     args.adaptive_input = getattr(args, 'adaptive_input', False)
     args.adaptive_input_factor = getattr(args, 'adaptive_input_factor', 4)
