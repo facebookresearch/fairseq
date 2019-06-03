@@ -59,10 +59,10 @@ class MultiheadAttention(nn.Module):
         self.onnx_trace = False
 
         self.enable_torch_version = False
-        try:
-            from F import multi_head_attention_forward
-        except:
+        if hasattr(F, "multi_head_attention_forward"):
             self.enable_torch_version = True
+        else:
+            self.enable_torch_version = False
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -112,7 +112,7 @@ class MultiheadAttention(nn.Module):
                 q_proj_weight = self.q_proj_weight
                 k_proj_weight = self.k_proj_weight
                 v_proj_weight = self.v_proj_weight
-
+            print("Using torch version!")
             return  F.multi_head_attention_forward(query, key, value, 
                                                    self.embed_dim, self.num_heads,
                                                    q_proj_weight, k_proj_weight, v_proj_weight,
@@ -121,6 +121,7 @@ class MultiheadAttention(nn.Module):
                                                    self.out_proj.weight, self.out_proj.bias,
                                                    self.training, key_padding_mask, need_weights,
                                                    attn_mask, None, None)
+        print("Using fairseq version!")
  
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
