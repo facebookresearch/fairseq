@@ -121,7 +121,6 @@ class MultiheadAttention(nn.Module):
                                                    self.out_proj.weight, self.out_proj.bias,
                                                    self.training, key_padding_mask, need_weights,
                                                    attn_mask, None, None)
-        print("Using fairseq version!")
  
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
