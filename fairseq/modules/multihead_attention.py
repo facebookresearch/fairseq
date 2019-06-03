@@ -112,7 +112,7 @@ class MultiheadAttention(nn.Module):
                 q_proj_weight = self.q_proj_weight
                 k_proj_weight = self.k_proj_weight
                 v_proj_weight = self.v_proj_weight
-            print("Using torch version!")
+ 
             return  F.multi_head_attention_forward(query, key, value, 
                                                    self.embed_dim, self.num_heads,
                                                    q_proj_weight, k_proj_weight, v_proj_weight,
