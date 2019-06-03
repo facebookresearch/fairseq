@@ -5,6 +5,11 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+MODEL_REGISTRY = {}
+ARCH_MODEL_REGISTRY = {}
+ARCH_MODEL_INV_REGISTRY = {}
+ARCH_CONFIG_REGISTRY = {}
+
 import argparse
 import importlib
 import os
@@ -39,11 +44,6 @@ __all__ = [
     'FairseqMultiModel',
 ]
 
-
-MODEL_REGISTRY = {}
-ARCH_MODEL_REGISTRY = {}
-ARCH_MODEL_INV_REGISTRY = {}
-ARCH_CONFIG_REGISTRY = {}
 
 
 def build_model(args, task):
