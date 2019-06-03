@@ -8,6 +8,7 @@
 Base classes for various fairseq models.
 """
 
+import os
 from typing import Dict, List, Optional
 
 import torch
@@ -142,6 +143,40 @@ class BaseFairseqModel(nn.Module):
 
         self.apply(apply_prepare_for_onnx_export_)
 
+    @classmethod
+    def from_pretrained(cls, parser, *inputs, model_name_or_path, data_name_or_path, **kwargs):
+        """
+        Instantiate a FairseqModel from a pre-trained model file or pytorch state dict.
+        Downloads and caches the pre-trained model file if needed.
+
+        Params:
+            pretrained_model_name_or_path: either
+                - a str with the name of a pre-trained model to load
+                - a path or url to a pretrained model state dict
+        """
+        from fairseq import checkpoint_utils, file_utils, options, tasks
+
+        model_path = file_utils.load_archive_file(model_name_or_path)
+        data_path = file_utils.load_archive_file(data_name_or_path)
+        checkpoint_path = os.path.join(model_path, 'model.pt')
+
+        # set data and parse
+        model_args = options.parse_args_and_arch(parser, input_args=[data_path])
+
+        # override any kwargs passed in
+        if kwargs is not None:
+            for arg_name, arg_val in kwargs.items():
+                setattr(model_args, arg_name, arg_val)
+
+        print(model_args)
+
+        task = tasks.setup_task(model_args)
+        print("loading model checkpoint from {}".format(checkpoint_path))
+
+        model, _model_args = checkpoint_utils.load_model_ensemble([checkpoint_path], task=task)
+
+        return model[0]
+
 
 class FairseqEncoderDecoderModel(BaseFairseqModel):
     """Base class for encoder-decoder models.
@@ -221,7 +256,6 @@ class FairseqModel(FairseqEncoderDecoderModel):
             'or BaseFairseqModel instead',
             stacklevel=4,
         )
-
 
 class FairseqMultiModel(BaseFairseqModel):
     """Base class for combining multiple encoder-decoder models."""
