@@ -174,6 +174,7 @@ class MaskedLMEncoder(FairseqEncoder):
         self.activation_fn = utils.get_activation_fn(args.activation_fn)
         self.layer_norm = LayerNorm(args.encoder_embed_dim)
 
+        self.lm_output_learned_bias = None
         if self.load_softmax:
             self.lm_output_learned_bias = nn.Parameter(torch.zeros(self.vocab_size))
 
@@ -229,7 +230,8 @@ class MaskedLMEncoder(FairseqEncoder):
         elif self.embed_out is not None:
             x = self.embed_out(x)
 
-        x = x + self.lm_output_learned_bias
+        if self.lm_output_learned_bias is not None:
+            x = x + self.lm_output_learned_bias
         sentence_logits = None
         if self.sentence_projection_layer:
             sentence_logits = self.sentence_projection_layer(pooled_output)
