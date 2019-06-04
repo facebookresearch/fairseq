@@ -18,9 +18,10 @@ Let's assume the following for the code snippets in later sections to work
 
 Pre-process and binarize the data with the MaskedLMDictionary and cross_lingual_lm task
 
-```
+```bash
 # Ensure the output directory exists
-mkdir -p monolingual_data/fairseq_processed
+DATA_DIR=monolingual_data/fairseq_processed
+mkdir -p "$DATA_DIR"
 
 for lg in ar de en hi fr
 do
@@ -41,8 +42,8 @@ do
 
   for stage in train test valid
 
-    sudo mv $stage.$lg-None.$lg.bin $stage.$lg.bin
-    sudo mv $stage.$lg-None.$lg.idx $stage.$lg.idx
+    sudo mv "$DATA_DIR/$stage.$lg-None.$lg.bin" "$stage.$lg.bin"
+    sudo mv "$DATA_DIR/$stage.$lg-None.$lg.idx" "$stage.$lg.idx"
 
   done
 
@@ -55,7 +56,7 @@ Use the following command to train the model on 5 languages.
 
 ```
 fairseq-train \
---task cross_lingual_lm monolingual_data/processed \
+--task cross_lingual_lm monolingual_data/fairseq_processed \
 --save-dir checkpoints/mlm \
 --max-update 2400000 --save-interval 1 --no-epoch-checkpoints \
 --arch xlm_base \
@@ -63,8 +64,8 @@ fairseq-train \
 --lr-shrink 0.5 --lr 0.0001 --min-lr 1e-09 \
 --dropout 0.1 \
 --criterion masked_lm_loss \
---max-tokens 2048 --tokens-per-sample 256 --no-bias-kv --attention-dropout 0.1 \
---lazy-load --seed 0 \
+--max-tokens 2048 --tokens-per-sample 256 --attention-dropout 0.1 \
+--dataset-impl lazy --seed 0 \
 --masked-lm-only \
 --monolingual-langs 'ar,de,en,hi,fr' --num-segment 5 \
 --ddp-backend=no_c10d
