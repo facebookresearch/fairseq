@@ -44,13 +44,13 @@ class TransformerFromPretrainedXLMModel(TransformerModel):
         )
 
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(self, args, task, cls_dictionary=MaskedLMDictionary):
         assert hasattr(args, "pretrained_xlm_checkpoint"), (
             "You must specify a path for --pretrained-xlm-checkpoint to use "
             "--arch transformer_from_pretrained_xlm"
         )
-        assert isinstance(task.source_dictionary, MaskedLMDictionary) and isinstance(
-            task.target_dictionary, MaskedLMDictionary
+        assert isinstance(task.source_dictionary, cls_dictionary) and isinstance(
+            task.target_dictionary, cls_dictionary
         ), (
             "You should use a MaskedLMDictionary when using --arch "
             "transformer_from_pretrained_xlm because the pretrained XLM model "
