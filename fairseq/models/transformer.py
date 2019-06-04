@@ -153,9 +153,17 @@ class TransformerModel(FairseqEncoderDecoderModel):
                 tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
             )
 
-        encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens)
-        decoder = TransformerDecoder(args, tgt_dict, decoder_embed_tokens)
+        encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
+        decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
         return TransformerModel(encoder, decoder)
+
+    @classmethod
+    def build_encoder(cls, args, src_dict, embed_tokens):
+        return TransformerEncoder(args, src_dict, embed_tokens)
+
+    @classmethod
+    def build_decoder(cls, args, tgt_dict, embed_tokens):
+        return TransformerDecoder(args, tgt_dict, embed_tokens)
 
 
 class TransformerEncoder(FairseqEncoder):
