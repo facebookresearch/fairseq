@@ -42,8 +42,8 @@ do
 
   for stage in train test valid
 
-    sudo mv "$DATA_DIR/$stage.$lg-None.$lg.bin" $stage.$lg.bin"
-    sudo mv "$DATA_DIR/$stage.$lg-None.$lg.idx" $stage.$lg.idx"
+    sudo mv "$DATA_DIR/$stage.$lg-None.$lg.bin" "$stage.$lg.bin"
+    sudo mv "$DATA_DIR/$stage.$lg-None.$lg.idx" "$stage.$lg.idx"
 
   done
 
