@@ -73,8 +73,7 @@ mkdir -p $SAVE
 python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     data-bin/wmt16_en_de_bpe32k --fp16  --log-interval 100 --no-progress-bar \
     --max-update 30000 --share-all-embeddings --optimizer adam \
-    --adam-betas '(0.9, 0.98)' --lr-scheduler inverse_sqrt \
-    --clip-norm 0.0 --weight-decay 0.0 \
+    --adam-betas '(0.9, 0.98)' --clip-norm 0.0 --weight-decay 0.0 \
     --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
     --min-lr 1e-09 --update-freq 16 --attention-dropout 0.1 --keep-last-epochs 10 \
     --ddp-backend=no_c10d --max-tokens 3584 \
@@ -99,8 +98,7 @@ mkdir -p $SAVE
 python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     data-bin/wmt14_en_fr --fp16  --log-interval 100 --no-progress-bar \
     --max-update 30000 --share-all-embeddings --optimizer adam \
-    --adam-betas '(0.9, 0.98)' --lr-scheduler inverse_sqrt \
-    --clip-norm 0.0 --weight-decay 0.0 \
+    --adam-betas '(0.9, 0.98)' --clip-norm 0.0 --weight-decay 0.0 \
     --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
     --min-lr 1e-09 --update-freq 16 --attention-dropout 0.1 --keep-last-epochs 10 \
     --ddp-backend=no_c10d --max-tokens 3584 \
