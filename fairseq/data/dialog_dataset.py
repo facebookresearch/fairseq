@@ -96,6 +96,7 @@ class dialogDataset(FairseqDataset):
             of source if it's present (default: False).
         append_eos_to_target (bool, optional): if set, appends eos to end of
             target if it's absent (default: False).
+        dialog_index (List[int]): indices where dialogs start
     """
 
     def __init__(
@@ -125,27 +126,41 @@ class dialogDataset(FairseqDataset):
         self.append_eos_to_target = append_eos_to_target
         self.dialog_index = dialog_index
 
-    def __getitem__(self, index):
-        tgt_item = self.tgt[index] if self.tgt is not None else None
-        src_item = self.src[index]
-        # Append EOS to end of tgt sentence if it does not have an EOS and remove
-        # EOS from end of src sentence if it exists. This is useful when we use
-        # use existing datasets for opposite directions i.e., when we want to
-        # use tgt_dataset as src_dataset and vice versa
+    def _seq_indices(self, dlg_idx):
+        # Return sequence indices associated with dialog index
+        return [seq_idx for seq_idx in range(self.dialog_index[dlg_idx],
+                self.dialog_index[dlg_idx+1]
+                if dlg_idx+1 != len(self.dialog_index)
+                else len(self.src))]
+
+    def __getitem__(self, dlg_idx):
+        src_items, tgt_items = [], []
+        for seq_idx in self._seq_indices(dlg_idx):
+            src_items.append(self.src[seq_idx])
+            tgt_items.append(self.tgt[seq_idx]
+                             if self.tgt is not None else None)
+
+        # Append EOS to end of tgt sentence if it does not have an EOS and
+        # remove EOS from end of src sentence if it exists. This is useful when
+        # we use existing datasets for opposite directions i.e., when we want
+        # to use tgt_dataset as src_dataset and vice versa
         if self.append_eos_to_target:
+            tgt_items1 = tgt_items
             eos = self.tgt_dict.eos() if self.tgt_dict else self.src_dict.eos()
-            if self.tgt and self.tgt[index][-1] != eos:
-                tgt_item = torch.cat([self.tgt[index], torch.LongTensor([eos])])
+            tgt_items = [torch.cat([tgt_item, torch.LongTensor([eos])])
+                         if self.tgt and tgt_item[-1] != eos else tgt_item
+                         for tgt_item in tgt_items1]
 
         if self.remove_eos_from_source:
+            src_items1 = src_items
             eos = self.src_dict.eos()
-            if self.src[index][-1] == eos:
-                src_item = self.src[index][:-1]
+            src_items = [src_item[:-1] if src_item[-1] == eos else src_item
+                         for src_item in src_items1]
 
         return {
-            'id': index,
-            'source': src_item,
-            'target': tgt_item,
+            'id': dlg_idx,
+            'source': src_items,
+            'target': tgt_items,
         }
 
     def __len__(self):
@@ -185,13 +200,6 @@ class dialogDataset(FairseqDataset):
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
             input_feeding=self.input_feeding,
         )
-
-    def _seq_indices(self, dlg_idx):
-        # Return sequence indices associated with dialog index
-        return [seq_idx for seq_idx in range(self.dialog_index[dlg_idx],
-                self.dialog_index[dlg_idx+1]
-                if dlg_idx+1 != len(self.dialog_index)
-                else len(self.src))]
 
     def _num_tokens_src_tgt_dialogs(self, dlg_idx):
         """Return the number of tokens in the dialog. This value is used to
