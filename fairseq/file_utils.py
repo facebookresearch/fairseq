@@ -22,10 +22,6 @@ import shutil
 import tarfile
 import tempfile
 
-import boto3
-from botocore.exceptions import ClientError
-import requests
-from tqdm import tqdm
 
 try:
     from torch.hub import _get_torch_home
@@ -212,6 +208,7 @@ def s3_request(func):
 
     @wraps(func)
     def wrapper(url, *args, **kwargs):
+        from botocore.exceptions import ClientError
         try:
             return func(url, *args, **kwargs)
         except ClientError as exc:
@@ -226,6 +223,7 @@ def s3_request(func):
 @s3_request
 def s3_etag(url):
     """Check ETag on S3 object."""
+    import boto3
     s3_resource = boto3.resource("s3")
     bucket_name, s3_path = split_s3_path(url)
     s3_object = s3_resource.Object(bucket_name, s3_path)
@@ -235,12 +233,15 @@ def s3_etag(url):
 @s3_request
 def s3_get(url, temp_file):
     """Pull a file directly from S3."""
+    import boto3
     s3_resource = boto3.resource("s3")
     bucket_name, s3_path = split_s3_path(url)
     s3_resource.Bucket(bucket_name).download_fileobj(s3_path, temp_file)
 
 
 def http_get(url, temp_file):
+    import requests
+    from tqdm import tqdm
     req = requests.get(url, stream=True)
     content_length = req.headers.get('Content-Length')
     total = int(content_length) if content_length is not None else None
@@ -270,6 +271,7 @@ def get_from_cache(url, cache_dir=None):
         etag = s3_etag(url)
     else:
         try:
+            import requests
             response = requests.head(url, allow_redirects=True)
             if response.status_code != 200:
                 etag = None
