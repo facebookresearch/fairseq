@@ -262,7 +262,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
             with tempfile.TemporaryDirectory("test_mlm") as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
-                train_masked_language_model(data_dir, "xlm_base")
+                train_masked_language_model(data_dir, "masked_lm")
 
     def _test_pretrained_masked_lm_for_translation(self, learned_pos_emb, encoder_only):
         with contextlib.redirect_stdout(StringIO()):
@@ -271,7 +271,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
                 preprocess_lm_data(data_dir)
                 train_masked_language_model(
                     data_dir,
-                    arch="xlm_base",
+                    arch="masked_lm",
                     extra_args=('--encoder-learned-pos',) if learned_pos_emb else ()
                 )
                 with tempfile.TemporaryDirectory(
