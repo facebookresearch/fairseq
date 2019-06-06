@@ -337,7 +337,7 @@ def xlm_architecture(args):
         args, 'share_encoder_input_output_embed', True)
     args.no_token_positional_embeddings = getattr(
         args, 'no_token_positional_embeddings', False)
-    args.encoder_learned_pos = getattr(args, 'encoder_learned_pos', False)
+    args.encoder_learned_pos = getattr(args, 'encoder_learned_pos', True)
     args.num_segment = getattr(args, 'num_segment', 1)
 
     args.encoder_layers = getattr(args, 'encoder_layers', 6)
