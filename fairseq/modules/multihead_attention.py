@@ -79,7 +79,7 @@ class MultiheadAttention(nn.Module):
             nn.init.xavier_normal_(self.bias_v)
 
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None,
-                need_weights=True, static_kv=False, attn_mask=None):
+                need_weights=True, static_kv=False, attn_mask=None, task_emb=None):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
@@ -136,7 +136,17 @@ class MultiheadAttention(nn.Module):
                 key_padding_mask = torch.cat(
                     [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
 
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        if task_emb is not None:
+            # q = q.contiguous().view(tgt_len, bsz, self.num_heads, self.head_dim)
+            # q = q * task_emb.unsqueeze(0).unsqueeze(2)  # 1 x bsz x 1 x head_dim
+            # q = q.view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+
+            q = q * task_emb.unsqueeze(0)
+            #q = q + task_emb.unsqueeze(0)
+            q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        else:
+            q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+
         if k is not None:
             k = k.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
         if v is not None:

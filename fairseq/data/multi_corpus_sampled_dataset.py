@@ -13,9 +13,11 @@ import numpy as np
 from . import FairseqDataset
 
 
-def uniform_sampler(x):
+def uniform_sampler(x, n):
     # Sample from uniform distribution
-    return np.random.choice(x, 1).item()
+    if n <= len(x):
+        return np.random.choice(x, n, replace=False)
+    return np.random.choice(x, n)
 
 
 class MultiCorpusSampledDataset(FairseqDataset):
@@ -34,6 +36,7 @@ class MultiCorpusSampledDataset(FairseqDataset):
         self,
         datasets: Dict[str, FairseqDataset],
         sampling_func: Callable[[List], int] = None,
+        num_samples: int = 1
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
@@ -47,7 +50,12 @@ class MultiCorpusSampledDataset(FairseqDataset):
             assert isinstance(dataset, FairseqDataset)
             self.total_num_instances += dataset.__len__()
 
+        # We sample num_samples tasks every iteration
+        self.total_num_instances //= num_samples
+
         self._ordered_indices = None
+        self.num_samples = num_samples
+        self.random_sample = self.sampling_func(list(self.datasets.keys()), num_samples)
 
     def __len__(self):
         """
@@ -89,10 +97,11 @@ class MultiCorpusSampledDataset(FairseqDataset):
         Since index is in the range of [0, TotalNumInstances], we need to
         map the index to the dataset before retrieving the item.
         """
+
         return OrderedDict(
             [
-                (key, dataset[self._map_index_to_dataset(key, index)])
-                for key, dataset in self.datasets.items()
+                (key, self.datasets[key][self._map_index_to_dataset(key, index)])
+                for key in self.random_sample
             ]
         )
 
@@ -107,9 +116,10 @@ class MultiCorpusSampledDataset(FairseqDataset):
         if len(samples) == 0:
             return None
 
-        selected_key = self.sampling_func(list(self.datasets.keys()))
-        selected_samples = [sample[selected_key] for sample in samples]
-        return self.datasets[selected_key].collater(selected_samples)
+        all_samples = [sample[key] for key in self.random_sample for sample in samples]
+        data = self.datasets[self.random_sample[0]].collater(all_samples, retain_order=True)
+        self.random_sample = self.sampling_func(list(self.datasets.keys()), self.num_samples)
+        return data
 
     def num_tokens(self, index: int):
         """
@@ -117,10 +127,8 @@ class MultiCorpusSampledDataset(FairseqDataset):
         we return the max across all examples at index across all underlying
         datasets.
         """
-        return max(
-            dataset.num_tokens(self._map_index_to_dataset(key, index))
-            for key, dataset in self.datasets.items()
-        )
+        for key, dataset in self.datasets.items():
+            return dataset.num_tokens(self._map_index_to_dataset(key, index))
 
     def size(self, index: int):
         """
@@ -128,10 +136,8 @@ class MultiCorpusSampledDataset(FairseqDataset):
         across all underlying datasets. This value is used when filtering a
         dataset with max-positions.
         """
-        return max(
-            dataset.size(self._map_index_to_dataset(key, index))
-            for key, dataset in self.datasets.items()
-        )
+        for key, dataset in self.datasets.items():
+            return dataset.size(self._map_index_to_dataset(key, index))
 
     @property
     def supports_prefetch(self):

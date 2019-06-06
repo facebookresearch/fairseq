@@ -13,7 +13,7 @@ from . import data_utils, FairseqDataset
 
 def collate(
     samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
-    input_feeding=True,
+    input_feeding=True, retain_order=False
 ):
     if len(samples) == 0:
         return {}
@@ -29,6 +29,8 @@ def collate(
     # sort by descending source length
     src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
     src_lengths, sort_order = src_lengths.sort(descending=True)
+    if retain_order:
+        sort_order = torch.arange(len(samples))
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
 
@@ -61,6 +63,12 @@ def collate(
         },
         'target': target,
     }
+
+    if samples[0].get('src_all', None) is not None:
+        src_all_tokens = merge('src_all', left_pad=left_pad_source)
+        src_all_tokens = src_all_tokens.index_select(0, sort_order)
+        batch['net_input']['src_all_tokens'] = src_all_tokens
+
     if prev_output_tokens is not None:
         batch['net_input']['prev_output_tokens'] = prev_output_tokens
     return batch
@@ -101,7 +109,8 @@ class LanguagePairDataset(FairseqDataset):
         tgt=None, tgt_sizes=None, tgt_dict=None,
         left_pad_source=True, left_pad_target=False,
         max_source_positions=1024, max_target_positions=1024,
-        shuffle=True, input_feeding=True, remove_eos_from_source=False, append_eos_to_target=False,
+        shuffle=True, input_feeding=True, remove_eos_from_source=False,
+        append_eos_to_target=False, src_all=None
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -109,6 +118,7 @@ class LanguagePairDataset(FairseqDataset):
             assert src_dict.unk() == tgt_dict.unk()
         self.src = src
         self.tgt = tgt
+        self.src_all = src_all
         self.src_sizes = np.array(src_sizes)
         self.tgt_sizes = np.array(tgt_sizes) if tgt_sizes is not None else None
         self.src_dict = src_dict
@@ -139,16 +149,21 @@ class LanguagePairDataset(FairseqDataset):
             if self.src[index][-1] == eos:
                 src_item = self.src[index][:-1]
 
-        return {
+        d = {
             'id': index,
             'source': src_item,
             'target': tgt_item,
         }
 
+        if self.src_all is not None:
+            d['src_all'] = self.src_all[index]
+
+        return d
+
     def __len__(self):
         return len(self.src)
 
-    def collater(self, samples):
+    def collater(self, samples, retain_order=False):
         """Merge a list of samples to form a mini-batch.
 
         Args:
@@ -180,7 +195,7 @@ class LanguagePairDataset(FairseqDataset):
         return collate(
             samples, pad_idx=self.src_dict.pad(), eos_idx=self.src_dict.eos(),
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
-            input_feeding=self.input_feeding,
+            input_feeding=self.input_feeding, retain_order=retain_order
         )
 
     def num_tokens(self, index):

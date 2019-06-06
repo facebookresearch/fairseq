@@ -34,6 +34,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         add_bias_kv: bool = False,
         add_zero_attn: bool = False,
         export: bool = False,
+        task_embedding_dim: float = None
     ) -> None:
 
         super().__init__()
@@ -50,6 +51,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
             dropout=attention_dropout,
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
+        #    kdim=task_embedding_dim
         )
 
         # layer norm associated with the self attention layer
@@ -65,6 +67,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         x: torch.Tensor,
         self_attn_mask: torch.Tensor = None,
         self_attn_padding_mask: torch.Tensor = None,
+        task_emb: torch.Tensor = None
     ):
         """
         LayerNorm is applied either before or after the self-attention/ffn
@@ -78,6 +81,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
             key_padding_mask=self_attn_padding_mask,
             need_weights=False,
             attn_mask=self_attn_mask,
+            task_emb=task_emb
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
