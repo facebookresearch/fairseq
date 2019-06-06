@@ -183,28 +183,28 @@ class FairseqTask(object):
         return criterions.build_criterion(args, self)
 
     def build_generator(self, args):
-        if args.score_reference:
+        if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(self.target_dictionary)
         else:
             from fairseq.sequence_generator import SequenceGenerator
             return SequenceGenerator(
                 self.target_dictionary,
-                beam_size=args.beam,
-                max_len_a=args.max_len_a,
-                max_len_b=args.max_len_b,
-                min_len=args.min_len,
-                stop_early=(not args.no_early_stop),
-                normalize_scores=(not args.unnormalized),
-                len_penalty=args.lenpen,
-                unk_penalty=args.unkpen,
-                sampling=args.sampling,
-                sampling_topk=args.sampling_topk,
-                temperature=args.temperature,
-                diverse_beam_groups=args.diverse_beam_groups,
-                diverse_beam_strength=args.diverse_beam_strength,
-                match_source_len=args.match_source_len,
-                no_repeat_ngram_size=args.no_repeat_ngram_size,
+                beam_size=getattr(args, 'beam', 5),
+                max_len_a=getattr(args, 'max_len_a', 0),
+                max_len_b=getattr(args, 'max_len_b', 200),
+                min_len=getattr(args, 'min_len', 1),
+                stop_early=(not getattr(args, 'no_early_stop', False)),
+                normalize_scores=(not getattr(args, 'unnormalized', False)),
+                len_penalty=getattr(args, 'lenpen', 1),
+                unk_penalty=getattr(args, 'unkpen', 0),
+                sampling=getattr(args, 'sampling', False),
+                sampling_topk=getattr(args, 'sampling_topk', -1),
+                temperature=getattr(args, 'temperature', 1.),
+                diverse_beam_groups=getattr(args, 'diverse_beam_groups', -1),
+                diverse_beam_strength=getattr(args, 'diverse_beam_strength', 0.5),
+                match_source_len=getattr(args, 'match_source_len', False),
+                no_repeat_ngram_size=getattr(args, 'no_repeat_ngram_size', 0),
             )
 
     def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):

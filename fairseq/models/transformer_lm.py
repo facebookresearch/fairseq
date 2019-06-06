@@ -26,6 +26,13 @@ DEFAULT_MAX_TARGET_POSITIONS = 1024
 @register_model('transformer_lm')
 class TransformerLanguageModel(FairseqLanguageModel):
 
+    @classmethod
+    def hub_models(cls):
+        return {
+            'transformer_lm.gbw.adaptive_huge': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_gbw_huge.tar.bz2',
+            'transformer_lm.wiki103.adaptive': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_wiki103.tar.bz2',
+        }
+
     def __init__(self, decoder):
         super().__init__(decoder)
 
