@@ -64,9 +64,7 @@ class ConcatDataset(FairseqDataset):
 
     @property
     def sizes(self):
-        return np.concatenate(
-            [np.tile(ds.sizes, sr) for ds, sr in zip(self.datasets, self.sample_ratios)]
-        )
+        return [self.size(idx) for idx in range(len(self))]
 
     @property
     def supports_prefetch(self):
