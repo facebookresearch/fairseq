@@ -120,7 +120,7 @@ class MultiheadAttention(nn.Module):
                                                        self.add_zero_attn, self.dropout,
                                                        self.out_proj.weight, self.out_proj.bias,
                                                        self.training, key_padding_mask, need_weights,
-                                                       attn_mask, use_chunk_proj_weight=False,
+                                                       attn_mask, use_separate_proj_weight=True,
                                                        q_proj_weight=self.q_proj_weight, 
                                                        k_proj_weight=self.k_proj_weight, 
                                                        v_proj_weight=self.v_proj_weight)
