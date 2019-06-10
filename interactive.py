@@ -34,9 +34,11 @@ def buffered_read(input, buffer_size):
         yield buffer
 
 
-def make_batches(lines, args, task, max_positions):
+def make_batches(lines, args, task, max_positions, encode_fn):
     tokens = [
-        task.source_dictionary.encode_line(src_str, add_if_not_exist=False).long()
+        task.source_dictionary.encode_line(
+            encode_fn(src_str), add_if_not_exist=False
+        ).long()
         for src_str in lines
     ]
     lengths = torch.LongTensor([t.numel() for t in tokens])
@@ -99,6 +101,18 @@ def main(args):
     # Initialize generator
     generator = task.build_generator(args)
 
+    # Hack to support GPT-2 BPE
+    if args.remove_bpe == 'gpt2':
+        from fairseq.gpt2_bpe.gpt2_encoding import get_encoder
+        decoder = get_encoder(
+            'fairseq/gpt2_bpe/encoder.json',
+            'fairseq/gpt2_bpe/vocab.bpe',
+        )
+        encode_fn = lambda x: ' '.join(map(str, decoder.encode(x)))
+    else:
+        decoder = None
+        encode_fn = lambda x: x
+
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
@@ -114,7 +128,7 @@ def main(args):
     start_id = 0
     for inputs in buffered_read(args.input, args.buffer_size):
         results = []
-        for batch in make_batches(inputs, args, task, max_positions):
+        for batch in make_batches(inputs, args, task, max_positions, encode_fn):
             src_tokens = batch.src_tokens
             src_lengths = batch.src_lengths
             if use_cuda:
@@ -148,6 +162,8 @@ def main(args):
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
                 )
+                if decoder is not None:
+                    hypo_str = decoder.decode(map(int, hypo_str.strip().split()))
                 print('H-{}\t{}\t{}'.format(id, hypo['score'], hypo_str))
                 print('P-{}\t{}'.format(
                     id,
