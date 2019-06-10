@@ -208,6 +208,7 @@ class GroupedIterator(object):
 
     def __init__(self, iterable, chunk_size):
         self._len = int(math.ceil(len(iterable) / float(chunk_size)))
+        self.offset = int(math.ceil(getattr(iterable, 'count', 0) / float(chunk_size)))
         self.itr = iterable
         self.chunk_size = chunk_size
 
