@@ -11,7 +11,30 @@ Transformer <br> ([Ott et al., 2018](https://arxiv.org/abs/1806.00187)) | [WMT14
 Transformer <br> ([Ott et al., 2018](https://arxiv.org/abs/1806.00187)) | [WMT16 English-German](https://drive.google.com/uc?export=download&id=0B_bZck-ksdkpM25jRUN2X2UxMm8) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/wmt16.en-de.joined-dict.transformer.tar.bz2) | newstest2014 (shared vocab): <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt16.en-de.joined-dict.newstest2014.tar.bz2)
 Transformer <br> ([Edunov et al., 2018](https://arxiv.org/abs/1808.09381); WMT'18 winner) | [WMT'18 English-German](http://www.statmt.org/wmt18/translation-task.html) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/wmt18.en-de.ensemble.tar.bz2) | See NOTE in the archive
 
-## Example usage
+## Example usage (torch.hub)
+
+Interactive generation via PyTorch Hub:
+```
+>>> import torch
+>>> en2de = torch.hub.load(
+...   'pytorch/fairseq',
+...   'transformer',
+...   model_name_or_path='transformer.wmt16.en-de',
+...   data_name_or_path='.',
+...   tokenizer='moses',
+...   aggressive_dash_splits=True,
+...   bpe='subword_nmt',
+... )
+>>> print(en2de.models[0].__class__)
+<class 'fairseq.models.transformer.TransformerModel'>
+>>> print(en2de.generate('Hello world!'))
+Hallo Welt!
+```
+
+Available models are listed in the ``hub_models()`` method in each model file, for example:
+[transformer.py](https://github.com/pytorch/fairseq/blob/master/fairseq/models/transformer.py).
+
+## Example usage (CLI tools)
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for WMT 2014 English-French on a GTX-1080ti:
 ```
