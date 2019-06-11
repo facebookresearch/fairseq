@@ -27,14 +27,14 @@ from . import FairseqTask, register_task
 
 
 def _lang_token(lang: str):
-    return f'__{lang}__'
+    return '__{}__'.format(lang)
 
 
 def _lang_token_index(dic: Dictionary, lang: str):
     """Return language token index."""
     idx = dic.index(_lang_token(lang))
     assert idx != dic.unk_index, \
-        f'cannot find language token for lang {lang}'
+        'cannot find language token for lang {}'.format(lang)
     return idx
 
 

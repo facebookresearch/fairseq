@@ -39,7 +39,7 @@ translation and language modeling datasets.
 # Requirements and Installation
 
 * [PyTorch](http://pytorch.org/) version >= 1.0.0
-* Python version >= 3.6
+* Python version >= 3.5
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 
 Please follow the instructions here to install PyTorch: https://github.com/pytorch/pytorch#installation.
