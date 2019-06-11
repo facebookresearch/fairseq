@@ -303,7 +303,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
                             "--encoder-ffn-embed-dim",
                             "32",
                             "--pretrained-xlm-checkpoint",
-                            f"{data_dir}/checkpoint_last.pt",
+                            "{}/checkpoint_last.pt".format(data_dir),
                             "--activation-fn",
                             "gelu",
                             "--max-source-positions",

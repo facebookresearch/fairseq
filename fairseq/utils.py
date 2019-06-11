@@ -313,7 +313,7 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == 'tanh':
         return torch.tanh
     else:
-        raise RuntimeError(f"--activation-fn {activation} not supported")
+        raise RuntimeError("--activation-fn {} not supported".format(activation))
 
 
 def get_available_activation_fns() -> List:
