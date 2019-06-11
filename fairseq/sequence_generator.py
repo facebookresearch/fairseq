@@ -355,7 +355,7 @@ class SequenceGenerator(object):
                         lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = -math.inf
 
                 if prefix_tokens is not None and step < prefix_tokens.size(1):
-                    assert isinstance(self.search, search.BeamSearch), \
+                    assert isinstance(self.search, search.BeamSearch) or bsz == 1, \
                             "currently only BeamSearch supports decoding with prefix_tokens"
                     probs_slice = lprobs.view(bsz, -1, lprobs.size(-1))[:, 0, :]
                     cand_scores = torch.gather(
