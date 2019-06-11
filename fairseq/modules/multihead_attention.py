@@ -19,7 +19,9 @@ class MultiheadAttention(nn.Module):
     See "Attention Is All You Need" for more details.
     """
 
-    def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False):
+    def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True,
+                 add_bias_kv=False, add_zero_attn=False, self_attention=False,
+                 encoder_decoder_attention=False):
         super().__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -31,6 +33,13 @@ class MultiheadAttention(nn.Module):
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
+
+        self.self_attention = self_attention
+        self.encoder_decoder_attention = encoder_decoder_attention
+
+        assert not self.self_attention or self.qkv_same_dim, 'Self-attention requires query, key and ' \
+                                                             'value to be of the same size'
+
 
         if self.qkv_same_dim:
             self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
@@ -82,15 +91,11 @@ class MultiheadAttention(nn.Module):
                 need_weights=True, static_kv=False, attn_mask=None):
         """Input shape: Time x Batch x Channel
 
-        Self-attention can be implemented by passing in the same arguments for
-        query, key and value. Timesteps can be masked by supplying a T x T mask in the
+        Timesteps can be masked by supplying a T x T mask in the
         `attn_mask` argument. Padding elements can be excluded from
         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
         batch x src_len, where padding elements are indicated by 1s.
         """
-
-        qkv_same = query.data_ptr() == key.data_ptr() == value.data_ptr()
-        kv_same = key.data_ptr() == value.data_ptr()
 
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
@@ -102,15 +107,15 @@ class MultiheadAttention(nn.Module):
                 # previous time steps are cached - no need to recompute
                 # key and value if they are static
                 if static_kv:
-                    assert kv_same and not qkv_same
+                    assert self.encoder_decoder_attention and not self.self_attention
                     key = value = None
         else:
             saved_state = None
 
-        if qkv_same:
+        if self.self_attention:
             # self-attention
             q, k, v = self.in_proj_qkv(query)
-        elif kv_same:
+        elif self.encoder_decoder_attention:
             # encoder-decoder attention
             q = self.in_proj_q(query)
             if key is None:
