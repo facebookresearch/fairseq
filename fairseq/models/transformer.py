@@ -280,7 +280,7 @@ class TransformerEncoder(FairseqEncoder):
             state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
         for i in range(len(self.layers)):
             # update layer norms
-            self.layers[i].upgrade_state_dict_named(state_dict, f"{name}.layers.{i}")
+            self.layers[i].upgrade_state_dict_named(state_dict, "{}.layers.{}".format(name, i))
 
         version_key = '{}.version'.format(name)
         if utils.item(state_dict.get(version_key, torch.Tensor([1]))[0]) < 2:

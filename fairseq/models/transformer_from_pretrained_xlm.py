@@ -90,7 +90,7 @@ def upgrade_state_dict_with_xlm_weights(
             decoder and the pretrained_xlm_checkpoint
     """
     if not os.path.exists(pretrained_xlm_checkpoint):
-        raise IOError(f"Model file not found: {pretrained_xlm_checkpoint}")
+        raise IOError("Model file not found: {}".format(pretrained_xlm_checkpoint))
 
     state = checkpoint_utils.load_checkpoint_to_cpu(pretrained_xlm_checkpoint)
     xlm_state_dict = state["model"]
@@ -100,11 +100,13 @@ def upgrade_state_dict_with_xlm_weights(
             if search_key in key:
                 subkey = key[key.find(search_key):]
                 assert subkey in state_dict, (
-                    f"{str(state_dict.keys())} Transformer encoder / decoder "
-                    f"state_dict does not contain {subkey}. Cannot "
-                    f"load {key} from pretrained XLM checkpoint "
-                    f"{pretrained_xlm_checkpoint} into Transformer."
-                )
+                    "{} Transformer encoder / decoder "
+                    "state_dict does not contain {}. Cannot "
+                    "load {} from pretrained XLM checkpoint "
+                    "{} into Transformer.".format(
+                        str(state_dict.keys()),
+                        subkey, key, pretrained_xlm_checkpoint)
+                    )
 
                 state_dict[subkey] = xlm_state_dict[key]
     return state_dict
