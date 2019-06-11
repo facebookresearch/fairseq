@@ -43,6 +43,14 @@ class FConvModel(FairseqEncoderDecoderModel):
         :prog:
     """
 
+    @classmethod
+    def hub_models(cls):
+        return {
+            'conv.wmt14.en-fr': 'https://dl.fbaipublicfiles.com/fairseq/models/wmt14.v2.en-fr.fconv-py.tar.bz2',
+            'conv.wmt14.en-de': 'https://dl.fbaipublicfiles.com/fairseq/models/wmt14.en-de.fconv-py.tar.bz2',
+            'conv.wmt17.en-de': 'https://dl.fbaipublicfiles.com/fairseq/models/wmt17.v2.en-de.fconv-py.tar.bz2',
+        }
+
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
         self.encoder.num_attention_layers = sum(layer is not None for layer in decoder.attention)

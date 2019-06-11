@@ -7,7 +7,33 @@ Description | Parameters | Dataset | Model and Test set(s)
 Adaptive Inputs <br> ([Baevski and Auli, 2018](https://arxiv.org/abs/1809.10853)) | 1026M | [Google Billion Words](https://github.com/ciprian-chelba/1-billion-word-language-modeling-benchmark) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_gbw_huge.tar.bz2)
 Adaptive Inputs <br> ([Baevski and Auli, 2018](https://arxiv.org/abs/1809.10853)) | 247M | [WikiText-103](https://einstein.ai/research/the-wikitext-long-term-dependency-language-modeling-dataset) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_wiki103.tar.bz2)
 
+
 ## Example usage
+
+Interactive generation via PyTorch Hub:
+```
+>>> import torch
+>>> lm = torch.hub.load(
+...   'pytorch/fairseq',
+...   'transformer_lm',
+...   model_name_or_path='transformer_lm.wiki103.adaptive',
+...   data_name_or_path='./data-bin',
+...   tokenizer='moses',
+...   aggressive_dash_splits=True,
+...   no_escape=True,
+...   beam=1,
+...   sampling=True,
+...   sampling_topk=10,
+...   temperature=0.8,
+... )
+>>> lm.generate('Barack Obama', verbose=True)
+```
+
+Available models are listed in the ``hub_models()`` method in each model file, for example:
+[transformer_lm.py](https://github.com/pytorch/fairseq/blob/master/fairseq/models/transformer_lm.py).
+
+
+## Training a new model with the CLI tools
 
 These scripts provide an example of pre-processing data for the Language Modeling task.
 
@@ -45,9 +71,7 @@ $ fairseq-train --task language_modeling data-bin/wikitext-103 \
 # Evaluate:
 $ fairseq-eval-lm data-bin/wikitext-103 --path 'checkpoints/transformer_wiki103/checkpoint_best.pt' \
   --sample-break-mode complete --max-tokens 3072 --context-window 2560 --softmax-batch 1024
-
 ```
-
 
 Train a convolutional language model ([Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](conv_lm/README.md)):
 ```
@@ -63,5 +87,4 @@ $ fairseq-train --task language_modeling data-bin/wikitext-103 \
 
 # Evaluate:
 $ fairseq-eval-lm data-bin/wikitext-103 --path 'checkpoints/fconv_wiki103/checkpoint_best.pt'
-
 ```

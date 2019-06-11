@@ -31,6 +31,15 @@ from fairseq.modules import (
 
 @register_model('fconv_self_att')
 class FConvModelSelfAtt(FairseqEncoderDecoderModel):
+
+    @classmethod
+    def hub_models(cls):
+        return {
+            'conv.stories': 'https://dl.fbaipublicfiles.com/fairseq/models/stories_checkpoint.tar.bz2',
+            # Test set containing dictionaries
+            'data.stories': 'https://dl.fbaipublicfiles.com/fairseq/data/stories_test.tar.bz2',
+        }
+
     def __init__(self, encoder, decoder, pretrained_encoder=None):
         super().__init__(encoder, decoder)
         self.encoder.num_attention_layers = sum(layer is not None for layer in decoder.attention)
@@ -85,6 +94,7 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
 
     @classmethod
     def build_model(cls, args, task):
+        """Build a new model instance."""
         trained_encoder, trained_decoder = None, None
         pretrained = eval(args.pretrained)
         if pretrained:
@@ -102,7 +112,6 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
             for param in trained_encoder.parameters():
                 param.requires_grad = False
 
-        """Build a new model instance."""
         encoder = FConvEncoder(
             task.source_dictionary,
             embed_dim=args.encoder_embed_dim,
