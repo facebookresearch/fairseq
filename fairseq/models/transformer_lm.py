@@ -25,6 +25,7 @@ DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 @register_model('transformer_lm')
 class TransformerLanguageModel(FairseqLanguageModel):
+
     def __init__(self, decoder):
         super().__init__(decoder)
 
@@ -55,7 +56,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='num decoder attention heads')
         parser.add_argument('--decoder-normalize-before', default=False, action='store_true',
                             help='apply layernorm before each decoder block')
-        parser.add_argument('--no-decoder-final-norm', action='store_true',
+        parser.add_argument('--no-decoder-final-norm', default=False, action='store_true',
                             help='don\'t add an extra layernorm after the last decoder block')
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
@@ -73,9 +74,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--character-filters', type=str, metavar='LIST',
                             default='[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]',
                             help='size of character embeddings')
-        parser.add_argument('--character-embedding-dim', type=int, metavar='N', default=4,
+        parser.add_argument('--character-embedding-dim', default=4, type=int, metavar='N',
                             help='size of character embeddings')
-        parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
+        parser.add_argument('--char-embedder-highway-layers', default=2, type=int, metavar='N',
                             help='number of highway layers for character token embeddder')
         parser.add_argument('--adaptive-input', action='store_true',
                             help='if set, uses adaptive input')
@@ -132,12 +133,14 @@ class TransformerLanguageModel(FairseqLanguageModel):
 @register_model_architecture('transformer_lm', 'transformer_lm')
 def base_lm_architecture(args):
     # backward compatibility for older model checkpoints
-    if hasattr(args, 'no_tie_adaptive_proj') and args.no_tie_adaptive_proj is False:
-        args.tie_adaptive_proj = True
+    if hasattr(args, 'no_tie_adaptive_proj'):
+        # previous models defined --no-tie-adaptive-proj, so use the existence of
+        # that option to determine if this is an "old" model checkpoint
+        args.no_decoder_final_norm = True  # old models always set this to True
+        if args.no_tie_adaptive_proj is False:
+            args.tie_adaptive_proj = True
     if hasattr(args, 'decoder_final_norm'):
         args.no_decoder_final_norm = not args.decoder_final_norm
-    if not hasattr(args, 'no_decoder_final_norm'):
-        args.no_decoder_final_norm = True  # old models always set this to True
 
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
