@@ -540,10 +540,10 @@ class TransformerEncoderLayer(nn.Module):
         }
         for old, new in layer_norm_map.items():
             for m in ('weight', 'bias'):
-                k = f'{name}.layer_norms.{old}.{m}'
+                k = '{}.layer_norms.{}.{}'.format(name, old, m)
                 if k in state_dict:
                     state_dict[
-                        f'{name}.{new}.{m}'
+                        '{}.{}.{}'.format(name, new, m)
                     ] = state_dict[k]
                     del state_dict[k]
 
