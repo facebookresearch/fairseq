@@ -37,10 +37,9 @@ class GPT2BPE(object):
 
 """Byte pair encoding utilities from GPT-2"""
 
-import os
-import json
-import regex as re
 from functools import lru_cache
+import json
+import os
 
 
 @lru_cache()
@@ -77,6 +76,7 @@ def get_pairs(word):
     return pairs
 
 class Encoder:
+
     def __init__(self, encoder, bpe_merges, errors='replace'):
         self.encoder = encoder
         self.decoder = {v:k for k,v in self.encoder.items()}
@@ -86,8 +86,14 @@ class Encoder:
         self.bpe_ranks = dict(zip(bpe_merges, range(len(bpe_merges))))
         self.cache = {}
 
+        try:
+            import regex as re
+            self.re = re
+        except ImportError:
+            raise ImportError('Please install regex with: pip install regex')
+
         # Should haved added re.IGNORECASE so BPE merges can happen for capitalized versions of contractions
-        self.pat = re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
+        self.pat = self.re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
 
     def bpe(self, token):
         if token in self.cache:
@@ -132,7 +138,7 @@ class Encoder:
 
     def encode(self, text):
         bpe_tokens = []
-        for token in re.findall(self.pat, text):
+        for token in self.re.findall(self.pat, text):
             token = ''.join(self.byte_encoder[b] for b in token.encode('utf-8'))
             bpe_tokens.extend(self.encoder[bpe_token] for bpe_token in self.bpe(token).split(' '))
         return bpe_tokens
