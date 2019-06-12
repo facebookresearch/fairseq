@@ -78,7 +78,8 @@ def load_archive_file(archive_file):
         tempdir = tempfile.mkdtemp()
         print("extracting archive file {} to temp dir {}".format(
             resolved_archive_file, tempdir))
-        with tarfile.open(resolved_archive_file, 'r:bz2') as archive:
+        ext = os.path.splitext(archive_file)[1][1:]
+        with tarfile.open(resolved_archive_file, 'r:' + ext) as archive:
             top_dir = os.path.commonprefix(archive.getnames())
             archive.extractall(tempdir)
         os.remove(resolved_archive_file)
