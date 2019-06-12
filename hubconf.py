@@ -8,7 +8,13 @@
 from fairseq.models import MODEL_REGISTRY
 
 
-dependencies = ['torch']
+dependencies = [
+    'regex',
+    'sacremoses',
+    'sentencepiece',
+    'subword_nmt',
+    'torch',
+]
 
 
 for model, cls in MODEL_REGISTRY.items():
