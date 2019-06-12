@@ -349,6 +349,12 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             agg_sample_size += sample_size
             agg_logging_output[logging_output_key] = logging_output
 
+        if self.lambda_denoising > 0.0:
+            for lang_pair in self.args.lang_pairs:
+                _, tgt = lang_pair.split('-')
+                sample_key = _get_denoising_dataset_key(lang_pair)
+                forward_backward(model.models['{0}-{0}'.format(tgt)], sample[sample_key], sample_key, self.lambda_denoising)
+
         if self.lambda_parallel > 0.0:
             for lang_pair in self.args.lang_pairs:
                 forward_backward(model.models[lang_pair], sample[lang_pair], lang_pair, self.lambda_parallel)
@@ -357,12 +363,6 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             for lang_pair in self.args.lang_pairs:
                 sample_key = _get_bt_dataset_key(lang_pair)
                 forward_backward(model.models[lang_pair], sample[sample_key], sample_key, self.lambda_otf_bt)
-
-        if self.lambda_denoising > 0.0:
-            for lang_pair in self.args.lang_pairs:
-                _, tgt = lang_pair.split('-')
-                sample_key = _get_denoising_dataset_key(lang_pair)
-                forward_backward(model.models['{0}-{0}'.format(tgt)], sample[sample_key], sample_key, self.lambda_denoising)
 
         return agg_loss, agg_sample_size, agg_logging_output
 
