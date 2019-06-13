@@ -62,7 +62,7 @@ class FairseqBMUF(FairseqOptimizer):
         if self.get_num_updates() % self.sync_iter == 0:
             size = float(dist.get_world_size())
             for p in self.params:
-                dist.all_reduce(p.data, op=dist.reduce_op.SUM)
+                dist.all_reduce(p.data, op=dist.ReduceOp.SUM)
                 p.data /= size
 
     def step(self, closure=None):
