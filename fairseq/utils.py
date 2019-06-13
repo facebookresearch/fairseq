@@ -6,17 +6,18 @@
 # can be found in the PATENTS file in the same directory.
 
 from collections import defaultdict
-from typing import Callable
 import copy
 import importlib.util
+import math
 import os
 import sys
+from typing import Callable, List
 import warnings
 
 import torch
 import torch.nn.functional as F
 
-from fairseq.modules import gelu, gelu_fast
+from fairseq.modules import gelu, gelu_accurate
 
 
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
@@ -83,7 +84,7 @@ def set_incremental_state(module, incremental_state, key, value):
 def load_align_dict(replace_unk):
     if replace_unk is None:
         align_dict = None
-    elif isinstance(replace_unk, str):
+    elif isinstance(replace_unk, str) and len(replace_unk) > 0:
         # Load alignment dictionary for unknown word replacement if it was passed as an argument.
         align_dict = {}
         with open(replace_unk, 'r') as f:
@@ -146,7 +147,7 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     return ' '.join(hypo_tokens)
 
 
-def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe):
+def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None):
     from fairseq import tokenizer
     hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
@@ -286,6 +287,13 @@ def log_softmax(x, dim, onnx_trace=False):
         return F.log_softmax(x, dim=dim, dtype=torch.float32)
 
 
+def get_perplexity(loss):
+    try:
+        return '{:.2f}'.format(math.pow(2, loss))
+    except OverflowError:
+        return float('inf')
+
+
 def deprecation_warning(message, stacklevel=3):
     # don't use DeprecationWarning, since it's ignored by default
     warnings.warn(message, stacklevel=stacklevel)
@@ -298,6 +306,21 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == 'gelu':
         return gelu
     elif activation == 'gelu_fast':
-        return gelu_fast
+        deprecation_warning('--activation-fn=gelu_fast has been renamed to gelu_accurate')
+        return gelu_accurate
+    elif activation == 'gelu_accurate':
+        return gelu_accurate
+    elif activation == 'tanh':
+        return torch.tanh
     else:
-        raise RuntimeError(f"--activation-fn {activation} not supported")
+        raise RuntimeError("--activation-fn {} not supported".format(activation))
+
+
+def get_available_activation_fns() -> List:
+    return [
+        'relu',
+        'gelu',
+        'gelu_fast',  # deprecated
+        'gelu_accurate',
+        'tanh',
+    ]

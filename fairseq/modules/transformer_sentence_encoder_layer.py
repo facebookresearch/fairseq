@@ -5,21 +5,21 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import math
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fairseq.modules import gelu, MultiheadAttention, BertLayerNorm, LayerNorm
+
+from fairseq import utils
+from fairseq.modules import (
+    LayerNorm,
+    MultiheadAttention,
+)
 
 
 class TransformerSentenceEncoderLayer(nn.Module):
     """
     Implements a Transformer Encoder Layer used in BERT/XLM style pre-trained
     models.
-
-    If the flag use_bert_layer_norm is set then we use the custom
-    BertLayerNorm module instead of LayerNorm.
     """
 
     def __init__(
@@ -30,9 +30,10 @@ class TransformerSentenceEncoderLayer(nn.Module):
         dropout: float = 0.1,
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
-        encoder_normalize_before: bool = False,
-        use_bert_layer_norm: bool = False,
-        use_gelu: bool = True,
+        activation_fn: str = 'relu',
+        add_bias_kv: bool = False,
+        add_zero_attn: bool = False,
+        export: bool = False,
     ) -> None:
 
         super().__init__()
@@ -40,42 +41,25 @@ class TransformerSentenceEncoderLayer(nn.Module):
         self.embedding_dim = embedding_dim
         self.dropout = dropout
         self.activation_dropout = activation_dropout
-        self.normalize_before = encoder_normalize_before
 
         # Initialize blocks
-        self.activation_fn = gelu if use_gelu else F.relu
+        self.activation_fn = utils.get_activation_fn(activation_fn)
         self.self_attn = MultiheadAttention(
-            self.embedding_dim, num_attention_heads, dropout=attention_dropout
+            self.embedding_dim,
+            num_attention_heads,
+            dropout=attention_dropout,
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
+            self_attention=True
         )
 
         # layer norm associated with the self attention layer
-        self.self_attn_layer_norm = (
-            BertLayerNorm(self.embedding_dim)
-            if use_bert_layer_norm
-            else LayerNorm(self.embedding_dim, eps=1e-12)
-        )
+        self.self_attn_layer_norm = LayerNorm(self.embedding_dim, export=export)
         self.fc1 = nn.Linear(self.embedding_dim, ffn_embedding_dim)
         self.fc2 = nn.Linear(ffn_embedding_dim, self.embedding_dim)
 
         # layer norm associated with the position wise feed-forward NN
-        self.final_layer_norm = (
-            BertLayerNorm(self.embedding_dim)
-            if use_bert_layer_norm
-            else LayerNorm(self.embedding_dim, eps=1e-12)
-        )
-
-    def _maybe_layer_norm(
-        self,
-        layer_norm: nn.Module,
-        x: torch.Tensor,
-        before: bool = False,
-        after: bool = False,
-    ):
-        assert before ^ after
-        if after ^ self.normalize_before:
-            return layer_norm(x)
-        else:
-            return x
+        self.final_layer_norm = LayerNorm(self.embedding_dim, export=export)
 
     def forward(
         self,
@@ -87,9 +71,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         LayerNorm is applied either before or after the self-attention/ffn
         modules similar to the original Transformer imlementation.
         """
-
         residual = x
-        x = self._maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
         x, attn = self.self_attn(
             query=x,
             key=x,
@@ -100,14 +82,13 @@ class TransformerSentenceEncoderLayer(nn.Module):
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
-        x = self._maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
+        x = self.self_attn_layer_norm(x)
 
         residual = x
-        x = self._maybe_layer_norm(self.final_layer_norm, x, before=True)
         x = self.activation_fn(self.fc1(x))
         x = F.dropout(x, p=self.activation_dropout, training=self.training)
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
-        x = self._maybe_layer_norm(self.final_layer_norm, x, after=True)
+        x = self.final_layer_norm(x)
         return x, attn

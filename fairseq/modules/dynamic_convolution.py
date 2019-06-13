@@ -150,7 +150,7 @@ class DynamicConv1dTBC(nn.Module):
 
         weight = F.dropout(weight, self.weight_dropout, training=self.training, inplace=False)
 
-        output = torch.bmm(x_unfold, weight.unsqueeze(2)) # T*B*H x R x 1
+        output = torch.bmm(x_unfold, weight.unsqueeze(2))  # T*B*H x R x 1
         output = output.view(T, B, C)
         return output
 
@@ -195,7 +195,7 @@ class DynamicConv1dTBC(nn.Module):
             # turn the convolution filters into band matrices
             weight_expanded = weight.new_zeros(B*H, T, T+K-1, requires_grad=False)
             weight_expanded.as_strided((B*H, T, K), (T*(T+K-1), T+K, 1)).copy_(weight)
-            weight_expanded = weight_expanded.narrow(2, P, T) # B*H x T x T
+            weight_expanded = weight_expanded.narrow(2, P, T)  # B*H x T x T
 
         output = torch.bmm(weight_expanded, x)
         output = output.transpose(0, 1).contiguous().view(T, B, C)

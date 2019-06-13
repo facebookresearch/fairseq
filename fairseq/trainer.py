@@ -79,7 +79,7 @@ class Trainer(object):
     @property
     def model(self):
         if self._wrapped_model is None:
-            if self.args.distributed_world_size > 1:
+            if self.args.distributed_world_size > 1 and not self.args.use_bmuf:
                 self._wrapped_model = models.DistributedFairseqModel(
                     self.args, self._model,
                 )
@@ -114,20 +114,32 @@ class Trainer(object):
                 print('| NOTICE: your device may support faster training with --fp16')
             self._optimizer = optim.build_optimizer(self.args, params)
 
+        if self.args.use_bmuf:
+            self._optimizer = optim.FairseqBMUF(self.args, params, self._optimizer)
+
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
+        self._lr_scheduler.step_update(0)
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         if distributed_utils.is_master(self.args):  # only save one checkpoint
             extra_state['train_meters'] = self.meters
             checkpoint_utils.save_state(
-                filename, self.args, self.get_model().state_dict(), self.criterion, self.optimizer,
-                self.lr_scheduler, self._num_updates, self._optim_history, extra_state,
+                filename, self.args, self.get_model().state_dict(), self.criterion,
+                self.optimizer, self.lr_scheduler, self.get_num_updates(),
+                self._optim_history, extra_state,
             )
 
-    def load_checkpoint(self, filename, reset_optimizer=False, reset_lr_scheduler=False, optimizer_overrides=None):
+    def load_checkpoint(
+        self,
+        filename,
+        reset_optimizer=False,
+        reset_lr_scheduler=False,
+        optimizer_overrides=None,
+        reset_meters=False,
+    ):
         """Load all training state from a checkpoint file."""
         extra_state, self._optim_history, last_optim_state = None, [], None
 
@@ -162,18 +174,48 @@ class Trainer(object):
                 self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
-            self._num_updates = last_optim['num_updates']
+            self.set_num_updates(last_optim['num_updates'])
 
-        if extra_state is not None and 'train_meters' in extra_state:
-            self.meters.update(extra_state['train_meters'])
-            del extra_state['train_meters']
+        if extra_state is not None:
+            epoch = extra_state['train_iterator']['epoch']
+            print('| loaded checkpoint {} (epoch {} @ {} updates)'.format(
+                filename, epoch, self.get_num_updates()))
 
-            # reset TimeMeters, since their start times don't make sense anymore
-            for meter in self.meters.values():
-                if isinstance(meter, TimeMeter):
-                    meter.reset()
+            self.lr_step(epoch)
+
+            if 'train_meters' in extra_state:
+                self.meters.update(extra_state['train_meters'])
+                del extra_state['train_meters']
+
+                # reset TimeMeters, since their start times don't make sense anymore
+                for meter in self.meters.values():
+                    if isinstance(meter, TimeMeter):
+                        meter.reset()
+        else:
+            print('| no existing checkpoint found {}'.format(filename))
 
         return extra_state
+
+    def get_train_iterator(self, epoch, combine=True):
+        """Return an EpochBatchIterator over the training set for a given epoch."""
+        print('| loading train data for epoch {}'.format(epoch))
+        self.task.load_dataset(self.args.train_subset, epoch=epoch, combine=combine)
+        return self.task.get_batch_iterator(
+            dataset=self.task.dataset(self.args.train_subset),
+            max_tokens=self.args.max_tokens,
+            max_sentences=self.args.max_sentences,
+            max_positions=utils.resolve_max_positions(
+                self.task.max_positions(),
+                self.model.max_positions(),
+            ),
+            ignore_invalid_inputs=True,
+            required_batch_size_multiple=self.args.required_batch_size_multiple,
+            seed=self.args.seed,
+            num_shards=self.args.distributed_world_size,
+            shard_id=self.args.distributed_rank,
+            num_workers=self.args.num_workers,
+            epoch=epoch,
+        )
 
     def train_step(self, samples, dummy_batch=False, raise_oom=False):
         """Do forward, backward and parameter update."""
@@ -247,7 +289,13 @@ class Trainer(object):
             return None
 
         # gather logging outputs from all replicas
-        if self.args.distributed_world_size > 1:
+        if self.args.distributed_world_size > 1 and (
+            (not self.args.use_bmuf)
+            or (
+                self.args.use_bmuf
+                and (self.get_num_updates() + 1) % self.args.global_sync_iter == 0
+            )
+        ):
             logging_outputs, sample_sizes, ooms, prev_norms = \
                 zip(*distributed_utils.all_gather_list(
                     [logging_outputs, sample_sizes, ooms, self._prev_grad_norm],
@@ -255,10 +303,12 @@ class Trainer(object):
             logging_outputs = list(chain.from_iterable(logging_outputs))
             sample_sizes = list(chain.from_iterable(sample_sizes))
             ooms = sum(ooms)
-            assert (
-                all(norm == prev_norms[0] for norm in prev_norms)
-                or all(math.isnan(norm) or math.isinf(norm) for norm in prev_norms)
-            ), 'Fatal error: gradients are inconsistent between workers'
+
+            if not self.args.use_bmuf:
+                assert (
+                    all(norm == prev_norms[0] for norm in prev_norms)
+                    or all(math.isnan(norm) or math.isinf(norm) for norm in prev_norms)
+                ), 'Fatal error: gradients are inconsistent between workers'
 
         self.meters['oom'].update(ooms, len(samples))
         if ooms == self.args.distributed_world_size * len(samples):
@@ -280,7 +330,8 @@ class Trainer(object):
 
         try:
             # normalize grads by sample size
-            self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
+            if sample_size > 0:
+                self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
 
             # clip grads
             grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
@@ -288,10 +339,7 @@ class Trainer(object):
 
             # take an optimization step
             self.optimizer.step()
-            self._num_updates += 1
-
-            # update learning rate
-            self.lr_scheduler.step_update(self._num_updates)
+            self.set_num_updates(self.get_num_updates() + 1)
 
             # task specific update per step
             self.task.update_step(self._num_updates)
@@ -409,11 +457,13 @@ class Trainer(object):
 
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate based on the validation loss."""
-        return self.lr_scheduler.step(epoch, val_loss)
+        self.lr_scheduler.step(epoch, val_loss)
+        # prefer updating the LR based on the number of steps
+        return self.lr_step_update()
 
-    def lr_step_update(self, num_updates):
+    def lr_step_update(self):
         """Update the learning rate after each update."""
-        return self.lr_scheduler.step_update(num_updates)
+        return self.lr_scheduler.step_update(self.get_num_updates())
 
     def get_lr(self):
         """Get the current learning rate."""
@@ -432,6 +482,11 @@ class Trainer(object):
     def get_num_updates(self):
         """Get the number of parameters updates."""
         return self._num_updates
+
+    def set_num_updates(self, num_updates):
+        """Set the number of parameters updates."""
+        self._num_updates = num_updates
+        self.lr_step_update()
 
     def _prepare_sample(self, sample):
         if sample is None or len(sample) == 0:

@@ -10,15 +10,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import options, utils
-from fairseq.modules import AdaptiveSoftmax
-from . import (
-    FairseqEncoder, FairseqIncrementalDecoder, FairseqModel, register_model,
+from fairseq.models import (
+    FairseqEncoder,
+    FairseqIncrementalDecoder,
+    FairseqEncoderDecoderModel,
+    register_model,
     register_model_architecture,
 )
+from fairseq.modules import AdaptiveSoftmax
 
 
 @register_model('lstm')
-class LSTMModel(FairseqModel):
+class LSTMModel(FairseqEncoderDecoderModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
@@ -301,7 +304,7 @@ class AttentionLayer(nn.Module):
         # sum weighted sources
         x = (attn_scores.unsqueeze(2) * source_hids).sum(dim=0)
 
-        x = F.tanh(self.output_proj(torch.cat((x, input), dim=1)))
+        x = torch.tanh(self.output_proj(torch.cat((x, input), dim=1)))
         return x, attn_scores
 
 
@@ -355,9 +358,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         elif not self.share_input_output_embed:
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, prev_output_tokens, encoder_out_dict, incremental_state=None):
-        encoder_out = encoder_out_dict['encoder_out']
-        encoder_padding_mask = encoder_out_dict['encoder_padding_mask']
+    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+        encoder_padding_mask = encoder_out['encoder_padding_mask']
+        encoder_out = encoder_out['encoder_out']
 
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]

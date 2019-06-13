@@ -18,25 +18,40 @@ class FairseqDecoder(nn.Module):
         self.dictionary = dictionary
         self.onnx_trace = False
 
-    def forward(self, prev_output_tokens, encoder_out):
+    def forward(self, prev_output_tokens, encoder_out=None, **kwargs):
         """
         Args:
-            prev_output_tokens (LongTensor): previous decoder outputs of shape
+            prev_output_tokens (LongTensor): shifted output tokens of shape
                 `(batch, tgt_len)`, for input feeding/teacher forcing
-            encoder_out (Tensor, optional): output from the encoder, used for
+            encoder_out (dict, optional): output from the encoder, used for
                 encoder-side attention
 
         Returns:
             tuple:
-                - the last decoder layer's output of shape
-                  `(batch, tgt_len, vocab)`
-                - the last decoder layer's attention weights of shape
-                  `(batch, tgt_len, src_len)`
+                - the decoder's output of shape `(batch, tgt_len, vocab)`
+                - a dictionary with any model-specific outputs
+        """
+        x, extra = self.extract_features(prev_output_tokens, encoder_out=encoder_out, **kwargs)
+        x = self.output_layer(x)
+        return x, extra
+
+    def extract_features(self, prev_output_tokens, encoder_out=None, **kwargs):
+        """
+        Returns:
+            tuple:
+                - the decoder's features of shape `(batch, tgt_len, embed_dim)`
+                - a dictionary with any model-specific outputs
         """
         raise NotImplementedError
 
-    def prepare_for_onnx_export_(self):
-        self.onnx_trace = True
+    def output_layer(self, features, **kwargs):
+        """
+        Project features to the default output size, e.g., vocabulary size.
+
+        Args:
+            features (Tensor): features returned by *extract_features*.
+        """
+        raise NotImplementedError
 
     def get_normalized_probs(self, net_output, log_probs, sample):
         """Get normalized probabilities (or log probs) from a net's output."""
@@ -63,3 +78,6 @@ class FairseqDecoder(nn.Module):
     def upgrade_state_dict(self, state_dict):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
         return state_dict
+
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True

@@ -6,14 +6,11 @@
 # can be found in the PATENTS file in the same directory.
 
 import inspect
-import socket
 
 from torch.nn import parallel
 
-from fairseq import distributed_utils
 from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
-
-from . import BaseFairseqModel
+from fairseq.models import BaseFairseqModel
 
 
 def DistributedFairseqModel(args, model):
@@ -40,9 +37,11 @@ def DistributedFairseqModel(args, model):
             broadcast_buffers=False,
             bucket_cap_mb=args.bucket_cap_mb,
         )
-        # Maintain backward compatibility for 0.4 or earlier
+        # Maintain backward compatibility
         if 'check_reduction' in inspect.getargspec(ddp_class)[0]:
             init_kwargs['check_reduction'] = True
+        if 'find_unused_parameters' in inspect.getargspec(ddp_class)[0]:
+            init_kwargs['find_unused_parameters'] = args.find_unused_parameters
     elif args.ddp_backend == 'no_c10d':
         ddp_class = LegacyDistributedDataParallel
         init_kwargs = dict(

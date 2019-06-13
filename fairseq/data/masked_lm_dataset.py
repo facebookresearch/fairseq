@@ -10,7 +10,7 @@ import math
 import numpy as np
 import torch
 
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 from . import FairseqDataset, data_utils
 
@@ -152,7 +152,7 @@ class MaskedLMDataset(FairseqDataset):
         masked_sent = np.copy(sentence)
         sent_length = len(sentence)
         mask_num = math.ceil(sent_length * self.masking_ratio)
-        mask = np.random.choice(sent_length, mask_num)
+        mask = np.random.choice(sent_length, mask_num, replace=False)
         target = np.copy(sentence)
 
         for i in range(sent_length):
@@ -166,7 +166,7 @@ class MaskedLMDataset(FairseqDataset):
 
                 # replace with random token if probability is less than
                 # masking_prob + random_token_prob (Eg: 0.9)
-            elif rand < (self.masking_ratio + self.random_token_prob):
+                elif rand < (self.masking_prob + self.random_token_prob):
                     # sample random token from dictionary
                     masked_sent[i] = (
                         np.random.randint(
@@ -260,7 +260,7 @@ class MaskedLMDataset(FairseqDataset):
             "id": torch.LongTensor([s["id"] for s in samples]),
             "ntokens": sum(len(s["source"]) for s in samples),
             "net_input": {
-                "tokens": merge("source"),
+                "src_tokens": merge("source"),
                 "segment_labels": merge("segment_labels"),
             },
             "lm_target": merge("lm_target"),

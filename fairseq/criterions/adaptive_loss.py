@@ -57,8 +57,12 @@ class AdaptiveLoss(FairseqCriterion):
         for i in range(len(target)):
             if target[i] is not None:
                 assert (target[i].min() >= 0 and target[i].max() <= logits[i].size(1))
-                loss += F.cross_entropy(logits[i], target[i], size_average=False, ignore_index=self.padding_idx,
-                                        reduce=reduce)
+                loss += F.cross_entropy(
+                    logits[i],
+                    target[i],
+                    ignore_index=self.padding_idx,
+                    reduction='sum' if reduce else 'none',
+                )
 
         orig = utils.strip_pad(orig_target, self.padding_idx)
         ntokens = orig.numel()

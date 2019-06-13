@@ -32,7 +32,7 @@ Once extracted, let's preprocess the data using the :ref:`fairseq-preprocess`
 command-line tool to create the dictionaries. While this tool is primarily
 intended for sequence-to-sequence problems, we're able to reuse it here by
 treating the label as a "target" sequence of length 1. We'll also output the
-preprocessed files in "raw" format using the ``--output-format`` option to
+preprocessed files in "raw" format using the ``--dataset-impl`` option to
 enhance readability:
 
 .. code-block:: console
@@ -40,7 +40,7 @@ enhance readability:
   > fairseq-preprocess \
     --trainpref names/train --validpref names/valid --testpref names/test \
     --source-lang input --target-lang label \
-    --destdir names-bin --output-format raw
+    --destdir names-bin --dataset-impl raw
 
 After running the above command you should see a new directory,
 :file:`names-bin/`, containing the dictionaries for *inputs* and *labels*.

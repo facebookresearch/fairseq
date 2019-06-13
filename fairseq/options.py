@@ -10,12 +10,7 @@ import argparse
 import torch
 import sys
 
-from fairseq.criterions import CRITERION_REGISTRY
-from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
-from fairseq.optim import OPTIMIZER_REGISTRY
-from fairseq.optim.lr_scheduler import LR_SCHEDULER_REGISTRY
-from fairseq.tasks import TASK_REGISTRY
-from fairseq.utils import import_user_module
+from fairseq import utils
 
 
 def get_preprocessing_parser(default_task='translation'):
@@ -75,6 +70,8 @@ def eval_bool(x, default=False):
 
 
 def parse_args_and_arch(parser, input_args=None, parse_known=False):
+    from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
+
     # The parser doesn't know about model/criterion/optimizer-specific args, so
     # we parse twice. First we parse the model/criterion/optimizer, then we
     # parse a second time after adding the *-specific arguments.
@@ -92,13 +89,15 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
         ARCH_MODEL_REGISTRY[args.arch].add_args(model_specific_group)
 
     # Add *-specific args to parser.
-    if hasattr(args, 'criterion'):
-        CRITERION_REGISTRY[args.criterion].add_args(parser)
-    if hasattr(args, 'optimizer'):
-        OPTIMIZER_REGISTRY[args.optimizer].add_args(parser)
-    if hasattr(args, 'lr_scheduler'):
-        LR_SCHEDULER_REGISTRY[args.lr_scheduler].add_args(parser)
+    from fairseq.registry import REGISTRIES
+    for registry_name, REGISTRY in REGISTRIES.items():
+        choice = getattr(args, registry_name, None)
+        if choice is not None:
+            cls = REGISTRY['registry'][choice]
+            if hasattr(cls, 'add_args'):
+                cls.add_args(parser)
     if hasattr(args, 'task'):
+        from fairseq.tasks import TASK_REGISTRY
         TASK_REGISTRY[args.task].add_args(parser)
 
     # Parse a second time.
@@ -127,12 +126,12 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
 def get_parser(desc, default_task='translation'):
     # Before creating the true parser, we need to import optional user module
     # in order to eagerly import custom tasks, optimizers, architectures, etc.
-    usr_parser = argparse.ArgumentParser(add_help=False)
+    usr_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     usr_parser.add_argument('--user-dir', default=None)
     usr_args, _ = usr_parser.parse_known_args()
-    import_user_module(usr_args)
+    utils.import_user_module(usr_args)
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     # fmt: off
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
     parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
@@ -142,6 +141,8 @@ def get_parser(desc, default_task='translation'):
     parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
                         help='path to save logs for tensorboard, should match --logdir '
                              'of running tensorboard (default: no tensorboard logging)')
+    parser.add_argument("--tbmf-wrapper", action="store_true",
+                        help="[FB only] ")
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
@@ -161,7 +162,16 @@ def get_parser(desc, default_task='translation'):
     parser.add_argument('--user-dir', default=None,
                         help='path to a python module containing custom extensions (tasks and/or architectures)')
 
+    from fairseq.registry import REGISTRIES
+    for registry_name, REGISTRY in REGISTRIES.items():
+        parser.add_argument(
+            '--' + registry_name.replace('_', '-'),
+            default=REGISTRY['default'],
+            choices=REGISTRY['registry'].keys(),
+        )
+
     # Task definitions can be found under fairseq/tasks/
+    from fairseq.tasks import TASK_REGISTRY
     parser.add_argument('--task', metavar='TASK', default=default_task,
                         choices=TASK_REGISTRY.keys(),
                         help='task')
@@ -234,6 +244,10 @@ def add_dataset_args(parser, train=False, gen=False):
         group.add_argument('--valid-subset', default='valid', metavar='SPLIT',
                            help='comma separated list of data subsets to use for validation'
                                 ' (train, valid, valid1, test, test1)')
+        group.add_argument('--validate-interval', type=int, default=1, metavar='N',
+                           help='validate every N epochs')
+        group.add_argument('--disable-validation', action='store_true',
+                           help='disable validation')
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
                            help='maximum number of sentences in a validation batch'
                                 ' (defaults to --max-sentences)')
@@ -278,6 +292,9 @@ def add_distributed_training_args(parser):
                        help='don\'t shuffle batches between GPUs; this reduces overall '
                             'randomness and may affect precision but avoids the cost of '
                             're-reading the data')
+    group.add_argument('--find-unused-parameters', default=False, action='store_true',
+                       help='disable unused parameter detection (not applicable to '
+                       'no_c10d ddp-backend')
     # fmt: on
     return group
 
@@ -297,22 +314,16 @@ def add_optimization_args(parser):
     group.add_argument('--update-freq', default='1', metavar='N1,N2,...,N_K',
                        type=lambda uf: eval_str_list(uf, type=int),
                        help='update parameters every N_i batches, when in epoch i')
-
-    # Optimizer definitions can be found under fairseq/optim/
-    group.add_argument('--optimizer', default='nag', metavar='OPT',
-                       choices=OPTIMIZER_REGISTRY.keys(),
-                       help='Optimizer')
     group.add_argument('--lr', '--learning-rate', default='0.25', type=eval_str_list,
                        metavar='LR_1,LR_2,...,LR_N',
                        help='learning rate for the first N epochs; all epochs >N using LR_N'
                             ' (note: this may be interpreted differently depending on --lr-scheduler)')
-
-    # Learning rate schedulers can be found under fairseq/optim/lr_scheduler/
-    group.add_argument('--lr-scheduler', default='fixed',
-                       choices=LR_SCHEDULER_REGISTRY.keys(),
-                       help='Learning Rate Scheduler')
     group.add_argument('--min-lr', default=-1, type=float, metavar='LR',
                        help='stop training when the learning rate reaches this minimum')
+    group.add_argument('--use-bmuf', default=False, action='store_true',
+                        help="specify global optimizer for syncing models on different GPUs/Shards")
+    group.add_argument('--global-sync-iter', default=10, type=int,
+                        help='Iteration for syncing global model')
     # fmt: on
     return group
 
@@ -324,10 +335,14 @@ def add_checkpoint_args(parser):
                        help='path to save checkpoints')
     group.add_argument('--restore-file', default='checkpoint_last.pt',
                        help='filename in save-dir from which to load checkpoint')
-    group.add_argument('--reset-optimizer', action='store_true',
-                       help='if set, does not load optimizer state from the checkpoint')
+    group.add_argument('--reset-dataloader', action='store_true',
+                       help='if set, does not reload dataloader state from the checkpoint')
     group.add_argument('--reset-lr-scheduler', action='store_true',
                        help='if set, does not load lr scheduler state from the checkpoint')
+    group.add_argument('--reset-meters', action='store_true',
+                       help='if set, does not load meters from the checkpoint')
+    group.add_argument('--reset-optimizer', action='store_true',
+                       help='if set, does not load optimizer state from the checkpoint')
     group.add_argument('--optimizer-overrides', default="{}", type=str, metavar='DICT',
                        help='a dictionary used to override optimizer args when loading a checkpoint')
     group.add_argument('--save-interval', type=int, default=1, metavar='N',
@@ -342,8 +357,6 @@ def add_checkpoint_args(parser):
                        help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
                        help='only store last and best checkpoints')
-    group.add_argument('--validate-interval', type=int, default=1, metavar='N',
-                       help='validate every N epochs')
     # fmt: on
     return group
 
@@ -458,13 +471,9 @@ def add_model_args(parser):
     # 1) model defaults (lowest priority)
     # 2) --arch argument
     # 3) --encoder/decoder-* arguments (highest priority)
+    from fairseq.models import ARCH_MODEL_REGISTRY
     group.add_argument('--arch', '-a', default='fconv', metavar='ARCH', required=True,
                        choices=ARCH_MODEL_REGISTRY.keys(),
                        help='Model Architecture')
-
-    # Criterion definitions can be found under fairseq/criterions/
-    group.add_argument('--criterion', default='cross_entropy', metavar='CRIT',
-                       choices=CRITERION_REGISTRY.keys(),
-                       help='Training Criterion')
     # fmt: on
     return group

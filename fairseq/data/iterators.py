@@ -7,8 +7,6 @@
 
 import itertools
 import math
-import queue
-import threading
 
 import numpy as np
 import torch
@@ -78,7 +76,8 @@ class EpochBatchIterator(object):
         num_workers (int, optional): how many subprocesses to use for data
             loading. 0 means the data will be loaded in the main process
             (default: 0).
-        epoch (int, optional): The epoch to start the iterator from.
+        epoch (int, optional): the epoch to start the iterator from
+            (default: 0).
     """
 
     def __init__(
@@ -209,6 +208,7 @@ class GroupedIterator(object):
 
     def __init__(self, iterable, chunk_size):
         self._len = int(math.ceil(len(iterable) / float(chunk_size)))
+        self.offset = int(math.ceil(getattr(iterable, 'count', 0) / float(chunk_size)))
         self.itr = iterable
         self.chunk_size = chunk_size
 

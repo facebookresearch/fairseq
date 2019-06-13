@@ -7,6 +7,7 @@
 
 
 import math
+import torch
 import torch.nn.functional as F
 
 from fairseq import utils
@@ -22,8 +23,8 @@ def compute_cross_entropy_loss(logits, targets, ignore_index=-100):
     assert logits.size(0) == targets.size(-1), \
         "Logits and Targets tensor shapes don't match up"
 
-    loss = F.cross_entropy(
-        logits,
+    loss = F.nll_loss(
+        F.log_softmax(logits, -1, dtype=torch.float32),
         targets,
         reduction="sum",
         ignore_index=ignore_index,

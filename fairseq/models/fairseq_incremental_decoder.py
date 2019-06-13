@@ -5,15 +5,15 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from . import FairseqDecoder
+from fairseq.models import FairseqDecoder
 
 
 class FairseqIncrementalDecoder(FairseqDecoder):
     """Base class for incremental decoders.
 
     Incremental decoding is a special mode at inference time where the Model
-    only receives a single timestep of input corresponding to the immediately
-    previous output token (for input feeding) and must produce the next output
+    only receives a single timestep of input corresponding to the previous
+    output token (for input feeding) and must produce the next output
     *incrementally*. Thus the model must cache any long-term state that is
     needed about the sequence, e.g., hidden states, convolutional states, etc.
 
@@ -25,7 +25,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
     The :class:`FairseqIncrementalDecoder` interface also defines the
     :func:`reorder_incremental_state` method, which is used during beam search
     to select and reorder the incremental state based on the selection of beams.
-	
+
     To learn more about how incremental decoding works, refer to `this blog
     <http://www.telesens.co/2019/04/21/understanding-incremental-decoding-in-fairseq/>`_.
     """
@@ -33,22 +33,29 @@ class FairseqIncrementalDecoder(FairseqDecoder):
     def __init__(self, dictionary):
         super().__init__(dictionary)
 
-    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs):
         """
         Args:
-            prev_output_tokens (LongTensor): previous decoder outputs of shape
+            prev_output_tokens (LongTensor): shifted output tokens of shape
                 `(batch, tgt_len)`, for input feeding/teacher forcing
-            encoder_out (Tensor, optional): output from the encoder, used for
+            encoder_out (dict, optional): output from the encoder, used for
                 encoder-side attention
-            incremental_state (dict): dictionary used for storing state during
-                :ref:`Incremental decoding`
+            incremental_state (dict, optional): dictionary used for storing
+                state during :ref:`Incremental decoding`
 
         Returns:
             tuple:
-                - the last decoder layer's output of shape `(batch, tgt_len,
-                  vocab)`
-                - the last decoder layer's attention weights of shape `(batch,
-                  tgt_len, src_len)`
+                - the decoder's output of shape `(batch, tgt_len, vocab)`
+                - a dictionary with any model-specific outputs
+        """
+        raise NotImplementedError
+
+    def extract_features(self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs):
+        """
+        Returns:
+            tuple:
+                - the decoder's features of shape `(batch, tgt_len, embed_dim)`
+                - a dictionary with any model-specific outputs
         """
         raise NotImplementedError
 

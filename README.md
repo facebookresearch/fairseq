@@ -28,7 +28,7 @@ Fairseq features:
   - Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
   - sampling (unconstrained and top-k)
 - large mini-batch training even on a single GPU via delayed updates
-- fast half-precision floating point (FP16) training
+- mixed precision training (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
 - extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
 
 We also provide [pre-trained models](#pre-trained-models-and-examples) for several benchmark
@@ -39,7 +39,7 @@ translation and language modeling datasets.
 # Requirements and Installation
 
 * [PyTorch](http://pytorch.org/) version >= 1.0.0
-* Python version >= 3.6
+* Python version >= 3.5
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 
 Please follow the instructions here to install PyTorch: https://github.com/pytorch/pytorch#installation.

@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from . import FairseqEncoder
+from fairseq.models import FairseqEncoder
 
 
 class CompositeEncoder(FairseqEncoder):
