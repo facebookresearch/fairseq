@@ -1,6 +1,6 @@
 '''
 Vineet Kumar, sioom corp
-From old dataset, create new dataset that works with the fairseq code base
+Modify dataset to create new dataset that works with the fairseq code base
 From directory examples/transaction_bot/, issue following command:
 python3 create-fairseq-dialog-dataset.py data-bin/transaction_bot
 '''
@@ -100,10 +100,6 @@ Line #: {lineno + 1}\n\
 Line: {line}')
             if hmnLine[0] == '1':
                 dialogStartIndex.append(hmnBotFileLineCount)
-#               hmnFile.write('\n')
-#               botFile.write('\n')
-#               hmnFile.write('<SOD>\n')
-#               botFile.write('<SOD>\n')
             hmnFile.write(hmnLine.lstrip('0123456789 ')+'\n')
             botFile.write(botLine)
             hmnBotFileLineCount += 1
