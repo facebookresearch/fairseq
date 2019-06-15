@@ -383,10 +383,15 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
             _warmup_mmap_file(path)
 
-            self._bin_buffer = memoryview(np.memmap(path, mode='r', order='C'))
+            self._bin_buffer_mmap = np.memmap(path, mode='r', order='C')
+            self._bin_buffer = memoryview(self._bin_buffer_mmap)
             self._sizes = np.frombuffer(self._bin_buffer, dtype=np.int32, count=self._len, offset=offset)
             self._pointers = np.frombuffer(self._bin_buffer, dtype=np.int64, count=self._len,
                                            offset=offset + self._sizes.nbytes)
+
+        def __del__(self):
+            self._bin_buffer_mmap._mmap.close()
+            del self._bin_buffer_mmap
 
         @property
         def dtype(self):
@@ -422,7 +427,13 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         self._index = self.Index(index_file_path(self._path))
 
         _warmup_mmap_file(data_file_path(self._path))
-        self._bin_buffer = memoryview(np.memmap(data_file_path(self._path), mode='r', order='C'))
+        self._bin_buffer_mmap = np.memmap(data_file_path(self._path), mode='r', order='C')
+        self._bin_buffer = memoryview(self._bin_buffer_mmap)
+
+    def __del__(self):
+        self._bin_buffer_mmap._mmap.close()
+        del self._bin_buffer_mmap
+        del self._index
 
     def __len__(self):
         return len(self._index)
