@@ -65,6 +65,7 @@ class LanguageModelingTask(FairseqTask):
                                  'tokens. If set to "complete", splits samples only at the end '
                                  'of sentence, but may include multiple sentences per sample. '
                                  'If set to "eos", includes only one sentence per sample.')
+        parser.add_argument('--output-sent-score', action='store_true')
         parser.add_argument('--tokens-per-sample', default=1024, type=int,
                             help='max number of tokens per sample for LM dataset')
         parser.add_argument('--lazy-load', action='store_true',

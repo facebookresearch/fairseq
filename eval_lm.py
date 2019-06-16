@@ -152,6 +152,8 @@ def main(parsed_args):
                 hypo = hypos_i[0]
 
                 tokens = hypo['tokens']
+                if args.output_sent_score:
+                    print(f"{hypo['score'].item()}")
                 tgt_len = tokens.numel()
                 pos_scores = hypo['positional_scores'].float()
 
