@@ -639,8 +639,12 @@ class TransformerDecoderLayer(nn.Module):
             self.encoder_attn_layer_norm = None
         else:
             self.encoder_attn = MultiheadAttention(
-                self.embed_dim, args.decoder_attention_heads,
-                dropout=args.attention_dropout, encoder_decoder_attention=True
+                self.embed_dim,
+                args.decoder_attention_heads,
+                kdim=getattr(args, 'encoder_embed_dim', None),
+                vdim=getattr(args, 'encoder_embed_dim', None),
+                dropout=args.attention_dropout,
+                encoder_decoder_attention=True,
             )
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
 
