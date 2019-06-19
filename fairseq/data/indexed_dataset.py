@@ -12,9 +12,16 @@ import numpy as np
 import torch
 
 
-def make_builder(out_file, impl):
+def __best_fitting_dtype(vocab_size=None):
+    if vocab_size is not None and vocab_size < 65500:
+        return np.uint16
+    else:
+        return np.int32
+
+
+def make_builder(out_file, impl, vocab_size=None):
     if impl == 'mmap':
-        return MMapIndexedDatasetBuilder(out_file)
+        return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
     else:
         return IndexedDatasetBuilder(out_file)
 
