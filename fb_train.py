@@ -7,6 +7,7 @@
 
 import contextlib
 import os
+from pathlib import Path
 import sys
 
 import torch.fb.rendezvous.zeus  # noqa: F401
@@ -25,35 +26,6 @@ def zeus_distributed_main(device_id, args, start_rank, log_path=None):
                     distributed_main(device_id, args)
     else:
         distributed_main(device_id, args)
-
-
-if __name__ == '__main__':
-    parser = options.get_training_parser()
-    parser.add_argument("--tensorboard-manifold", action="store_true",
-                        help="[FB only] send tensorboard plots to manifold")
-    args = options.parse_args_and_arch(parser)
-    if args.tensorboard_logdir and args.tensorboard_manifold:
-        raise ValueError(
-            "Invalid Args: --tensorboard_logdir and --tensorboard_manifold are both specified."
-        )
-    if args.tensorboard_manifold:
-        args.tbmf_wrapper = True
-    if args.distributed_init_method is not None:
-        # distributed training
-        log_path = os.path.join(args.save_dir, 'train.log')
-        if torch.cuda.device_count() > 1:
-            start_rank = args.distributed_rank
-            args.distributed_rank = None
-            torch.multiprocessing.spawn(
-                fn=zeus_distributed_main,
-                args=(args, start_rank, log_path),
-                nprocs=torch.cuda.device_count(),
-            )
-        else:
-            zeus_distributed_main(args.device_id, args, 0, log_path)
-    else:
-        # single GPU training
-        main(args)
 
 
 class tee(object):
@@ -78,3 +50,36 @@ class tee(object):
     def flush(self):
         self.fd1.flush()
         self.fd2.flush()
+
+
+if __name__ == '__main__':
+    parser = options.get_training_parser()
+    parser.add_argument("--tensorboard-manifold", action="store_true",
+                        help="[FB only] send tensorboard plots to manifold")
+    args = options.parse_args_and_arch(parser)
+    if args.tensorboard_logdir and args.tensorboard_manifold:
+        raise ValueError(
+            "Invalid Args: --tensorboard_logdir and --tensorboard_manifold are both specified."
+        )
+    if args.tensorboard_manifold:
+        args.tbmf_wrapper = True
+    log_path = os.path.join(args.save_dir, 'train.log')
+    Path(log_path).touch(0o777, exist_ok=True)
+    if args.distributed_init_method is not None:
+        # distributed training
+        if torch.cuda.device_count() > 1:
+            start_rank = args.distributed_rank
+            args.distributed_rank = None
+            torch.multiprocessing.spawn(
+                fn=zeus_distributed_main,
+                args=(args, start_rank, log_path),
+                nprocs=torch.cuda.device_count(),
+            )
+        else:
+            zeus_distributed_main(args.device_id, args, 0, log_path)
+    else:
+        with open(log_path, "a") as h:
+            with contextlib.redirect_stdout(tee(sys.stdout, h)):
+                with contextlib.redirect_stderr(tee(sys.stderr, h)):
+                    # single GPU training
+                    main(args)
