@@ -15,9 +15,16 @@ import torch
 from . import FairseqDataset
 
 
-def make_builder(out_file, impl):
+def __best_fitting_dtype(vocab_size=None):
+    if vocab_size is not None and vocab_size < 65500:
+        return np.uint16
+    else:
+        return np.int32
+
+
+def make_builder(out_file, impl, vocab_size=None):
     if impl == 'mmap':
-        return MMapIndexedDatasetBuilder(out_file)
+        return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
     else:
         return IndexedDatasetBuilder(out_file)
 
@@ -63,6 +70,7 @@ dtypes = {
     5: np.int64,
     6: np.float,
     7: np.double,
+    8: np.uint16
 }
 
 
@@ -143,7 +151,7 @@ class IndexedDataset(FairseqDataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
     @property
@@ -440,11 +448,11 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         ptr, size = self._index[i]
-        tensor = torch.from_numpy(np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr))
-        if tensor.dtype == torch.int64:
-            return tensor
-        else:
-            return tensor.long()
+        np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
+        if self._index.dtype != np.int64:
+            np_array = np_array.astype(np.int64)
+
+        return torch.from_numpy(np_array)
 
     @property
     def sizes(self):
@@ -457,7 +465,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
 
