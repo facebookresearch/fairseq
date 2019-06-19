@@ -413,11 +413,11 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         ptr, size = self._index[i]
-        tensor = torch.from_numpy(np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr))
-        if tensor.dtype == torch.int64:
-            return tensor
-        else:
-            return tensor.long()
+        np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
+        if self._index.dtype != np.int64:
+            np_array = np_array.astype(np.int64)
+
+        return torch.from_numpy(np_array)
 
     @property
     def sizes(self):
