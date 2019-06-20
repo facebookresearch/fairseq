@@ -10,6 +10,7 @@ from .masked_lm_dictionary import BertDictionary, MaskedLMDictionary
 
 from .fairseq_dataset import FairseqDataset
 
+from .audio.raw_audio_dataset import RawAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .block_pair_dataset import BlockPairDataset
 from .concat_dataset import ConcatDataset
@@ -51,6 +52,7 @@ __all__ = [
     'MMapIndexedDataset',
     'MonolingualDataset',
     'NoisingDataset',
+    'RawAudioDataset',
     'RoundRobinZipDatasets',
     'ShardedIterator',
     'TokenBlockDataset',

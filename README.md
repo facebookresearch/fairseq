@@ -9,6 +9,7 @@ of various sequence-to-sequence models, including:
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
   - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
   - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
+  - **_New_** [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
 - **LightConv and DynamicConv models**
   - **_New_** [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
 - **Long Short-Term Memory (LSTM) networks**
@@ -82,6 +83,7 @@ as well as example training and evaluation commands.
 - [Language Modeling](examples/language_model/README.md): convolutional models are available
 
 We also have more detailed READMEs to reproduce results from specific papers:
+- [Schneider et al. (2019): wav2vec: Unsupervised Pre-training for Speech Recognition](examples/wav2vec/README.md)
 - [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 - [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
 - [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)
