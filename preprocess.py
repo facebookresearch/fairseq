@@ -129,7 +129,8 @@ def main(args):
                 )
             pool.close()
 
-        ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"), impl=args.dataset_impl)
+        ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"),
+                                          impl=args.dataset_impl, vocab_size=len(vocab))
         merge_result(
             Binarizer.binarize(
                 input_file, vocab, lambda t: ds.add_item(t),
@@ -231,7 +232,8 @@ def main(args):
 
 
 def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos=True):
-    ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"), impl=args.dataset_impl)
+    ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"),
+                                      impl=args.dataset_impl, vocab_size=len(vocab))
 
     def consumer(tensor):
         ds.add_item(tensor)
