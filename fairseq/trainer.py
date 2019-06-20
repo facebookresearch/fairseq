@@ -233,11 +233,11 @@ class Trainer(object):
         # forward and backward pass
         logging_outputs, sample_sizes, ooms = [], [], 0
         for i, sample in enumerate(samples):
-            sample = self._prepare_sample(sample)
+            sample = self._prepare_sample(sample, self.args.fp16)
             if sample is None:
                 # when sample is None, run forward/backward on a dummy batch
                 # and ignore the resulting gradients
-                sample = self._prepare_sample(self._dummy_batch)
+                sample = self._prepare_sample(self._dummy_batch, self.args.fp16)
                 ignore_grad = True
             else:
                 ignore_grad = False
@@ -381,9 +381,9 @@ class Trainer(object):
             self.model.eval()
             self.criterion.eval()
 
-            sample = self._prepare_sample(sample)
+            sample = self._prepare_sample(sample, self.args.fp16)
             if sample is None:
-                sample = self._prepare_sample(self._dummy_batch)
+                sample = self._prepare_sample(self._dummy_batch, self.args.fp16)
                 ignore_results = True
             else:
                 ignore_results = False
@@ -488,12 +488,19 @@ class Trainer(object):
         self._num_updates = num_updates
         self.lr_step_update()
 
-    def _prepare_sample(self, sample):
+    def _prepare_sample(self, sample, fp16):
         if sample is None or len(sample) == 0:
             return None
+
         if self.cuda:
             sample = utils.move_to_cuda(sample)
-        return sample
+
+        def apply_half(t):
+            if t.dtype is torch.float32:
+                return t.half()
+            return t
+
+        return utils.apply(apply_half, sample) if fp16 else sample
 
     def _set_seed(self):
         # Set seed based on args.seed and the update number so that we get
