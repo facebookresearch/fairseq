@@ -59,7 +59,9 @@ class MultilingualTranslationTask(FairseqTask):
     implements the `FairseqMultiModel` interface.
 
     During inference it is required to specify a single `--source-lang` and
-    `--target-lang`, instead of `--lang-pairs`.
+    `--target-lang`, which indicates the inference langauge direction.
+    `--lang-pairs`, `--encoder-langtok`, `--decoder-langtok` have to be set to
+    the same value as training.
     """
 
     @staticmethod
@@ -128,6 +130,8 @@ class MultilingualTranslationTask(FairseqTask):
             utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
             args.dataset_impl = 'lazy'
 
+        if args.lang_pairs is None:
+            raise ValueError('--lang-pairs is required. List all the language pairs in the training objective.')
         args.lang_pairs = args.lang_pairs.split(',')
         sorted_langs = sorted(list({x for lang_pair in args.lang_pairs for x in lang_pair.split('-')}))
         if args.source_lang is not None or args.target_lang is not None:
@@ -244,6 +248,21 @@ class MultilingualTranslationTask(FairseqTask):
         )
 
     def build_model(self, args):
+        def check_args():
+            messages = []
+            if len(set(self.args.lang_pairs).symmetric_difference(args.lang_pairs)) != 0:
+                messages.append('--lang-pairs should include all the language pairs {}.'.format(args.lang_pairs))
+            if self.args.encoder_langtok != args.encoder_langtok:
+                messages.append('--encoder-langtok should be {}.'.format(args.encoder_langtok))
+            if self.args.decoder_langtok != args.decoder_langtok:
+                messages.append('--decoder-langtok should {} be set.'.format("" if args.decoder_langtok else "not"))
+
+            if len(messages) > 0:
+                raise ValueError(' '.join(messages))
+
+        # Check if task args are consistant with model args
+        check_args()
+
         from fairseq import models
         model = models.build_model(args, self)
         if not isinstance(model, FairseqMultiModel):
