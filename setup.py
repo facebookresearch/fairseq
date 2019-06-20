@@ -29,7 +29,7 @@ bleu = Extension(
 
 setup(
     name='fairseq',
-    version='0.7.0',
+    version='0.7.1',
     description='Facebook AI Research Sequence-to-Sequence Toolkit',
     url='https://github.com/pytorch/fairseq',
     classifiers=[
@@ -40,6 +40,7 @@ setup(
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
     long_description=readme,
+    long_description_content_type='text/markdown',
     install_requires=[
         'cffi',
         'numpy',
