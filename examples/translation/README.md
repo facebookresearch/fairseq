@@ -253,3 +253,9 @@ $ cat iwslt17.test.${SRC}-en.${SRC}.bpe | fairseq-interactive data-bin/iwslt17.d
 $ grep ^H iwslt17.test.${SRC}-en.en.sys | cut -f3 \
   | sacrebleu --test-set iwslt17 --language-pair ${SRC}-en
 ```
+
+### Argument format during inference
+During inference it is required to specify a single `--source-lang` and
+`--target-lang`, which indicates the inference langauge direction.
+`--lang-pairs`, `--encoder-langtok`, `--decoder-langtok` have to be set to
+the same value as training.
