@@ -352,4 +352,5 @@ def xlm_architecture(args):
     args.activation_fn = getattr(args, 'activation_fn', 'gelu')
     args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', False)
     args.pooler_activation_fn = getattr(args, 'pooler_activation_fn', 'tanh')
+    args.apply_bert_init = getattr(args, 'apply_bert_init', True)
     base_architecture(args)
