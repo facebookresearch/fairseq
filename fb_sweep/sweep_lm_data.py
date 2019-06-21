@@ -16,6 +16,10 @@ def set_data_based_on_shortname(args):
         set_data('/data/tmp/fb_posts.en.2018-2019.bpe.mmap-bin/shard{}', 100)
     elif args.data == 'fb_posts_gfs':
         set_data('/mnt/vol/gfsai-flash2-east/ai-group/users/myleott/fb_posts/fb_posts.en.2018-2019.bpe.mmap-bin/shard{}', 100)
+    elif args.data == 'bookwiki_aml-mmap-bin':
+        set_data('/data/tmp/bookwiki_aml-mmap-bin/shard{}', 5)
+    elif args.data == 'bookwiki_aml_CC-NEWS-en.v7.1':
+        set_data('/data/tmp/bookwiki_aml_CC-NEWS-en.v7.1/shard{}', 5)
     # old datasets
     elif args.data == 'CC-NEWS-en.v6':
         set_data('/private/home/myleott/data/data-bin/CC-NEWS-en.v6', 0)

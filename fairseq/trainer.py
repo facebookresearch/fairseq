@@ -10,6 +10,7 @@ Train a network across multiple GPUs.
 """
 
 from collections import OrderedDict
+import contextlib
 from itertools import chain
 import math
 import os
@@ -242,23 +243,28 @@ class Trainer(object):
             else:
                 ignore_grad = False
 
-            try:
-                if self.args.distributed_world_size > 1:
-                    # Whenever *samples* contains more than one mini-batch, we
-                    # want to accumulate gradients locally and only call
-                    # all-reduce in the last backwards pass. Currently the
-                    # *accumulate_grads* flag is only supported by
-                    # LegacyDistributedDataParallel.
-                    if i < len(samples) - 1:
-                        self.model.accumulate_grads = True
-                    else:
-                        self.model.accumulate_grads = False
+            def maybe_no_sync():
+                """
+                Whenever *samples* contains more than one mini-batch, we
+                want to accumulate gradients locally and only call
+                all-reduce in the last backwards pass.
+                """
+                if (
+                    self.args.distributed_world_size > 1
+                    and hasattr(self.model, 'no_sync')
+                    and i < len(samples) - 1
+                ):
+                    return self.model.no_sync()
+                else:
+                    return contextlib.ExitStack()  # dummy contextmanager
 
-                # forward and backward
-                loss, sample_size, logging_output = self.task.train_step(
-                    sample, self.model, self.criterion, self.optimizer,
-                    ignore_grad
-                )
+            try:
+                with maybe_no_sync():
+                    # forward and backward
+                    loss, sample_size, logging_output = self.task.train_step(
+                        sample, self.model, self.criterion, self.optimizer,
+                        ignore_grad
+                    )
 
                 if not ignore_grad:
                     logging_outputs.append(logging_output)
