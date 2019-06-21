@@ -132,9 +132,10 @@ class FairseqTask(object):
             indices = dataset.ordered_indices()
 
         # filter examples that are too large
-        indices = data_utils.filter_by_size(
-            indices, dataset.size, max_positions, raise_exception=(not ignore_invalid_inputs),
-        )
+        if max_positions is not None:
+            indices = data_utils.filter_by_size(
+                indices, dataset.size, max_positions, raise_exception=(not ignore_invalid_inputs),
+            )
 
         # create mini-batches with given size constraints
         batch_sampler = data_utils.batch_by_size(
