@@ -101,7 +101,7 @@ class ElmoTokenEmbedder(nn.Module):
             self.weights = nn.Parameter(torch.ones(self.num_layers))
             self.gamma = nn.Parameter(torch.ones(1))
 
-        self.softmax = nn.Softmax(dim=0) if apply_softmax else None
+        self.apply_softmax = apply_softmax
 
         self.projection = nn.Linear(self.dim, projection_dim,
                                     bias=False) if projection_dim is not None and projection_dim != self.dim else None
@@ -315,8 +315,9 @@ class ElmoTokenEmbedder(nn.Module):
         if self.layer_norm is not None:
             states = [self.layer_norm(s) for s in states]
 
-        if self.softmax is not None:
-            w = self.softmax(self.weights)
+        if self.apply_softmax:
+            w = torch.nn.functional.softmax(
+                self.weights, dim=0, dtype=torch.float32).type_as(self.weights)
         else:
             w = self.weights
 
