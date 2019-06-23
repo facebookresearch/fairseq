@@ -365,6 +365,11 @@ def add_common_eval_args(group):
     # fmt: off
     group.add_argument('--path', metavar='FILE',
                        help='path(s) to model file(s), colon separated')
+    group.add_argument('--ensemble-method', choices=['logsumexp', 'sum'], default='logsumexp',
+                       help='log probabilities ensemble method')
+    group.add_argument('--ensemble-weights', metavar='EXPR', default=None,
+                       help='weight(s) for ensemble, tuple expression, must '
+                            'be set to the same size the as --path option')
     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring (can be set to sentencepiece)')
     group.add_argument('--quiet', action='store_true',

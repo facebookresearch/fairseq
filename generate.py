@@ -17,6 +17,8 @@ from fairseq.meters import StopwatchMeter, TimeMeter
 
 def main(args):
     assert args.path is not None, '--path required for generation!'
+    if args.ensemble_weights is not None:
+        args.ensemble_weights = eval(args.ensemble_weights)
     assert not args.sampling or args.nbest == args.beam, \
         '--sampling requires --nbest to be equal to --beam'
     assert args.replace_unk is None or args.raw_text, \

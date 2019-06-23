@@ -206,6 +206,8 @@ class FairseqTask(object):
                 diverse_beam_strength=getattr(args, 'diverse_beam_strength', 0.5),
                 match_source_len=getattr(args, 'match_source_len', False),
                 no_repeat_ngram_size=getattr(args, 'no_repeat_ngram_size', 0),
+                ensemble_weights=args.ensemble_weights,
+                ensemble_method=args.ensemble_method
             )
 
     def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):

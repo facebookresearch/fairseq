@@ -33,6 +33,8 @@ class SequenceGenerator(object):
         diverse_beam_strength=0.5,
         match_source_len=False,
         no_repeat_ngram_size=0,
+        ensemble_weights=None,
+        ensemble_method=None
     ):
         """Generates translations of a given source sentence.
 
@@ -84,6 +86,8 @@ class SequenceGenerator(object):
         self.temperature = temperature
         self.match_source_len = match_source_len
         self.no_repeat_ngram_size = no_repeat_ngram_size
+        self.ensemble_weights = ensemble_weights
+        self.ensemble_method = ensemble_method
 
         assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
         assert temperature > 0, '--temperature must be greater than 0'
@@ -116,7 +120,7 @@ class SequenceGenerator(object):
             prefix_tokens (torch.LongTensor, optional): force decoder to begin
                 with these tokens
         """
-        model = EnsembleModel(models)
+        model = EnsembleModel(models, weights=self.ensemble_weights, method=self.ensemble_method)
         if not self.retain_dropout:
             model.eval()
 
@@ -547,9 +551,12 @@ class SequenceGenerator(object):
 class EnsembleModel(torch.nn.Module):
     """A wrapper around an ensemble of models."""
 
-    def __init__(self, models):
+    def __init__(self, models, weights=None, method=None):
         super().__init__()
         self.models = torch.nn.ModuleList(models)
+        assert weights is None or len(models) == len(weights)
+        self.weights = weights
+        self.method = method if method is not None else 'logsumexp'
         self.incremental_states = None
         if all(isinstance(m.decoder, FairseqIncrementalDecoder) for m in models):
             self.incremental_states = {m: {} for m in models}
@@ -580,7 +587,7 @@ class EnsembleModel(torch.nn.Module):
 
         log_probs = []
         avg_attn = None
-        for model, encoder_out in zip(self.models, encoder_outs):
+        for i, (model, encoder_out) in enumerate(zip(self.models, encoder_outs)):
             probs, attn = self._decode_one(
                 tokens,
                 model,
@@ -589,13 +596,18 @@ class EnsembleModel(torch.nn.Module):
                 log_probs=True,
                 temperature=temperature,
             )
+            if self.weights is not None:
+                probs.mul_(self.weights[i])
             log_probs.append(probs)
             if attn is not None:
                 if avg_attn is None:
                     avg_attn = attn
                 else:
                     avg_attn.add_(attn)
-        avg_probs = torch.logsumexp(torch.stack(log_probs, dim=0), dim=0) - math.log(len(self.models))
+        if self.method == 'sum':
+            avg_probs = torch.stack(log_probs, dim=0).sum(dim=0)
+        else:
+            avg_probs = torch.logsumexp(torch.stack(log_probs, dim=0), dim=0) - math.log(len(self.models))
         if avg_attn is not None:
             avg_attn.div_(len(self.models))
         return avg_probs, avg_attn
