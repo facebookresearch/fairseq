@@ -5,6 +5,8 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from itertools import chain
+
 import torch
 
 from fairseq import optim, utils
@@ -292,7 +294,27 @@ class MemoryEfficientFP16Optimizer(optim.FairseqOptimizer):
         """
         if 'loss_scale' in state_dict:
             self.scaler.loss_scale = state_dict['loss_scale']
+
         self.wrapped_optimizer.load_state_dict(state_dict, optimizer_overrides)
+
+        # Hack: PyTorch automatically casts the optimizer state to match the
+        # type of the current parameters. But with --memory-efficient-fp16 the
+        # params are FP16 while the optimizer state is FP32 and we don't want
+        # to cast. A workaround is to manually copy back the original state
+        # after the optimizer has been loaded.
+        groups = self.optimizer.param_groups
+        saved_groups = state_dict['param_groups']
+        id_map = {
+            old_id: p
+            for old_id, p in zip(
+                chain(*(g['params'] for g in saved_groups)),
+                chain(*(g['params'] for g in groups))
+            )
+        }
+        for k, v in state_dict['state'].items():
+            if k in id_map:
+                param = id_map[k]
+                self.optimizer.state[param] = v
 
     def backward(self, loss):
         """Computes the sum of gradients of the given tensor w.r.t. graph leaves.
