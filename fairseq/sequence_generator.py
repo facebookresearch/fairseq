@@ -571,7 +571,7 @@ class EnsembleModel(torch.nn.Module):
     def forward_encoder(self, encoder_input):
         if not self.has_encoder():
             return None
-        return [model.encoder(**encoder_input) for model in self.models]
+        return [model.encoder(**encoder_input) if hasattr(model, 'encoder') else None for model in self.models]
 
     @torch.no_grad()
     def forward_decoder(self, tokens, encoder_outs, temperature=1.):
@@ -639,6 +639,7 @@ class EnsembleModel(torch.nn.Module):
             return
         return [
             model.encoder.reorder_encoder_out(encoder_out, new_order)
+            if hasattr(model, 'encoder') else None
             for model, encoder_out in zip(self.models, encoder_outs)
         ]
 

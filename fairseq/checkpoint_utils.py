@@ -141,7 +141,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
     return state
 
 
-def load_model_ensemble(filenames, arg_overrides=None, task=None):
+def load_model_ensemble(filenames, arg_overrides=None, task=None, cmd_args=None):
     """Loads an ensemble of models.
 
     Args:
@@ -149,23 +149,37 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None):
         arg_overrides (Dict[str,Any], optional): override model args that
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
+        cmd_args (Namespace, optional): args parsed this runtime, used to re-setup a different architecture task
     """
-    ensemble, args, _task = _load_model_ensemble(filenames, arg_overrides, task)
+    ensemble, args, _task = _load_model_ensemble(filenames, arg_overrides, task, cmd_args)
     return ensemble, args
 
 
-def _load_model_ensemble(filenames, arg_overrides=None, task=None):
+def _load_model_ensemble(filenames, arg_overrides=None, task=None, cmd_args=None):
     from fairseq import tasks
 
+    # add support for arg_overrides to be parsed as a list
+    if arg_overrides is not None and isinstance(arg_overrides, list):
+        assert len(arg_overrides) == len(filenames)
+        assert all(isinstance(x, dict) for x in arg_overrides)
+
     ensemble = []
-    for filename in filenames:
+    for i, filename in enumerate(filenames):
         if not os.path.exists(filename):
             raise IOError('Model file not found: {}'.format(filename))
-        state = load_checkpoint_to_cpu(filename, arg_overrides)
+        if isinstance(arg_overrides, dict):
+            override_args = arg_overrides
+        else:
+            override_args = arg_overrides[i]
+        state = load_checkpoint_to_cpu(filename, override_args)
 
         args = state['args']
-        if task is None:
-            task = tasks.setup_task(args)
+        if task is None or 'task' in override_args:
+            task_args = args
+            if cmd_args is not None:
+                # override args attributes like data-bin etc.
+                setattr(task_args, 'data', cmd_args.data)
+            task = tasks.setup_task(task_args)
 
         # build model for ensemble
         model = task.build_model(args)

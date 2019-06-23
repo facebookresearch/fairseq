@@ -49,6 +49,7 @@ def main(args):
         args.path.split(':'),
         arg_overrides=eval(args.model_overrides),
         task=task,
+        cmd_args=args if args.with_ensemble_dir else None,
     )
 
     # Optimize ensemble for generation

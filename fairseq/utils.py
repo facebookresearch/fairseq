@@ -254,6 +254,8 @@ def resolve_max_positions(*args):
 
     max_positions = None
     for arg in args:
+        if not isinstance(arg, tuple):
+            arg = (arg,)
         if max_positions is None:
             max_positions = arg
         elif arg is not None:

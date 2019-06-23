@@ -370,12 +370,16 @@ def add_common_eval_args(group):
     group.add_argument('--ensemble-weights', metavar='EXPR', default=None,
                        help='weight(s) for ensemble, tuple expression, must '
                             'be set to the same size the as --path option')
+    group.add_argument('--with-ensemble-dir', action='store_true', default=False,
+                       help='override the model state args with current parsed attributes '
+                            'to re-setup a task, this makes it easy for ensemble when all '
+                            'models and data are in one directory')
     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring (can be set to sentencepiece)')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
-    group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
-                       help='a dictionary used to override model args at generation '
+    group.add_argument('--model-overrides', default="{}", type=str, metavar='DICT/LIST',
+                       help='a dictionary/list used to override model args at generation '
                             'that were used during model training')
     group.add_argument('--results-path', metavar='RESDIR', type=str, default=None,
                        help='path to save eval results (optional)"')
