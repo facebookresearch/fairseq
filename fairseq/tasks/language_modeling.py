@@ -59,11 +59,12 @@ class LanguageModelingTask(FairseqTask):
         """Add task-specific arguments to the parser."""
         # fmt: off
         parser.add_argument('data', help='path to data directory')
-        parser.add_argument('--sample-break-mode',
-                            choices=['none', 'complete', 'eos'],
+        parser.add_argument('--sample-break-mode', default='none',
+                            choices=['none', 'complete', 'complete_doc', 'eos'],
                             help='If omitted or "none", fills each sample with tokens-per-sample '
                                  'tokens. If set to "complete", splits samples only at the end '
                                  'of sentence, but may include multiple sentences per sample. '
+                                 '"complete_doc" is similar but respects doc boundaries. '
                                  'If set to "eos", includes only one sentence per sample.')
         parser.add_argument('--tokens-per-sample', default=1024, type=int,
                             help='max number of tokens per sample for LM dataset')
