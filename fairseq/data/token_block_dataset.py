@@ -26,12 +26,20 @@ class TokenBlockDataset(FairseqDataset):
             - 'complete': break tokens into blocks (up to block_size) such that
                 blocks contains complete sentences, although block_size may be
                 exceeded if some sentences exceed block_size
+            - 'complete_doc': similar to 'complete' mode, but do not
+                cross document boundaries
             - 'eos': each block contains one sentence (block_size is ignored)
         include_targets (bool, optional): return next tokens as targets
             (default: False).
+        document_sep_len (int, optional): document separator size (required for
+            'complete_doc' break mode). Typically 1 if the sentences have eos
+            and 0 otherwise.
     """
 
-    def __init__(self, dataset, sizes, block_size, pad, eos, break_mode=None, include_targets=False):
+    def __init__(
+        self, dataset, sizes, block_size, pad, eos, break_mode=None,
+        include_targets=False, document_sep_len=1,
+    ):
         super().__init__()
         self.dataset = dataset
         self.pad = pad
@@ -66,6 +74,27 @@ class TokenBlockDataset(FairseqDataset):
                     curr_size = 0
             if curr_size > 0:
                 self.slice_indices.append((tok_idx, tok_idx + curr_size))
+        elif break_mode == 'complete_doc':
+            tok_idx = 0
+            sz_idx = 0
+            curr_size = 0
+            while sz_idx < len(sizes):
+                if (
+                    (curr_size + sizes[sz_idx] <= block_size or curr_size == 0)
+                    # an empty sentence indicates end-of-document:
+                    and sizes[sz_idx] != document_sep_len
+                ):
+                    curr_size += sizes[sz_idx]
+                    sz_idx += 1
+                else:
+                    self.slice_indices.append((tok_idx, tok_idx + curr_size))
+                    tok_idx += curr_size
+                    curr_size = 0
+                    if sizes[sz_idx] == document_sep_len:
+                        tok_idx += sizes[sz_idx]
+                        sz_idx += 1
+            if curr_size > 0:
+                self.slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'eos':
             self.slice_indices = np.empty((len(sizes), 2), dtype=int)
             if not torch.is_tensor(sizes):
@@ -92,27 +121,21 @@ class TokenBlockDataset(FairseqDataset):
                 1,
             )
         else:
+            ds = DatasetSearcher(sizes)
             self.block_to_dataset_index = np.empty((len(self.slice_indices), 3), dtype=int)
-            ds_idx, ds_remaining = -1, 0
             for i, (s, e) in enumerate(self.slice_indices):
-                to_consume = e - s
-                if ds_remaining == 0:
-                    ds_idx += 1
-                    ds_remaining = sizes[ds_idx]
-                start_ds_idx = ds_idx
-                start_offset = sizes[ds_idx] - ds_remaining
-                while to_consume > ds_remaining:
-                    to_consume -= ds_remaining
-                    ds_idx += 1
-                    ds_remaining = sizes[ds_idx]
-                ds_remaining -= to_consume
+                ds.seek(s)
+                start_ds_idx = ds.current_index
+                start_offset = ds.current_offset
+                if e <= s:
+                    continue
+                ds.seek(e - 1)
+                end_ds_idx = ds.current_index
                 self.block_to_dataset_index[i] = (
                     start_ds_idx,  # starting index in dataset
                     start_offset,  # starting offset within starting index
-                    ds_idx,  # ending index in dataset
+                    end_ds_idx,  # ending index in dataset
                 )
-            assert ds_remaining == 0
-            assert ds_idx == len(self.dataset) - 1
 
     def __getitem__(self, index):
         start_ds_idx, start_offset, end_ds_idx = self.block_to_dataset_index[index]
@@ -155,3 +178,34 @@ class TokenBlockDataset(FairseqDataset):
             for start_ds_idx, _, end_ds_idx in [self.block_to_dataset_index[index]]
             for ds_idx in range(start_ds_idx, end_ds_idx + 1)
         })
+
+
+class DatasetSearcher(object):
+    """Helper for mapping "flat" indices to indices and offsets in an
+    underlying dataset."""
+
+    def __init__(self, sizes):
+        self.sizes = sizes
+        self.reset()
+
+    def reset(self):
+        self.current_index = 0  # index in underlying dataset
+        self.current_offset = 0  # offset within current index in underlying dataset
+        self.current_i = 0  # "flat" index
+
+    def seek(self, i):
+        assert i >= 0
+        if i < self.current_i:
+            self.reset()
+        if i > self.current_i:
+            to_consume = i - self.current_i
+            remaining = self.sizes[self.current_index] - self.current_offset
+            if remaining > to_consume:
+                self.current_offset += to_consume
+                self.current_i += to_consume
+            else:
+                self.current_i += remaining
+                self.current_index += 1
+                self.current_offset = 0
+                self.seek(i)
+        assert self.current_i == i
