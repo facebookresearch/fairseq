@@ -10,6 +10,7 @@
 import pickle
 import itertools
 import os
+import torch
 
 from fairseq import options, utils
 from fairseq.data import (
@@ -261,15 +262,28 @@ class TransactionBotTask(FairseqTask):
             epoch=epoch,
         )
 
-    def train_step(self, samples, model, criterion, optimizer, ignore_grad=False):
+    def _aggregate_logging_outputs(self, logging_outputs):
+        """Aggregate logging outputs from all sample in samples."""
+        return {
+            'loss': sum(log.get('loss', 0) for log in logging_outputs),
+            'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs),
+            'ntokens': sum(log.get('ntokens', 0) for log in logging_outputs),
+            'nsentences': sum(
+                        log.get('nsentences', 0) for log in logging_outputs),
+            'sample_size': sum(
+                        log.get('sample_size', 0) for log in logging_outputs),
+        }
+
+    def train_step(
+            self, samples, model, criterion, optimizer, ignore_grad=False):
         """
         Do forward and backward, and return the loss as computed by *criterion*
         for the given *model* and *sample*.
 
         Args:
             sample (list): list of mini-batches, where each mini-batch has
-            source and target sequences of dialog. The format is defined by
-               :class:`~fairseq.data.FairseqDataset`.
+            source sequence and target sequence from each of dialogs. The
+            format is defined by :class:`~fairseq.data.FairseqDataset`.
             model (~fairseq.models.BaseFairseqModel): the model
             criterion (~fairseq.criterions.FairseqCriterion): the criterion
             optimizer (~fairseq.optim.FairseqOptimizer): the optimizer
@@ -282,16 +296,34 @@ class TransactionBotTask(FairseqTask):
                   gradient
                 - logging outputs to display while training
         """
+        total_loss, total_sample_size, logging_outputs = 0, 0, []
+        model.train()
         for sample in samples:
-            model.train()
             loss, sample_size, logging_output = criterion(model, sample)
             if ignore_grad:
                 loss *= 0
             optimizer.backward(loss)
-        return loss, sample_size, logging_output
+            total_loss += loss
+            total_sample_size += sample_size
+            logging_outputs.append(logging_output)
+        return total_loss, total_sample_size,\
+            self._aggregate_logging_outputs(logging_outputs)
+
+    def valid_step(self, samples, model, criterion):
+        total_loss, total_sample_size, logging_outputs = 0, 0, []
+        model.eval()
+        for sample in samples:
+            with torch.no_grad():
+                loss, sample_size, logging_output = criterion(model, sample)
+            total_loss += loss
+            total_sample_size += sample_size
+            logging_outputs.append(logging_output)
+        return total_loss, total_sample_size,\
+            self._aggregate_logging_outputs(logging_outputs)
 
     def build_dataset_for_inference(self, src_tokens, src_lengths):
-        return dialog_dataset.dialogDataset(src_tokens, src_lengths, self.source_dictionary)
+        return dialog_dataset.dialogDataset(
+                src_tokens, src_lengths, self.source_dictionary)
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
