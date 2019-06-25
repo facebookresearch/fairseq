@@ -204,6 +204,7 @@ class FairseqTask(object):
                 temperature=getattr(args, 'temperature', 1.),
                 diverse_beam_groups=getattr(args, 'diverse_beam_groups', -1),
                 diverse_beam_strength=getattr(args, 'diverse_beam_strength', 0.5),
+                stochastic_beam_search=getattr(args, 'stochastic_beam_size', False),
                 match_source_len=getattr(args, 'match_source_len', False),
                 no_repeat_ngram_size=getattr(args, 'no_repeat_ngram_size', 0),
             )

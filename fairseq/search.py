@@ -8,7 +8,7 @@
 import math
 
 import torch
-
+from fairseq.modules.gumbel import gumbel_like, gumbel_with_maximum
 
 class Search(object):
 
@@ -58,7 +58,7 @@ class BeamSearch(Search):
     def __init__(self, tgt_dict):
         super().__init__(tgt_dict)
 
-    def step(self, step, lprobs, scores):
+    def step(self, step, lprobs, scores, log_ps_t=None):
         super()._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
 
@@ -82,7 +82,62 @@ class BeamSearch(Search):
         )
         torch.div(self.indices_buf, vocab_size, out=self.beams_buf)
         self.indices_buf.fmod_(vocab_size)
-        return self.scores_buf, self.indices_buf, self.beams_buf
+        return self.scores_buf, self.scores_buf, self.indices_buf, self.beams_buf
+
+
+class StochasticBeamSearch(Search):
+    """Stochastic Beam Search.
+
+    See "Stochastic Beams and Where to Find Them: The Gumbel-Top-k Trick
+    for Sampling Sequences Without Replacement" for details.
+    """
+
+    def __init__(self, tgt_dict, sampling_topk=-1):
+        super().__init__(tgt_dict)
+        self.log_ps_t_buf = None
+        self.sampling_topk = sampling_topk
+        assert self.sampling_topk == -1, "Sampling top-k for beam search not yet supported"
+
+    def _init_buffers(self, t):
+        if self.scores_buf is None:
+            super()._init_buffers(t)
+            self.log_ps_t_buf = t.new()
+
+    def step(self, step, lprobs, scores, log_ps_t=None):
+        self._init_buffers(lprobs)
+        bsz, beam_size, vocab_size = lprobs.size()
+
+        lprobs_t = lprobs.clone()
+
+        if step == 0:
+            # at the first step all hypotheses are equally likely, so use
+            # only the first beam
+            lprobs_t = lprobs_t[:, ::beam_size, :].contiguous()
+            cand_scores = gumbel_like(lprobs_t) + lprobs_t
+        else:
+            # make probs contain cumulative scores for each hypothesis
+            lprobs_t.add_(log_ps_t[:, :, step - 1].unsqueeze(-1))
+            assert self.sampling_topk == -1
+            cand_scores, _ = gumbel_with_maximum(lprobs_t, scores[:, :, step - 1], -1)
+
+        torch.topk(
+            cand_scores.view(bsz, -1),
+            k=min(
+                # Take the best 2 x beam_size predictions. We'll choose the first
+                # beam_size of these which don't predict eos to continue with.
+                beam_size * 2,
+                cand_scores.view(bsz, -1).size(1) - 1,  # -1 so we never select pad
+            ),
+            out=(self.scores_buf, self.indices_buf),
+        )
+
+        # Gather cumulative
+        torch.gather(
+            lprobs_t.view(bsz, -1), -1, self.indices_buf, out=self.log_ps_t_buf
+        )
+        torch.div(self.indices_buf, vocab_size, out=self.beams_buf)
+        self.indices_buf.fmod_(vocab_size)
+        return self.scores_buf, self.log_ps_t_buf, self.indices_buf, self.beams_buf
 
 
 class LengthConstrainedBeamSearch(Search):
@@ -121,7 +176,7 @@ class DiverseBeamSearch(Search):
         self.diversity_buf = None
         self.beam = BeamSearch(tgt_dict)
 
-    def step(self, step, lprobs, scores):
+    def step(self, step, lprobs, scores, log_ps_t=None):
         super()._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
         if beam_size % self.num_groups != 0:
@@ -145,7 +200,7 @@ class DiverseBeamSearch(Search):
             else:
                 lprobs_g = lprobs_g.contiguous()
 
-            scores_buf, indices_buf, beams_buf = self.beam.step(step, lprobs_g, scores_g)
+            scores_buf, _, indices_buf, beams_buf = self.beam.step(step, lprobs_g, scores_g)
             beams_buf.mul_(self.num_groups).add_(g)
 
             scores_G.append(scores_buf.clone())
@@ -163,8 +218,7 @@ class DiverseBeamSearch(Search):
         self.scores_buf = torch.stack(scores_G, dim=2, out=self.scores_buf).view(bsz, -1)
         self.indices_buf = torch.stack(indices_G, dim=2, out=self.indices_buf).view(bsz, -1)
         self.beams_buf = torch.stack(beams_G, dim=2, out=self.beams_buf).view(bsz, -1)
-        return self.scores_buf, self.indices_buf, self.beams_buf
-
+        return self.scores_buf, self.scores_buf, self.indices_buf, self.beams_buf
 
 class Sampling(Search):
 
@@ -172,7 +226,7 @@ class Sampling(Search):
         super().__init__(tgt_dict)
         self.sampling_topk = sampling_topk
 
-    def step(self, step, lprobs, scores):
+    def step(self, step, lprobs, scores, log_ps_t=None):
         super()._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
 
@@ -243,4 +297,4 @@ class Sampling(Search):
                 )
             )
 
-        return self.scores_buf, self.indices_buf, self.beams_buf
+        return self.scores_buf, self.scores_buf, self.indices_buf, self.beams_buf

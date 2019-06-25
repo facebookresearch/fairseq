@@ -31,6 +31,7 @@ class SequenceGenerator(object):
         temperature=1.,
         diverse_beam_groups=-1,
         diverse_beam_strength=0.5,
+        stochastic_beam_search=False,
         match_source_len=False,
         no_repeat_ngram_size=0,
     ):
@@ -58,9 +59,9 @@ class SequenceGenerator(object):
                 (default: False)
             sampling_topk (int, optional): only sample among the top-k choices
                 at each step (default: -1)
-            temperature (float, optional): temperature, where values
-                >1.0 produce more uniform samples and values <1.0 produce
-                sharper samples (default: 1.0)
+            stochastic_beam_search: with --no-early-stop and --unnormalized to guarantee
+                theoretical validation
+            temperature (flaot, optional): temperature applies to logits
             diverse_beam_groups/strength (float, optional): parameters for
                 Diverse Beam Search sampling
             match_source_len (bool, optional): outputs should match the source
@@ -96,6 +97,8 @@ class SequenceGenerator(object):
             self.search = search.LengthConstrainedBeamSearch(
                 tgt_dict, min_len_a=1, min_len_b=0, max_len_a=1, max_len_b=0,
             )
+        elif stochastic_beam_search:
+            self.search = search.StochasticBeamSearch(tgt_dict, sampling_topk)
         else:
             self.search = search.BeamSearch(tgt_dict)
 
@@ -153,6 +156,8 @@ class SequenceGenerator(object):
         # initialize buffers
         scores = src_tokens.new(bsz * beam_size, max_len + 1).float().fill_(0)
         scores_buf = scores.clone()
+        log_ps_t = src_tokens.data.new(bsz * beam_size, max_len + 1).float().fill_(0)
+        log_ps_t_buf = log_ps_t.clone()
         tokens = src_tokens.data.new(bsz * beam_size, max_len + 2).long().fill_(self.pad)
         tokens_buf = tokens.clone()
         tokens[:, 0] = bos_token or self.eos
@@ -246,7 +251,8 @@ class SequenceGenerator(object):
                     cum_unfin.append(prev)
 
             sents_seen = set()
-            for i, (idx, score) in enumerate(zip(bbsz_idx.tolist(), eos_scores.tolist())):
+            for i, (idx, score) in enumerate(
+                    zip(bbsz_idx.tolist(), eos_scores.tolist())):
                 unfin_idx = idx // beam_size
                 sent = unfin_idx + cum_unfin[unfin_idx]
 
@@ -333,6 +339,7 @@ class SequenceGenerator(object):
                 attn[:, :, step + 1].copy_(avg_attn_scores)
 
             scores = scores.type_as(lprobs)
+            log_ps_t = log_ps_t.type_as(lprobs)
             scores_buf = scores_buf.type_as(lprobs)
             eos_bbsz_idx = buffer('eos_bbsz_idx')
             eos_scores = buffer('eos_scores', type_of=scores)
@@ -380,7 +387,7 @@ class SequenceGenerator(object):
                         # only use the first beam to eliminate repeats
                         prefix_step0_mask = partial_prefix_mask ^ partial_prefix_mask_buf
                         lprobs.view(bsz, beam_size, -1)[prefix_step0_mask, 1:] = -math.inf
-                        partial_scores, partial_indices, partial_beams = self.search.step(
+                        partial_scores, _, partial_indices, partial_beams = self.search.step(
                             step,
                             lprobs.view(bsz, -1, self.vocab_size),
                             scores.view(bsz, beam_size, -1)[:, :, :step],
@@ -391,10 +398,11 @@ class SequenceGenerator(object):
                         partial_prefix_mask_buf = partial_prefix_mask
 
                 else:
-                    cand_scores, cand_indices, cand_beams = self.search.step(
+                    cand_scores, cand_log_p_t, cand_indices, cand_beams = self.search.step(
                         step,
                         lprobs.view(bsz, -1, self.vocab_size),
                         scores.view(bsz, beam_size, -1)[:, :, :step],
+                        log_ps_t.view(bsz, beam_size, -1)[:, :, :step]
                     )
             else:
                 # make probs contain cumulative scores for each hypothesis
@@ -454,6 +462,7 @@ class SequenceGenerator(object):
                 bbsz_offsets.resize_(new_bsz, 1)
                 cand_bbsz_idx = cand_beams.add(bbsz_offsets)
                 cand_scores = cand_scores[batch_idxs]
+                cand_log_p_t = cand_log_p_t[batch_idxs]
                 cand_indices = cand_indices[batch_idxs]
                 if prefix_tokens is not None:
                     prefix_tokens = prefix_tokens[batch_idxs]
@@ -462,6 +471,8 @@ class SequenceGenerator(object):
 
                 scores = scores.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
                 scores_buf.resize_as_(scores)
+                log_ps_t = log_ps_t.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
+                log_ps_t_buf.resize_as_(log_ps_t)
                 tokens = tokens.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
                 tokens_buf.resize_as_(tokens)
                 if attn is not None:
@@ -516,9 +527,17 @@ class SequenceGenerator(object):
                     scores[:, :step], dim=0, index=active_bbsz_idx,
                     out=scores_buf[:, :step],
                 )
+                torch.index_select(
+                    log_ps_t[:, :step], dim=0, index=active_bbsz_idx,
+                    out=log_ps_t_buf[:, :step],
+                )
             torch.gather(
                 cand_scores, dim=1, index=active_hypos,
                 out=scores_buf.view(bsz, beam_size, -1)[:, :, step],
+            )
+            torch.gather(
+                cand_log_p_t, dim=1, index=active_hypos,
+                out=log_ps_t_buf.view(bsz, beam_size, -1)[:, :, step],
             )
 
             # copy attention for active hypotheses
@@ -531,6 +550,7 @@ class SequenceGenerator(object):
             # swap buffers
             tokens, tokens_buf = tokens_buf, tokens
             scores, scores_buf = scores_buf, scores
+            log_ps_t, log_ps_t_buf = log_ps_t_buf, log_ps_t
             if attn is not None:
                 attn, attn_buf = attn_buf, attn
 

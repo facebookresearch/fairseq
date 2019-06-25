@@ -444,6 +444,10 @@ def add_generation_args(parser):
                        help='number of groups for Diverse Beam Search')
     group.add_argument('--diverse-beam-strength', default=0.5, type=float, metavar='N',
                        help='strength of diversity penalty for Diverse Beam Search')
+    group.add_argument('--stochastic-beam-search', action='store_true',
+                       help='stochastic beam search')
+    group.add_argument('--sampling-temperature', default=1., type=float, metavar='N',
+                       help='temperature for stochastic beam search')
     group.add_argument('--print-alignment', action='store_true',
                        help='if set, uses attention feedback to compute and print alignment to source tokens')
     # fmt: on
