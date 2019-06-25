@@ -41,18 +41,18 @@ class fb_tbmf_wrapper(progress_bar.progress_bar):
             # try to get fb learner job name
             job_id = ""
 
-        # get date-time str
-        time = datetime.datetime.now()
-        time_str = "{}-{}-{}-{}:{}".format(
-                    time.year,
-                    time.month,
-                    time.day,
-                    time.hour,
-                    time.minute)
 
         if job_id is not None and job_id != "":
-            return time_str + "/" + job_id
+            return job_id
         else:
+            # get date-time str
+            time = datetime.datetime.now()
+            time_str = "{}-{}-{}-{}:{}".format(
+                        time.year,
+                        time.month,
+                        time.day,
+                        time.hour,
+                        time.minute)
             return time_str
 
     def __init__(self, wrapped_bar, args, log_interval):
