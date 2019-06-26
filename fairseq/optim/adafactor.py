@@ -165,7 +165,8 @@ class Adafactor(torch.optim.Optimizer):
 
                     state['RMS'] = 0
                 else:
-                    state['exp_avg'] = state['exp_avg'].type_as(grad)
+                    if use_first_moment:
+                        state['exp_avg'] = state['exp_avg'].type_as(grad)
                     if factored:
                         state['exp_avg_sq_row'] = state['exp_avg_sq_row'].type_as(grad)
                         state['exp_avg_sq_col'] = state['exp_avg_sq_col'].type_as(grad)
