@@ -99,6 +99,10 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
     if hasattr(args, 'task'):
         from fairseq.tasks import TASK_REGISTRY
         TASK_REGISTRY[args.task].add_args(parser)
+    if getattr(args, 'use_bmuf', False):
+        # hack to support extra args for block distributed data parallelism
+        from fairseq.optim.bmuf import FairseqBMUF
+        FairseqBMUF.add_args(parser)
 
     # Parse a second time.
     if parse_known:
@@ -322,8 +326,6 @@ def add_optimization_args(parser):
                        help='stop training when the learning rate reaches this minimum')
     group.add_argument('--use-bmuf', default=False, action='store_true',
                         help="specify global optimizer for syncing models on different GPUs/Shards")
-    group.add_argument('--global-sync-iter', default=10, type=int,
-                        help='Iteration for syncing global model')
     # fmt: on
     return group
 
