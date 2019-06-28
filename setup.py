@@ -16,12 +16,6 @@ if sys.version_info < (3,):
 with open('README.md') as f:
     readme = f.read()
 
-with open('LICENSE') as f:
-    license = f.read()
-
-with open('requirements.txt') as f:
-    reqs = f.read()
-
 
 bleu = Extension(
     'fairseq.libbleu',
@@ -35,12 +29,36 @@ bleu = Extension(
 
 setup(
     name='fairseq',
-    version='0.5.0',
+    version='0.7.1',
     description='Facebook AI Research Sequence-to-Sequence Toolkit',
+    url='https://github.com/pytorch/fairseq',
+    classifiers=[
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: BSD License',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
+    ],
     long_description=readme,
-    license=license,
-    install_requires=reqs.strip().split('\n'),
-    packages=find_packages(),
+    long_description_content_type='text/markdown',
+    install_requires=[
+        'cffi',
+        'numpy',
+        'sacrebleu',
+        'torch',
+        'tqdm',
+    ],
+    packages=find_packages(exclude=['scripts', 'tests']),
     ext_modules=[bleu],
     test_suite='tests',
+    entry_points={
+        'console_scripts': [
+            'fairseq-eval-lm = fairseq_cli.eval_lm:cli_main',
+            'fairseq-generate = fairseq_cli.generate:cli_main',
+            'fairseq-interactive = fairseq_cli.interactive:cli_main',
+            'fairseq-preprocess = fairseq_cli.preprocess:cli_main',
+            'fairseq-train = fairseq_cli.train:cli_main',
+            'fairseq-score = fairseq_cli.score:main',
+        ],
+    },
 )

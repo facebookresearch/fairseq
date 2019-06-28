@@ -22,6 +22,13 @@ class AdaptiveLoss(FairseqCriterion):
     def __init__(self, args, task):
         super().__init__(args, task)
 
+        if args.ddp_backend == 'c10d':
+            raise Exception(
+                'AdaptiveLoss is not compatible with the c10d '
+                'version of DistributedDataParallel. Please use '
+                '`--ddp-backend=no_c10d` instead.'
+            )
+
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
@@ -35,11 +42,14 @@ class AdaptiveLoss(FairseqCriterion):
         adaptive_softmax = model.decoder.adaptive_softmax
 
         net_output = model(**sample['net_input'])
-        target = model.get_targets(sample, net_output).view(-1)
+        orig_target = model.get_targets(sample, net_output)
 
-        bsz = target.size(0)
+        nsentences = orig_target.size(0)
+        orig_target = orig_target.view(-1)
 
-        logits, target = adaptive_softmax(net_output[0], target)
+        bsz = orig_target.size(0)
+
+        logits, target = adaptive_softmax(net_output[0], orig_target)
         assert len(target) == len(logits)
 
         loss = net_output[0].new(1 if reduce else bsz).zero_()
@@ -47,13 +57,20 @@ class AdaptiveLoss(FairseqCriterion):
         for i in range(len(target)):
             if target[i] is not None:
                 assert (target[i].min() >= 0 and target[i].max() <= logits[i].size(1))
-                loss += F.cross_entropy(logits[i], target[i], size_average=False, ignore_index=self.padding_idx,
-                                        reduce=reduce)
+                loss += F.cross_entropy(
+                    logits[i],
+                    target[i],
+                    ignore_index=self.padding_idx,
+                    reduction='sum' if reduce else 'none',
+                )
 
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        orig = utils.strip_pad(orig_target, self.padding_idx)
+        ntokens = orig.numel()
+        sample_size = sample['target'].size(0) if self.args.sentence_avg else ntokens
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
-            'ntokens': sample['ntokens'],
+            'ntokens': ntokens,
+            'nsentences': nsentences,
             'sample_size': sample_size,
         }
         return loss, sample_size, logging_output
@@ -63,11 +80,15 @@ class AdaptiveLoss(FairseqCriterion):
         """Aggregate logging outputs from data parallel training."""
         loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
         ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
+        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         agg_output = {
-            'loss': loss_sum / sample_size / math.log(2),
+            'loss': loss_sum / sample_size / math.log(2) if sample_size > 0 else 0.,
+            'nll_loss': loss_sum / sample_size / math.log(2) if sample_size > 0 else 0.,
+            'ntokens': ntokens,
+            'nsentences': nsentences,
             'sample_size': sample_size,
         }
         if sample_size != ntokens:
-            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
+            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.
         return agg_output

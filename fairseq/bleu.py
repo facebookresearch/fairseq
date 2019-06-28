@@ -13,7 +13,7 @@ try:
     from fairseq import libbleu
 except ImportError as e:
     import sys
-    sys.stderr.write('ERROR: missing libbleu.so. run `python setup.py install`\n')
+    sys.stderr.write('ERROR: missing libbleu.so. run `pip install --editable .`\n')
     raise e
 
 
@@ -33,6 +33,31 @@ class BleuStat(ctypes.Structure):
         ('match4', ctypes.c_size_t),
         ('count4', ctypes.c_size_t),
     ]
+
+
+class SacrebleuScorer(object):
+    def __init__(self):
+        import sacrebleu
+        self.sacrebleu = sacrebleu
+        self.reset()
+
+    def reset(self, one_init=False):
+        if one_init:
+            raise NotImplementedError
+        self.ref = []
+        self.sys = []
+
+    def add_string(self, ref, pred):
+        self.ref.append(ref)
+        self.sys.append(pred)
+
+    def score(self, order=4):
+        return self.result_string(order).score
+
+    def result_string(self, order=4):
+        if order != 4:
+            raise NotImplementedError
+        return self.sacrebleu.corpus_bleu(self.sys, [self.ref])
 
 
 class Scorer(object):

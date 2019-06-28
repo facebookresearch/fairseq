@@ -85,10 +85,12 @@ class TestSequenceScorer(unittest.TestCase):
 
         task = test_utils.TestTranslationTask.setup_task(args, d, d)
         model = task.build_model(args)
-        scorer = SequenceScorer([model], task.target_dictionary)
-        for id, _src, _ref, hypos in scorer.score_batched_itr(data_itr):
-            self.assertHypoTokens(hypos[0], data[id]['target'])
-            self.assertHypoScore(hypos[0], expected_scores[id])
+        scorer = SequenceScorer(task.target_dictionary)
+        for sample in data_itr:
+            hypos = task.inference_step(scorer, [model], sample)
+            for id, hypos_id in zip(sample['id'].tolist(), hypos):
+                self.assertHypoTokens(hypos_id[0], data[id]['target'])
+                self.assertHypoScore(hypos_id[0], expected_scores[id])
 
     def assertHypoTokens(self, hypo, tokens):
         self.assertTensorEqual(hypo['tokens'], torch.LongTensor(tokens))

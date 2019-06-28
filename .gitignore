@@ -1,3 +1,6 @@
+# JetBrains PyCharm IDE
+.idea/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -5,6 +8,9 @@ __pycache__/
 
 # C extensions
 *.so
+
+# macOS dir files
+.DS_Store
 
 # Distribution / packaging
 .Python
@@ -105,3 +111,6 @@ ENV/
 
 # Generated files
 fairseq/temporal_convolution_tbc
+
+# data
+data-bin/

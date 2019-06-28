@@ -9,6 +9,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.onnx.operators
 
 from fairseq import utils
 
@@ -16,21 +17,23 @@ from fairseq import utils
 class SinusoidalPositionalEmbedding(nn.Module):
     """This module produces sinusoidal positional embeddings of any length.
 
-    Padding symbols are ignored, but it is necessary to specify whether padding
-    is added on the left side (left_pad=True) or right side (left_pad=False).
+    Padding symbols are ignored.
     """
 
-    def __init__(self, embedding_dim, padding_idx, left_pad, init_size=1024):
+    def __init__(self, embedding_dim, padding_idx, init_size=1024):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx
-        self.left_pad = left_pad
         self.weights = SinusoidalPositionalEmbedding.get_embedding(
             init_size,
             embedding_dim,
             padding_idx,
         )
+        self.onnx_trace = False
         self.register_buffer('_float_tensor', torch.FloatTensor(1))
+
+    def prepare_for_onnx_export_(self):
+        self.onnx_trace = True
 
     @staticmethod
     def get_embedding(num_embeddings, embedding_dim, padding_idx=None):
@@ -51,24 +54,32 @@ class SinusoidalPositionalEmbedding(nn.Module):
             emb[padding_idx, :] = 0
         return emb
 
-    def forward(self, input, incremental_state=None):
+    def forward(self, input, incremental_state=None, timestep=None, **kwargs):
         """Input is expected to be of size [bsz x seqlen]."""
-        # recompute/expand embeddings if needed
-        bsz, seq_len = input.size()
+        bsz, seq_len = torch.onnx.operators.shape_as_tensor(input)
         max_pos = self.padding_idx + 1 + seq_len
         if self.weights is None or max_pos > self.weights.size(0):
+            # recompute/expand embeddings if needed
             self.weights = SinusoidalPositionalEmbedding.get_embedding(
                 max_pos,
                 self.embedding_dim,
                 self.padding_idx,
             )
-        self.weights = self.weights.type_as(self._float_tensor)
+        self.weights = self.weights.to(self._float_tensor)
 
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step
-            return self.weights[self.padding_idx + seq_len, :].expand(bsz, 1, -1)
+            pos = (timestep.int() + 1).long() if timestep is not None else seq_len
+            if self.onnx_trace:
+                return self.weights[self.padding_idx + pos, :].unsqueeze(1).repeat(bsz, 1, 1)
+            return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
 
-        positions = utils.make_positions(input.data, self.padding_idx, self.left_pad)
+        positions = utils.make_positions(input, self.padding_idx, onnx_trace=self.onnx_trace)
+        if self.onnx_trace:
+            flat_embeddings = self.weights.detach().index_select(0, positions.view(-1))
+            embedding_shape = torch.cat((bsz.view(1), seq_len.view(1), torch.LongTensor([-1])))
+            embeddings = torch.onnx.operators.reshape_from_tensor_shape(flat_embeddings, embedding_shape)
+            return embeddings
         return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
 
     def max_positions(self):

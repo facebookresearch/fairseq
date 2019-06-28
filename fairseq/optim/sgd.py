@@ -16,6 +16,16 @@ class SGD(FairseqOptimizer):
         super().__init__(args, params)
         self._optimizer = torch.optim.SGD(params, **self.optimizer_config)
 
+    @staticmethod
+    def add_args(parser):
+        """Add optimizer-specific arguments to the parser."""
+        # fmt: off
+        parser.add_argument('--momentum', default=0.0, type=float, metavar='M',
+                            help='momentum factor')
+        parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
+                            help='weight decay')
+        # fmt: on
+
     @property
     def optimizer_config(self):
         """

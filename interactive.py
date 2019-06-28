@@ -5,54 +5,59 @@
 # This source code is licensed under the license found in the LICENSE file in
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
+"""
+Translate raw text with a trained model. Batches data on-the-fly.
+"""
 
 from collections import namedtuple
-import numpy as np
-import sys
+import fileinput
 
 import torch
 
-from fairseq import data, options, tasks, tokenizer, utils
-from fairseq.sequence_generator import SequenceGenerator
+from fairseq import checkpoint_utils, options, tasks, utils
 
 
-Batch = namedtuple('Batch', 'srcs tokens lengths')
+Batch = namedtuple('Batch', 'ids src_tokens src_lengths')
 Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
 
 
-def buffered_read(buffer_size):
+def buffered_read(input, buffer_size):
     buffer = []
-    for src_str in sys.stdin:
-        buffer.append(src_str.strip())
-        if len(buffer) >= buffer_size:
-            yield buffer
-            buffer = []
+    with fileinput.input(files=[input], openhook=fileinput.hook_encoded("utf-8")) as h:
+        for src_str in h:
+            buffer.append(src_str.strip())
+            if len(buffer) >= buffer_size:
+                yield buffer
+                buffer = []
 
     if len(buffer) > 0:
         yield buffer
 
 
-def make_batches(lines, args, src_dict, max_positions):
+def make_batches(lines, args, task, max_positions, encode_fn):
     tokens = [
-        tokenizer.Tokenizer.tokenize(src_str, src_dict, add_if_not_exist=False).long()
+        task.source_dictionary.encode_line(
+            encode_fn(src_str), add_if_not_exist=False
+        ).long()
         for src_str in lines
     ]
-    lengths = np.array([t.numel() for t in tokens])
-    itr = data.EpochBatchIterator(
-        dataset=data.LanguagePairDataset(tokens, lengths, src_dict),
+    lengths = torch.LongTensor([t.numel() for t in tokens])
+    itr = task.get_batch_iterator(
+        dataset=task.build_dataset_for_inference(tokens, lengths),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
         max_positions=max_positions,
     ).next_epoch_itr(shuffle=False)
     for batch in itr:
         yield Batch(
-            srcs=[lines[i] for i in batch['id']],
-            tokens=batch['net_input']['src_tokens'],
-            lengths=batch['net_input']['src_lengths'],
-        ), batch['id']
+            ids=batch['id'],
+            src_tokens=batch['net_input']['src_tokens'], src_lengths=batch['net_input']['src_lengths'],
+        )
 
 
 def main(args):
+    utils.import_user_module(args)
+
     if args.buffer_size < 1:
         args.buffer_size = 1
     if args.max_tokens is None and args.max_sentences is None:
@@ -72,8 +77,11 @@ def main(args):
 
     # Load ensemble
     print('| loading model(s) from {}'.format(args.path))
-    model_paths = args.path.split(':')
-    models, model_args = utils.load_ensemble_for_inference(model_paths, task, model_arg_overrides=eval(args.model_overrides))
+    models, _model_args = checkpoint_utils.load_model_ensemble(
+        args.path.split(':'),
+        arg_overrides=eval(args.model_overrides),
+        task=task,
+    )
 
     # Set dictionaries
     src_dict = task.source_dictionary
@@ -87,90 +95,95 @@ def main(args):
         )
         if args.fp16:
             model.half()
+        if use_cuda:
+            model.cuda()
 
     # Initialize generator
-    translator = SequenceGenerator(
-        models, tgt_dict, beam_size=args.beam, stop_early=(not args.no_early_stop),
-        normalize_scores=(not args.unnormalized), len_penalty=args.lenpen,
-        unk_penalty=args.unkpen, sampling=args.sampling, sampling_topk=args.sampling_topk,
-        minlen=args.min_len, sampling_temperature=args.sampling_temperature
-    )
+    generator = task.build_generator(args)
 
-    if use_cuda:
-        translator.cuda()
+    # Hack to support GPT-2 BPE
+    if args.remove_bpe == 'gpt2':
+        from fairseq.gpt2_bpe.gpt2_encoding import get_encoder
+        decoder = get_encoder(
+            'fairseq/gpt2_bpe/encoder.json',
+            'fairseq/gpt2_bpe/vocab.bpe',
+        )
+        encode_fn = lambda x: ' '.join(map(str, decoder.encode(x)))
+    else:
+        decoder = None
+        encode_fn = lambda x: x
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(args.replace_unk)
 
-    def make_result(src_str, hypos):
-        result = Translation(
-            src_str='O\t{}'.format(src_str),
-            hypos=[],
-            pos_scores=[],
-            alignments=[],
-        )
-
-        # Process top predictions
-        for hypo in hypos[:min(len(hypos), args.nbest)]:
-            hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
-                hypo_tokens=hypo['tokens'].int().cpu(),
-                src_str=src_str,
-                alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
-                align_dict=align_dict,
-                tgt_dict=tgt_dict,
-                remove_bpe=args.remove_bpe,
-            )
-            result.hypos.append('H\t{}\t{}'.format(hypo['score'], hypo_str))
-            result.pos_scores.append('P\t{}'.format(
-                ' '.join(map(
-                    lambda x: '{:.4f}'.format(x),
-                    hypo['positional_scores'].tolist(),
-                ))
-            ))
-            result.alignments.append(
-                'A\t{}'.format(' '.join(map(lambda x: str(utils.item(x)), alignment)))
-                if args.print_alignment else None
-            )
-        return result
-
-    def process_batch(batch):
-        tokens = batch.tokens
-        lengths = batch.lengths
-
-        if use_cuda:
-            tokens = tokens.cuda()
-            lengths = lengths.cuda()
-
-        translations = translator.generate(
-            tokens,
-            lengths,
-            maxlen=int(args.max_len_a * tokens.size(1) + args.max_len_b),
-        )
-
-        return [make_result(batch.srcs[i], t) for i, t in enumerate(translations)]
+    max_positions = utils.resolve_max_positions(
+        task.max_positions(),
+        *[model.max_positions() for model in models]
+    )
 
     if args.buffer_size > 1:
         print('| Sentence buffer size:', args.buffer_size)
     print('| Type the input sentence and press return:')
-    for inputs in buffered_read(args.buffer_size):
-        indices = []
+    start_id = 0
+    for inputs in buffered_read(args.input, args.buffer_size):
         results = []
-        for batch, batch_indices in make_batches(inputs, args, src_dict, models[0].max_positions()):
-            indices.extend(batch_indices)
-            results += process_batch(batch)
+        for batch in make_batches(inputs, args, task, max_positions, encode_fn):
+            src_tokens = batch.src_tokens
+            src_lengths = batch.src_lengths
+            if use_cuda:
+                src_tokens = src_tokens.cuda()
+                src_lengths = src_lengths.cuda()
 
-        for i in np.argsort(indices):
-            result = results[i]
-            print(result.src_str)
-            for hypo, pos_scores, align in zip(result.hypos, result.pos_scores, result.alignments):
-                print(hypo)
-                print(pos_scores)
-                if align is not None:
-                    print(align)
+            sample = {
+                'net_input': {
+                    'src_tokens': src_tokens,
+                    'src_lengths': src_lengths,
+                },
+            }
+            translations = task.inference_step(generator, models, sample)
+            for i, (id, hypos) in enumerate(zip(batch.ids.tolist(), translations)):
+                src_tokens_i = utils.strip_pad(src_tokens[i], tgt_dict.pad())
+                results.append((start_id + id, src_tokens_i, hypos))
+
+        # sort output to match input order
+        for id, src_tokens, hypos in sorted(results, key=lambda x: x[0]):
+            if src_dict is not None:
+                src_str = src_dict.string(src_tokens, args.remove_bpe)
+                print('S-{}\t{}'.format(id, src_str))
+
+            # Process top predictions
+            for hypo in hypos[:min(len(hypos), args.nbest)]:
+                hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                    hypo_tokens=hypo['tokens'].int().cpu(),
+                    src_str=src_str,
+                    alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
+                    align_dict=align_dict,
+                    tgt_dict=tgt_dict,
+                    remove_bpe=args.remove_bpe,
+                )
+                if decoder is not None:
+                    hypo_str = decoder.decode(map(int, hypo_str.strip().split()))
+                print('H-{}\t{}\t{}'.format(id, hypo['score'], hypo_str))
+                print('P-{}\t{}'.format(
+                    id,
+                    ' '.join(map(lambda x: '{:.4f}'.format(x), hypo['positional_scores'].tolist()))
+                ))
+                if args.print_alignment:
+                    print('A-{}\t{}'.format(
+                        id,
+                        ' '.join(map(lambda x: str(utils.item(x)), alignment))
+                    ))
+
+        # update running id counter
+        start_id += len(inputs)
 
 
-if __name__ == '__main__':
+def cli_main():
     parser = options.get_generation_parser(interactive=True)
     args = options.parse_args_and_arch(parser)
     main(args)
+
+
+if __name__ == '__main__':
+    cli_main()

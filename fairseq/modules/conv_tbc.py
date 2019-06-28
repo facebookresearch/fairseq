@@ -27,7 +27,7 @@ class ConvTBC(torch.nn.Module):
         self.bias = torch.nn.Parameter(torch.Tensor(out_channels))
 
     def forward(self, input):
-        return input.contiguous().conv_tbc(self.weight, self.bias, self.padding[0])
+        return torch.conv_tbc(input.contiguous(), self.weight, self.bias, self.padding[0])
 
     def __repr__(self):
         s = ('{name}({in_channels}, {out_channels}, kernel_size={kernel_size}'
