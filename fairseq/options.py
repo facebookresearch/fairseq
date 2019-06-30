@@ -359,6 +359,14 @@ def add_checkpoint_args(parser):
                        help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
                        help='only store last and best checkpoints')
+    group.add_argument('--no-last-checkpoints', action='store_true',
+                       help='don\'t store last checkpoints')
+    group.add_argument('--no-save-optimizer-state', action='store_true',
+                       help='don\'t save optimizer-state as part of checkpoint')
+    group.add_argument('--best-checkpoint-metric', type=str, default='loss',
+                       help='metric to use for saving "best" checkpoints')
+    group.add_argument('--maximize-best-checkpoint-metric', action='store_true',
+                       help='select the largest metric value for saving "best" checkpoints')
     # fmt: on
     return group
 
