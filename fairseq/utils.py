@@ -320,6 +320,8 @@ def get_activation_fn(activation: str) -> Callable:
         return gelu_accurate
     elif activation == 'tanh':
         return torch.tanh
+    elif activation == 'linear':
+        return lambda x: x
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))
 
@@ -331,4 +333,5 @@ def get_available_activation_fns() -> List:
         'gelu_fast',  # deprecated
         'gelu_accurate',
         'tanh',
+        'linear',
     ]
