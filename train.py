@@ -238,7 +238,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
             stats[k] = meter.avg
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
-        valid_losses.append(stats['loss'].avg)
+        valid_losses.append(stats[args.best_checkpoint_metric].avg)
     return valid_losses
 
 

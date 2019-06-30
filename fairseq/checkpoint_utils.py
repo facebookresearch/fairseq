@@ -27,6 +27,9 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     if args.no_save or not distributed_utils.is_master(args):
         return
 
+    def is_better(a, b):
+        return a > b if args.maximize_best_checkpoint_metric else a < b
+
     write_timer = meters.StopwatchMeter()
     write_timer.start()
 
@@ -45,13 +48,13 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     )
     checkpoint_conds['checkpoint_best.pt'] = (
         val_loss is not None and
-        (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
+        (not hasattr(save_checkpoint, 'best') or is_better(val_loss, save_checkpoint.best))
     )
-    checkpoint_conds['checkpoint_last.pt'] = True  # keep this last so that it's a symlink
+    checkpoint_conds['checkpoint_last.pt'] = not args.no_last_checkpoints
 
     prev_best = getattr(save_checkpoint, 'best', val_loss)
     if val_loss is not None:
-        save_checkpoint.best = min(val_loss, prev_best)
+        save_checkpoint.best = is_better(val_loss, prev_best)
     extra_state = {
         'train_iterator': epoch_itr.state_dict(),
         'val_loss': val_loss,
@@ -235,9 +238,10 @@ def save_state(
                 'num_updates': num_updates,
             }
         ],
-        'last_optimizer_state': convert_state_dict_type(optimizer.state_dict()),
         'extra_state': extra_state,
     }
+    if not args.no_save_optimizer_state:
+        state_dict['last_optimizer_state'] = convert_state_dict_type(optimizer.state_dict())
     torch_persistent_save(state_dict, filename)
 
 
