@@ -14,6 +14,7 @@ from .audio.raw_audio_dataset import RawAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .block_pair_dataset import BlockPairDataset
 from .concat_dataset import ConcatDataset
+from .dummy_dataset import DummyDataset
 from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset, MMapIndexedDataset
 from .language_pair_dataset import LanguagePairDataset
 from .lm_context_window_dataset import LMContextWindowDataset
@@ -39,6 +40,7 @@ __all__ = [
     'ConcatDataset',
     'CountingIterator',
     'Dictionary',
+    'DummyDataset',
     'EpochBatchIterator',
     'FairseqDataset',
     'GroupedIterator',

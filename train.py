@@ -135,7 +135,7 @@ def train(args, trainer, task, epoch_itr):
         progress.log(stats, tag='train', step=stats['num_updates'])
 
         # ignore the first mini-batch in words-per-second calculation
-        if i == 0:
+        if i <= 100:
             trainer.get_meter('wps').reset()
 
         num_updates = trainer.get_num_updates()
