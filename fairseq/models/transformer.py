@@ -563,7 +563,7 @@ class TransformerEncoderLayer(nn.Module):
                 `(batch, src_len)` where padding elements are indicated by ``1``.
 
         Returns:
-            encoded output of shape `(batch, src_len, embed_dim)`
+            encoded output of shape `(seq_len, batch, embed_dim)`
         """
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
@@ -677,7 +677,7 @@ class TransformerDecoderLayer(nn.Module):
                 `(batch, src_len)` where padding elements are indicated by ``1``.
 
         Returns:
-            encoded output of shape `(batch, src_len, embed_dim)`
+            encoded output of shape `(seq_len, batch, embed_dim)`
         """
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
