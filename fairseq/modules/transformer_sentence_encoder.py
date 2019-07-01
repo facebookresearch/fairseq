@@ -170,7 +170,7 @@ class TransformerSentenceEncoder(nn.Module):
     def forward(
         self,
         tokens: torch.Tensor,
-        segment_labels: torch.Tensor,
+        segment_labels: torch.Tensor = None,
         last_state_only: bool = False,
         positions: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
