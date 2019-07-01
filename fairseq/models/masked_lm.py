@@ -165,11 +165,6 @@ class MaskedLMEncoder(FairseqEncoder):
         # Remove head is set to true during fine-tuning
         self.load_softmax = not getattr(args, 'remove_head', False)
 
-        self.masked_lm_pooler = nn.Linear(
-            args.encoder_embed_dim, args.encoder_embed_dim
-        )
-        self.pooler_activation = utils.get_activation_fn(args.pooler_activation_fn)
-
         self.lm_head_transform_weight = nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim)
         self.activation_fn = utils.get_activation_fn(args.activation_fn)
         self.layer_norm = LayerNorm(args.encoder_embed_dim)
@@ -182,13 +177,6 @@ class MaskedLMEncoder(FairseqEncoder):
                 self.embed_out = nn.Linear(
                     args.encoder_embed_dim,
                     self.vocab_size,
-                    bias=False
-                )
-
-            if args.sent_loss:
-                self.sentence_projection_layer = nn.Linear(
-                    args.encoder_embed_dim,
-                    self.sentence_out_dim,
                     bias=False
                 )
 
@@ -224,7 +212,7 @@ class MaskedLMEncoder(FairseqEncoder):
         x = inner_states[-1].transpose(0, 1)
         x = self.layer_norm(self.activation_fn(self.lm_head_transform_weight(x)))
 
-        pooled_output = self.pooler_activation(self.masked_lm_pooler(sentence_rep))
+        #pooled_output = self.pooler_activation(self.masked_lm_pooler(sentence_rep))
 
         # project back to size of vocabulary
         if self.share_input_output_embed \
@@ -236,12 +224,9 @@ class MaskedLMEncoder(FairseqEncoder):
         if self.lm_output_learned_bias is not None:
             x = x + self.lm_output_learned_bias
         sentence_logits = None
-        if self.sentence_projection_layer:
-            sentence_logits = self.sentence_projection_layer(pooled_output)
 
         return x, {
             'inner_states': inner_states,
-            'pooled_output': pooled_output,
             'sentence_logits': sentence_logits
         }
 
