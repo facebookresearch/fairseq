@@ -54,7 +54,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
     prev_best = getattr(save_checkpoint, 'best', val_loss)
     if val_loss is not None:
-        save_checkpoint.best = is_better(val_loss, prev_best)
+        save_checkpoint.best = val_loss if is_better(val_loss, prev_best) else prev_best
     extra_state = {
         'train_iterator': epoch_itr.state_dict(),
         'val_loss': val_loss,
