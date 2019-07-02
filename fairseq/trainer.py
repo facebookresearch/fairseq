@@ -218,7 +218,7 @@ class Trainer(object):
             epoch=epoch,
         )
 
-    def train_step(self, samples, dummy_batch=False, raise_oom=False):
+    def train_step(self, samples, dummy_batch=False, raise_oom=False, update_params=True):
         """Do forward, backward and parameter update."""
         if self._dummy_batch is None:
             self._dummy_batch = samples[0]
@@ -334,6 +334,10 @@ class Trainer(object):
                 'return ntokens and nsentences'
             ).format(self.task.__class__.__name__))
 
+        # Skip update
+        if not update_params:
+            return logging_output
+        
         try:
             # normalize grads by sample size
             if sample_size > 0:
