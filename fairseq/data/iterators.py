@@ -174,10 +174,12 @@ class EpochBatchIterator(object):
             self.dataset.prefetch([i for s in batches for i in s])
 
             if shuffle and fix_batches_to_gpus:
-                batches = shuffle_batches(batches, self.seed + epoch + self.shard_id)
+                batches = shuffle_batches(
+                    batches, self.seed + epoch + self.shard_id)
         else:
             if shuffle:
-                batches = shuffle_batches(list(self.frozen_batches), self.seed + epoch)
+                batches = shuffle_batches(
+                    list(self.frozen_batches), self.seed + epoch)
             else:
                 batches = self.frozen_batches
             batches = list(ShardedIterator(
@@ -204,13 +206,18 @@ class GroupedIterator(object):
     Args:
         iterable (iterable): iterable to wrap
         chunk_size (int): size of each chunk
+        bottomless (bool): Restart when the iterator reaches its end
+            (without throwing an error)
     """
 
-    def __init__(self, iterable, chunk_size):
+    def __init__(self, iterable, chunk_size, bottomless=False):
         self._len = int(math.ceil(len(iterable) / float(chunk_size)))
-        self.offset = int(math.ceil(getattr(iterable, 'count', 0) / float(chunk_size)))
-        self.itr = iterable
+        self.offset = int(
+            math.ceil(getattr(iterable, 'count', 0) / float(chunk_size)))
+        self.iterable = iterable
+        self.itr = iter(iterable)
         self.chunk_size = chunk_size
+        self.bottomless = bottomless
 
     def __len__(self):
         return self._len
@@ -218,14 +225,25 @@ class GroupedIterator(object):
     def __iter__(self):
         return self
 
+    def _build_chunk(self, chunk):
+        for _ in range(self.chunk_size):
+            chunk.append(next(self.itr))
+
     def __next__(self):
         chunk = []
         try:
+            self._build_chunk(chunk)
             for _ in range(self.chunk_size):
                 chunk.append(next(self.itr))
         except StopIteration as e:
             if len(chunk) == 0:
-                raise e
+                if self.bottomless:
+                    # For bottomless iterator just start over
+                    self.itr = iter(self.iterable)
+                    self._build_chunk(chunk)
+                else:
+                    # Otherwise raise the exception
+                    raise e
         return chunk
 
 
