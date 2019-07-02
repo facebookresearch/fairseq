@@ -59,11 +59,12 @@ class LanguageModelingTask(FairseqTask):
         """Add task-specific arguments to the parser."""
         # fmt: off
         parser.add_argument('data', help='path to data directory')
-        parser.add_argument('--sample-break-mode',
-                            choices=['none', 'complete', 'eos'],
+        parser.add_argument('--sample-break-mode', default='none',
+                            choices=['none', 'complete', 'complete_doc', 'eos'],
                             help='If omitted or "none", fills each sample with tokens-per-sample '
                                  'tokens. If set to "complete", splits samples only at the end '
                                  'of sentence, but may include multiple sentences per sample. '
+                                 '"complete_doc" is similar but respects doc boundaries. '
                                  'If set to "eos", includes only one sentence per sample.')
         parser.add_argument('--tokens-per-sample', default=1024, type=int,
                             help='max number of tokens per sample for LM dataset')
@@ -81,6 +82,8 @@ class LanguageModelingTask(FairseqTask):
                             help='include past target')
         parser.add_argument('--add-bos-token', action='store_true',
                             help='prepend beginning of sentence token (<s>)')
+        parser.add_argument('--max-target-positions', type=int, metavar='N',
+                            help='max number of tokens in the target sequence')
         # fmt: on
 
     def __init__(self, args, dictionary, output_dictionary=None, targets=None):
@@ -223,7 +226,7 @@ class LanguageModelingTask(FairseqTask):
 
     def inference_step(self, generator, models, sample, prefix_tokens=None):
         with torch.no_grad():
-            if prefix_tokens is None:
+            if prefix_tokens is None and sample['net_input']['src_tokens'].nelement():
                 # note: EOS has already been removed in build_dataset_for_inference
                 prefix_tokens = sample['net_input']['src_tokens']
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)

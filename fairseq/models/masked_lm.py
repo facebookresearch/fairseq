@@ -101,8 +101,8 @@ class MaskedLMModel(BaseFairseqModel):
         parser.add_argument('--encoder-normalize-before', action='store_true',
                             help='apply layernorm before each encoder block')
 
-    def forward(self, src_tokens, segment_labels, **kwargs):
-        return self.encoder(src_tokens, segment_labels, **kwargs)
+    def forward(self, src_tokens, segment_labels=None, **kwargs):
+        return self.encoder(src_tokens, segment_labels=segment_labels, **kwargs)
 
     def max_positions(self):
         return self.encoder.max_positions
@@ -174,6 +174,7 @@ class MaskedLMEncoder(FairseqEncoder):
         self.activation_fn = utils.get_activation_fn(args.activation_fn)
         self.layer_norm = LayerNorm(args.encoder_embed_dim)
 
+        self.lm_output_learned_bias = None
         if self.load_softmax:
             self.lm_output_learned_bias = nn.Parameter(torch.zeros(self.vocab_size))
 
@@ -191,7 +192,7 @@ class MaskedLMEncoder(FairseqEncoder):
                     bias=False
                 )
 
-    def forward(self, src_tokens, segment_labels, **unused):
+    def forward(self, src_tokens, segment_labels=None, **unused):
         """
         Forward pass for Masked LM encoder. This first computes the token
         embedding using the token embedding matrix, position embeddings (if
@@ -215,7 +216,10 @@ class MaskedLMEncoder(FairseqEncoder):
                   this is specified in the input arguments.
         """
 
-        inner_states, sentence_rep = self.sentence_encoder(src_tokens, segment_labels)
+        inner_states, sentence_rep = self.sentence_encoder(
+            src_tokens,
+            segment_labels=segment_labels,
+        )
 
         x = inner_states[-1].transpose(0, 1)
         x = self.layer_norm(self.activation_fn(self.lm_head_transform_weight(x)))
@@ -229,7 +233,8 @@ class MaskedLMEncoder(FairseqEncoder):
         elif self.embed_out is not None:
             x = self.embed_out(x)
 
-        x = x + self.lm_output_learned_bias
+        if self.lm_output_learned_bias is not None:
+            x = x + self.lm_output_learned_bias
         sentence_logits = None
         if self.sentence_projection_layer:
             sentence_logits = self.sentence_projection_layer(pooled_output)
@@ -350,4 +355,5 @@ def xlm_architecture(args):
     args.activation_fn = getattr(args, 'activation_fn', 'gelu')
     args.encoder_normalize_before = getattr(args, 'encoder_normalize_before', False)
     args.pooler_activation_fn = getattr(args, 'pooler_activation_fn', 'tanh')
+    args.apply_bert_init = getattr(args, 'apply_bert_init', True)
     base_architecture(args)

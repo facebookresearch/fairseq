@@ -111,7 +111,7 @@ class TranslationTask(FairseqTask):
                             help='target language')
         parser.add_argument('--lazy-load', action='store_true',
                             help='load the dataset lazily')
-        parser.add_argument('--raw-text', default=False, action='store_true',
+        parser.add_argument('--raw-text', action='store_true',
                             help='load raw text dataset')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
                             help='pad the source on the left')

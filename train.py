@@ -43,7 +43,7 @@ def main(args, init_distributed=False):
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     for valid_sub_split in args.valid_subset.split(','):
-        task.load_dataset(valid_sub_split, combine=True, epoch=0)
+        task.load_dataset(valid_sub_split, combine=False, epoch=0)
 
     # Build model and criterion
     model = task.build_model(args)
@@ -198,7 +198,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
         # Initialize data iterator
         itr = task.get_batch_iterator(
             dataset=task.dataset(subset),
-            max_tokens=args.max_tokens,
+            max_tokens=args.max_tokens_valid,
             max_sentences=args.max_sentences_valid,
             max_positions=utils.resolve_max_positions(
                 task.max_positions(),
@@ -238,7 +238,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
             stats[k] = meter.avg
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
-        valid_losses.append(stats['loss'].avg)
+        valid_losses.append(stats[args.best_checkpoint_metric].avg)
     return valid_losses
 
 

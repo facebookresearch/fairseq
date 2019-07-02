@@ -20,9 +20,19 @@ from fairseq.modules import (
     CharacterTokenEmbedder,
 )
 
+DEFAULT_MAX_TARGET_POSITIONS = 1024
+
 
 @register_model('transformer_lm')
 class TransformerLanguageModel(FairseqLanguageModel):
+
+    @classmethod
+    def hub_models(cls):
+        return {
+            'transformer_lm.gbw.adaptive_huge': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_gbw_huge.tar.bz2',
+            'transformer_lm.wiki103.adaptive': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_wiki103.tar.bz2',
+        }
+
     def __init__(self, decoder):
         super().__init__(decoder)
 
@@ -37,8 +47,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='dropout probability')
         parser.add_argument('--attention-dropout', default=0., type=float, metavar='D',
                             help='dropout probability for attention weights')
-        parser.add_argument('--relu-dropout', default=0., type=float, metavar='D',
-                            help='dropout probability after ReLU in FFN')
+        parser.add_argument('--activation-dropout', '--relu-dropout', type=float, metavar='D',
+                            help='dropout probability after activation in FFN.')
         parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
                             help='decoder embedding dimension')
         parser.add_argument('--decoder-output-dim', type=int, metavar='N',
@@ -53,8 +63,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='num decoder attention heads')
         parser.add_argument('--decoder-normalize-before', default=False, action='store_true',
                             help='apply layernorm before each decoder block')
-        parser.add_argument('--decoder-final-norm', default=False, action='store_true',
-                            help='apply layernorm before each decoder block')
+        parser.add_argument('--no-decoder-final-norm', default=False, action='store_true',
+                            help='don\'t add an extra layernorm after the last decoder block')
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
@@ -64,16 +74,16 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='adaptive input factor')
         parser.add_argument('--no-token-positional-embeddings', default=False, action='store_true',
                             help='if set, disables positional embeddings (outside self attention)')
-        parser.add_argument('--share-decoder-input-output-embed', default=False, action='store_true',
+        parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
         parser.add_argument('--character-embeddings', default=False, action='store_true',
                             help='if set, uses character embedding convolutions to produce token embeddings')
         parser.add_argument('--character-filters', type=str, metavar='LIST',
                             default='[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]',
                             help='size of character embeddings')
-        parser.add_argument('--character-embedding-dim', type=int, metavar='N', default=4,
+        parser.add_argument('--character-embedding-dim', default=4, type=int, metavar='N',
                             help='size of character embeddings')
-        parser.add_argument('--char-embedder-highway-layers', type=int, metavar='N', default=2,
+        parser.add_argument('--char-embedder-highway-layers', default=2, type=int, metavar='N',
                             help='number of highway layers for character token embeddder')
         parser.add_argument('--adaptive-input', action='store_true',
                             help='if set, uses adaptive input')
@@ -96,29 +106,23 @@ class TransformerLanguageModel(FairseqLanguageModel):
         # make sure all arguments are present in older models
         base_lm_architecture(args)
 
-        if hasattr(args, 'no_tie_adaptive_proj') and args.no_tie_adaptive_proj is False:
-            # backward compatibility
-            args.tie_adaptive_proj = True
-
-        if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = args.tokens_per_sample
-        if not hasattr(args, 'max_target_positions'):
-            args.max_target_positions = args.tokens_per_sample
+        if getattr(args, 'max_target_positions', None) is None:
+            args.max_target_positions = getattr(args, 'tokens_per_sample', DEFAULT_MAX_TARGET_POSITIONS)
 
         if args.character_embeddings:
             embed_tokens = CharacterTokenEmbedder(
-                task.dictionary, eval(args.character_filters),
+                task.source_dictionary, eval(args.character_filters),
                 args.character_embedding_dim, args.decoder_embed_dim,
                 args.char_embedder_highway_layers,
             )
         elif args.adaptive_input:
             embed_tokens = AdaptiveInput(
-                len(task.dictionary), task.dictionary.pad(), args.decoder_input_dim,
+                len(task.source_dictionary), task.source_dictionary.pad(), args.decoder_input_dim,
                 args.adaptive_input_factor, args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_input_cutoff, type=int),
             )
         else:
-            embed_tokens = Embedding(len(task.dictionary), args.decoder_input_dim, task.dictionary.pad())
+            embed_tokens = Embedding(len(task.source_dictionary), args.decoder_input_dim, task.source_dictionary.pad())
 
         if args.tie_adaptive_weights:
             assert args.adaptive_input
@@ -128,14 +132,23 @@ class TransformerLanguageModel(FairseqLanguageModel):
             assert args.decoder_input_dim == args.decoder_output_dim
 
         decoder = TransformerDecoder(
-            args, task.output_dictionary, embed_tokens, no_encoder_attn=True,
-            final_norm=args.decoder_final_norm,
+            args, task.target_dictionary, embed_tokens, no_encoder_attn=True,
         )
         return TransformerLanguageModel(decoder)
 
 
 @register_model_architecture('transformer_lm', 'transformer_lm')
 def base_lm_architecture(args):
+    # backward compatibility for older model checkpoints
+    if hasattr(args, 'no_tie_adaptive_proj'):
+        # previous models defined --no-tie-adaptive-proj, so use the existence of
+        # that option to determine if this is an "old" model checkpoint
+        args.no_decoder_final_norm = True  # old models always set this to True
+        if args.no_tie_adaptive_proj is False:
+            args.tie_adaptive_proj = True
+    if hasattr(args, 'decoder_final_norm'):
+        args.no_decoder_final_norm = not args.decoder_final_norm
+
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
@@ -147,13 +160,15 @@ def base_lm_architecture(args):
     args.activation_fn = getattr(args, 'activation_fn', 'relu')
 
     args.add_bos_token = getattr(args, 'add_bos_token', False)
+    args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
     args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)
 
-    # The model training is not stable without this
+    # Model training is not stable without this
     args.decoder_normalize_before = True
+    args.no_decoder_final_norm = getattr(args, 'no_decoder_final_norm', False)
 
     args.adaptive_input = getattr(args, 'adaptive_input', False)
     args.adaptive_input_factor = getattr(args, 'adaptive_input_factor', 4)
@@ -173,7 +188,8 @@ def transformer_lm_big(args):
 
 
 @register_model_architecture('transformer_lm', 'transformer_lm_wiki103')
-def transformer_lm_wiki103(args):
+@register_model_architecture('transformer_lm', 'transformer_lm_baevski_wiki103')
+def transformer_lm_baevski_wiki103(args):
     args.decoder_layers = getattr(args, 'decoder_layers', 16)
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
     args.dropout = getattr(args, 'dropout', 0.3)
@@ -184,14 +200,18 @@ def transformer_lm_wiki103(args):
     args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0.2)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
     args.activation_dropout = getattr(args, 'activation_dropout', 0.1)
+    args.no_decoder_final_norm = getattr(args, 'no_decoder_final_norm', True)
+    args.tie_adaptive_proj = getattr(args, 'tie_adaptive_proj', True)
     transformer_lm_big(args)
 
 
 @register_model_architecture('transformer_lm', 'transformer_lm_gbw')
-def transformer_lm_gbw(args):
+@register_model_architecture('transformer_lm', 'transformer_lm_baevski_gbw')
+def transformer_lm_baevski_gbw(args):
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.dropout = getattr(args, 'dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
+    args.no_decoder_final_norm = getattr(args, 'no_decoder_final_norm', True)
     transformer_lm_big(args)
 
 
@@ -203,7 +223,6 @@ def transformer_lm_gpt(args):
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 12)
     args.dropout = getattr(args, 'dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.decoder_final_norm = getattr(args, 'decoder_final_norm', True)
     args.activation_fn = getattr(args, 'activation_fn', 'gelu')
     base_lm_architecture(args)
 
@@ -216,7 +235,6 @@ def transformer_lm_gpt2_small(args):
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 16)
     args.dropout = getattr(args, 'dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.decoder_final_norm = getattr(args, 'decoder_final_norm', True)
     args.activation_fn = getattr(args, 'activation_fn', 'gelu')
     base_lm_architecture(args)
 
@@ -229,7 +247,6 @@ def transformer_lm_gpt2_medium(args):
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 20)
     args.dropout = getattr(args, 'dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.decoder_final_norm = getattr(args, 'decoder_final_norm', True)
     args.activation_fn = getattr(args, 'activation_fn', 'gelu')
     base_lm_architecture(args)
 
@@ -242,6 +259,5 @@ def transformer_lm_gpt2_big(args):
     args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 25)
     args.dropout = getattr(args, 'dropout', 0.1)
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.decoder_final_norm = getattr(args, 'decoder_final_norm', True)
     args.activation_fn = getattr(args, 'activation_fn', 'gelu')
     base_lm_architecture(args)

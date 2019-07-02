@@ -10,6 +10,7 @@ Train a network across multiple GPUs.
 """
 
 from collections import OrderedDict
+import contextlib
 from itertools import chain
 import math
 import os
@@ -79,7 +80,7 @@ class Trainer(object):
     @property
     def model(self):
         if self._wrapped_model is None:
-            if self.args.distributed_world_size > 1:
+            if self.args.distributed_world_size > 1 and not self.args.use_bmuf:
                 self._wrapped_model = models.DistributedFairseqModel(
                     self.args, self._model,
                 )
@@ -114,6 +115,9 @@ class Trainer(object):
                 print('| NOTICE: your device may support faster training with --fp16')
             self._optimizer = optim.build_optimizer(self.args, params)
 
+        if self.args.use_bmuf:
+            self._optimizer = optim.FairseqBMUF(self.args, params, self._optimizer)
+
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
@@ -125,7 +129,7 @@ class Trainer(object):
             extra_state['train_meters'] = self.meters
             checkpoint_utils.save_state(
                 filename, self.args, self.get_model().state_dict(), self.criterion,
-                self.optimizer, self.lr_scheduler, self._num_updates,
+                self.optimizer, self.lr_scheduler, self.get_num_updates(),
                 self._optim_history, extra_state,
             )
 
@@ -171,7 +175,7 @@ class Trainer(object):
                 self.lr_scheduler.load_state_dict(last_optim['lr_scheduler_state'])
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
-            self._num_updates = last_optim['num_updates']
+            self.set_num_updates(last_optim['num_updates'])
 
         if extra_state is not None:
             epoch = extra_state['train_iterator']['epoch']
@@ -179,7 +183,6 @@ class Trainer(object):
                 filename, epoch, self.get_num_updates()))
 
             self.lr_step(epoch)
-            self.lr_step_update(self.get_num_updates())
 
             if 'train_meters' in extra_state:
                 self.meters.update(extra_state['train_meters'])
@@ -240,23 +243,28 @@ class Trainer(object):
             else:
                 ignore_grad = False
 
-            try:
-                if self.args.distributed_world_size > 1:
-                    # Whenever *samples* contains more than one mini-batch, we
-                    # want to accumulate gradients locally and only call
-                    # all-reduce in the last backwards pass. Currently the
-                    # *accumulate_grads* flag is only supported by
-                    # LegacyDistributedDataParallel.
-                    if i < len(samples) - 1:
-                        self.model.accumulate_grads = True
-                    else:
-                        self.model.accumulate_grads = False
+            def maybe_no_sync():
+                """
+                Whenever *samples* contains more than one mini-batch, we
+                want to accumulate gradients locally and only call
+                all-reduce in the last backwards pass.
+                """
+                if (
+                    self.args.distributed_world_size > 1
+                    and hasattr(self.model, 'no_sync')
+                    and i < len(samples) - 1
+                ):
+                    return self.model.no_sync()
+                else:
+                    return contextlib.ExitStack()  # dummy contextmanager
 
-                # forward and backward
-                loss, sample_size, logging_output = self.task.train_step(
-                    sample, self.model, self.criterion, self.optimizer,
-                    ignore_grad
-                )
+            try:
+                with maybe_no_sync():
+                    # forward and backward
+                    loss, sample_size, logging_output = self.task.train_step(
+                        sample, self.model, self.criterion, self.optimizer,
+                        ignore_grad
+                    )
 
                 if not ignore_grad:
                     logging_outputs.append(logging_output)
@@ -287,7 +295,13 @@ class Trainer(object):
             return None
 
         # gather logging outputs from all replicas
-        if self.args.distributed_world_size > 1:
+        if self.args.distributed_world_size > 1 and (
+            (not self.args.use_bmuf)
+            or (
+                self.args.use_bmuf
+                and (self.get_num_updates() + 1) % self.args.global_sync_iter == 0
+            )
+        ):
             logging_outputs, sample_sizes, ooms, prev_norms = \
                 zip(*distributed_utils.all_gather_list(
                     [logging_outputs, sample_sizes, ooms, self._prev_grad_norm],
@@ -295,10 +309,12 @@ class Trainer(object):
             logging_outputs = list(chain.from_iterable(logging_outputs))
             sample_sizes = list(chain.from_iterable(sample_sizes))
             ooms = sum(ooms)
-            assert (
-                all(norm == prev_norms[0] for norm in prev_norms)
-                or all(math.isnan(norm) or math.isinf(norm) for norm in prev_norms)
-            ), 'Fatal error: gradients are inconsistent between workers'
+
+            if not self.args.use_bmuf:
+                assert (
+                    all(norm == prev_norms[0] for norm in prev_norms)
+                    or all(math.isnan(norm) or math.isinf(norm) for norm in prev_norms)
+                ), 'Fatal error: gradients are inconsistent between workers'
 
         self.meters['oom'].update(ooms, len(samples))
         if ooms == self.args.distributed_world_size * len(samples):
@@ -320,7 +336,8 @@ class Trainer(object):
 
         try:
             # normalize grads by sample size
-            self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
+            if sample_size > 0:
+                self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
 
             # clip grads
             grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
@@ -328,10 +345,7 @@ class Trainer(object):
 
             # take an optimization step
             self.optimizer.step()
-            self._num_updates += 1
-
-            # update learning rate
-            self.lr_scheduler.step_update(self._num_updates)
+            self.set_num_updates(self.get_num_updates() + 1)
 
             # task specific update per step
             self.task.update_step(self._num_updates)
@@ -449,11 +463,13 @@ class Trainer(object):
 
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate based on the validation loss."""
-        return self.lr_scheduler.step(epoch, val_loss)
+        self.lr_scheduler.step(epoch, val_loss)
+        # prefer updating the LR based on the number of steps
+        return self.lr_step_update()
 
-    def lr_step_update(self, num_updates):
+    def lr_step_update(self):
         """Update the learning rate after each update."""
-        return self.lr_scheduler.step_update(num_updates)
+        return self.lr_scheduler.step_update(self.get_num_updates())
 
     def get_lr(self):
         """Get the current learning rate."""
@@ -473,11 +489,26 @@ class Trainer(object):
         """Get the number of parameters updates."""
         return self._num_updates
 
+    def set_num_updates(self, num_updates):
+        """Set the number of parameters updates."""
+        self._num_updates = num_updates
+        self.lr_step_update()
+
     def _prepare_sample(self, sample):
         if sample is None or len(sample) == 0:
             return None
+
         if self.cuda:
             sample = utils.move_to_cuda(sample)
+
+        def apply_half(t):
+            if t.dtype is torch.float32:
+                return t.half()
+            return t
+
+        if self.args.fp16:
+            sample = utils.apply_to_sample(apply_half, sample)
+
         return sample
 
     def _set_seed(self):

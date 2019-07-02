@@ -57,8 +57,12 @@ class AdaptiveLoss(FairseqCriterion):
         for i in range(len(target)):
             if target[i] is not None:
                 assert (target[i].min() >= 0 and target[i].max() <= logits[i].size(1))
-                loss += F.cross_entropy(logits[i], target[i], size_average=False, ignore_index=self.padding_idx,
-                                        reduce=reduce)
+                loss += F.cross_entropy(
+                    logits[i],
+                    target[i],
+                    ignore_index=self.padding_idx,
+                    reduction='sum' if reduce else 'none',
+                )
 
         orig = utils.strip_pad(orig_target, self.padding_idx)
         ntokens = orig.numel()
@@ -79,12 +83,12 @@ class AdaptiveLoss(FairseqCriterion):
         nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         agg_output = {
-            'loss': loss_sum / sample_size / math.log(2),
-            'nll_loss': loss_sum / sample_size / math.log(2),
+            'loss': loss_sum / sample_size / math.log(2) if sample_size > 0 else 0.,
+            'nll_loss': loss_sum / sample_size / math.log(2) if sample_size > 0 else 0.,
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,
         }
         if sample_size != ntokens:
-            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
+            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.
         return agg_output

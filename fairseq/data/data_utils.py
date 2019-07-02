@@ -8,7 +8,10 @@
 import contextlib
 import os
 import numpy as np
-from collections import Iterable
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 
 def infer_language_pair(path):
@@ -41,12 +44,14 @@ def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_be
 
 
 @contextlib.contextmanager
-def numpy_seed(seed):
+def numpy_seed(seed, *addl_seeds):
     """Context manager which seeds the NumPy PRNG with the specified seed and
     restores the state afterward"""
     if seed is None:
         yield
         return
+    if len(addl_seeds) > 0:
+        seed = int(hash((seed, *addl_seeds)) % 1e6)
     state = np.random.get_state()
     np.random.seed(seed)
     try:
@@ -97,6 +102,11 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
                 for key in intersect_keys
             )
         else:
+            # Hacky as heck, for the specific case of multilingual training with RoundRobin.
+            if isinstance(size_fn(idx), dict) and isinstance(max_positions, tuple):
+                return all(a is None or b is None or a <= b
+                           for a, b in zip(size_fn(idx).values(), max_positions)
+                )
             # For MultiCorpusSampledDataset, will generalize it later
             if not isinstance(size_fn(idx), Iterable):
                 return all(size_fn(idx) <= b for b in max_positions)
@@ -161,8 +171,8 @@ def batch_by_size(
         sample_lens.append(num_tokens_fn(idx))
         sample_len = max(sample_len, sample_lens[-1])
         assert sample_len <= max_tokens, (
-            f"sentence at index {idx} of size {sample_len} exceeds max_tokens "
-            f"limit of {max_tokens}!"
+            "sentence at index {} of size {} exceeds max_tokens "
+            "limit of {}!".format(idx, sample_len, max_tokens)
         )
         num_tokens = (len(batch) + 1) * sample_len
         if is_batch_full(num_tokens):

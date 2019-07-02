@@ -51,9 +51,9 @@ class TranslationMoETask(TranslationTask):
         """Add task-specific arguments to the parser."""
         # fmt: off
         TranslationTask.add_args(parser)
-        parser.add_argument('--method', required=True,
+        parser.add_argument('--method', default='hMoEup',
                             choices=['sMoElp', 'sMoEup', 'hMoElp', 'hMoEup'])
-        parser.add_argument('--num-experts', type=int, metavar='N', required=True,
+        parser.add_argument('--num-experts', default=3, type=int, metavar='N',
                             help='number of experts')
         parser.add_argument('--mean-pool-gating-network', action='store_true',
                             help='use a simple mean-pooling gating network')

@@ -54,7 +54,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
             emb[padding_idx, :] = 0
         return emb
 
-    def forward(self, input, incremental_state=None, timestep=None):
+    def forward(self, input, incremental_state=None, timestep=None, **kwargs):
         """Input is expected to be of size [bsz x seqlen]."""
         bsz, seq_len = torch.onnx.operators.shape_as_tensor(input)
         max_pos = self.padding_idx + 1 + seq_len
@@ -65,7 +65,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
                 self.embedding_dim,
                 self.padding_idx,
             )
-        self.weights = self.weights.type_as(self._float_tensor)
+        self.weights = self.weights.to(self._float_tensor)
 
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step

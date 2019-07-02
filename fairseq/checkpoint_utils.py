@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import argparse
 from collections import OrderedDict
 from typing import Union
 import collections
@@ -17,16 +18,19 @@ import shutil
 import torch
 from torch.serialization import default_restore_location
 
-from fairseq import tasks, distributed_utils
 from fairseq.models import FairseqEncoder, FairseqDecoder
-from fairseq.meters import StopwatchMeter
 
 
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
+    from fairseq import distributed_utils, meters
+
     if args.no_save or not distributed_utils.is_master(args):
         return
 
-    write_timer = StopwatchMeter()
+    def is_better(a, b):
+        return a > b if args.maximize_best_checkpoint_metric else a < b
+
+    write_timer = meters.StopwatchMeter()
     write_timer.start()
 
     epoch = epoch_itr.epoch
@@ -44,13 +48,13 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     )
     checkpoint_conds['checkpoint_best.pt'] = (
         val_loss is not None and
-        (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
+        (not hasattr(save_checkpoint, 'best') or is_better(val_loss, save_checkpoint.best))
     )
-    checkpoint_conds['checkpoint_last.pt'] = True  # keep this last so that it's a symlink
+    checkpoint_conds['checkpoint_last.pt'] = not args.no_last_checkpoints
 
     prev_best = getattr(save_checkpoint, 'best', val_loss)
     if val_loss is not None:
-        save_checkpoint.best = min(val_loss, prev_best)
+        save_checkpoint.best = val_loss if is_better(val_loss, prev_best) else prev_best
     extra_state = {
         'train_iterator': epoch_itr.state_dict(),
         'val_loss': val_loss,
@@ -106,10 +110,15 @@ def load_checkpoint(args, trainer):
         reset_meters=args.reset_meters,
     )
 
-    if extra_state is not None and 'best' in extra_state and not args.reset_optimizer:
+    if (
+        extra_state is not None
+        and 'best' in extra_state
+        and not args.reset_optimizer
+        and not args.reset_meters
+    ):
         save_checkpoint.best = extra_state['best']
 
-    if extra_state is not None:
+    if extra_state is not None and not args.reset_dataloader:
         # restore iterator from checkpoint
         itr_state = extra_state['train_iterator']
         epoch_itr = trainer.get_train_iterator(epoch=itr_state['epoch'])
@@ -117,14 +126,20 @@ def load_checkpoint(args, trainer):
     else:
         epoch_itr = trainer.get_train_iterator(epoch=0)
 
+    trainer.lr_step(epoch_itr.epoch)
+
     return extra_state, epoch_itr
 
 
-def load_checkpoint_to_cpu(path):
+def load_checkpoint_to_cpu(path, arg_overrides=None):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility)."""
     state = torch.load(
         path, map_location=lambda s, l: default_restore_location(s, 'cpu'),
     )
+    args = state['args']
+    if arg_overrides is not None:
+        for arg_name, arg_val in arg_overrides.items():
+            setattr(args, arg_name, arg_val)
     state = _upgrade_state_dict(state)
     return state
 
@@ -138,17 +153,20 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None):
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
+    ensemble, args, _task = _load_model_ensemble(filenames, arg_overrides, task)
+    return ensemble, args
+
+
+def _load_model_ensemble(filenames, arg_overrides=None, task=None):
+    from fairseq import tasks
+
     ensemble = []
     for filename in filenames:
         if not os.path.exists(filename):
             raise IOError('Model file not found: {}'.format(filename))
-        state = load_checkpoint_to_cpu(filename)
+        state = load_checkpoint_to_cpu(filename, arg_overrides)
 
         args = state['args']
-        if arg_overrides is not None:
-            for arg_name, arg_val in arg_overrides.items():
-                setattr(args, arg_name, arg_val)
-
         if task is None:
             task = tasks.setup_task(args)
 
@@ -156,8 +174,7 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None):
         model = task.build_model(args)
         model.load_state_dict(state['model'], strict=True)
         ensemble.append(model)
-
-    return ensemble, args
+    return ensemble, args, task
 
 
 def checkpoint_paths(path, pattern=r'checkpoint(\d+)\.pt'):
@@ -221,14 +238,17 @@ def save_state(
                 'num_updates': num_updates,
             }
         ],
-        'last_optimizer_state': convert_state_dict_type(optimizer.state_dict()),
         'extra_state': extra_state,
     }
+    if not args.no_save_optimizer_state:
+        state_dict['last_optimizer_state'] = convert_state_dict_type(optimizer.state_dict())
     torch_persistent_save(state_dict, filename)
 
 
 def _upgrade_state_dict(state):
     """Helper for upgrading old model checkpoints."""
+    from fairseq import models, registry, tasks
+
     # add optimizer_history
     if 'optimizer_history' not in state:
         state['optimizer_history'] = [
@@ -277,6 +297,35 @@ def _upgrade_state_dict(state):
             'epoch': state['extra_state']['epoch'],
             'iterations_in_epoch': state['extra_state'].get('batch_offset', 0),
         }
+    # default to translation task
+    if not hasattr(state['args'], 'task'):
+        state['args'].task = 'translation'
+
+    def set_defaults(cls):
+        if not hasattr(cls, 'add_args'):
+            return
+        parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, allow_abbrev=False)
+        cls.add_args(parser)
+        # copied from argparse.py:
+        defaults = argparse.Namespace()
+        for action in parser._actions:
+            if action.dest is not argparse.SUPPRESS:
+                if not hasattr(defaults, action.dest):
+                    if action.default is not argparse.SUPPRESS:
+                        setattr(defaults, action.dest, action.default)
+        for key, default_value in vars(defaults).items():
+            if not hasattr(state['args'], key):
+                setattr(state['args'], key, default_value)
+
+    # set any missing default values in the task, model or other registries
+    set_defaults(tasks.TASK_REGISTRY[state['args'].task])
+    set_defaults(models.ARCH_MODEL_REGISTRY[state['args'].arch])
+    for registry_name, REGISTRY in registry.REGISTRIES.items():
+        choice = getattr(state['args'], registry_name, None)
+        if choice is not None:
+            cls = REGISTRY['registry'][choice]
+            set_defaults(cls)
+
     return state
 
 

@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import torch
 from torch.optim.optimizer import Optimizer, required
 
 from . import FairseqOptimizer, register_optimizer
@@ -46,6 +47,10 @@ class NAG(Optimizer):
         defaults = dict(lr=lr, lr_old=lr, momentum=momentum, weight_decay=weight_decay)
         super(NAG, self).__init__(params, defaults)
 
+    @property
+    def supports_memory_efficient_fp16(self):
+        return True
+
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -68,19 +73,25 @@ class NAG(Optimizer):
                 if p.grad is None:
                     continue
 
-                d_p = p.grad.data
+                p_data_fp32 = p.data.float()
+
+                d_p = p.grad.data.float()
                 param_state = self.state[p]
                 if 'momentum_buffer' not in param_state:
-                    param_state['momentum_buffer'] = d_p.clone().zero_()
+                    param_state['momentum_buffer'] = torch.zeros_like(d_p)
+                else:
+                    param_state['momentum_buffer'] = param_state['momentum_buffer'].type_as(d_p)
 
                 buf = param_state['momentum_buffer']
 
                 if weight_decay != 0:
-                    p.data.mul_(1 - lr * weight_decay)
-                p.data.add_(momentum * momentum * lr_correct, buf)
-                p.data.add_(-(1 + momentum) * lr, d_p)
+                    p_data_fp32.mul_(1 - lr * weight_decay)
+                p_data_fp32.add_(momentum * momentum * lr_correct, buf)
+                p_data_fp32.add_(-(1 + momentum) * lr, d_p)
 
                 buf.mul_(momentum * lr_correct).add_(-lr, d_p)
+
+                p.data.copy_(p_data_fp32)
 
             group['lr_old'] = lr
 

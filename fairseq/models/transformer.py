@@ -27,6 +27,9 @@ from fairseq.modules import (
     SinusoidalPositionalEmbedding,
 )
 
+DEFAULT_MAX_SOURCE_POSITIONS = 1024
+DEFAULT_MAX_TARGET_POSITIONS = 1024
+
 
 @register_model('transformer')
 class TransformerModel(FairseqEncoderDecoderModel):
@@ -45,6 +48,14 @@ class TransformerModel(FairseqEncoderDecoderModel):
         :ref: fairseq.models.transformer_parser
         :prog:
     """
+
+    @classmethod
+    def hub_models(cls):
+        return {
+            'transformer.wmt14.en-fr': 'https://dl.fbaipublicfiles.com/fairseq/models/wmt14.en-fr.joined-dict.transformer.tar.bz2',
+            'transformer.wmt16.en-de': 'https://dl.fbaipublicfiles.com/fairseq/models/wmt16.en-de.joined-dict.transformer.tar.bz2',
+            'transformer.wmt18.en-de': 'https://dl.fbaipublicfiles.com/fairseq/models/wmt18.en-de.ensemble.tar.gz',
+        }
 
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
@@ -74,8 +85,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='num encoder attention heads')
         parser.add_argument('--encoder-normalize-before', action='store_true',
                             help='apply layernorm before each encoder block')
-        parser.add_argument('--decoder-final-norm', default=False, action='store_true',
-                            help='apply layernorm before each decoder block')
         parser.add_argument('--encoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the encoder')
         parser.add_argument('--decoder-embed-path', type=str, metavar='STR',
@@ -114,9 +123,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
         base_architecture(args)
 
         if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = 1024
+            args.max_source_positions = DEFAULT_MAX_SOURCE_POSITIONS
         if not hasattr(args, 'max_target_positions'):
-            args.max_target_positions = 1024
+            args.max_target_positions = DEFAULT_MAX_TARGET_POSITIONS
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
@@ -152,9 +161,17 @@ class TransformerModel(FairseqEncoderDecoderModel):
                 tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
             )
 
-        encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens)
-        decoder = TransformerDecoder(args, tgt_dict, decoder_embed_tokens)
+        encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
+        decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
         return TransformerModel(encoder, decoder)
+
+    @classmethod
+    def build_encoder(cls, args, src_dict, embed_tokens):
+        return TransformerEncoder(args, src_dict, embed_tokens)
+
+    @classmethod
+    def build_decoder(cls, args, tgt_dict, embed_tokens):
+        return TransformerDecoder(args, tgt_dict, embed_tokens)
 
 
 class TransformerEncoder(FairseqEncoder):
@@ -170,6 +187,8 @@ class TransformerEncoder(FairseqEncoder):
 
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
+        self.register_buffer('version', torch.Tensor([3]))
+
         self.dropout = args.dropout
 
         embed_dim = embed_tokens.embedding_dim
@@ -188,10 +207,11 @@ class TransformerEncoder(FairseqEncoder):
             TransformerEncoderLayer(args)
             for i in range(args.encoder_layers)
         ])
-        self.register_buffer('version', torch.Tensor([2]))
-        self.normalize = args.encoder_normalize_before
-        if self.normalize:
+
+        if args.encoder_normalize_before:
             self.layer_norm = LayerNorm(embed_dim)
+        else:
+            self.layer_norm = None
 
     def forward(self, src_tokens, src_lengths):
         """
@@ -226,7 +246,7 @@ class TransformerEncoder(FairseqEncoder):
         for layer in self.layers:
             x = layer(x, encoder_padding_mask)
 
-        if self.normalize:
+        if self.layer_norm:
             x = self.layer_norm(x)
 
         return {
@@ -268,7 +288,7 @@ class TransformerEncoder(FairseqEncoder):
             state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
         for i in range(len(self.layers)):
             # update layer norms
-            self.layers[i].upgrade_state_dict_named(state_dict, f"{name}.layers.{i}")
+            self.layers[i].upgrade_state_dict_named(state_dict, "{}.layers.{}".format(name, i))
 
         version_key = '{}.version'.format(name)
         if utils.item(state_dict.get(version_key, torch.Tensor([1]))[0]) < 2:
@@ -290,12 +310,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         embed_tokens (torch.nn.Embedding): output embedding
         no_encoder_attn (bool, optional): whether to attend to encoder outputs
             (default: False).
-        final_norm (bool, optional): apply layer norm to the output of the
-            final decoder layer (default: True).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, final_norm=True):
+    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
         super().__init__(dictionary)
+        self.register_buffer('version', torch.Tensor([3]))
+
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
@@ -340,10 +360,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         elif not self.share_input_output_embed:
             self.embed_out = nn.Parameter(torch.Tensor(len(dictionary), self.output_embed_dim))
             nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
-        self.register_buffer('version', torch.Tensor([2]))
-        self.normalize = args.decoder_normalize_before and final_norm
-        if self.normalize:
+
+        if args.decoder_normalize_before and not getattr(args, 'no_decoder_final_norm', False):
             self.layer_norm = LayerNorm(embed_dim)
+        else:
+            self.layer_norm = None
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **unused):
         """
@@ -411,7 +432,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             )
             inner_states.append(x)
 
-        if self.normalize:
+        if self.layer_norm:
             x = self.layer_norm(x)
 
         # T x B x C -> B x T x C
@@ -468,11 +489,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                     if k in state_dict:
                         state_dict['{}.layers.{}.{}.{}'.format(name, i, new, m)] = state_dict[k]
                         del state_dict[k]
-        if utils.item(state_dict.get('{}.version'.format(name), torch.Tensor([1]))[0]) < 2:
+
+        version_key = '{}.version'.format(name)
+        if utils.item(state_dict.get(version_key, torch.Tensor([1]))[0]) < 2:
             # earlier checkpoints did not normalize after the stack of layers
             self.layer_norm = None
             self.normalize = False
-            state_dict['{}.version'.format(name)] = torch.Tensor([1])
+            state_dict[version_key] = torch.Tensor([1])
 
         return state_dict
 
@@ -497,7 +520,7 @@ class TransformerEncoderLayer(nn.Module):
         self.embed_dim = args.encoder_embed_dim
         self.self_attn = MultiheadAttention(
             self.embed_dim, args.encoder_attention_heads,
-            dropout=args.attention_dropout,
+            dropout=args.attention_dropout, self_attention=True
         )
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
         self.dropout = args.dropout
@@ -525,10 +548,10 @@ class TransformerEncoderLayer(nn.Module):
         }
         for old, new in layer_norm_map.items():
             for m in ('weight', 'bias'):
-                k = f'{name}.layer_norms.{old}.{m}'
+                k = '{}.layer_norms.{}.{}'.format(name, old, m)
                 if k in state_dict:
                     state_dict[
-                        f'{name}.{new}.{m}'
+                        '{}.{}.{}'.format(name, new, m)
                     ] = state_dict[k]
                     del state_dict[k]
 
@@ -540,7 +563,7 @@ class TransformerEncoderLayer(nn.Module):
                 `(batch, src_len)` where padding elements are indicated by ``1``.
 
         Returns:
-            encoded output of shape `(batch, src_len, embed_dim)`
+            encoded output of shape `(seq_len, batch, embed_dim)`
         """
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
@@ -593,6 +616,7 @@ class TransformerDecoderLayer(nn.Module):
             dropout=args.attention_dropout,
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
+            self_attention=True
         )
         self.dropout = args.dropout
         self.activation_fn = utils.get_activation_fn(
@@ -615,8 +639,12 @@ class TransformerDecoderLayer(nn.Module):
             self.encoder_attn_layer_norm = None
         else:
             self.encoder_attn = MultiheadAttention(
-                self.embed_dim, args.decoder_attention_heads,
+                self.embed_dim,
+                args.decoder_attention_heads,
+                kdim=getattr(args, 'encoder_embed_dim', None),
+                vdim=getattr(args, 'encoder_embed_dim', None),
                 dropout=args.attention_dropout,
+                encoder_decoder_attention=True,
             )
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
 
@@ -649,7 +677,7 @@ class TransformerDecoderLayer(nn.Module):
                 `(batch, src_len)` where padding elements are indicated by ``1``.
 
         Returns:
-            encoded output of shape `(batch, src_len, embed_dim)`
+            encoded output of shape `(seq_len, batch, embed_dim)`
         """
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)

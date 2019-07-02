@@ -9,6 +9,7 @@ of various sequence-to-sequence models, including:
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
   - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
   - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
+  - **_New_** [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
 - **LightConv and DynamicConv models**
   - **_New_** [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
 - **Long Short-Term Memory (LSTM) networks**
@@ -28,7 +29,7 @@ Fairseq features:
   - Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
   - sampling (unconstrained and top-k)
 - large mini-batch training even on a single GPU via delayed updates
-- fast half-precision floating point (FP16) training
+- mixed precision training (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
 - extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
 
 We also provide [pre-trained models](#pre-trained-models-and-examples) for several benchmark
@@ -39,7 +40,7 @@ translation and language modeling datasets.
 # Requirements and Installation
 
 * [PyTorch](http://pytorch.org/) version >= 1.0.0
-* Python version >= 3.6
+* Python version >= 3.5
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 
 Please follow the instructions here to install PyTorch: https://github.com/pytorch/pytorch#installation.
@@ -82,6 +83,7 @@ as well as example training and evaluation commands.
 - [Language Modeling](examples/language_model/README.md): convolutional models are available
 
 We also have more detailed READMEs to reproduce results from specific papers:
+- [Schneider et al. (2019): wav2vec: Unsupervised Pre-training for Speech Recognition](examples/wav2vec/README.md)
 - [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 - [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
 - [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)

@@ -138,10 +138,10 @@ class MaskedLmLoss(FairseqCriterion):
         agg_loss = sum(log.get('loss', 0) for log in logging_outputs)
 
         agg_output = {
-            'loss': agg_loss / sample_size / math.log(2),
-            'lm_loss': lm_loss_sum / ntokens / math.log(2),
-            'sentence_loss': sentence_loss_sum / nsentences / math.log(2),
-            'nll_loss': lm_loss_sum / ntokens / math.log(2),
+            'loss': agg_loss / sample_size / math.log(2) if sample_size > 0 else 0.,
+            'lm_loss': lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.,
+            'sentence_loss': sentence_loss_sum / nsentences / math.log(2) if nsentences > 0 else 0.,
+            'nll_loss': lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.,
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,

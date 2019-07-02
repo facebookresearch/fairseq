@@ -21,6 +21,7 @@ from tqdm import tqdm
 from fairseq import distributed_utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 
+g_tbmf_wrapper = None
 
 def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', no_progress_bar='none'):
     if args.log_format is None:
@@ -40,7 +41,16 @@ def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', 
     else:
         raise ValueError('Unknown log format: {}'.format(args.log_format))
 
-    if args.tensorboard_logdir and distributed_utils.is_master(args):
+    if args.tbmf_wrapper and distributed_utils.is_master(args):
+        global g_tbmf_wrapper
+        if g_tbmf_wrapper is None:
+            try:
+                from fairseq.fb_tbmf_wrapper import fb_tbmf_wrapper
+            except Exception:
+                raise ImportError("fb_tbmf_wrapper package not found.")
+            g_tbmf_wrapper = fb_tbmf_wrapper
+        bar = g_tbmf_wrapper(bar, args, args.log_interval)
+    elif args.tensorboard_logdir and distributed_utils.is_master(args):
         bar = tensorboard_log_wrapper(bar, args.tensorboard_logdir, args)
 
     return bar
@@ -62,6 +72,7 @@ class progress_bar(object):
     """Abstract class for progress bars."""
     def __init__(self, iterable, epoch=None, prefix=None):
         self.iterable = iterable
+        self.offset = getattr(iterable, 'offset', 0)
         self.epoch = epoch
         self.prefix = ''
         if epoch is not None:
@@ -112,7 +123,7 @@ class json_progress_bar(progress_bar):
 
     def __iter__(self):
         size = float(len(self.iterable))
-        for i, obj in enumerate(self.iterable):
+        for i, obj in enumerate(self.iterable, start=self.offset):
             yield obj
             if self.stats is not None and i > 0 and \
                     self.log_interval is not None and i % self.log_interval == 0:
@@ -173,7 +184,7 @@ class simple_progress_bar(progress_bar):
 
     def __iter__(self):
         size = len(self.iterable)
-        for i, obj in enumerate(self.iterable):
+        for i, obj in enumerate(self.iterable, start=self.offset):
             yield obj
             if self.stats is not None and i > 0 and \
                     self.log_interval is not None and i % self.log_interval == 0:
@@ -225,7 +236,7 @@ class tensorboard_log_wrapper(progress_bar):
             self._writers = {}
         except ImportError:
             print("tensorboard or required dependencies not found, "
-                  "please see README for using tensorboard.")
+                  "please see README for using tensorboard. (e.g. pip install tensorboardX)")
             self.SummaryWriter = None
 
     def _writer(self, key):
@@ -233,7 +244,7 @@ class tensorboard_log_wrapper(progress_bar):
             return None
         if key not in self._writers:
             self._writers[key] = self.SummaryWriter(
-                log_dir=os.path.join(self.tensorboard_logdir, key),
+                os.path.join(self.tensorboard_logdir, key),
             )
             self._writers[key].add_text('args', str(vars(self.args)))
             self._writers[key].add_text('sys.argv', " ".join(sys.argv))

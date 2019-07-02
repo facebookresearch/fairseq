@@ -563,7 +563,7 @@ class LightConvDecoderLayer(nn.Module):
         else:
             self.encoder_attn = MultiheadAttention(
                 self.embed_dim, args.decoder_attention_heads,
-                dropout=args.attention_dropout,
+                dropout=args.attention_dropout, encoder_decoder_attention=True
             )
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim)
 

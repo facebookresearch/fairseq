@@ -31,24 +31,32 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     )
 
 
-def move_to_cuda(sample):
+def apply_to_sample(f, sample):
     if len(sample) == 0:
         return {}
 
-    def _move_to_cuda(maybe_tensor):
-        if torch.is_tensor(maybe_tensor):
-            return maybe_tensor.cuda()
-        elif isinstance(maybe_tensor, dict):
+    def _apply(x):
+        if torch.is_tensor(x):
+            return f(x)
+        elif isinstance(x, dict):
             return {
-                key: _move_to_cuda(value)
-                for key, value in maybe_tensor.items()
+                key: _apply(value)
+                for key, value in x.items()
             }
-        elif isinstance(maybe_tensor, list):
-            return [_move_to_cuda(x) for x in maybe_tensor]
+        elif isinstance(x, list):
+            return [_apply(x) for x in x]
         else:
-            return maybe_tensor
+            return x
 
-    return _move_to_cuda(sample)
+    return _apply(sample)
+
+
+def move_to_cuda(sample):
+
+    def _move_to_cuda(tensor):
+        return tensor.cuda()
+
+    return apply_to_sample(_move_to_cuda, sample)
 
 
 INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
@@ -84,7 +92,7 @@ def set_incremental_state(module, incremental_state, key, value):
 def load_align_dict(replace_unk):
     if replace_unk is None:
         align_dict = None
-    elif isinstance(replace_unk, str):
+    elif isinstance(replace_unk, str) and len(replace_unk) > 0:
         # Load alignment dictionary for unknown word replacement if it was passed as an argument.
         align_dict = {}
         with open(replace_unk, 'r') as f:
@@ -147,7 +155,7 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     return ' '.join(hypo_tokens)
 
 
-def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe):
+def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None):
     from fairseq import tokenizer
     hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
@@ -311,9 +319,11 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == 'gelu_accurate':
         return gelu_accurate
     elif activation == 'tanh':
-        return F.tanh
+        return torch.tanh
+    elif activation == 'linear':
+        return lambda x: x
     else:
-        raise RuntimeError(f"--activation-fn {activation} not supported")
+        raise RuntimeError("--activation-fn {} not supported".format(activation))
 
 
 def get_available_activation_fns() -> List:
@@ -323,4 +333,5 @@ def get_available_activation_fns() -> List:
         'gelu_fast',  # deprecated
         'gelu_accurate',
         'tanh',
+        'linear',
     ]
