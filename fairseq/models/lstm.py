@@ -209,8 +209,8 @@ class LSTMEncoder(FairseqEncoder):
 
     def forward(self, src_tokens, src_lengths):
         if self.left_pad:
-            # pack_padded_sequence requires right-padding; convert left-padding
-            # to right-padding
+            # nn.utils.rnn.pack_padded_sequence requires right-padding; convert
+            # left-padding to right-padding
             src_tokens = utils.convert_padding_direction(
                 src_tokens,
                 self.padding_idx,
