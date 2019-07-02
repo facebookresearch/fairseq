@@ -114,6 +114,8 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False):
     # Post-process args.
     if hasattr(args, 'max_sentences_valid') and args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
+    if hasattr(args, 'max_tokens_valid') and args.max_tokens_valid is None:
+        args.max_tokens_valid = args.max_tokens
     if getattr(args, 'memory_efficient_fp16', False):
         args.fp16 = True
 
@@ -252,6 +254,9 @@ def add_dataset_args(parser, train=False, gen=False):
                            help='validate every N epochs')
         group.add_argument('--disable-validation', action='store_true',
                            help='disable validation')
+        group.add_argument('--max-tokens-valid', type=int, metavar='N',
+                           help='maximum number of tokens in a validation batch'
+                                ' (defaults to --max-tokens)')
         group.add_argument('--max-sentences-valid', type=int, metavar='N',
                            help='maximum number of sentences in a validation batch'
                                 ' (defaults to --max-sentences)')
