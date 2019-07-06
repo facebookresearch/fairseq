@@ -16,14 +16,17 @@ if sys.version_info < (3,):
 with open('README.md') as f:
     readme = f.read()
 
-
+if sys.platform == 'darwin':
+    extra_compile_args = ['-stdlib=libc++']
+else:
+    extra_compile_args = ['-std=c++11']
 bleu = Extension(
     'fairseq.libbleu',
     sources=[
         'fairseq/clib/libbleu/libbleu.cpp',
         'fairseq/clib/libbleu/module.cpp',
     ],
-    extra_compile_args=['-std=c++11'],
+    extra_compile_args=extra_compile_args,
 )
 
 
