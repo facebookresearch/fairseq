@@ -67,6 +67,12 @@ class MultiheadAttention(nn.Module):
 
         self.onnx_trace = False
 
+        self.enable_torch_version = False
+        if hasattr(F, "multi_head_attention_forward"):
+            self.enable_torch_version = True
+        else:
+            self.enable_torch_version = False
+
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
@@ -100,6 +106,29 @@ class MultiheadAttention(nn.Module):
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
+
+        if self.enable_torch_version and not self.onnx_trace and incremental_state is None and not static_kv:
+            if self.qkv_same_dim:
+                return F.multi_head_attention_forward(query, key, value,
+                                                      self.embed_dim, self.num_heads,
+                                                      self.in_proj_weight,
+                                                      self.in_proj_bias, self.bias_k, self.bias_v,
+                                                      self.add_zero_attn, self.dropout,
+                                                      self.out_proj.weight, self.out_proj.bias,
+                                                      self.training, key_padding_mask, need_weights,
+                                                      attn_mask)
+            else:
+                return F.multi_head_attention_forward(query, key, value,
+                                                      self.embed_dim, self.num_heads,
+                                                      torch.empty([0]),
+                                                      self.in_proj_bias, self.bias_k, self.bias_v,
+                                                      self.add_zero_attn, self.dropout,
+                                                      self.out_proj.weight, self.out_proj.bias,
+                                                      self.training, key_padding_mask, need_weights,
+                                                      attn_mask, use_separate_proj_weight=True,
+                                                      q_proj_weight=self.q_proj_weight,
+                                                      k_proj_weight=self.k_proj_weight,
+                                                      v_proj_weight=self.v_proj_weight)
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
