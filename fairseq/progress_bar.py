@@ -80,6 +80,9 @@ class progress_bar(object):
         if prefix is not None:
             self.prefix += ' | {}'.format(prefix)
 
+    def __len__(self):
+        return len(self.iterable)
+
     def __enter__(self):
         return self
 
