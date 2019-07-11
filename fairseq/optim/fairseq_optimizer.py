@@ -41,6 +41,9 @@ class FairseqOptimizer(object):
         """
         raise NotImplementedError
 
+    def __getstate__(self):
+        return self._optimizer.__getstate__()
+
     def get_lr(self):
         """Return the current learning rate."""
         return self.optimizer.param_groups[0]['lr']
