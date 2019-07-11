@@ -158,7 +158,7 @@ class Trainer(object):
 
             extra_state = state['extra_state']
             self._optim_history = state['optimizer_history']
-            last_optim_state = state['last_optimizer_state']
+            last_optim_state = state.get('last_optimizer_state', None)
 
         if last_optim_state is not None and not reset_optimizer:
             # rebuild optimizer after loading model, since params may have changed
