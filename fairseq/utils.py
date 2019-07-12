@@ -172,8 +172,8 @@ def make_positions(tensor, padding_idx, onnx_trace=False):
 
     Position numbers begin at padding_idx+1. Padding symbols are ignored.
     """
-    mask = tensor.ne(padding_idx).long()
-    return torch.cumsum(mask, dim=1) * mask + padding_idx
+    mask = tensor.ne(padding_idx).int()
+    return (torch.cumsum(mask, dim=1) * mask).long() + padding_idx
 
 
 def strip_pad(tensor, pad):
