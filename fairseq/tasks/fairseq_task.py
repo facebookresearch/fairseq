@@ -201,6 +201,7 @@ class FairseqTask(object):
                 unk_penalty=getattr(args, 'unkpen', 0),
                 sampling=getattr(args, 'sampling', False),
                 sampling_topk=getattr(args, 'sampling_topk', -1),
+                sampling_topp=getattr(args, 'sampling_topp', -1.0),
                 temperature=getattr(args, 'temperature', 1.),
                 diverse_beam_groups=getattr(args, 'diverse_beam_groups', -1),
                 diverse_beam_strength=getattr(args, 'diverse_beam_strength', 0.5),
