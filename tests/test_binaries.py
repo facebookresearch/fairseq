@@ -104,6 +104,12 @@ class TestTranslation(unittest.TestCase):
                     '--beam', '2',
                     '--nbest', '2',
                 ])
+                generate_main(data_dir, [
+                    '--sampling',
+                    '--sampling-topp', '0.2',
+                    '--beam', '2',
+                    '--nbest', '2',
+                ])
                 generate_main(data_dir, ['--prefix-size', '2'])
 
     def test_lstm(self):

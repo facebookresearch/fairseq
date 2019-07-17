@@ -28,6 +28,7 @@ class SequenceGenerator(object):
         retain_dropout=False,
         sampling=False,
         sampling_topk=-1,
+        sampling_topp=-1.0,
         temperature=1.,
         diverse_beam_groups=-1,
         diverse_beam_strength=0.5,
@@ -58,6 +59,9 @@ class SequenceGenerator(object):
                 (default: False)
             sampling_topk (int, optional): only sample among the top-k choices
                 at each step (default: -1)
+            sampling_topp (float, optional): only sample among the smallest set
+                of words whose cumulative probability mass exceeds p
+                at each step (default: -1.0)
             temperature (float, optional): temperature, where values
                 >1.0 produce more uniform samples and values <1.0 produce
                 sharper samples (default: 1.0)
@@ -86,10 +90,11 @@ class SequenceGenerator(object):
         self.no_repeat_ngram_size = no_repeat_ngram_size
 
         assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
+        assert sampling_topp < 0 or sampling, '--sampling-topp requires --sampling'
         assert temperature > 0, '--temperature must be greater than 0'
 
         if sampling:
-            self.search = search.Sampling(tgt_dict, sampling_topk)
+            self.search = search.Sampling(tgt_dict, sampling_topk, sampling_topp)
         elif diverse_beam_groups > 0:
             self.search = search.DiverseBeamSearch(tgt_dict, diverse_beam_groups, diverse_beam_strength)
         elif match_source_len:
