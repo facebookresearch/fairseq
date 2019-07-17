@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -9,7 +7,6 @@
 
 import getpass
 import logging
-import koski.dataframes as kd
 
 from fairseq.data import FairseqDataset
 
@@ -18,6 +15,8 @@ _USER = getpass.getuser()
 
 
 def _set_up_dataframe(table, namespace, where_clause=None, limit=None):
+    import koski.dataframes as kd
+
     ctx = kd.create_ctx(
         use_case=kd.UseCase.PROD,
         description='streaming data into fairseq models',
