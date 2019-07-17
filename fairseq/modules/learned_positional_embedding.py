@@ -36,7 +36,8 @@ class LearnedPositionalEmbedding(nn.Embedding):
         if positions is None:
             if incremental_state is not None:
                 # positions is the same for every token when decoding a single step
-                positions = input.data.new(1, 1).fill_(self.padding_idx + input.size(1))
+                # Without the int() cast, it doesn't work in some cases when exporting to ONNX
+                positions = input.data.new(1, 1).fill_(int(self.padding_idx + input.size(1)))
             else:
                 positions = utils.make_positions(
                     input.data, self.padding_idx, onnx_trace=self.onnx_trace,
