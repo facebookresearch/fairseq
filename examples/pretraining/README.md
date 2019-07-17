@@ -47,7 +47,7 @@ ${MT_DATA} is a processed machine translation dataset, e.g. WMT En2De.
 
 ```
 $ python train.py ${MT_DATA} -a transformer_wmt_en_de_big --no-enc-token-positional-embeddings \
-   --elmo-affine --elmo-softmax --clip-norm 0 --fp16 --optimizer adam --lr 0.0007 \
+   --elmo-affine --clip-norm 0 --fp16 --optimizer adam --lr 0.0007 \
    --label-smoothing 0.1 --ddp-backend no_c10d --dropout 0.3 --elmo-dropout 0.2 \
    --distributed-port 12597 --distributed-world-size 128 --max-tokens 3584 --no-progress-bar \
    --log-interval 100 --seed 1 --min-lr '1e-09' --lr-scheduler inverse_sqrt --weight-decay 0.0 \
