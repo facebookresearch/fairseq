@@ -135,7 +135,7 @@ def main(args):
                         print('T-{}\t{}'.format(sample_id, target_str))
 
                 # Process top predictions
-                for j, hypo in enumerate(hypos[i][:min(len(hypos), args.nbest)]):
+                for j, hypo in enumerate(hypos[i][:args.nbest]):
                     hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
                         hypo_tokens=hypo['tokens'].int().cpu(),
                         src_str=src_str,
