@@ -69,7 +69,26 @@ def eval_bool(x, default=False):
         return default
 
 
-def parse_args_and_arch(parser, input_args=None, parse_known=False):
+def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_defaults=False):
+    if suppress_defaults:
+        # Parse args without any default values. This requires us to parse
+        # twice, once to identify all the necessary task/model args, and a second
+        # time with all defaults set to None.
+        args = parse_args_and_arch(
+            parser,
+            input_args=input_args,
+            parse_known=parse_known,
+            suppress_defaults=False,
+        )
+        suppressed_parser = argparse.ArgumentParser(add_help=False, parents=[parser])
+        suppressed_parser.set_defaults(**{k: None for k, v in vars(args).items()})
+        args = suppressed_parser.parse_args(input_args)
+        return argparse.Namespace(**{
+            k: v
+            for k, v in vars(args).items()
+            if v is not None
+        })
+
     from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
 
     # The parser doesn't know about model/criterion/optimizer-specific args, so
