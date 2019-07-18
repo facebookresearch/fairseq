@@ -19,7 +19,14 @@ from fairseq.data import data_utils
 class Dictionary(object):
     """A mapping from symbols to consecutive integers"""
 
-    def __init__(self, pad='<pad>', eos='</s>', unk='<unk>', bos='<s>'):
+    def __init__(
+        self,
+        pad='<pad>',
+        eos='</s>',
+        unk='<unk>',
+        bos='<s>',
+        extra_special_symbols=None,
+    ):
         self.unk_word, self.pad_word, self.eos_word = unk, pad, eos
         self.symbols = []
         self.count = []
@@ -28,6 +35,9 @@ class Dictionary(object):
         self.pad_index = self.add_symbol(pad)
         self.eos_index = self.add_symbol(eos)
         self.unk_index = self.add_symbol(unk)
+        if extra_special_symbols:
+            for s in extra_special_symbols:
+                self.add_symbol(s)
         self.nspecial = len(self.symbols)
 
     def __eq__(self, other):
@@ -44,6 +54,7 @@ class Dictionary(object):
 
     def index(self, sym):
         """Returns the index of the specified symbol"""
+        assert isinstance(sym, str)
         if sym in self.indices:
             return self.indices[sym]
         return self.unk_index
@@ -169,33 +180,41 @@ class Dictionary(object):
         ...
         ```
         """
+        d = cls()
+        d.add_from_file(f, ignore_utf_errors)
+        return d
+
+    def add_from_file(self, f, ignore_utf_errors=False):
+        """
+        Loads a pre-existing dictionary from a text file and adds its symbols
+        to this instance.
+        """
         if isinstance(f, str):
             try:
                 if not ignore_utf_errors:
                     with open(f, 'r', encoding='utf-8') as fd:
-                        return cls.load(fd)
+                        self.add_from_file(fd)
                 else:
                     with open(f, 'r', encoding='utf-8', errors='ignore') as fd:
-                        return cls.load(fd)
+                        self.add_from_file(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe
             except UnicodeError:
                 raise Exception("Incorrect encoding detected in {}, please "
                                 "rebuild the dataset".format(f))
+            return
 
-        d = cls()
         lines = f.readlines()
-        indices_start_line = d._load_meta(lines)
+        indices_start_line = self._load_meta(lines)
         for line in lines[indices_start_line:]:
             idx = line.rfind(' ')
             if idx == -1:
                 raise ValueError("Incorrect dictionary format, expected '<token> <cnt>'")
             word = line[:idx]
             count = int(line[idx + 1:])
-            d.indices[word] = len(d.symbols)
-            d.symbols.append(word)
-            d.count.append(count)
-        return d
+            self.indices[word] = len(self.symbols)
+            self.symbols.append(word)
+            self.count.append(count)
 
     def _save(self, f, kv_iterator):
         if isinstance(f, str):

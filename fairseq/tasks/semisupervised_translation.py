@@ -124,7 +124,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 "%s-%s" % (tgt, tgt)
                 for tgt in {lang_pair.split('-')[1] for lang_pair in args.lang_pairs}
             ]
-            self.model_lang_pairs += denoising_lang_pairs
+            self.model_lang_pairs = self.model_lang_pairs + denoising_lang_pairs
         self.backtranslate_datasets = {}
         self.backtranslators = {}
 
@@ -164,7 +164,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
         # load parallel datasets
         src_datasets, tgt_datasets = {}, {}
         if (self.lambda_parallel > 0.0 or self.lambda_parallel_steps is not None or not split.startswith("train")):
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.lang_pairs:
                 src, tgt = lang_pair.split('-')
                 if split_exists(split, src, tgt, src):
                     prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, src, tgt))
@@ -181,7 +181,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
         # back translation datasets
         backtranslate_datasets = {}
         if (self.lambda_otf_bt > 0.0 or self.lambda_otf_bt_steps is not None) and split.startswith("train"):
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.lang_pairs:
                 src, tgt = lang_pair.split('-')
                 if not split_exists(split, tgt, None, tgt):
                     raise FileNotFoundError('Dataset not found: backtranslation {} ({})'.format(split, data_path))
@@ -229,7 +229,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
         # denoising autoencoder
         noising_datasets = {}
         if (self.lambda_denoising > 0.0 or self.lambda_denoising_steps is not None) and split.startswith("train"):
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.lang_pairs:
                 _, tgt = lang_pair.split('-')
                 if not split_exists(split, tgt, None, tgt):
                     continue
@@ -305,7 +305,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
         # create SequenceGenerator for each model that has backtranslation dependency on it
         self.sequence_generators = {}
         if (self.lambda_otf_bt > 0.0 or self.lambda_otf_bt_steps is not None) and self.training:
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.lang_pairs:
                 src, tgt = lang_pair.split('-')
                 key = '{}-{}'.format(tgt, src)
                 self.sequence_generators[key] = SequenceGenerator(
@@ -350,16 +350,16 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             agg_logging_output[logging_output_key] = logging_output
 
         if self.lambda_parallel > 0.0:
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.lang_pairs:
                 forward_backward(model.models[lang_pair], sample[lang_pair], lang_pair, self.lambda_parallel)
 
         if self.lambda_otf_bt > 0.0:
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.lang_pairs:
                 sample_key = _get_bt_dataset_key(lang_pair)
                 forward_backward(model.models[lang_pair], sample[sample_key], sample_key, self.lambda_otf_bt)
 
         if self.lambda_denoising > 0.0:
-            for lang_pair in self.args.lang_pairs:
+            for lang_pair in self.lang_pairs:
                 _, tgt = lang_pair.split('-')
                 sample_key = _get_denoising_dataset_key(lang_pair)
                 forward_backward(model.models['{0}-{0}'.format(tgt)], sample[sample_key], sample_key, self.lambda_denoising)
@@ -395,12 +395,12 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             for logging_output in logging_outputs
             for key in logging_output
         }
-        lang_pair_keys = set(self.args.lang_pairs + [
+        lang_pair_keys = set(self.lang_pairs + [
             _get_bt_dataset_key(lang_pair)
-            for lang_pair in self.args.lang_pairs
+            for lang_pair in self.lang_pairs
         ] + [
             _get_denoising_dataset_key(lang_pair)
-            for lang_pair in self.args.lang_pairs
+            for lang_pair in self.lang_pairs
         ])
         logging_output_keys = logging_output_keys.intersection(lang_pair_keys)
         return super().aggregate_logging_outputs(logging_outputs, criterion, logging_output_keys)
