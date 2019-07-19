@@ -191,7 +191,7 @@ class BaseFairseqModel(nn.Module):
             if os.path.exists(path):
                 kwargs[arg] = path
 
-        models, args, task = checkpoint_utils._load_model_ensemble(
+        models, args, task = checkpoint_utils.load_model_ensemble_and_task(
             [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(':')],
             arg_overrides=kwargs,
         )
