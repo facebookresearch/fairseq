@@ -216,6 +216,7 @@ class LSTMEncoder(FairseqEncoder):
                 self.padding_idx,
                 left_to_right=True,
             )
+            self.left_pad = False
 
         bsz, seqlen = src_tokens.size()
 
