@@ -32,7 +32,7 @@ bleu = Extension(
 
 setup(
     name='fairseq',
-    version='0.7.1',
+    version='0.7.2',
     description='Facebook AI Research Sequence-to-Sequence Toolkit',
     url='https://github.com/pytorch/fairseq',
     classifiers=[
