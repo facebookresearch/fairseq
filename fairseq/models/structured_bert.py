@@ -646,7 +646,7 @@ def define_attention_read_write(inputs):
 
 
 
-@register_model('ol_bert')
+@register_model('structured_bert')
 class DocBert(FairseqLanguageModel):
     def __init__(self, decoder, task):
         super().__init__(decoder)
@@ -687,7 +687,7 @@ class DocBert(FairseqLanguageModel):
         decoder = BertForPreTraining(args.config)
         return DocBert(decoder, task)
 
-@register_model_architecture('ol_bert', 'ol_bert')
+@register_model_architecture('structured_bert', 'structured_bert')
 def base_bert_architecture(args):
     args.config = BertConfig()
     args.config.hidden_size = getattr(args, 'hidden_size', args.config.hidden_size)
@@ -701,7 +701,7 @@ def base_bert_architecture(args):
     args.config.max_sentence_embeddings = getattr(args, 'max_sentence_embeddings', args.config.max_sentence_embeddings)
     args.config.initializer_range = getattr(args, 'initializer_range', args.config.initializer_range)
 
-@register_model_architecture('ol_bert', 'ol_bert_large')
+@register_model_architecture('structured_bert', 'structured_bert_large')
 def large_bert_architecture(args):
     args.config = BertConfig()
     args.config.hidden_size = getattr(args, 'hidden_size', 1024)
