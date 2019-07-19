@@ -14,7 +14,7 @@ from fairseq import registry
 
 build_tokenizer, register_tokenizer, TOKENIZER_REGISTRY = registry.setup_registry(
     '--tokenizer',
-    default='space',
+    default=None,
 )
 
 

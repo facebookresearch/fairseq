@@ -160,7 +160,7 @@ class SequenceGenerator(object):
         scores_buf = scores.clone()
         tokens = src_tokens.data.new(bsz * beam_size, max_len + 2).long().fill_(self.pad)
         tokens_buf = tokens.clone()
-        tokens[:, 0] = bos_token or self.eos
+        tokens[:, 0] = self.eos if bos_token is None else bos_token
         attn, attn_buf = None, None
         nonpad_idxs = None
         if prefix_tokens is not None:
@@ -618,10 +618,8 @@ class EnsembleModel(torch.nn.Module):
             decoder_out[0].div_(temperature)
         attn = decoder_out[1]
         if type(attn) is dict:
-            attn = attn['attn']
+            attn = attn.get('attn', None)
         if attn is not None:
-            if type(attn) is dict:
-                attn = attn['attn']
             attn = attn[:, -1, :]
         probs = model.get_normalized_probs(decoder_out, log_probs=log_probs)
         probs = probs[:, -1, :]

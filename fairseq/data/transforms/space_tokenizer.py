@@ -17,7 +17,7 @@ class SpaceTokenizer(object):
         self.space_tok = re.compile(r"\s+")
 
     def encode(self, x: str) -> str:
-        return self.space_tok.sub(" ", x).strip().split()
+        return self.space_tok.sub(' ', x)
 
     def decode(self, x: str) -> str:
         return x

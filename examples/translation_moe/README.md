@@ -58,11 +58,12 @@ Next apply BPE on the fly and run generation for each expert:
 $ BPEROOT=examples/translation/subword-nmt/
 $ BPE_CODE=examples/translation/wmt17_en_de/code
 $ for EXPERT in $(seq 0 2); do \
-    cat wmt14-en-de.extra_refs.tok | grep ^S | cut -f 2 | \
-      python $BPEROOT/apply_bpe.py -c $BPE_CODE | \
-      fairseq-interactive data-bin/wmt17_en_de \
+    cat wmt14-en-de.extra_refs.tok \
+    | grep ^S | cut -f 2 \
+    | fairseq-interactive data-bin/wmt17_en_de \
         --path checkpoints/checkpoint_best.pt \
-        --beam 1 --remove-bpe \
+        --beam 1 \
+        --bpe subword_nmt --bpe-codes $BPE_CODE \
         --buffer-size 500 --max-tokens 6000 \
         --task translation_moe \
         --method hMoElp --mean-pool-gating-network \

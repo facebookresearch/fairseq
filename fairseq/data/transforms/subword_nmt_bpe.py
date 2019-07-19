@@ -22,6 +22,8 @@ class SubwordNMTBPE(object):
         # fmt: on
 
     def __init__(self, args):
+        if args.bpe_codes is None:
+            raise ValueError('--bpe-codes is required for --bpe=subword_nmt')
         codes = file_utils.cached_path(args.bpe_codes)
         try:
             from subword_nmt import apply_bpe
