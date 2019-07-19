@@ -153,11 +153,11 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None):
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
-    ensemble, args, _task = _load_model_ensemble(filenames, arg_overrides, task)
+    ensemble, args, _task = load_model_ensemble_and_task(filenames, arg_overrides, task)
     return ensemble, args
 
 
-def _load_model_ensemble(filenames, arg_overrides=None, task=None):
+def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None):
     from fairseq import tasks
 
     ensemble = []
