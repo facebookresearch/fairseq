@@ -37,7 +37,7 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
             )
         warmup_end_lr = args.lr[0]
         if args.warmup_init_lr < 0:
-            args.warmup_init_lr = warmup_end_lr
+            args.warmup_init_lr = 0 if args.warmup_updates > 0 else warmup_end_lr
 
         # linearly warmup for the first args.warmup_updates
         self.lr_step = (warmup_end_lr - args.warmup_init_lr) / args.warmup_updates
