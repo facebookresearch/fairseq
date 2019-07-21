@@ -7,7 +7,7 @@
 
 import re
 
-from fairseq.data.transforms import register_tokenizer
+from fairseq.data.encoders import register_tokenizer
 
 
 @register_tokenizer('space')

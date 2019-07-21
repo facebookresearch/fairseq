@@ -6,7 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 from fairseq import file_utils
-from fairseq.data.transforms import register_bpe
+from fairseq.data.encoders import register_bpe
 
 
 @register_bpe('sentencepiece')

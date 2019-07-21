@@ -9,7 +9,7 @@
 import torch
 
 from fairseq import utils
-from fairseq.data import transforms
+from fairseq.data import encoders
 
 
 class Generator(object):
@@ -44,8 +44,8 @@ class Generator(object):
         # (None if no unknown word replacement, empty if no path to align dictionary)
         self.align_dict = utils.load_align_dict(getattr(args, 'replace_unk', None))
 
-        self.tokenizer = transforms.build_tokenizer(args)
-        self.bpe = transforms.build_bpe(args)
+        self.tokenizer = encoders.build_tokenizer(args)
+        self.bpe = encoders.build_bpe(args)
 
     def generate(self, src_str, verbose=False):
 
