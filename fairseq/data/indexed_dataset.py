@@ -22,6 +22,26 @@ def __best_fitting_dtype(vocab_size=None):
         return np.int32
 
 
+def get_available_dataset_impl():
+    return ['raw', 'lazy', 'cached', 'mmap']
+
+
+def infer_dataset_impl(path):
+    if IndexedRawTextDataset.exists(path):
+        return 'raw'
+    elif IndexedDataset.exists(path):
+        with open(index_file_path(path), 'rb') as f:
+            magic = f.read(8)
+            if magic == IndexedDataset._HDR_MAGIC:
+                return 'cached'
+            elif magic == MMapIndexedDataset.Index._HDR_MAGIC[:8]:
+                return 'mmap'
+            else:
+                return None
+    else:
+        return None
+
+
 def make_builder(out_file, impl, vocab_size=None):
     if impl == 'mmap':
         return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
@@ -39,7 +59,6 @@ def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
         return IndexedCachedDataset(path, fix_lua_indexing=fix_lua_indexing)
     elif impl == 'mmap' and MMapIndexedDataset.exists(path):
         return MMapIndexedDataset(path)
-
     return None
 
 
@@ -91,6 +110,7 @@ def data_file_path(prefix_path):
 
 class IndexedDataset(FairseqDataset):
     """Loader for TorchNet IndexedDataset"""
+    _HDR_MAGIC = b'TNTIDX\x00\x00'
 
     def __init__(self, path, fix_lua_indexing=False):
         super().__init__()
@@ -102,7 +122,7 @@ class IndexedDataset(FairseqDataset):
     def read_index(self, path):
         with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
-            assert magic == b'TNTIDX\x00\x00', (
+            assert magic == self._HDR_MAGIC, (
                 'Index file doesn\'t match expected format. '
                 'Make sure that --dataset-impl is configured properly.'
             )
@@ -151,7 +171,7 @@ class IndexedDataset(FairseqDataset):
     @staticmethod
     def exists(path):
         return (
-                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
     @property
@@ -465,7 +485,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
 

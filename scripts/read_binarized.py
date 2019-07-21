@@ -17,7 +17,7 @@ def get_parser():
         description='writes text from binarized file to stdout')
     # fmt: off
     parser.add_argument('--dataset-impl', help='dataset implementation',
-                        choices=['raw', 'lazy', 'cached', 'mmap'], default='lazy')
+                        choices=indexed_dataset.get_available_dataset_impl())
     parser.add_argument('--dict', metavar='FP', help='dictionary containing known words', default=None)
     parser.add_argument('--input', metavar='FP', required=True, help='binarized file to read')
     # fmt: on

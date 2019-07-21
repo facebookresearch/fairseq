@@ -14,6 +14,7 @@ import torch
 from fairseq import utils
 from fairseq.data import (
     ConcatDataset,
+    data_utils,
     Dictionary,
     MonolingualDataset,
     TokenBlockDataset,
@@ -152,49 +153,30 @@ class LanguageModelingTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-
-        loaded_datasets = []
-
         paths = self.args.data.split(':')
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
+        split_path = os.path.join(data_path, split)
 
-        for k in itertools.count():
-            split_k = split + (str(k) if k > 0 else '')
-            path = os.path.join(data_path, split_k)
-            ds = indexed_dataset.make_dataset(path, impl=self.args.dataset_impl,
-                                              fix_lua_indexing=True, dictionary=self.dictionary)
+        dataset = data_utils.load_indexed_dataset(
+            split_path,
+            self.dictionary,
+            self.args.dataset_impl,
+            combine=combine,
+        )
+        if dataset is None:
+            raise FileNotFoundError('Dataset not found: {} ({})'.format(split, split_path))
 
-            if ds is None:
-                if k > 0:
-                    break
-                else:
-                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
-
-            loaded_datasets.append(
-                TokenBlockDataset(
-                    ds, ds.sizes, self.args.tokens_per_sample,
-                    pad=self.dictionary.pad(), eos=self.dictionary.eos(),
-                    break_mode=self.args.sample_break_mode, include_targets=True,
-                )
-            )
-
-            print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
-
-            if not combine:
-                break
-
-        if len(loaded_datasets) == 1:
-            dataset = loaded_datasets[0]
-            sizes = dataset.sizes
-        else:
-            dataset = ConcatDataset(loaded_datasets)
-            sizes = np.concatenate([ds.sizes for ds in loaded_datasets])
+        dataset = TokenBlockDataset(
+            dataset, dataset.sizes, self.args.tokens_per_sample,
+            pad=self.dictionary.pad(), eos=self.dictionary.eos(),
+            break_mode=self.args.sample_break_mode, include_targets=True,
+        )
 
         add_eos_for_other_targets = self.args.sample_break_mode is not None and self.args.sample_break_mode != 'none'
 
         self.datasets[split] = MonolingualDataset(
-            dataset, sizes, self.dictionary, self.output_dictionary,
+            dataset, dataset.sizes, self.dictionary, self.output_dictionary,
             add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
             targets=self.targets, add_bos_token=self.args.add_bos_token,
         )
