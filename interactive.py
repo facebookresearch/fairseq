@@ -15,7 +15,7 @@ import fileinput
 import torch
 
 from fairseq import checkpoint_utils, options, tasks, utils
-from fairseq.data import transforms
+from fairseq.data import encoders
 
 
 Batch = namedtuple('Batch', 'ids src_tokens src_lengths')
@@ -103,8 +103,8 @@ def main(args):
     generator = task.build_generator(args)
 
     # Handle tokenization and BPE
-    tokenizer = transforms.build_tokenizer(args)
-    bpe = transforms.build_bpe(args)
+    tokenizer = encoders.build_tokenizer(args)
+    bpe = encoders.build_bpe(args)
 
     def encode_fn(x):
         if tokenizer is not None:

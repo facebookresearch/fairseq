@@ -24,8 +24,8 @@ build_bpe, register_bpe, BPE_REGISTRY = registry.setup_registry(
 )
 
 
-# automatically import any Python files in the transforms/ directory
+# automatically import any Python files in the encoders/ directory
 for file in os.listdir(os.path.dirname(__file__)):
     if file.endswith('.py') and not file.startswith('_'):
         module = file[:file.find('.py')]
-        importlib.import_module('fairseq.data.transforms.' + module)
+        importlib.import_module('fairseq.data.encoders.' + module)

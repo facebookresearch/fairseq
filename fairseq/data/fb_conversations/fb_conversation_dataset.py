@@ -14,7 +14,7 @@ import torch
 import traceback
 from typing import Any, Dict
 
-from fairseq.data import FairseqDataset, data_utils, transforms
+from fairseq.data import FairseqDataset, data_utils, encoders
 from fairseq.data.fb_conversations.fb_special_symbols import SpecialConversationSymbols
 
 logger = logging.getLogger("fairseq.fb_conversation_dataset")
@@ -186,7 +186,7 @@ class ConversationDataset(FairseqDataset):
         self.dataset = dataset
         self.dictionary = dictionary
         self.split_range = split_range
-        self.bpe = transforms.build_bpe(argparse.Namespace(
+        self.bpe = encoders.build_bpe(argparse.Namespace(
             bpe='gpt2',
             gpt2_encoder_json='/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/encoder.json',
             gpt2_vocab_bpe='/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/vocab.bpe'
