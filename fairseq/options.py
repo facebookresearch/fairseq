@@ -11,6 +11,7 @@ import torch
 import sys
 
 from fairseq import utils
+from fairseq.data.indexed_dataset import get_available_dataset_impl
 
 
 def get_preprocessing_parser(default_task='translation'):
@@ -233,8 +234,9 @@ def add_preprocess_args(parser):
                        help="number of source words to retain")
     group.add_argument("--alignfile", metavar="ALIGN", default=None,
                        help="an alignment file (optional)")
-    parser.add_argument('--dataset-impl', metavar="FORMAT", help='output dataset implementation',
-                        choices=['raw', 'lazy', 'cached', 'mmap'], default='cached')
+    parser.add_argument('--dataset-impl', metavar='FORMAT', default='mmap',
+                        choices=get_available_dataset_impl(),
+                        help='output dataset implementation')
     group.add_argument("--joined-dictionary", action="store_true",
                        help="Generate joined dictionary")
     group.add_argument("--only-source", action="store_true",
@@ -260,8 +262,9 @@ def add_dataset_args(parser, train=False, gen=False):
                        help='maximum number of sentences in a batch')
     group.add_argument('--required-batch-size-multiple', default=8, type=int, metavar='N',
                        help='batch size will be a multiplier of this value')
-    parser.add_argument('--dataset-impl', metavar="FORMAT", help='output dataset implementation',
-                        choices=['raw', 'lazy', 'cached', 'mmap'], default='cached')
+    parser.add_argument('--dataset-impl', metavar='FORMAT',
+                        choices=get_available_dataset_impl(),
+                        help='output dataset implementation')
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
                            choices=['train', 'valid', 'test'],

@@ -17,6 +17,7 @@ from fairseq.data.masked_lm_dictionary import MaskedLMDictionary
 
 from fairseq.data import (
     ConcatDataset,
+    data_utils,
     indexed_dataset,
     TokenBlockDataset,
 )
@@ -114,10 +115,7 @@ class CrossLingualLMTask(FairseqTask):
             split_k = split + (str(k) if k > 0 else '')
             path = os.path.join(data_path, split_k)
 
-            ds = indexed_dataset.make_dataset(
-                path, impl=self.args.dataset_impl, fix_lua_indexing=True,
-                dictionary=self.dictionary,
-            )
+            ds = data_utils.load_indexed_dataset(path, self.dictionary, self.args.dataset_impl)
             if ds is None:
                 if k > 0:
                     break
