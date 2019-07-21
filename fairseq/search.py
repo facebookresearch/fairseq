@@ -202,7 +202,8 @@ class Sampling(Search):
         # note that mask was computed by 'lt'. One more word needs to be included
         # so that the cumulative probability mass can exceed p.
         cumsum_mask = mask.cumsum(dim=2)
-        last_included = cumsum_mask[:, :, :1]
+        last_included = cumsum_mask[:, :, -1:]
+        last_included.clamp_(0, mask.size()[2] - 1)
         mask = mask.scatter_(2, last_included, 1)
 
         # truncate unnecessary dims.
