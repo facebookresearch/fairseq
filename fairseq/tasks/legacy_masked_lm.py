@@ -17,15 +17,15 @@ from fairseq.data import (
 )
 
 from fairseq.data import Dictionary
-from fairseq.data.block_pair_dataset import BlockPairDataset
-from fairseq.data.masked_lm_dataset import MaskedLMDataset
-from fairseq.data.masked_lm_dictionary import BertDictionary
+from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
+from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
+from fairseq.data.legacy.masked_lm_dictionary import BertDictionary
 
 from . import FairseqTask, register_task
 
 
-@register_task('masked_lm')
-class MaskedLMTask(FairseqTask):
+@register_task('legacy_masked_lm')
+class LegacyMaskedLMTask(FairseqTask):
     """
     Task for training Masked LM (BERT) model.
     Args:

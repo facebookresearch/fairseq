@@ -6,18 +6,15 @@
 # can be found in the PATENTS file in the same directory.
 
 from .dictionary import Dictionary, TruncatedDictionary
-from .masked_lm_dictionary import BertDictionary, MaskedLMDictionary
 
 from .fairseq_dataset import FairseqDataset
 
 from .audio.raw_audio_dataset import RawAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
-from .block_pair_dataset import BlockPairDataset
 from .concat_dataset import ConcatDataset
 from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset, MMapIndexedDataset
 from .language_pair_dataset import LanguagePairDataset
 from .lm_context_window_dataset import LMContextWindowDataset
-from .masked_lm_dataset import MaskedLMDataset
 from .monolingual_dataset import MonolingualDataset
 from .noising import NoisingDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
@@ -34,8 +31,6 @@ from .iterators import (
 
 __all__ = [
     'BacktranslationDataset',
-    'BertDictionary',
-    'BlockPairDataset',
     'ConcatDataset',
     'CountingIterator',
     'Dictionary',
@@ -47,8 +42,6 @@ __all__ = [
     'IndexedRawTextDataset',
     'LanguagePairDataset',
     'LMContextWindowDataset',
-    'MaskedLMDataset',
-    'MaskedLMDictionary',
     'MMapIndexedDataset',
     'MonolingualDataset',
     'NoisingDataset',

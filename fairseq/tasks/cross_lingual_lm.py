@@ -13,7 +13,7 @@ from collections import OrderedDict
 import numpy as np
 
 from fairseq import tokenizer
-from fairseq.data.masked_lm_dictionary import MaskedLMDictionary
+from fairseq.data.legacy.masked_lm_dictionary import MaskedLMDictionary
 
 from fairseq.data import (
     ConcatDataset,
@@ -23,7 +23,7 @@ from fairseq.data import (
 )
 
 from fairseq.data import Dictionary
-from fairseq.data.masked_lm_dataset import MaskedLMDataset
+from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.multi_corpus_sampled_dataset import MultiCorpusSampledDataset
 
 from . import FairseqTask, register_task
