@@ -13,6 +13,7 @@ from .base_wrapper_dataset import BaseWrapperDataset
 
 from .audio.raw_audio_dataset import RawAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
+from .bi_source_dataset import BiSourceDataset
 from .concat_dataset import ConcatDataset
 from .id_dataset import IdDataset
 from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset, MMapIndexedDataset
@@ -43,6 +44,7 @@ from .iterators import (
 __all__ = [
     'BacktranslationDataset',
     'BaseWrapperDataset',
+    'BiSourceDataset',
     'ConcatDataset',
     'CountingIterator',
     'Dictionary',
