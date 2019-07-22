@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import os
+import socket
 
 
 def get_args():
@@ -14,21 +15,29 @@ def get_args():
     parser.add_argument('-n', '--num-nodes', type=int, default=1, help='number of nodes for distributed training')
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--baseline-model', help='path to baseline model from which to resume training')
-    parser.add_argument('--checkpoints-dir',
-                        default=os.path.join(
-                            '/mnt/vol/gfsai-east/ai-group/users',
-                            os.environ['USER'],
-                            'checkpoints',
-                            str(datetime.date.today()),
-                        ),
-                        help='save checkpoints and logs in <checkpoints-dir>/<prefix>.<save_dir_key>')
     parser.add_argument('--force-checkpoints-dir', help='force using a given checkpoint dir')
+    parser.add_argument('--resume-failed', action='store_true',
+                        help='resume any runs that failed (assumes --num-trials and --seed are the same)')
+    parser.add_argument('--resume-finished', action='store_true',
+                        help='force any runs that finished to begin again (uncommon)')
     parser.add_argument('--dry-run', action='store_true',
                         help='output only a list of actions to perform without performing them')
     parser.add_argument('--local', action='store_true', help='run job locally')
     parser.add_argument('--debug', action='store_true', help='debug')
 
-    parser.add_argument('--backend', choices=['fblearner', 'chronos'], default='fblearner')
+    hostname = socket.gethostname()
+    if 'fair' in hostname:
+        default_backend = 'slurm'
+        parser.add_argument('--checkpoints-dir',
+                            default=os.path.join('/checkpoint', os.environ['USER'], str(datetime.date.today())),
+                            help='save checkpoints and logs in <checkpoints-dir>/<prefix>.<save_dir_key>')
+    else:
+        default_backend = 'fblearner'
+        parser.add_argument('--checkpoints-dir',
+                            default=os.path.join('/mnt/vol/gfsai-east/ai-group/users', os.environ['USER'], 'checkpoints', str(datetime.date.today())),
+                            help='save checkpoints and logs in <checkpoints-dir>/<prefix>.<save_dir_key>')
+
+    parser.add_argument('--backend', choices=['fblearner', 'chronos', 'slurm'], default=default_backend)
 
     # FBLearner params
     parser.add_argument('--entitlement', help='entitlement to use', default='gpu_fair')
@@ -39,6 +48,32 @@ def get_args():
     parser.add_argument('--host-filter', help='host filter')
     parser.add_argument('--fbpkg', help='use the given fbpkg')
     parser.add_argument('--build-only', action='store_true')
+
+    # Slurm params
+    parser.add_argument('--salloc', action='store_true',
+                        help='run agaist current allocation')
+    parser.add_argument('--partition', help='partition to run on', default='learnfair')
+    parser.add_argument('--reservation', help='reservation to run on')
+    parser.add_argument('--exclusive', action='store_true',
+                        help='if set, get exclusive host')
+    parser.add_argument('--dep', metavar='JOBID', type=int,
+                        help='add JOBID as a dependency (i.e., wait for it to finish)')
+    parser.add_argument('--sequential', action='store_true',
+                        help='schedule jobs to run sequentially')
+    parser.add_argument('--time', default='4320',
+                        help='expected job duration in minutes')
+    parser.add_argument('--constraint', metavar='CONSTRAINT',
+                        help='gpu constraint, if any. e.g. "volta"')
+    parser.add_argument('--comment', help='comment string')
+    parser.add_argument('--snapshot-code', action='store_true', default=False,
+                        help='Flag for creating a snapshot of training code while creating slurm job,'
+                            ' path is "./slurm_snapshot_code/<TIME_ISO_FORMAT/>:", '
+                            'can find time from comment of slurm job.')
+    parser.add_argument('--tensorboard-logdir',
+                        default=os.path.join('/checkpoint', os.environ['USER'], 'tensorboard_logs', str(datetime.date.today())),
+                        help='save tensorboard logs in <tensorboard-logdir>/<prefix>.<save_dir_key>')
+    parser.add_argument('--no-tensorboard', action='store_true',
+                        help='disable tensorboard logging')
 
     args = parser.parse_args()
     return args
@@ -90,5 +125,7 @@ def main(get_grid, postprocess_hyperparams):
         from .fblearner import main as backend_main
     elif args.backend == 'chronos':
         from .chronos import main as backend_main
+    elif args.backend == 'slurm':
+        from .slurm import main as backend_main
 
     backend_main(get_grid, postprocess_hyperparams, args)
