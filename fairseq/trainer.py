@@ -184,7 +184,7 @@ class Trainer(object):
 
             self.lr_step(epoch)
 
-            if 'train_meters' in extra_state:
+            if 'train_meters' in extra_state and not reset_meters:
                 self.meters.update(extra_state['train_meters'])
                 del extra_state['train_meters']
 
