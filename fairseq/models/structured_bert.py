@@ -147,7 +147,7 @@ class BertEmbeddings(nn.Module):
     def __init__(self, config):
         super(BertEmbeddings, self).__init__()
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.position_embeddings = nn.Embedding(config.max_position_embeddings + config.block_size - 1, config.hidden_size)
+        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
         self.config = config
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
@@ -198,7 +198,7 @@ class BertSelfAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.transpose(-2, -3)
 
-    def forward(self, hidden_states, attention_mask, permuteation=None):
+    def forward(self, hidden_states, attention_mask, permutation=None):
         """
         Args:
             hidden_states  : FloatTensor of shape (Batch, Sentence, Token, Dim)
@@ -270,8 +270,8 @@ class BertAttention(nn.Module):
         self.self = BertSelfAttention(config)
         self.output = BertSelfOutput(config)
 
-    def forward(self, input_tensor, attention_mask):
-        self_output = self.self(input_tensor, attention_mask)
+    def forward(self, input_tensor, attention_mask, permutation=None):
+        self_output = self.self(input_tensor, attention_mask, permutation)
         #assert not torch.isnan(self_output).any()
         attention_output = self.output(self_output, input_tensor)
         #assert not torch.isnan(attention_output).any()
@@ -314,8 +314,8 @@ class BertLayer(nn.Module):
         self.intermediate = BertIntermediate(config)
         self.output = BertOutput(config)
 
-    def forward(self, hidden_states, attention_mask):
-        attention_output = self.attention(hidden_states, attention_mask)
+    def forward(self, hidden_states, attention_mask, permutation=None):
+        attention_output = self.attention(hidden_states, attention_mask, permutation)
         #assert not torch.isnan(attention_output).any()
         intermediate_output = self.intermediate(attention_output)
         #assert not torch.isnan(intermediate_output).any()
@@ -332,8 +332,15 @@ class BertEncoder(nn.Module):
 
     def forward(self, hidden_states, attention_mask, output_all_encoded_layers=True):
         all_encoder_layers = []
-        for layer_module in self.layer:
-            hidden_states = layer_module(hidden_states, attention_mask)
+        timesteps = hidden_states.size(1)
+        identity = torch.arange(start=0, end=timesteps, step=1, device=hidden_states.device)
+        for idx, layer_module in enumerate(self.layer):
+            offset = idx % timesteps
+            if offset == 0:
+                permutation = None
+            else:
+                permutation = (identity + timesteps + offset) % timesteps
+            hidden_states = layer_module(hidden_states, attention_mask, permutation)
             if output_all_encoded_layers:
                 all_encoder_layers.append(hidden_states)
         if not output_all_encoded_layers:
@@ -628,15 +635,13 @@ class BertModel(PreTrainedBertModel):
             token_type_ids = torch.zeros_like(input_ids)
 
         batch_size, sequence_length_exact = input_ids.size()[:2]
-        if sequence_length_exact % self.block_size != 0:
-            padding_length = self.block_size - sequence_length_exact % self.block_size
-            input_ids = torch.cat([input_ids, input_ids.new_zeros((batch_size, padding_length))], dim=-1)
+        sequence_length_with_padding = math.ceil(sequence_length_exact / self.block_size) * self.block_size
+        padding_length = sequence_length_with_padding - sequence_length_exact
+        assert padding_length >= 0 and padding_length < self.block_size
+        if padding_length:
             attention_mask = torch.cat([attention_mask, attention_mask.new_zeros((batch_size, padding_length))], dim=-1)
-            token_type_ids = torch.cat([token_type_ids, token_type_ids.new_zeros((batch_size, padding_length))], dim=-1)
 
-        input_ids = input_ids.view(batch_size, self.block_size, -1)
         attention_mask = attention_mask.view(batch_size, self.block_size, -1)
-        token_type_ids = token_type_ids.view(batch_size, self.block_size, -1)
 
         # We create a 3D attention mask from a 2D tensor mask.
         # Sizes are [batch_size, 1, 1, to_seq_length]
@@ -658,22 +663,26 @@ class BertModel(PreTrainedBertModel):
 
         embedding_output = self.embeddings(input_ids, token_type_ids)
         assert not torch.isnan(embedding_output).any()
+        if padding_length:
+            embedding_output = torch.cat([embedding_output, embedding_output.new_zeros((batch_size, padding_length, embedding_output.size(2)))], dim=-2)
+
+        embedding_output = embedding_output.view(batch_size, self.block_size, math.ceil(sequence_length_exact / self.block_size), -1)
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
                                       output_all_encoded_layers=output_all_encoded_layers)
         #assert not torch.isnan(layer).any()
+
+        for i in range(len(encoded_layers)):
+            encoded_layers[i] = encoded_layers[i].view(batch_size, sequence_length_with_padding, -1)[:, :sequence_length_exact, :]
+
         sequence_output = encoded_layers[-1]
-        sequence_length_with_padding = sequence_output.size(1)
         assert not torch.isnan(sequence_output).any()
         if self.pooler is not None:
             pooled_output = self.pooler(sequence_output)
             assert not torch.isnan(pooled_output).any()
-            pooled_output = pooled_output.view(batch_size, sequence_length_with_padding, -1)[:, :sequence_length_exact, :]
+            #  pooled_output = pooled_output.view(batch_size, sequence_length_with_padding, -1)[:, :sequence_length_exact, :]
         else:
             pooled_output = None
-
-        for i in range(len(encoded_layers)):
-            encoded_layers[i] = encoded_layers[i].view(batch_size, sequence_length_with_padding, -1)[:, :sequence_length_exact, :]
 
         if not output_all_encoded_layers:
             encoded_layers = encoded_layers[-1]
