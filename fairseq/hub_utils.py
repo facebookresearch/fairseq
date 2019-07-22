@@ -6,10 +6,55 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import os
+
 import torch
 
 from fairseq import utils
 from fairseq.data import encoders
+
+
+def from_pretrained(
+    model_name_or_path,
+    checkpoint_file='model.pt',
+    data_name_or_path='.',
+    archive_map=None,
+    **kwargs,
+):
+    from fairseq import checkpoint_utils, file_utils
+
+    if archive_map is not None:
+        if model_name_or_path in archive_map:
+            model_name_or_path = archive_map[model_name_or_path]
+        if data_name_or_path is not None and data_name_or_path in archive_map:
+            data_name_or_path = archive_map[data_name_or_path]
+
+    model_path = file_utils.load_archive_file(model_name_or_path)
+
+    # convenience hack for loading data and BPE codes from model archive
+    if data_name_or_path.startswith('.'):
+        kwargs['data'] = os.path.abspath(os.path.join(model_path, data_name_or_path))
+    else:
+        kwargs['data'] = file_utils.load_archive_file(data_name_or_path)
+    for file, arg in {
+        'code': 'bpe_codes',
+        'bpecodes': 'bpe_codes',
+        'sentencepiece.bpe.model': 'sentencepiece_vocab',
+    }.items():
+        path = os.path.join(model_path, file)
+        if os.path.exists(path):
+            kwargs[arg] = path
+
+    models, args, task = checkpoint_utils.load_model_ensemble_and_task(
+        [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(':')],
+        arg_overrides=kwargs,
+    )
+
+    return {
+        'args': args,
+        'task': task,
+        'models': models,
+    }
 
 
 class Generator(object):

@@ -22,7 +22,7 @@ def setup_registry(
 
     # maintain a registry of all registries
     if registry_name in REGISTRIES:
-        raise ValueError('Canot setup duplicate registry: {}'.format(registry_name))
+        return  # registry already exists
     REGISTRIES[registry_name] = {
         'registry': REGISTRY,
         'default': default,
