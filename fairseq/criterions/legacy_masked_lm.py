@@ -32,8 +32,8 @@ def compute_cross_entropy_loss(logits, targets, ignore_index=-100):
     return loss
 
 
-@register_criterion('masked_lm_loss')
-class MaskedLmLoss(FairseqCriterion):
+@register_criterion('legacy_masked_lm_loss')
+class LegacyMaskedLmLoss(FairseqCriterion):
     """
     Implementation for the loss used in masked language model (MLM) training.
     This optionally also computes the next sentence prediction (NSP) loss and

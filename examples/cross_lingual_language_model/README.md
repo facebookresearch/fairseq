@@ -63,7 +63,7 @@ fairseq-train \
 --optimizer adam --lr-scheduler reduce_lr_on_plateau \
 --lr-shrink 0.5 --lr 0.0001 --min-lr 1e-09 \
 --dropout 0.1 \
---criterion masked_lm_loss \
+--criterion legacy_masked_lm_loss \
 --max-tokens 2048 --tokens-per-sample 256 --attention-dropout 0.1 \
 --dataset-impl lazy --seed 0 \
 --masked-lm-only \

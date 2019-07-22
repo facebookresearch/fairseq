@@ -12,22 +12,24 @@ import os
 from fairseq import tokenizer
 from fairseq.data import (
     ConcatDataset,
-    indexed_dataset,
+    IndexedCachedDataset,
+    IndexedDataset,
+    IndexedRawTextDataset,
     data_utils,
 )
 
 from fairseq.data import Dictionary
-from fairseq.data.block_pair_dataset import BlockPairDataset
-from fairseq.data.masked_lm_dataset import MaskedLMDataset
-from fairseq.data.masked_lm_dictionary import BertDictionary
+from fairseq.data.legacy.masked_lm_dictionary import BertDictionary
+from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
+from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 
 from . import FairseqTask, register_task
 
 
-@register_task('masked_lm')
-class MaskedLMTask(FairseqTask):
+@register_task('fb_bert')
+class BertTask(FairseqTask):
     """
-    Task for training Masked LM (BERT) model.
+    Train BERT model.
     Args:
         dictionary (Dictionary): the dictionary for the input of the task
     """
@@ -35,18 +37,20 @@ class MaskedLMTask(FairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('data', help='colon separated path to data directories list, \
-                            will be iterated upon during epochs in round-robin manner')
+        parser.add_argument('data', help='path to data directory')
         parser.add_argument('--tokens-per-sample', default=512, type=int,
                             help='max number of total tokens over all segments'
                                  ' per sample for BERT dataset')
+        parser.add_argument('--raw-text', default=False, action='store_true',
+                            help='load raw text dataset')
         parser.add_argument('--break-mode', default="doc", type=str, help='mode for breaking sentence')
-        parser.add_argument('--shuffle-dataset', action='store_true', default=False)
+        parser.add_argument('--lazy-load', action='store_true', help='load the dataset lazily')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
         self.seed = args.seed
+        self.distributed_world_size = args.distributed_world_size
 
     @classmethod
     def load_dictionary(cls, filename):
@@ -68,41 +72,40 @@ class MaskedLMTask(FairseqTask):
     def setup_task(cls, args, **kwargs):
         """Setup the task.
         """
-        paths = args.data.split(':')
-        assert len(paths) > 0
-        dictionary = BertDictionary.load(os.path.join(paths[0], 'dict.txt'))
+        dictionary = BertDictionary.load(os.path.join(args.data, 'dict.txt'))
         print('| dictionary: {} types'.format(len(dictionary)))
 
         return cls(args, dictionary)
 
-    def load_dataset(self, split, epoch=0, combine=False):
+    def grad_denom(self, sample_sizes, criterion):
+        """Hack to avoid grad denom since we are using mean loss
+        """
+        return self.distributed_world_size
+
+    def load_dataset(self, split, combine=False):
         """Load a given dataset split.
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        loaded_datasets = []
 
-        paths = self.args.data.split(':')
-        assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
-        print("| data_path", data_path)
+        loaded_datasets = []
 
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
-            path = os.path.join(data_path, split_k)
-            ds = indexed_dataset.make_dataset(
-                path,
-                impl=self.args.dataset_impl,
-                fix_lua_indexing=True,
-                dictionary=self.dictionary,
-            )
+            path = os.path.join(self.args.data, split_k)
 
-            if ds is None:
+            if self.args.raw_text and IndexedRawTextDataset.exists(path):
+                ds = IndexedRawTextDataset(path, self.dictionary)
+            elif not self.args.raw_text and IndexedDataset.exists(path):
+                if self.args.lazy_load:
+                    ds = IndexedDataset(path, fix_lua_indexing=True)
+                else:
+                    ds = IndexedCachedDataset(path, fix_lua_indexing=True)
+            else:
                 if k > 0:
                     break
                 else:
-                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
-
+                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, self.args.data))
             with data_utils.numpy_seed(self.seed + k):
                 loaded_datasets.append(
                     BlockPairDataset(
@@ -111,11 +114,9 @@ class MaskedLMTask(FairseqTask):
                         ds.sizes,
                         self.args.tokens_per_sample,
                         break_mode=self.args.break_mode,
-                        doc_break_size=1,
-                    )
-                )
+                    ))
 
-            print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
+            print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
 
             if not combine:
                 break
@@ -135,6 +136,6 @@ class MaskedLMTask(FairseqTask):
             mask_idx=self.dictionary.mask(),
             classif_token_idx=self.dictionary.cls(),
             sep_token_idx=self.dictionary.sep(),
-            shuffle=self.args.shuffle_dataset,
+            shuffle=False,
             seed=self.seed,
         )

@@ -263,19 +263,20 @@ class TestLanguageModeling(unittest.TestCase):
 
 
 class TestMaskedLanguageModel(unittest.TestCase):
-    def test_masked_lm(self):
+
+    def test_legacy_masked_lm(self):
         with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_mlm") as data_dir:
+            with tempfile.TemporaryDirectory("test_legacy_mlm") as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
-                train_masked_language_model(data_dir, "masked_lm")
+                train_legacy_masked_language_model(data_dir, "masked_lm")
 
     def _test_pretrained_masked_lm_for_translation(self, learned_pos_emb, encoder_only):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_mlm") as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
-                train_masked_language_model(
+                train_legacy_masked_language_model(
                     data_dir,
                     arch="masked_lm",
                     extra_args=('--encoder-learned-pos',) if learned_pos_emb else ()
@@ -332,7 +333,8 @@ class TestMaskedLanguageModel(unittest.TestCase):
     def test_pretrained_masked_lm_for_translation_encoder_only(self):
         self._test_pretrained_masked_lm_for_translation(True, True)
 
-def train_masked_language_model(data_dir, arch, extra_args=()):
+
+def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
     train_parser = options.get_training_parser()
     # TODO: langs should be in and out right?
     train_args = options.parse_args_and_arch(
@@ -361,7 +363,7 @@ def train_masked_language_model(data_dir, arch, extra_args=()):
             "0.1",
             # MLM args
             "--criterion",
-            "masked_lm_loss",
+            "legacy_masked_lm_loss",
             "--masked-lm-only",
             "--monolingual-langs",
             "in,out",

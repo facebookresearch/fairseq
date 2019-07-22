@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from fairseq.data.masked_lm_dictionary import MaskedLMDictionary
+from fairseq.data.legacy.masked_lm_dictionary import MaskedLMDictionary
 from fairseq.tasks.translation import TranslationTask
 
 from . import register_task

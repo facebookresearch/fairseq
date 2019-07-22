@@ -12,10 +12,10 @@ import torch
 
 from typing import Dict, List, Tuple
 
-from . import FairseqDataset, data_utils
+from fairseq.data import FairseqDataset, data_utils
 
 from fairseq.data import Dictionary
-from fairseq.data.block_pair_dataset import BlockPairDataset
+from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
 from fairseq.data.token_block_dataset import TokenBlockDataset
 from fairseq.data.concat_dataset import ConcatDataset
 
