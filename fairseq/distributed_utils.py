@@ -48,7 +48,14 @@ def infer_init_method(args):
                     port=args.distributed_port,
                 )
                 nnodes = int(os.environ.get('SLURM_NNODES'))
-                ntasks_per_node = int(os.environ.get('SLURM_NTASKS_PER_NODE'))
+                ntasks_per_node = os.environ.get('SLURM_NTASKS_PER_NODE')
+                if ntasks_per_node is not None:
+                    ntasks_per_node = int(ntasks_per_node)
+                else:
+                    ntasks = int(os.environ.get('SLURM_NTASKS'))
+                    nnodes = int(os.environ.get('SLURM_NNODES'))
+                    assert ntasks % nnodes == 0
+                    ntasks_per_node = int(ntasks / nnodes)
                 if ntasks_per_node == 1:
                     assert args.distributed_world_size % nnodes == 0
                     gpus_per_node = args.distributed_world_size // nnodes
