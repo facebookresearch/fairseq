@@ -172,8 +172,14 @@ def make_positions(tensor, padding_idx, onnx_trace=False):
 
     Position numbers begin at padding_idx+1. Padding symbols are ignored.
     """
-    mask = tensor.ne(padding_idx).long()
-    return torch.cumsum(mask, dim=1) * mask + padding_idx
+    # The series of casts and type-conversions here are carefully
+    # balanced to both work with ONNX export and XLA. In particular XLA
+    # prefers ints, cumsum defaults to output longs, and ONNX doesn't know
+    # how to handle the dtype kwarg in cumsum.
+    mask = tensor.ne(padding_idx).int()
+    return (
+        torch.cumsum(mask, dim=1).type_as(mask) * mask
+    ).long() + padding_idx
 
 
 def strip_pad(tensor, pad):
