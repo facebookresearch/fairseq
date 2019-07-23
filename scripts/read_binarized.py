@@ -8,8 +8,7 @@
 
 import argparse
 
-from fairseq.data import Dictionary
-from fairseq.data import indexed_dataset
+from fairseq.data import data_utils, Dictionary, indexed_dataset
 
 
 def get_parser():
@@ -30,8 +29,12 @@ def main():
     args = parser.parse_args()
 
     dictionary = Dictionary.load(args.dict) if args.dict is not None else None
-    dataset = indexed_dataset.make_dataset(args.input, impl=args.dataset_impl,
-                                           fix_lua_indexing=True, dictionary=dictionary)
+    dataset = data_utils.load_indexed_dataset(
+        args.input,
+        dictionary,
+        dataset_impl=args.dataset_impl,
+        default='lazy',
+    )
 
     for tensor_line in dataset:
         if dictionary is None:
