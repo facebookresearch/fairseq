@@ -358,3 +358,15 @@ def load_pretrained_component_from_model(
             component_state_dict[component_subkey] = state["model"][key]
     component.load_state_dict(component_state_dict, strict=True)
     return component
+
+
+def verify_checkpoint_directory(save_dir: str) -> None:
+    temp_file_path = os.path.join(save_dir, 'dummy')
+    try:
+        with open(temp_file_path, 'w'):
+            pass
+    except OSError as e:
+        print('| Unable to access checkpoint save directory: {}'.format(save_dir))
+        raise e
+    else:
+        os.remove(temp_file_path)
