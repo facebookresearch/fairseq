@@ -75,12 +75,25 @@ def main(args, init_distributed=False):
     train_meter.start()
     valid_losses = [None]
     valid_subsets = args.valid_subset.split(',')
+    not_best_checkpoint = 0
     while lr > args.min_lr and epoch_itr.epoch < max_epoch and trainer.get_num_updates() < max_update:
         # train for one epoch
         train(args, trainer, task, epoch_itr)
 
         if not args.disable_validation and epoch_itr.epoch % args.validate_interval == 0:
             valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+            if args.patience > 0:
+                prev_best = getattr(checkpoint_utils.save_checkpoint, 'best', valid_losses[0])
+                def is_better(a, b):
+                    return a > b if args.maximize_best_checkpoint_metric else a < b
+                if is_better(prev_best, valid_losses[0]):
+                    not_best_checkpoint += 1
+                    print("| Not the best ckpt... not best:", not_best_checkpoint)
+                    if not_best_checkpoint >= args.patience:
+                        print("| Ran out of patience. Early stop...")
+                        break
+                else:
+                    not_best_checkpoint = 0
         else:
             valid_losses = [None]
 
