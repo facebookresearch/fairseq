@@ -13,13 +13,13 @@ Adaptive Inputs <br> ([Baevski and Auli, 2018](https://arxiv.org/abs/1809.10853)
 Interactive generation via PyTorch Hub:
 ```
 >>> import torch
+>>> torch.hub.list('pytorch/fairseq')
+[..., 'transformer_lm.gbw.adaptive_huge', 'transformer_lm.wiki103.adaptive', ...]
 >>> lm = torch.hub.load(
 ...   'pytorch/fairseq',
-...   'transformer_lm',
-...   model_name_or_path='transformer_lm.wiki103.adaptive',
+...   'transformer_lm.wiki103.adaptive',
 ...   data_name_or_path='./data-bin',
 ...   tokenizer='moses',
-...   aggressive_dash_splits=True,
 ...   no_escape=True,
 ...   beam=1,
 ...   sampling=True,

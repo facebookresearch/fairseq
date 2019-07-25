@@ -13,14 +13,14 @@ Transformer <br> ([Edunov et al., 2018](https://arxiv.org/abs/1808.09381); WMT'1
 Interactive generation from the full ensemble via PyTorch Hub:
 ```
 >>> import torch
+>>> torch.hub.list('pytorch/fairseq')
+[..., 'transformer.wmt14.en-fr', 'transformer.wmt16.en-de', 'transformer.wmt18.en-de', ... ]
 >>> en2de_ensemble = torch.hub.load(
 ...   'pytorch/fairseq',
-...   'transformer',
-...   model_name_or_path='transformer.wmt18.en-de',
+...   'transformer.wmt18.en-de',
 ...   checkpoint_file='wmt18.model1.pt:wmt18.model2.pt:wmt18.model3.pt:wmt18.model4.pt:wmt18.model5.pt',
 ...   data_name_or_path='.',
 ...   tokenizer='moses',
-...   aggressive_dash_splits=True,
 ...   bpe='subword_nmt',
 ... )
 >>> len(en2de_ensemble.models)
