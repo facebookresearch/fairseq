@@ -16,13 +16,13 @@ Transformer <br> ([Edunov et al., 2018](https://arxiv.org/abs/1808.09381); WMT'1
 Interactive generation via PyTorch Hub:
 ```
 >>> import torch
+>>> torch.hub.list('pytorch/fairseq')
+[..., 'transformer.wmt14.en-fr', 'transformer.wmt16.en-de', 'transformer.wmt18.en-de', ... ]
 >>> en2de = torch.hub.load(
 ...   'pytorch/fairseq',
-...   'transformer',
-...   model_name_or_path='transformer.wmt16.en-de',
+...   'transformer.wmt16.en-de',
 ...   data_name_or_path='.',
 ...   tokenizer='moses',
-...   aggressive_dash_splits=True,
 ...   bpe='subword_nmt',
 ... )
 >>> print(en2de.models[0].__class__)
