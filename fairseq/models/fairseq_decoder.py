@@ -22,7 +22,7 @@ class FairseqDecoder(nn.Module):
         """
         Args:
             prev_output_tokens (LongTensor): shifted output tokens of shape
-                `(batch, tgt_len)`, for input feeding/teacher forcing
+                `(batch, tgt_len)`, for teacher forcing
             encoder_out (dict, optional): output from the encoder, used for
                 encoder-side attention
 

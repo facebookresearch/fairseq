@@ -345,7 +345,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
-                `(batch, tgt_len)`, for input feeding/teacher forcing
+                `(batch, tgt_len)`, for teacher forcing
             encoder_out (Tensor, optional): output from the encoder, used for
                 encoder-side attention
             incremental_state (dict): dictionary used for storing state during
