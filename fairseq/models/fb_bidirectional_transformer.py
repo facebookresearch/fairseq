@@ -105,7 +105,7 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
 
         if not hasattr(args, 'max_source_positions'):
             args.max_source_positions = args.tokens_per_sample
-        if not hasattr(args, 'max_target_positions'):
+        if not getattr(args, "max_target_positions", None):
             args.max_target_positions = args.tokens_per_sample
 
         if args.character_embeddings:
