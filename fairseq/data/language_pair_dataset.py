@@ -88,8 +88,7 @@ class LanguagePairDataset(FairseqDataset):
         shuffle (bool, optional): shuffle dataset elements before batching
             (default: True).
         input_feeding (bool, optional): create a shifted version of the targets
-            to be passed into the model for input feeding/teacher forcing
-            (default: True).
+            to be passed into the model for teacher forcing (default: True).
         remove_eos_from_source (bool, optional): if set, removes eos from end
             of source if it's present (default: False).
         append_eos_to_target (bool, optional): if set, appends eos to end of
@@ -167,10 +166,10 @@ class LanguagePairDataset(FairseqDataset):
                   - `src_lengths` (LongTensor): 1D Tensor of the unpadded
                     lengths of each source sentence of shape `(bsz)`
                   - `prev_output_tokens` (LongTensor): a padded 2D Tensor of
-                    tokens in the target sentence, shifted right by one position
-                    for input feeding/teacher forcing, of shape `(bsz,
-                    tgt_len)`. This key will not be present if *input_feeding*
-                    is ``False``. Padding will appear on the left if
+                    tokens in the target sentence, shifted right by one
+                    position for teacher forcing, of shape `(bsz, tgt_len)`.
+                    This key will not be present if *input_feeding* is
+                    ``False``.  Padding will appear on the left if
                     *left_pad_target* is ``True``.
 
                 - `target` (LongTensor): a padded 2D Tensor of tokens in the

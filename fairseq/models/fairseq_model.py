@@ -202,8 +202,8 @@ class FairseqEncoderDecoderModel(BaseFairseqModel):
         Run the forward pass for an encoder-decoder model.
 
         First feed a batch of source tokens through the encoder. Then, feed the
-        encoder output and previous decoder outputs (i.e., input feeding/teacher
-        forcing) to the decoder to produce the next outputs::
+        encoder output and previous decoder outputs (i.e., teacher forcing) to
+        the decoder to produce the next outputs::
 
             encoder_out = self.encoder(src_tokens, src_lengths)
             return self.decoder(prev_output_tokens, encoder_out)
@@ -213,7 +213,7 @@ class FairseqEncoderDecoderModel(BaseFairseqModel):
                 `(batch, src_len)`
             src_lengths (LongTensor): source sentence lengths of shape `(batch)`
             prev_output_tokens (LongTensor): previous decoder outputs of shape
-                `(batch, tgt_len)`, for input feeding/teacher forcing
+                `(batch, tgt_len)`, for teacher forcing
 
         Returns:
             tuple:

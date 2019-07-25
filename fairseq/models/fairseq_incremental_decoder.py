@@ -13,7 +13,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
 
     Incremental decoding is a special mode at inference time where the Model
     only receives a single timestep of input corresponding to the previous
-    output token (for input feeding) and must produce the next output
+    output token (for teacher forcing) and must produce the next output
     *incrementally*. Thus the model must cache any long-term state that is
     needed about the sequence, e.g., hidden states, convolutional states, etc.
 
@@ -37,7 +37,7 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         """
         Args:
             prev_output_tokens (LongTensor): shifted output tokens of shape
-                `(batch, tgt_len)`, for input feeding/teacher forcing
+                `(batch, tgt_len)`, for teacher forcing
             encoder_out (dict, optional): output from the encoder, used for
                 encoder-side attention
             incremental_state (dict, optional): dictionary used for storing
