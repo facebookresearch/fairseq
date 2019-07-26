@@ -4,7 +4,7 @@ TODO: paper link
 
 ## Introduction
 
-**RoBERTa** iterates on and optimizes BERT's pretraining strategy, including removing the next-sentence prediction loss, and training with much larger mini-batches and higher learning rates. RoBERTa is additionally trained much longer using an order of magnitude more data than BERT. See the associated paper for detailed ablations demonstrating the impact of each of these changes.
+**RoBERTa** iterates on and optimizes BERT's pretraining strategy, including training the model longer, with bigger batches over more data; removing the next sentence prediction objective; training on longer sequences; and dynamically changing the masking pattern applied to the training data. See the associated paper for more detailed ablations demonstrating the impact of each of these changes.
 
 ## Pre-trained models
 
@@ -39,6 +39,7 @@ torch.Size([1, 5, 1024])
 Use RoBERTa for sentence-pair classification tasks:
 ```
 >>> roberta = torch.hub.load('pytorch/fairseq', 'roberta.large.mnli')  # already finetuned
+>>> roberta.eval()
 
 >>> tokens = roberta.encode(
 ...   'Roberta is a heavily optimized version of BERT.',
@@ -77,13 +78,10 @@ tensor([[-1.2115, -1.1883, -0.9225]], device='cuda:0', grad_fn=<LogSoftmaxBackwa
 
 Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
 ---|---|---|---|---|---|---|---|---
-XLNet-base | 86.8 | 91.7 | 91.4 | 74.0 | 94.7 | 88.2 | 60.2 | 89.5
 `roberta.base` | **87.6** | **92.8** | **91.9** | **78.7** | **94.8** | **90.2** | **63.6** | **91.2**
 
 Model | MNLI-m | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
 ---|---|---|---|---|---|---|---|---
-BERT-large | 86.6 | 92.3 | 91.3 | 70.4 | 93.2 | 88.0 | 60.6 | 90.0
-XLNet-large | 89.8 | 93.9 | 91.8 | 83.8 | 95.6 | 89.2 | 63.6 | 91.8
 `roberta.large` | **90.2** | **94.7** | **92.2** | **86.6** | **96.4** | **90.9** | **68.0** | **92.4**
 `roberta.large.mnli` | **90.2** | - | - | - | - | - | - | -
 
@@ -91,22 +89,42 @@ XLNet-large | 89.8 | 93.9 | 91.8 | 83.8 | 95.6 | 89.2 | 63.6 | 91.8
 
 Model | SQuAD 1.1 EM/F1 | SQuAD 2.0 EM/F1
 ---|---|---
-XLNet-base | -/- | 80.2/-
-XLNet-large | -/- | 86.1/-
-`roberta.base` | -/- | -/-
 `roberta.large` | 88.9/94.6 | **86.5**/89.4
 
 ### Results on Reading Comprehension (RACE, test set)
 
 Model | Accuracy | Middle | High
 ---|---|---|---
-BERT-large | 72.0 | 76.6 | 70.1
-XLNet-large | 81.7 | 85.4 | 80.2
 `roberta.large` | **83.2** | **86.5** | **81.3**
+
+## Evaluating the `roberta.large.mnli` model
+
+Example python code snippet to eval on MNLI dev_matched set.
+```
+label_map = {0: 'contradiction', 1: 'neutral', 2: 'entailment'}
+ncorrect, nsamples = 0, 0
+roberta.eval()
+with open('glue_data/MNLI/dev_matched.tsv') as fin:
+    fin.readline()
+    for index, line in enumerate(fin):
+        tokens = line.strip().split('\t')
+        sent1, sent2, label = tokens[8], tokens[9], tokens[-1]
+        tokens = roberta.encode(sent1, sent2)
+        prediction = roberta.predict('mnli', tokens).argmax().item()
+        prediciton_label = label_map[prediction]
+        ncorrect += int(prediciton_label == label)
+        samples += 1
+print('| Accuracy: ', float(ncorrect)/float(nsamples))
+# Expected output: 0.9060
+```
 
 ## Finetuning on GLUE tasks
 
+Coming soon.
+
 ## Pretraining over your own data
+
+Coming soon.
 
 ## Citation
 

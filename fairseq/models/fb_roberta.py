@@ -94,10 +94,10 @@ class RobertaHubInterface(nn.Module):
         return self._float_tensor.device
 
     def encode(self, sentence: str, *addl_sentences) -> torch.LongTensor:
-        bpe_sentence = '<s> ' + self.bpe.encode(sentence)
+        bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
         for s in addl_sentences:
             bpe_sentence += ' </s> ' + self.bpe.encode(s)
-        tokens = self.task.source_dictionary.encode_line(bpe_sentence)
+        tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=True)
         return tokens.long()
 
     def extract_features(self, tokens: torch.LongTensor) -> torch.Tensor:
@@ -125,9 +125,9 @@ class RobertaModel(FairseqLanguageModel):
     @classmethod
     def hub_models(cls):
         return {
-            'roberta.large': '/private/home/myleott/roberta.large',
-            'roberta.large.mnli': '/private/home/myleott/roberta.large.mnli',
-            # 'roberta.base': TODO
+            'roberta.base': 'http://dl.fbaipublicfiles.com/fairseq/models/roberta.base.tar.gz',
+            'roberta.large': 'http://dl.fbaipublicfiles.com/fairseq/models/roberta.large.tar.gz',
+            'roberta.large.mnli': 'http://dl.fbaipublicfiles.com/fairseq/models/roberta.large.mnli.tar.gz',
         }
 
     def __init__(self, args, encoder):
