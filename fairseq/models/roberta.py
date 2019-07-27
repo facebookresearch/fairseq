@@ -49,6 +49,7 @@ class RobertaHubInterface(nn.Module):
     Use RoBERTa for sentence-pair classification tasks::
 
         >>> roberta = torch.hub.load('pytorch/fairseq', 'roberta.large.mnli')  # already finetuned
+        >>> roberta.eval()  # disable dropout for evaluation
 
         >>> tokens = roberta.encode(
         ...   'Roberta is a heavily optimized version of BERT.',
@@ -68,14 +69,13 @@ class RobertaHubInterface(nn.Module):
 
         >>> roberta.register_classification_head('new_task', num_classes=3)
         >>> roberta.predict('new_task', tokens)
-        tensor([[-1.2268, -1.1885, -0.9111]], grad_fn=<LogSoftmaxBackward>)
+        tensor([[-1.1050, -1.0672, -1.1245]], grad_fn=<LogSoftmaxBackward>)
 
     Using the GPU::
 
         >>> roberta.cuda()
         >>> roberta.predict('new_task', tokens)
-        tensor([[-1.2115, -1.1883, -0.9225]], device='cuda:0',
-               grad_fn=<LogSoftmaxBackward>)
+        tensor([[-1.1050, -1.0672, -1.1245]], device='cuda:0', grad_fn=<LogSoftmaxBackward>)
     """
 
     def __init__(self, args, task, model):
@@ -211,7 +211,7 @@ class RobertaModel(FairseqLanguageModel):
         prefix = name + '.' if name != '' else ''
 
         # recreate any classification heads present in the state dict
-        for k, v in state_dict.items():
+        for k in state_dict.keys():
             if not k.startswith(prefix + 'classification_heads.'):
                 continue
             head_name = k[len(prefix + 'classification_heads.'):].split('.')[0]

@@ -1,6 +1,6 @@
 # RoBERTa: A Robustly Optimized BERT Pretraining Approach
 
-TODO: paper link
+*Pre-print coming 7/28*
 
 ## Introduction
 
