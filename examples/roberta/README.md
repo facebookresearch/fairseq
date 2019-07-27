@@ -20,6 +20,7 @@ Model | Description | # params | Download
 ```
 >>> import torch
 >>> roberta = torch.hub.load('pytorch/fairseq', 'roberta.large')
+>>> roberta.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
 ##### Apply Byte-Pair Encoding (BPE) to input text:
@@ -31,9 +32,16 @@ tensor([    0, 31414,   232,   328,     2])
 
 ##### Extract features from RoBERTa:
 ```
->>> features = roberta.extract_features(tokens)
->>> features.size()
+>>> last_layer_features = roberta.extract_features(tokens)
+>>> last_layer_features.size()
 torch.Size([1, 5, 1024])
+
+>>> all_layers = roberta.extract_features(tokens, return_all_hiddens=True)
+>>> len(all_layers)
+25
+
+>>> torch.all(all_layers[-1] == last_layer_features)
+tensor(1, dtype=torch.uint8)
 ```
 
 ##### Use RoBERTa for sentence-pair classification tasks:
