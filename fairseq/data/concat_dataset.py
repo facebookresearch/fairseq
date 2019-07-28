@@ -8,6 +8,7 @@
 import bisect
 
 import numpy as np
+from torch.utils.data.dataloader import default_collate
 
 from . import FairseqDataset
 
@@ -50,7 +51,10 @@ class ConcatDataset(FairseqDataset):
 
     def collater(self, samples):
         # For now only supports datasets with same underlying collater implementations
-        return self.datasets[0].collater(samples)
+        if hasattr(self.datasets[0], 'collater'):
+            return self.datasets[0].collater(samples)
+        else:
+            return default_collate(samples)
 
     def size(self, idx: int):
         """
