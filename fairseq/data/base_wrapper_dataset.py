@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from torch.utils.data._utils.collate import default_collate
+from torch.utils.data.dataloader import default_collate
 
 from . import FairseqDataset
 
