@@ -12,6 +12,7 @@ import torch
 
 from fairseq import utils
 from fairseq.data import encoders
+from fairseq.models import BaseFairseqModel
 
 
 def from_pretrained(
@@ -57,7 +58,7 @@ def from_pretrained(
     }
 
 
-class Generator(object):
+class Generator(BaseFairseqModel):
     """PyTorch Hub API for generating sequences from a pre-trained translation
     or language model."""
 
@@ -69,6 +70,11 @@ class Generator(object):
         self.tgt_dict = task.target_dictionary
         self.use_cuda = torch.cuda.is_available() and not getattr(args, 'cpu', False)
 
+        if self.use_cuda:
+            if getattr(args, 'fp16', False):
+                self.half()
+            self.cuda()
+
         # optimize model for generation
         for model in self.models:
             model.make_generation_fast_(
@@ -78,10 +84,6 @@ class Generator(object):
                 ),
                 need_attn=getattr(args, 'print_alignment', False),
             )
-            if self.use_cuda:
-                if getattr(args, 'fp16', False):
-                    model.half()
-                model.cuda()
 
         self.generator = self.task.build_generator(args)
 
