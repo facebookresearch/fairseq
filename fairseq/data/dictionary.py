@@ -52,6 +52,9 @@ class Dictionary(object):
         """Returns the number of symbols in the dictionary"""
         return len(self.symbols)
 
+    def __contains__(self, sym):
+        return sym in self.indices
+
     def index(self, sym):
         """Returns the index of the specified symbol"""
         assert isinstance(sym, str)

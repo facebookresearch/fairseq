@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from functools import lru_cache
 import os
 import shutil
 import struct
@@ -146,6 +147,7 @@ class IndexedDataset(FairseqDataset):
         if self.data_file:
             self.data_file.close()
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         if not self.data_file:
             self.read_data(self.path)
@@ -214,6 +216,7 @@ class IndexedCachedDataset(IndexedDataset):
             self.data_file.close()
             self.data_file = None
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         self.check_index(i)
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
@@ -255,6 +258,7 @@ class IndexedRawTextDataset(FairseqDataset):
         if i < 0 or i >= self.size:
             raise IndexError('index out of range')
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         self.check_index(i)
         return self.tokens_list[i]
@@ -429,6 +433,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         def sizes(self):
             return self._sizes
 
+        @lru_cache(maxsize=8)
         def __getitem__(self, i):
             return self._pointers[i], self._sizes[i]
 
@@ -466,6 +471,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self._index)
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         ptr, size = self._index[i]
         np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)

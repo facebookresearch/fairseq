@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import numpy as np
 import torch.utils.data
 
 
@@ -41,7 +42,7 @@ class FairseqDataset(torch.utils.data.Dataset):
     def ordered_indices(self):
         """Return an ordered list of indices. Batches will be constructed based
         on this order."""
-        raise NotImplementedError
+        return np.arange(len(self))
 
     @property
     def supports_prefetch(self):
