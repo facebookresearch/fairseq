@@ -38,6 +38,7 @@ def init_bert_params(module):
             module.bias.data.zero_()
     if isinstance(module, nn.Embedding):
         module.weight.data.normal_(mean=0.0, std=0.02)
+        module.weight.data[module.padding_idx].zero_()
     if isinstance(module, MultiheadAttention):
         module.in_proj_weight.data.normal_(mean=0.0, std=0.02)
 
