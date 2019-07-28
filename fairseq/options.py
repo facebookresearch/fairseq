@@ -252,7 +252,7 @@ def add_preprocess_args(parser):
 def add_dataset_args(parser, train=False, gen=False):
     group = parser.add_argument_group('Dataset and data loading')
     # fmt: off
-    group.add_argument('--num-workers', default=0, type=int, metavar='N',
+    group.add_argument('--num-workers', default=1, type=int, metavar='N',
                        help='how many subprocesses to use for data loading')
     group.add_argument('--skip-invalid-size-inputs-valid-test', action='store_true',
                        help='ignore too long or too short lines in valid and test set')
