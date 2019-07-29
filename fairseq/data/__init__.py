@@ -14,6 +14,7 @@ from .base_wrapper_dataset import BaseWrapperDataset
 from .audio.raw_audio_dataset import RawAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .concat_dataset import ConcatDataset
+from .concat_sentences_dataset import ConcatSentencesDataset
 from .id_dataset import IdDataset
 from .indexed_dataset import IndexedCachedDataset, IndexedDataset, IndexedRawTextDataset, MMapIndexedDataset
 from .language_pair_dataset import LanguagePairDataset
@@ -25,13 +26,17 @@ from .nested_dictionary_dataset import NestedDictionaryDataset
 from .noising import NoisingDataset
 from .numel_dataset import NumelDataset
 from .num_samples_dataset import NumSamplesDataset
+from .offset_tokens_dataset import OffsetTokensDataset
 from .pad_dataset import LeftPadDataset, PadDataset, RightPadDataset
 from .prepend_token_dataset import PrependTokenDataset
+from .raw_label_dataset import RawLabelDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
 from .sort_dataset import SortDataset
+from .strip_token_dataset import StripTokenDataset
 from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
 from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
+from .truncate_dataset import TruncateDataset
 
 from .iterators import (
     CountingIterator,
@@ -44,6 +49,7 @@ __all__ = [
     'BacktranslationDataset',
     'BaseWrapperDataset',
     'ConcatDataset',
+    'ConcatSentencesDataset',
     'CountingIterator',
     'Dictionary',
     'EpochBatchIterator',
@@ -64,15 +70,19 @@ __all__ = [
     'NoisingDataset',
     'NumelDataset',
     'NumSamplesDataset',
+    "OffsetTokensDataset",
     'PadDataset',
     'PrependTokenDataset',
     'RawAudioDataset',
+    "RawLabelDataset",
     'RightPadDataset',
     'RoundRobinZipDatasets',
     'ShardedIterator',
     'SortDataset',
+    "StripTokenDataset",
     'TokenBlockDataset',
     'TransformEosDataset',
     'TransformEosLangPairDataset',
+    "TruncateDataset",
     'TruncatedDictionary',
 ]

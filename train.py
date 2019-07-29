@@ -130,7 +130,7 @@ def train(args, trainer, task, epoch_itr):
         for k, v in log_output.items():
             if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
                 continue  # these are already logged above
-            if 'loss' in k:
+            if 'loss' in k or k == 'accuracy':
                 extra_meters[k].update(v, log_output['sample_size'])
             else:
                 extra_meters[k].update(v)
@@ -236,16 +236,20 @@ def validate(args, trainer, task, epoch_itr, subsets):
                 extra_meters[k].update(v)
 
         # log validation stats
-        stats = get_valid_stats(trainer)
+        stats = get_valid_stats(trainer, args, extra_meters)
         for k, meter in extra_meters.items():
             stats[k] = meter.avg
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
-        valid_losses.append(stats[args.best_checkpoint_metric].avg)
+        valid_losses.append(
+            stats[args.best_checkpoint_metric].avg
+            if args.best_checkpoint_metric == 'loss'
+            else stats[args.best_checkpoint_metric]
+        )
     return valid_losses
 
 
-def get_valid_stats(trainer):
+def get_valid_stats(trainer, args, extra_meters=None):
     stats = collections.OrderedDict()
     stats['loss'] = trainer.get_meter('valid_loss')
     if trainer.get_meter('valid_nll_loss').count > 0:
@@ -256,8 +260,23 @@ def get_valid_stats(trainer):
     stats['ppl'] = utils.get_perplexity(nll_loss.avg)
     stats['num_updates'] = trainer.get_num_updates()
     if hasattr(checkpoint_utils.save_checkpoint, 'best'):
-        stats['best_loss'] = min(
-            checkpoint_utils.save_checkpoint.best, stats['loss'].avg)
+        key = f'best_{args.best_checkpoint_metric}'
+        best_function = max if args.maximize_best_checkpoint_metric else min
+
+        current_metric = None
+        if args.best_checkpoint_metric == 'loss':
+            current_metric = stats['loss'].avg
+        elif args.best_checkpoint_metric in extra_meters:
+            current_metric = extra_meters[args.best_checkpoint_metric].avg
+        elif args.best_checkpoint_metric in stats:
+            current_metric = stats[args.best_checkpoint_metric]
+        else:
+            raise ValueError("best_checkpoint_metric not found in logs")
+
+        stats[key] = best_function(
+            checkpoint_utils.save_checkpoint.best,
+            current_metric,
+        )
     return stats
 
 

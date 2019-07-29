@@ -24,11 +24,16 @@ from fairseq.models import FairseqEncoder, FairseqDecoder
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
     from fairseq import distributed_utils, meters
 
+    prev_best = getattr(save_checkpoint, 'best', val_loss)
+    if val_loss is not None:
+        best_function = max if args.maximize_best_checkpoint_metric else min
+        save_checkpoint.best = best_function(val_loss, prev_best)
+
     if args.no_save or not distributed_utils.is_master(args):
         return
 
     def is_better(a, b):
-        return a > b if args.maximize_best_checkpoint_metric else a < b
+        return a >= b if args.maximize_best_checkpoint_metric else a <= b
 
     write_timer = meters.StopwatchMeter()
     write_timer.start()
@@ -52,9 +57,6 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     )
     checkpoint_conds['checkpoint_last.pt'] = not args.no_last_checkpoints
 
-    prev_best = getattr(save_checkpoint, 'best', val_loss)
-    if val_loss is not None:
-        save_checkpoint.best = val_loss if is_better(val_loss, prev_best) else prev_best
     extra_state = {
         'train_iterator': epoch_itr.state_dict(),
         'val_loss': val_loss,
