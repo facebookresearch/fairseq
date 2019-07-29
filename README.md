@@ -36,7 +36,7 @@ Fairseq provides reference implementations of various sequence-to-sequence model
 - fast generation on both CPU and GPU with multiple search algorithms implemented:
   - beam search
   - Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
-  - sampling (unconstrained and top-k)
+  - sampling (unconstrained, top-k and top-p/nucleus)
 - large mini-batch training even on a single GPU via delayed updates
 - mixed precision training (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
 - extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
