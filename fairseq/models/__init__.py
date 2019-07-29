@@ -123,7 +123,7 @@ def register_model_architecture(model_name, arch_name):
 
 # automatically import any Python files in the models/ directory
 for file in os.listdir(os.path.dirname(__file__)):
-    if not file.startswith('_'):
+    if not file.startswith('_') and not file.endswith('~'):
         model_name = file[:file.find('.py')] if file.endswith('.py') else file
         module = importlib.import_module('fairseq.models.' + model_name)
 
