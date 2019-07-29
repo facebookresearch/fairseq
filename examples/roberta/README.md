@@ -1,6 +1,6 @@
 # RoBERTa: A Robustly Optimized BERT Pretraining Approach
 
-*Pre-print coming 7/28*
+https://arxiv.org/abs/1907.11692
 
 ## Introduction
 
@@ -144,6 +144,7 @@ A more detailed tutorial is coming soon.
   author = {Yinhan Liu and Myle Ott and Naman Goyal and Jingfei Du and
             Mandar Joshi and Danqi Chen and Omer Levy and Mike Lewis and
             Luke Zettlemoyer and Veselin Stoyanov},
+  journal={arXiv preprint arXiv:1907.11692},
   year = {2019},
 }
 ```

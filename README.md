@@ -1,9 +1,18 @@
-# Introduction <img src="fairseq_logo.png" width="50"> 
+# <img src="fairseq_logo.png" width="30"> Introduction
 
 Fairseq(-py) is a sequence modeling toolkit that allows researchers and
 developers to train custom models for translation, summarization, language
-modeling and other text generation tasks. It provides reference implementations
-of various sequence-to-sequence models, including:
+modeling and other text generation tasks.
+
+### What's New:
+
+- July 2019: [RoBERTa models and code release](examples/roberta/README.md)
+- June 2019: [wav2vec models and code release](examples/wav2vec/README.md)
+- April 2019: [fairseq demo paper @ NAACL 2019](https://arxiv.org/abs/1904.01038)
+
+### Features:
+
+Fairseq provides reference implementations of various sequence-to-sequence models, including:
 - **Convolutional Neural Networks (CNN)**
   - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/language_model/conv_lm/README.md)
   - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
@@ -11,18 +20,18 @@ of various sequence-to-sequence models, including:
   - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
   - **_New_** [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
 - **LightConv and DynamicConv models**
-  - **_New_** [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
+  - [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
 - **Long Short-Term Memory (LSTM) networks**
-  - [Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation](https://arxiv.org/abs/1508.04025)
-  - [Wiseman and Rush (2016): Sequence-to-Sequence Learning as Beam-Search Optimization](https://arxiv.org/abs/1606.02960)
+  - Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation
 - **Transformer (self-attention) networks**
-  - [Vaswani et al. (2017): Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+  - Vaswani et al. (2017): Attention Is All You Need
   - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
   - [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)
-  - **_New_** [Baevski and Auli (2018): Adaptive Input Representations for Neural Language Modeling](examples/language_model/transformer_lm/README.md)
-  - **_New_** [Shen et al. (2019): Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
+  - [Baevski and Auli (2018): Adaptive Input Representations for Neural Language Modeling](examples/language_model/transformer_lm/README.md)
+  - [Shen et al. (2019): Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
+  - **_New_** [Liu et al. (2019): RoBERTa: A Robustly Optimized BERT Pretraining Approach](examples/roberta/README.md)
 
-Fairseq features:
+**Additionally:**
 - multi-GPU (distributed) training on one machine or across multiple machines
 - fast generation on both CPU and GPU with multiple search algorithms implemented:
   - beam search
@@ -83,6 +92,7 @@ as well as example training and evaluation commands.
 - [Language Modeling](examples/language_model/README.md): convolutional models are available
 
 We also have more detailed READMEs to reproduce results from specific papers:
+- [Liu et al. (2019): RoBERTa: A Robustly Optimized BERT Pretraining Approach](examples/roberta/README.md)
 - [Schneider et al. (2019): wav2vec: Unsupervised Pre-training for Speech Recognition](examples/wav2vec/README.md)
 - [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
 - [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
