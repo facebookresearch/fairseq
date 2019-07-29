@@ -75,6 +75,8 @@ class RobertaModel(FairseqLanguageModel):
                             help='dropout probability after activation in FFN')
         parser.add_argument('--pooler-dropout', type=float, metavar='D',
                             help='dropout probability in the masked_lm pooler layers')
+        parser.add_argument('--max-positions', type=int,
+                            help='number of positional embeddings to learn')
 
     @classmethod
     def build_model(cls, args, task):
