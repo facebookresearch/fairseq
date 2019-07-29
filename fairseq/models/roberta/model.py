@@ -13,7 +13,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import utils
-from fairseq.data import encoders
 from fairseq.models import (
     FairseqDecoder,
     FairseqLanguageModel,
@@ -26,113 +25,7 @@ from fairseq.modules import (
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
-
-class RobertaHubInterface(nn.Module):
-    """A simple PyTorch Hub interface to RoBERTa.
-
-    Load RoBERTa::
-
-        >>> roberta = torch.hub.load('pytorch/fairseq', 'roberta.large')
-        >>> roberta.eval()  # disable dropout (or leave in train mode to finetune)
-
-    Apply Byte-Pair Encoding (BPE) to input text::
-
-        >>> tokens = roberta.encode('Hello world!')
-        >>> tokens
-        tensor([    0, 31414,   232,   328,     2])
-
-    Extract features from RoBERTa::
-
-        >>> last_layer_features = roberta.extract_features(tokens)
-        >>> last_layer_features.size()
-        torch.Size([1, 5, 1024])
-
-        >>> all_layers = roberta.extract_features(tokens, return_all_hiddens=True)
-        >>> len(all_layers)
-        25
-        >>> torch.all(all_layers[-1] == last_layer_features)
-        tensor(1, dtype=torch.uint8)
-
-    Use RoBERTa for sentence-pair classification tasks::
-
-        >>> roberta = torch.hub.load('pytorch/fairseq', 'roberta.large.mnli')  # already finetuned
-        >>> roberta.eval()  # disable dropout for evaluation
-
-        >>> tokens = roberta.encode(
-        ...   'Roberta is a heavily optimized version of BERT.',
-        ...   'Roberta is not very optimized.'
-        ... )
-        >>> roberta.predict('mnli', tokens).argmax()
-        tensor(0)  # contradiction
-
-        >>> tokens = roberta.encode(
-        ...   'Roberta is a heavily optimized version of BERT.',
-        ...   'Roberta is based on BERT.'
-        ... )
-        >>> roberta.predict('mnli', tokens).argmax()
-        tensor(2)  # entailment
-
-    Register a new (randomly initialized) classification head::
-
-        >>> roberta.register_classification_head('new_task', num_classes=3)
-        >>> roberta.predict('new_task', tokens)
-        tensor([[-1.1050, -1.0672, -1.1245]], grad_fn=<LogSoftmaxBackward>)
-
-    Using the GPU::
-
-        >>> roberta.cuda()
-        >>> roberta.predict('new_task', tokens)
-        tensor([[-1.1050, -1.0672, -1.1245]], device='cuda:0', grad_fn=<LogSoftmaxBackward>)
-    """
-
-    def __init__(self, args, task, model):
-        super().__init__()
-        self.args = args
-        self.task = task
-        self.model = model
-
-        self.bpe = encoders.build_bpe(args)
-
-        # this is useful for determining the device
-        self.register_buffer('_float_tensor', torch.tensor([0], dtype=torch.float))
-
-    @property
-    def device(self):
-        return self._float_tensor.device
-
-    def encode(self, sentence: str, *addl_sentences) -> torch.LongTensor:
-        bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
-        for s in addl_sentences:
-            bpe_sentence += ' </s> ' + self.bpe.encode(s)
-        tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=True)
-        return tokens.long()
-
-    def extract_features(self, tokens: torch.LongTensor, return_all_hiddens=False) -> torch.Tensor:
-        if tokens.dim() == 1:
-            tokens = tokens.unsqueeze(0)
-        features, extra = self.model(
-            tokens.to(device=self.device),
-            features_only=True,
-            return_all_hiddens=return_all_hiddens,
-        )
-        if return_all_hiddens:
-            # convert from T x B x C -> B x T x C
-            inner_states = extra['inner_states']
-            return [inner_state.transpose(0, 1) for inner_state in inner_states]
-        else:
-            return features  # just the last layer's features
-
-    def register_classification_head(
-        self, name: str, num_classes: int = None, embedding_size: int = None, **kwargs
-    ):
-        self.model.register_classification_head(
-            name, num_classes=num_classes, embedding_size=embedding_size, **kwargs
-        )
-
-    def predict(self, head: str, tokens: torch.LongTensor):
-        features = self.extract_features(tokens)
-        logits = self.model.classification_heads[head](features)
-        return F.log_softmax(logits, dim=-1)
+from .hub_interface import RobertaHubInterface
 
 
 @register_model('roberta')
