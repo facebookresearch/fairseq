@@ -134,9 +134,77 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 # Expected output: 0.9060
 ```
 
+
 ## Finetuning on GLUE tasks
 
-A more detailed tutorial is coming soon.
+##### 1) Download the data from GLUE website (https://gluebenchmark.com/tasks) using following commands:
+```
+$ wget https://gist.githubusercontent.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e/raw/17b8dd0d724281ed7c3b2aeeda662b92809aadd5/download_glue_data.py
+$ python download_glue_data.py --data_dir glue_data --tasks all
+```
+
+##### 2) Preprocess GLUE task data:
+```
+$ ./examples/roberta/preprocess_GLUE_tasks.sh glue_data <glue_task_name>
+```
+`glue_task_name` is one of the following:
+`{ALL, QQP, MNLI, QNLI, MRPC, RTE, STS-B, SST-2, CoLA}`
+Use `ALL` for preprocessing all the glue tasks.
+
+##### 3) Fine-tuning on GLUE task :
+Example fine-tuning cmd for `RTE` task
+```
+TOTAL_NUM_UPDATES=2036  # 10 epochs through RTE for bsz 16
+WARMUP_UPDATES=122      # 6 percent of the number of updates
+LR=2e-05                # Peak LR for polynomial LR scheduler.
+NUM_CLASSES=2
+MAX_SENTENCES=16        # Batch size.
+
+CUDA_VISIBLE_DEVICES=0 python train.py RTE-bin/ \
+--restore-file <roberta_large_absolute_path> \
+--max-positions 512 \
+--max-sentences $MAX_SENTENCES \
+--max-tokens 4400 \
+--task sentence_prediction \
+--reset-optimizer --reset-dataloader --reset-meters \
+--required-batch-size-multiple 1 \
+--init-token 0 --separator-token 2 \
+--arch roberta_large \
+--criterion sentence_prediction \
+--num-classes $NUM_CLASSES \
+--dropout 0.1 --attention-dropout 0.1 \
+--weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
+--clip-norm 0.0 \
+--lr-scheduler polynomial_decay --lr $LR --total-num-update $TOTAL_NUM_UPDATES --warmup-updates $WARMUP_UPDATES \
+--fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
+--max-epoch 10 \
+--best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;
+```
+
+For each of the GLUE task, you will need to use following cmd-line arguments:
+
+Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
+---|---|---|---|---|---|---|---|---
+`--num-classes` | 3 | 2 | 2 | 2 | 2 | 2 | 2 | 1
+`--lr` | 1e-5 | 1e-5 | 1e-5 | 2e-5 | 1e-5 | 1e-5 | 1e-5 | 2e-5
+`--max-sentences` | 32 | 32 | 32 | 16 | 32 | 16 | 16 | 16
+`--total-num-update` | 123873 | 33112 | 113272 | 2036 | 20935 | 2296 | 5336 | 3598
+`--warmup-updates` | 7432 | 1986 | 28318 | 122 | 1256 | 137 | 320 | 214
+
+For `STS-B` additionally use following cmd-line argument:
+```
+--regression-target
+--best-checkpoint-metric loss
+```
+and remove `--maximize-best-checkpoint-metric`.
+
+**Note:**
+
+a) `--total-num-updates` is used by `--polynomial_decay` scheduler and is calculated for `--max-epoch=10` and `--max-sentences=16/32` depending on the task.
+
+b) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb` of memory for each task. Depending on the GPU memory resources available to you, you can use increase `--update-freq` and reduce `--max-sentences`.
+
+c) All the settings in above table are suggested settings based on our hyperparam search within a fixed search space (for careful comparison across models). You might be able to find better metrics with wider hyperparam search.  
 
 ## Pretraining using your own data
 
