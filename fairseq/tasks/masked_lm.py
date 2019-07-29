@@ -178,8 +178,6 @@ class MaskedLMTask(FairseqTask):
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, sort=True):
-        if self.args.also_lowercase_words:
-            raise NotImplementedError
         src_dataset = PadDataset(
             TokenBlockDataset(
                 src_tokens,
