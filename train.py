@@ -9,7 +9,6 @@ Train a new model on one or across multiple GPUs.
 
 import collections
 import math
-import os
 import random
 
 import torch
@@ -258,7 +257,7 @@ def get_valid_stats(trainer, args, extra_meters=None):
     stats['ppl'] = utils.get_perplexity(nll_loss.avg)
     stats['num_updates'] = trainer.get_num_updates()
     if hasattr(checkpoint_utils.save_checkpoint, 'best'):
-        key = f'best_{args.best_checkpoint_metric}'
+        key = 'best_{0}'.format(args.best_checkpoint_metric)
         best_function = max if args.maximize_best_checkpoint_metric else min
 
         current_metric = None
