@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -37,6 +38,19 @@ class RobertaHubInterface(nn.Module):
             bpe_sentence += ' </s> ' + self.bpe.encode(s) + ' </s>'
         tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False)
         return tokens.long()
+
+    def decode(self, tokens: torch.LongTensor):
+        assert tokens.dim() == 1
+        tokens = tokens.numpy()
+        if tokens[0] == self.task.source_dictionary.bos():
+            tokens = tokens[1:]  # remove <s>
+        eos_mask = (tokens == self.task.source_dictionary.eos())
+        doc_mask = eos_mask[1:] & eos_mask[:-1]
+        sentences = np.split(tokens, doc_mask.nonzero()[0] + 1)
+        sentences = [self.bpe.decode(self.task.source_dictionary.string(s)) for s in sentences]
+        if len(sentences) == 1:
+            return sentences[0]
+        return sentences
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens=False) -> torch.Tensor:
         if tokens.dim() == 1:
