@@ -60,6 +60,8 @@ $ tar -xzvf roberta.large.tar.gz
 >>> tokens = roberta.encode('Hello world!')
 >>> tokens
 tensor([    0, 31414,   232,   328,     2])
+>>> roberta.decode(tokens)
+'Hello world!'
 ```
 
 ##### Extract features from RoBERTa:
