@@ -6,6 +6,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- July 2019: fairseq relicensed under MIT license
 - July 2019: [RoBERTa models and code release](examples/roberta/README.md)
 - June 2019: [wav2vec models and code release](examples/wav2vec/README.md)
 - April 2019: [fairseq demo paper @ NAACL 2019](https://arxiv.org/abs/1904.01038)
@@ -109,9 +110,8 @@ We also have more detailed READMEs to reproduce results from specific papers:
 * Google group: https://groups.google.com/forum/#!forum/fairseq-users
 
 # License
-fairseq(-py) is BSD-licensed.
+fairseq(-py) is MIT-licensed.
 The license applies to the pre-trained models as well.
-We also provide an additional patent grant.
 
 # Citation
 
