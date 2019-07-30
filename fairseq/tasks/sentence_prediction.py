@@ -41,8 +41,6 @@ class SentencePredictionTask(FairseqTask):
         """Add task-specific arguments to the parser."""
         parser.add_argument('data', metavar='FILE',
                             help='file prefix for data')
-        parser.add_argument('--max-positions', type=int, default=512,
-                            help='max input length')
         parser.add_argument('--num-classes', type=int, default=-1,
                             help='number of classes')
         parser.add_argument('--init-token', type=int, default=None,
@@ -160,7 +158,7 @@ class SentencePredictionTask(FairseqTask):
                     )
                 )
         else:
-            label_path = f"{get_path('label', split)}.label"
+            label_path = "{0}.label".format(get_path('label', split))
             if os.path.exists(label_path):
                 dataset.update(
                     target=RawLabelDataset([
@@ -182,7 +180,7 @@ class SentencePredictionTask(FairseqTask):
                 sort_order=[shuffle],
             )
 
-        print(f"| Loaded {split} with #samples: {len(dataset)}")
+        print("| Loaded {0} with #samples: {1}".format(split, len(dataset)))
 
         self.datasets[split] = dataset
         return self.datasets[split]
