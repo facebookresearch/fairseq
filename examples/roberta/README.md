@@ -208,6 +208,9 @@ b) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb
 
 c) All the settings in above table are suggested settings based on our hyperparam search within a fixed search space (for careful comparison across models). You might be able to find better metrics with wider hyperparam search.  
 
+## Fine-tuning on custom classification tasks
+[Example of fine-tuning Roberta on simple custom classification task](README.finetune_custom_classification.md)
+
 ## Pretraining using your own data
 
 You can use the [`masked_lm` task](/fairseq/tasks/masked_lm.py) to pretrain RoBERTa from scratch, or to continue pretraining RoBERTa starting from one of the released checkpoints.
