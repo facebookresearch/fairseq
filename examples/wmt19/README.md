@@ -90,8 +90,8 @@ Ru LM | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/lm/w
 ```bibtex
 @inproceedings{ng2019facebook},
   title = {Facebook FAIR's WMT19 News Translation Task Submission},
-  author = {Ng, Nathan and Yee, Kyra and Baevski, Alexei and Ott, Myle and Auli, Michael and Edunov, Sergey},,
-  booktitle = {Conference of the Association for Computational Linguistics (ACL)},
+  author = {Ng, Nathan and Yee, Kyra and Baevski, Alexei and Ott, Myle and Auli, Michael and Edunov, Sergey},
+  booktitle = {Proc. of WMT},
   year = 2019,
 }
 ```
