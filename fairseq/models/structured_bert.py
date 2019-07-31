@@ -94,6 +94,8 @@ class BertConfig(object):
             self.type_vocab_size = type_vocab_size
             self.initializer_range = initializer_range
             self.block_size = block_size
+            self.layer_offsets = None
+            self.head_offsets = None
         else:
             raise ValueError("First argument must be either a vocabulary size (int)"
                              "or the path to a pretrained model config file (str)")
@@ -207,6 +209,8 @@ class BertSelfAttention(nn.Module):
             permutation    : LongTensor of shape (Sentence, ), a bijective mapping about
         """
 
+        batch_size, num_sentence, num_token = hidden_states.size()[:3]
+
         mixed_query_layer = self.query(hidden_states)
         assert not torch.isnan(mixed_query_layer).any()
         mixed_key_layer = self.key(hidden_states)
@@ -214,7 +218,7 @@ class BertSelfAttention(nn.Module):
         mixed_value_layer = self.value(hidden_states)
         assert not torch.isnan(mixed_value_layer).any()
 
-        if permutation is not None:
+        if permutation is not None and permutation.dim() == 1:
             mixed_key_layer = mixed_key_layer.index_select(dim=1, index=permutation)
             mixed_value_layer = mixed_value_layer.index_select(dim=1, index=permutation)
             attention_mask = attention_mask.index_select(dim=1, index=permutation)
@@ -223,6 +227,21 @@ class BertSelfAttention(nn.Module):
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
         # query_layer, key_layer, value_layer are now of shape (Batch, Sentence, Head, Token, Head_Dim)
+
+        if permutation is not None and permutation.dim() == 2:
+            key_layer = key_layer.contiguous().view(batch_size, num_sentence * self.num_attention_heads, num_token, -1)
+            value_layer = value_layer.contiguous().view(batch_size, num_sentence * self.num_attention_heads, num_token, -1)
+            assert attention_mask.size(1) == num_sentence
+            attention_mask = attention_mask.repeat(1, 1, self.num_attention_heads, 1, 1)
+            attention_mask = attention_mask.view(batch_size, num_sentence * self.num_attention_heads, -1, num_token)
+            key_layer = key_layer.index_select(dim=1, index=permutation.flatten())
+            value_layer = value_layer.index_select(dim=1, index=permutation.flatten())
+            attention_mask = attention_mask.index_select(dim=1, index=permutation.flatten())
+
+            key_layer = key_layer.view(batch_size, num_sentence, self.num_attention_heads, num_token, -1)
+            value_layer = value_layer.view(batch_size, num_sentence, self.num_attention_heads, num_token, -1)
+            attention_mask = attention_mask.view(batch_size, num_sentence, self.num_attention_heads, 1, num_token)
+
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
@@ -329,17 +348,31 @@ class BertEncoder(nn.Module):
         super(BertEncoder, self).__init__()
         layer = BertLayer(config)
         self.layer = nn.ModuleList([copy.deepcopy(layer) for _ in range(config.num_hidden_layers)])
+        self.layer_offsets = config.layer_offsets
+        self.head_offsets = config.head_offsets
+        self.num_attention_heads = config.num_attention_heads
 
     def forward(self, hidden_states, attention_mask, output_all_encoded_layers=True):
         all_encoder_layers = []
         timesteps = hidden_states.size(1)
         identity = torch.arange(start=0, end=timesteps, step=1, device=hidden_states.device)
-        for idx, layer_module in enumerate(self.layer):
-            offset = idx % timesteps
-            if offset == 0:
+        if self.head_offsets is not None:
+            if all(offset % timesteps == 0 for offset in self.head_offsets):
                 permutation = None
             else:
-                permutation = (identity + timesteps + offset) % timesteps
+                # expand it to be timesteps x heads
+                identity = identity.unsqueeze(1).expand(-1, self.num_attention_heads)
+                offsets = identity.new_tensor(self.head_offsets)
+                permutation = (identity + offsets) % timesteps
+                permutation = permutation * self.num_attention_heads  \
+                    + torch.arange(start=0, end=self.num_attention_heads, step=1, device=hidden_states.device)
+
+        for idx, layer_module in enumerate(self.layer):
+            if self.layer_offsets is not None:
+                if self.layer_offsets[idx] == 0:
+                    permutation = None
+                else:
+                    permutation = (identity + self.layer_offsets[idx]) % timesteps
             hidden_states = layer_module(hidden_states, attention_mask, permutation)
             if output_all_encoded_layers:
                 all_encoder_layers.append(hidden_states)
@@ -724,6 +757,10 @@ class StructuredBert(FairseqLanguageModel):
                 help='initializer std')
         parser.add_argument('--block-size', type=int,
                 help='block size')
+        parser.add_argument('--layer-offsets', nargs='+', type=int,
+                help='offsets for layer-wise structured transformer')
+        parser.add_argument('--head-offsets', nargs='+', type=int,
+                help='offsets for head-wise structured transformer')
     @classmethod
     def build_model(cls, args, task):
         args.remove_head = getattr(args, 'remove_head', False)
@@ -731,7 +768,7 @@ class StructuredBert(FairseqLanguageModel):
         decoder = BertForPreTraining(args.config, args.remove_head, args.remove_pooled)
         return StructuredBert(decoder, task)
 
-@register_model_architecture('structured_bert', 'structured_bert')
+@register_model_architecture('structured_bert', 'layer_wise_structured_bert')
 def base_bert_architecture(args):
     args.config = BertConfig()
     args.config.hidden_size = getattr(args, 'hidden_size', args.config.hidden_size)
@@ -744,8 +781,13 @@ def base_bert_architecture(args):
     args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', args.config.max_position_embeddings)
     args.config.initializer_range = getattr(args, 'initializer_range', args.config.initializer_range)
     args.config.block_size = getattr(args, 'block_size', args.config.block_size)
+    args.config.layer_offsets = getattr(args, 'layer_offsets', list(range(args.config.num_hidden_layers)))
+    assert len(args.config.layer_offsets) == args.config.num_hidden_layers
+    args.config.layer_offsets = [(x % args.config.block_size + args.config.block_size) % args.config.block_size for x in args.config.layer_offsets]
+    args.config.head_offsets = None
 
-@register_model_architecture('structured_bert', 'structured_bert_large')
+
+@register_model_architecture('structured_bert', 'layer_wise_structured_bert_large')
 def large_bert_architecture(args):
     args.config = BertConfig()
     args.config.hidden_size = getattr(args, 'hidden_size', 1024)
@@ -758,6 +800,29 @@ def large_bert_architecture(args):
     args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', 512)
     args.config.initializer_range = getattr(args, 'initializer_range', 0.02)
     args.config.block_size = getattr(args, 'block_size', 2)
+    args.config.layer_offsets = getattr(args, 'layer_offsets', list(range(args.config.num_hidden_layers)))
+    assert len(args.config.layer_offsets) == args.config.num_hidden_layers
+    args.config.layer_offsets = [(x % args.config.block_size + args.config.block_size) % args.config.block_size for x in args.config.layer_offsets]
+    args.config.head_offsets = None
+
+@register_model_architecture('structured_bert', 'head_wise_structured_bert')
+def base_bert_architecture(args):
+    args.config = BertConfig()
+    args.config.hidden_size = getattr(args, 'hidden_size', args.config.hidden_size)
+    args.config.num_hidden_layers = getattr(args, 'num_hidden_layers', args.config.num_hidden_layers)
+    args.config.num_attention_heads = getattr(args, 'num_attention_heads', args.config.num_attention_heads)
+    args.config.intermediate_size = getattr(args, 'intermediate_size', args.config.intermediate_size)
+    args.config.hidden_act = getattr(args, 'hidden_act', args.config.hidden_act)
+    args.config.hidden_dropout_prob = getattr(args, 'hidden_dropout_prob', args.config.hidden_dropout_prob)
+    args.config.attention_probs_dropout_prob = getattr(args, 'attention_probs_dropout_prob', args.config.attention_probs_dropout_prob)
+    args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', args.config.max_position_embeddings)
+    args.config.initializer_range = getattr(args, 'initializer_range', args.config.initializer_range)
+    args.config.block_size = getattr(args, 'block_size', args.config.block_size)
+    args.config.layer_offsets = None
+    args.config.head_offsets = getattr(args, 'head_offsets', list(range(args.config.num_attention_heads)))
+    assert len(args.config.head_offsets) == args.config.num_attention_heads
+    args.config.head_offsets = [(x % args.config.block_size + args.config.block_size) % args.config.block_size for x in args.config.head_offsets]
+    print(args.config)
 
 class BertForPreTraining(PreTrainedBertModel):
     """BERT model with pre-training heads.
@@ -803,7 +868,7 @@ class BertForPreTraining(PreTrainedBertModel):
     masked_lm_logits_scores, seq_relationship_logits = model(input_ids, token_type_ids, input_mask)
     ```
     """
-    def __init__(self, config, remove_head = False, remove_pooled=False):
+    def __init__(self, config, remove_head=False, remove_pooled=False):
         super(BertForPreTraining, self).__init__(config, remove_head)
         self.config = config
         self.bert = BertModel(config, remove_head=remove_head, remove_pooled=remove_pooled)
