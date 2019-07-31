@@ -161,7 +161,7 @@ do
   for INPUT_TYPE in $(seq 0 $((INPUT_COUNT-1)))
   do
     LANG="input$INPUT_TYPE"
-    python preprocess.py \
+    fairseq-preprocess \
       --only-source \
       --trainpref "$TASK_DATA_FOLDER/processed/train.$LANG" \
       --validpref "${DEVPREF//LANG/$LANG}" \
@@ -172,7 +172,7 @@ do
   done
   if [[ "$TASK" !=  "STS-B" ]]
   then
-    python preprocess.py \
+    fairseq-preprocess \
       --only-source \
       --trainpref "$TASK_DATA_FOLDER/processed/train.label" \
       --validpref "${DEVPREF//LANG/'label'}" \
