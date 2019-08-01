@@ -6,13 +6,13 @@ This page provides pointers to the models of Facebook-FAIR's WMT'19 news transla
 
 Description | Model
 ---|---
-En->De Ensemble | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-de.joined-dict.ensemble.tar.bz2)
-De->En Ensemble | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.de-en.joined-dict.ensemble.tar.bz2)
-En->Ru Ensemble | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-ru.ensemble.tar.bz2)
-Ru->En Ensemble | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.ru-en.ensemble.tar.bz2)
-En LM | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.en.tar.bz2)
-De LM | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.de.tar.bz2)
-Ru LM | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.ru.tar.bz2)
+En->De Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-de.joined-dict.ensemble.tar.gz)
+De->En Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.de-en.joined-dict.ensemble.tar.gz)
+En->Ru Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-ru.ensemble.tar.gz)
+Ru->En Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.ru-en.ensemble.tar.gz)
+En LM | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.en.tar.gz)
+De LM | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.de.tar.gz)
+Ru LM | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.ru.tar.gz)
 
 ## Example usage (torch.hub)
 
