@@ -301,30 +301,14 @@ def _upgrade_state_dict(state):
     if not hasattr(state['args'], 'task'):
         state['args'].task = 'translation'
 
-    def set_defaults(cls):
-        if not hasattr(cls, 'add_args'):
-            return
-        parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, allow_abbrev=False)
-        cls.add_args(parser)
-        # copied from argparse.py:
-        defaults = argparse.Namespace()
-        for action in parser._actions:
-            if action.dest is not argparse.SUPPRESS:
-                if not hasattr(defaults, action.dest):
-                    if action.default is not argparse.SUPPRESS:
-                        setattr(defaults, action.dest, action.default)
-        for key, default_value in vars(defaults).items():
-            if not hasattr(state['args'], key):
-                setattr(state['args'], key, default_value)
-
     # set any missing default values in the task, model or other registries
-    set_defaults(tasks.TASK_REGISTRY[state['args'].task])
-    set_defaults(models.ARCH_MODEL_REGISTRY[state['args'].arch])
+    registry.set_defaults(state['args'], tasks.TASK_REGISTRY[state['args'].task])
+    registry.set_defaults(state['args'], models.ARCH_MODEL_REGISTRY[state['args'].arch])
     for registry_name, REGISTRY in registry.REGISTRIES.items():
         choice = getattr(state['args'], registry_name, None)
         if choice is not None:
             cls = REGISTRY['registry'][choice]
-            set_defaults(cls)
+            registry.set_defaults(state['args'], cls)
 
     return state
 

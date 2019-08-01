@@ -4,13 +4,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import argparse
+import copy
 import os
+from typing import List
 
 import torch
+from torch import nn
 
 from fairseq import utils
 from fairseq.data import encoders
-from fairseq.models import BaseFairseqModel
 
 
 def from_pretrained(
@@ -56,22 +59,19 @@ def from_pretrained(
     }
 
 
-class Generator(BaseFairseqModel):
-    """PyTorch Hub API for generating sequences from a pre-trained translation
-    or language model."""
+class GeneratorHubInterface(nn.Module):
+    """
+    PyTorch Hub interface for generating sequences from a pre-trained
+    translation or language model.
+    """
 
     def __init__(self, args, task, models):
+        super().__init__()
         self.args = args
         self.task = task
-        self.models = models
+        self.models = nn.ModuleList(models)
         self.src_dict = task.source_dictionary
         self.tgt_dict = task.target_dictionary
-        self.use_cuda = torch.cuda.is_available() and not getattr(args, 'cpu', False)
-
-        if self.use_cuda:
-            if getattr(args, 'fp16', False):
-                self.half()
-            self.cuda()
 
         # optimize model for generation
         for model in self.models:
@@ -83,8 +83,6 @@ class Generator(BaseFairseqModel):
                 need_attn=getattr(args, 'print_alignment', False),
             )
 
-        self.generator = self.task.build_generator(args)
-
         # Load alignment dictionary for unknown word replacement
         # (None if no unknown word replacement, empty if no path to align dictionary)
         self.align_dict = utils.load_align_dict(getattr(args, 'replace_unk', None))
@@ -92,53 +90,122 @@ class Generator(BaseFairseqModel):
         self.tokenizer = encoders.build_tokenizer(args)
         self.bpe = encoders.build_bpe(args)
 
-    def generate(self, src_str, verbose=False):
+        # this is useful for determining the device
+        self.register_buffer('_float_tensor', torch.tensor([0], dtype=torch.float))
 
-        def preprocess(s):
-            if self.tokenizer is not None:
-                s = self.tokenizer.encode(s)
-            if self.bpe is not None:
-                s = self.bpe.encode(s)
-            return s
+    @property
+    def device(self):
+        return self._float_tensor.device
 
-        def postprocess(s):
-            if self.bpe is not None:
-                s = self.bpe.decode(s)
-            if self.tokenizer is not None:
-                s = self.tokenizer.decode(s)
-            return s
+    def translate(self, sentence: str, verbose: bool = False, **kwargs) -> str:
+        input = self.encode(sentence)
+        hypo = self.generate(input, verbose, **kwargs)
+        return self.decode(hypo)
 
-        src_str = preprocess(src_str)
-        tokens = self.src_dict.encode_line(src_str, add_if_not_exist=False).long()
+    def generate(self, tokens: torch.LongTensor, verbose: bool = False, **kwargs) -> torch.LongTensor:
+        sample = self._build_sample(tokens)
+
+        # build generator using current args as well as any kwargs
+        gen_args = copy.copy(self.args)
+        for k, v in kwargs.items():
+            setattr(gen_args, k, v)
+        generator = self.task.build_generator(gen_args)
+
+        translations = self.task.inference_step(generator, self.models, sample)
+
         if verbose:
-            src_str_with_unk = self.src_dict.string(tokens)
+            src_str_with_unk = self.string(tokens)
             print('S\t{}'.format(src_str_with_unk))
-
-        dataset = self.task.build_dataset_for_inference([tokens], [tokens.numel()])
-        sample = dataset.collater([dataset[0]])
-        if self.use_cuda:
-            sample = utils.move_to_cuda(sample)
-
-        translations = self.task.inference_step(self.generator, self.models, sample)
 
         # Process top predictions
         for hypo in translations[0][:min(len(translations), getattr(self.args, 'nbest', 1))]:
-            hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
-                hypo_tokens=hypo['tokens'].int().cpu(),
-                src_str=src_str,
-                alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
-                align_dict=self.align_dict,
-                tgt_dict=self.tgt_dict,
-            )
-            hypo_str = postprocess(hypo_str)
+            hypo_str = self.decode(hypo['tokens'])
             if verbose:
                 print('H\t{}\t{}'.format(hypo['score'], hypo_str))
                 print('P\t{}'.format(
                     ' '.join(map(lambda x: '{:.4f}'.format(x), hypo['positional_scores'].tolist()))
                 ))
-                if getattr(self.args, 'print_alignment', False):
+                if hypo['alignment'] is not None and getattr(self.args, 'print_alignment', False):
                     print('A\t{}'.format(
-                        ' '.join(map(lambda x: str(utils.item(x)), alignment))
+                        ' '.join(map(lambda x: str(utils.item(x)), hypo['alignment'].int().cpu()))
                     ))
 
-        return hypo_str
+        return hypo['tokens']
+
+    def encode(self, sentence: str) -> torch.LongTensor:
+        sentence = self.tokenize(sentence)
+        sentence = self.apply_bpe(sentence)
+        return self.binarize(sentence)
+
+    def decode(self, tokens: torch.LongTensor) -> str:
+        sentence = self.string(tokens)
+        sentence = self.remove_bpe(sentence)
+        return self.detokenize(sentence)
+
+    def tokenize(self, sentence: str) -> str:
+        if self.tokenizer is not None:
+            sentence = self.tokenizer.encode(sentence)
+        return sentence
+
+    def detokenize(self, sentence: str) -> str:
+        if self.tokenizer is not None:
+            sentence = self.tokenizer.decode(sentence)
+        return sentence
+
+    def apply_bpe(self, sentence: str) -> str:
+        if self.bpe is not None:
+            sentence = self.bpe.encode(sentence)
+        return sentence
+
+    def remove_bpe(self, sentence: str) -> str:
+        if self.bpe is not None:
+            sentence = self.bpe.decode(sentence)
+        return sentence
+
+    def binarize(self, sentence: str) -> torch.LongTensor:
+        return self.src_dict.encode_line(sentence, add_if_not_exist=False).long()
+
+    def string(self, tokens: torch.LongTensor) -> str:
+        return self.tgt_dict.string(tokens)
+
+    def _build_sample(self, src_tokens: torch.LongTensor):
+        assert torch.is_tensor(src_tokens)
+        dataset = self.task.build_dataset_for_inference([src_tokens], [src_tokens.numel()])
+        sample = dataset.collater([dataset[0]])
+        sample = utils.apply_to_sample(
+            lambda tensor: tensor.to(self.device),
+            sample
+        )
+        return sample
+
+
+class BPEHubInterface(object):
+    """PyTorch Hub interface for Byte-Pair Encoding (BPE)."""
+
+    def __init__(self, bpe, **kwargs):
+        super().__init__()
+        args = argparse.Namespace(bpe=bpe, **kwargs)
+        self.bpe = encoders.build_bpe(args)
+        assert self.bpe is not None
+
+    def encode(self, sentence: str) -> str:
+        return self.bpe.encode(sentence)
+
+    def decode(self, sentence: str) -> str:
+        return self.bpe.decode(sentence)
+
+
+class TokenizerHubInterface(object):
+    """PyTorch Hub interface for tokenization."""
+
+    def __init__(self, tokenizer, **kwargs):
+        super().__init__()
+        args = argparse.Namespace(tokenizer=tokenizer, **kwargs)
+        self.tokenizer = encoders.build_tokenizer(args)
+        assert self.tokenizer is not None
+
+    def encode(self, sentence: str) -> str:
+        return self.tokenizer.encode(sentence)
+
+    def decode(self, sentence: str) -> str:
+        return self.tokenizer.decode(sentence)
