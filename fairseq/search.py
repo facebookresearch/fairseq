@@ -25,7 +25,7 @@ class Search(object):
             self.indices_buf = torch.LongTensor().to(device=t.device)
             self.beams_buf = torch.LongTensor().to(device=t.device)
 
-    def step(self, step, lprobs, scores, beam_size):
+    def step(self, step, lprobs, scores):
         """Take a single search step.
 
         Args:
