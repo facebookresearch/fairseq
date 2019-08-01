@@ -448,9 +448,7 @@ def add_generation_args(parser):
     group.add_argument('--match-source-len', default=False, action='store_true',
                        help=('generations should match the source length'))
     group.add_argument('--no-early-stop', action='store_true',
-                       help=('continue searching even after finalizing k=beam '
-                             'hypotheses; this is more correct, but increases '
-                             'generation time by 50%%'))
+                       help='deprecated')
     group.add_argument('--unnormalized', action='store_true',
                        help='compare unnormalized hypothesis scores')
     group.add_argument('--no-beamable-mm', action='store_true',

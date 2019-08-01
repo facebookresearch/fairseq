@@ -137,23 +137,6 @@ class TestSequenceGenerator(TestSequenceGeneratorBase):
         self.assertHypoTokens(hypos[1][1], [w2, w2, eos])
         self.assertHypoScore(hypos[1][1], [0.3, 0.9, 0.01])
 
-    def test_no_stop_early(self):
-        generator = SequenceGenerator(self.tgt_dict, stop_early=False, beam_size=2)
-        hypos = generator.generate([self.model], self.sample)
-        eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
-        # sentence 1, beam 1
-        self.assertHypoTokens(hypos[0][0], [w1, eos])
-        self.assertHypoScore(hypos[0][0], [0.9, 1.0])
-        # sentence 1, beam 2
-        self.assertHypoTokens(hypos[0][1], [w2, w1, w2, eos])
-        self.assertHypoScore(hypos[0][1], [0.1, 0.9, 0.9, 1.0])
-        # sentence 2, beam 1
-        self.assertHypoTokens(hypos[1][0], [w2, w2, w2, w2, eos])
-        self.assertHypoScore(hypos[1][0], [0.3, 0.9, 0.99, 0.4, 1.0])
-        # sentence 2, beam 2
-        self.assertHypoTokens(hypos[1][1], [w1, w2, w1, eos])
-        self.assertHypoScore(hypos[1][1], [0.7, 0.4, 0.4, 1.0])
-
 
 class TestDiverseBeamSearch(TestSequenceGeneratorBase):
 
