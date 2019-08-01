@@ -212,7 +212,7 @@ class Sampling(Search):
 
         # trim the words that are not in top-P by setting their probabilities
         # to 0, so that they would not be sampled later.
-        trim_mask = 1 - truncated_mask
+        trim_mask = truncated_mask.bitwise_not()
         trimed_probs = truncated_probs.masked_fill_(trim_mask, 0)
         return trimed_probs, truncated_indices
 

@@ -39,7 +39,7 @@ class MeanPoolGatingNetwork(torch.nn.Module):
         if encoder_padding_mask is not None:
             encoder_out = encoder_out.clone()  # required because of transpose above
             encoder_out[encoder_padding_mask] = 0
-            ntokens = torch.sum(1 - encoder_padding_mask, dim=1, keepdim=True)
+            ntokens = torch.sum(~encoder_padding_mask, dim=1, keepdim=True)
             x = torch.sum(encoder_out, dim=1) / ntokens.type_as(encoder_out)
         else:
             x = torch.mean(encoder_out, dim=1)
