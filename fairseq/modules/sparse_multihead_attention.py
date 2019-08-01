@@ -35,7 +35,7 @@ class SparseMultiheadAttention(MultiheadAttention):
 
     # Used for Ai(2) calculations - beginning of [l-c, l] range
     def compute_checkpoint(self, word_index):
-        if word_index % self.stride == 0 and word_index is not 0:
+        if word_index % self.stride == 0 and word_index != 0:
             checkpoint_index = word_index - self.expressivity
         else:
             checkpoint_index = (
@@ -66,7 +66,7 @@ class SparseMultiheadAttention(MultiheadAttention):
 
         # Subset 1 - whole window
         rounded_index = math.floor((word_index + self.stride) / self.stride) * self.stride
-        if word_index % self.stride == 0 and word_index is not 0:
+        if word_index % self.stride == 0 and word_index != 0:
             subset_one = set(range(word_index-self.stride, min(absolute_max, word_index+1)))
         else:
             subset_one = set(range(max(0, rounded_index - self.stride), min(
