@@ -17,8 +17,11 @@ from fairseq.data.encoders.gpt2_bpe import get_encoder
 
 def main():
     """
-    Helper script to encode raw text
-    with the GPT-2 BPE using multiple processes.
+    Helper script to encode raw text with the GPT-2 BPE using multiple processes.
+
+    The encoder.json and vocab.bpe files can be obtained here:
+    - https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json
+    - https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/vocab.bpe
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
