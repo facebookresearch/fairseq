@@ -97,12 +97,15 @@ class GeneratorHubInterface(nn.Module):
     def device(self):
         return self._float_tensor.device
 
-    def translate(self, sentence: str, verbose: bool = False, **kwargs) -> str:
+    def translate(self, sentence: str, beam: int = 5, verbose: bool = False, **kwargs) -> str:
+        return self.sample(sentence, beam, verbose, **kwargs)
+
+    def sample(self, sentence: str, beam: int = 1, verbose: bool = False, **kwargs) -> str:
         input = self.encode(sentence)
-        hypo = self.generate(input, verbose, **kwargs)
+        hypo = self.generate(input, beam, verbose, **kwargs)[0]['tokens']
         return self.decode(hypo)
 
-    def generate(self, tokens: torch.LongTensor, verbose: bool = False, **kwargs) -> torch.LongTensor:
+    def generate(self, tokens: torch.LongTensor, beam: int = 5, verbose: bool = False, **kwargs) -> torch.LongTensor:
         sample = self._build_sample(tokens)
 
         # build generator using current args as well as any kwargs
@@ -117,20 +120,24 @@ class GeneratorHubInterface(nn.Module):
             src_str_with_unk = self.string(tokens)
             print('S\t{}'.format(src_str_with_unk))
 
+        def getarg(name, default):
+            return getattr(gen_args, name, getattr(self.args, name, default))
+
         # Process top predictions
-        for hypo in translations[0][:min(len(translations), getattr(self.args, 'nbest', 1))]:
-            hypo_str = self.decode(hypo['tokens'])
-            if verbose:
+        hypos = translations[0]
+        if verbose:
+            for hypo in hypos:
+                hypo_str = self.decode(hypo['tokens'])
                 print('H\t{}\t{}'.format(hypo['score'], hypo_str))
                 print('P\t{}'.format(
                     ' '.join(map(lambda x: '{:.4f}'.format(x), hypo['positional_scores'].tolist()))
                 ))
-                if hypo['alignment'] is not None and getattr(self.args, 'print_alignment', False):
+                if hypo['alignment'] is not None and getarg('print_alignment', False):
                     print('A\t{}'.format(
                         ' '.join(map(lambda x: str(utils.item(x)), hypo['alignment'].int().cpu()))
                     ))
 
-        return hypo['tokens']
+        return hypos
 
     def encode(self, sentence: str) -> torch.LongTensor:
         sentence = self.tokenize(sentence)

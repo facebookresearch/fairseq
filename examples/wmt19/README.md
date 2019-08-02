@@ -4,86 +4,52 @@ This page provides pointers to the models of Facebook-FAIR's WMT'19 news transla
 
 ## Pre-trained models
 
-Description | Model
----|---
-En->De Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-de.joined-dict.ensemble.tar.gz)
-De->En Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.de-en.joined-dict.ensemble.tar.gz)
-En->Ru Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-ru.ensemble.tar.gz)
-Ru->En Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.ru-en.ensemble.tar.gz)
-En LM | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.en.tar.gz)
-De LM | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.de.tar.gz)
-Ru LM | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.ru.tar.gz)
+Model | Description | Download
+---|---|---
+`transformer.wmt19.en-de` | En->De Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-de.joined-dict.ensemble.tar.gz)
+`transformer.wmt19.de-en` | De->En Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.de-en.joined-dict.ensemble.tar.gz)
+`transformer.wmt19.en-ru` | En->Ru Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-ru.ensemble.tar.gz)
+`transformer.wmt19.ru-en` | Ru->En Ensemble | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.ru-en.ensemble.tar.gz)
+`transformer_lm.wmt19.en` | En Language Model | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.en.tar.gz)
+`transformer_lm.wmt19.de` | De Language Model | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.de.tar.gz)
+`transformer_lm.wmt19.ru` | Ru Language Model | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.ru.tar.gz)
 
 ## Example usage (torch.hub)
 
-```
->>> import torch
->>> en2de = torch.hub.load(
-...   'pytorch/fairseq',
-...   'transformer.wmt19.en-de',
-...   checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt'
-...   tokenizer='moses',
-...   bpe='fastbpe',
-... )
->>> en2de.generate("Machine learning is great!")
-'Maschinelles Lernen ist großartig!'
+```python
+import torch
 
->>> de2en = torch.hub.load(
-...   'pytorch/fairseq',
-...   'transformer.wmt19.de-en',
-...   checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt'
-...   tokenizer='moses',
-...   bpe='fastbpe',
-... )
->>> de2en.generate("Maschinelles Lernen ist großartig!")
-'Machine learning is great!'
+# English to German translation
+en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
+                       tokenizer='moses', bpe='fastbpe')
+en2de.translate("Machine learning is great!")  # 'Maschinelles Lernen ist großartig!'
 
->>> en2ru = torch.hub.load(
-...   'pytorch/fairseq',
-...   'transformer.wmt19.en-ru',
-...   checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt'
-...   tokenizer='moses',
-...   bpe='fastbpe',
-... )
->>> en2ru.generate("Machine learning is great!")
-'Машинное обучение - это здорово!'
+# German to English translation
+de2en = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.de-en', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
+                       tokenizer='moses', bpe='fastbpe')
+de2en.translate("Maschinelles Lernen ist großartig!")  # 'Machine learning is great!'
 
->>> ru2en = torch.hub.load(
-...   'pytorch/fairseq',
-...   'transformer.wmt19.ru-en',
-...   checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt'
-...   tokenizer='moses',
-...   bpe='fastbpe',
-... )
->>> ru2en.generate("Машинное обучение - это здорово!")
-'Machine learning is great!'
+# English to Russian translation
+en2ru = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-ru', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
+                       tokenizer='moses', bpe='fastbpe')
+en2ru.translate("Machine learning is great!")  # 'Машинное обучение - это здорово!'
 
->>> en_lm = torch.hub.load(
-...   'pytorch.fairseq',
-...   'transformer_lm.wmt19.en'
-...   tokenizer='moses',
-...   bpe='fastbpe',
-... )
->>> en_lm.generate("Machine learning is")
-'Machine learning is the future of computing, says Microsoft boss Satya Nadella ...'
+# Russian to English translation
+ru2en = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.ru-en', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
+                       tokenizer='moses', bpe='fastbpe')
+ru2en.translate("Машинное обучение - это здорово!")  # 'Machine learning is great!'
 
->>> de_lm = torch.hub.load(
-...   'pytorch.fairseq',
-...   'transformer_lm.wmt19.de'
-...   tokenizer='moses',
-...   bpe='fastbpe',
-... )
->>> de_lm.generate("Maschinelles lernen ist")
-''Maschinelles lernen ist das A und O (neues-deutschland.de) Die Arbeitsbedingungen für Lehrerinnen und Lehrer sind seit Jahren verbesserungswürdig ...'
+# Sample from the English LM
+en_lm = torch.hub.load('pytorch.fairseq', 'transformer_lm.wmt19.en', tokenizer='moses', bpe='fastbpe')
+en_lm.sample("Machine learning is")  # 'Machine learning is the future of computing, says Microsoft boss Satya Nadella ...'
 
->>> ru_lm = torch.hub.load(
-...   'pytorch.fairseq',
-...   'transformer_lm.wmt19.ru'
-...   tokenizer='moses',
-...   bpe='fastbpe',
-... )
->>> ru_lm.generate("машинное обучение это")
-'машинное обучение это то, что мы называем "искусственным интеллектом".'
+# Sample from the German LM
+de_lm = torch.hub.load('pytorch.fairseq', 'transformer_lm.wmt19.de', tokenizer='moses', bpe='fastbpe')
+de_lm.sample("Maschinelles lernen ist")  # 'Maschinelles lernen ist das A und O (neues-deutschland.de) Die Arbeitsbedingungen für Lehrerinnen und Lehrer sind seit Jahren verbesserungswürdig ...'
+
+# Sample from the Russian LM
+ru_lm = torch.hub.load('pytorch.fairseq', 'transformer_lm.wmt19.ru', tokenizer='moses', bpe='fastbpe')
+ru_lm.sample("машинное обучение это")  # 'машинное обучение это то, что мы называем "искусственным интеллектом".'
 ```
 
 ## Citation
