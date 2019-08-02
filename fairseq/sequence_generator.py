@@ -163,7 +163,7 @@ class SequenceGenerator(object):
         # For example, suppose we're sampling and have already finalized 2/5
         # samples. Then the blacklist would mark 2 positions as being ignored,
         # so that we only finalize the remaining 3 samples.
-        blacklist = src_tokens.new(bsz, beam_size).byte().fill_(0)
+        blacklist = src_tokens.new_zeros(bsz, beam_size).eq(-1)  # forward and backward-compatible False mask
 
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
