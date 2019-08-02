@@ -4,29 +4,32 @@ This page includes pre-trained models from the paper [Understanding Back-Transla
 
 ## Pre-trained models
 
-Description | Dataset | Model | Test set(s)
+Model | Description | Dataset | Download
 ---|---|---|---
-Transformer <br> ([Edunov et al., 2018](https://arxiv.org/abs/1808.09381); WMT'18 winner) | [WMT'18 English-German](http://www.statmt.org/wmt18/translation-task.html) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt18.en-de.ensemble.tar.gz) | See NOTE in the archive
+`transformer.wmt18.en-de` | Transformer <br> ([Edunov et al., 2018](https://arxiv.org/abs/1808.09381)) <br> WMT'18 winner | [WMT'18 English-German](http://www.statmt.org/wmt18/translation-task.html) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt18.en-de.ensemble.tar.gz) <br> See NOTE in the archive
 
 ## Example usage
 
 Interactive generation from the full ensemble via PyTorch Hub:
-```
->>> import torch
->>> torch.hub.list('pytorch/fairseq')
-[..., 'transformer.wmt14.en-fr', 'transformer.wmt16.en-de', 'transformer.wmt18.en-de', ... ]
->>> en2de_ensemble = torch.hub.load(
-...   'pytorch/fairseq',
-...   'transformer.wmt18.en-de',
-...   checkpoint_file='wmt18.model1.pt:wmt18.model2.pt:wmt18.model3.pt:wmt18.model4.pt:wmt18.model5.pt',
-...   data_name_or_path='.',
-...   tokenizer='moses',
-...   bpe='subword_nmt',
-... )
->>> len(en2de_ensemble.models)
-5
->>> print(en2de_ensemble.generate('Hello world!'))
-Hallo Welt!
+```python
+import torch
+
+# List available models
+torch.hub.list('pytorch/fairseq')  # [..., 'transformer.wmt18.en-de', ... ]
+
+# Load the WMT'18 En-De ensemble
+en2de_ensemble = torch.hub.load(
+    'pytorch/fairseq', 'transformer.wmt18.en-de',
+    checkpoint_file='wmt18.model1.pt:wmt18.model2.pt:wmt18.model3.pt:wmt18.model4.pt:wmt18.model5.pt',
+    tokenizer='moses', bpe='subword_nmt')
+
+# The ensemble contains 5 models
+len(en2de_ensemble.models)
+# 5
+
+# Translate
+en2de_ensemble.translate('Hello world!')
+# 'Hallo Welt!'
 ```
 
 ## Citation

@@ -11,6 +11,7 @@ from fairseq.models import MODEL_REGISTRY
 
 
 dependencies = [
+    'fastBPE',
     'regex',
     'requests',
     'sacremoses',

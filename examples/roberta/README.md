@@ -39,85 +39,83 @@ Model | Accuracy | Middle | High
 ## Example usage
 
 ##### Load RoBERTa from torch.hub (PyTorch >= 1.1):
-```
->>> import torch
->>> roberta = torch.hub.load('pytorch/fairseq', 'roberta.large')
->>> roberta.eval()  # disable dropout (or leave in train mode to finetune)
+```python
+import torch
+roberta = torch.hub.load('pytorch/fairseq', 'roberta.large')
+roberta.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
 ##### Load RoBERTa (for PyTorch 1.0):
-```
-$ wget https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.tar.gz
-$ tar -xzvf roberta.large.tar.gz
+```python
+# Download roberta.large model
+wget https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.tar.gz
+tar -xzvf roberta.large.tar.gz
 
->>> from fairseq.models.roberta import RobertaModel
->>> roberta = RobertaModel.from_pretrained('/path/to/roberta.large')
->>> roberta.eval()  # disable dropout (or leave in train mode to finetune)
+# Load the model in fairseq
+from fairseq.models.roberta import RobertaModel
+roberta = RobertaModel.from_pretrained('/path/to/roberta.large')
+roberta.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
 ##### Apply Byte-Pair Encoding (BPE) to input text:
-```
->>> tokens = roberta.encode('Hello world!')
->>> tokens
-tensor([    0, 31414,   232,   328,     2])
->>> roberta.decode(tokens)
-'Hello world!'
+```python
+tokens = roberta.encode('Hello world!')
+assert tokens.tolist() == [0, 31414, 232, 328, 2]
+roberta.decode(tokens)  # 'Hello world!'
 ```
 
 ##### Extract features from RoBERTa:
-```
->>> last_layer_features = roberta.extract_features(tokens)
->>> last_layer_features.size()
-torch.Size([1, 5, 1024])
+```python
+# Extract the last layer's features
+last_layer_features = roberta.extract_features(tokens)
+assert last_layer_features.size() == torch.Size([1, 5, 1024])
 
->>> all_layers = roberta.extract_features(tokens, return_all_hiddens=True)
->>> len(all_layers)
-25
-
->>> torch.all(all_layers[-1] == last_layer_features)
-tensor(1, dtype=torch.uint8)
+# Extract all layer's features (layer 0 is the embedding layer)
+all_layers = roberta.extract_features(tokens, return_all_hiddens=True)
+assert len(all_layers) == 25
+assert torch.all(all_layers[-1] == last_layer_features)
 ```
 
 ##### Use RoBERTa for sentence-pair classification tasks:
-```
->>> roberta = torch.hub.load('pytorch/fairseq', 'roberta.large.mnli')  # already finetuned
->>> roberta.eval()  # disable dropout for evaluation
+```python
+# Download RoBERTa already finetuned for MNLI
+roberta = torch.hub.load('pytorch/fairseq', 'roberta.large.mnli')
+roberta.eval()  # disable dropout for evaluation
 
->>> tokens = roberta.encode(
-...   'Roberta is a heavily optimized version of BERT.',
-...   'Roberta is not very optimized.'
-... )
+# Encode a pair of sentences and make a prediction
+tokens = roberta.encode('Roberta is a heavily optimized version of BERT.', 'Roberta is not very optimized.')
+roberta.predict('mnli', tokens).argmax()  # 0: contradiction
 
->>> roberta.predict('mnli', tokens).argmax()
-tensor(0)  # contradiction
-
->>> tokens = roberta.encode(
-...   'Roberta is a heavily optimized version of BERT.',
-...   'Roberta is based on BERT.'
-... )
-
->>> roberta.predict('mnli', tokens).argmax()
-tensor(2)  # entailment
+# Encode another pair of sentences
+tokens = roberta.encode('Roberta is a heavily optimized version of BERT.', 'Roberta is based on BERT.')
+roberta.predict('mnli', tokens).argmax()  # 2: entailment
 ```
 
 ##### Register a new (randomly initialized) classification head:
+```python
+roberta.register_classification_head('new_task', num_classes=3)
+logprobs = roberta.predict('new_task', tokens)  # tensor([[-1.1050, -1.0672, -1.1245]], grad_fn=<LogSoftmaxBackward>)
 ```
->>> roberta.register_classification_head('new_task', num_classes=3)
->>> roberta.predict('new_task', tokens)
-tensor([[-1.1050, -1.0672, -1.1245]], grad_fn=<LogSoftmaxBackward>)
+
+##### Batched prediction:
+```python
+from fairseq.data.data_utils import collate_tokens
+sentences = ['Hello world.', 'Another unrelated sentence.']
+batch = collate_tokens([roberta.encode(sent) for sent in sentences], pad_idx=1)
+logprobs = roberta.predict('new_task', batch)
+assert logprobs.size() == torch.Size([2, 3])
 ```
 
 ##### Using the GPU:
-```
->>> roberta.cuda()
->>> roberta.predict('new_task', tokens)
-tensor([[-1.1050, -1.0672, -1.1245]], device='cuda:0', grad_fn=<LogSoftmaxBackward>)
+```python
+roberta.cuda()
+roberta.predict('new_task', tokens)  # tensor([[-1.1050, -1.0672, -1.1245]], device='cuda:0', grad_fn=<LogSoftmaxBackward>)
 ```
 
 ##### Evaluating the `roberta.large.mnli` model
 
 Example python code snippet to evaluate accuracy on the MNLI dev_matched set.
-```
+```python
 label_map = {0: 'contradiction', 1: 'neutral', 2: 'entailment'}
 ncorrect, nsamples = 0, 0
 roberta.cuda()
@@ -137,79 +135,11 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 ```
 
 
-## Finetuning on GLUE tasks
+## Finetuning
 
-##### 1) Download the data from GLUE website (https://gluebenchmark.com/tasks) using following commands:
-```
-$ wget https://gist.githubusercontent.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e/raw/17b8dd0d724281ed7c3b2aeeda662b92809aadd5/download_glue_data.py
-$ python download_glue_data.py --data_dir glue_data --tasks all
-```
-
-##### 2) Preprocess GLUE task data:
-```
-$ ./examples/roberta/preprocess_GLUE_tasks.sh glue_data <glue_task_name>
-```
-`glue_task_name` is one of the following:
-`{ALL, QQP, MNLI, QNLI, MRPC, RTE, STS-B, SST-2, CoLA}`
-Use `ALL` for preprocessing all the glue tasks.
-
-##### 3) Fine-tuning on GLUE task :
-Example fine-tuning cmd for `RTE` task
-```
-TOTAL_NUM_UPDATES=2036  # 10 epochs through RTE for bsz 16
-WARMUP_UPDATES=122      # 6 percent of the number of updates
-LR=2e-05                # Peak LR for polynomial LR scheduler.
-NUM_CLASSES=2
-MAX_SENTENCES=16        # Batch size.
-
-CUDA_VISIBLE_DEVICES=0 python train.py RTE-bin/ \
---restore-file <roberta_large_absolute_path> \
---max-positions 512 \
---max-sentences $MAX_SENTENCES \
---max-tokens 4400 \
---task sentence_prediction \
---reset-optimizer --reset-dataloader --reset-meters \
---required-batch-size-multiple 1 \
---init-token 0 --separator-token 2 \
---arch roberta_large \
---criterion sentence_prediction \
---num-classes $NUM_CLASSES \
---dropout 0.1 --attention-dropout 0.1 \
---weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
---clip-norm 0.0 \
---lr-scheduler polynomial_decay --lr $LR --total-num-update $TOTAL_NUM_UPDATES --warmup-updates $WARMUP_UPDATES \
---fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
---max-epoch 10 \
---best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;
-```
-
-For each of the GLUE task, you will need to use following cmd-line arguments:
-
-Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
----|---|---|---|---|---|---|---|---
-`--num-classes` | 3 | 2 | 2 | 2 | 2 | 2 | 2 | 1
-`--lr` | 1e-5 | 1e-5 | 1e-5 | 2e-5 | 1e-5 | 1e-5 | 1e-5 | 2e-5
-`--max-sentences` | 32 | 32 | 32 | 16 | 32 | 16 | 16 | 16
-`--total-num-update` | 123873 | 33112 | 113272 | 2036 | 20935 | 2296 | 5336 | 3598
-`--warmup-updates` | 7432 | 1986 | 28318 | 122 | 1256 | 137 | 320 | 214
-
-For `STS-B` additionally use following cmd-line argument:
-```
---regression-target
---best-checkpoint-metric loss
-```
-and remove `--maximize-best-checkpoint-metric`.
-
-**Note:**
-
-a) `--total-num-updates` is used by `--polynomial_decay` scheduler and is calculated for `--max-epoch=10` and `--max-sentences=16/32` depending on the task.
-
-b) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb` of memory for each task. Depending on the GPU memory resources available to you, you can use increase `--update-freq` and reduce `--max-sentences`.
-
-c) All the settings in above table are suggested settings based on our hyperparam search within a fixed search space (for careful comparison across models). You might be able to find better metrics with wider hyperparam search.  
-
-## Fine-tuning on custom classification tasks
-[Example of fine-tuning Roberta on simple custom classification task](README.finetune_custom_classification.md)
+- [Finetuning on GLUE](README.finetune_glue.md)
+- [Finetuning on custom classification tasks (e.g., IMDB)](README.finetune_custom_classification.md)
+- Finetuning on SQuAD: coming soon
 
 ## Pretraining using your own data
 
@@ -223,11 +153,11 @@ A more detailed tutorial is coming soon.
 
 ```bibtex
 @article{liu2019roberta,
-  title = {RoBERTa: A Robustly Optimized BERT Pretraining Approach},
-  author = {Yinhan Liu and Myle Ott and Naman Goyal and Jingfei Du and
-            Mandar Joshi and Danqi Chen and Omer Levy and Mike Lewis and
-            Luke Zettlemoyer and Veselin Stoyanov},
-  journal={arXiv preprint arXiv:1907.11692},
-  year = {2019},
+    title = {RoBERTa: A Robustly Optimized BERT Pretraining Approach},
+    author = {Yinhan Liu and Myle Ott and Naman Goyal and Jingfei Du and
+              Mandar Joshi and Danqi Chen and Omer Levy and Mike Lewis and
+              Luke Zettlemoyer and Veselin Stoyanov},
+    journal={arXiv preprint arXiv:1907.11692},
+    year = {2019},
 }
 ```
