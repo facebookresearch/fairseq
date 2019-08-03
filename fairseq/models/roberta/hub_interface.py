@@ -35,7 +35,7 @@ class RobertaHubInterface(nn.Module):
     def encode(self, sentence: str, *addl_sentences) -> torch.LongTensor:
         bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
         for s in addl_sentences:
-            bpe_sentence += ' </s> ' + self.bpe.encode(s) + ' </s>'
+            bpe_sentence += ' <s> ' + self.bpe.encode(s) + ' </s>'
         tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False)
         return tokens.long()
 
