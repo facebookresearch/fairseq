@@ -172,11 +172,7 @@ def launch_train(args, config):
         if not args.salloc:
             excluded_hosts = os.environ.get('EXCLUDED_HOSTS', None)
             included_hosts = os.environ.get('INCLUDED_HOSTS', None)
-            gres = ':'.join(
-                ['gpu'] +
-                ([] if args.gpu_type == '' else [args.gpu_type]) +
-                [str(args.num_gpus)]
-            )
+            gres = 'gpu:volta:' + str(args.num_gpus)
             sbatch_cmd = [
                 'sbatch',
                 '--job-name', f'{args.prefix}.{save_dir_key}',

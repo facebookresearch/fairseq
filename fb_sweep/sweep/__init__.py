@@ -62,6 +62,7 @@ def get_args():
                         help='schedule jobs to run sequentially')
     parser.add_argument('--time', default='4320',
                         help='expected job duration in minutes')
+    parser.add_argument('--mem', '--mem', help='memory to request')
     parser.add_argument('--constraint', metavar='CONSTRAINT',
                         help='gpu constraint, if any. e.g. "volta"')
     parser.add_argument('--comment', help='comment string')
