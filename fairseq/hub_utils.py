@@ -110,6 +110,7 @@ class GeneratorHubInterface(nn.Module):
 
         # build generator using current args as well as any kwargs
         gen_args = copy.copy(self.args)
+        gen_args.beam = beam
         for k, v in kwargs.items():
             setattr(gen_args, k, v)
         generator = self.task.build_generator(gen_args)
