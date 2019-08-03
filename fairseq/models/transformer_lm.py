@@ -44,9 +44,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--activation-fn',
                             choices=utils.get_available_activation_fns(),
                             help='activation function to use')
-        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+        parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
-        parser.add_argument('--attention-dropout', default=0., type=float, metavar='D',
+        parser.add_argument('--attention-dropout', type=float, metavar='D',
                             help='dropout probability for attention weights')
         parser.add_argument('--activation-dropout', '--relu-dropout', type=float, metavar='D',
                             help='dropout probability after activation in FFN.')
@@ -62,9 +62,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='num decoder layers')
         parser.add_argument('--decoder-attention-heads', type=int, metavar='N',
                             help='num decoder attention heads')
-        parser.add_argument('--decoder-normalize-before', default=False, action='store_true',
+        parser.add_argument('--decoder-normalize-before', action='store_true',
                             help='apply layernorm before each decoder block')
-        parser.add_argument('--no-decoder-final-norm', default=False, action='store_true',
+        parser.add_argument('--no-decoder-final-norm', action='store_true',
                             help='don\'t add an extra layernorm after the last decoder block')
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
@@ -73,11 +73,11 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='sets adaptive softmax dropout for the tail projections')
         parser.add_argument('--adaptive-softmax-factor', type=float, metavar='N',
                             help='adaptive input factor')
-        parser.add_argument('--no-token-positional-embeddings', default=False, action='store_true',
+        parser.add_argument('--no-token-positional-embeddings', action='store_true',
                             help='if set, disables positional embeddings (outside self attention)')
         parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
-        parser.add_argument('--character-embeddings', default=False, action='store_true',
+        parser.add_argument('--character-embeddings', action='store_true',
                             help='if set, uses character embedding convolutions to produce token embeddings')
         parser.add_argument('--character-filters', type=str, metavar='LIST',
                             default='[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]',
