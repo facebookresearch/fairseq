@@ -33,6 +33,26 @@ class RobertaHubInterface(nn.Module):
         return self._float_tensor.device
 
     def encode(self, sentence: str, *addl_sentences) -> torch.LongTensor:
+        """
+        BPE-encode a sentence (or multiple sentences).
+
+        Every sequence begins with a beginning-of-sentence (`<s>`) symbol.
+        Every sentence ends with an end-of-sentence (`</s>`) and we use an
+        extra end-of-sentence (`</s>`) as a separator.
+
+        Example (single sentence): `<s> a b c </s>`
+        Example (sentence pair): `<s> d e f </s> </s> 1 2 3 </s>`
+
+        The BPE encoding follows GPT-2. One subtle detail is that the GPT-2 BPE
+        requires leading spaces. For example::
+
+            >>> roberta.encode('Hello world').tolist()
+            [0, 31414, 232, 2]
+            >>> roberta.encode(' world').tolist()
+            [0, 232, 2]
+            >>> roberta.encode('world').tolist()
+            [0, 8331, 2]
+        """
         bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
         for s in addl_sentences:
             bpe_sentence += ' </s> ' + self.bpe.encode(s) + ' </s>'
