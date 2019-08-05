@@ -42,6 +42,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py RTE-bin/ \
     --lr-scheduler polynomial_decay --lr $LR --total-num-update $TOTAL_NUM_UPDATES --warmup-updates $WARMUP_UPDATES \
     --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
+    --find-unused-parameters \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;
 ```
 
