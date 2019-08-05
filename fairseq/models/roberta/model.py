@@ -89,6 +89,16 @@ class RobertaModel(FairseqLanguageModel):
         encoder = RobertaEncoder(args, task.source_dictionary)
         return cls(args, encoder)
 
+    def forward(self, src_tokens, features_only=False, return_all_hiddens=False, classification_head_name=None, **kwargs):
+        assert classification_head_name is None or features_only, \
+            "If passing classification_head_name argument, features_only must be set to True"
+
+        x, extra = self.decoder(src_tokens, features_only, return_all_hiddens, **kwargs)
+
+        if classification_head_name is not None:
+            x = self.classification_heads[classification_head_name](x)
+        return x, extra
+
     def register_classification_head(self, name, num_classes=None, inner_dim=None, **kwargs):
         """Register a classification head."""
         self.classification_heads[name] = RobertaClassificationHead(

@@ -115,6 +115,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py IMDB-bin/ \
     --max-epoch 10 \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
     --truncate-sequence \
+    --find-unused-parameters \
     --update-freq 4
 ```
 Above will train with effective batch-size of `32`, tested on one `Nvidia V100 32gb`.

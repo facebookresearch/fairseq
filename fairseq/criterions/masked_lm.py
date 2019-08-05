@@ -30,7 +30,7 @@ class MaskedLmLoss(FairseqCriterion):
         3) logging outputs to display while training
         """
         # compute MLM loss
-        logits = model(**sample['net_input'], last_state_only=True)[0]
+        logits = model(**sample['net_input'], return_all_hiddens=False)[0]
         targets = model.get_targets(sample, [logits])
         loss = F.nll_loss(
             F.log_softmax(
