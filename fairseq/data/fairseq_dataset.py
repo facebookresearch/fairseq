@@ -50,3 +50,6 @@ class FairseqDataset(torch.utils.data.Dataset):
     def prefetch(self, indices):
         """Prefetch the data required for this epoch."""
         raise NotImplementedError
+
+    def set_epoch(self, epoch):
+        pass
