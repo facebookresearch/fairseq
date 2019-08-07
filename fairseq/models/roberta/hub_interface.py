@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from typing import List
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -72,7 +74,7 @@ class RobertaHubInterface(nn.Module):
             return sentences[0]
         return sentences
 
-    def extract_features(self, tokens: torch.LongTensor, return_all_hiddens=False) -> torch.Tensor:
+    def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
         if tokens.dim() == 1:
             tokens = tokens.unsqueeze(0)
         if tokens.size(-1) > self.model.max_positions():
@@ -102,3 +104,32 @@ class RobertaHubInterface(nn.Module):
         features = self.extract_features(tokens)
         logits = self.model.classification_heads[head](features)
         return F.log_softmax(logits, dim=-1)
+
+    def extract_features_aligned_to_words(self, sentence: str, return_all_hiddens: bool = False) -> torch.Tensor:
+        """Extract RoBERTa features, aligned to spaCy's word-level tokenizer."""
+        from fairseq.models.roberta import alignment_utils
+        from spacy.tokens import Doc
+
+        nlp = alignment_utils.spacy_nlp()
+        tokenizer = alignment_utils.spacy_tokenizer()
+
+        # tokenize both with GPT-2 BPE and spaCy
+        bpe_toks = self.encode(sentence)
+        spacy_toks = tokenizer(sentence)
+        spacy_toks_ws = [t.text_with_ws for t in tokenizer(sentence)]
+        alignment = alignment_utils.align_bpe_to_words(self, bpe_toks, spacy_toks_ws)
+
+        # extract features and align them
+        features = self.extract_features(bpe_toks, return_all_hiddens=return_all_hiddens)
+        features = features.squeeze(0)
+        aligned_feats = alignment_utils.align_features_to_words(self, features, alignment)
+
+        # wrap in spaCy Doc
+        doc = Doc(
+            nlp.vocab,
+            words=['<s>'] + [x.text for x in spacy_toks] + ['</s>'],
+            spaces=[True] + [x.endswith(' ') for x in spacy_toks_ws[:-1]] + [True, False],
+        )
+        assert len(doc) == aligned_feats.size(0)
+        doc.user_token_hooks['vector'] = lambda token: aligned_feats[token.i]
+        return doc

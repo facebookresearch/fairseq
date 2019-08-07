@@ -25,7 +25,7 @@ class fastBPE(object):
             self.bpe = fastBPE.fastBPE(codes)
             self.bpe_symbol = "@@ "
         except ImportError:
-            raise ImportError('Please install fastbpe at https://github.com/glample/fastBPE')
+            raise ImportError('Please install fastBPE with: pip install fastBPE')
 
     def encode(self, x: str) -> str:
         return self.bpe.apply([x])[0]

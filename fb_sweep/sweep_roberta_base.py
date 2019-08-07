@@ -16,6 +16,7 @@ def get_grid(args):
         hyperparam('--num-workers', 2),
 
         hyperparam('--task', 'masked_lm'),
+        hyperparam('--criterion', 'masked_lm'),
         hyperparam('--arch', 'roberta_base', save_dir_key=lambda val: val),
         hyperparam('--sample-break-mode', 'complete', save_dir_key=lambda val: 'cmpltdoc'),
         hyperparam('--tokens-per-sample', 512, save_dir_key=lambda val: f'tps{val}'),
