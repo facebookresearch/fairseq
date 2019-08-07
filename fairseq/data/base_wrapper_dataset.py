@@ -48,4 +48,5 @@ class BaseWrapperDataset(FairseqDataset):
 
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
-        self.dataset.set_epoch(epoch)
+        if hasattr(self.dataset, 'set_epoch'):
+            self.dataset.set_epoch(epoch)

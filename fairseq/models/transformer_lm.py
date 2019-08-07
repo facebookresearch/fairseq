@@ -150,6 +150,9 @@ def base_lm_architecture(args):
     if hasattr(args, 'decoder_final_norm'):
         args.no_decoder_final_norm = not args.decoder_final_norm
 
+    args.dropout = getattr(args, 'dropout', 0.1)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.0)
+
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
@@ -161,6 +164,7 @@ def base_lm_architecture(args):
     args.activation_fn = getattr(args, 'activation_fn', 'relu')
 
     args.add_bos_token = getattr(args, 'add_bos_token', False)
+    args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 
