@@ -17,7 +17,7 @@ Then:
 1. Extract the WMT'16 En-De data:
 ```bash
 TEXT=wmt16_en_de_bpe32k
-mkdir $TEXT
+mkdir -p $TEXT
 tar -xzvf wmt16_en_de.tar.gz -C $TEXT
 ```
 
