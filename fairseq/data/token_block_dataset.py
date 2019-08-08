@@ -8,7 +8,7 @@ import math
 import numpy as np
 import torch
 
-from . import FairseqDataset
+from fairseq.data import FairseqDataset, plasma_utils
 
 
 class TokenBlockDataset(FairseqDataset):
@@ -43,7 +43,7 @@ class TokenBlockDataset(FairseqDataset):
         self.pad = pad
         self.eos = eos
         self.include_targets = include_targets
-        self.slice_indices = []
+        slice_indices = []
 
         assert len(dataset) == len(sizes)
         assert len(dataset) > 0
@@ -57,7 +57,7 @@ class TokenBlockDataset(FairseqDataset):
                 end = min(start + block_size, total_size)
                 return (start, end)
 
-            self.slice_indices = [block_at(i) for i in range(length)]
+            slice_indices = [block_at(i) for i in range(length)]
         elif break_mode == 'complete':
             tok_idx = 0
             sz_idx = 0
@@ -67,11 +67,11 @@ class TokenBlockDataset(FairseqDataset):
                     curr_size += sizes[sz_idx]
                     sz_idx += 1
                 else:
-                    self.slice_indices.append((tok_idx, tok_idx + curr_size))
+                    slice_indices.append((tok_idx, tok_idx + curr_size))
                     tok_idx += curr_size
                     curr_size = 0
             if curr_size > 0:
-                self.slice_indices.append((tok_idx, tok_idx + curr_size))
+                slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'complete_doc':
             tok_idx = 0
             sz_idx = 0
@@ -85,32 +85,32 @@ class TokenBlockDataset(FairseqDataset):
                     curr_size += sizes[sz_idx]
                     sz_idx += 1
                 else:
-                    self.slice_indices.append((tok_idx, tok_idx + curr_size))
+                    slice_indices.append((tok_idx, tok_idx + curr_size))
                     tok_idx += curr_size
                     curr_size = 0
                     if sizes[sz_idx] == document_sep_len:
                         tok_idx += sizes[sz_idx]
                         sz_idx += 1
             if curr_size > 0:
-                self.slice_indices.append((tok_idx, tok_idx + curr_size))
+                slice_indices.append((tok_idx, tok_idx + curr_size))
         elif break_mode == 'eos':
-            self.slice_indices = np.empty((len(sizes), 2), dtype=int)
+            slice_indices = np.empty((len(sizes), 2), dtype=int)
             if not torch.is_tensor(sizes):
                 sizes = torch.tensor(sizes)
             cumsum = torch.cumsum(sizes, dim=0)
-            self.slice_indices[0] = [0, sizes[0]]
+            slice_indices[0] = [0, sizes[0]]
             if len(cumsum) > 1:
-                self.slice_indices[1:] = cumsum.unfold(0, 2, 1)
+                slice_indices[1:] = cumsum.unfold(0, 2, 1)
         else:
             raise ValueError('Invalid break_mode: ' + break_mode)
 
-        self.slice_indices = np.array(self.slice_indices, dtype=int)
-        self.sizes = self.slice_indices[:, 1] - self.slice_indices[:, 0]
+        slice_indices = np.array(slice_indices, dtype=int)
+        self._sizes = slice_indices[:, 1] - slice_indices[:, 0]
 
         # build index mapping block indices to the underlying dataset indices
         if break_mode == 'eos':
             # much faster version for eos break mode
-            self.block_to_dataset_index = np.stack(
+            block_to_dataset_index = np.stack(
                 [
                     np.arange(len(sizes)),  # starting index in dataset
                     np.zeros(len(sizes), dtype=np.long),  # starting offset within starting index
@@ -120,8 +120,8 @@ class TokenBlockDataset(FairseqDataset):
             )
         else:
             ds = DatasetSearcher(sizes)
-            self.block_to_dataset_index = np.empty((len(self.slice_indices), 3), dtype=int)
-            for i, (s, e) in enumerate(self.slice_indices):
+            block_to_dataset_index = np.empty((len(slice_indices), 3), dtype=int)
+            for i, (s, e) in enumerate(slice_indices):
                 ds.seek(s)
                 start_ds_idx = ds.current_index
                 start_offset = ds.current_offset
@@ -129,11 +129,27 @@ class TokenBlockDataset(FairseqDataset):
                     continue
                 ds.seek(e - 1)
                 end_ds_idx = ds.current_index
-                self.block_to_dataset_index[i] = (
+                block_to_dataset_index[i] = (
                     start_ds_idx,  # starting index in dataset
                     start_offset,  # starting offset within starting index
                     end_ds_idx,  # ending index in dataset
                 )
+
+        self._slice_indices = plasma_utils.PlasmaArray(slice_indices)
+        self._sizes = plasma_utils.PlasmaArray(self._sizes)
+        self._block_to_dataset_index = plasma_utils.PlasmaArray(block_to_dataset_index)
+
+    @property
+    def slice_indices(self):
+        return self._slice_indices.array
+
+    @property
+    def sizes(self):
+        return self._sizes.array
+
+    @property
+    def block_to_dataset_index(self):
+        return self._block_to_dataset_index.array
 
     def __getitem__(self, index):
         start_ds_idx, start_offset, end_ds_idx = self.block_to_dataset_index[index]
