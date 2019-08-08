@@ -84,7 +84,7 @@ do
 
   # Strip out header and filter lines that don't have expected number of fields.
   rm -rf "$TASK_DATA_FOLDER/processed"
-  mkdir "$TASK_DATA_FOLDER/processed"
+  mkdir -p "$TASK_DATA_FOLDER/processed"
   for SPLIT in $SPLITS
   do
     # CoLA train and dev doesn't have header.
@@ -178,7 +178,7 @@ do
       --workers 60;
   else
     # For STS-B output range is converted to be between: [0.0, 1.0]
-    mkdir "$TASK-bin/label"
+    mkdir -p "$TASK-bin/label"
     awk '{print $1 / 5.0 }' "$TASK_DATA_FOLDER/processed/train.label" > "$TASK-bin/label/train.label"
     awk '{print $1 / 5.0 }' "$TASK_DATA_FOLDER/processed/dev.label" > "$TASK-bin/label/valid.label"
   fi
