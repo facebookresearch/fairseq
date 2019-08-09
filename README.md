@@ -62,7 +62,10 @@ After PyTorch is installed, you can install fairseq with `pip`:
 ```
 pip install fairseq
 ```
-
+On MacOS,
+```
+CFLAGS="-stdlib=libc++" pip install fairseq
+```
 **Installing from source**
 
 To install fairseq from source and develop locally:
