@@ -24,6 +24,13 @@ Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
 `roberta.large` | 90.2 | 94.7 | 92.2 | 86.6 | 96.4 | 90.9 | 68.0 | 92.4
 `roberta.large.mnli` | 90.2 | - | - | - | - | - | - | -
 
+
+##### Results on SuperGLUE tasks (dev set, single model, single-task finetuning)
+
+Model | BoolQ | CB | COPA | MultiRC | RTE | WiC | WSC
+---|---|---|---|---|---|---|---
+`roberta.large` | 86.9 | 98.2 | 94.0 | 85.7 | 89.5 | 75.6 | 91.3
+
 ##### Results on SQuAD (dev set)
 
 Model | SQuAD 1.1 EM/F1 | SQuAD 2.0 EM/F1
