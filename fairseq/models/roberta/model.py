@@ -76,6 +76,8 @@ class RobertaModel(FairseqLanguageModel):
                             help='dropout probability in the masked_lm pooler layers')
         parser.add_argument('--max-positions', type=int,
                             help='number of positional embeddings to learn')
+        parser.add_argument('--load-checkpoint-heads', action='store_true',
+                            help='(re-)register and load heads when loading checkpoints')
 
     @classmethod
     def build_model(cls, args, task):
@@ -92,7 +94,7 @@ class RobertaModel(FairseqLanguageModel):
 
     def forward(self, src_tokens, features_only=False, return_all_hiddens=False, classification_head_name=None, **kwargs):
         assert classification_head_name is None or features_only, \
-            "If passing classification_head_name argument, features_only must be set to True"
+            'If passing classification_head_name argument, features_only must be set to True'
 
         x, extra = self.decoder(src_tokens, features_only, return_all_hiddens, **kwargs)
 
@@ -102,6 +104,16 @@ class RobertaModel(FairseqLanguageModel):
 
     def register_classification_head(self, name, num_classes=None, inner_dim=None, **kwargs):
         """Register a classification head."""
+        if name in self.classification_heads:
+            prev_num_classes = self.classification_heads[name].out_proj.out_features
+            prev_inner_dim = self.classification_heads[name].dense.out_features
+            if num_classes != prev_num_classes or inner_dim != prev_inner_dim:
+                print(
+                    'WARNING: re-registering head "{}" with num_classes {} (prev: {}) '
+                    'and inner_dim {} (prev: {})'.format(
+                        name, num_classes, prev_num_classes, inner_dim, prev_inner_dim
+                    )
+                )
         self.classification_heads[name] = RobertaClassificationHead(
             self.args.encoder_embed_dim,
             inner_dim or self.args.encoder_embed_dim,
@@ -123,6 +135,7 @@ class RobertaModel(FairseqLanguageModel):
             data_name_or_path,
             archive_map=cls.hub_models(),
             bpe='gpt2',
+            load_checkpoint_heads=True,
             **kwargs,
         )
         return RobertaHubInterface(x['args'], x['task'], x['models'][0])
@@ -132,30 +145,35 @@ class RobertaModel(FairseqLanguageModel):
         current_head_names = [] if not hasattr(self, 'classification_heads') else \
             self.classification_heads.keys()
 
+        # Handle new classification heads present in the state dict.
         keys_to_delete = []
-        # Delete any heads present in state_dict, that are not in current constructed model.
         for k in state_dict.keys():
             if not k.startswith(prefix + 'classification_heads.'):
                 continue
 
             head_name = k[len(prefix + 'classification_heads.'):].split('.')[0]
-            num_classes = state_dict[
-                prefix + 'classification_heads.' + head_name + '.out_proj.weight'
-            ].size(0)
-            inner_dim = state_dict[
-                prefix + 'classification_heads.' + head_name + '.dense.weight'
-            ].size(0)
+            num_classes = state_dict[prefix + 'classification_heads.' + head_name + '.out_proj.weight'].size(0)
+            inner_dim = state_dict[prefix + 'classification_heads.' + head_name + '.dense.weight'].size(0)
 
-            if head_name not in current_head_names:
-                print("WARNING: deleting classification head ({}) from checkpoint not present in current model: {}".format(head_name, k))
-                keys_to_delete.append(k)
-            elif (
-                num_classes != self.classification_heads[head_name].out_proj.out_features
-                or inner_dim != self.classification_heads[head_name].dense.out_features
-            ):
-                print("WARNING: deleting classification head ({}) from checkpoint with different dimensions than current model: {}".format(head_name, k))
-                keys_to_delete.append(k)
-
+            if getattr(self.args, 'load_checkpoint_heads', False):
+                if head_name not in current_head_names:
+                    self.register_classification_head(head_name, num_classes, inner_dim)
+            else:
+                if head_name not in current_head_names:
+                    print(
+                        'WARNING: deleting classification head ({}) from checkpoint '
+                        'not present in current model: {}'.format(head_name, k)
+                    )
+                    keys_to_delete.append(k)
+                elif (
+                    num_classes != self.classification_heads[head_name].out_proj.out_features
+                    or inner_dim != self.classification_heads[head_name].dense.out_features
+                ):
+                    print(
+                        'WARNING: deleting classification head ({}) from checkpoint '
+                        'with different dimensions than current model: {}'.format(head_name, k)
+                    )
+                    keys_to_delete.append(k)
         for k in keys_to_delete:
             del state_dict[k]
 
