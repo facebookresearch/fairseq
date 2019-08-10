@@ -104,6 +104,7 @@ class MaskedLMTask(FairseqTask):
             eos=self.source_dictionary.eos(),
             break_mode=self.args.sample_break_mode,
         )
+        print('| loaded {} batches from: {}'.format(len(dataset), split_path))
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
@@ -210,14 +211,3 @@ class MaskedLMTask(FairseqTask):
     @property
     def target_dictionary(self):
         return self.dictionary
-
-    def get_average_masked_score(self, model, src_tokens, mask, **net_input):
-        """Mask a set of tokens and return their average score."""
-        masked_tokens = src_tokens.clone()
-        masked_tokens[mask.byte()] = self.mask_idx
-        net_output = model(src_tokens=masked_tokens, **net_input, last_state_only=True)
-        lprobs = F.log_softmax(net_output[0], dim=-1, dtype=torch.float32)
-        lprobs = lprobs.gather(-1, src_tokens.unsqueeze(-1)).squeeze(-1)
-        mask = mask.type_as(lprobs)
-        score = (lprobs * mask).sum(dim=-1) / mask.sum(dim=-1)
-        return score

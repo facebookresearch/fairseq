@@ -14,8 +14,6 @@ import os
 import re
 import sys
 
-from tqdm import tqdm
-
 from fairseq import distributed_utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 
@@ -208,6 +206,7 @@ class tqdm_progress_bar(progress_bar):
 
     def __init__(self, iterable, epoch=None, prefix=None):
         super().__init__(iterable, epoch, prefix)
+        from tqdm import tqdm
         self.tqdm = tqdm(iterable, self.prefix, leave=False)
 
     def __iter__(self):

@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from fairseq import utils
 from fairseq.data import encoders
 
 
@@ -152,11 +153,12 @@ class RobertaHubInterface(nn.Module):
         if tokens.dim() == 1:
             tokens = tokens.unsqueeze(0)
 
-        features, extra = self.model(
-            tokens.long().to(device=self.device),
-            features_only=False,
-            return_all_hiddens=False,
-        )
+        with utils.eval(self.model):
+            features, extra = self.model(
+                tokens.long().to(device=self.device),
+                features_only=False,
+                return_all_hiddens=False,
+            )
         logits = features[0, masked_index, :].squeeze()
         prob = logits.softmax(dim=0)
         values, index = prob.topk(k=topk, dim=0)
@@ -178,3 +180,18 @@ class RobertaHubInterface(nn.Module):
                     values[index].item(),
                 ))
         return topk_filled_outputs
+
+    def disambiguate_pronoun(self, sentence: str) -> bool:
+        """
+        Usage::
+
+            >>> disambiguate_pronoun('The _trophy_ would not fit in the brown suitcase because [it] was too big.')
+            True
+
+            >>> disambiguate_pronoun('The trophy would not fit in the brown suitcase because [it] was too big.')
+            'The trophy'
+        """
+        assert hasattr(self.task, 'disambiguate_pronoun'), \
+            'roberta.disambiguate_pronoun() requires a model trained with the WSC task.'
+        with utils.eval(self.model):
+            return self.task.disambiguate_pronoun(self.model, sentence, use_cuda=self.device.type == 'cuda')
