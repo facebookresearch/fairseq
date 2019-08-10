@@ -47,6 +47,9 @@ def from_pretrained(
         if os.path.exists(path):
             kwargs[arg] = path
 
+    if 'user_dir' in kwargs:
+        utils.import_user_module(argparse.Namespace(user_dir=kwargs['user_dir']))
+
     models, args, task = checkpoint_utils.load_model_ensemble_and_task(
         [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(':')],
         arg_overrides=kwargs,

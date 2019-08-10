@@ -12,14 +12,6 @@ from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
 
-@contextlib.contextmanager
-def eval(model):
-    is_training = model.training
-    model.eval()
-    yield
-    model.train(is_training)
-
-
 @register_task('translation_moe')
 class TranslationMoETask(TranslationTask):
     """
@@ -163,7 +155,7 @@ class TranslationMoETask(TranslationTask):
             return lprob_yz
 
         # compute responsibilities without dropout
-        with eval(model):  # disable dropout
+        with utils.eval(model):  # disable dropout
             with torch.no_grad():  # disable autograd
                 lprob_yz = get_lprob_yz()  # B x K
                 prob_z_xy = torch.nn.functional.softmax(lprob_yz, dim=1)
