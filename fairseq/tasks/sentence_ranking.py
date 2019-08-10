@@ -144,7 +144,7 @@ class SentenceRankingTask(FairseqTask):
                 }
             )
 
-        label_path = f"{get_path('label', split)}.label"
+        label_path = '{}.label'.format(get_path('label', split))
         if os.path.exists(label_path):
             dataset.update(
                 target=RawLabelDataset([
