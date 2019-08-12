@@ -97,10 +97,10 @@ def load_checkpoint(args, trainer):
     if args.distributed_rank == 0:
         os.makedirs(args.save_dir, exist_ok=True)
 
-    if os.path.isabs(args.restore_file):
-        checkpoint_path = args.restore_file
+    if args.restore_file == 'checkpoint_last.pt':
+        checkpoint_path = os.path.join(args.save_dir, 'checkpoint_last.pt')
     else:
-        checkpoint_path = os.path.join(args.save_dir, args.restore_file)
+        checkpoint_path = args.restore_file
 
     extra_state = trainer.load_checkpoint(
         checkpoint_path,

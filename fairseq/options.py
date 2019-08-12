@@ -361,7 +361,8 @@ def add_checkpoint_args(parser):
     group.add_argument('--save-dir', metavar='DIR', default='checkpoints',
                        help='path to save checkpoints')
     group.add_argument('--restore-file', default='checkpoint_last.pt',
-                       help='filename in save-dir from which to load checkpoint')
+                       help='filename from which to load checkpoint '
+                            '(default: <save-dir>/checkpoint_last.pt')
     group.add_argument('--reset-dataloader', action='store_true',
                        help='if set, does not reload dataloader state from the checkpoint')
     group.add_argument('--reset-lr-scheduler', action='store_true',
