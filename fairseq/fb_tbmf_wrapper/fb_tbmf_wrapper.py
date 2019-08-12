@@ -41,7 +41,6 @@ class fb_tbmf_wrapper(progress_bar.progress_bar):
             # try to get fb learner job name
             job_id = ""
 
-
         if job_id is not None and job_id != "":
             return job_id
         else:

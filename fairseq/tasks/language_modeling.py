@@ -3,22 +3,18 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import itertools
 import os
 
-import numpy as np
 import torch
 
 from fairseq import utils
 from fairseq.data import (
-    ConcatDataset,
     data_utils,
     Dictionary,
     MonolingualDataset,
     TokenBlockDataset,
     TransformEosDataset,
     TruncatedDictionary,
-    indexed_dataset
 )
 from fairseq.tasks import FairseqTask, register_task
 

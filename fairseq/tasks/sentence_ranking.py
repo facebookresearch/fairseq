@@ -15,7 +15,6 @@ from fairseq.data import (
     NestedDictionaryDataset,
     NumSamplesDataset,
     NumelDataset,
-    OffsetTokensDataset,
     PrependTokenDataset,
     RawLabelDataset,
     RightPadDataset,

@@ -26,7 +26,6 @@ from fairseq.models.transformer import (
 from fairseq.modules import (
     AdaptiveSoftmax,
     CharacterTokenEmbedder,
-    MultiheadAttention,
     SinusoidalPositionalEmbedding,
 )
 from fairseq.modules.character_token_embedder import CHAR_PAD_IDX

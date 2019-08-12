@@ -7,7 +7,7 @@ import math
 
 import torch
 
-from fairseq import search, utils
+from fairseq import search
 from fairseq.models import FairseqIncrementalDecoder
 
 

@@ -16,7 +16,6 @@ from fairseq.data.legacy.masked_lm_dictionary import MaskedLMDictionary
 from fairseq.data import (
     ConcatDataset,
     data_utils,
-    indexed_dataset,
     TokenBlockDataset,
 )
 

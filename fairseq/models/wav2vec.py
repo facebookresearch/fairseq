@@ -351,7 +351,7 @@ class ConvAggegator(nn.Module):
             residual = x
             x = conv(x)
             if self.skip_connections:
-                if rproj != None:
+                if rproj is not None:
                     residual = rproj(residual)
                 x = (x + residual) * self.residual_scale
         return x

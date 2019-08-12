@@ -6,6 +6,7 @@
 from fairseq import file_utils
 from fairseq.data.encoders import register_bpe
 
+
 @register_bpe('fastbpe')
 class fastBPE(object):
 

@@ -6,7 +6,6 @@
 Base classes for various fairseq models.
 """
 
-import os
 from typing import Dict, List, Optional
 
 import torch
@@ -258,6 +257,7 @@ class FairseqModel(FairseqEncoderDecoderModel):
             'or BaseFairseqModel instead',
             stacklevel=4,
         )
+
 
 class FairseqMultiModel(BaseFairseqModel):
     """Base class for combining multiple encoder-decoder models."""

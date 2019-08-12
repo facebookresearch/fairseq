@@ -350,7 +350,7 @@ def add_optimization_args(parser):
     group.add_argument('--min-lr', default=-1, type=float, metavar='LR',
                        help='stop training when the learning rate reaches this minimum')
     group.add_argument('--use-bmuf', default=False, action='store_true',
-                        help="specify global optimizer for syncing models on different GPUs/Shards")
+                       help='specify global optimizer for syncing models on different GPUs/shards')
     # fmt: on
     return group
 

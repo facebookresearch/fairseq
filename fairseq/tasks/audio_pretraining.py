@@ -47,9 +47,9 @@ class AudioPretrainingTask(FairseqTask):
 
         manifest = os.path.join(self.args.data, '{}.tsv'.format(split))
         self.datasets[split] = RawAudioDataset(manifest,
-                                                 sample_rate=self.args.sample_rate,
-                                                 max_sample_size=self.args.max_sample_size,
-                                                 min_sample_size=self.args.min_sample_size)
+                                               sample_rate=self.args.sample_rate,
+                                               max_sample_size=self.args.max_sample_size,
+                                               min_sample_size=self.args.min_sample_size)
 
     @property
     def target_dictionary(self):
