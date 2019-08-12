@@ -12,6 +12,7 @@ class TruncateDataset(BaseWrapperDataset):
 
     def __init__(self, dataset, truncation_length):
         super().__init__(dataset)
+        assert truncation_length is not None
         self.truncation_length = truncation_length
         self.dataset = dataset
 
