@@ -12,18 +12,16 @@ def get_grid(args):
         hyperparam('--train-subset', 'train' if not args.local else 'valid'),
 
         hyperparam('--fp16', save_dir_key=lambda val: 'fp16'),
-        #hyperparam('--memory-efficient-fp16', save_dir_key=lambda val: 'me_fp16'),
         hyperparam('--num-workers', 2),
 
         hyperparam('--task', 'masked_lm'),
         hyperparam('--criterion', 'masked_lm'),
         hyperparam('--arch', 'roberta_base', save_dir_key=lambda val: val),
+
         hyperparam('--sample-break-mode', 'complete', save_dir_key=lambda val: 'cmpltdoc'),
         hyperparam('--tokens-per-sample', 512, save_dir_key=lambda val: f'tps{val}'),
 
         hyperparam('--optimizer', 'adam', save_dir_key=lambda val: val),
-        #hyperparam('--adam-betas', '(0.9, 0.999)', save_dir_key=lambda val: 'b2_0.999'),
-        #hyperparam('--clip-norm', 1.0, save_dir_key=lambda val: f'cl{val}'),
         hyperparam('--adam-betas', '(0.9, 0.98)', save_dir_key=lambda val: 'b2_0.98'),
         hyperparam('--adam-eps', 1e-6, save_dir_key=lambda val: f'eps{val}'),
         hyperparam('--clip-norm', 0.0, save_dir_key=lambda val: f'cl{val}'),
