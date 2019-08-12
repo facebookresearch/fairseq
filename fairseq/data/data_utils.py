@@ -149,8 +149,9 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
         else:
             # Hacky as heck, for the specific case of multilingual training with RoundRobin.
             if isinstance(size_fn(idx), dict) and isinstance(max_positions, tuple):
-                return all(a is None or b is None or a <= b
-                           for a, b in zip(size_fn(idx).values(), max_positions)
+                return all(
+                    a is None or b is None or a <= b
+                    for a, b in zip(size_fn(idx).values(), max_positions)
                 )
             # For MultiCorpusSampledDataset, will generalize it later
             if not isinstance(size_fn(idx), Iterable):

@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import OrderedDict
-import copy
 import os
 
 import torch
@@ -15,7 +14,6 @@ from fairseq.data import (
     LanguagePairDataset,
     RoundRobinZipDatasets,
     TransformEosLangPairDataset,
-    indexed_dataset,
 )
 from fairseq.models import FairseqMultiModel
 from fairseq.tasks.translation import load_langpair_dataset

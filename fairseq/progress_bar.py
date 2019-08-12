@@ -11,13 +11,13 @@ from collections import OrderedDict
 import json
 from numbers import Number
 import os
-import re
 import sys
 
 from fairseq import distributed_utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 
 g_tbmf_wrapper = None
+
 
 def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', no_progress_bar='none'):
     if args.log_format is None:

@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from collections import namedtuple
 import os
 import pickle
 import socket
@@ -12,7 +11,6 @@ import warnings
 
 import torch
 import torch.distributed as dist
-from torch import nn
 
 from fairseq import utils
 

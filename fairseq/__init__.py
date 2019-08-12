@@ -6,10 +6,10 @@
 __all__ = ['pdb']
 __version__ = '0.7.2'
 
-import fairseq.criterions
-import fairseq.models
-import fairseq.modules
-import fairseq.optim
-import fairseq.optim.lr_scheduler
-import fairseq.pdb
-import fairseq.tasks
+import fairseq.criterions  # noqa
+import fairseq.models  # noqa
+import fairseq.modules  # noqa
+import fairseq.optim  # noqa
+import fairseq.optim.lr_scheduler  # noqa
+import fairseq.pdb  # noqa
+import fairseq.tasks  # noqa
