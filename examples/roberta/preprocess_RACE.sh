@@ -42,7 +42,6 @@ for INPUT_TYPE in $INPUT_TYPES
     do
       LANG="input$INPUT_TYPE"
       fairseq-preprocess \
-        --dataset-impl cached \
         --only-source \
         --trainpref "$RACE_DATA_FOLDER/train.$INPUT_TYPE.bpe" \
         --validpref "$RACE_DATA_FOLDER/dev.$INPUT_TYPE.bpe" \
