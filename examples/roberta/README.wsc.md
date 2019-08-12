@@ -43,24 +43,24 @@ ROBERTA_PATH=/path/to/roberta/model.pt
 FAIRSEQ_PATH=/path/to/fairseq
 FAIRSEQ_USER_DIR=${FAIRSEQ_PATH}/examples/roberta/wsc
 
-cd fairseq
 CUDA_VISIBLE_DEVICES=0,1,2,3 fairseq-train WSC/ \
-  --restore-file $ROBERTA_PATH \
-  --reset-optimizer --reset-dataloader --reset-meters \
-  --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
-  --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
-  --valid-subset val \
-  --fp16 --ddp-backend no_c10d \
-  --user-dir $FAIRSEQ_USER_DIR \
-  --task wsc --criterion wsc --wsc-cross-entropy \
-  --arch roberta_large --bpe gpt2 --max-positions 512 \
-  --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-  --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
-  --lr-scheduler polynomial_decay --lr $LR \
-  --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
-  --max-sentences $MAX_SENTENCES \
-  --max-update $TOTAL_NUM_UPDATES \
-  --log-format simple --log-interval 100
+    --restore-file $ROBERTA_PATH \
+    --reset-optimizer --reset-dataloader --reset-meters \
+    --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
+    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
+    --valid-subset val \
+    --fp16 --ddp-backend no_c10d \
+    --user-dir $FAIRSEQ_USER_DIR \
+    --task wsc --criterion wsc --wsc-cross-entropy \
+    --arch roberta_large --bpe gpt2 --max-positions 512 \
+    --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
+    --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
+    --lr-scheduler polynomial_decay --lr $LR \
+    --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
+    --max-sentences $MAX_SENTENCES \
+    --max-update $TOTAL_NUM_UPDATES \
+    --log-format simple --log-interval 100 \
+    --seed $SEED
 ```
 
 The above command assumes training on 4 GPUs, but you can achieve the same
