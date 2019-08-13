@@ -16,7 +16,7 @@ class CosineSchedule(FairseqLRScheduler):
 
     We also support a warmup phase where we linearly increase the learning rate
     from some initial learning rate (``--warmup-init-lr``) until the configured
-    learning rate (``--lr``).
+    max learning rate (``--max-lr``).
 
     During warmup::
 
