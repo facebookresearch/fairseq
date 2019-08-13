@@ -26,7 +26,6 @@ def process_samples(samples, labels, sp_path, tgt_dict):
     import sentencepiece as spm
     sp = spm.SentencePieceProcessor()
     sp.Load(sp_path)
-    print("done loading")
 
     for s in samples:
         lable = labels[s.utt_id]
@@ -43,7 +42,6 @@ def process_samples(samples, labels, sp_path, tgt_dict):
         output["token"] = token
         output["tokenid"] = ', '.join(map(str, [t.tolist() for t in ids]))
         utts[s.utt_id] = {"input": input, "output": output}
-    print("done processing")
     return utts
 
 
@@ -95,23 +93,11 @@ def main():
     utts = {}
     num_cpu = args.num_cpu
     chunk_size = int(1 + (len(samples) / num_cpu))
-    print("Using {} CPUs".format(num_cpu))
-    print("start")
-    import time
-    t0 = time.time()
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpu) as executor:
-        # future_to_sample = {executor.submit(
-        #     process_sample, s.aud_path, labels[s.utt_id], s.utt_id, sp, tgt_dict): s for s in samples}
         samples_chunks = [samples[i:i + chunk_size]
                           for i in range(0, len(samples), chunk_size)]
-        print("len(samples_chunks): {}".format(len(samples_chunks)))
-        # future_to_sample = {executor.submit(
-        #     process_samples, chunk, labels, args.spm_model, tgt_dict): chunk for chunk in samples_chunks}
         futures = [executor.submit(
             process_samples, chunk, labels, args.spm_model, tgt_dict) for chunk in samples_chunks]
-        # process_samples(samples_chunks[0], labels, args.spm_model, tgt_dict)
-        # import sys
-        # sys.exit(1)
         for future in futures:
             try:
                 data = future.result()
@@ -120,7 +106,6 @@ def main():
             else:
                 utts.update(data)
     json.dump({"utts": utts}, args.output, indent=4)
-    print("Done: {}".format(time.time() - t0))
 
 
 if __name__ == "__main__":
