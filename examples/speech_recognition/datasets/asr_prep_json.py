@@ -77,7 +77,6 @@ def main():
         raise Exception('No labels found in ', args.labels_path)
 
     samples = []
-    i = 0
     for path, _, files in chain.from_iterable(os.walk(path) for path in args.audio_dirs):
         for f in files:
             if f.endswith(args.audio_format):
@@ -88,7 +87,6 @@ def main():
                 if utt_id not in labels:
                     continue
                 samples.append(Sample(os.path.join(path, f), utt_id))
-                i += 1
 
     utts = {}
     num_cpu = args.num_cpu
