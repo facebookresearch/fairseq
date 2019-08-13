@@ -105,12 +105,14 @@ def main():
         samples_chunks = [samples[i:i + chunk_size]
                           for i in range(0, len(samples), chunk_size)]
         print("len(samples_chunks): {}".format(len(samples_chunks)))
-        future_to_sample = {executor.submit(
-            process_samples, chunk, labels, args.spm_model, tgt_dict): chunk for chunk in samples_chunks}
+        # future_to_sample = {executor.submit(
+        #     process_samples, chunk, labels, args.spm_model, tgt_dict): chunk for chunk in samples_chunks}
+        futures = [executor.submit(
+            process_samples, chunk, labels, args.spm_model, tgt_dict) for chunk in samples_chunks]
         # process_samples(samples_chunks[0], labels, args.spm_model, tgt_dict)
         # import sys
         # sys.exit(1)
-        for future in concurrent.futures.as_completed(future_to_sample):
+        for future in futures:
             try:
                 data = future.result()
             except Exception as exc:
