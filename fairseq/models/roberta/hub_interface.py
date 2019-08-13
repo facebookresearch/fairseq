@@ -33,7 +33,7 @@ class RobertaHubInterface(nn.Module):
     def device(self):
         return self._float_tensor.device
 
-    def encode(self, sentence: str, *addl_sentences) -> torch.LongTensor:
+    def encode(self, sentence: str, *addl_sentences, no_separator=False) -> torch.LongTensor:
         """
         BPE-encode a sentence (or multiple sentences).
 
@@ -56,7 +56,8 @@ class RobertaHubInterface(nn.Module):
         """
         bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
         for s in addl_sentences:
-            bpe_sentence += ' </s> ' + self.bpe.encode(s) + ' </s>'
+            bpe_sentence += (' </s>' if not no_separator else '')
+            bpe_sentence += ' ' + self.bpe.encode(s) + ' </s>'
         tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False)
         return tokens.long()
 
@@ -99,9 +100,11 @@ class RobertaHubInterface(nn.Module):
             name, num_classes=num_classes, embedding_size=embedding_size, **kwargs
         )
 
-    def predict(self, head: str, tokens: torch.LongTensor):
+    def predict(self, head: str, tokens: torch.LongTensor, return_logits: bool = False):
         features = self.extract_features(tokens)
         logits = self.model.classification_heads[head](features)
+        if return_logits:
+            return logits
         return F.log_softmax(logits, dim=-1)
 
     def extract_features_aligned_to_words(self, sentence: str, return_all_hiddens: bool = False) -> torch.Tensor:

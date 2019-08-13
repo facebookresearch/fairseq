@@ -215,9 +215,10 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 
 ## Finetuning
 
-- [Finetuning on GLUE](README.finetune_glue.md)
-- [Finetuning on custom classification tasks (e.g., IMDB)](README.finetune_custom_classification.md)
+- [Finetuning on GLUE](README.glue.md)
+- [Finetuning on custom classification tasks (e.g., IMDB)](README.custom_classification.md)
 - [Finetuning on Winograd Schema Challenge (WSC)](README.wsc.md)
+- [Finetuning on Commonsense QA (CQA)](README.cqa.md)
 - Finetuning on SQuAD: coming soon
 
 ## Pretraining using your own data
