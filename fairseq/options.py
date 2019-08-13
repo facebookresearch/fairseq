@@ -48,6 +48,14 @@ def get_eval_lm_parser(default_task='language_modeling'):
     return parser
 
 
+def get_validation_parser(default_task=None):
+    parser = get_parser('Validation', default_task)
+    add_dataset_args(parser, train=True)
+    group = parser.add_argument_group('Evaluation')
+    add_common_eval_args(group)
+    return parser
+
+
 def eval_str_list(x, type=float):
     if x is None:
         return None

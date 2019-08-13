@@ -20,6 +20,7 @@ import train
 import generate
 import interactive
 import eval_lm
+import validate
 
 
 class TestTranslation(unittest.TestCase):
@@ -476,6 +477,21 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
     )
     train.main(train_args)
 
+    # test validation
+    validate_parser = options.get_validation_parser()
+    validate_args = options.parse_args_and_arch(
+        validate_parser,
+        [
+            '--task', task,
+            data_dir,
+            '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--valid-subset', 'valid',
+            '--max-tokens', '500',
+            '--no-progress-bar',
+        ]
+    )
+    validate.main(validate_args)
+
 
 def generate_main(data_dir, extra_flags=None):
     generate_parser = options.get_generation_parser()
@@ -540,6 +556,21 @@ def train_language_model(data_dir, arch, extra_flags=None):
         ] + (extra_flags or []),
     )
     train.main(train_args)
+
+    # test validation
+    validate_parser = options.get_validation_parser()
+    validate_args = options.parse_args_and_arch(
+        validate_parser,
+        [
+            '--task', 'language_modeling',
+            data_dir,
+            '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--valid-subset', 'valid',
+            '--max-tokens', '500',
+            '--no-progress-bar',
+        ]
+    )
+    validate.main(validate_args)
 
 
 def eval_lm_main(data_dir):
