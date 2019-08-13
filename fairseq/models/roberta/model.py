@@ -93,8 +93,8 @@ class RobertaModel(FairseqLanguageModel):
         return cls(args, encoder)
 
     def forward(self, src_tokens, features_only=False, return_all_hiddens=False, classification_head_name=None, **kwargs):
-        assert classification_head_name is None or features_only, \
-            'If passing classification_head_name argument, features_only must be set to True'
+        if classification_head_name is not None:
+            features_only = True
 
         x, extra = self.decoder(src_tokens, features_only, return_all_hiddens, **kwargs)
 

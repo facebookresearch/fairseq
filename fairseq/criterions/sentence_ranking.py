@@ -16,6 +16,24 @@ from . import FairseqCriterion, register_criterion
 @register_criterion('sentence_ranking')
 class SentenceRankingCriterion(FairseqCriterion):
 
+    def __init__(self, args, task):
+        super().__init__(args, task)
+        if self.args.save_predictions is not None:
+            self.prediction_h = open(self.args.save_predictions, 'w')
+        else:
+            self.prediction_h = None
+
+    def __del__(self):
+        if self.prediction_h is not None:
+            self.prediction_h.close()
+
+    @staticmethod
+    def add_args(parser):
+        # fmt: off
+        parser.add_argument('--save-predictions', metavar='FILE',
+                            help='file to save predictions to')
+        # fmt: on
+
     def forward(self, model, sample, reduce=True):
         """Compute ranking loss for the given sample.
 
@@ -28,20 +46,32 @@ class SentenceRankingCriterion(FairseqCriterion):
         for idx in range(self.args.num_classes):
             score, _ = model(
                 **sample['net_input{idx}'.format(idx=idx+1)],
-                features_only=True,
                 classification_head_name='sentence_classification_head',
             )
             scores.append(score)
 
         logits = torch.cat(scores, dim=1)
-        targets = model.get_targets(sample, [logits]).view(-1)
-        sample_size = targets.numel()
+        sample_size = logits.size(0)
 
-        loss = F.nll_loss(
-            F.log_softmax(logits, dim=-1, dtype=torch.float32),
-            targets,
-            reduction='sum',
-        )
+        if 'target' in sample:
+            targets = model.get_targets(sample, [logits]).view(-1)
+            loss = F.nll_loss(
+                F.log_softmax(logits, dim=-1, dtype=torch.float32),
+                targets,
+                reduction='sum',
+            )
+        else:
+            targets = None
+            loss = torch.tensor(0.0, requires_grad=True)
+
+        if self.prediction_h is not None:
+            preds = logits.argmax(dim=1)
+            for i, (id, pred) in enumerate(zip(sample['id'].tolist(), preds.tolist())):
+                if targets is not None:
+                    label = targets[i].item()
+                    print('{}\t{}\t{}'.format(id, pred, label), file=self.prediction_h)
+                else:
+                    print('{}\t{}'.format(id, pred), file=self.prediction_h)
 
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
@@ -49,9 +79,10 @@ class SentenceRankingCriterion(FairseqCriterion):
             'nsentences': sample_size,
             'sample_size': sample_size,
         }
-        logging_output.update(
-            ncorrect=(logits.max(dim=1)[1] == targets).sum().item()
-        )
+        if targets is not None:
+            logging_output.update(
+                ncorrect=(logits.max(dim=1)[1] == targets).sum().item()
+            )
         return loss, sample_size, logging_output
 
     @staticmethod

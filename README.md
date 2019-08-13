@@ -15,22 +15,22 @@ modeling and other text generation tasks.
 
 Fairseq provides reference implementations of various sequence-to-sequence models, including:
 - **Convolutional Neural Networks (CNN)**
-  - [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/language_model/conv_lm/README.md)
-  - [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
-  - [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
-  - [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
-  - **_New_** [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
+  - [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/conv_lm/README.md)
+  - [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
+  - [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
+  - [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
+  - [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
 - **LightConv and DynamicConv models**
-  - [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
+  - [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
 - **Long Short-Term Memory (LSTM) networks**
-  - Luong et al. (2015): Effective Approaches to Attention-based Neural Machine Translation
+  - Effective Approaches to Attention-based Neural Machine Translation (Luong et al., 2015)
 - **Transformer (self-attention) networks**
-  - Vaswani et al. (2017): Attention Is All You Need
-  - [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
-  - [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)
-  - [Baevski and Auli (2018): Adaptive Input Representations for Neural Language Modeling](examples/language_model/transformer_lm/README.md)
-  - [Shen et al. (2019): Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
-  - **_New_** [Liu et al. (2019): RoBERTa: A Robustly Optimized BERT Pretraining Approach](examples/roberta/README.md)
+  - Attention Is All You Need (Vaswani et al., 2017)
+  - [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
+  - [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
+  - [Adaptive Input Representations for Neural Language Modeling (Baevski and Auli, 2018)](examples/language_model/transformer_lm/README.md)
+  - [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
+  - [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
 
 **Additionally:**
 - multi-GPU (distributed) training on one machine or across multiple machines
@@ -96,16 +96,16 @@ as well as example training and evaluation commands.
 - [Language Modeling](examples/language_model/README.md): convolutional models are available
 
 We also have more detailed READMEs to reproduce results from specific papers:
-- [Liu et al. (2019): RoBERTa: A Robustly Optimized BERT Pretraining Approach](examples/roberta/README.md)
-- [Schneider et al. (2019): wav2vec: Unsupervised Pre-training for Speech Recognition](examples/wav2vec/README.md)
-- [Shen et al. (2019) Mixture Models for Diverse Machine Translation: Tricks of the Trade](examples/translation_moe/README.md)
-- [Wu et al. (2019): Pay Less Attention with Lightweight and Dynamic Convolutions](examples/pay_less_attention_paper/README.md)
-- [Edunov et al. (2018): Understanding Back-Translation at Scale](examples/backtranslation/README.md)
-- [Edunov et al. (2018): Classical Structured Prediction Losses for Sequence to Sequence Learning](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
-- [Fan et al. (2018): Hierarchical Neural Story Generation](examples/stories/README.md)
-- [Ott et al. (2018): Scaling Neural Machine Translation](examples/scaling_nmt/README.md)
-- [Gehring et al. (2017): Convolutional Sequence to Sequence Learning](examples/conv_seq2seq/README.md)
-- [Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](examples/language_model/conv_lm/README.md)
+- [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
+- [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
+- [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
+- [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
+- [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
+- [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
+- [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
+- [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
+- [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
+- [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/conv_lm/README.md)
 
 # Join the fairseq community
 
