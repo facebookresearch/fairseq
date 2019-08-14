@@ -1,5 +1,5 @@
 # Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)
-This page contains pointers to pre-trained models as well as instructions on how to train new models for [our paper](https://openreview.net/pdf?id=SkVhlh09tX)
+This page contains pointers to pre-trained models as well as instructions on how to train new models for [our paper](https://arxiv.org/abs/1901.10430)
 
 ## Citation:
 ```bibtex
@@ -8,7 +8,7 @@ This page contains pointers to pre-trained models as well as instructions on how
   author = {Felix Wu and Angela Fan and Alexei Baevski and Yann Dauphin and Michael Auli},
   booktitle = {International Conference on Learning Representations},
   year = {2019},
-  url = {https://openreview.net/forum?id=SkVhlh09tX},
+  url = {https://arxiv.org/abs/1901.10430},
 }
 ```
 
@@ -38,6 +38,18 @@ Please follow the instructions in [`examples/translation/README.md`](../translat
 To use the model without GLU, please set `--encoder-glu 0 --decoder-glu 0`.
 For LightConv, please use `--encoder-conv-type lightweight --decoder-conv-type lightweight`, otherwise the default is DynamicConv.
 For best BLEU results, lenpen may need to be manually tuned.
+
+To use the CUDA kernels, first install the PyTorch modules using the commands below
+```sh
+# to install lightconv
+python fairseq/modules/lightconv_layer/cuda_function_gen.py
+python fairseq/modules/lightconv_layer/setup.py install
+
+# to install dynamicconv
+python fairseq/modules/dynamicconv_layer/cuda_function_gen.py
+python fairseq/modules/dynamicconv_layer/setup.py install
+```
+Once the CUDA modules are installed, they will automatically be used instead of the PyTorch modules.
 
 ### IWSLT14 De-En
 Training and evaluating DynamicConv (without GLU) on a GPU:
