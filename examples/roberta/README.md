@@ -2,20 +2,24 @@
 
 https://arxiv.org/abs/1907.11692
 
-## Introduction
+### Introduction
 
-**RoBERTa** iterates on BERT's pretraining procedure, including training the model longer, with bigger batches over more data; removing the next sentence prediction objective; training on longer sequences; and dynamically changing the masking pattern applied to the training data. See the associated paper for more details.
+RoBERTa iterates on BERT's pretraining procedure, including training the model longer, with bigger batches over more data; removing the next sentence prediction objective; training on longer sequences; and dynamically changing the masking pattern applied to the training data. See the associated paper for more details.
 
-## Pre-trained models
+### What's New:
+
+- August 2019: Added [tutorial for pretraining RoBERTa using your own data](README.pretraining.md).
+
+### Pre-trained models
 
 Model | Description | # params | Download
 ---|---|---|---
 `roberta.base` | RoBERTa using the BERT-base architecture | 125M | [roberta.base.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.base.tar.gz)
 `roberta.large` | RoBERTa using the BERT-large architecture | 355M | [roberta.large.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.tar.gz)
 `roberta.large.mnli` | `roberta.large` finetuned on [MNLI](http://www.nyu.edu/projects/bowman/multinli) | 355M | [roberta.large.mnli.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.mnli.tar.gz)
-`roberta.large.wsc` | `roberta.large` finetuned on [WSC](https://cs.nyu.edu/faculty/davise/papers/WinogradSchemas/WS.html) | 355M | [roberta.large.wsc.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.wsc.tar.gz)
+`roberta.large.wsc` | `roberta.large` finetuned on [WSC](README.wsc.md) | 355M | [roberta.large.wsc.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.wsc.tar.gz)
 
-## Results
+### Results
 
 ##### Results on GLUE tasks (dev set, single model, single-task finetuning)
 
@@ -44,7 +48,7 @@ Model | Accuracy | Middle | High
 ---|---|---|---
 `roberta.large` | 83.2 | 86.5 | 81.3
 
-## Example usage
+### Example usage
 
 ##### Load RoBERTa from torch.hub (PyTorch >= 1.1):
 ```python
@@ -53,7 +57,7 @@ roberta = torch.hub.load('pytorch/fairseq', 'roberta.large')
 roberta.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
-##### Load RoBERTa (for PyTorch 1.0):
+##### Load RoBERTa (for PyTorch 1.0 or custom models):
 ```python
 # Download roberta.large model
 wget https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.tar.gz
@@ -61,7 +65,7 @@ tar -xzvf roberta.large.tar.gz
 
 # Load the model in fairseq
 from fairseq.models.roberta import RobertaModel
-roberta = RobertaModel.from_pretrained('/path/to/roberta.large')
+roberta = RobertaModel.from_pretrained('/path/to/roberta.large', checkpoint_file='model.pt')
 roberta.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
@@ -120,7 +124,7 @@ roberta.cuda()
 roberta.predict('new_task', tokens)  # tensor([[-1.1050, -1.0672, -1.1245]], device='cuda:0', grad_fn=<LogSoftmaxBackward>)
 ```
 
-## Advanced usage
+### Advanced usage
 
 #### Filling masks:
 
@@ -212,8 +216,7 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 # Expected output: 0.9060
 ```
 
-
-## Finetuning
+### Finetuning
 
 - [Finetuning on GLUE](README.glue.md)
 - [Finetuning on custom classification tasks (e.g., IMDB)](README.custom_classification.md)
@@ -221,15 +224,11 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 - [Finetuning on Commonsense QA (CQA)](README.cqa.md)
 - Finetuning on SQuAD: coming soon
 
-## Pretraining using your own data
+### Pretraining using your own data
 
-You can use the [`masked_lm` task](/fairseq/tasks/masked_lm.py) to pretrain RoBERTa from scratch, or to continue pretraining RoBERTa starting from one of the released checkpoints.
+See the [tutorial for pretraining RoBERTa using your own data](README.pretraining.md).
 
-Data should be preprocessed following the [language modeling example](/examples/language_model).
-
-A more detailed tutorial is coming soon.
-
-## Citation
+### Citation
 
 ```bibtex
 @article{liu2019roberta,

@@ -2,8 +2,27 @@
 
 ## Example usage
 
-See the [language modeling README](../README.md) for instructions on reproducing results for WikiText-103
-using the `fconv_lm_dauphin_wikitext103` model architecture.
+First download and preprocess the data following the main [language modeling
+README](../README.md).
+
+Then to train a convolutional LM using the `fconv_lm_dauphin_wikitext103`
+architecture:
+```bash
+fairseq-train --task language_modeling \
+    data-bin/wikitext-103 \
+    --save-dir checkpoints/fconv_wikitext-103 \
+    --arch fconv_lm_dauphin_wikitext103 \
+    --max-epoch 35 \ --optimizer nag \
+    --lr 1.0 --lr-scheduler reduce_lr_on_plateau --lr-shrink 0.5 \
+    --clip-norm 0.1 --dropout 0.2 --weight-decay 5e-06 --criterion adaptive_loss \
+    --adaptive-softmax-cutoff 10000,20000,200000 --max-tokens 1024 --tokens-per-sample 1024 \
+    --ddp-backend=no_c10d
+```
+
+And evaluate with:
+```bash
+fairseq-eval-lm data-bin/wikitext-103 --path checkpoints/fconv_wiki103/checkpoint_best.pt
+```
 
 ## Citation
 
