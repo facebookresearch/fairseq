@@ -8,7 +8,7 @@ representations through a fully-connected layer to predict the correct answer.
 We train with a standard cross-entropy loss.
 
 We also found it helpful to prepend a prefix of `Q:` to the question and `A:` to
-the input. The complete input format is:
+the answer. The complete input format is:
 ```
 <s> Q: Where would I not want a fox? </s> A: hen house </s>
 ```
@@ -18,7 +18,7 @@ Our final submission is based on a hyperparameter search over the learning rate
 4000) and random seed. We selected the model with the best performance on the
 development set after 100 trials.
 
-### 1) Download the data from Commonsense QA website (https://www.tau-nlp.org/commonsenseqa)
+### 1) Download data from the Commonsense QA website (https://www.tau-nlp.org/commonsenseqa)
 ```bash
 bash examples/roberta/commonsense_qa/download_cqa_data.sh
 ```

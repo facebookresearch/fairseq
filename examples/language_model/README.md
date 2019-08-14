@@ -27,58 +27,57 @@ en_lm.sample('Barack Obama', beam=1, sampling=True, sampling_topk=10, temperatur
 # "Barack Obama is coming to Sydney and New Zealand (...)"
 ```
 
-## Training a new model with the CLI tools
+## Training a transformer language model with the CLI tools
 
-These scripts provide an example of pre-processing data for the Language Modeling task.
+### 1) Preprocess the data
 
-### prepare-wikitext-103.sh
-
-Provides an example of pre-processing for [WikiText-103 language modeling task](https://www.salesforce.com/products/einstein/ai-research/the-wikitext-dependency-language-modeling-dataset/):
-
-Example usage:
-
-Prepare data:
+First download and prepare the [WikiText-103 dataset](https://www.salesforce.com/products/einstein/ai-research/the-wikitext-dependency-language-modeling-dataset/):
 ```bash
 cd examples/language_model/
 bash prepare-wikitext-103.sh
 cd ../..
-
-# Binarize the dataset:
-TEXT=examples/language_model/wikitext-103
-
-fairseq-preprocess --only-source \
-    --trainpref $TEXT/wiki.train.tokens --validpref $TEXT/wiki.valid.tokens --testpref $TEXT/wiki.test.tokens \ 
-    --destdir data-bin/wikitext-103
 ```
 
-Train a transformer language model with adaptive inputs ([Baevski and Auli (2018): Adaptive Input Representations for Neural Language Modeling](transformer_lm/README.md)):
+Next preprocess/binarize the data:
 ```bash
-# If it runs out of memory, try to reduce max-tokens and tokens-per-sample
-mkdir -p checkpoints/transformer_wikitext-103
-fairseq-train --task language_modeling data-bin/wikitext-103 \
-    --save-dir checkpoints/transformer_wikitext-103 --arch transformer_lm_wiki103 \
+TEXT=examples/language_model/wikitext-103
+fairseq-preprocess \
+    --only-source \
+    --trainpref $TEXT/wiki.train.tokens \
+    --validpref $TEXT/wiki.valid.tokens \
+    --testpref $TEXT/wiki.test.tokens \ 
+    --destdir data-bin/wikitext-103 \
+    --workers 20
+```
+
+### 2) Train a language model
+
+Next we'll train a transformer language model using [adaptive inputs](transformer_lm/README.md):
+```bash
+fairseq-train --task language_modeling \
+    data-bin/wikitext-103 \
+    --save-dir checkpoints/transformer_wikitext-103 \
+    --arch transformer_lm_wiki103 \
     --max-update 286000 --max-lr 1.0 --t-mult 2 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 \
     --warmup-updates 16000 --warmup-init-lr 1e-07 --min-lr 1e-09 --optimizer nag --lr 0.0001 --clip-norm 0.1 \
     --criterion adaptive_loss --max-tokens 3072 --update-freq 3 --tokens-per-sample 3072 --seed 1 \
     --sample-break-mode none --skip-invalid-size-inputs-valid-test --ddp-backend=no_c10d
-
-# Evaluate:
-fairseq-eval-lm data-bin/wikitext-103 --path 'checkpoints/transformer_wiki103/checkpoint_best.pt' \
-    --sample-break-mode complete --max-tokens 3072 --context-window 2560 --softmax-batch 1024
 ```
 
-Train a convolutional language model ([Dauphin et al. (2017): Language Modeling with Gated Convolutional Networks](conv_lm/README.md)):
-```
-# If it runs out of memory, try to reduce max-tokens and tokens-per-sample
-mkdir -p checkpoints/fconv_wikitext-103
-fairseq-train --task language_modeling data-bin/wikitext-103 \
-    --save-dir checkpoints/fconv_wikitext-103 \
-    --max-epoch 35 --arch fconv_lm_dauphin_wikitext103 --optimizer nag \
-    --lr 1.0 --lr-scheduler reduce_lr_on_plateau --lr-shrink 0.5 \
-    --clip-norm 0.1 --dropout 0.2 --weight-decay 5e-06 --criterion adaptive_loss \
-    --adaptive-softmax-cutoff 10000,20000,200000 --max-tokens 1024 --tokens-per-sample 1024 \
-    --ddp-backend=no_c10d
+If the above command runs out of memory, try reducing `--max-tokens` (max number
+of tokens per batch) or `--tokens-per-sample` (max sequence length). You can
+also increase `--update-freq` to accumulate gradients and simulate training on
+more GPUs.
 
-# Evaluate:
-fairseq-eval-lm data-bin/wikitext-103 --path 'checkpoints/fconv_wiki103/checkpoint_best.pt'
+### 3) Evaluate
+```bash
+fairseq-eval-lm data-bin/wikitext-103 \
+    --path checkpoints/transformer_wiki103/checkpoint_best.pt \
+    --sample-break-mode complete --max-tokens 3072 \
+    --context-window 2560 --softmax-batch 1024
 ```
+
+## Convolutional language models
+
+Please see the [convolutional LM README](conv_lm/README.md) for instructions to
+train convolutional language models.

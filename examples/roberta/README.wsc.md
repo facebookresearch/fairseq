@@ -4,21 +4,23 @@ The following instructions can be used to finetune RoBERTa on the WSC training
 data provided by [SuperGLUE](https://super.gluebenchmark.com/).
 
 Note that there is high variance in the results. For our GLUE/SuperGLUE
-submission we swept over the learning rate, batch size and total number of
-updates, as well as the random seed. Out of ~100 runs we chose the best 7 models
-and ensembled them.
+submission we swept over the learning rate (1e-5, 2e-5, 3e-5), batch size (16,
+32, 64) and total number of updates (500, 1000, 2000, 3000), as well as the
+random seed. Out of ~100 runs we chose the best 7 models and ensembled them.
 
-**Note:** The instructions below use a slightly different loss function than
+**Approach:** The instructions below use a slightly different loss function than
 what's described in the original RoBERTa arXiv paper. In particular,
 [Kocijan et al. (2019)](https://arxiv.org/abs/1905.06290) introduce a margin
 ranking loss between `(query, candidate)` pairs with tunable hyperparameters
 alpha and beta. This is supported in our code as well with the `--wsc-alpha` and
 `--wsc-beta` arguments. However, we achieved slightly better (and more robust)
 results on the development set by instead using a single cross entropy loss term
-over the log-probabilities for the query and all candidates. This reduces the
-number of hyperparameters and our best model achieved 92.3% development set
-accuracy, compared to ~90% accuracy for the margin loss. Later versions of the
-RoBERTa arXiv paper will describe this updated formulation.
+over the log-probabilities for the query and all mined candidates. **The
+candidates are mined using spaCy from each input sentence in isolation, so the
+approach remains strictly pointwise.** This reduces the number of
+hyperparameters and our best model achieved 92.3% development set accuracy,
+compared to ~90% accuracy for the margin loss. Later versions of the RoBERTa
+arXiv paper will describe this updated formulation.
 
 ### 1) Download the WSC data from the SuperGLUE website:
 ```bash
