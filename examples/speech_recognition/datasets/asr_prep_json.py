@@ -56,7 +56,8 @@ def main():
                         help="aggregated input labels with format <ID LABEL> per line",
                         type=argparse.FileType('r', encoding='UTF-8'))
     parser.add_argument("--spm-model", required=True,
-                        help="sentencepiece model to use for encoding")
+                        help="sentencepiece model to use for encoding",
+                        type=argparse.FileType('r', encoding='UTF-8'))
     parser.add_argument("--dictionary", required=True,
                         help="file to load fairseq dictionary from",
                         type=argparse.FileType('r', encoding='UTF-8'))
@@ -90,12 +91,13 @@ def main():
 
     utts = {}
     num_cpu = args.num_cpu
+    assert num_cpu > 0
     chunk_size = int(1 + (len(samples) / num_cpu))
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpu) as executor:
         samples_chunks = [samples[i:i + chunk_size]
                           for i in range(0, len(samples), chunk_size)]
         futures = [executor.submit(
-            process_samples, chunk, labels, args.spm_model, tgt_dict) for chunk in samples_chunks]
+            process_samples, chunk, labels, args.spm_model.name, tgt_dict) for chunk in samples_chunks]
         for future in futures:
             try:
                 data = future.result()
