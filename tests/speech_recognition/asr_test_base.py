@@ -172,7 +172,10 @@ def check_encoder_output(encoder_output, batch_size=None):
                 "encoder_padding_mask must be a torch.Tensor" + _current_postion_info()
             )
             return False, msg
-        if mask.dtype != torch.uint8:
+        if (
+            mask.dtype != torch.uint8
+            and (not hasattr(torch, 'bool') or mask.dtype != torch.bool)
+        ):
             msg = (
                 "encoder_padding_mask must have dtype of uint8"
                 + _current_postion_info()
