@@ -17,7 +17,7 @@ Model | Description | # params | Download
 `roberta.base` | RoBERTa using the BERT-base architecture | 125M | [roberta.base.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.base.tar.gz)
 `roberta.large` | RoBERTa using the BERT-large architecture | 355M | [roberta.large.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.tar.gz)
 `roberta.large.mnli` | `roberta.large` finetuned on [MNLI](http://www.nyu.edu/projects/bowman/multinli) | 355M | [roberta.large.mnli.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.mnli.tar.gz)
-`roberta.large.wsc` | `roberta.large` finetuned on [WSC](README.wsc.md) | 355M | [roberta.large.wsc.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.wsc.tar.gz)
+`roberta.large.wsc` | `roberta.large` finetuned on [WSC](wsc/README.md) | 355M | [roberta.large.wsc.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.wsc.tar.gz)
 
 ### Results
 
@@ -168,7 +168,7 @@ roberta.disambiguate_pronoun('The city councilmen refused the demonstrators a pe
 # 'demonstrators'
 ```
 
-See the [RoBERTA Winograd Schema Challenge (WSC) README](README.wsc.md) for more details on how to train this model.
+See the [RoBERTA Winograd Schema Challenge (WSC) README](wsc/README.md) for more details on how to train this model.
 
 #### Extract features aligned to words:
 
@@ -220,8 +220,8 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 
 - [Finetuning on GLUE](README.glue.md)
 - [Finetuning on custom classification tasks (e.g., IMDB)](README.custom_classification.md)
-- [Finetuning on Winograd Schema Challenge (WSC)](README.wsc.md)
-- [Finetuning on Commonsense QA (CQA)](README.cqa.md)
+- [Finetuning on Winograd Schema Challenge (WSC)](wsc/README.md)
+- [Finetuning on Commonsense QA (CQA)](commonsense_qa/README.md)
 - Finetuning on SQuAD: coming soon
 
 ### Pretraining using your own data

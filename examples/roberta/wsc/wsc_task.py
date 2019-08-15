@@ -21,6 +21,7 @@ from fairseq.data import (
     NestedDictionaryDataset,
     NumSamplesDataset,
     NumelDataset,
+    PadDataset,
     SortDataset,
 )
 from fairseq.tasks import FairseqTask, register_task
@@ -77,25 +78,35 @@ class WSCTask(FairseqTask):
 
         return cls(args, vocab)
 
+    def binarize(self, s: str, append_eos: bool = False):
+        if self.tokenizer is not None:
+            s = self.tokenizer.encode(s)
+        if self.bpe is not None:
+            s = self.bpe.encode(s)
+        tokens = self.vocab.encode_line(
+            s, append_eos=append_eos, add_if_not_exist=False,
+        ).long()
+        if self.args.init_token is not None:
+            tokens = torch.cat([tokens.new([self.args.init_token]), tokens])
+        return tokens
+
+    def binarize_with_mask(self, txt, prefix, suffix, leading_space, trailing_space):
+        toks = self.binarize(
+            prefix + leading_space + txt + trailing_space + suffix,
+            append_eos=True,
+        )
+        mask = torch.zeros_like(toks, dtype=torch.uint8)
+        mask_start = len(self.binarize(prefix))
+        mask_size = len(self.binarize(leading_space + txt))
+        mask[mask_start:mask_start + mask_size] = 1
+        return toks, mask
+
     def load_dataset(self, split, epoch=0, combine=False, data_path=None, return_only=False, **kwargs):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-
-        def binarize(s: str, append_eos: bool = False):
-            if self.tokenizer is not None:
-                s = self.tokenizer.encode(s)
-            if self.bpe is not None:
-                s = self.bpe.encode(s)
-            tokens = self.vocab.encode_line(
-                s, append_eos=append_eos, add_if_not_exist=False,
-            ).long()
-            if self.args.init_token is not None:
-                tokens = torch.cat([tokens.new([self.args.init_token]), tokens])
-            return tokens
-
         if data_path is None:
             data_path = os.path.join(self.args.data, split + '.jsonl')
         if not os.path.exists(data_path):
@@ -126,19 +137,10 @@ class WSCTask(FairseqTask):
                 exact_match=False,
             )
 
-            def binarize_with_mask(txt):
-                toks = binarize(
-                    prefix + leading_space + txt + trailing_space + suffix,
-                    append_eos=True,
-                )
-                mask = torch.zeros_like(toks, dtype=torch.uint8)
-                mask_start = len(binarize(prefix))
-                mask_size = len(binarize(leading_space + txt))
-                mask[mask_start:mask_start + mask_size] = 1
-                return toks, mask
-
             if query is not None:
-                query_toks, query_mask = binarize_with_mask(query)
+                query_toks, query_mask = self.binarize_with_mask(
+                    query, prefix, suffix, leading_space, trailing_space
+                )
                 query_len = len(query_toks)
             else:
                 query_toks, query_mask, query_len = None, None, 0
@@ -149,7 +151,9 @@ class WSCTask(FairseqTask):
 
             cand_toks, cand_masks = [], []
             for cand_span in cand_spans:
-                toks, mask = binarize_with_mask(cand_span.text)
+                toks, mask = self.binarize_with_mask(
+                    cand_span.text, prefix, suffix, leading_space, trailing_space,
+                )
                 cand_toks.append(toks)
                 cand_masks.append(mask)
 
@@ -258,3 +262,114 @@ class WSCTask(FairseqTask):
     @property
     def target_dictionary(self):
         return self.vocab
+
+
+@register_task('winogrande')
+class WinograndeTask(WSCTask):
+    """
+    Task for WinoGrande dataset. Efficient implementation for Winograd schema
+    tasks with exactly two candidates, one of which is correct.
+    """
+    @classmethod
+    def setup_task(cls, args, **kwargs):
+        assert args.criterion == 'winogrande', 'Must set --criterion=winogrande'
+
+        # load data and label dictionaries
+        vocab = cls.load_dictionary(os.path.join(args.data, 'dict.txt'))
+        print('| dictionary: {} types'.format(len(vocab)))
+
+        return cls(args, vocab)
+
+
+    def load_dataset(self, split, epoch=0, combine=False, data_path=None, return_only=False, **kwargs):
+        """Load a given dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
+        if data_path is None:
+            data_path = os.path.join(self.args.data, split + '.jsonl')
+        if not os.path.exists(data_path):
+            raise FileNotFoundError('Cannot find data: {}'.format(data_path))
+
+        query_tokens = []
+        query_masks = []
+        query_lengths = []
+        candidate_tokens = []
+        candidate_masks = []
+        candidate_lengths = []
+
+        itr = wsc_utils.winogrande_jsonl_iterator(data_path, eval=split=='test')
+
+        for sample in itr:
+            sentence, pronoun_span, query, cand_text = sample
+            prefix = sentence[:pronoun_span[0]].rstrip()
+            suffix = sentence[pronoun_span[1]:]
+
+            leading_space = ' ' if sentence[:pronoun_span[0]].endswith(' ') else ''
+            trailing_space = ''
+
+            if query is not None:
+                query_toks, query_mask = self.binarize_with_mask(
+                    query, prefix, suffix, leading_space, trailing_space,
+                )
+                query_len = len(query_toks)
+            else:
+                query_toks, query_mask, query_len = None, None, 0
+
+            query_tokens.append(query_toks)
+            query_masks.append(query_mask)
+            query_lengths.append(query_len)
+
+            cand_toks, cand_mask = self.binarize_with_mask(
+                cand_text, prefix, suffix, leading_space, trailing_space,
+            )
+
+            candidate_tokens.append(cand_toks)
+            candidate_masks.append(cand_mask)
+            candidate_lengths.append(cand_toks.size(0))
+
+        query_lengths = np.array(query_lengths)
+
+        def get_pad_dataset_fn(tokens, length, pad_idx):
+            return PadDataset(
+                ListDataset(tokens, length),
+                pad_idx=pad_idx,
+                left_pad=False,
+            )
+
+        query_tokens = get_pad_dataset_fn(query_tokens, query_lengths, self.vocab.pad())
+        query_masks = get_pad_dataset_fn(query_masks, query_lengths, 0)
+
+        candidate_lengths = np.array(candidate_lengths)
+        candidate_tokens = get_pad_dataset_fn(candidate_tokens, candidate_lengths, self.vocab.pad())
+        candidate_masks = get_pad_dataset_fn(candidate_masks, candidate_lengths, 0)
+
+        dataset = {
+            'id': IdDataset(),
+            'query_tokens': query_tokens,
+            'query_masks': query_masks,
+            'candidate_tokens': candidate_tokens,
+            'candidate_masks': candidate_masks,
+            'nsentences': NumSamplesDataset(),
+            'ntokens': NumelDataset(query_tokens, reduce=True),
+        }
+
+        nested_dataset = NestedDictionaryDataset(
+            dataset,
+            sizes=[query_lengths],
+        )
+
+        with data_utils.numpy_seed(self.args.seed):
+            shuffle = np.random.permutation(len(query_tokens))
+        dataset = SortDataset(
+            nested_dataset,
+            # shuffle
+            sort_order=[shuffle],
+        )
+
+        if return_only:
+            return dataset
+
+        self.datasets[split] = dataset
+        return self.datasets[split]

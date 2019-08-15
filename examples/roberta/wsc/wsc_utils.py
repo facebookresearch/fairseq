@@ -190,6 +190,23 @@ def jsonl_iterator(input_fname, positive_only=False, ngram_order=3, eval=False):
                 yield sentence, pronoun_span, query, sample.get('label', None)
 
 
+def winogrande_jsonl_iterator(input_fname, eval=False):
+    with open(input_fname) as fin:
+        for line in fin:
+            sample = json.loads(line.strip())
+            sentence, option1, option2 = sample['sentence'], sample['option1'],\
+                sample['option2']
+
+            pronoun_span = (sentence.index('_'), sentence.index('_') + 1)
+
+            if eval:
+                query, cand = option1, option2
+            else:
+                query = option1 if sample['answer'] == '1' else option2
+                cand = option2 if sample['answer'] == '1' else option1
+            yield sentence, pronoun_span, query, cand
+
+
 def filter_noun_chunks(chunks, exclude_pronouns=False, exclude_query=None, exact_match=False):
     if exclude_pronouns:
         chunks = [
