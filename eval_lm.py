@@ -146,8 +146,9 @@ def main(parsed_args):
             hypos = scorer.generate(models, sample)
             gen_timer.stop(sample['ntokens'])
 
-            for hypos_i in hypos:
+            for i, hypos_i in enumerate(hypos):
                 hypo = hypos_i[0]
+                sample_id = sample['id'][i]
 
                 tokens = hypo['tokens']
                 tgt_len = tokens.numel()
@@ -199,7 +200,8 @@ def main(parsed_args):
                             is_bpe = False
                             w = ''
                     if args.output_word_probs:
-                        print('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
+                        print(str(int(sample_id)) + " " +
+                                  ('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob)))
 
             wps_meter.update(sample['ntokens'])
             t.log({'wps': round(wps_meter.avg)})
