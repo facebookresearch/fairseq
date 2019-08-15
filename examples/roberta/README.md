@@ -2,7 +2,7 @@
 
 https://arxiv.org/abs/1907.11692
 
-### Introduction
+## Introduction
 
 RoBERTa iterates on BERT's pretraining procedure, including training the model longer, with bigger batches over more data; removing the next sentence prediction objective; training on longer sequences; and dynamically changing the masking pattern applied to the training data. See the associated paper for more details.
 
@@ -10,7 +10,7 @@ RoBERTa iterates on BERT's pretraining procedure, including training the model l
 
 - August 2019: Added [tutorial for pretraining RoBERTa using your own data](README.pretraining.md).
 
-### Pre-trained models
+## Pre-trained models
 
 Model | Description | # params | Download
 ---|---|---|---
@@ -19,9 +19,10 @@ Model | Description | # params | Download
 `roberta.large.mnli` | `roberta.large` finetuned on [MNLI](http://www.nyu.edu/projects/bowman/multinli) | 355M | [roberta.large.mnli.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.mnli.tar.gz)
 `roberta.large.wsc` | `roberta.large` finetuned on [WSC](wsc/README.md) | 355M | [roberta.large.wsc.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/roberta.large.wsc.tar.gz)
 
-### Results
+## Results
 
-##### Results on GLUE tasks (dev set, single model, single-task finetuning)
+**[GLUE (Wang et al., 2019)](https://gluebenchmark.com/)**
+_(dev set, single model, single-task finetuning)_
 
 Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
 ---|---|---|---|---|---|---|---|---
@@ -29,26 +30,51 @@ Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
 `roberta.large` | 90.2 | 94.7 | 92.2 | 86.6 | 96.4 | 90.9 | 68.0 | 92.4
 `roberta.large.mnli` | 90.2 | - | - | - | - | - | - | -
 
-##### Results on SuperGLUE tasks (dev set, single model, single-task finetuning)
+**[SuperGLUE (Wang et al., 2019)](https://super.gluebenchmark.com/)**
+_(dev set, single model, single-task finetuning)_
 
 Model | BoolQ | CB | COPA | MultiRC | RTE | WiC | WSC
 ---|---|---|---|---|---|---|---
 `roberta.large` | 86.9 | 98.2 | 94.0 | 85.7 | 89.5 | 75.6 | -
 `roberta.large.wsc` | - | - | - | - | - | - | 91.3
 
-##### Results on SQuAD (dev set)
+**[SQuAD (Rajpurkar et al., 2018)](https://rajpurkar.github.io/SQuAD-explorer/)**
+_(dev set, no additional data used)_
 
 Model | SQuAD 1.1 EM/F1 | SQuAD 2.0 EM/F1
 ---|---|---
 `roberta.large` | 88.9/94.6 | 86.5/89.4
 
-##### Results on Reading Comprehension (RACE, test set)
+**[RACE (Lai et al., 2017)](http://www.qizhexie.com/data/RACE_leaderboard.html)**
+_(test set)_
 
 Model | Accuracy | Middle | High
 ---|---|---|---
 `roberta.large` | 83.2 | 86.5 | 81.3
 
-### Example usage
+**[HellaSwag (Zellers et al., 2019)](https://rowanzellers.com/hellaswag/)**
+_(test set)_
+
+Model | Overall | In-domain | Zero-shot | ActivityNet | WikiHow
+---|---|---|---|---|---
+`roberta.large` | 85.2 | 87.3 | 83.1 | 74.6 | 90.9
+
+**[Commonsense QA (Talmor et al., 2019)](https://www.tau-nlp.org/commonsenseqa)**
+_(test set)_
+
+Model | Accuracy
+---|---
+`roberta.large` (single model) | 72.1
+`roberta.large` (ensemble) | 72.5
+
+**[Winogrande (Sakaguchi et al., 2019)](https://arxiv.org/abs/1907.10641)**
+_(test set)_
+
+Model | Accuracy
+---|---
+`roberta.large` | 78.1
+
+## Example usage
 
 ##### Load RoBERTa from torch.hub (PyTorch >= 1.1):
 ```python
@@ -124,7 +150,7 @@ roberta.cuda()
 roberta.predict('new_task', tokens)  # tensor([[-1.1050, -1.0672, -1.1245]], device='cuda:0', grad_fn=<LogSoftmaxBackward>)
 ```
 
-### Advanced usage
+## Advanced usage
 
 #### Filling masks:
 
@@ -216,7 +242,7 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 # Expected output: 0.9060
 ```
 
-### Finetuning
+## Finetuning
 
 - [Finetuning on GLUE](README.glue.md)
 - [Finetuning on custom classification tasks (e.g., IMDB)](README.custom_classification.md)
@@ -224,11 +250,11 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 - [Finetuning on Commonsense QA (CQA)](commonsense_qa/README.md)
 - Finetuning on SQuAD: coming soon
 
-### Pretraining using your own data
+## Pretraining using your own data
 
 See the [tutorial for pretraining RoBERTa using your own data](README.pretraining.md).
 
-### Citation
+## Citation
 
 ```bibtex
 @article{liu2019roberta,
