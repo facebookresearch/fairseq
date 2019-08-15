@@ -83,3 +83,43 @@ for sentence, label in wsc_utils.jsonl_iterator('WSC/val.jsonl', eval=True):
 print('Accuracy: ' + str(ncorrect / float(nsamples)))
 # Accuracy: 0.9230769230769231
 ```
+
+## RoBERTa training on WinoGrande dataset
+We have also provided `winogrande` task and criterion for finetuning on the
+[WinoGrande](https://mosaic.allenai.org/projects/winogrande) like datasets
+where there are always two candidates and one is correct.
+It's more efficient implementation for such subcases.
+
+```bash
+TOTAL_NUM_UPDATES=23750 # Total number of training steps.
+WARMUP_UPDATES=2375     # Linearly increase LR over this many steps.
+LR=1e-05                # Peak LR for polynomial LR scheduler.
+MAX_SENTENCES=32        # Batch size per GPU.
+SEED=1                  # Random seed.
+ROBERTA_PATH=/path/to/roberta/model.pt
+
+# we use the --user-dir option to load the task and criterion
+# from the examples/roberta/wsc directory:
+FAIRSEQ_PATH=/path/to/fairseq
+FAIRSEQ_USER_DIR=${FAIRSEQ_PATH}/examples/roberta/wsc
+
+cd fairseq
+CUDA_VISIBLE_DEVICES=0 fairseq-train winogrande_1.0/ \
+  --restore-file $ROBERTA_PATH \
+  --reset-optimizer --reset-dataloader --reset-meters \
+  --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
+  --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
+  --valid-subset val \
+  --fp16 --ddp-backend no_c10d \
+  --user-dir $FAIRSEQ_USER_DIR \
+  --task winogrande --criterion winogrande \
+  --wsc-margin-alpha 5.0 --wsc-margin-beta 0.4 \
+  --arch roberta_large --bpe gpt2 --max-positions 512 \
+  --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
+  --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
+  --lr-scheduler polynomial_decay --lr $LR \
+  --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
+  --max-sentences $MAX_SENTENCES \
+  --max-update $TOTAL_NUM_UPDATES \
+  --log-format simple --log-interval 100
+```
