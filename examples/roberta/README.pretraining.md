@@ -2,7 +2,7 @@
 
 This tutorial will walk you through pretraining RoBERTa over your own data.
 
-### 1) Preprocess the data.
+### 1) Preprocess the data
 
 Data should be preprocessed following the [language modeling format](/examples/language_model).
 
