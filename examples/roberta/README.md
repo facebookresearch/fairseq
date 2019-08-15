@@ -8,6 +8,8 @@ RoBERTa iterates on BERT's pretraining procedure, including training the model l
 
 ### What's New:
 
+- August 2019: RoBERTa is now supported in the [pytorch-transformers library](https://github.com/huggingface/pytorch-transformers).
+- August 2019: Added [tutorial for finetuning on WinoGrande](https://github.com/pytorch/fairseq/tree/master/examples/roberta/wsc#roberta-training-on-winogrande-dataset).
 - August 2019: Added [tutorial for pretraining RoBERTa using your own data](README.pretraining.md).
 
 ## Pre-trained models
