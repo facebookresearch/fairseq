@@ -48,6 +48,13 @@ class TokenBlockDataset(FairseqDataset):
         assert len(dataset) == len(sizes)
         assert len(dataset) > 0
         sizes = np.array(sizes, dtype=int)
+
+        assert np.all(np.diff((sizes == document_sep_len).nonzero()) != 1),\
+            (
+                "Found multiple blank lines in the dataset, please remove them"
+                " (eg. cat -s raw.txt) and preprocess the data again."
+            )
+
         if break_mode is None or break_mode == 'none':
             total_size = sum(sizes)
             length = math.ceil(total_size / block_size)
