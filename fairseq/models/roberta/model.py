@@ -127,14 +127,14 @@ class RobertaModel(FairseqLanguageModel):
         return {'self'}
 
     @classmethod
-    def from_pretrained(cls, model_name_or_path, checkpoint_file='model.pt', data_name_or_path='.', **kwargs):
+    def from_pretrained(cls, model_name_or_path, checkpoint_file='model.pt', data_name_or_path='.', bpe='gpt2', **kwargs):
         from fairseq import hub_utils
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,
             data_name_or_path,
             archive_map=cls.hub_models(),
-            bpe='gpt2',
+            bpe=bpe,
             load_checkpoint_heads=True,
             **kwargs,
         )
