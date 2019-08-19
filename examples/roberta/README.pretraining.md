@@ -68,17 +68,20 @@ fairseq-train --fp16 $DATA_DIR \
     --max-update $TOTAL_UPDATES --log-format simple --log-interval 1
 ```
 
-The above command assumes training on 8x32GB V100 GPUs. Each GPU uses a batch
-size of 16 sequences (`$MAX_SENTENCES`) and accumulates gradients to further
-increase the batch size by 16x (`$UPDATE_FREQ`), for a total batch size of 2048
-sequences. If you have fewer GPUs or GPUs with less memory you may need to
-reduce `$MAX_SENTENCES` and increase `$UPDATE_FREQ` to compensate. Alternatively
-if you have more GPUs you can decrease `$UPDATE_FREQ` accordingly to increase
-training speed.
+**Note:** You can optionally resume training the released RoBERTa base model by
+adding `--restore-file /path/to/roberta.base/model.pt`.
 
-Also note that the learning rate and batch size are tightly connected and need
-to be adjusted together. We generally recommend increasing the learning rate as
-you increase the batch size according to the following table (although it's also
+**Note:** The above command assumes training on 8x32GB V100 GPUs. Each GPU uses
+a batch size of 16 sequences (`$MAX_SENTENCES`) and accumulates gradients to
+further increase the batch size by 16x (`$UPDATE_FREQ`), for a total batch size
+of 2048 sequences. If you have fewer GPUs or GPUs with less memory you may need
+to reduce `$MAX_SENTENCES` and increase `$UPDATE_FREQ` to compensate.
+Alternatively if you have more GPUs you can decrease `$UPDATE_FREQ` accordingly
+to increase training speed.
+
+**Note:** The learning rate and batch size are tightly connected and need to be
+adjusted together. We generally recommend increasing the learning rate as you
+increase the batch size according to the following table (although it's also
 dataset dependent, so don't rely on the following values too closely):
 
 batch size | peak learning rate
