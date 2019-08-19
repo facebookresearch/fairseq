@@ -1,11 +1,16 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import torch
 from torch import nn
 from torch.autograd import Function
 import torch.nn.functional as F
-import time
 
 import lightconv_cuda
 from fairseq import utils
+
 
 class lightconvFunction(Function):
 
@@ -25,6 +30,7 @@ class lightconvFunction(Function):
                 *ctx.saved_variables)
         grad_input, grad_weights = outputs
         return grad_input, grad_weights, None
+
 
 class LightconvLayer(nn.Module):
     def __init__(
@@ -82,7 +88,7 @@ class LightconvLayer(nn.Module):
             weight = weight.view(1, H, K).expand(T*B, H, K).contiguous().view(T*B*H, K, 1)
 
             weight = F.dropout(weight, self.weight_dropout, training=self.training)
-            output = torch.bmm(x_unfold, weight) # T*B*H x R x 1
+            output = torch.bmm(x_unfold, weight)  # T*B*H x R x 1
             output = output.view(T, B, C)
             return output
 

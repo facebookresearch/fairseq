@@ -200,8 +200,10 @@ def main(parsed_args):
                             is_bpe = False
                             w = ''
                     if args.output_word_probs:
-                        print(str(int(sample_id)) + " " +
-                                  ('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob)))
+                        print(
+                            str(int(sample_id)) + " "
+                            + ('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
+                        )
 
             wps_meter.update(sample['ntokens'])
             t.log({'wps': round(wps_meter.avg)})

@@ -10,7 +10,6 @@ document in a large file. Documents should be separated by a single empty line.
 
 import argparse
 import gzip
-import random
 import sys
 
 import numpy as np

@@ -19,6 +19,8 @@ def main():
     parser.add_argument('sample_output', help='train output file')
     parser.add_argument('remainder_output', help='valid output file')
     parser.add_argument('-k', type=int, help="remainder size")
+    parser.add_argument('--lines', action='store_true',
+                        help='split lines instead of docs')
     args = parser.parse_args()
 
     assert args.k is not None
@@ -48,6 +50,8 @@ def main():
                 update_sample(doc)
             else:
                 doc.append(line)
+            if args.lines:
+                update_sample(doc)
             if i % 1000000 == 0:
                 print(i, file=sys.stderr, end="", flush=True)
             elif i % 100000 == 0:
@@ -61,7 +65,7 @@ def main():
     with open(args.sample_output, 'w', encoding='utf-8') as out:
         first = True
         for doc in sample:
-            if not first:
+            if not first and not args.lines:
                 out.write("\n")
             first = False
             for line in doc:
@@ -70,7 +74,7 @@ def main():
     with open(args.remainder_output, 'w', encoding='utf-8') as out:
         first = True
         for doc in remainder:
-            if not first:
+            if not first and not args.lines:
                 out.write("\n")
             first = False
             for line in doc:

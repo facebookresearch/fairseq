@@ -128,8 +128,8 @@ def write_reprocessed(sources, hypos, targets, source_outfile,
         "in writing reprocessed, only one type of prefix may be used"
 
     with open(source_outfile, 'w') as source_file, \
-         open(hypo_outfile, 'w') as hypo_file, \
-         open(target_outfile, 'w') as target_file:
+            open(hypo_outfile, 'w') as hypo_file, \
+            open(target_outfile, 'w') as target_file:
 
         assert len(sources) == len(hypos), "sources and hypos list length mismatch"
         if right_to_left:

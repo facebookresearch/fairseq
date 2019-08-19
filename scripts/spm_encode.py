@@ -30,7 +30,7 @@ def main():
     args = parser.parse_args()
 
     assert len(args.inputs) == len(args.outputs), \
-            "number of input and output paths should match"
+        "number of input and output paths should match"
 
     sp = spm.SentencePieceProcessor()
     sp.Load(args.model)

@@ -1,9 +1,16 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import torch
 from torch import nn
 from torch.autograd import Function
 import torch.nn.functional as F
+
 import dynamicconv_cuda
 from fairseq import utils
+from fairseq.modules.unfold import unfold1d
 
 
 class dynamicconvFunction(Function):
@@ -68,7 +75,7 @@ class DynamicconvLayer(nn.Module):
 
         T, B, C = x.size()
         K, H = self.kernel_size, self.num_heads
-        R = C // H
+        # R = C // H
 
         # during inference time, incremental BMM is faster
         if incremental_state is not None:
@@ -199,7 +206,7 @@ class DynamicconvLayer(nn.Module):
             # turn the convolution filters into band matrices
             weight_expanded = weight.new_zeros(B*H, T, T+K-1, requires_grad=False)
             weight_expanded.as_strided((B*H, T, K), (T*(T+K-1), T+K, 1)).copy_(weight)
-            weight_expanded = weight_expanded.narrow(2, P, T) # B*H x T x T
+            weight_expanded = weight_expanded.narrow(2, P, T)  # B*H x T x T
         output = torch.bmm(weight_expanded, x)
         output = output.transpose(0, 1).contiguous().view(T, B, C)
         return output
