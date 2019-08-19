@@ -49,7 +49,7 @@ class TokenBlockDataset(FairseqDataset):
         assert len(dataset) > 0
         sizes = np.array(sizes, dtype=int)
 
-        assert np.all(np.diff((sizes == document_sep_len).nonzero()) != 1),\
+        assert break_mode != 'complete_doc' or np.all(np.diff((sizes == document_sep_len).nonzero()) != 1),\
             (
                 "Found multiple blank lines in the dataset, please remove them"
                 " (eg. cat -s raw.txt) and preprocess the data again."
