@@ -150,8 +150,8 @@ class Trainer(object):
                 self.get_model().load_state_dict(state['model'], strict=True)
             except Exception:
                 raise Exception(
-                    'Cannot load model parameters from checkpoint, '
-                    'please ensure that the architectures match.'
+                    'Cannot load model parameters from checkpoint {}; '
+                    'please ensure that the architectures match.'.format(filename)
                 )
 
             extra_state = state['extra_state']
