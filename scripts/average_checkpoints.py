@@ -121,9 +121,9 @@ def main():
         num = args.num_epoch_checkpoints
 
     assert args.checkpoint_upper_bound is None or args.num_epoch_checkpoints is not None, \
-            '--checkpoint-upper-bound requires --num-epoch-checkpoints'
+        '--checkpoint-upper-bound requires --num-epoch-checkpoints'
     assert args.num_epoch_checkpoints is None or args.num_update_checkpoints is None, \
-            'Cannot combine --num-epoch-checkpoints and --num-update-checkpoints'
+        'Cannot combine --num-epoch-checkpoints and --num-update-checkpoints'
 
     if num is not None:
         args.inputs = last_n_checkpoints(

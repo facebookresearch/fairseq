@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Helper script to compare two argparse.Namespace objects."""
 
-from argparse import Namespace
+from argparse import Namespace  # noqa
 
 
 def main():

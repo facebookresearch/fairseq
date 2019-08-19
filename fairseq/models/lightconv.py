@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-import sys
 
 import torch
 import torch.nn as nn
@@ -173,6 +172,7 @@ class LightConvModel(FairseqEncoderDecoderModel):
         encoder = LightConvEncoder(args, src_dict, encoder_embed_tokens)
         decoder = LightConvDecoder(args, tgt_dict, decoder_embed_tokens)
         return LightConvModel(encoder, decoder)
+
 
 class LightConvEncoder(FairseqEncoder):
     """

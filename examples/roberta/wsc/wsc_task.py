@@ -270,6 +270,7 @@ class WinograndeTask(WSCTask):
     Task for WinoGrande dataset. Efficient implementation for Winograd schema
     tasks with exactly two candidates, one of which is correct.
     """
+
     @classmethod
     def setup_task(cls, args, **kwargs):
         assert args.criterion == 'winogrande', 'Must set --criterion=winogrande'
@@ -279,7 +280,6 @@ class WinograndeTask(WSCTask):
         print('| dictionary: {} types'.format(len(vocab)))
 
         return cls(args, vocab)
-
 
     def load_dataset(self, split, epoch=0, combine=False, data_path=None, return_only=False, **kwargs):
         """Load a given dataset split.
@@ -299,7 +299,7 @@ class WinograndeTask(WSCTask):
         candidate_masks = []
         candidate_lengths = []
 
-        itr = wsc_utils.winogrande_jsonl_iterator(data_path, eval=split=='test')
+        itr = wsc_utils.winogrande_jsonl_iterator(data_path, eval=(split == 'test'))
 
         for sample in itr:
             sentence, pronoun_span, query, cand_text = sample

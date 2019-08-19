@@ -10,8 +10,6 @@ should be separated by a single empty line.
 
 import argparse
 import contextlib
-import random
-import sys
 
 
 def main():

@@ -1,21 +1,26 @@
-""" Helper script to pre-compute embeddings for a wav2letter++ dataset
+#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""
+Helper script to pre-compute embeddings for a wav2letter++ dataset
 """
 
-import glob, os
-import tqdm
+import argparse
+import glob
+import os
 from shutil import copy
 
-import soundfile as sf
-
 import h5py
+import soundfile as sf
 import numpy as np
-
 import torch
 from torch import nn
+import tqdm
 
 from fairseq.models.wav2vec import Wav2VecModel
-
-import argparse
 
 
 def read_audio(fname):

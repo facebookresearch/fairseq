@@ -1,23 +1,23 @@
 #!/usr/bin/env python3 -u
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
-
-import rerank_utils
-import os
-import subprocess
-from examples.noisychannel import rerank_options
-from fairseq import options
-import generate
-import preprocess
-from contextlib import redirect_stdout
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 """
 Generate n-best translations using a trained model.
 """
+
+from contextlib import redirect_stdout
+import os
+import subprocess
+
+import rerank_utils
+from examples.noisychannel import rerank_options
+from fairseq import options
+import generate
+import preprocess
+
 
 def gen_and_reprocess_nbest(args):
     if args.score_dict_dir is None:

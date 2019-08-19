@@ -77,9 +77,11 @@ def score_target_hypo(args, a, b, c, lenpen, target_outfile, hypo_outfile, write
 
         for key in range(len(gen_keys)):
             if args.prefix_len is None:
-                assert hypo_lst[key] in gen_output.no_bpe_hypo[gen_keys[key]], \
-                    ("pred and rescore hypo mismatch: i: " + str(key) + ", " + str(hypo_lst[key]) + str(gen_keys[key]) +
-                    str(gen_output.no_bpe_hypo[key]))
+                assert hypo_lst[key] in gen_output.no_bpe_hypo[gen_keys[key]], (
+                    "pred and rescore hypo mismatch: i: " + str(key) + ", "
+                    + str(hypo_lst[key]) + str(gen_keys[key])
+                    + str(gen_output.no_bpe_hypo[key])
+                )
                 sys_tok = dict.encode_line(hypo_lst[key])
                 ref_tok = dict.encode_line(gen_output.no_bpe_target[gen_keys[key]])
                 scorer.add(ref_tok, sys_tok)

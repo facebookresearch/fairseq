@@ -13,7 +13,7 @@ from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
-    FairseqModel,
+    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
@@ -23,7 +23,7 @@ from fairseq.modules import TransformerDecoderLayer, TransformerEncoderLayer, VG
 
 
 @register_model("asr_vggtransformer")
-class VGGTransformerModel(FairseqModel):
+class VGGTransformerModel(FairseqEncoderDecoderModel):
     """
     Transformers with convolutional context for ASR
     https://arxiv.org/abs/1904.11660
