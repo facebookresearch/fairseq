@@ -72,7 +72,7 @@ class AsrDataset(FairseqDataset):
             frame_shift=self.frame_shift
         )
         output_cmvn = data_utils.apply_mv_norm(output)
-        self.collater = Seq2SeqCollater(
+        self.s2s_collater = Seq2SeqCollater(
             0, 1, pad_index=self.tgt_dict.pad(),
             eos_index=self.tgt_dict.eos(), move_eos_to_beginning=True
         )
@@ -91,7 +91,7 @@ class AsrDataset(FairseqDataset):
         Returns:
             dict: a mini-batch suitable for forwarding with a Model
         """
-        return self.collater.collate(samples)
+        return self.s2s_collater.collate(samples)
 
     def num_tokens(self, index):
         return self.frame_sizes[index]
