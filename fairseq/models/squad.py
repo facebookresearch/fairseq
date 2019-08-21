@@ -24,7 +24,9 @@ class FinetuningSquad(BaseFairseqModel):
         self.qa_outputs.bias.data.zero_()
 
     def forward(self, text, segment, paragraph_mask):
-        x, _ = self.pretrain_model(text, segment, apply_mask=False)
+        #  x, _ = self.pretrain_model(text, segment, apply_mask=False)
+        x = self.pretrain_model(text, segment, apply_mask=False)
+        x = x[0] if isinstance(x, (tuple, list)) else x
         logits = self.qa_outputs(x)
         if paragraph_mask.size(1) > x.size(1):
             paragraph_mask = paragraph_mask[:, :x.size(1)]
@@ -57,7 +59,7 @@ class FinetuningSquad(BaseFairseqModel):
         args.short_seq_prob = 0.0
         task = BertTask(args, dictionary)
         models, _ = utils.load_ensemble_for_inference([args.bert_path], task, {
-            'remove_head': True, 'remove_pooled' : True, 'save_masks' : False
+            'remove_head': True, 'remove_pooled' : True, 'save_masks' : False, 'remove_only_mlm_head': True
         })
         assert len(models) == 1, 'ensembles are currently not supported for elmo embeddings'
         model = models[0]

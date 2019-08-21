@@ -810,7 +810,8 @@ class SimpleStructuredBert(FairseqLanguageModel):
                 help='offsets for head-wise structured transformer')
     @classmethod
     def build_model(cls, args, task):
-        decoder = SimpleBertForPreTraining(args.config)
+        args.remove_only_mlm_head = getattr(args, 'remove_only_mlm_head', False)
+        decoder = SimpleBertForPreTraining(args.config, args.remove_only_mlm_head)
         return SimpleStructuredBert(decoder, task)
 
 @register_model_architecture('simple_structured_bert', 'head_wise_simple_structured_bert')
@@ -964,11 +965,14 @@ class BertForPreTraining(PreTrainedBertModel):
         return prediction_scores, seq_relationship_score
 
 class SimpleBertForPreTraining(PreTrainedBertModel):
-    def __init__(self, config):
+    def __init__(self, config, remove_only_mlm_head=False):
         super(SimpleBertForPreTraining, self).__init__(config)
         self.config = config
         self.bert = BertModel(config, remove_head=True, remove_pooled=True)
-        self.cls = BertOnlyMLMHead(config, self.bert.embeddings.word_embeddings.weight)
+        self.remove_only_mlm_head = remove_only_mlm_head
+
+        if not remove_only_mlm_head:
+            self.cls = BertOnlyMLMHead(config, self.bert.embeddings.word_embeddings.weight)
         self.apply(self.init_bert_weights)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None):
@@ -980,6 +984,9 @@ class SimpleBertForPreTraining(PreTrainedBertModel):
             attention_mask = attention_mask[:, :max_position_embeddings]
         sequence_output, _ = self.bert(input_ids, token_type_ids, attention_mask,
                                                    output_all_encoded_layers=False)
+        if self.remove_only_mlm_head:
+            return sequence_output
+
         prediction_scores = self.cls(sequence_output)
 
         if masked_lm_labels is not None:
@@ -988,3 +995,4 @@ class SimpleBertForPreTraining(PreTrainedBertModel):
             return masked_lm_loss
         else:
             return prediction_scores
+
