@@ -351,3 +351,11 @@ def eval(model):
     model.eval()
     yield
     model.train(is_training)
+
+
+def has_parameters(module):
+    try:
+        next(module.parameters())
+        return True
+    except StopIteration:
+        return False

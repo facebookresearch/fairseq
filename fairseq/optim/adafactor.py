@@ -13,7 +13,7 @@ from . import FairseqOptimizer, register_optimizer
 @register_optimizer('adafactor')
 class FairseqAdafactor(FairseqOptimizer):
     def __init__(self, args, params):
-        super().__init__(args, params)
+        super().__init__(args)
         self._optimizer = Adafactor(params, **self.optimizer_config)
 
     @staticmethod

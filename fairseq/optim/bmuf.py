@@ -19,11 +19,10 @@ class FairseqBMUF(FairseqOptimizer):
     model-update filtering
     """
 
-    def __init__(self, args, params, optimizer):
+    def __init__(self, args, optimizer):
 
-        super().__init__(args, params)
+        super().__init__(args)
         self._optimizer = optimizer
-        self.params = params
         self._num_updates = 0
         self.sync_iter = self.args.global_sync_iter
         self.block_momentum = self.args.block_momentum

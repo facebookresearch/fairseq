@@ -36,13 +36,14 @@ class Trainer(object):
         self.task = task
 
         # copy model and criterion to current device
-        self.criterion = criterion
+        self._criterion = criterion
         self._model = model
         self.cuda = torch.cuda.is_available() and not args.cpu
         if args.fp16:
+            self._criterion = self._criterion.half()
             self._model = self._model.half()
         if self.cuda:
-            self.criterion = self.criterion.cuda()
+            self._criterion = self._criterion.cuda()
             self._model = self._model.cuda()
 
         self._dummy_batch = dummy_batch
@@ -53,6 +54,7 @@ class Trainer(object):
         self._optim_history = None
         self._optimizer = None
         self._prev_grad_norm = None
+        self._wrapped_criterion = None
         self._wrapped_model = None
 
         self.init_meters(args)
@@ -74,6 +76,21 @@ class Trainer(object):
             self.meters['loss_scale'] = AverageMeter()  # dynamic loss scale
         self.meters['wall'] = TimeMeter()      # wall time in seconds
         self.meters['train_wall'] = StopwatchMeter()  # train wall time in seconds
+
+    @property
+    def criterion(self):
+        if self._wrapped_criterion is None:
+            if (
+                utils.has_parameters(self._criterion)
+                and self.args.distributed_world_size > 1
+                and not self.args.use_bmuf
+            ):
+                self._wrapped_criterion = models.DistributedFairseqModel(
+                    self.args, self._criterion
+                )
+            else:
+                self._wrapped_criterion = self._criterion
+        return self._wrapped_criterion
 
     @property
     def model(self):
@@ -99,7 +116,13 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-        params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
+        params = list(
+            filter(
+                lambda p: p.requires_grad,
+                chain(self.model.parameters(), self.criterion.parameters()),
+            )
+        )
+
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
                 print('| WARNING: your device does NOT support faster training with --fp16, '
@@ -114,7 +137,7 @@ class Trainer(object):
             self._optimizer = optim.build_optimizer(self.args, params)
 
         if self.args.use_bmuf:
-            self._optimizer = optim.FairseqBMUF(self.args, params, self._optimizer)
+            self._optimizer = optim.FairseqBMUF(self.args, self._optimizer)
 
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
@@ -126,7 +149,7 @@ class Trainer(object):
         if distributed_utils.is_master(self.args):  # only save one checkpoint
             extra_state['train_meters'] = self.meters
             checkpoint_utils.save_state(
-                filename, self.args, self.get_model().state_dict(), self.criterion,
+                filename, self.args, self.get_model().state_dict(), self.get_criterion(),
                 self.optimizer, self.lr_scheduler, self.get_num_updates(),
                 self._optim_history, extra_state,
             )
@@ -148,6 +171,8 @@ class Trainer(object):
             # load model parameters
             try:
                 self.get_model().load_state_dict(state['model'], strict=True)
+                if utils.has_parameters(self.get_criterion()):
+                    self.get_criterion().load_state_dict(state['criterion'], strict=True)
             except Exception:
                 raise Exception(
                     'Cannot load model parameters from checkpoint {}; '
@@ -164,7 +189,7 @@ class Trainer(object):
 
             # only reload optimizer and lr_scheduler if they match
             last_optim = self._optim_history[-1]
-            assert last_optim['criterion_name'] == self.criterion.__class__.__name__, \
+            assert last_optim['criterion_name'] == self.get_criterion().__class__.__name__, \
                 'Criterion does not match; please reset the optimizer (--reset-optimizer).'
             assert last_optim['optimizer_name'] == self.optimizer.__class__.__name__, \
                 'Optimizer does not match; please reset the optimizer (--reset-optimizer).'
@@ -322,9 +347,9 @@ class Trainer(object):
 
         # aggregate logging outputs and sample sizes
         logging_output = self.task.aggregate_logging_outputs(
-            logging_outputs, self.criterion
+            logging_outputs, self.get_criterion()
         )
-        sample_size = self.task.grad_denom(sample_sizes, self.criterion)
+        sample_size = self.task.grad_denom(sample_sizes, self.get_criterion())
 
         if not all(k in logging_output for k in ['ntokens', 'nsentences']):
             raise Exception((
@@ -424,10 +449,10 @@ class Trainer(object):
 
         # aggregate logging outputs and sample sizes
         logging_output = self.task.aggregate_logging_outputs(
-            logging_output, self.criterion
+            logging_output, self.get_criterion()
         )
         sample_size = self.task.grad_denom(
-            sample_size, self.criterion
+            sample_size, self.get_criterion()
         )
 
         # update meters for validation
@@ -476,6 +501,10 @@ class Trainer(object):
     def get_model(self):
         """Get the (non-wrapped) model instance."""
         return self._model
+
+    def get_criterion(self):
+        """Get the (non-wrapped) criterion instance."""
+        return self._criterion
 
     def get_meter(self, name):
         """Get a specific meter by name."""

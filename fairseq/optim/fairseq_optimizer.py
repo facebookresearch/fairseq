@@ -10,10 +10,9 @@ import torch
 
 class FairseqOptimizer(object):
 
-    def __init__(self, args, params):
+    def __init__(self, args):
         super().__init__()
         self.args = args
-        self.params = list(params)
 
     @staticmethod
     def add_args(parser):
@@ -38,6 +37,13 @@ class FairseqOptimizer(object):
         different learning rate.
         """
         raise NotImplementedError
+
+    @property
+    def params(self):
+        """Return an iterable of the parameters held by the optimizer."""
+        for param_group in self.optimizer.param_groups:
+            for p in param_group['params']:
+                yield p
 
     def __getstate__(self):
         return self._optimizer.__getstate__()
@@ -93,9 +99,8 @@ class FairseqOptimizer(object):
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
-        for group in self.optimizer.param_groups:
-            for p in group['params']:
-                p.grad = None
+        for p in self.params:
+            p.grad = None
         self.optimizer.zero_grad()
 
     @property

@@ -11,7 +11,7 @@ from . import FairseqOptimizer, register_optimizer
 @register_optimizer('adadelta')
 class Adadelta(FairseqOptimizer):
     def __init__(self, args, params):
-        super().__init__(args, params)
+        super().__init__(args)
         self._optimizer = torch.optim.Adadelta(params, **self.optimizer_config)
 
     @staticmethod

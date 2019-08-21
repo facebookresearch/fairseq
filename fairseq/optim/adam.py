@@ -16,7 +16,7 @@ from . import FairseqOptimizer, register_optimizer
 class FairseqAdam(FairseqOptimizer):
 
     def __init__(self, args, params):
-        super().__init__(args, params)
+        super().__init__(args)
         if torch.cuda.is_available():
             try:
                 from apex.optimizers import FusedAdam as _FusedAdam  # noqa
