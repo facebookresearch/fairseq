@@ -103,11 +103,12 @@ class VGGBlock(torch.nn.Module):
                 input_dim = per_channel_dim
             self.layers.append(nn.ReLU())
 
-        pool_op = nn.MaxPool2d(kernel_size=pooling_kernel_size, ceil_mode=True)
-        self.layers.append(pool_op)
-        self.total_output_dim, self.output_dim = infer_conv_output_dim(
-            pool_op, input_dim, out_channels
-        )
+        if self.pooling_kernel_size is not None:
+            pool_op = nn.MaxPool2d(kernel_size=self.pooling_kernel_size, ceil_mode=True)
+            self.layers.append(pool_op)
+            self.total_output_dim, self.output_dim = infer_conv_output_dim(
+                pool_op, input_dim, out_channels
+            )
 
     def forward(self, x):
         for i, _ in enumerate(self.layers):
