@@ -47,6 +47,9 @@ class FairseqDataset(torch.utils.data.Dataset):
         """Whether this dataset supports prefetching."""
         return False
 
+    def attr(self, attr: str, index: int):
+        return getattr(self, attr, None)
+
     def prefetch(self, indices):
         """Prefetch the data required for this epoch."""
         raise NotImplementedError

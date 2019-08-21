@@ -27,11 +27,15 @@ from .numel_dataset import NumelDataset
 from .num_samples_dataset import NumSamplesDataset
 from .offset_tokens_dataset import OffsetTokensDataset
 from .pad_dataset import LeftPadDataset, PadDataset, RightPadDataset
+from .prepend_dataset import PrependDataset
 from .prepend_token_dataset import PrependTokenDataset
 from .raw_label_dataset import RawLabelDataset
+from .replace_dataset import ReplaceDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
+from .sharded_dataset import ShardedDataset
 from .sort_dataset import SortDataset
 from .strip_token_dataset import StripTokenDataset
+from .subsample_dataset import SubsampleDataset
 from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
 from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
@@ -72,14 +76,18 @@ __all__ = [
     'NumSamplesDataset',
     "OffsetTokensDataset",
     'PadDataset',
+    'PrependDataset',
     'PrependTokenDataset',
     'RawAudioDataset',
-    "RawLabelDataset",
+    'RawLabelDataset',
+    'ReplaceDataset',
     'RightPadDataset',
     'RoundRobinZipDatasets',
+    'ShardedDataset',
     'ShardedIterator',
     'SortDataset',
-    "StripTokenDataset",
+    'StripTokenDataset',
+    'SubsampleDataset',
     'TokenBlockDataset',
     'TransformEosDataset',
     'TransformEosLangPairDataset',
