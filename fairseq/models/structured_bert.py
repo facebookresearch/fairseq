@@ -768,6 +768,70 @@ class StructuredBert(FairseqLanguageModel):
         decoder = BertForPreTraining(args.config, args.remove_head, args.remove_pooled)
         return StructuredBert(decoder, task)
 
+@register_model('simple_structured_bert')
+class SimpleStructuredBert(FairseqLanguageModel):
+    def __init__(self, decoder, task):
+        super().__init__(decoder)
+        self.task = task
+
+    def forward(self, src_tokens, segment_labels, **unused):
+        padding_mask = src_tokens.ne(self.task.dictionary.pad())
+        return self.decoder(input_ids=src_tokens, token_type_ids=segment_labels, attention_mask=padding_mask)
+
+    def max_positions(self):
+        return self.decoder.config.max_position_embeddings
+
+    @staticmethod
+    def add_args(parser):
+        """Add model-specific arguments to the parser."""
+        parser.add_argument('--hidden-size', type=int,
+                help='decoder embedding dimension')
+        parser.add_argument('--num-hidden-layers', type=int,
+                help='num decoder layers')
+        parser.add_argument('--num-attention-heads', type=int,
+                help='num decoder attention heads')
+        parser.add_argument('--intermediate-size', type=int,
+                help='decoder embedding dimension for FFN')
+        parser.add_argument('--hidden_act', default='gelu', type=str,
+                help='activation function type')
+        parser.add_argument('--attention-probs-dropout-prob', type=float,
+                help='dropout probability for attention weights')
+        parser.add_argument('--hidden-dropout-prob', type=float,
+                help='dropout probability')
+        parser.add_argument('--max-position-embeddings', default=512, type=int,
+                help='sequence length')
+        parser.add_argument('--initializer-range', type=float,
+                help='initializer std')
+        parser.add_argument('--block-size', type=int,
+                help='block size')
+        parser.add_argument('--layer-offsets', nargs='+', type=int,
+                help='offsets for layer-wise structured transformer')
+        parser.add_argument('--head-offsets', nargs='+', type=int,
+                help='offsets for head-wise structured transformer')
+    @classmethod
+    def build_model(cls, args, task):
+        decoder = SimpleBertForPreTraining(args.config)
+        return SimpleStructuredBert(decoder, task)
+
+@register_model_architecture('simple_structured_bert', 'head_wise_simple_structured_bert')
+def simple_base_bert_architecture(args):
+    args.config = BertConfig()
+    args.config.hidden_size = getattr(args, 'hidden_size', args.config.hidden_size)
+    args.config.num_hidden_layers = getattr(args, 'num_hidden_layers', args.config.num_hidden_layers)
+    args.config.num_attention_heads = getattr(args, 'num_attention_heads', args.config.num_attention_heads)
+    args.config.intermediate_size = getattr(args, 'intermediate_size', args.config.intermediate_size)
+    args.config.hidden_act = getattr(args, 'hidden_act', args.config.hidden_act)
+    args.config.hidden_dropout_prob = getattr(args, 'hidden_dropout_prob', args.config.hidden_dropout_prob)
+    args.config.attention_probs_dropout_prob = getattr(args, 'attention_probs_dropout_prob', args.config.attention_probs_dropout_prob)
+    args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', args.config.max_position_embeddings)
+    args.config.initializer_range = getattr(args, 'initializer_range', args.config.initializer_range)
+    args.config.block_size = getattr(args, 'block_size', args.config.block_size)
+    args.config.layer_offsets = None
+    args.config.head_offsets = getattr(args, 'head_offsets', list(range(args.config.num_attention_heads)))
+    assert len(args.config.head_offsets) == args.config.num_attention_heads
+    args.config.head_offsets = [(x % args.config.block_size + args.config.block_size) % args.config.block_size for x in args.config.head_offsets]
+    print(args.config)
+
 @register_model_architecture('structured_bert', 'layer_wise_structured_bert')
 def base_bert_architecture(args):
     args.config = BertConfig()
@@ -898,3 +962,29 @@ class BertForPreTraining(PreTrainedBertModel):
             return total_loss
 
         return prediction_scores, seq_relationship_score
+
+class SimpleBertForPreTraining(PreTrainedBertModel):
+    def __init__(self, config):
+        super(SimpleBertForPreTraining, self).__init__(config)
+        self.config = config
+        self.bert = BertModel(config, remove_head=True, remove_pooled=True)
+        self.cls = BertOnlyMLMHead(config, self.bert.embeddings.word_embeddings.weight)
+        self.apply(self.init_bert_weights)
+
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None):
+        max_position_embeddings = self.config.max_position_embeddings
+        input_ids = input_ids[:, :max_position_embeddings]
+        if token_type_ids is not None:
+            token_type_ids = token_type_ids[:, :max_position_embeddings]
+        if attention_mask is not None:
+            attention_mask = attention_mask[:, :max_position_embeddings]
+        sequence_output, _ = self.bert(input_ids, token_type_ids, attention_mask,
+                                                   output_all_encoded_layers=False)
+        prediction_scores = self.cls(sequence_output)
+
+        if masked_lm_labels is not None:
+            loss_fct = CrossEntropyLoss(ignore_index=-1)
+            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
+            return masked_lm_loss
+        else:
+            return prediction_scores
