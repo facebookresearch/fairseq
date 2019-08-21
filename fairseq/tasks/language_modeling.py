@@ -19,7 +19,7 @@ from fairseq.data import (
 from fairseq.tasks import FairseqTask, register_task
 
 
-@register_task('language_modeling')
+@register_task("language_modeling")
 class LanguageModelingTask(FairseqTask):
     """
     Train a language model.
@@ -87,7 +87,7 @@ class LanguageModelingTask(FairseqTask):
         self.output_dictionary = output_dictionary or dictionary
 
         if targets is None:
-            targets = ['future']
+            targets = ["future"]
         self.targets = targets
 
     @classmethod
@@ -97,38 +97,44 @@ class LanguageModelingTask(FairseqTask):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
-        if getattr(args, 'raw_text', False):
-            utils.deprecation_warning('--raw-text is deprecated, please use --dataset-impl=raw')
-            args.dataset_impl = 'raw'
-        elif getattr(args, 'lazy_load', False):
-            utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
-            args.dataset_impl = 'lazy'
+        if getattr(args, "raw_text", False):
+            utils.deprecation_warning(
+                "--raw-text is deprecated, please use --dataset-impl=raw"
+            )
+            args.dataset_impl = "raw"
+        elif getattr(args, "lazy_load", False):
+            utils.deprecation_warning(
+                "--lazy-load is deprecated, please use --dataset-impl=lazy"
+            )
+            args.dataset_impl = "lazy"
 
         dictionary = None
         output_dictionary = None
         if args.data:
-            paths = args.data.split(':')
+            paths = args.data.split(":")
             assert len(paths) > 0
-            dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
-            print('| dictionary: {} types'.format(len(dictionary)))
+            dictionary = Dictionary.load(os.path.join(paths[0], "dict.txt"))
+            print("| dictionary: {} types".format(len(dictionary)))
             output_dictionary = dictionary
             if args.output_dictionary_size >= 0:
-                output_dictionary = TruncatedDictionary(dictionary, args.output_dictionary_size)
+                output_dictionary = TruncatedDictionary(
+                    dictionary, args.output_dictionary_size
+                )
 
         # upgrade old checkpoints
-        if hasattr(args, 'exclude_self_target'):
+        if hasattr(args, "exclude_self_target"):
             args.self_target = not args.exclude_self_target
 
         targets = []
-        if getattr(args, 'self_target', False):
-            targets.append('self')
-        if getattr(args, 'future_target', False):
-            targets.append('future')
-        if getattr(args, 'past_target', False):
-            targets.append('past')
+        if getattr(args, "self_target", False):
+            targets.append("self")
+        if getattr(args, "future_target", False):
+            targets.append("future")
+        if getattr(args, "past_target", False):
+            targets.append("past")
         if len(targets) == 0:
             # standard language modeling
-            targets = ['future']
+            targets = ["future"]
 
         return cls(args, dictionary, output_dictionary, targets=targets)
 
@@ -137,7 +143,9 @@ class LanguageModelingTask(FairseqTask):
 
         for target in self.targets:
             if target not in model.supported_targets:
-                raise ValueError('Unsupported language modeling target: {}'.format(target))
+                raise ValueError(
+                    "Unsupported language modeling target: {}".format(target)
+                )
 
         return model
 
@@ -147,32 +155,44 @@ class LanguageModelingTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(':')
+        paths = self.args.data.split(":")
         assert len(paths) > 0
+
         data_path = paths[epoch % len(paths)]
         split_path = os.path.join(data_path, split)
 
         dataset = data_utils.load_indexed_dataset(
-            split_path,
-            self.dictionary,
-            self.args.dataset_impl,
-            combine=combine,
+            split_path, self.dictionary, self.args.dataset_impl, combine=combine
         )
         if dataset is None:
-            raise FileNotFoundError('Dataset not found: {} ({})'.format(split, split_path))
+            raise FileNotFoundError(
+                "Dataset not found: {} ({})".format(split, split_path)
+            )
 
         dataset = TokenBlockDataset(
-            dataset, dataset.sizes, self.args.tokens_per_sample,
-            pad=self.dictionary.pad(), eos=self.dictionary.eos(),
-            break_mode=self.args.sample_break_mode, include_targets=True,
+            dataset,
+            dataset.sizes,
+            self.args.tokens_per_sample,
+            pad=self.dictionary.pad(),
+            eos=self.dictionary.eos(),
+            break_mode=self.args.sample_break_mode,
+            include_targets=True,
         )
 
-        add_eos_for_other_targets = self.args.sample_break_mode is not None and self.args.sample_break_mode != 'none'
+        add_eos_for_other_targets = (
+            self.args.sample_break_mode is not None
+            and self.args.sample_break_mode != "none"
+        )
 
         self.datasets[split] = MonolingualDataset(
-            dataset, dataset.sizes, self.dictionary, self.output_dictionary,
-            add_eos_for_other_targets=add_eos_for_other_targets, shuffle=True,
-            targets=self.targets, add_bos_token=self.args.add_bos_token,
+            dataset,
+            dataset.sizes,
+            self.dictionary,
+            self.output_dictionary,
+            add_eos_for_other_targets=add_eos_for_other_targets,
+            shuffle=True,
+            targets=self.targets,
+            add_bos_token=self.args.add_bos_token,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths):
@@ -184,7 +204,7 @@ class LanguageModelingTask(FairseqTask):
                     block_size=None,
                     pad=self.source_dictionary.pad(),
                     eos=self.source_dictionary.eos(),
-                    break_mode='eos',
+                    break_mode="eos",
                     include_targets=False,
                 ),
                 src_lengths,
@@ -202,9 +222,9 @@ class LanguageModelingTask(FairseqTask):
 
     def inference_step(self, generator, models, sample, prefix_tokens=None):
         with torch.no_grad():
-            if prefix_tokens is None and sample['net_input']['src_tokens'].nelement():
+            if prefix_tokens is None and sample["net_input"]["src_tokens"].nelement():
                 # note: EOS has already been removed in build_dataset_for_inference
-                prefix_tokens = sample['net_input']['src_tokens']
+                prefix_tokens = sample["net_input"]["src_tokens"]
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)
 
     @property

@@ -64,6 +64,10 @@ class ConcatDataset(FairseqDataset):
     def num_tokens(self, index: int):
         return np.max(self.size(index))
 
+    def attr(self, attr: str, index: int):
+        dataset_idx = bisect.bisect_right(self.cumulative_sizes, index)
+        return getattr(self.datasets[dataset_idx], attr, None)
+
     @property
     def sizes(self):
         return np.concatenate(
