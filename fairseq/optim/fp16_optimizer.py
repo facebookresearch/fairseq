@@ -60,7 +60,8 @@ class FP16Optimizer(optim.FairseqOptimizer):
     """
 
     def __init__(self, args, params, fp32_optimizer, fp32_params):
-        super().__init__(args, params)
+        super().__init__(args)
+        self.fp16_params = params
         self.fp32_optimizer = fp32_optimizer
         self.fp32_params = fp32_params
 
@@ -149,7 +150,7 @@ class FP16Optimizer(optim.FairseqOptimizer):
         if self._needs_sync:
             # copy FP16 grads to FP32
             offset = 0
-            for p in self.params:
+            for p in self.fp16_params:
                 if not p.requires_grad:
                     continue
                 grad_data = p.grad.data if p.grad is not None else p.data.new_zeros(p.data.shape)
@@ -196,7 +197,7 @@ class FP16Optimizer(optim.FairseqOptimizer):
 
         # copy FP32 params back into FP16 model
         offset = 0
-        for p in self.params:
+        for p in self.fp16_params:
             if not p.requires_grad:
                 continue
             numel = p.data.numel()
@@ -205,7 +206,7 @@ class FP16Optimizer(optim.FairseqOptimizer):
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
-        for p in self.params:
+        for p in self.fp16_params:
             p.grad = None
         self._needs_sync = False
 
@@ -232,7 +233,7 @@ class MemoryEfficientFP16Optimizer(optim.FairseqOptimizer):
                 'Unsupported optimizer: {}'.format(optimizer.__class__.__name__)
             )
 
-        super().__init__(args, params)
+        super().__init__(args)
         self.wrapped_optimizer = optimizer
 
         if getattr(args, 'fp16_scale_window', None) is None:

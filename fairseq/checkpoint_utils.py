@@ -222,6 +222,7 @@ def save_state(
     filename, args, model_state_dict, criterion, optimizer, lr_scheduler,
     num_updates, optim_history=None, extra_state=None,
 ):
+    from fairseq import utils
     if optim_history is None:
         optim_history = []
     if extra_state is None:
@@ -239,6 +240,8 @@ def save_state(
         ],
         'extra_state': extra_state,
     }
+    if utils.has_parameters(criterion):
+        state_dict['criterion'] = criterion.state_dict()
     if not args.no_save_optimizer_state:
         state_dict['last_optimizer_state'] = convert_state_dict_type(optimizer.state_dict())
     torch_persistent_save(state_dict, filename)

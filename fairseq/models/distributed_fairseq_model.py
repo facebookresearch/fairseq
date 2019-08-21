@@ -5,7 +5,7 @@
 
 import inspect
 
-from torch.nn import parallel
+import torch.nn as nn
 
 from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
 from fairseq.models import BaseFairseqModel
@@ -25,9 +25,9 @@ def DistributedFairseqModel(args, model):
         model (BaseFairseqModel): model to wrap
     """
     # determine which DDP class to extend
-    assert isinstance(model, BaseFairseqModel)
+    assert isinstance(model, nn.Module)
     if args.ddp_backend == 'c10d':
-        ddp_class = parallel.DistributedDataParallel
+        ddp_class = nn.parallel.DistributedDataParallel
         init_kwargs = dict(
             module=model,
             device_ids=[args.device_id],

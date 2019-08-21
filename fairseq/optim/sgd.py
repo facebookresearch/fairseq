@@ -11,7 +11,7 @@ from . import FairseqOptimizer, register_optimizer
 @register_optimizer('sgd')
 class SGD(FairseqOptimizer):
     def __init__(self, args, params):
-        super().__init__(args, params)
+        super().__init__(args)
         self._optimizer = torch.optim.SGD(params, **self.optimizer_config)
 
     @staticmethod
