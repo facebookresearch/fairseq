@@ -12,7 +12,7 @@ Model | Description | Dataset | Download
 
 ## Example usage
 
-Sampling from a language model using PyTorch Hub:
+To sample from a language model using PyTorch Hub:
 ```python
 import torch
 
@@ -25,6 +25,12 @@ en_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.en', tokenizer='
 # Sample from the language model
 en_lm.sample('Barack Obama', beam=1, sampling=True, sampling_topk=10, temperature=0.8)
 # "Barack Obama is coming to Sydney and New Zealand (...)"
+
+# The same interface can be used with custom models as well
+from fairseq.models.transformer_lm import TransformerLanguageModel
+custom_lm = TransformerLanguageModel.from_pretrained('/path/to/model/dir', 'checkpoint100.pt', tokenizer='moses', bpe='fastbpe')
+custom_lm.sample('Barack Obama', beam=5)
+# "Barack Obama (...)"
 ```
 
 ## Training a transformer language model with the CLI tools

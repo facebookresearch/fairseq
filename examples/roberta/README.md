@@ -76,6 +76,13 @@ Model | Accuracy
 ---|---
 `roberta.large` | 78.1
 
+**[XNLI (Conneau et al., 2018)](https://arxiv.org/abs/1809.05053)**
+_(TRANSLATE-TEST)_
+
+Model | en | fr | es | de | el | bg | ru | tr | ar | vi | th | zh | hi | sw | ur
+---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---
+`roberta.large.mnli` | 91.3 | 82.91 | 84.27 | 81.24 | 81.74 | 83.13 | 78.28 | 76.79 | 76.64 | 74.17 | 74.05 | 77.5 | 70.9 | 66.65 | 66.81
+
 ## Example usage
 
 ##### Load RoBERTa from torch.hub (PyTorch >= 1.1):
