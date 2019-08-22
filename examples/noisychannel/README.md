@@ -3,7 +3,7 @@ This page contains pointers to pre-trained models as well as instructions on how
 
 ## Citation:
 ```bibtex
-@inproceedings{yee2018simple,
+@inproceedings{yee2019simple,
   title = {Simple and Effective Noisy Channel Modeling for Neural Machine Translation},
   author = {Kyra Yee and Yann Dauphin and Michael Auli},
   booktitle = {Conference on Empirical Methods in Natural Language Processing},
