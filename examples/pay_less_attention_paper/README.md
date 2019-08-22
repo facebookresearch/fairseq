@@ -29,6 +29,26 @@ LightConv | [WMT14 English-French](http://statmt.org/wmt14/translation-task.html
 DynamicConv | [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt14.en-fr.joined-dict.dynamicconv-glu.tar.bz2) | newstest2014: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt14.en-fr.joined-dict.newstest2014.tar.bz2)
 LightConv | [WMT17 Chinese-English](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.zh-en.lightconv-glu.tar.bz2) | newstest2017: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt17.zh-en.newstest2017.tar.bz2)
 DynamicConv | [WMT17 Chinese-English](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.zh-en.dynamicconv-glu.tar.bz2) | newstest2017: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt17.zh-en.newstest2017.tar.bz2)
+LightConv (CUDA module) | [WMT17 English-German](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.en-de.joined-dict.transformer.light-conv-cuda-glu.tar.gz) | newstest2014 (shared vocab): <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt16.en-de.joined-dict.newstest2014.tar.bz2)
+DynamicConv (CUDA module) | [WMT17 English-German](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.en-de.joined-dict.transformer.dynamic-conv-cuda-glu.tar.gz) | newstest2014: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt16.en-de.joined-dict.newstest2014.tar.bz2)
+
+### Memory-Efficient CUDA Kernels
+
+Since the PyTorch implementations of Light/Dynamic conv are quite memory intensive, we have developed CUDA kernels that implement the light and dynamic convolution operator in a memory-efficient and performant manner. For large sequence lengths, these kernels save about 50% memory compared to the PyTorch equivalent. 
+
+To install the kernels, use the commands below. Once installed, they will automatically be used in place of the PyTorch implementations whenever a light or dynamic convolution is used.
+
+```sh
+# to install lightconv
+cd fairseq/modules/lightconv_layer
+python cuda_function_gen.py
+python setup.py install
+
+# to install dynamicconv
+cd fairseq/modules/dynamicconv_layer
+python cuda_function_gen.py
+python setup.py install
+```
 
 ### Preprocessing the training datasets
 
