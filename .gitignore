@@ -16,6 +16,7 @@ __pycache__/
 .Python
 env/
 build/
+data/
 develop-eggs/
 dist/
 downloads/
@@ -26,6 +27,7 @@ lib64/
 parts/
 sdist/
 var/
+venv_fairseq/
 wheels/
 *.egg-info/
 .installed.cfg
