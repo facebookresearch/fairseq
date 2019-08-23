@@ -5,6 +5,7 @@
 
 import itertools
 import math
+import os
 
 import numpy as np
 import torch
@@ -247,6 +248,9 @@ class EpochBatchIterator(EpochBatchIterating):
 
         if offset > 0 and offset >= len(batches):
             return None
+
+        if self.num_workers > 0:
+            os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 
         return CountingIterator(
             torch.utils.data.DataLoader(
