@@ -3,10 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import math
-
 import numpy as np
 import torch
+
+from fairseq.data.token_block_utils_fast import (
+    _get_slice_indices_fast,
+    _get_block_to_dataset_index_fast,
+)
 
 from fairseq.data import FairseqDataset, plasma_utils
 
@@ -33,7 +36,6 @@ class TokenBlockDataset(FairseqDataset):
             'complete_doc' break mode). Typically 1 if the sentences have eos
             and 0 otherwise.
     """
-
     def __init__(
         self,
         dataset,
@@ -50,70 +52,22 @@ class TokenBlockDataset(FairseqDataset):
         self.pad = pad
         self.eos = eos
         self.include_targets = include_targets
-        slice_indices = []
 
         assert len(dataset) == len(sizes)
         assert len(dataset) > 0
-        sizes = np.array(sizes, dtype=int)
 
-        if break_mode is None or break_mode == "none":
-            total_size = sum(sizes)
-            length = math.ceil(total_size / block_size)
-
-            def block_at(i):
-                start = i * block_size
-                end = min(start + block_size, total_size)
-                return (start, end)
-
-            slice_indices = [block_at(i) for i in range(length)]
-        elif break_mode == "complete":
-            tok_idx = 0
-            sz_idx = 0
-            curr_size = 0
-            while sz_idx < len(sizes):
-                if curr_size + sizes[sz_idx] <= block_size or curr_size == 0:
-                    curr_size += sizes[sz_idx]
-                    sz_idx += 1
-                else:
-                    slice_indices.append((tok_idx, tok_idx + curr_size))
-                    tok_idx += curr_size
-                    curr_size = 0
-            if curr_size > 0:
-                slice_indices.append((tok_idx, tok_idx + curr_size))
-        elif break_mode == "complete_doc":
-            tok_idx = 0
-            sz_idx = 0
-            curr_size = 0
-            while sz_idx < len(sizes):
-                if (
-                    (curr_size + sizes[sz_idx] <= block_size or curr_size == 0)
-                    # an empty sentence indicates end-of-document:
-                    and sizes[sz_idx] != document_sep_len
-                ):
-                    curr_size += sizes[sz_idx]
-                    sz_idx += 1
-                else:
-                    if curr_size > 1:
-                        slice_indices.append((tok_idx, tok_idx + curr_size))
-                    tok_idx += curr_size
-                    curr_size = 0
-                    if sizes[sz_idx] == document_sep_len:
-                        tok_idx += sizes[sz_idx]
-                        sz_idx += 1
-            if curr_size > 1:
-                slice_indices.append((tok_idx, tok_idx + curr_size))
-        elif break_mode == "eos":
-            slice_indices = np.empty((len(sizes), 2), dtype=int)
-            if not torch.is_tensor(sizes):
-                sizes = torch.tensor(sizes)
-            cumsum = torch.cumsum(sizes, dim=0)
-            slice_indices[0] = [0, sizes[0]]
-            if len(cumsum) > 1:
-                slice_indices[1:] = cumsum.unfold(0, 2, 1)
+        if isinstance(sizes, list):
+            sizes = np.array(sizes, dtype=np.int64)
         else:
-            raise ValueError("Invalid break_mode: " + break_mode)
+            sizes = sizes.astype(np.int64)
 
-        slice_indices = np.array(slice_indices, dtype=int)
+        break_mode = break_mode if break_mode is not None else 'none'
+
+        # For "eos" break-mode, block_size is not required parameters.
+        if break_mode == "eos" and block_size is None:
+            block_size = 0
+
+        slice_indices = _get_slice_indices_fast(sizes, break_mode, block_size, document_sep_len)
         self._sizes = slice_indices[:, 1] - slice_indices[:, 0]
 
         # build index mapping block indices to the underlying dataset indices
@@ -130,23 +84,10 @@ class TokenBlockDataset(FairseqDataset):
                 1,
             )
         else:
-            ds = DatasetSearcher(sizes)
-            block_to_dataset_index = np.empty((len(slice_indices), 3), dtype=int)
-            for i, (s, e) in enumerate(slice_indices):
-                ds.seek(s)
-                start_ds_idx = ds.current_index
-                start_offset = ds.current_offset
-                if e <= s:
-                    end_ds_idx = start_ds_idx
-                else:
-                    ds.seek(e - 1)
-                    end_ds_idx = ds.current_index
-                block_to_dataset_index[i] = (
-                    start_ds_idx,  # starting index in dataset
-                    start_offset,  # starting offset within starting index
-                    end_ds_idx,  # ending index in dataset
-                )
-
+            block_to_dataset_index = _get_block_to_dataset_index_fast(
+                sizes,
+                slice_indices,
+            )
         self._slice_indices = plasma_utils.PlasmaArray(slice_indices)
         self._sizes = plasma_utils.PlasmaArray(self._sizes)
         self._block_to_dataset_index = plasma_utils.PlasmaArray(block_to_dataset_index)
@@ -215,42 +156,3 @@ class TokenBlockDataset(FairseqDataset):
                 for ds_idx in range(start_ds_idx, end_ds_idx + 1)
             }
         )
-
-
-class DatasetSearcher(object):
-    """Helper for mapping "flat" indices to indices and offsets in an
-    underlying dataset."""
-
-    def __init__(self, sizes):
-        self.sizes = sizes
-        self.reset()
-
-    def reset(self):
-        self.current_index = 0  # index in underlying dataset
-        self.current_offset = 0  # offset within current index in underlying dataset
-        self.current_i = 0  # "flat" index
-
-    def seek(self, i):
-        assert i >= 0
-
-        def step():
-            if i < self.current_i:
-                self.reset()
-            if i > self.current_i:
-                to_consume = i - self.current_i
-                remaining = self.sizes[self.current_index] - self.current_offset
-                if remaining > to_consume:
-                    self.current_offset += to_consume
-                    self.current_i += to_consume
-                else:
-                    assert remaining > 0
-                    self.current_i += remaining
-                    self.current_index += 1
-                    self.current_offset = 0
-                    return True
-            return False
-
-        not_done = True
-        while not_done:
-            not_done = step()
-        assert self.current_i == i

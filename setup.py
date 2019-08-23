@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from setuptools import setup, find_packages, Extension
+from Cython.Build import cythonize
 import sys
 
 
@@ -27,6 +28,8 @@ bleu = Extension(
     extra_compile_args=extra_compile_args,
 )
 
+token_block_utils = cythonize("fairseq/data/token_block_utils_fast.pyx")
+data_utils_fast = cythonize("fairseq/data/data_utils_fast.pyx", language="c++")
 
 setup(
     name='fairseq',
@@ -52,7 +55,7 @@ setup(
         'tqdm',
     ],
     packages=find_packages(exclude=['scripts', 'tests']),
-    ext_modules=[bleu],
+    ext_modules=token_block_utils + data_utils_fast + [bleu],
     test_suite='tests',
     entry_points={
         'console_scripts': [
@@ -65,4 +68,5 @@ setup(
             'fairseq-validate = fairseq_cli.validate:cli_main',
         ],
     },
+    zip_safe=False,
 )

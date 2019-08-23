@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import numpy as np
 import torch
 
 from fairseq import tokenizer
@@ -134,6 +135,7 @@ class FairseqTask(object):
             indices = data_utils.filter_by_size(
                 indices, dataset.size, max_positions, raise_exception=(not ignore_invalid_inputs),
             )
+            indices = np.fromiter(indices, dtype=np.int64, count=-1)
 
         # create mini-batches with given size constraints
         batch_sampler = data_utils.batch_by_size(
