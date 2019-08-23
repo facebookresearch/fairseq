@@ -9,7 +9,7 @@ from .fairseq_dataset import FairseqDataset
 
 from .base_wrapper_dataset import BaseWrapperDataset
 
-from .audio.raw_audio_dataset import RawAudioDataset
+from .audio.raw_audio_dataset import FileAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .concat_dataset import ConcatDataset
 from .concat_sentences_dataset import ConcatSentencesDataset
@@ -78,9 +78,9 @@ __all__ = [
     'PadDataset',
     'PrependDataset',
     'PrependTokenDataset',
-    'RawAudioDataset',
-    'RawLabelDataset',
     'ReplaceDataset',
+    'FileAudioDataset',
+    "RawLabelDataset",
     'RightPadDataset',
     'RoundRobinZipDatasets',
     'ShardedDataset',
