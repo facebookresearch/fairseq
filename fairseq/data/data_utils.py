@@ -12,6 +12,10 @@ import itertools
 import os
 
 import numpy as np
+import sys
+import types
+
+from fairseq.data.data_utils_fast import batch_by_size_fast
 
 
 def infer_language_pair(path):
@@ -196,45 +200,13 @@ def batch_by_size(
         required_batch_size_multiple (int, optional): require batch size to
             be a multiple of N (default: 1).
     """
-    max_tokens = max_tokens if max_tokens is not None else float('Inf')
-    max_sentences = max_sentences if max_sentences is not None else float('Inf')
+    max_tokens = max_tokens if max_tokens is not None else sys.maxsize
+    max_sentences = max_sentences if max_sentences is not None else sys.maxsize
     bsz_mult = required_batch_size_multiple
 
-    batch = []
-
-    def is_batch_full(num_tokens):
-        if len(batch) == 0:
-            return False
-        if len(batch) == max_sentences:
-            return True
-        if num_tokens > max_tokens:
-            return True
-        return False
-
-    sample_len = 0
-    sample_lens = []
-    for idx in indices:
-        sample_lens.append(num_tokens_fn(idx))
-        sample_len = max(sample_len, sample_lens[-1])
-        assert sample_len <= max_tokens, (
-            "sentence at index {} of size {} exceeds max_tokens "
-            "limit of {}!".format(idx, sample_len, max_tokens)
-        )
-        num_tokens = (len(batch) + 1) * sample_len
-        if is_batch_full(num_tokens):
-            mod_len = max(
-                bsz_mult * (len(batch) // bsz_mult),
-                len(batch) % bsz_mult,
-            )
-            yield batch[:mod_len]
-            batch = batch[mod_len:]
-            sample_lens = sample_lens[mod_len:]
-            sample_len = max(sample_lens) if len(sample_lens) > 0 else 0
-
-        batch.append(idx)
-
-    if len(batch) > 0:
-        yield batch
+    if isinstance(indices, types.GeneratorType):
+        indices = np.fromiter(indices, dtype=np.int64, count=-1)
+    return batch_by_size_fast(indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult)
 
 
 def process_bpe_symbol(sentence: str, bpe_symbol: str):
