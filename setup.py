@@ -5,9 +5,17 @@
 # LICENSE file in the root directory of this source tree.
 
 from setuptools import setup, find_packages, Extension
+from setuptools.command.build_ext import build_ext as _build_ext
 from Cython.Build import cythonize
 import sys
 
+class build_ext(_build_ext):
+    def finalize_options(self):
+        _build_ext.finalize_options(self)
+        # Prevent numpy from thinking it is still in its setup process:
+        __builtins__.__NUMPY_SETUP__ = False
+        import numpy
+        self.include_dirs.append(numpy.get_include())
 
 if sys.version_info < (3,):
     sys.exit('Sorry, Python3 is required for fairseq.')
@@ -45,6 +53,7 @@ setup(
     ],
     long_description=readme,
     long_description_content_type='text/markdown',
+    cmdclass={'build_ext': build_ext},
     install_requires=[
         'cffi',
         'fastBPE',
