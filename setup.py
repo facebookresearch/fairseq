@@ -6,16 +6,17 @@
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext as _build_ext
-from Cython.Build import cythonize
 import sys
 
 class build_ext(_build_ext):
     def finalize_options(self):
         _build_ext.finalize_options(self)
-        # Prevent numpy from thinking it is still in its setup process:
-        __builtins__.__NUMPY_SETUP__ = False
-        import numpy
-        self.include_dirs.append(numpy.get_include())
+        try:
+            import numpy
+            __builtins__.__NUMPY_SETUP__ = False
+            self.include_dirs.append(numpy.get_include())
+        except ImportError:
+            pass
 
 if sys.version_info < (3,):
     sys.exit('Sorry, Python3 is required for fairseq.')
@@ -36,8 +37,8 @@ bleu = Extension(
     extra_compile_args=extra_compile_args,
 )
 
-token_block_utils = cythonize("fairseq/data/token_block_utils_fast.pyx")
-data_utils_fast = cythonize("fairseq/data/data_utils_fast.pyx", language="c++")
+token_block_utils = [Extension("fairseq.data.token_block_utils_fast", ["fairseq/data/token_block_utils_fast.pyx"])]
+data_utils_fast = [Extension("fairseq.data.data_utils_fast", ["fairseq/data/data_utils_fast.pyx"], language="c++")]
 
 setup(
     name='fairseq',
@@ -54,6 +55,10 @@ setup(
     long_description=readme,
     long_description_content_type='text/markdown',
     cmdclass={'build_ext': build_ext},
+    setup_requires=[
+        'cython',
+        'setuptools>=18.0',
+    ],
     install_requires=[
         'cffi',
         'fastBPE',
@@ -79,3 +84,4 @@ setup(
     },
     zip_safe=False,
 )
+
