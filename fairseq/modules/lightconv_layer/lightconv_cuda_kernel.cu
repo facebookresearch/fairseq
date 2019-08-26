@@ -6,8 +6,6 @@
  */
 
 #include "lightconv_cuda.cuh"
-#include "lightconv_cuda_forward.cu"
-#include "lightconv_cuda_backward.cu"
 #include "../cuda_utils.cu"
 
 template<int FS, int SB, int padding_l, typename scalar_t>
