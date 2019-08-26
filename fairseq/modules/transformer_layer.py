@@ -134,6 +134,7 @@ class TransformerDecoderLayer(nn.Module):
     def __init__(self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
+        self.cross_self_attention = args.cross_self_attention
         self.self_attn = MultiheadAttention(
             embed_dim=self.embed_dim,
             num_heads=args.decoder_attention_heads,
@@ -211,10 +212,20 @@ class TransformerDecoderLayer(nn.Module):
             prev_key, prev_value = prev_self_attn_state
             saved_state = {"prev_key": prev_key, "prev_value": prev_value}
             self.self_attn._set_input_buffer(incremental_state, saved_state)
+        if self.cross_self_attention and not (incremental_state is not None and "prev_key" in self.self_attn._get_input_buffer(incremental_state)):
+            if self_attn_mask is not None:
+                self_attn_mask = torch.cat((x.new(x.size(0), encoder_out.size(0)).zero_(), self_attn_mask), dim=1)
+            if self_attn_padding_mask is not None:
+                if encoder_padding_mask is None:
+                    encoder_padding_mask = self_attn_padding_mask.new(encoder_out.size(1), encoder_out.size(0)).zero_()
+                self_attn_padding_mask = torch.cat((encoder_padding_mask, self_attn_padding_mask), dim=1)
+            y = torch.cat((encoder_out, x), dim=0)
+        else:
+            y = x
         x, attn = self.self_attn(
             query=x,
-            key=x,
-            value=x,
+            key=y,
+            value=y,
             key_padding_mask=self_attn_padding_mask,
             incremental_state=incremental_state,
             need_weights=False,
@@ -230,9 +241,10 @@ class TransformerDecoderLayer(nn.Module):
             if prev_attn_state is not None:
                 if incremental_state is None:
                     incremental_state = {}
-                prev_key, prev_value = prev_attn_state
-                saved_state = {"prev_key": prev_key, "prev_value": prev_value}
+                prev_key, prev_value, prev_key_padding_mask  = prev_self_attn_state
+                saved_state = {"prev_key": prev_key, "prev_value": prev_value, "prev_key_padding_mask": prev_key_padding_mask}
                 self.encoder_attn._set_input_buffer(incremental_state, saved_state)
+
             x, attn = self.encoder_attn(
                 query=x,
                 key=encoder_out,
@@ -257,6 +269,7 @@ class TransformerDecoderLayer(nn.Module):
         if self.onnx_trace and incremental_state is not None:
             saved_state = self.self_attn._get_input_buffer(incremental_state)
             self_attn_state = saved_state["prev_key"], saved_state["prev_value"]
+            self_attn_state = saved_state["prev_key"], saved_state["prev_value"], saved_state["prev_key_padding_mask"]
             return x, attn, self_attn_state
         return x, attn
 
