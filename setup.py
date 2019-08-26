@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from setuptools import setup, find_packages, Extension
-from Cython.Build import cythonize
 import sys
 
 
@@ -28,8 +27,8 @@ bleu = Extension(
     extra_compile_args=extra_compile_args,
 )
 
-token_block_utils = cythonize("fairseq/data/token_block_utils_fast.pyx")
-data_utils_fast = cythonize("fairseq/data/data_utils_fast.pyx", language="c++")
+token_block_utils = [Extension("fairseq.data.token_block_utils_fast", ["fairseq/data/token_block_utils_fast.pyx"])]
+data_utils_fast = [Extension("fairseq.data.data_utils_fast", ["fairseq/data/data_utils_fast.pyx"], language="c++")]
 
 setup(
     name='fairseq',
@@ -45,6 +44,10 @@ setup(
     ],
     long_description=readme,
     long_description_content_type='text/markdown',
+    setup_requires=[
+        'cython',
+        'setuptools>=18.0',
+    ],
     install_requires=[
         'cffi',
         'fastBPE',
