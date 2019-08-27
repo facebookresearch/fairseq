@@ -10,10 +10,10 @@ except ImportError:
 import contextlib
 import itertools
 import os
-
-import numpy as np
 import sys
 import types
+
+import numpy as np
 
 
 def infer_language_pair(path):
@@ -204,12 +204,14 @@ def batch_by_size(
         raise ImportError(
             'Please build Cython components with: `pip install --editable .`'
         )
+
     max_tokens = max_tokens if max_tokens is not None else sys.maxsize
     max_sentences = max_sentences if max_sentences is not None else sys.maxsize
     bsz_mult = required_batch_size_multiple
 
     if isinstance(indices, types.GeneratorType):
         indices = np.fromiter(indices, dtype=np.int64, count=-1)
+
     return batch_by_size_fast(indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult)
 
 
