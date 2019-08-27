@@ -11,47 +11,45 @@ import sys
 if sys.version_info < (3,):
     sys.exit('Sorry, Python3 is required for fairseq.')
 
+
 with open('README.md') as f:
     readme = f.read()
 
+
 if sys.platform == 'darwin':
     extra_compile_args = ['-stdlib=libc++', '-O3']
-    extra_link_args = ['-stdlib=libc++']
 else:
     extra_compile_args = ['-std=c++11', '-O3']
-    extra_link_args = ['-std=c++11']
-
-bleu = Extension(
-    'fairseq.libbleu',
-    sources=[
-        'fairseq/clib/libbleu/libbleu.cpp',
-        'fairseq/clib/libbleu/module.cpp',
-    ],
-    extra_compile_args=extra_compile_args,
-)
 
 
-def get_cython_modules():
-    token_block_utils = Extension(
-        "fairseq.data.token_block_utils_fast",
-        ["fairseq/data/token_block_utils_fast.pyx"],
+extensions = [
+    Extension(
+        'fairseq.libbleu',
+        sources=[
+            'fairseq/clib/libbleu/libbleu.cpp',
+            'fairseq/clib/libbleu/module.cpp',
+        ],
         extra_compile_args=extra_compile_args,
-        extra_link_args=extra_link_args,
-    )
-    data_utils_fast = Extension(
-        "fairseq.data.data_utils_fast",
-        ["fairseq/data/data_utils_fast.pyx"],
-        language="c++",
+    ),
+    Extension(
+        'fairseq.data.data_utils_fast',
+        sources=['fairseq/data/data_utils_fast.pyx'],
+        language='c++',
         extra_compile_args=extra_compile_args,
-        extra_link_args=extra_link_args,
-    )
-    return [token_block_utils, data_utils_fast]
+    ),
+    Extension(
+        'fairseq.data.token_block_utils_fast',
+        sources=['fairseq/data/token_block_utils_fast.pyx'],
+        language='c++',
+        extra_compile_args=extra_compile_args,
+    ),
+]
 
 
 def my_build_ext(pars):
     """
     Delay loading of numpy headers.
-    More details: https://stackoverflow.com/questions/54117786/add-numpy-get-include-argument-to-setuptools-without-preinstalled-numpy
+    More details: https://stackoverflow.com/a/54138355
     """
     from setuptools.command.build_ext import build_ext as _build_ext
 
@@ -81,6 +79,7 @@ setup(
     setup_requires=[
         'numpy',
         'cython',
+        'numpy',
         'setuptools>=18.0',
     ],
     install_requires=[
@@ -93,7 +92,7 @@ setup(
         'tqdm',
     ],
     packages=find_packages(exclude=['scripts', 'tests']),
-    ext_modules=get_cython_modules() + [bleu],
+    ext_modules=extensions,
     test_suite='tests',
     entry_points={
         'console_scripts': [
