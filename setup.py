@@ -15,9 +15,12 @@ with open('README.md') as f:
     readme = f.read()
 
 if sys.platform == 'darwin':
-    extra_compile_args = ['-stdlib=libc++']
+    extra_compile_args = ['-stdlib=libc++', '-O3']
+    extra_link_args = ['-stdlib=libc++']
 else:
-    extra_compile_args = ['-std=c++11']
+    extra_compile_args = ['-std=c++11', '-O3']
+    extra_link_args = ['-std=c++11']
+
 bleu = Extension(
     'fairseq.libbleu',
     sources=[
@@ -27,8 +30,39 @@ bleu = Extension(
     extra_compile_args=extra_compile_args,
 )
 
-token_block_utils = [Extension("fairseq.data.token_block_utils_fast", ["fairseq/data/token_block_utils_fast.pyx"])]
-data_utils_fast = [Extension("fairseq.data.data_utils_fast", ["fairseq/data/data_utils_fast.pyx"], language="c++")]
+
+def get_cython_modules():
+    token_block_utils = Extension(
+        "fairseq.data.token_block_utils_fast",
+        ["fairseq/data/token_block_utils_fast.pyx"],
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
+    )
+    data_utils_fast = Extension(
+        "fairseq.data.data_utils_fast",
+        ["fairseq/data/data_utils_fast.pyx"],
+        language="c++",
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
+    )
+    return [token_block_utils, data_utils_fast]
+
+
+def my_build_ext(pars):
+    """
+    Delay loading of numpy headers.
+    More details: https://stackoverflow.com/questions/54117786/add-numpy-get-include-argument-to-setuptools-without-preinstalled-numpy
+    """
+    from setuptools.command.build_ext import build_ext as _build_ext
+
+    class build_ext(_build_ext):
+        def finalize_options(self):
+            _build_ext.finalize_options(self)
+            __builtins__.__NUMPY_SETUP__ = False
+            import numpy
+            self.include_dirs.append(numpy.get_include())
+    return build_ext(pars)
+
 
 setup(
     name='fairseq',
@@ -45,6 +79,7 @@ setup(
     long_description=readme,
     long_description_content_type='text/markdown',
     setup_requires=[
+        'numpy',
         'cython',
         'setuptools>=18.0',
     ],
@@ -58,7 +93,7 @@ setup(
         'tqdm',
     ],
     packages=find_packages(exclude=['scripts', 'tests']),
-    ext_modules=token_block_utils + data_utils_fast + [bleu],
+    ext_modules=get_cython_modules() + [bleu],
     test_suite='tests',
     entry_points={
         'console_scripts': [
@@ -71,5 +106,6 @@ setup(
             'fairseq-validate = fairseq_cli.validate:cli_main',
         ],
     },
+    cmdclass={'build_ext': my_build_ext},
     zip_safe=False,
 )

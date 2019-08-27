@@ -15,8 +15,6 @@ import numpy as np
 import sys
 import types
 
-from fairseq.data.data_utils_fast import batch_by_size_fast
-
 
 def infer_language_pair(path):
     """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
@@ -200,6 +198,12 @@ def batch_by_size(
         required_batch_size_multiple (int, optional): require batch size to
             be a multiple of N (default: 1).
     """
+    try:
+        from fairseq.data.data_utils_fast import batch_by_size_fast
+    except ImportError:
+        raise ImportError(
+            'Please build Cython components with: `pip install --editable .`'
+        )
     max_tokens = max_tokens if max_tokens is not None else sys.maxsize
     max_sentences = max_sentences if max_sentences is not None else sys.maxsize
     bsz_mult = required_batch_size_multiple
