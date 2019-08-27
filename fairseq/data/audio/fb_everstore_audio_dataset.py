@@ -10,7 +10,6 @@ import io
 import os
 
 import torch
-from langtech import EverstoreIo
 
 from .fb_soundfile import read as sf_read
 from .raw_audio_dataset import RawAudioDataset
@@ -70,6 +69,7 @@ class EverstoreAudioDataset(RawAudioDataset):
     def __getitem__(self, index):
         pid = os.getpid()
         if pid not in self.clients:
+            from langtech import EverstoreIo
             self.clients[pid] = EverstoreIo.EverstoreIo()
         success, blob = self.clients[pid].get(self.handles[index], 'wav2vec')
         self.gets += 1
@@ -87,7 +87,6 @@ class EverstoreAudioDataset(RawAudioDataset):
             s = self.starts[index]
             e = s + self.sizes[index]
             wav = wav[s:e]
-            # wav = self.crop_to_max_size(wav[s:e], self.max_sample_size).copy()
 
         feats = torch.from_numpy(wav).float()
         feats = self.postprocess(feats, curr_sample_rate)

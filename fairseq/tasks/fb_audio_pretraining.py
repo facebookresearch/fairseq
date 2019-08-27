@@ -60,14 +60,7 @@ class SpeechPretrainingTask(FairseqTask):
             min_length=16000,
         )
 
-    def _dynamic_dataset(self, parts):
-        def make_ds_for_epoch(epoch):
-            part_idx = (epoch - 1) % len(parts)
-            return self.create_dataset(parts[part_idx])
-
-        return make_ds_for_epoch
-
-    def load_dataset(self, split, **kwargs):
+    def load_dataset(self, split, epoch=0, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -78,15 +71,17 @@ class SpeechPretrainingTask(FairseqTask):
         if os.path.isfile(manifest):
             self.datasets[split] = self.create_dataset(manifest)
         else:
-            dataset_parts = []
-            for i in count(1):
-                manifest = os.path.join(self.args.data, "{}{}.tsv".format(split, i))
-                if not os.path.isfile(manifest):
-                    break
-                dataset_parts.append(manifest)
-            if len(dataset_parts) == 0:
-                raise FileNotFoundError(manifest)
-            self.datasets[split] = self._dynamic_dataset(dataset_parts)
+            if not hasattr(self, 'dataset_parts'):
+                self.dataset_parts = []
+                for i in count(1):
+                    manifest = os.path.join(self.args.data, "{}{}.tsv".format(split, i))
+                    if not os.path.isfile(manifest):
+                        break
+                    self.dataset_parts.append(manifest)
+                if len(self.dataset_parts) == 0:
+                    raise FileNotFoundError(manifest)
+            part_idx = epoch % len(self.dataset_parts)
+            self.datasets[split] = self.create_dataset(self.dataset_parts[part_idx])
 
     @property
     def target_dictionary(self):
