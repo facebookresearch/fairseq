@@ -25,6 +25,7 @@ def get_training_parser(default_task='translation'):
     add_model_args(parser)
     add_optimization_args(parser)
     add_checkpoint_args(parser)
+    add_sequence_training_args(parser)
     return parser
 
 
@@ -515,9 +516,53 @@ def add_model_args(parser):
     # 1) model defaults (lowest priority)
     # 2) --arch argument
     # 3) --encoder/decoder-* arguments (highest priority)
+    # Note: --arch cannot be combined with --encoder/decoder-* arguments.
     from fairseq.models import ARCH_MODEL_REGISTRY
     group.add_argument('--arch', '-a', default='fconv', metavar='ARCH', required=True,
                        choices=ARCH_MODEL_REGISTRY.keys(),
                        help='Model Architecture')
-    # fmt: on
+    # These arguments have default values independent of the model:
+    group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
+                       help='epsilon for label smoothing, 0 means no label smoothing')
+    return group
+
+
+def add_sequence_training_args(parser):
+    group = parser.add_argument_group('Sequence level training options')
+    from fairseq.criterions import CRITERION_REGISTRY
+    group.add_argument('--seq-criterion', metavar='CRIT', choices=CRITERION_REGISTRY.keys(),
+                       help='sequence-level criterion ({})'.format(', '.join(CRITERION_REGISTRY.keys())))
+    group.add_argument('--seq-beam', default=5, type=int, metavar='N',
+                       help='beam size for sequence training')
+    group.add_argument('--seq-prefix-size', default=0, type=int, metavar='PS',
+                       help='initialize generation by target prefix of given length')
+    group.add_argument('--seq-keep-reference', action='store_true',
+                       help='keep the reference in the set of hypotheses')
+    group.add_argument('--seq-max-len-a', default=0, type=float, metavar='N',
+                       help=('generate sequences of maximum length ax + b, '
+                             'where x is the source length'))
+    group.add_argument('--seq-max-len-b', default=200, type=int, metavar='N',
+                       help=('generate sequences of maximum length ax + b, '
+                             'where x is the source length'))
+    group.add_argument('--seq-combined-loss-alpha', metavar='D', default=0, type=float,
+                       help='combined loss = \\alpha*token_loss + seq_loss')
+    group.add_argument('--seq-scorer', metavar='SCORER',
+                       help='Optimization metric for sequence level training', default='bleu')
+    group.add_argument('--seq-risk-normbleu', action='store_true',
+                       help='Normalize bleu')
+
+    group.add_argument('--seq-unkpen', default=0, type=float,
+                       help='unknown word penalty to be used in seq generation')
+
+    group.add_argument('--seq-hypos-dropout', action='store_true',
+                       help="Use dropout to generate hypos")
+
+    group.add_argument('--seq-sampling', action='store_true',
+                       help="Use sampling instead of beam search")
+
+    group.add_argument('--seq-margin-cost-scale-factor', type=float, default=1, metavar='D',
+                       help='Scale optimized metric with respect to token loss, '
+                            'only relevant for margin losses')
+
+
     return group

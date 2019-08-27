@@ -175,9 +175,9 @@ def get_training_stats(trainer):
     if trainer.get_meter('train_nll_loss').count > 0:
         nll_loss = trainer.get_meter('train_nll_loss')
         stats['nll_loss'] = nll_loss
+        stats['ppl'] = utils.get_perplexity(nll_loss.avg)
     else:
         nll_loss = trainer.get_meter('train_loss')
-    stats['ppl'] = utils.get_perplexity(nll_loss.avg)
     stats['wps'] = trainer.get_meter('wps')
     stats['ups'] = trainer.get_meter('ups')
     stats['wpb'] = trainer.get_meter('wpb')
