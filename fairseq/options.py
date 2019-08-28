@@ -532,7 +532,7 @@ def add_sequence_training_args(parser):
     from fairseq.criterions import CRITERION_REGISTRY
     group.add_argument('--seq-criterion', metavar='CRIT', choices=CRITERION_REGISTRY.keys(),
                        help='sequence-level criterion ({})'.format(', '.join(CRITERION_REGISTRY.keys())))
-    group.add_argument('--seq-beam', default=5, type=int, metavar='N',
+    group.add_argument('--seq-beam', default=16, type=int, metavar='N',
                        help='beam size for sequence training')
     group.add_argument('--seq-prefix-size', default=0, type=int, metavar='PS',
                        help='initialize generation by target prefix of given length')

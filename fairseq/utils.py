@@ -344,6 +344,13 @@ def get_available_activation_fns() -> List:
         'linear',
     ]
 
+def get_training_generator_args(orig_args):
+    args_copy = copy.deepcopy(orig_args)
+    seq_keys = [k for k in vars(orig_args).keys() if k.startswith('seq_')]
+    for k in seq_keys:
+        setattr(args_copy, k[4:], getattr(orig_args, k))
+    return args_copy
+
 
 @contextlib.contextmanager
 def eval(model):

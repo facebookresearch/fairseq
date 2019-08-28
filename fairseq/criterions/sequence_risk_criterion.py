@@ -53,7 +53,7 @@ class SequenceRiskCriterion(FairseqSequenceCriterion):
         scores = self.get_hypothesis_scores(net_output, sample)
         lengths = self.get_hypothesis_lengths(net_output, sample)
         avg_scores = scores.sum(2) / lengths
-        probs = F.softmax(avg_scores.exp_())
+        probs = F.softmax(avg_scores.exp_(), dim=1)
         loss = (probs * sample['cost'].type_as(probs)).sum()
         sample_size = net_output.size(0)  # bsz
         logging_output = {

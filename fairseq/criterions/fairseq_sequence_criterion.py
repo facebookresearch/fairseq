@@ -198,7 +198,8 @@ class FairseqSequenceCriterion(FairseqCriterion):
     def _generate_hypotheses(self, model, sample):
         # initialize generator
         if self._generator is None:
-            self._generator = self.task.build_generator(self.args)
+            gen_args = utils.get_training_generator_args(self.args)
+            self._generator = self.task.build_generator(gen_args)
 
         # generate hypotheses
         prefix_tokens = None
