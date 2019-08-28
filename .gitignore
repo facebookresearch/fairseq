@@ -112,6 +112,7 @@ ENV/
 .mypy_cache/
 
 # Generated files
+fairseq/clib/temporal_convolution_tbc
 fairseq/temporal_convolution_tbc
 fairseq/modules/*_layer/*_forward.cu
 fairseq/modules/*_layer/*_backward.cu
