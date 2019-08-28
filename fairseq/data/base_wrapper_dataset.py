@@ -1,11 +1,9 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
-from torch.utils.data._utils.collate import default_collate
+from torch.utils.data.dataloader import default_collate
 
 from . import FairseqDataset
 
@@ -50,4 +48,5 @@ class BaseWrapperDataset(FairseqDataset):
 
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
-        self.dataset.set_epoch(epoch)
+        if hasattr(self.dataset, 'set_epoch'):
+            self.dataset.set_epoch(epoch)

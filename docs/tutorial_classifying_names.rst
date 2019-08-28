@@ -285,7 +285,7 @@ following contents::
               max_source_positions=self.args.max_positions,
               max_target_positions=1,
               # Since our target is a single class label, there's no need for
-              # input feeding. If we set this to ``True`` then our Model's
+              # teacher forcing. If we set this to ``True`` then our Model's
               # ``forward()`` method would receive an additional argument called
               # *prev_output_tokens* that would contain a shifted version of the
               # target sequence.

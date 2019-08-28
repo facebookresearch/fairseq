@@ -1,4 +1,4 @@
-# Adaptive Input Representations for Neural Language Modeling (Baevski and Auli; 2018)
+# Adaptive Input Representations for Neural Language Modeling (Baevski and Auli, 2018)
 
 ## Pre-trained models
 

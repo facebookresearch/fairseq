@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import contextlib
 from io import StringIO
@@ -22,6 +20,7 @@ import train
 import generate
 import interactive
 import eval_lm
+import validate
 
 
 class TestTranslation(unittest.TestCase):
@@ -152,7 +151,7 @@ class TestTranslation(unittest.TestCase):
                     '--decoder-layers', '2',
                     '--encoder-embed-dim', '8',
                     '--decoder-embed-dim', '8',
-                ])
+                ], run_validation=True)
                 generate_main(data_dir)
 
     def test_lightconv(self):
@@ -258,7 +257,9 @@ class TestLanguageModeling(unittest.TestCase):
             with tempfile.TemporaryDirectory('test_transformer_lm') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
-                train_language_model(data_dir, 'transformer_lm', ['--add-bos-token'])
+                train_language_model(
+                    data_dir, 'transformer_lm', ['--add-bos-token'], run_validation=True,
+                )
                 eval_lm_main(data_dir)
 
 
@@ -458,7 +459,7 @@ def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess.main(preprocess_args)
 
 
-def train_translation_model(data_dir, arch, extra_flags=None, task='translation'):
+def train_translation_model(data_dir, arch, extra_flags=None, task='translation', run_validation=False):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
@@ -477,6 +478,22 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
         ] + (extra_flags or []),
     )
     train.main(train_args)
+
+    if run_validation:
+        # test validation
+        validate_parser = options.get_validation_parser()
+        validate_args = options.parse_args_and_arch(
+            validate_parser,
+            [
+                '--task', task,
+                data_dir,
+                '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+                '--valid-subset', 'valid',
+                '--max-tokens', '500',
+                '--no-progress-bar',
+            ]
+        )
+        validate.main(validate_args)
 
 
 def generate_main(data_dir, extra_flags=None):
@@ -520,7 +537,7 @@ def preprocess_lm_data(data_dir):
     preprocess.main(preprocess_args)
 
 
-def train_language_model(data_dir, arch, extra_flags=None):
+def train_language_model(data_dir, arch, extra_flags=None, run_validation=False):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
@@ -542,6 +559,22 @@ def train_language_model(data_dir, arch, extra_flags=None):
         ] + (extra_flags or []),
     )
     train.main(train_args)
+
+    if run_validation:
+        # test validation
+        validate_parser = options.get_validation_parser()
+        validate_args = options.parse_args_and_arch(
+            validate_parser,
+            [
+                '--task', 'language_modeling',
+                data_dir,
+                '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+                '--valid-subset', 'valid',
+                '--max-tokens', '500',
+                '--no-progress-bar',
+            ]
+        )
+        validate.main(validate_args)
 
 
 def eval_lm_main(data_dir):

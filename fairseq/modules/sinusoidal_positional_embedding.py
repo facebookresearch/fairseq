@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import math
 
@@ -69,9 +67,9 @@ class SinusoidalPositionalEmbedding(nn.Module):
 
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step
-            pos = (timestep.int() + 1).long() if timestep is not None else seq_len
+            pos = timestep.view(-1)[0] + 1 if timestep is not None else seq_len
             if self.onnx_trace:
-                return self.weights[self.padding_idx + pos, :].unsqueeze(1).repeat(bsz, 1, 1)
+                return self.weights.index_select(index=self.padding_idx + pos, dim=0).unsqueeze(1).repeat(bsz, 1, 1)
             return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
 
         positions = utils.make_positions(input, self.padding_idx, onnx_trace=self.onnx_trace)

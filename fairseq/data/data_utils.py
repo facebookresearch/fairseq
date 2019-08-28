@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 try:
     from collections.abc import Iterable
@@ -12,6 +10,8 @@ except ImportError:
 import contextlib
 import itertools
 import os
+import sys
+import types
 
 import numpy as np
 
@@ -151,8 +151,9 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
         else:
             # Hacky as heck, for the specific case of multilingual training with RoundRobin.
             if isinstance(size_fn(idx), dict) and isinstance(max_positions, tuple):
-                return all(a is None or b is None or a <= b
-                           for a, b in zip(size_fn(idx).values(), max_positions)
+                return all(
+                    a is None or b is None or a <= b
+                    for a, b in zip(size_fn(idx).values(), max_positions)
                 )
             # For MultiCorpusSampledDataset, will generalize it later
             if not isinstance(size_fn(idx), Iterable):
@@ -197,45 +198,21 @@ def batch_by_size(
         required_batch_size_multiple (int, optional): require batch size to
             be a multiple of N (default: 1).
     """
-    max_tokens = max_tokens if max_tokens is not None else float('Inf')
-    max_sentences = max_sentences if max_sentences is not None else float('Inf')
+    try:
+        from fairseq.data.data_utils_fast import batch_by_size_fast
+    except ImportError:
+        raise ImportError(
+            'Please build Cython components with: `pip install --editable .`'
+        )
+
+    max_tokens = max_tokens if max_tokens is not None else sys.maxsize
+    max_sentences = max_sentences if max_sentences is not None else sys.maxsize
     bsz_mult = required_batch_size_multiple
 
-    batch = []
+    if isinstance(indices, types.GeneratorType):
+        indices = np.fromiter(indices, dtype=np.int64, count=-1)
 
-    def is_batch_full(num_tokens):
-        if len(batch) == 0:
-            return False
-        if len(batch) == max_sentences:
-            return True
-        if num_tokens > max_tokens:
-            return True
-        return False
-
-    sample_len = 0
-    sample_lens = []
-    for idx in indices:
-        sample_lens.append(num_tokens_fn(idx))
-        sample_len = max(sample_len, sample_lens[-1])
-        assert sample_len <= max_tokens, (
-            "sentence at index {} of size {} exceeds max_tokens "
-            "limit of {}!".format(idx, sample_len, max_tokens)
-        )
-        num_tokens = (len(batch) + 1) * sample_len
-        if is_batch_full(num_tokens):
-            mod_len = max(
-                bsz_mult * (len(batch) // bsz_mult),
-                len(batch) % bsz_mult,
-            )
-            yield batch[:mod_len]
-            batch = batch[mod_len:]
-            sample_lens = sample_lens[mod_len:]
-            sample_len = max(sample_lens) if len(sample_lens) > 0 else 0
-
-        batch.append(idx)
-
-    if len(batch) > 0:
-        yield batch
+    return batch_by_size_fast(indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult)
 
 
 def process_bpe_symbol(sentence: str, bpe_symbol: str):

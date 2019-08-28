@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import math
 import torch
@@ -37,7 +35,7 @@ class SparseMultiheadAttention(MultiheadAttention):
 
     # Used for Ai(2) calculations - beginning of [l-c, l] range
     def compute_checkpoint(self, word_index):
-        if word_index % self.stride == 0 and word_index is not 0:
+        if word_index % self.stride == 0 and word_index != 0:
             checkpoint_index = word_index - self.expressivity
         else:
             checkpoint_index = (
@@ -68,7 +66,7 @@ class SparseMultiheadAttention(MultiheadAttention):
 
         # Subset 1 - whole window
         rounded_index = math.floor((word_index + self.stride) / self.stride) * self.stride
-        if word_index % self.stride == 0 and word_index is not 0:
+        if word_index % self.stride == 0 and word_index != 0:
             subset_one = set(range(word_index-self.stride, min(absolute_max, word_index+1)))
         else:
             subset_one = set(range(max(0, rounded_index - self.stride), min(

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3 -u
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 """
 Evaluate the perplexity of a trained language model.
@@ -148,8 +146,9 @@ def main(parsed_args):
             hypos = scorer.generate(models, sample)
             gen_timer.stop(sample['ntokens'])
 
-            for hypos_i in hypos:
+            for i, hypos_i in enumerate(hypos):
                 hypo = hypos_i[0]
+                sample_id = sample['id'][i]
 
                 tokens = hypo['tokens']
                 tgt_len = tokens.numel()
@@ -201,7 +200,10 @@ def main(parsed_args):
                             is_bpe = False
                             w = ''
                     if args.output_word_probs:
-                        print('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
+                        print(
+                            str(int(sample_id)) + " "
+                            + ('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
+                        )
 
             wps_meter.update(sample['ntokens'])
             t.log({'wps': round(wps_meter.avg)})

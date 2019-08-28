@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 """
 Wrapper around various loggers and progress bars (e.g., tqdm).
@@ -13,15 +11,13 @@ from collections import OrderedDict
 import json
 from numbers import Number
 import os
-import re
 import sys
-
-from tqdm import tqdm
 
 from fairseq import distributed_utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 
 g_tbmf_wrapper = None
+
 
 def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', no_progress_bar='none'):
     if args.log_format is None:
@@ -210,6 +206,7 @@ class tqdm_progress_bar(progress_bar):
 
     def __init__(self, iterable, epoch=None, prefix=None):
         super().__init__(iterable, epoch, prefix)
+        from tqdm import tqdm
         self.tqdm = tqdm(iterable, self.prefix, leave=False)
 
     def __iter__(self):

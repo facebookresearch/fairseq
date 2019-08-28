@@ -1,5 +1,5 @@
 # Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)
-This page contains pointers to pre-trained models as well as instructions on how to train new models for [our paper](https://openreview.net/pdf?id=SkVhlh09tX)
+This page contains pointers to pre-trained models as well as instructions on how to train new models for [our paper](https://arxiv.org/abs/1901.10430)
 
 ## Citation:
 ```bibtex
@@ -8,7 +8,7 @@ This page contains pointers to pre-trained models as well as instructions on how
   author = {Felix Wu and Angela Fan and Alexei Baevski and Yann Dauphin and Michael Auli},
   booktitle = {International Conference on Learning Representations},
   year = {2019},
-  url = {https://openreview.net/forum?id=SkVhlh09tX},
+  url = {https://arxiv.org/abs/1901.10430},
 }
 ```
 
@@ -29,6 +29,26 @@ LightConv | [WMT14 English-French](http://statmt.org/wmt14/translation-task.html
 DynamicConv | [WMT14 English-French](http://statmt.org/wmt14/translation-task.html#Download) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt14.en-fr.joined-dict.dynamicconv-glu.tar.bz2) | newstest2014: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt14.en-fr.joined-dict.newstest2014.tar.bz2)
 LightConv | [WMT17 Chinese-English](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.zh-en.lightconv-glu.tar.bz2) | newstest2017: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt17.zh-en.newstest2017.tar.bz2)
 DynamicConv | [WMT17 Chinese-English](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.zh-en.dynamicconv-glu.tar.bz2) | newstest2017: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt17.zh-en.newstest2017.tar.bz2)
+LightConv (CUDA module) | [WMT17 English-German](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.en-de.joined-dict.transformer.light-conv-cuda-glu.tar.gz) | newstest2014 (shared vocab): <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt16.en-de.joined-dict.newstest2014.tar.bz2)
+DynamicConv (CUDA module) | [WMT17 English-German](http://statmt.org/wmt17/translation-task.html#Download) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.en-de.joined-dict.transformer.dynamic-conv-cuda-glu.tar.gz) | newstest2014: <br> [download (.tar.bz2)](https://dl.fbaipublicfiles.com/fairseq/data/wmt16.en-de.joined-dict.newstest2014.tar.bz2)
+
+### Memory-Efficient CUDA Kernels
+
+Since the PyTorch implementations of Light/Dynamic conv are quite memory intensive, we have developed CUDA kernels that implement the light and dynamic convolution operator in a memory-efficient and performant manner. For large sequence lengths, these kernels save about 50% memory compared to the PyTorch equivalent. 
+
+To install the kernels, use the commands below. Once installed, they will automatically be used in place of the PyTorch implementations whenever a light or dynamic convolution is used.
+
+```sh
+# to install lightconv
+cd fairseq/modules/lightconv_layer
+python cuda_function_gen.py
+python setup.py install
+
+# to install dynamicconv
+cd fairseq/modules/dynamicconv_layer
+python cuda_function_gen.py
+python setup.py install
+```
 
 ### Preprocessing the training datasets
 
@@ -38,6 +58,18 @@ Please follow the instructions in [`examples/translation/README.md`](../translat
 To use the model without GLU, please set `--encoder-glu 0 --decoder-glu 0`.
 For LightConv, please use `--encoder-conv-type lightweight --decoder-conv-type lightweight`, otherwise the default is DynamicConv.
 For best BLEU results, lenpen may need to be manually tuned.
+
+To use the CUDA kernels, first install the PyTorch modules using the commands below
+```sh
+# to install lightconv
+python fairseq/modules/lightconv_layer/cuda_function_gen.py
+python fairseq/modules/lightconv_layer/setup.py install
+
+# to install dynamicconv
+python fairseq/modules/dynamicconv_layer/cuda_function_gen.py
+python fairseq/modules/dynamicconv_layer/setup.py install
+```
+Once the CUDA modules are installed, they will automatically be used instead of the PyTorch modules.
 
 ### IWSLT14 De-En
 Training and evaluating DynamicConv (without GLU) on a GPU:
