@@ -133,9 +133,8 @@ class FairseqTask(object):
         # filter examples that are too large
         if max_positions is not None:
             indices = data_utils.filter_by_size(
-                indices, dataset.size, max_positions, raise_exception=(not ignore_invalid_inputs),
+                indices, dataset, max_positions, raise_exception=(not ignore_invalid_inputs),
             )
-            indices = np.fromiter(indices, dtype=np.int64, count=-1)
 
         # create mini-batches with given size constraints
         batch_sampler = data_utils.batch_by_size(
