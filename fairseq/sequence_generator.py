@@ -7,9 +7,10 @@ import math
 
 import torch
 
-from fairseq import search
+from fairseq import search, utils
+from fairseq.data import data_utils
 from fairseq.models import FairseqIncrementalDecoder
-
+from itertools import accumulate
 
 class SequenceGenerator(object):
     def __init__(
@@ -31,6 +32,8 @@ class SequenceGenerator(object):
         diverse_beam_strength=0.5,
         match_source_len=False,
         no_repeat_ngram_size=0,
+        align=False,
+        left_pad_target=False,
     ):
         """Generates translations of a given source sentence.
 
@@ -63,6 +66,10 @@ class SequenceGenerator(object):
                 Diverse Beam Search sampling
             match_source_len (bool, optional): outputs should match the source
                 length (default: False)
+            align (bool, optional): If set to True, the generated hypothesis
+                are aligned to the source through the alignment model.
+            left_pad_target (bool, optional): Whether or not the hypothesis should be
+                left padded or not when they are teacher forced for generating alignments.
         """
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
@@ -81,7 +88,8 @@ class SequenceGenerator(object):
         self.temperature = temperature
         self.match_source_len = match_source_len
         self.no_repeat_ngram_size = no_repeat_ngram_size
-
+        self.align = align
+        self.left_pad_target = left_pad_target
         assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
         assert sampling_topp < 0 or sampling, '--sampling-topp requires --sampling'
         assert temperature > 0, '--temperature must be greater than 0'
@@ -114,7 +122,7 @@ class SequenceGenerator(object):
             prefix_tokens (torch.LongTensor, optional): force decoder to begin
                 with these tokens
         """
-        model = EnsembleModel(models)
+        model = EnsembleModel(models, align=self.align)
         if not self.retain_dropout:
             model.eval()
 
@@ -155,7 +163,6 @@ class SequenceGenerator(object):
         tokens_buf = tokens.clone()
         tokens[:, 0] = self.eos if bos_token is None else bos_token
         attn, attn_buf = None, None
-        nonpad_idxs = None
 
         # The blacklist indicates candidates that should be ignored.
         # For example, suppose we're sampling and have already finalized 2/5
@@ -251,17 +258,15 @@ class SequenceGenerator(object):
 
                     if attn_clone is not None:
                         # remove padding tokens from attn scores
-                        hypo_attn = attn_clone[i][nonpad_idxs[sent]]
-                        _, alignment = hypo_attn.max(dim=0)
+                        hypo_attn = attn_clone[i]
                     else:
                         hypo_attn = None
-                        alignment = None
 
                     return {
                         'tokens': tokens_clone[i],
                         'score': score,
                         'attention': hypo_attn,  # src_len x tgt_len
-                        'alignment': alignment,
+                        'alignment': None,
                         'positional_scores': pos_scores[i],
                     }
 
@@ -345,7 +350,6 @@ class SequenceGenerator(object):
                 if attn is None:
                     attn = scores.new(bsz * beam_size, src_tokens.size(1), max_len + 2)
                     attn_buf = attn.clone()
-                    nonpad_idxs = src_tokens.ne(self.pad)
                 attn[:, :, step + 1].copy_(avg_attn_scores)
 
             scores = scores.type_as(lprobs)
@@ -513,15 +517,42 @@ class SequenceGenerator(object):
         for sent in range(len(finalized)):
             finalized[sent] = sorted(finalized[sent], key=lambda r: r['score'], reverse=True)
 
+        if self.align:
+            bsz = src_tokens.shape[0]
+            beam_size = self.beam_size
+            src_tokens, src_lengths, prev_output_tokens, tgt_tokens = prepare_batch_for_alignment(sample, finalized, self.beam_size,
+                                                                                                  self.pad, self.eos, self.left_pad_target)
+            if any([getattr(m, 'full_context_alignment', False) for m in model.models]):
+                attn = model.forward_align(src_tokens, src_lengths, prev_output_tokens)
+            else:
+                attn = [finalized[i // beam_size][i % beam_size]['attention'].transpose(1, 0) for i in range(bsz * beam_size)]
+
+            # Process the attn matrix to extract hard alignments.
+            for i in range(bsz * beam_size):
+                alignment = utils.extract_hard_alignment(attn[i], src_tokens[i], tgt_tokens[i], self.pad, self.eos)
+                finalized[i // beam_size][i % beam_size]['alignment'] = alignment
         return finalized
+
+def prepare_batch_for_alignment(sample, hypothesis, beam_size, pad, eos, left_pad_target):
+    src_tokens = sample['net_input']['src_tokens']
+    bsz = src_tokens.shape[0]
+    src_tokens = src_tokens[:, None, :].expand(-1, beam_size, -1).contiguous().view(bsz * beam_size, -1)
+    src_lengths = sample['net_input']['src_lengths']
+    src_lengths = src_lengths[:, None].expand(-1, beam_size).contiguous().view(bsz * beam_size)
+    prev_output_tokens = data_utils.collate_tokens([beam['tokens'] for example in hypothesis for beam in example],
+                                                   pad, eos, left_pad_target, move_eos_to_beginning=True)
+    tgt_tokens = data_utils.collate_tokens([beam['tokens'] for example in hypothesis for beam in example],
+                                           pad, eos, left_pad_target, move_eos_to_beginning=False)
+    return src_tokens, src_lengths, prev_output_tokens, tgt_tokens
 
 
 class EnsembleModel(torch.nn.Module):
     """A wrapper around an ensemble of models."""
 
-    def __init__(self, models):
+    def __init__(self, models, align):
         super().__init__()
         self.models = torch.nn.ModuleList(models)
+        self.align = align
         self.incremental_states = None
         if all(isinstance(m.decoder, FairseqIncrementalDecoder) for m in models):
             self.incremental_states = {m: {} for m in models}
@@ -572,14 +603,27 @@ class EnsembleModel(torch.nn.Module):
             avg_attn.div_(len(self.models))
         return avg_probs, avg_attn
 
+    def forward_align(self, src_tokens, src_lengths, prev_output_tokens):
+        avg_attn = None
+        for model in self.models:
+            decoder_out = model.forward(src_tokens, src_lengths, prev_output_tokens)
+            attn = decoder_out[1]['attn']
+            if avg_attn is None:
+                avg_attn = attn
+            else:
+                avg_attn.add_(attn)
+        if len(self.models) > 1:
+            avg_attn.div_(len(self.models))
+        return avg_attn
+
     def _decode_one(
         self, tokens, model, encoder_out, incremental_states, log_probs,
         temperature=1.,
     ):
         if self.incremental_states is not None:
-            decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=self.incremental_states[model]))
+            decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=self.incremental_states[model], attn_args={'align': self.align}))
         else:
-            decoder_out = list(model.decoder(tokens, encoder_out))
+            decoder_out = list(model.decoder(tokens, encoder_out, attn_args={'align': self.align}))
         decoder_out[0] = decoder_out[0][:, -1:, :]
         if temperature != 1.:
             decoder_out[0].div_(temperature)

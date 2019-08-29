@@ -177,7 +177,7 @@ class TransformerDecoderLayer(nn.Module):
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=export)
         self.need_attn = True
-
+        
         self.onnx_trace = False
 
     def prepare_for_onnx_export_(self):
@@ -193,6 +193,7 @@ class TransformerDecoderLayer(nn.Module):
         prev_attn_state=None,
         self_attn_mask=None,
         self_attn_padding_mask=None,
+        need_attn=False
     ):
         """
         Args:
@@ -240,7 +241,7 @@ class TransformerDecoderLayer(nn.Module):
                 key_padding_mask=encoder_padding_mask,
                 incremental_state=incremental_state,
                 static_kv=True,
-                need_weights=(not self.training and self.need_attn),
+                need_weights=need_attn or (not self.training and self.need_attn)
             )
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = residual + x

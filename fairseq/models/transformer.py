@@ -182,6 +182,45 @@ class TransformerModel(FairseqEncoderDecoderModel):
     def build_decoder(cls, args, tgt_dict, embed_tokens):
         return TransformerDecoder(args, tgt_dict, embed_tokens)
 
+@register_model('transformer_align')
+class TransformerAlignModel(TransformerModel):
+    def __init__(self, encoder, decoder, args):
+        super().__init__(encoder, decoder)
+        self.alignment_heads = args.alignment_heads
+        self.alignment_layer = args.alignment_layer
+        self.full_context_alignment = args.full_context_alignment
+        
+    @staticmethod
+    def add_args(parser):
+       super(TransformerAlignModel, TransformerAlignModel).add_args(parser)
+       parser.add_argument('--alignment-heads', default=1, type=int, metavar='D',
+                           help='Number of cross attention heads per layer to supervised with alignments')
+       parser.add_argument('--alignment-layer', default=4, type=int, metavar='D',
+                           help='Layer number which has to be supervised. 0 corresponding to the bottommost layer.')
+       parser.add_argument('--full-context-alignment', default=True, type=bool, metavar='D',
+                           help='Whether or not alignment is supervised conditioned on the full target context.')
+
+    @classmethod
+    def build_model(cls, args, task):
+        transformer_model = super().build_model(args, task)
+        return TransformerAlignModel(transformer_model.encoder, transformer_model.decoder, args)
+
+    def forward(self, src_tokens, src_lengths, prev_output_tokens, align=True):
+        if not align:
+            return super().forward(src_tokens, src_lengths, prev_output_tokens)
+        else:
+            attn_args = {'alignment_layer': self.alignment_layer, 'alignment_heads': self.alignment_heads, 'align': align}
+            encoder_out = self.encoder(src_tokens, src_lengths)
+            decoder_out = self.decoder(prev_output_tokens, encoder_out, attn_args=attn_args)
+
+            if self.full_context_alignment:
+                attn_args['full_context_alignment'] = self.full_context_alignment
+                attn_args['align_only'] = True
+                _, alignment_out = self.decoder(prev_output_tokens, encoder_out, attn_args=attn_args)
+                decoder_out[1]['attn'] = alignment_out['attn']
+
+            return decoder_out
+
 
 class TransformerEncoder(FairseqEncoder):
     """
@@ -375,7 +414,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         else:
             self.layer_norm = None
 
-    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **unused):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, attn_args={}, **unused):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
@@ -390,11 +429,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
-        x, extra = self.extract_features(prev_output_tokens, encoder_out, incremental_state)
-        x = self.output_layer(x)
-        return x, extra
+        x, extra = self.extract_features(prev_output_tokens, encoder_out, incremental_state, attn_args)
+        if attn_args.get('align_only', False):
+            return None, extra
+        else:
+            x = self.output_layer(x)
+            return x, extra
 
-    def extract_features(self, prev_output_tokens, encoder_out=None, incremental_state=None, **unused):
+    def extract_features(self, prev_output_tokens, encoder_out=None, incremental_state=None, attn_args={}, **unused):
         """
         Similar to *forward* but only return features.
 
@@ -403,6 +445,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's features of shape `(batch, tgt_len, embed_dim)`
                 - a dictionary with any model-specific outputs
         """
+
+        # default alignment arguments. No full context alignment and averaging over all heads of the last layer.
+        align = attn_args.get('align', False)
+        full_context_alignment = attn_args.get('full_context_alignment', False)
+        alignment_layer = attn_args.get('alignment_layer', len(self.layers) - 1)
+        alignment_heads = attn_args.get('alignment_heads', None)
+        
         # embed positions
         positions = self.embed_positions(
             prev_output_tokens,
@@ -427,19 +476,31 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
         attn = None
-
+        
         inner_states = [x]
-
+    
         # decoder layers
-        for layer in self.layers:
-            x, attn = layer(
+        for idx, layer in enumerate(self.layers):
+            need_attn = align and (idx == alignment_layer)
+            x, layer_attn = layer(
                 x,
                 encoder_out['encoder_out'] if encoder_out is not None else None,
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 incremental_state,
-                self_attn_mask=self.buffered_future_mask(x) if incremental_state is None else None,
+                self_attn_mask=self.buffered_future_mask(x) if (incremental_state is None and not full_context_alignment) else None,
+                need_attn=need_attn
             )
+
             inner_states.append(x)
+            if need_attn:
+                attn = layer_attn.float()
+
+        if attn is not None:
+            if alignment_heads is not None:
+                attn = attn[:alignment_heads]
+
+            # average probabilities over heads
+            attn = attn.mean(dim=0)
 
         if self.layer_norm:
             x = self.layer_norm(x)
@@ -605,3 +666,16 @@ def transformer_wmt_en_de_big_t2t(args):
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
     args.activation_dropout = getattr(args, 'activation_dropout', 0.1)
     transformer_vaswani_wmt_en_de_big(args)
+
+@register_model_architecture('transformer_align', 'transformer_align')
+def transformer_align(args):
+    args.alignment_heads = getattr(args, 'alignment_heads', 1)
+    args.alignment_layer = getattr(args, 'alignment_layer', 4)
+    base_architecture(args)
+
+@register_model_architecture('transformer_align', 'transformer_wmt_en_de_big_align')
+def transformer_wmt_en_de_big_align(args):
+    args.alignment_heads = getattr(args, 'alignment_heads', 1)
+    args.alignment_layer = getattr(args, 'alignment_layer', 4)
+    transformer_wmt_en_de_big(args)
+

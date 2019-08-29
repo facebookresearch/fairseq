@@ -239,12 +239,12 @@ class MultiheadAttention(nn.Module):
                 )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        attn_weights = utils.softmax(
-            attn_weights, dim=-1, onnx_trace=self.onnx_trace,
-        ).type_as(attn_weights)
-        attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
+        attn_weights_float = utils.softmax(
+            attn_weights.float(), dim=-1, onnx_trace=self.onnx_trace,
+        )
+        attn_probs = F.dropout(attn_weights_float.type_as(attn_weights), p=self.dropout, training=self.training)
 
-        attn = torch.bmm(attn_weights, v)
+        attn = torch.bmm(attn_probs, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         if (self.onnx_trace and attn.size(1) == 1):
             # when ONNX tracing a single decoder step (sequence length == 1)
@@ -255,9 +255,7 @@ class MultiheadAttention(nn.Module):
         attn = self.out_proj(attn)
 
         if need_weights:
-            # average attention weights over heads
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights.sum(dim=1) / self.num_heads
+            attn_weights = attn_weights_float.view(bsz, self.num_heads, tgt_len, src_len).transpose(1, 0)
         else:
             attn_weights = None
 
