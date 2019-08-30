@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 from . import FairseqLRScheduler, register_lr_scheduler
 
@@ -37,7 +35,7 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
             )
         warmup_end_lr = args.lr[0]
         if args.warmup_init_lr < 0:
-            args.warmup_init_lr = warmup_end_lr
+            args.warmup_init_lr = 0 if args.warmup_updates > 0 else warmup_end_lr
 
         # linearly warmup for the first args.warmup_updates
         self.lr_step = (warmup_end_lr - args.warmup_init_lr) / args.warmup_updates

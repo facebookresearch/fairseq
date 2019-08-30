@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import math
 
@@ -27,7 +25,7 @@ class Search(object):
             self.indices_buf = torch.LongTensor().to(device=t.device)
             self.beams_buf = torch.LongTensor().to(device=t.device)
 
-    def step(self, step, lprobs, scores, beam_size):
+    def step(self, step, lprobs, scores):
         """Take a single search step.
 
         Args:
@@ -202,7 +200,8 @@ class Sampling(Search):
         # note that mask was computed by 'lt'. One more word needs to be included
         # so that the cumulative probability mass can exceed p.
         cumsum_mask = mask.cumsum(dim=2)
-        last_included = cumsum_mask[:, :, :1]
+        last_included = cumsum_mask[:, :, -1:]
+        last_included.clamp_(0, mask.size()[2] - 1)
         mask = mask.scatter_(2, last_included, 1)
 
         # truncate unnecessary dims.
@@ -213,7 +212,7 @@ class Sampling(Search):
 
         # trim the words that are not in top-P by setting their probabilities
         # to 0, so that they would not be sampled later.
-        trim_mask = 1 - truncated_mask
+        trim_mask = (~truncated_mask)
         trimed_probs = truncated_probs.masked_fill_(trim_mask, 0)
         return trimed_probs, truncated_indices
 

@@ -1,11 +1,10 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 from collections import defaultdict
+import contextlib
 import copy
 import importlib.util
 import math
@@ -156,7 +155,6 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
 
 
 def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None):
-    from fairseq import tokenizer
     hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
         hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string())
@@ -172,8 +170,14 @@ def make_positions(tensor, padding_idx, onnx_trace=False):
 
     Position numbers begin at padding_idx+1. Padding symbols are ignored.
     """
-    mask = tensor.ne(padding_idx).long()
-    return torch.cumsum(mask, dim=1) * mask + padding_idx
+    # The series of casts and type-conversions here are carefully
+    # balanced to both work with ONNX export and XLA. In particular XLA
+    # prefers ints, cumsum defaults to output longs, and ONNX doesn't know
+    # how to handle the dtype kwarg in cumsum.
+    mask = tensor.ne(padding_idx).int()
+    return (
+        torch.cumsum(mask, dim=1).type_as(mask) * mask
+    ).long() + padding_idx
 
 
 def strip_pad(tensor, pad):
@@ -273,6 +277,10 @@ def import_user_module(args):
     module_path = getattr(args, 'user_dir', None)
     if module_path is not None:
         module_path = os.path.abspath(args.user_dir)
+        if not os.path.exists(module_path):
+            fairseq_rel_path = os.path.join(os.path.dirname(__file__), '..', args.user_dir)
+            if os.path.exists(fairseq_rel_path):
+                module_path = fairseq_rel_path
         module_parent, module_name = os.path.split(module_path)
 
         if module_name not in sys.modules:
@@ -335,3 +343,19 @@ def get_available_activation_fns() -> List:
         'tanh',
         'linear',
     ]
+
+
+@contextlib.contextmanager
+def eval(model):
+    is_training = model.training
+    model.eval()
+    yield
+    model.train(is_training)
+
+
+def has_parameters(module):
+    try:
+        next(module.parameters())
+        return True
+    except StopIteration:
+        return False

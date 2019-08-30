@@ -1,10 +1,9 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
+from functools import lru_cache
 import os
 import shutil
 import struct
@@ -20,6 +19,26 @@ def __best_fitting_dtype(vocab_size=None):
         return np.uint16
     else:
         return np.int32
+
+
+def get_available_dataset_impl():
+    return ['raw', 'lazy', 'cached', 'mmap']
+
+
+def infer_dataset_impl(path):
+    if IndexedRawTextDataset.exists(path):
+        return 'raw'
+    elif IndexedDataset.exists(path):
+        with open(index_file_path(path), 'rb') as f:
+            magic = f.read(8)
+            if magic == IndexedDataset._HDR_MAGIC:
+                return 'cached'
+            elif magic == MMapIndexedDataset.Index._HDR_MAGIC[:8]:
+                return 'mmap'
+            else:
+                return None
+    else:
+        return None
 
 
 def make_builder(out_file, impl, vocab_size=None):
@@ -39,7 +58,6 @@ def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
         return IndexedCachedDataset(path, fix_lua_indexing=fix_lua_indexing)
     elif impl == 'mmap' and MMapIndexedDataset.exists(path):
         return MMapIndexedDataset(path)
-
     return None
 
 
@@ -91,6 +109,7 @@ def data_file_path(prefix_path):
 
 class IndexedDataset(FairseqDataset):
     """Loader for TorchNet IndexedDataset"""
+    _HDR_MAGIC = b'TNTIDX\x00\x00'
 
     def __init__(self, path, fix_lua_indexing=False):
         super().__init__()
@@ -102,7 +121,7 @@ class IndexedDataset(FairseqDataset):
     def read_index(self, path):
         with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
-            assert magic == b'TNTIDX\x00\x00', (
+            assert magic == self._HDR_MAGIC, (
                 'Index file doesn\'t match expected format. '
                 'Make sure that --dataset-impl is configured properly.'
             )
@@ -126,6 +145,7 @@ class IndexedDataset(FairseqDataset):
         if self.data_file:
             self.data_file.close()
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         if not self.data_file:
             self.read_data(self.path)
@@ -151,7 +171,7 @@ class IndexedDataset(FairseqDataset):
     @staticmethod
     def exists(path):
         return (
-                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
     @property
@@ -194,6 +214,7 @@ class IndexedCachedDataset(IndexedDataset):
             self.data_file.close()
             self.data_file = None
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         self.check_index(i)
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
@@ -235,6 +256,7 @@ class IndexedRawTextDataset(FairseqDataset):
         if i < 0 or i >= self.size:
             raise IndexError('index out of range')
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         self.check_index(i)
         return self.tokens_list[i]
@@ -409,6 +431,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         def sizes(self):
             return self._sizes
 
+        @lru_cache(maxsize=8)
         def __getitem__(self, i):
             return self._pointers[i], self._sizes[i]
 
@@ -446,6 +469,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self._index)
 
+    @lru_cache(maxsize=8)
     def __getitem__(self, i):
         ptr, size = self._index[i]
         np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
@@ -465,7 +489,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
 

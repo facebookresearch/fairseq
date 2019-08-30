@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn.functional as F
@@ -41,7 +39,7 @@ class MeanPoolGatingNetwork(torch.nn.Module):
         if encoder_padding_mask is not None:
             encoder_out = encoder_out.clone()  # required because of transpose above
             encoder_out[encoder_padding_mask] = 0
-            ntokens = torch.sum(1 - encoder_padding_mask, dim=1, keepdim=True)
+            ntokens = torch.sum(~encoder_padding_mask, dim=1, keepdim=True)
             x = torch.sum(encoder_out, dim=1) / ntokens.type_as(encoder_out)
         else:
             x = torch.mean(encoder_out, dim=1)

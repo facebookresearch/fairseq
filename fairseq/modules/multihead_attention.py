@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 from torch import nn
@@ -39,7 +37,6 @@ class MultiheadAttention(nn.Module):
 
         assert not self.self_attention or self.qkv_same_dim, 'Self-attention requires query, key and ' \
                                                              'value to be of the same size'
-
 
         if self.qkv_same_dim:
             self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
@@ -102,7 +99,6 @@ class MultiheadAttention(nn.Module):
         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
         batch x src_len, where padding elements are indicated by 1s.
         """
-
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
@@ -217,6 +213,8 @@ class MultiheadAttention(nn.Module):
                     [key_padding_mask, torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask)], dim=1)
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
+        attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
+
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
         if attn_mask is not None:
@@ -327,3 +325,6 @@ class MultiheadAttention(nn.Module):
             'attn_state',
             buffer,
         )
+
+    def apply_sparse_mask(self, attn_weights, tgt_len, src_len, bsz):
+        return attn_weights

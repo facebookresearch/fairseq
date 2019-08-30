@@ -1,14 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
-
-MODEL_REGISTRY = {}
-ARCH_MODEL_REGISTRY = {}
-ARCH_MODEL_INV_REGISTRY = {}
-ARCH_CONFIG_REGISTRY = {}
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import argparse
 import importlib
@@ -30,6 +23,12 @@ from .composite_encoder import CompositeEncoder
 from .distributed_fairseq_model import DistributedFairseqModel
 
 
+MODEL_REGISTRY = {}
+ARCH_MODEL_REGISTRY = {}
+ARCH_MODEL_INV_REGISTRY = {}
+ARCH_CONFIG_REGISTRY = {}
+
+
 __all__ = [
     'BaseFairseqModel',
     'CompositeEncoder',
@@ -43,7 +42,6 @@ __all__ = [
     'FairseqModel',
     'FairseqMultiModel',
 ]
-
 
 
 def build_model(args, task):
@@ -122,9 +120,11 @@ def register_model_architecture(model_name, arch_name):
 
 
 # automatically import any Python files in the models/ directory
-for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        model_name = file[:file.find('.py')]
+models_dir = os.path.dirname(__file__)
+for file in os.listdir(models_dir):
+    path = os.path.join(models_dir, file)
+    if not file.startswith('_') and not file.startswith('.') and (file.endswith('.py') or os.path.isdir(path)):
+        model_name = file[:file.find('.py')] if file.endswith('.py') else file
         module = importlib.import_module('fairseq.models.' + model_name)
 
         # extra `model_parser` for sphinx

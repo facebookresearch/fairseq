@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 from fairseq import options, utils
 from fairseq.models import (
@@ -31,6 +29,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
         return {
             'transformer_lm.gbw.adaptive_huge': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_gbw_huge.tar.bz2',
             'transformer_lm.wiki103.adaptive': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_wiki103.tar.bz2',
+            'transformer_lm.wmt19.en': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.en.tar.bz2',
+            'transformer_lm.wmt19.de': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.de.tar.bz2',
+            'transformer_lm.wmt19.ru': 'https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.ru.tar.bz2',
         }
 
     def __init__(self, decoder):
@@ -43,9 +44,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--activation-fn',
                             choices=utils.get_available_activation_fns(),
                             help='activation function to use')
-        parser.add_argument('--dropout', default=0.1, type=float, metavar='D',
+        parser.add_argument('--dropout', type=float, metavar='D',
                             help='dropout probability')
-        parser.add_argument('--attention-dropout', default=0., type=float, metavar='D',
+        parser.add_argument('--attention-dropout', type=float, metavar='D',
                             help='dropout probability for attention weights')
         parser.add_argument('--activation-dropout', '--relu-dropout', type=float, metavar='D',
                             help='dropout probability after activation in FFN.')
@@ -61,9 +62,9 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='num decoder layers')
         parser.add_argument('--decoder-attention-heads', type=int, metavar='N',
                             help='num decoder attention heads')
-        parser.add_argument('--decoder-normalize-before', default=False, action='store_true',
+        parser.add_argument('--decoder-normalize-before', action='store_true',
                             help='apply layernorm before each decoder block')
-        parser.add_argument('--no-decoder-final-norm', default=False, action='store_true',
+        parser.add_argument('--no-decoder-final-norm', action='store_true',
                             help='don\'t add an extra layernorm after the last decoder block')
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
@@ -72,11 +73,11 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='sets adaptive softmax dropout for the tail projections')
         parser.add_argument('--adaptive-softmax-factor', type=float, metavar='N',
                             help='adaptive input factor')
-        parser.add_argument('--no-token-positional-embeddings', default=False, action='store_true',
+        parser.add_argument('--no-token-positional-embeddings', action='store_true',
                             help='if set, disables positional embeddings (outside self attention)')
         parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
-        parser.add_argument('--character-embeddings', default=False, action='store_true',
+        parser.add_argument('--character-embeddings', action='store_true',
                             help='if set, uses character embedding convolutions to produce token embeddings')
         parser.add_argument('--character-filters', type=str, metavar='LIST',
                             default='[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]',
@@ -149,6 +150,9 @@ def base_lm_architecture(args):
     if hasattr(args, 'decoder_final_norm'):
         args.no_decoder_final_norm = not args.decoder_final_norm
 
+    args.dropout = getattr(args, 'dropout', 0.1)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.0)
+
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
     args.decoder_layers = getattr(args, 'decoder_layers', 6)
@@ -160,6 +164,7 @@ def base_lm_architecture(args):
     args.activation_fn = getattr(args, 'activation_fn', 'relu')
 
     args.add_bos_token = getattr(args, 'add_bos_token', False)
+    args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.character_embeddings = getattr(args, 'character_embeddings', False)
 

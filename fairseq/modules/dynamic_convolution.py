@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn as nn
@@ -11,6 +9,25 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from .unfold import unfold1d
+
+
+def DynamicConv(input_size, kernel_size=1, padding_l=None, num_heads=1,
+                weight_dropout=0., weight_softmax=False,
+                renorm_padding=False, bias=False, conv_bias=False,
+                query_size=None, in_proj=False):
+    if torch.cuda.is_available():
+        try:
+            from fairseq.modules.dynamicconv_layer import DynamicconvLayer
+            return DynamicconvLayer(input_size, kernel_size=kernel_size,
+                                    padding_l=padding_l, num_heads=num_heads,
+                                    weight_dropout=weight_dropout,
+                                    weight_softmax=weight_softmax, bias=bias)
+        except ImportError as e:
+            print(e)
+    return DynamicConv1dTBC(input_size, kernel_size=kernel_size,
+                            padding_l=padding_l, num_heads=num_heads,
+                            weight_dropout=weight_dropout,
+                            weight_softmax=weight_softmax, bias=bias)
 
 
 def Linear(in_features, out_features, bias=True):
@@ -92,7 +109,6 @@ class DynamicConv1dTBC(nn.Module):
 
         if query is None:
             query = x
-
         if unfold:
             output = self._forward_unfolded(x, incremental_state, query)
         else:
@@ -196,7 +212,6 @@ class DynamicConv1dTBC(nn.Module):
             weight_expanded = weight.new_zeros(B*H, T, T+K-1, requires_grad=False)
             weight_expanded.as_strided((B*H, T, K), (T*(T+K-1), T+K, 1)).copy_(weight)
             weight_expanded = weight_expanded.narrow(2, P, T)  # B*H x T x T
-
         output = torch.bmm(weight_expanded, x)
         output = output.transpose(0, 1).contiguous().view(T, B, C)
         return output

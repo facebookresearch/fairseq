@@ -1,17 +1,19 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
-import contextlib
-import os
-import numpy as np
 try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
+import contextlib
+import itertools
+import os
+import sys
+import types
+
+import numpy as np
 
 
 def infer_language_pair(path):
@@ -41,6 +43,51 @@ def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_be
     for i, v in enumerate(values):
         copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
     return res
+
+
+def load_indexed_dataset(path, dictionary, dataset_impl=None, combine=False, default='cached'):
+    """A helper function for loading indexed datasets.
+
+    Args:
+        path (str): path to indexed dataset (e.g., 'data-bin/train')
+        dictionary (~fairseq.data.Dictionary): data dictionary
+        dataset_impl (str, optional): which dataset implementation to use. If
+            not provided, it will be inferred automatically. For legacy indexed
+            data we use the 'cached' implementation by default.
+        combine (bool, optional): automatically load and combine multiple
+            datasets. For example, if *path* is 'data-bin/train', then we will
+            combine 'data-bin/train', 'data-bin/train1', ... and return a
+            single ConcatDataset instance.
+    """
+    from fairseq.data.concat_dataset import ConcatDataset
+    import fairseq.data.indexed_dataset as indexed_dataset
+
+    datasets = []
+    for k in itertools.count():
+        path_k = path + (str(k) if k > 0 else '')
+
+        dataset_impl_k = dataset_impl
+        if dataset_impl_k is None:
+            dataset_impl_k = indexed_dataset.infer_dataset_impl(path_k)
+
+        dataset = indexed_dataset.make_dataset(
+            path_k,
+            impl=dataset_impl_k or default,
+            fix_lua_indexing=True,
+            dictionary=dictionary,
+        )
+        if dataset is None:
+            break
+        print('| loaded {} examples from: {}'.format(len(dataset), path_k))
+        datasets.append(dataset)
+        if not combine:
+            break
+    if len(datasets) == 0:
+        return None
+    elif len(datasets) == 1:
+        return datasets[0]
+    else:
+        return ConcatDataset(datasets)
 
 
 @contextlib.contextmanager
@@ -77,18 +124,7 @@ def collect_filtered(function, iterable, filtered):
             filtered.append(el)
 
 
-def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
-    """
-    Filter indices based on their size.
-
-    Args:
-        indices (List[int]): ordered list of dataset indices
-        size_fn (callable): function that returns the size of a given index
-        max_positions (tuple): filter elements larger than this size.
-            Comparisons are done component-wise.
-        raise_exception (bool, optional): if ``True``, raise an exception if
-            any elements are filtered (default: False).
-    """
+def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=False):
     def check_size(idx):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
             return size_fn(idx) <= max_positions
@@ -104,31 +140,62 @@ def filter_by_size(indices, size_fn, max_positions, raise_exception=False):
         else:
             # Hacky as heck, for the specific case of multilingual training with RoundRobin.
             if isinstance(size_fn(idx), dict) and isinstance(max_positions, tuple):
-                return all(a is None or b is None or a <= b
-                           for a, b in zip(size_fn(idx).values(), max_positions)
+                return all(
+                    a is None or b is None or a <= b
+                    for a, b in zip(size_fn(idx).values(), max_positions)
                 )
             # For MultiCorpusSampledDataset, will generalize it later
             if not isinstance(size_fn(idx), Iterable):
                 return all(size_fn(idx) <= b for b in max_positions)
-            return all(a is None or b is None or a <= b
-                       for a, b in zip(size_fn(idx), max_positions))
-
+            return all(
+                a is None or b is None or a <= b
+                for a, b in zip(size_fn(idx), max_positions)
+            )
     ignored = []
     itr = collect_filtered(check_size, indices, ignored)
+    indices = np.fromiter(itr, dtype=np.int64, count=-1)
+    return indices, ignored
 
-    for idx in itr:
-        if len(ignored) > 0 and raise_exception:
-            raise Exception((
-                'Size of sample #{} is invalid (={}) since max_positions={}, '
-                'skip this example with --skip-invalid-size-inputs-valid-test'
-            ).format(ignored[0], size_fn(ignored[0]), max_positions))
-        yield idx
 
+def filter_by_size(indices, dataset, max_positions, raise_exception=False):
+    """
+    Filter indices based on their size.
+
+    Args:
+        indices (List[int]): ordered list of dataset indices
+        dataset (FairseqDataset): fairseq dataset instance
+        max_positions (tuple): filter elements larger than this size.
+            Comparisons are done component-wise.
+        raise_exception (bool, optional): if ``True``, raise an exception if
+            any elements are filtered (default: False).
+    """
+    if isinstance(max_positions, float) or isinstance(max_positions, int):
+        if hasattr(dataset, 'sizes') and isinstance(dataset.sizes, np.ndarray):
+            ignored = indices[dataset.sizes > max_positions].tolist()
+            indices = indices[dataset.sizes <= max_positions]
+        elif (
+                hasattr(dataset, 'sizes') and
+                isinstance(dataset.sizes, list) and
+                len(dataset.sizes) == 1
+        ):
+            ignored = indices[dataset.sizes[0] > max_positions].tolist()
+            indices = indices[dataset.sizes[0] <= max_positions]
+        else:
+            indices, ignored = _filter_by_size_dynamic(indices, dataset.size, max_positions)
+    else:
+        indices, ignored = _filter_by_size_dynamic(indices, dataset.size, max_positions)
+
+    if len(ignored) > 0 and raise_exception:
+        raise Exception((
+            'Size of sample #{} is invalid (={}) since max_positions={}, '
+            'skip this example with --skip-invalid-size-inputs-valid-test'
+        ).format(ignored[0], dataset.size(ignored[0]), max_positions))
     if len(ignored) > 0:
         print((
             '| WARNING: {} samples have invalid sizes and will be skipped, '
             'max_positions={}, first few sample ids={}'
         ).format(len(ignored), max_positions, ignored[:10]))
+    return indices
 
 
 def batch_by_size(
@@ -150,45 +217,21 @@ def batch_by_size(
         required_batch_size_multiple (int, optional): require batch size to
             be a multiple of N (default: 1).
     """
-    max_tokens = max_tokens if max_tokens is not None else float('Inf')
-    max_sentences = max_sentences if max_sentences is not None else float('Inf')
+    try:
+        from fairseq.data.data_utils_fast import batch_by_size_fast
+    except ImportError:
+        raise ImportError(
+            'Please build Cython components with: `pip install --editable .`'
+        )
+
+    max_tokens = max_tokens if max_tokens is not None else sys.maxsize
+    max_sentences = max_sentences if max_sentences is not None else sys.maxsize
     bsz_mult = required_batch_size_multiple
 
-    batch = []
+    if isinstance(indices, types.GeneratorType):
+        indices = np.fromiter(indices, dtype=np.int64, count=-1)
 
-    def is_batch_full(num_tokens):
-        if len(batch) == 0:
-            return False
-        if len(batch) == max_sentences:
-            return True
-        if num_tokens > max_tokens:
-            return True
-        return False
-
-    sample_len = 0
-    sample_lens = []
-    for idx in indices:
-        sample_lens.append(num_tokens_fn(idx))
-        sample_len = max(sample_len, sample_lens[-1])
-        assert sample_len <= max_tokens, (
-            "sentence at index {} of size {} exceeds max_tokens "
-            "limit of {}!".format(idx, sample_len, max_tokens)
-        )
-        num_tokens = (len(batch) + 1) * sample_len
-        if is_batch_full(num_tokens):
-            mod_len = max(
-                bsz_mult * (len(batch) // bsz_mult),
-                len(batch) % bsz_mult,
-            )
-            yield batch[:mod_len]
-            batch = batch[mod_len:]
-            sample_lens = sample_lens[mod_len:]
-            sample_len = max(sample_lens) if len(sample_lens) > 0 else 0
-
-        batch.append(idx)
-
-    if len(batch) > 0:
-        yield batch
+    return batch_by_size_fast(indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult)
 
 
 def process_bpe_symbol(sentence: str, bpe_symbol: str):

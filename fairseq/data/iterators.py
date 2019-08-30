@@ -1,12 +1,11 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import itertools
 import math
+import os
 
 import numpy as np
 import torch
@@ -181,6 +180,7 @@ class EpochBatchIterator(EpochBatchIterating):
             self._cur_epoch_itr = self._get_iterator_for_epoch(
                 self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus,
             )
+        self.dataset.set_epoch(self.epoch)
         return self._cur_epoch_itr
 
     def end_of_epoch(self) -> bool:
@@ -248,6 +248,9 @@ class EpochBatchIterator(EpochBatchIterating):
 
         if offset > 0 and offset >= len(batches):
             return None
+
+        if self.num_workers > 0:
+            os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 
         return CountingIterator(
             torch.utils.data.DataLoader(

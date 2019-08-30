@@ -1,11 +1,8 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
-import argparse
 from collections import OrderedDict
 from typing import Union
 import collections
@@ -24,11 +21,16 @@ from fairseq.models import FairseqEncoder, FairseqDecoder
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
     from fairseq import distributed_utils, meters
 
+    prev_best = getattr(save_checkpoint, 'best', val_loss)
+    if val_loss is not None:
+        best_function = max if args.maximize_best_checkpoint_metric else min
+        save_checkpoint.best = best_function(val_loss, prev_best)
+
     if args.no_save or not distributed_utils.is_master(args):
         return
 
     def is_better(a, b):
-        return a > b if args.maximize_best_checkpoint_metric else a < b
+        return a >= b if args.maximize_best_checkpoint_metric else a <= b
 
     write_timer = meters.StopwatchMeter()
     write_timer.start()
@@ -52,9 +54,6 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     )
     checkpoint_conds['checkpoint_last.pt'] = not args.no_last_checkpoints
 
-    prev_best = getattr(save_checkpoint, 'best', val_loss)
-    if val_loss is not None:
-        save_checkpoint.best = val_loss if is_better(val_loss, prev_best) else prev_best
     extra_state = {
         'train_iterator': epoch_itr.state_dict(),
         'val_loss': val_loss,
@@ -97,10 +96,10 @@ def load_checkpoint(args, trainer):
     if args.distributed_rank == 0:
         os.makedirs(args.save_dir, exist_ok=True)
 
-    if os.path.isabs(args.restore_file):
-        checkpoint_path = args.restore_file
+    if args.restore_file == 'checkpoint_last.pt':
+        checkpoint_path = os.path.join(args.save_dir, 'checkpoint_last.pt')
     else:
-        checkpoint_path = os.path.join(args.save_dir, args.restore_file)
+        checkpoint_path = args.restore_file
 
     extra_state = trainer.load_checkpoint(
         checkpoint_path,
@@ -153,11 +152,11 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None):
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
-    ensemble, args, _task = _load_model_ensemble(filenames, arg_overrides, task)
+    ensemble, args, _task = load_model_ensemble_and_task(filenames, arg_overrides, task)
     return ensemble, args
 
 
-def _load_model_ensemble(filenames, arg_overrides=None, task=None):
+def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None):
     from fairseq import tasks
 
     ensemble = []
@@ -223,6 +222,7 @@ def save_state(
     filename, args, model_state_dict, criterion, optimizer, lr_scheduler,
     num_updates, optim_history=None, extra_state=None,
 ):
+    from fairseq import utils
     if optim_history is None:
         optim_history = []
     if extra_state is None:
@@ -240,6 +240,8 @@ def save_state(
         ],
         'extra_state': extra_state,
     }
+    if utils.has_parameters(criterion):
+        state_dict['criterion'] = criterion.state_dict()
     if not args.no_save_optimizer_state:
         state_dict['last_optimizer_state'] = convert_state_dict_type(optimizer.state_dict())
     torch_persistent_save(state_dict, filename)
@@ -301,30 +303,14 @@ def _upgrade_state_dict(state):
     if not hasattr(state['args'], 'task'):
         state['args'].task = 'translation'
 
-    def set_defaults(cls):
-        if not hasattr(cls, 'add_args'):
-            return
-        parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, allow_abbrev=False)
-        cls.add_args(parser)
-        # copied from argparse.py:
-        defaults = argparse.Namespace()
-        for action in parser._actions:
-            if action.dest is not argparse.SUPPRESS:
-                if not hasattr(defaults, action.dest):
-                    if action.default is not argparse.SUPPRESS:
-                        setattr(defaults, action.dest, action.default)
-        for key, default_value in vars(defaults).items():
-            if not hasattr(state['args'], key):
-                setattr(state['args'], key, default_value)
-
     # set any missing default values in the task, model or other registries
-    set_defaults(tasks.TASK_REGISTRY[state['args'].task])
-    set_defaults(models.ARCH_MODEL_REGISTRY[state['args'].arch])
+    registry.set_defaults(state['args'], tasks.TASK_REGISTRY[state['args'].task])
+    registry.set_defaults(state['args'], models.ARCH_MODEL_REGISTRY[state['args'].arch])
     for registry_name, REGISTRY in registry.REGISTRIES.items():
         choice = getattr(state['args'], registry_name, None)
         if choice is not None:
             cls = REGISTRY['registry'][choice]
-            set_defaults(cls)
+            registry.set_defaults(state['args'], cls)
 
     return state
 
@@ -358,3 +344,17 @@ def load_pretrained_component_from_model(
             component_state_dict[component_subkey] = state["model"][key]
     component.load_state_dict(component_state_dict, strict=True)
     return component
+
+
+def verify_checkpoint_directory(save_dir: str) -> None:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir, exist_ok=True)
+    temp_file_path = os.path.join(save_dir, 'dummy')
+    try:
+        with open(temp_file_path, 'w'):
+            pass
+    except OSError as e:
+        print('| Unable to access checkpoint save directory: {}'.format(save_dir))
+        raise e
+    else:
+        os.remove(temp_file_path)

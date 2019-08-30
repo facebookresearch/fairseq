@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import math
 
@@ -21,10 +19,10 @@ from fairseq.models import (
 )
 from fairseq.modules import (
     AdaptiveSoftmax,
-    DynamicConv1dTBC,
+    DynamicConv,
     LayerNorm,
     PositionalEmbedding,
-    LightweightConv1dTBC,
+    LightweightConv,
     MultiheadAttention,
 )
 
@@ -345,7 +343,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
-                `(batch, tgt_len)`, for input feeding/teacher forcing
+                `(batch, tgt_len)`, for teacher forcing
             encoder_out (Tensor, optional): output from the encoder, used for
                 encoder-side attention
             incremental_state (dict): dictionary used for storing state during
@@ -449,15 +447,15 @@ class LightConvEncoderLayer(nn.Module):
             self.linear1 = Linear(self.embed_dim, self.conv_dim)
             self.act = None
         if args.encoder_conv_type == 'lightweight':
-            self.conv = LightweightConv1dTBC(self.conv_dim, kernel_size, padding_l=padding_l,
-                                             weight_softmax=args.weight_softmax,
-                                             num_heads=args.encoder_attention_heads,
-                                             weight_dropout=args.weight_dropout)
+            self.conv = LightweightConv(self.conv_dim, kernel_size, padding_l=padding_l,
+                                        weight_softmax=args.weight_softmax,
+                                        num_heads=args.encoder_attention_heads,
+                                        weight_dropout=args.weight_dropout)
         elif args.encoder_conv_type == 'dynamic':
-            self.conv = DynamicConv1dTBC(self.conv_dim, kernel_size, padding_l=padding_l,
-                                         weight_softmax=args.weight_softmax,
-                                         num_heads=args.encoder_attention_heads,
-                                         weight_dropout=args.weight_dropout)
+            self.conv = DynamicConv(self.conv_dim, kernel_size, padding_l=padding_l,
+                                    weight_softmax=args.weight_softmax,
+                                    num_heads=args.encoder_attention_heads,
+                                    weight_dropout=args.weight_dropout)
         else:
             raise NotImplementedError
         self.linear2 = Linear(self.conv_dim, self.embed_dim)
@@ -537,15 +535,15 @@ class LightConvDecoderLayer(nn.Module):
             self.linear1 = Linear(self.embed_dim, self.conv_dim)
             self.act = None
         if args.decoder_conv_type == 'lightweight':
-            self.conv = LightweightConv1dTBC(self.conv_dim, kernel_size, padding_l=kernel_size-1,
-                                             weight_softmax=args.weight_softmax,
-                                             num_heads=args.decoder_attention_heads,
-                                             weight_dropout=args.weight_dropout)
+            self.conv = LightweightConv(self.conv_dim, kernel_size, padding_l=kernel_size-1,
+                                        weight_softmax=args.weight_softmax,
+                                        num_heads=args.decoder_attention_heads,
+                                        weight_dropout=args.weight_dropout)
         elif args.decoder_conv_type == 'dynamic':
-            self.conv = DynamicConv1dTBC(self.conv_dim, kernel_size, padding_l=kernel_size-1,
-                                         weight_softmax=args.weight_softmax,
-                                         num_heads=args.decoder_attention_heads,
-                                         weight_dropout=args.weight_dropout)
+            self.conv = DynamicConv(self.conv_dim, kernel_size, padding_l=kernel_size-1,
+                                    weight_softmax=args.weight_softmax,
+                                    num_heads=args.decoder_attention_heads,
+                                    weight_dropout=args.weight_dropout)
         else:
             raise NotImplementedError
         self.linear2 = Linear(self.conv_dim, self.embed_dim)

@@ -1,9 +1,9 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+import argparse
 
 
 REGISTRIES = {}
@@ -22,7 +22,7 @@ def setup_registry(
 
     # maintain a registry of all registries
     if registry_name in REGISTRIES:
-        raise ValueError('Canot setup duplicate registry: {}'.format(registry_name))
+        return  # registry already exists
     REGISTRIES[registry_name] = {
         'registry': REGISTRY,
         'default': default,
@@ -37,6 +37,7 @@ def setup_registry(
             builder = getattr(cls, 'build_' + registry_name)
         else:
             builder = cls
+        set_defaults(args, cls)
         return builder(args, *extra_args, **extra_kwargs)
 
     def register_x(name):
@@ -59,3 +60,21 @@ def setup_registry(
         return register_x_cls
 
     return build_x, register_x, REGISTRY
+
+
+def set_defaults(args, cls):
+    """Helper to set default arguments based on *add_args*."""
+    if not hasattr(cls, 'add_args'):
+        return
+    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, allow_abbrev=False)
+    cls.add_args(parser)
+    # copied from argparse.py:
+    defaults = argparse.Namespace()
+    for action in parser._actions:
+        if action.dest is not argparse.SUPPRESS:
+            if not hasattr(defaults, action.dest):
+                if action.default is not argparse.SUPPRESS:
+                    setattr(defaults, action.dest, action.default)
+    for key, default_value in vars(defaults).items():
+        if not hasattr(args, key):
+            setattr(args, key, default_value)

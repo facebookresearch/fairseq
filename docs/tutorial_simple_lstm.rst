@@ -125,9 +125,9 @@ Decoder
 
 Our Decoder will predict the next word, conditioned on the Encoder's final
 hidden state and an embedded representation of the previous target word -- which
-is sometimes called *input feeding* or *teacher forcing*. More specifically,
-we'll use a :class:`torch.nn.LSTM` to produce a sequence of hidden states that
-we'll project to the size of the output vocabulary to predict each target word.
+is sometimes called *teacher forcing*. More specifically, we'll use a
+:class:`torch.nn.LSTM` to produce a sequence of hidden states that we'll project
+to the size of the output vocabulary to predict each target word.
 
 ::
 
@@ -171,7 +171,7 @@ we'll project to the size of the output vocabulary to predict each target word.
           """
           Args:
               prev_output_tokens (LongTensor): previous decoder outputs of shape
-                  `(batch, tgt_len)`, for input feeding/teacher forcing
+                  `(batch, tgt_len)`, for teacher forcing
               encoder_out (Tensor, optional): output from the encoder, used for
                   encoder-side attention
 
@@ -387,8 +387,8 @@ previous hidden states.
 
 In fairseq this is called :ref:`Incremental decoding`. Incremental decoding is a
 special mode at inference time where the Model only receives a single timestep
-of input corresponding to the immediately previous output token (for input
-feeding) and must produce the next output incrementally. Thus the model must
+of input corresponding to the immediately previous output token (for teacher
+forcing) and must produce the next output incrementally. Thus the model must
 cache any long-term state that is needed about the sequence, e.g., hidden
 states, convolutional states, etc.
 

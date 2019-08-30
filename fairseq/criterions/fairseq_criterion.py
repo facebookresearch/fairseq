@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 from torch.nn.modules.loss import _Loss
 
@@ -13,6 +11,7 @@ class FairseqCriterion(_Loss):
     def __init__(self, args, task):
         super().__init__()
         self.args = args
+        self.task = task
         self.padding_idx = task.target_dictionary.pad() if task.target_dictionary is not None else -100
 
     @staticmethod

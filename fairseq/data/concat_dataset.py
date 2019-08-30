@@ -1,13 +1,12 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import bisect
 
 import numpy as np
+from torch.utils.data.dataloader import default_collate
 
 from . import FairseqDataset
 
@@ -50,7 +49,10 @@ class ConcatDataset(FairseqDataset):
 
     def collater(self, samples):
         # For now only supports datasets with same underlying collater implementations
-        return self.datasets[0].collater(samples)
+        if hasattr(self.datasets[0], 'collater'):
+            return self.datasets[0].collater(samples)
+        else:
+            return default_collate(samples)
 
     def size(self, idx: int):
         """
@@ -61,6 +63,10 @@ class ConcatDataset(FairseqDataset):
 
     def num_tokens(self, index: int):
         return np.max(self.size(index))
+
+    def attr(self, attr: str, index: int):
+        dataset_idx = bisect.bisect_right(self.cumulative_sizes, index)
+        return getattr(self.datasets[dataset_idx], attr, None)
 
     @property
     def sizes(self):

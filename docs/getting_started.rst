@@ -19,23 +19,27 @@ flag to :ref:`fairseq-generate`. Prior to BPE, input text needs to be tokenized
 using ``tokenizer.perl`` from
 `mosesdecoder <https://github.com/moses-smt/mosesdecoder>`__.
 
-Let's use :ref:`fairseq-interactive` to generate translations
-interactively. Here, we use a beam size of 5:
+Let's use :ref:`fairseq-interactive` to generate translations interactively.
+Here, we use a beam size of 5 and preprocess the input with the Moses
+tokenizer and the given Byte-Pair Encoding vocabulary. It will automatically
+remove the BPE continuation markers and detokenize the output.
 
 .. code-block:: console
 
     > MODEL_DIR=wmt14.en-fr.fconv-py
     > fairseq-interactive \
         --path $MODEL_DIR/model.pt $MODEL_DIR \
-        --beam 5 --source-lang en --target-lang fr
+        --beam 5 --source-lang en --target-lang fr \
+        --tokenizer moses \
+        --bpe subword_nmt --bpe-codes $MODEL_DIR/bpecodes
     | loading model(s) from wmt14.en-fr.fconv-py/model.pt
     | [en] dictionary: 44206 types
     | [fr] dictionary: 44463 types
     | Type the input sentence and press return:
-    > Why is it rare to discover new marine mam@@ mal species ?
-    O       Why is it rare to discover new marine mam@@ mal species ?
-    H       -0.1525060087442398     Pourquoi est @-@ il rare de découvrir de nouvelles espèces de mammifères marins ?
-    P       -0.2221 -0.3122 -0.1289 -0.2673 -0.1711 -0.1930 -0.1101 -0.1660 -0.1003 -0.0740 -0.1101 -0.0814 -0.1238 -0.0985 -0.1288
+    Why is it rare to discover new marine mammal species?
+    S-0     Why is it rare to discover new marine mam@@ mal species ?
+    H-0     -0.0643349438905716     Pourquoi est-il rare de découvrir de nouvelles espèces de mammifères marins?
+    P-0     -0.0763 -0.1849 -0.0956 -0.0946 -0.0735 -0.1150 -0.1301 -0.0042 -0.0321 -0.0171 -0.0052 -0.0062 -0.0015
 
 This generation script produces three types of outputs: a line prefixed
 with *O* is a copy of the original source sentence; *H* is the

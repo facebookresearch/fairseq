@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import itertools
 import os
@@ -13,16 +11,16 @@ from collections import OrderedDict
 import numpy as np
 
 from fairseq import tokenizer
-from fairseq.data.masked_lm_dictionary import MaskedLMDictionary
+from fairseq.data.legacy.masked_lm_dictionary import MaskedLMDictionary
 
 from fairseq.data import (
     ConcatDataset,
-    indexed_dataset,
+    data_utils,
     TokenBlockDataset,
 )
 
 from fairseq.data import Dictionary
-from fairseq.data.masked_lm_dataset import MaskedLMDataset
+from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.multi_corpus_sampled_dataset import MultiCorpusSampledDataset
 
 from . import FairseqTask, register_task
@@ -114,10 +112,7 @@ class CrossLingualLMTask(FairseqTask):
             split_k = split + (str(k) if k > 0 else '')
             path = os.path.join(data_path, split_k)
 
-            ds = indexed_dataset.make_dataset(
-                path, impl=self.args.dataset_impl, fix_lua_indexing=True,
-                dictionary=self.dictionary,
-            )
+            ds = data_utils.load_indexed_dataset(path, self.dictionary, self.args.dataset_impl)
             if ds is None:
                 if k > 0:
                     break

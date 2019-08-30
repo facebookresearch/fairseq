@@ -1,10 +1,9 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
+import numpy as np
 import torch.utils.data
 
 
@@ -41,13 +40,19 @@ class FairseqDataset(torch.utils.data.Dataset):
     def ordered_indices(self):
         """Return an ordered list of indices. Batches will be constructed based
         on this order."""
-        raise NotImplementedError
+        return np.arange(len(self))
 
     @property
     def supports_prefetch(self):
         """Whether this dataset supports prefetching."""
         return False
 
+    def attr(self, attr: str, index: int):
+        return getattr(self, attr, None)
+
     def prefetch(self, indices):
         """Prefetch the data required for this epoch."""
         raise NotImplementedError
+
+    def set_epoch(self, epoch):
+        pass

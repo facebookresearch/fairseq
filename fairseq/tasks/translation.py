@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import itertools
 import os
@@ -47,10 +45,12 @@ def load_langpair_dataset(
             else:
                 raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
-        src_datasets.append(indexed_dataset.make_dataset(prefix + src, impl=dataset_impl,
-                                                         fix_lua_indexing=True, dictionary=src_dict))
-        tgt_datasets.append(indexed_dataset.make_dataset(prefix + tgt, impl=dataset_impl,
-                                                         fix_lua_indexing=True, dictionary=tgt_dict))
+        src_datasets.append(
+            data_utils.load_indexed_dataset(prefix + src, src_dict, dataset_impl)
+        )
+        tgt_datasets.append(
+            data_utils.load_indexed_dataset(prefix + tgt, tgt_dict, dataset_impl)
+        )
 
         print('| {} {} {}-{} {} examples'.format(data_path, split_k, src, tgt, len(src_datasets[-1])))
 

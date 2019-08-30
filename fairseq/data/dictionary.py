@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 from collections import Counter
 from multiprocessing import Pool
@@ -51,6 +49,9 @@ class Dictionary(object):
     def __len__(self):
         """Returns the number of symbols in the dictionary"""
         return len(self.symbols)
+
+    def __contains__(self, sym):
+        return sym in self.indices
 
     def index(self, sym):
         """Returns the index of the specified symbol"""
