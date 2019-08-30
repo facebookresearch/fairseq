@@ -6,11 +6,6 @@
 import numpy as np
 import torch
 
-from fairseq.data.token_block_utils_fast import (
-    _get_slice_indices_fast,
-    _get_block_to_dataset_index_fast,
-)
-
 from fairseq.data import FairseqDataset, plasma_utils
 
 
@@ -47,6 +42,16 @@ class TokenBlockDataset(FairseqDataset):
         include_targets=False,
         document_sep_len=1,
     ):
+        try:
+            from fairseq.data.token_block_utils_fast import (
+                _get_slice_indices_fast,
+                _get_block_to_dataset_index_fast,
+            )
+        except ImportError:
+            raise ImportError(
+                'Please build Cython components with: `pip install --editable .`'
+            )
+
         super().__init__()
         self.dataset = dataset
         self.pad = pad
