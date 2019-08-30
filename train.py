@@ -9,6 +9,7 @@ Train a new model on one or across multiple GPUs.
 
 import collections
 import math
+import numpy as np
 import random
 
 import torch
@@ -28,6 +29,7 @@ def main(args, init_distributed=False):
     # Initialize CUDA and distributed training
     if torch.cuda.is_available() and not args.cpu:
         torch.cuda.set_device(args.device_id)
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     if init_distributed:
         args.distributed_rank = distributed_utils.distributed_init(args)

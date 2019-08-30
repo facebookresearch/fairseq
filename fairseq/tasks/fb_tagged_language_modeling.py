@@ -4,10 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import numpy as np
-
 import os
+import torch
 
 from fairseq.data import (
+    ColorizeDataset,
     ConcatDataset,
     data_utils,
     MonolingualDataset,
@@ -20,6 +21,24 @@ from fairseq.data import (
 from fairseq.tasks import register_task
 
 from fairseq.tasks.language_modeling import LanguageModelingTask
+
+
+class ds_name_getter:
+    def __init__(self, offset, generic_ds_name_chance, dictionary):
+        self.offset = offset
+        self.generic_ds_name_chance = generic_ds_name_chance
+        self.dictionary = dictionary
+
+    def __call__(self, dataset, index):
+        if (
+            self.generic_ds_name_chance > 0
+            and np.random.rand() <= self.generic_ds_name_chance
+        ):
+            name = "generic"
+        else:
+            name = dataset.attr("name", index)
+        assert name is not None
+        return self.dictionary.indices[name] + self.offset
 
 
 @register_task("tagged_language_modeling")
@@ -43,6 +62,11 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
             action="store_true",
             help="if set and multiple-datasets is also set, prepends the name of the ds instead of "
             "bos/eos token",
+        )
+        parser.add_argument(
+            "--colorize-ds-name",
+            action="store_true",
+            help="if set and multiple-datasets is also set, adds an embedding for a specific dataset to source",
         )
         parser.add_argument(
             "--generic-ds-name-chance",
@@ -69,23 +93,6 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
             else set(args.subsample_splits.split(":"))
         )
 
-    def make_prepended_ds(self, dataset):
-        def ds_name(dataset, index):
-            if (
-                self.args.generic_ds_name_chance > 0
-                and np.random.rand() <= self.args.generic_ds_name_chance
-            ):
-                ds_name = "generic"
-            else:
-                ds_name = dataset.attr("name", index)
-            assert ds_name is not None
-            return self.dictionary.indices[ds_name]
-
-        dataset = PrependDataset(
-            dataset, prepend_getter=ds_name, ensure_first_token_is=self.dictionary.eos()
-        )
-        return dataset
-
     def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
 
@@ -110,6 +117,8 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
                 for path in paths
             ]
 
+            ds_names = [ds.name for ds in datasets]
+
             if split in self.subsample_splits:
                 sizes = [sum(d.sizes) for d in datasets]
                 min_sz = min(sizes)
@@ -131,6 +140,7 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
                 raise FileNotFoundError(
                     "Dataset not found: {} ({})".format(split, split_path)
                 )
+            ds_names = [None]
 
         dataset = TokenBlockDataset(
             dataset,
@@ -143,16 +153,28 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
         )
 
         if self.args.prepend_ds_name:
-            dataset = self.make_prepended_ds(dataset)
+            dataset = PrependDataset(
+                dataset,
+                prepend_getter=ds_name_getter(
+                    offset=0,
+                    generic_ds_name_chance=self.args.generic_ds_name_chance,
+                    dictionary=self.dictionary,
+                ),
+                ensure_first_token_is=self.dictionary.eos(),
+            )
 
-        dataset = ReplaceDataset(dataset, { self.dictionary.eos(): self.dictionary.indices['\\n'] }, offset=1)
+        dataset = ReplaceDataset(
+            dataset,
+            replace_map={self.dictionary.eos(): self.dictionary.indices["\\n"]},
+            offsets=[1, -1],
+        )
 
         add_eos_for_other_targets = (
             self.args.sample_break_mode is not None
             and self.args.sample_break_mode != "none"
         )
 
-        self.datasets[split] = MonolingualDataset(
+        dataset = MonolingualDataset(
             dataset,
             dataset.sizes,
             self.dictionary,
@@ -162,3 +184,45 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
             targets=self.targets,
             add_bos_token=self.args.add_bos_token,
         )
+
+        if self.args.colorize_ds_name:
+            ds_names.append("generic")
+            min_ds = min(self.dictionary.indices[n] for n in ds_names)
+            dataset = ColorizeDataset(
+                dataset,
+                color_getter=ds_name_getter(
+                    offset=-min_ds,
+                    generic_ds_name_chance=self.args.generic_ds_name_chance,
+                    dictionary=self.dictionary,
+                ),
+            )
+
+        self.datasets[split] = dataset
+
+    def inference_step(self, generator, models, sample, prefix_tokens=None):
+        with torch.no_grad():
+            tag = None
+            if prefix_tokens is None and sample["net_input"]["src_tokens"].nelement():
+                # note: EOS has already been removed in build_dataset_for_inference
+                prefix_tokens = sample["net_input"]["src_tokens"]
+                tag = (
+                    self.dictionary.indices[sample["tag"]]
+                    if self.args.prepend_ds_name
+                    else None
+                )
+            if self.args.colorize_ds_name:
+                color_ind = (
+                    self.dictionary.indices[sample["tag"]]
+                    - self.dictionary.indices["wikipedia_gpt2"]
+                )
+                sample["decoder_input"] = {
+                    "colors": torch.tensor([color_ind], dtype=torch.long)
+                }
+                if sample["net_input"]["src_tokens"].is_cuda:
+                    sample["decoder_input"]["colors"] = sample["decoder_input"][
+                        "colors"
+                    ].cuda()
+
+            return generator.generate(
+                models, sample, prefix_tokens=prefix_tokens, bos_token=tag
+            )
