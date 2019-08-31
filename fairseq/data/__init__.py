@@ -11,6 +11,7 @@ from .base_wrapper_dataset import BaseWrapperDataset
 
 from .audio.raw_audio_dataset import FileAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
+from .colorize_dataset import ColorizeDataset
 from .concat_dataset import ConcatDataset
 from .concat_sentences_dataset import ConcatSentencesDataset
 from .id_dataset import IdDataset
@@ -51,6 +52,7 @@ from .iterators import (
 __all__ = [
     'BacktranslationDataset',
     'BaseWrapperDataset',
+    'ColorizeDataset',
     'ConcatDataset',
     'ConcatSentencesDataset',
     'CountingIterator',
