@@ -173,11 +173,7 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
         if hasattr(dataset, 'sizes') and isinstance(dataset.sizes, np.ndarray):
             ignored = indices[dataset.sizes > max_positions].tolist()
             indices = indices[dataset.sizes <= max_positions]
-        elif (
-                hasattr(dataset, 'sizes') and
-                isinstance(dataset.sizes, list) and
-                len(dataset.sizes) == 1
-        ):
+        elif hasattr(dataset, 'sizes') and isinstance(dataset.sizes, list) and len(dataset.sizes) == 1:
             ignored = indices[dataset.sizes[0] > max_positions].tolist()
             indices = indices[dataset.sizes[0] <= max_positions]
         else:
@@ -221,7 +217,8 @@ def batch_by_size(
         from fairseq.data.data_utils_fast import batch_by_size_fast
     except ImportError:
         raise ImportError(
-            'Please build Cython components with: `pip install --editable .`'
+            'Please build Cython components with: `pip install --editable .` '
+            'or `python setup.py build_ext --inplace`'
         )
 
     max_tokens = max_tokens if max_tokens is not None else sys.maxsize
