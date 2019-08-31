@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from setuptools import setup, find_packages, Extension
+from setuptools.command.build_ext import build_ext
 import sys
 
 
@@ -46,20 +47,13 @@ extensions = [
 ]
 
 
-def my_build_ext(pars):
-    """
-    Delay loading of numpy headers.
-    More details: https://stackoverflow.com/a/54138355
-    """
-    from setuptools.command.build_ext import build_ext as _build_ext
-
-    class build_ext(_build_ext):
-        def finalize_options(self):
-            _build_ext.finalize_options(self)
-            __builtins__.__NUMPY_SETUP__ = False
-            import numpy
-            self.include_dirs.append(numpy.get_include())
-    return build_ext(pars)
+class CustomBuildExtCommand(build_ext):
+    """Source: https://stackoverflow.com/a/42163080"""
+    def run(self):
+        # Import numpy here, only when headers are needed
+        import numpy
+        self.include_dirs.append(numpy.get_include())
+        super().run()
 
 
 setup(
@@ -105,6 +99,6 @@ setup(
             'fairseq-validate = fairseq_cli.validate:cli_main',
         ],
     },
-    cmdclass={'build_ext': my_build_ext},
+    cmdclass={'build_ext': CustomBuildExtCommand},
     zip_safe=False,
 )

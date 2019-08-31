@@ -9,9 +9,9 @@ Train a new model on one or across multiple GPUs.
 
 import collections
 import math
-import numpy as np
 import random
 
+import numpy as np
 import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
