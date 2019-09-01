@@ -171,11 +171,11 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
     """
     if isinstance(max_positions, float) or isinstance(max_positions, int):
         if hasattr(dataset, 'sizes') and isinstance(dataset.sizes, np.ndarray):
-            ignored = indices[dataset.sizes > max_positions].tolist()
-            indices = indices[dataset.sizes <= max_positions]
+            ignored = indices[dataset.sizes[indices] > max_positions].tolist()
+            indices = indices[dataset.sizes[indices] <= max_positions]
         elif hasattr(dataset, 'sizes') and isinstance(dataset.sizes, list) and len(dataset.sizes) == 1:
-            ignored = indices[dataset.sizes[0] > max_positions].tolist()
-            indices = indices[dataset.sizes[0] <= max_positions]
+            ignored = indices[dataset.sizes[0][indices] > max_positions].tolist()
+            indices = indices[dataset.sizes[0][indices] <= max_positions]
         else:
             indices, ignored = _filter_by_size_dynamic(indices, dataset.size, max_positions)
     else:
