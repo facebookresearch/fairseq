@@ -84,6 +84,7 @@ setup(
     ],
     install_requires=[
         'cffi',
+        'cython',
         'fastBPE',
         'numpy',
         'regex',
