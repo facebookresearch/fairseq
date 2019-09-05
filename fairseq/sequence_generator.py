@@ -620,10 +620,15 @@ class EnsembleModel(torch.nn.Module):
         self, tokens, model, encoder_out, incremental_states, log_probs,
         temperature=1.,
     ):
-        if self.incremental_states is not None:
-            decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=self.incremental_states[model], attn_args={'align': self.align}))
+        if self.align and getattr(model, 'supports_align_args', False):
+            extra_args = {'attn_args': {'align': self.align}}
         else:
-            decoder_out = list(model.decoder(tokens, encoder_out, attn_args={'align': self.align}))
+            extra_args = {}
+
+        if self.incremental_states is not None:
+            decoder_out = list(model.decoder(tokens, encoder_out, incremental_state=self.incremental_states[model], **extra_args))
+        else:
+            decoder_out = list(model.decoder(tokens, encoder_out, **extra_args))
         decoder_out[0] = decoder_out[0][:, -1:, :]
         if temperature != 1.:
             decoder_out[0].div_(temperature)

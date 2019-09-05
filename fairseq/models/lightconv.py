@@ -618,6 +618,10 @@ class LightConvDecoderLayer(nn.Module):
                 static_kv=True,
                 need_weights=(not self.training and self.need_attn),
             )
+            if attn is not None:
+                # average probabilities over all heads
+                attn = attn.mean(dim=0)
+
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = residual + x
             x = self.maybe_layer_norm(self.encoder_attn_layer_norm, x, after=True)

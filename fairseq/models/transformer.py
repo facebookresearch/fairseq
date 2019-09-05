@@ -68,7 +68,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
-
+        self.supports_align_args = True
+        
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
@@ -181,7 +182,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
     @classmethod
     def build_decoder(cls, args, tgt_dict, embed_tokens):
         return TransformerDecoder(args, tgt_dict, embed_tokens)
-
+        
 @register_model('transformer_align')
 class TransformerAlignModel(TransformerModel):
     def __init__(self, encoder, decoder, args):
