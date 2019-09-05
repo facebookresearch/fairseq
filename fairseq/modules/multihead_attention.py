@@ -186,7 +186,7 @@ class MultiheadAttention(nn.Module):
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
-            if 'prev_key_padding_mask' in saved_state:
+            if 'prev_key_padding_mask' in saved_state and saved_state['prev_key_padding_mask'] is not None:
                 prev_key_padding_mask = saved_state['prev_key_padding_mask']
                 if static_kv:
                     key_padding_mask = prev_key_padding_mask
