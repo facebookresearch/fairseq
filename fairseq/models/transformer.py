@@ -177,7 +177,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
             )
 
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
-        decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens, no_encoder_attn=args.no_cross_attention)
+        decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
         return TransformerModel(encoder, decoder)
 
     @classmethod
@@ -185,8 +185,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
         return TransformerEncoder(args, src_dict, embed_tokens)
 
     @classmethod
-    def build_decoder(cls, args, tgt_dict, embed_tokens, no_encoder_attn):
-        return TransformerDecoder(args, tgt_dict, embed_tokens, no_encoder_attn)
+    def build_decoder(cls, args, tgt_dict, embed_tokens):
+        return TransformerDecoder(args, tgt_dict, embed_tokens, no_encoder_attn=getattr(args, 'no_cross_attention', False))
 
 
 class TransformerEncoder(FairseqEncoder):
@@ -367,8 +367,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
-        self.cross_self_attention = args.cross_self_attention
-        self.layer_wise_attention = args.layer_wise_attention
+        self.cross_self_attention = getattr(args, 'cross_self_attention', False)
+        self.layer_wise_attention = getattr(args, 'layer_wise_attention', False)
 
         self.layers = nn.ModuleList([])
         self.layers.extend([
