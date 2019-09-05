@@ -174,11 +174,13 @@ class RobertaHubInterface(nn.Module):
                         ' {0}'.format(masked_token), predicted_token
                     ),
                     values[index].item(),
+                    predicted_token,
                 ))
             else:
                 topk_filled_outputs.append((
                     masked_input.replace(masked_token, predicted_token),
                     values[index].item(),
+                    predicted_token,
                 ))
         return topk_filled_outputs
 
