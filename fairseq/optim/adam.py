@@ -8,6 +8,7 @@ import types
 
 import torch
 import torch.optim
+import torch.distributed as dist
 
 from . import FairseqOptimizer, register_optimizer
 
@@ -52,6 +53,17 @@ class FairseqAdam(FairseqOptimizer):
             'eps': self.args.adam_eps,
             'weight_decay': self.args.weight_decay,
         }
+
+    def average_params(self):
+        """Reduce Params is only used during BMUF distributed training."""
+        state_dict = self.optimizer.state_dict()
+        total_gpus = float(dist.get_world_size())
+
+        for _, value in state_dict["state"].items():
+            value["exp_avg"] /= total_gpus
+            value["exp_avg_sq"] /= total_gpus
+            dist.all_reduce(value["exp_avg"], op=dist.ReduceOp.SUM)
+            dist.all_reduce(value["exp_avg_sq"], op=dist.ReduceOp.SUM)
 
 
 class Adam(torch.optim.Optimizer):
