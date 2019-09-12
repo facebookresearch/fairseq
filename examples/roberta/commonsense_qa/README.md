@@ -1,6 +1,6 @@
 # Finetuning RoBERTa on Commonsense QA
 
-We follow a similar approach to [finetuning RACE](README.race.md). Specifically
+We follow a similar approach to [finetuning RACE](../README.race.md). Specifically
 for each question we construct five inputs, one for each of the five candidate
 answer choices. Each input is constructed by concatenating the question and
 candidate answer. We then encode each input and pass the resulting "[CLS]"
