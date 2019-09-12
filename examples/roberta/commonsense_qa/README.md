@@ -56,6 +56,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train --fp16 \
     --max-sentences $MAX_SENTENCES \
     --max-update $MAX_UPDATES \
     --log-format simple --log-interval 25 \
+    --find-unused-parameters \
     --seed $SEED
 ```
 
