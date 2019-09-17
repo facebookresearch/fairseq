@@ -127,6 +127,11 @@ class BertConfig(object):
         """Serializes this instance to a JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
 
+    def to_json_file(self, json_file_path):
+        """ Save this instance to a json file."""
+        with open(json_file_path, "w", encoding='utf-8') as writer:
+            writer.write(self.to_json_string())
+
 
 class BertLayerNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-12):
@@ -689,7 +694,9 @@ class BertModel(PreTrainedBertModel):
         # Since we are adding it to the raw scores before the softmax, this is
         # effectively the same as removing these entirely.
         extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
-        assert not (extended_attention_mask.sum(-1) == 0).any()
+        #  assert not (extended_attention_mask.sum(-1) == 0).any()
+        if (extended_attention_mask.sum(-1) == 0).any():
+            print("| warning, contain very shot sequence")
         #extended_mask = extended_attention_mask.new(extended_attention_mask.size(0), extended_attention_mask.size(1)).fill_(-math.inf).float()
         #extended_mask[extended_attention_mask.byte()] = 0
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
@@ -826,6 +833,25 @@ def simple_base_bert_architecture(args):
     args.config.attention_probs_dropout_prob = getattr(args, 'attention_probs_dropout_prob', args.config.attention_probs_dropout_prob)
     args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', args.config.max_position_embeddings)
     args.config.initializer_range = getattr(args, 'initializer_range', args.config.initializer_range)
+    args.config.block_size = getattr(args, 'block_size', args.config.block_size)
+    args.config.layer_offsets = None
+    args.config.head_offsets = getattr(args, 'head_offsets', list(range(args.config.num_attention_heads)))
+    assert len(args.config.head_offsets) == args.config.num_attention_heads
+    args.config.head_offsets = [(x % args.config.block_size + args.config.block_size) % args.config.block_size for x in args.config.head_offsets]
+    print(args.config)
+
+@register_model_architecture('simple_structured_bert', 'head_wise_simple_structured_bert_large')
+def large_bert_architecture(args):
+    args.config = BertConfig()
+    args.config.hidden_size = getattr(args, 'hidden_size', 1024)
+    args.config.num_hidden_layers = getattr(args, 'num_hidden_layers', 24)
+    args.config.num_attention_heads = getattr(args, 'num_attention_heads', 16)
+    args.config.intermediate_size = getattr(args, 'intermediate_size', 4096)
+    args.config.hidden_act = getattr(args, 'hidden_act', 'gelu')
+    args.config.hidden_dropout_prob = getattr(args, 'hidden_dropout_prob', 0.1)
+    args.config.attention_probs_dropout_prob = getattr(args, 'attention_probs_dropout_prob', args.config.attention_probs_dropout_prob)
+    args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', args.config.max_position_embeddings)
+    args.config.initializer_range = getattr(args, 'initializer_range', 0.02)
     args.config.block_size = getattr(args, 'block_size', args.config.block_size)
     args.config.layer_offsets = None
     args.config.head_offsets = getattr(args, 'head_offsets', list(range(args.config.num_attention_heads)))

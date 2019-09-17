@@ -51,7 +51,12 @@ class BertConfig(object):
                  attention_probs_dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=2,
-                 initializer_range=0.02):
+                 initializer_range=0.02,
+                 sparse_transformer=False,
+                 is_bidirectional=True,
+                 stride=32,
+                 expressivity=8,
+                 ):
         """Constructs BertConfig.
         Args:
             vocab_size_or_config_json_file: Vocabulary size of `inputs_ids` in `BertModel`.
@@ -92,6 +97,10 @@ class BertConfig(object):
             self.max_position_embeddings = max_position_embeddings
             self.type_vocab_size = type_vocab_size
             self.initializer_range = initializer_range
+            self.sparse_transformer = sparse_transformer
+            self.is_bidirectional = is_bidirectional
+            self.stride = stride
+            self.expressivity = expressivity
         else:
             raise ValueError("First argument must be either a vocabulary size (int)"
                              "or the path to a pretrained model config file (str)")
@@ -122,6 +131,11 @@ class BertConfig(object):
     def to_json_string(self):
         """Serializes this instance to a JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
+
+    def to_json_file(self, json_file_path):
+        """ Save this instance to a json file."""
+        with open(json_file_path, "w", encoding='utf-8') as writer:
+            writer.write(self.to_json_string())
 
 
 class BertLayerNorm(nn.Module):
@@ -187,12 +201,126 @@ class BertSelfAttention(nn.Module):
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
+        self.sparse_transformer = config.sparse_transformer
+        self.is_bidirectional = config.is_bidirectional
+        self.stride = config.stride
+        self.expressivity = config.expressivity
+        self.max_position_embeddings =  config.max_position_embeddings
+        if self.sparse_transformer:
+            self.prepare_sparse_mask()
+
+    def prepare_sparse_mask(self):
+        print("prepare sparse mask")
+        sparse_mask = torch.empty((self.max_position_embeddings, self.max_position_embeddings)).float().fill_(-10000.0)
+
+        # If bidirectional, subset 2 is the same for every index
+        subset_summaries = set()
+        if self.is_bidirectional:
+            subset_summaries = self.compute_subset_summaries(self.max_position_embeddings)
+
+        for i in range(self.max_position_embeddings):
+            fixed_attention_subset = self.compute_fixed_attention_subset(i, self.max_position_embeddings)
+            fixed_attention_subset = fixed_attention_subset.union(subset_summaries)
+            included_word_indices = torch.LongTensor(list(fixed_attention_subset))
+            sparse_mask[i].index_fill_(0, included_word_indices, 0)
+        self.register_buffer("sparse_mask", sparse_mask)
+        print("initialize sparse mask of shape", self.sparse_mask.size())
+        print("first row contains %d nnz" % (self.sparse_mask[0] == 0).sum())
+        print("last row contains %d nnz" % (self.sparse_mask[-1] == 0).sum())
+
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
+        # batch_size x num_attention_heads x length x d_head
+
+    # Used for Ai(2) calculations - beginning of [l-c, l] range
+    def compute_checkpoint(self, word_index):
+        if word_index % self.stride == 0 and word_index != 0:
+            checkpoint_index = word_index - self.expressivity
+        else:
+            checkpoint_index = (
+                math.floor(word_index / self.stride) * self.stride
+                + self.stride - self.expressivity
+            )
+        return checkpoint_index
+
+    # Computes Ai(2)
+    def compute_subset_summaries(self, absolute_max):
+        checkpoint_index = self.compute_checkpoint(0)
+        subset_two = set()
+        while checkpoint_index <= absolute_max-1:
+            summary = set(range(checkpoint_index, min(
+                checkpoint_index+self.expressivity+1, absolute_max)
+            ))
+            subset_two = subset_two.union(summary)
+            checkpoint_index = self.compute_checkpoint(checkpoint_index+self.stride)
+        return subset_two
+
+    # Sparse Transformer Fixed Attention Pattern: https://arxiv.org/pdf/1904.10509.pdf
+    def compute_fixed_attention_subset(self, word_index, tgt_len):
+        # +1s account for range function; [min, max) -> [min, max]
+        if not self.is_bidirectional:
+            absolute_max = word_index + 1
+        else:
+            absolute_max = tgt_len
+
+        # Subset 1 - whole window
+        rounded_index = math.floor((word_index + self.stride) / self.stride) * self.stride
+        if word_index % self.stride == 0 and word_index != 0:
+            subset_one = set(range(word_index-self.stride, min(absolute_max, word_index+1)))
+        else:
+            subset_one = set(range(max(0, rounded_index - self.stride), min(
+                absolute_max, rounded_index+1))
+            )
+
+        # Subset 2 - summary per window
+        # If bidirectional, subset 2 is the same for every index
+        subset_two = set()
+        if not self.is_bidirectional:
+            subset_two = self.compute_subset_summaries(absolute_max)
+
+        return subset_one.union(subset_two)
+
+    # Compute sparse mask - if bidirectional, can pre-compute and store
+    def buffered_sparse_mask(self, tensor, tgt_len, src_len):
+        return self.sparse_mask[:tgt_len, :src_len].type_as(tensor)
+        assert(self.max_position_embeddings > self.stride)
+        #  assert(tgt_len > self.stride)
+        #  sparse_mask = torch.empty((tgt_len, src_len)).float().fill_(float('-inf'))
+
+        if self.sparse_mask is None:
+            sparse_mask = torch.empty((self.max_position_embeddings, self.max_position_embeddings)).float().fill_(-10000.0)
+
+            # If bidirectional, subset 2 is the same for every index
+            subset_summaries = set()
+            if self.is_bidirectional:
+                subset_summaries = self.compute_subset_summaries(self.max_position_embeddings)
+
+            for i in range(self.max_position_embeddings):
+                fixed_attention_subset = self.compute_fixed_attention_subset(i, self.max_position_embeddings)
+                fixed_attention_subset = fixed_attention_subset.union(subset_summaries)
+                included_word_indices = torch.LongTensor(list(fixed_attention_subset))
+                sparse_mask[i].index_fill_(0, included_word_indices, 0)
+            self.sparse_mask = sparse_mask.type_as(tensor)
+            print("initialize sparse mask of shape", self.sparse_mask.size())
+            print("first row contains %d nnz" % (self.sparse_mask[0] == 0).sum())
+            print("last row contains %d nnz" % (self.sparse_mask[-1] == 0).sum())
+
+        return self.sparse_mask[:tgt_len, :src_len]
+
+    def apply_sparse_mask(self, attn_weights, tgt_len, src_len, bsz):
+        if not self.sparse_transformer:
+            return attn_weights
+        sparse_mask = self.buffered_sparse_mask(attn_weights, tgt_len, src_len)
+        #  sparse_mask = sparse_mask.unsqueeze(0).expand(bsz * self.num_attention_heads, tgt_len, src_len)
+        attn_weights += sparse_mask
+        return attn_weights
+
 
     def forward(self, hidden_states, attention_mask):
+        batch_size, length = hidden_states.size()[:2]
+
         mixed_query_layer = self.query(hidden_states)
         assert not torch.isnan(mixed_query_layer).any()
         mixed_key_layer = self.key(hidden_states)
@@ -209,6 +337,9 @@ class BertSelfAttention(nn.Module):
         assert not torch.isnan(attention_scores).any()
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         assert not torch.isnan(attention_scores).any()
+
+        attention_scores = self.apply_sparse_mask(attention_scores, length, length, batch_size)
+
         attention_scores = torch.clamp(attention_scores, -10000., 10000.)
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
         attention_scores = attention_scores + attention_mask
@@ -697,11 +828,34 @@ class SimpleBertHF(FairseqLanguageModel):
                 help='sequence length')
         parser.add_argument('--initializer-range', type=float,
                 help='initializer std')
+        parser.add_argument('--sparse-transformer', default=False, action='store_true',
+                help='whether to use sparse transformer')
+        parser.add_argument('--sparse-transformer-stride', default=32, type=int,
+                help='sparse transformer stride')
+        parser.add_argument('--sparse-transformer-expressivity', default=8, type=int,
+                help='sparse transformer expressivity')
     @classmethod
     def build_model(cls, args, task):
         args.remove_only_mlm_head = getattr(args, 'remove_only_mlm_head', False)
         decoder = SimpleBertForPreTraining(args.config, args.remove_only_mlm_head)
         return SimpleBertHF(decoder, task)
+
+@register_model_architecture('simple_bert_hf', 'simple_sparse_bert_hf')
+def simple_base_bert_architecture(args):
+    args.config = BertConfig()
+    args.config.hidden_size = getattr(args, 'hidden_size', args.config.hidden_size)
+    args.config.num_hidden_layers = getattr(args, 'num_hidden_layers', args.config.num_hidden_layers)
+    args.config.num_attention_heads = getattr(args, 'num_attention_heads', args.config.num_attention_heads)
+    args.config.intermediate_size = getattr(args, 'intermediate_size', args.config.intermediate_size)
+    args.config.hidden_act = getattr(args, 'hidden_act', args.config.hidden_act)
+    args.config.hidden_dropout_prob = getattr(args, 'hidden_dropout_prob', args.config.hidden_dropout_prob)
+    args.config.attention_probs_dropout_prob = getattr(args, 'attention_probs_dropout_prob', args.config.attention_probs_dropout_prob)
+    args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', args.config.max_position_embeddings)
+    args.config.initializer_range = getattr(args, 'initializer_range', args.config.initializer_range)
+    args.config.sparse_transformer = getattr(args, 'sparse_transformer', args.config.sparse_transformer)
+    args.config.is_bidirectional = True
+    args.config.stride = getattr(args, 'sparse_transformer_stride', args.config.stride)
+    args.config.expressivity = getattr(args, 'sparse_transformer_expressivity', args.config.expressivity)
 
 @register_model_architecture('simple_bert_hf', 'simple_bert_hf')
 def simple_base_bert_architecture(args):
@@ -715,6 +869,19 @@ def simple_base_bert_architecture(args):
     args.config.attention_probs_dropout_prob = getattr(args, 'attention_probs_dropout_prob', args.config.attention_probs_dropout_prob)
     args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', args.config.max_position_embeddings)
     args.config.initializer_range = getattr(args, 'initializer_range', args.config.initializer_range)
+
+@register_model_architecture('simple_bert_hf', 'simple_bert_hf_large')
+def simple_large_bert_architecture(args):
+    args.config = BertConfig()
+    args.config.hidden_size = getattr(args, 'hidden_size', 1024)
+    args.config.num_hidden_layers = getattr(args, 'num_hidden_layers', 24)
+    args.config.num_attention_heads = getattr(args, 'num_attention_heads', 16)
+    args.config.intermediate_size = getattr(args, 'intermediate_size', 4096)
+    args.config.hidden_act = getattr(args, 'hidden_act', 'gelu')
+    args.config.hidden_dropout_prob = getattr(args, 'hidden_dropout_prob', 0.1)
+    args.config.attention_probs_dropout_prob = getattr(args, 'attention_probs_dropout_prob', 0.1)
+    args.config.max_position_embeddings = getattr(args, 'max_position_embeddings', 512)
+    args.config.initializer_range = getattr(args, 'initializer_range', 0.02)
 
 
 @register_model_architecture('bert_hf', 'bert_hf')
