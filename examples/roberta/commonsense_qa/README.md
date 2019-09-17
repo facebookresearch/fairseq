@@ -39,7 +39,7 @@ DATA_DIR=data/CommonsenseQA
 FAIRSEQ_PATH=/path/to/fairseq
 FAIRSEQ_USER_DIR=${FAIRSEQ_PATH}/examples/roberta/commonsense_qa
 
-CUDA_VISIBLE_DEVICES=0 fairseq-train --fp16 \
+CUDA_VISIBLE_DEVICES=0 fairseq-train --fp16 --ddp-backend=no_c10d \
     $DATA_DIR \
     --user-dir $FAIRSEQ_USER_DIR \
     --restore-file $ROBERTA_PATH \
@@ -51,7 +51,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train --fp16 \
     --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
     --criterion sentence_ranking --num-classes 5 \
     --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 --clip-norm 0.0 \
-    --lr-scheduler polynomial_decay --lr $LR
+    --lr-scheduler polynomial_decay --lr $LR \
     --warmup-updates $WARMUP_UPDATES --total-num-update $MAX_UPDATES \
     --max-sentences $MAX_SENTENCES \
     --max-update $MAX_UPDATES \
