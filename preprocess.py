@@ -307,9 +307,8 @@ def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos
 
 
 def binarize_alignments(args, filename, parse_alignment, output_prefix, offset, end):
-    ds = indexed_dataset.IndexedDatasetBuilder(
-        dataset_dest_file(args, output_prefix, None, "bin")
-    )
+    ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, None, "bin"),
+                                      impl=args.dataset_impl, vocab_size=None)
 
     def consumer(tensor):
         ds.add_item(tensor)
