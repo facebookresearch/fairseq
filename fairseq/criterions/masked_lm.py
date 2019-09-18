@@ -30,8 +30,11 @@ class MaskedLmLoss(FairseqCriterion):
         3) logging outputs to display while training
         """
         # compute MLM loss
-        logits = model(**sample['net_input'], return_all_hiddens=False)[0]
+        masked_tokens = sample['target'].ne(self.padding_idx)
+        logits = model(**sample['net_input'], masked_tokens=masked_tokens)[0]
         targets = model.get_targets(sample, [logits])
+        targets = targets[masked_tokens]
+
         loss = F.nll_loss(
             F.log_softmax(
                 logits.view(-1, logits.size(-1)),
@@ -43,7 +46,7 @@ class MaskedLmLoss(FairseqCriterion):
             ignore_index=self.padding_idx,
         )
 
-        sample_size = targets.ne(self.padding_idx).int().sum().item()
+        sample_size = masked_tokens.int().sum().item()
 
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
@@ -64,6 +67,7 @@ class MaskedLmLoss(FairseqCriterion):
 
         agg_output = {
             'loss': loss / sample_size / math.log(2),
+            'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / sample_size / math.log(2) if ntokens > 0 else 0.,
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,
