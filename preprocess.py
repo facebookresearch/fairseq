@@ -321,9 +321,11 @@ def binarize_alignments(args, filename, parse_alignment, output_prefix, offset, 
 
 def dataset_dest_prefix(args, output_prefix, lang):
     base = "{}/{}".format(args.destdir, output_prefix)
-    lang_part = (
-        ".{}-{}.{}".format(args.source_lang, args.target_lang, lang) if lang is not None else ""
-    )
+    if lang is not None:
+        lang_part = ".{}-{}.{}".format(args.source_lang, args.target_lang, lang)
+    else:
+        lang_part = ".{}-{}".format(args.source_lang, args.target_lang)
+    
     return "{}{}".format(base, lang_part)
 
 

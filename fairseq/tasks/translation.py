@@ -70,7 +70,7 @@ def load_langpair_dataset(
 
     align_dataset = None
     if load_alignments:
-        align_path = os.path.join(data_path, '{}.align'.format(split))
+        align_path = os.path.join(data_path, '{}.align.{}-{}'.format(split, src, tgt))
         if indexed_dataset.dataset_exists(align_path, impl=dataset_impl):
             align_dataset = data_utils.load_indexed_dataset(align_path, None, dataset_impl)
 

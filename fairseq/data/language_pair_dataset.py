@@ -98,11 +98,13 @@ def collate(
 
         alignments = [alignment + offset for align_idx, offset, src_len, tgt_len in zip(sort_order, offsets, src_lengths, tgt_lengths) \
                       for alignment in [samples[align_idx]['alignment'].view(-1, 2)] if check_alignment(alignment, src_len, tgt_len)]
-        alignments = torch.cat(alignments, dim=0)
-        align_weights = compute_alignment_weights(alignments)
 
-        batch['alignments'] = alignments
-        batch['align_weights'] = align_weights
+        if len(alignments) > 0:
+            alignments = torch.cat(alignments, dim=0)
+            align_weights = compute_alignment_weights(alignments)
+
+            batch['alignments'] = alignments
+            batch['align_weights'] = align_weights
 
     return batch
 
