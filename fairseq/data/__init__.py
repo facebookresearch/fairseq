@@ -41,6 +41,7 @@ from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
 from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
 from .truncate_dataset import TruncateDataset
+from .resampling_dataset import ResamplingDataset
 
 from .iterators import (
     CountingIterator,
