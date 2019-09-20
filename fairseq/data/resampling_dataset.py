@@ -79,6 +79,8 @@ class ResamplingDataset(BaseWrapperDataset):
 
     @property
     def sizes(self):
+        if isinstance(self.dataset.sizes, list):
+            return [s[self._cur_indices.array] for s in self.dataset.sizes]
         return self.dataset.sizes[self._cur_indices.array]
 
     def num_tokens(self, index):

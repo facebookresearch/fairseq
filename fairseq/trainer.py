@@ -225,10 +225,11 @@ class Trainer(object):
 
         return extra_state
 
-    def get_train_iterator(self, epoch, combine=True):
+    def get_train_iterator(self, epoch, combine=True, load_dataset=True):
         """Return an EpochBatchIterator over the training set for a given epoch."""
-        print('| loading train data for epoch {}'.format(epoch))
-        self.task.load_dataset(self.args.train_subset, epoch=epoch, combine=combine)
+        if load_dataset:
+            print('| loading train data for epoch {}'.format(epoch))
+            self.task.load_dataset(self.args.train_subset, epoch=epoch, combine=combine)
         return self.task.get_batch_iterator(
             dataset=self.task.dataset(self.args.train_subset),
             max_tokens=self.args.max_tokens,

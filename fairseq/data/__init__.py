@@ -32,6 +32,7 @@ from .prepend_dataset import PrependDataset
 from .prepend_token_dataset import PrependTokenDataset
 from .raw_label_dataset import RawLabelDataset
 from .replace_dataset import ReplaceDataset
+from .resampling_dataset import ResamplingDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
 from .sharded_dataset import ShardedDataset
 from .sort_dataset import SortDataset
@@ -77,13 +78,14 @@ __all__ = [
     'NoisingDataset',
     'NumelDataset',
     'NumSamplesDataset',
-    "OffsetTokensDataset",
+    'OffsetTokensDataset',
     'PadDataset',
     'PrependDataset',
     'PrependTokenDataset',
     'ReplaceDataset',
     'FileAudioDataset',
-    "RawLabelDataset",
+    'RawLabelDataset',
+    'ResamplingDataset'
     'RightPadDataset',
     'RoundRobinZipDatasets',
     'ShardedDataset',
@@ -94,6 +96,6 @@ __all__ = [
     'TokenBlockDataset',
     'TransformEosDataset',
     'TransformEosLangPairDataset',
-    "TruncateDataset",
+    'TruncateDataset',
     'TruncatedDictionary',
 ]
