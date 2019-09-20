@@ -22,6 +22,23 @@ else:
     extra_compile_args = ['-std=c++11', '-O3']
 
 
+class NumpyExtension(Extension):
+    """Source: https://stackoverflow.com/a/54128391"""
+
+    def __init__(self, *args, **kwargs):
+        self.__include_dirs = []
+        super().__init__(*args, **kwargs)
+
+    @property
+    def include_dirs(self):
+        import numpy
+        return self.__include_dirs + [numpy.get_include()]
+
+    @include_dirs.setter
+    def include_dirs(self, dirs):
+        self.__include_dirs = dirs
+
+
 extensions = [
     Extension(
         'fairseq.libbleu',
@@ -31,35 +48,19 @@ extensions = [
         ],
         extra_compile_args=extra_compile_args,
     ),
-    Extension(
+    NumpyExtension(
         'fairseq.data.data_utils_fast',
         sources=['fairseq/data/data_utils_fast.pyx'],
         language='c++',
         extra_compile_args=extra_compile_args,
     ),
-    Extension(
+    NumpyExtension(
         'fairseq.data.token_block_utils_fast',
         sources=['fairseq/data/token_block_utils_fast.pyx'],
         language='c++',
         extra_compile_args=extra_compile_args,
     ),
 ]
-
-
-def my_build_ext(pars):
-    """
-    Delay loading of numpy headers.
-    More details: https://stackoverflow.com/a/54138355
-    """
-    from setuptools.command.build_ext import build_ext as _build_ext
-
-    class build_ext(_build_ext):
-        def finalize_options(self):
-            _build_ext.finalize_options(self)
-            __builtins__.__NUMPY_SETUP__ = False
-            import numpy
-            self.include_dirs.append(numpy.get_include())
-    return build_ext(pars)
 
 
 setup(
@@ -77,13 +78,13 @@ setup(
     long_description=readme,
     long_description_content_type='text/markdown',
     setup_requires=[
-        'numpy',
         'cython',
         'numpy',
         'setuptools>=18.0',
     ],
     install_requires=[
         'cffi',
+        'cython',
         'fastBPE',
         'numpy',
         'regex',
@@ -105,6 +106,5 @@ setup(
             'fairseq-validate = fairseq_cli.validate:cli_main',
         ],
     },
-    cmdclass={'build_ext': my_build_ext},
     zip_safe=False,
 )

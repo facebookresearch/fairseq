@@ -108,3 +108,6 @@ class FairseqOptimizer(object):
         if hasattr(self.optimizer, 'supports_memory_efficient_fp16'):
             return self.optimizer.supports_memory_efficient_fp16
         return False
+
+    def average_params(self):
+        pass

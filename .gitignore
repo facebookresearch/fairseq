@@ -110,12 +110,16 @@ ENV/
 .mypy_cache/
 
 # Generated files
-fairseq/temporal_convolution_tbc
-fairseq/modules/*_layer/*_forward.cu
-fairseq/modules/*_layer/*_backward.cu
+/fairseq/temporal_convolution_tbc
+/fairseq/modules/*_layer/*_forward.cu
+/fairseq/modules/*_layer/*_backward.cu
 
 # data
 data-bin/
 
 # reranking
-examples/reranking/rerank_data
+/examples/reranking/rerank_data
+
+# Cython-generated C++ source files
+/fairseq/data/data_utils_fast.cpp
+/fairseq/data/token_block_utils_fast.cpp
