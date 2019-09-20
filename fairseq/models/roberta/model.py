@@ -291,7 +291,8 @@ class RobertaEncoder(FairseqDecoder):
 
     def extract_features(self, src_tokens, return_all_hiddens=False, **unused):
         inner_states, _ = self.sentence_encoder(
-            src_tokens, last_state_only=not return_all_hiddens,
+            src_tokens,
+            last_state_only=not return_all_hiddens,
         )
         features = inner_states[-1]
         return features, {'inner_states': inner_states if return_all_hiddens else None}
@@ -331,4 +332,14 @@ def roberta_large_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
+    base_architecture(args)
+
+
+@register_model_architecture('roberta', 'xlm')
+def xlm_architecture(args):
+    args.encoder_layers = getattr(args, 'encoder_layers', 16)
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1280)
+    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 1280*4)
+    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
+
     base_architecture(args)
