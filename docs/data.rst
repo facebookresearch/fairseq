@@ -30,6 +30,8 @@ provide additional functionality:
     :members:
 .. autoclass:: fairseq.data.ConcatDataset
     :members:
+.. autoclass:: fairseq.data.ResamplingDataset
+    :members:
 .. autoclass:: fairseq.data.RoundRobinZipDatasets
     :members:
 .. autoclass:: fairseq.data.TransformEosDataset

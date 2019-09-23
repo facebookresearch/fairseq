@@ -15,6 +15,12 @@ from . import FairseqOptimizer, register_optimizer
 
 @register_optimizer('adam')
 class FairseqAdam(FairseqOptimizer):
+    """Adam optimizer for fairseq.
+
+    Important note: this optimizer corresponds to the "AdamW" variant of
+    Adam in its weight decay behavior. As such, it is most closely
+    analogous to torch.optim.AdamW from PyTorch.
+    """
 
     def __init__(self, args, params):
         super().__init__(args)
