@@ -286,7 +286,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
     ):
         # Recreate epoch iterator every epoch cause the underlying
         # datasets are dynamic due to sampling.
-        self.epoch_iter = None
+        self.dataset_to_epoch_iter = None
         return super().get_batch_iterator(
             dataset, max_tokens, max_sentences, max_positions,
             ignore_invalid_inputs, required_batch_size_multiple,
