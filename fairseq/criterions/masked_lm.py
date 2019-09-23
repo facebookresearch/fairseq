@@ -31,9 +31,18 @@ class MaskedLmLoss(FairseqCriterion):
         """
         # compute MLM loss
         masked_tokens = sample['target'].ne(self.padding_idx)
+        sample_size = masked_tokens.int().sum().item()
+
+        # (Rare case) When all tokens are masked, the model results in empty
+        # tensor and gives CUDA error.
+        if sample_size == 0:
+            masked_tokens = None
+
         logits = model(**sample['net_input'], masked_tokens=masked_tokens)[0]
         targets = model.get_targets(sample, [logits])
-        targets = targets[masked_tokens]
+
+        if sample_size != 0:
+            targets = targets[masked_tokens]
 
         loss = F.nll_loss(
             F.log_softmax(
@@ -45,9 +54,6 @@ class MaskedLmLoss(FairseqCriterion):
             reduction='sum',
             ignore_index=self.padding_idx,
         )
-
-        sample_size = masked_tokens.int().sum().item()
-
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
             'nll_loss': utils.item(loss.data) if reduce else loss.data,
