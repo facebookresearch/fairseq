@@ -19,6 +19,8 @@ Fairseq provides reference implementations of various sequence-to-sequence model
   - [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
   - [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
   - [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
+  - [Controlling Length in Abstractive Summarization Using a Convolutional
+Neural Network (Liu et al., 2018)](https://www.aclweb.org/anthology/D18-1444)
   - [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
 - **LightConv and DynamicConv models**
   - [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
