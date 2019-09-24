@@ -61,7 +61,7 @@ DATA_DIR=data-bin/wikitext-103
 fairseq-train --fp16 $DATA_DIR \
     --task masked_lm --criterion masked_lm \
     --arch roberta_base --sample-break-mode complete --tokens-per-sample $TOKENS_PER_SAMPLE \
-    --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-6 --clip-norm 0.0 \
+    --optimizer adam --adam-betas '(0.9,0.98)' --adam-eps 1e-6 --clip-norm 0.0 \
     --lr-scheduler polynomial_decay --lr $PEAK_LR --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_UPDATES \
     --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
     --max-sentences $MAX_SENTENCES --update-freq $UPDATE_FREQ \
