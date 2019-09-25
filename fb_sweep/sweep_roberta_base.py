@@ -10,8 +10,11 @@ def get_grid(args):
 
     return [
         hyperparam('--train-subset', 'train' if not args.local else 'valid'),
+        hyperparam('--skip-invalid-size-inputs-valid-test'),
 
-        hyperparam('--fp16', save_dir_key=lambda val: 'fp16'),
+        hyperparam('--fast-stat-sync', save_dir_key=lambda _: 'faststatsync'),
+
+        hyperparam('--memory-efficient-fp16', save_dir_key=lambda val: 'me_fp16'),
         hyperparam('--num-workers', 2),
 
         hyperparam('--task', 'masked_lm'),
