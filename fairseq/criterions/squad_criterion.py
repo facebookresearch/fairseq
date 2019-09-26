@@ -59,7 +59,7 @@ class SquadCriterion(FairseqCriterion):
         nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         agg_output = {
-            'loss': loss_sum / sample_size / math.log(2),
+            'loss': loss_sum / sample_size / math.log(2) if sample_size else math.inf,
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,
