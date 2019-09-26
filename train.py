@@ -20,7 +20,6 @@ from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
 from scripts.eval_squad import eval_dataset
-from scripts.eval_mrqa import eval_dataset as mrqa_eval_dataset
 
 def main(args):
     dummy_batch_size = args.max_tokens
@@ -101,8 +100,6 @@ def main(args):
             save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
             if args.task == 'squad':
                 eval_dataset(task, trainer.get_model(), task.dataset('valid'), args.data_file, args)
-            elif args.task == 'mrqa':
-                mrqa_eval_dataset(task, trainer.get_model(), task.dataset('valid'), args.data_file, args)
 
     train_meter.stop()
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
