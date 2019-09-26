@@ -9,6 +9,7 @@ import importlib
 import os
 
 from .fairseq_criterion import FairseqCriterion
+from .aucprhingeloss import AUCPRHingeLoss
 
 
 CRITERION_REGISTRY = {}
