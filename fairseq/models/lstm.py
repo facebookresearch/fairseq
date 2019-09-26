@@ -281,9 +281,9 @@ class AttentionLayer(nn.Module):
 
     def forward(self, input, source_hids, encoder_padding_mask):
         # input: bsz x input_embed_dim
-        # source_hids: srclen x bsz x output_embed_dim
+        # source_hids: srclen x bsz x source_embed_dim
 
-        # x: bsz x output_embed_dim
+        # x: bsz x source_embed_dim
         x = self.input_proj(input)
 
         # compute attention
