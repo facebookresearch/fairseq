@@ -70,9 +70,15 @@ class ConcatDataset(FairseqDataset):
 
     @property
     def sizes(self):
-        return np.concatenate(
-            [np.tile(ds.sizes, sr) for ds, sr in zip(self.datasets, self.sample_ratios)]
-        )
+        _dataset_sizes = []
+        for ds, sr in zip(self.datasets, self.sample_ratios):
+            if isinstance(ds.sizes, np.ndarray):
+                _dataset_sizes.append(np.tile(ds.sizes, sr))
+            else:
+                # Only support underlying dataset with single size array.
+                assert isinstance(ds.sizes, list)
+                _dataset_sizes.append(np.tile(ds.sizes[0], sr))
+        return np.concatenate(_dataset_sizes)
 
     @property
     def supports_prefetch(self):

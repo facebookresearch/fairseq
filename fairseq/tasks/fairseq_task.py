@@ -24,6 +24,7 @@ class FairseqTask(object):
     def __init__(self, args):
         self.args = args
         self.datasets = {}
+        self.dataset_to_epoch_iter = {}
 
     @classmethod
     def load_dictionary(cls, filename):
@@ -119,12 +120,20 @@ class FairseqTask(object):
                 (default: 0).
             epoch (int, optional): the epoch to start the iterator from
                 (default: 0).
-
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
         """
+        # For default fairseq task, return same iterator across epochs
+        # as datasets are not dynamic, can be overridden in task specific
+        # setting.
+        if dataset in self.dataset_to_epoch_iter:
+            return self.dataset_to_epoch_iter[dataset]
+
         assert isinstance(dataset, FairseqDataset)
+
+        # initialize the dataset with the correct starting epoch
+        dataset.set_epoch(epoch)
 
         # get indices ordered by example size
         with data_utils.numpy_seed(seed):
@@ -143,7 +152,7 @@ class FairseqTask(object):
         )
 
         # return a reusable, sharded iterator
-        return iterators.EpochBatchIterator(
+        epoch_iter = iterators.EpochBatchIterator(
             dataset=dataset,
             collate_fn=dataset.collater,
             batch_sampler=batch_sampler,
@@ -153,6 +162,8 @@ class FairseqTask(object):
             num_workers=num_workers,
             epoch=epoch,
         )
+        self.dataset_to_epoch_iter[dataset] = epoch_iter
+        return epoch_iter
 
     def build_model(self, args):
         """

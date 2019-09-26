@@ -214,8 +214,9 @@ class MultilingualTranslationTask(FairseqTask):
             )
             return self.alter_dataset_langtok(
                 langpair_dataset,
-                src_eos=self.dicts[tgt].eos(),
+                src_eos=self.dicts[src].eos(),
                 src_lang=src,
+                tgt_eos=self.dicts[tgt].eos(),
                 tgt_lang=tgt,
             )
 
@@ -239,6 +240,7 @@ class MultilingualTranslationTask(FairseqTask):
                     ),
                     src_eos=self.source_dictionary.eos(),
                     src_lang=self.args.source_lang,
+                    tgt_eos=self.target_dictionary.eos(),
                     tgt_lang=self.args.target_lang,
                 ),
             )]),

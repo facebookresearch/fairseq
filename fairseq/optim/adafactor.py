@@ -121,7 +121,7 @@ class Adafactor(torch.optim.Optimizer):
         return tensor.norm(2) / (tensor.numel() ** 0.5)
 
     def _approx_sq_grad(self, exp_avg_sq_row, exp_avg_sq_col, output):
-        r_factor = (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1)).rsqrt_().unsqueeze(-1)
+        r_factor = (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1).unsqueeze(-1)).rsqrt_().unsqueeze(-1)
         c_factor = exp_avg_sq_col.unsqueeze(-2).rsqrt()
         torch.mul(r_factor, c_factor, out=output)
 

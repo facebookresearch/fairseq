@@ -11,6 +11,7 @@ from .base_wrapper_dataset import BaseWrapperDataset
 
 from .audio.raw_audio_dataset import FileAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
+from .colorize_dataset import ColorizeDataset
 from .concat_dataset import ConcatDataset
 from .concat_sentences_dataset import ConcatSentencesDataset
 from .id_dataset import IdDataset
@@ -31,6 +32,7 @@ from .prepend_dataset import PrependDataset
 from .prepend_token_dataset import PrependTokenDataset
 from .raw_label_dataset import RawLabelDataset
 from .replace_dataset import ReplaceDataset
+from .resampling_dataset import ResamplingDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
 from .sharded_dataset import ShardedDataset
 from .sort_dataset import SortDataset
@@ -40,6 +42,7 @@ from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
 from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
 from .truncate_dataset import TruncateDataset
+from .resampling_dataset import ResamplingDataset
 
 from .iterators import (
     CountingIterator,
@@ -51,6 +54,7 @@ from .iterators import (
 __all__ = [
     'BacktranslationDataset',
     'BaseWrapperDataset',
+    'ColorizeDataset',
     'ConcatDataset',
     'ConcatSentencesDataset',
     'CountingIterator',
@@ -74,13 +78,14 @@ __all__ = [
     'NoisingDataset',
     'NumelDataset',
     'NumSamplesDataset',
-    "OffsetTokensDataset",
+    'OffsetTokensDataset',
     'PadDataset',
     'PrependDataset',
     'PrependTokenDataset',
     'ReplaceDataset',
     'FileAudioDataset',
-    "RawLabelDataset",
+    'RawLabelDataset',
+    'ResamplingDataset'
     'RightPadDataset',
     'RoundRobinZipDatasets',
     'ShardedDataset',
@@ -91,6 +96,6 @@ __all__ = [
     'TokenBlockDataset',
     'TransformEosDataset',
     'TransformEosLangPairDataset',
-    "TruncateDataset",
+    'TruncateDataset',
     'TruncatedDictionary',
 ]
