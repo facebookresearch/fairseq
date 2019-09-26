@@ -48,7 +48,7 @@ fairseq-train \
     --max-tokens 3500 --label-smoothing 0.1 \
     --save-dir ./checkpoints --log-interval 1000 --max-update 60000 \
     --keep-interval-updates -1 --save-interval-updates 0 \
-    --load-alignments --criterion label_smoothed_cross_entropy_with_alignment
+    --load-alignments --criterion label_smoothed_cross_entropy_with_alignment \
     --fp16
 ```
 
@@ -63,7 +63,7 @@ If you want to train the above model with big batches (assuming your machine has
 fairseq-generate \
     binarized --gen-subset test --print-alignment \
     --source-lang en --target-lang de \
-    --path checkpoints/checkpoint_best.pt --beam 5 --nbest 1\
+    --path checkpoints/checkpoint_best.pt --beam 5 --nbest 1
 ```
 
 ##### 5. Other resources.
