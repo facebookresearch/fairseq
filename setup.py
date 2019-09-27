@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from setuptools import setup, find_packages, Extension
+from torch.utils import cpp_extension
 import sys
 
 
@@ -60,6 +61,12 @@ extensions = [
         language='c++',
         extra_compile_args=extra_compile_args,
     ),
+    cpp_extension.CppExtension(
+        'fairseq.libnat',
+        sources=[
+            'fairseq/clib/libnat/edit_dist.cpp',
+        ],
+    )
 ]
 
 
@@ -106,5 +113,6 @@ setup(
             'fairseq-validate = fairseq_cli.validate:cli_main',
         ],
     },
+    cmdclass={'build_ext': cpp_extension.BuildExtension},
     zip_safe=False,
 )

@@ -180,6 +180,52 @@ class TestTranslation(unittest.TestCase):
                 ])
                 generate_main(data_dir)
 
+    def test_levenshtein_transformer(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_levenshtein_transformer') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'levenshtein_transformer', [
+                    '--apply-bert-init', '--early-exit', '6,6,6',
+                    '--criterion', 'nat_loss'
+                ], task='translation_lev')
+                generate_main(data_dir)
+
+    def test_nonautoregressive_transformer(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_nonautoregressive_transformer') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'nonautoregressive_transformer', [
+                    '--apply-bert-init', '--src-embedding-copy', '--criterion',
+                    'nat_loss', '--noise', 'full_mask', '--pred-length-offset',
+                    '--length-loss-factor', '0.1'
+                ], task='translation_lev')
+                generate_main(data_dir)
+
+    def test_iterative_nonautoregressive_transformer(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_iterative_nonautoregressive_transformer') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'iterative_nonautoregressive_transformer', [
+                    '--apply-bert-init', '--src-embedding-copy', '--criterion',
+                    'nat_loss', '--noise', 'full_mask', '--stochastic-approx',
+                    '--dae-ratio', '0.5', '--train-step', '3'
+                ], task='translation_lev')
+                generate_main(data_dir)
+
+    def test_insertion_transformer(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_insertion_transformer') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'insertion_transformer', [
+                    '--apply-bert-init', '--criterion', 'nat_loss', '--noise',
+                    'random_mask'
+                ], task='translation_lev')
+                generate_main(data_dir)
+
     def test_mixture_of_experts(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_moe') as data_dir:

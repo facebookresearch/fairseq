@@ -280,6 +280,8 @@ def add_dataset_args(parser, train=False, gen=False):
                                 ' (train, valid, valid1, test, test1)')
         group.add_argument('--validate-interval', type=int, default=1, metavar='N',
                            help='validate every N epochs')
+        group.add_argument('--fixed-validation-seed', default=None, type=int, metavar='N',
+                           help='specified random seed for validation')
         group.add_argument('--disable-validation', action='store_true',
                            help='disable validation')
         group.add_argument('--max-tokens-valid', type=int, metavar='N',
@@ -493,6 +495,18 @@ def add_generation_args(parser):
                        help='strength of diversity penalty for Diverse Beam Search')
     group.add_argument('--print-alignment', action='store_true',
                        help='if set, uses attention feedback to compute and print alignment to source tokens')
+    group.add_argument('--print-step', action='store_true')
+
+    # arguments for iterative refinement generator
+    group.add_argument('---iter-decode-eos-penalty', default=0.0, type=float, metavar='N',
+                       help='if > 0.0, it penalized early-stopping in decoding.')
+    group.add_argument('--iter-decode-max-iter', default=10, type=int, metavar='N',
+                       help='maximum iterations for iterative refinement.')
+    group.add_argument('--iter-decode-force-max-iter', action='store_true',
+                       help='if set, run exact the maximum number of iterations without early stop')
+
+    # special decoding format for advanced decoding.
+    group.add_argument('--decoding-format', default=None, type=str, choices=['unigram', 'ensemble', 'vote', 'dp', 'bs'])
     # fmt: on
     return group
 

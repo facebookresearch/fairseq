@@ -159,6 +159,9 @@ def main(args):
                                 ' '.join(map(lambda x: str(utils.item(x)), alignment))
                             ))
 
+                        if args.print_step:
+                            print('I-{}\t{}'.format(sample_id, hypo['steps']))
+
                     # Score only the top hypothesis
                     if has_target and j == 0:
                         if align_dict is not None or args.remove_bpe is not None:

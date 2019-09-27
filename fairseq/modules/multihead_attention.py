@@ -91,7 +91,7 @@ class MultiheadAttention(nn.Module):
             nn.init.xavier_normal_(self.bias_v)
 
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None,
-                need_weights=True, static_kv=False, attn_mask=None):
+                need_weights=True, static_kv=False, attn_mask=None, before_softmax=False):
         """Input shape: Time x Batch x Channel
 
         Timesteps can be masked by supplying a T x T mask in the
@@ -238,6 +238,9 @@ class MultiheadAttention(nn.Module):
                     float('-inf'),
                 )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+
+        if before_softmax:
+            return attn_weights, v
 
         attn_weights = utils.softmax(
             attn_weights, dim=-1, onnx_trace=self.onnx_trace,

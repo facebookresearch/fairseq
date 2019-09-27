@@ -83,7 +83,7 @@ class TransformerEncoderLayer(nn.Module):
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
         if attn_mask is not None:
-            attn_mask = attn_mask.masked_fill(attn_mask.byte(), -1e8)
+            attn_mask = attn_mask.masked_fill(attn_mask.bool(), -1e8)
         # anything in original attn_mask = 1, becomes -1e8
         # anything in original attn_mask = 0, becomes 0
         # Note that we cannot use -inf here, because at some edge cases,

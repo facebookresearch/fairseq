@@ -6,6 +6,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- September 2019: [Nonautoregressive translation code released](examples/nonautoregressive_translation/README.md)
 - August 2019: [WMT'19 models released](examples/wmt19/README.md)
 - July 2019: fairseq relicensed under MIT license
 - July 2019: [RoBERTa models and code released](examples/roberta/README.md)
@@ -32,6 +33,13 @@ Fairseq provides reference implementations of various sequence-to-sequence model
   - [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
   - [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
   - [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
+- **Non-autoregressive Transformers**
+  - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
+  - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
+  - Insertion Transformer: Flexible Sequence Generation via Insertion Operations (Stern et al. 2019)
+  - Mask-Predict: Parallel Decoding of Conditional Masked Language Models (Ghazvininejad et al., 2019)
+  - [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
+
 
 **Additionally:**
 - multi-GPU (distributed) training on one machine or across multiple machines
@@ -50,7 +58,7 @@ translation and language modeling datasets.
 
 # Requirements and Installation
 
-* [PyTorch](http://pytorch.org/) version >= 1.1.0
+* [PyTorch](http://pytorch.org/) version >= 1.2.0
 * Python version >= 3.5
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 * **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library with the `--cuda_ext` option
@@ -92,6 +100,7 @@ as well as example training and evaluation commands.
 - [Language Modeling](examples/language_model/README.md): convolutional and transformer models are available
 
 We also have more detailed READMEs to reproduce results from specific papers:
+- [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
 - [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
 - [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
 - [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
