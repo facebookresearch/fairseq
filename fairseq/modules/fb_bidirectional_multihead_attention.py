@@ -145,7 +145,7 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
                 torch.Tensor([float("-Inf")]).type_as(tensor)
             )
         else:
-            ones = tensor.new_ones(half_dim, dim).byte()
+            ones = tensor.new_ones(half_dim, dim).bool()
             mask = ones.triu(half_dim + 1) + ones.tril(-1)
             mask = utils.fill_with_neg_inf(tensor.new(mask.size())).masked_fill_(mask, 0)
         return mask

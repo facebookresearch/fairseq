@@ -359,3 +359,11 @@ def has_parameters(module):
         return True
     except StopIteration:
         return False
+
+
+def set_torch_seed(seed):
+    # Set seed based on args.seed and the update number so that we get
+    # reproducible results when resuming from checkpoints
+    assert isinstance(seed, int)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)

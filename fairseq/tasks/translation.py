@@ -12,6 +12,7 @@ from fairseq.data import (
     data_utils,
     indexed_dataset,
     LanguagePairDataset,
+    PrependTokenDataset,
 )
 
 from . import FairseqTask, register_task
@@ -22,7 +23,8 @@ def load_langpair_dataset(
     src, src_dict,
     tgt, tgt_dict,
     combine, dataset_impl, upsample_primary,
-    left_pad_source, left_pad_target, max_source_positions, max_target_positions,
+    left_pad_source, left_pad_target, max_source_positions,
+    max_target_positions, prepend_bos=False,
 ):
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
@@ -66,6 +68,11 @@ def load_langpair_dataset(
         sample_ratios[0] = upsample_primary
         src_dataset = ConcatDataset(src_datasets, sample_ratios)
         tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
+
+    if prepend_bos:
+        assert hasattr(src_dict, "bos_index") and hasattr(tgt_dict, "bos_index")
+        src_dataset = PrependTokenDataset(src_dataset, src_dict.bos())
+        tgt_dataset = PrependTokenDataset(tgt_dataset, tgt_dict.bos())
 
     return LanguagePairDataset(
         src_dataset, src_dataset.sizes, src_dict,

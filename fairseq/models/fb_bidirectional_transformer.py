@@ -259,9 +259,9 @@ class BiTransformerDecoder(FairseqDecoder):
         # compute padding mask
         if self.char_inputs:
             # casting to byte for onnx
-            padding_mask = src_tokens[:, :, 0].eq(CHAR_PAD_IDX).byte()
+            padding_mask = src_tokens[:, :, 0].eq(CHAR_PAD_IDX).bool()
         else:
-            padding_mask = src_tokens.eq(self.padding_idx).byte()
+            padding_mask = src_tokens.eq(self.padding_idx).bool()
 
         # embed positions
         positional_input = self.padding_idx * padding_mask.long()

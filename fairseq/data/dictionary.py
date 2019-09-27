@@ -74,7 +74,10 @@ class Dictionary(object):
             else:
                 return self[i]
 
-        sent = ' '.join(token_string(i) for i in tensor if i != self.eos())
+        if hasattr(self, 'bos_index'):
+            sent = ' '.join(token_string(i) for i in tensor if (i != self.eos()) and (i != self.bos()))
+        else:
+            sent = ' '.join(token_string(i) for i in tensor if i != self.eos())
         return data_utils.process_bpe_symbol(sent, bpe_symbol)
 
     def unk_string(self, escape=False):

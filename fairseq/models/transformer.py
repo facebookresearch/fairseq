@@ -172,7 +172,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
-        return TransformerModel(encoder, decoder)
+        return cls(encoder, decoder)
 
     @classmethod
     def build_encoder(cls, args, src_dict, embed_tokens):
@@ -222,7 +222,15 @@ class TransformerEncoder(FairseqEncoder):
         else:
             self.layer_norm = None
 
-    def forward(self, src_tokens, src_lengths):
+    def forward_embedding(self, src_tokens):
+        # embed tokens and positions
+        embed = self.embed_scale * self.embed_tokens(src_tokens)
+        if self.embed_positions is not None:
+            x = embed + self.embed_positions(src_tokens)
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        return x, embed
+
+    def forward(self, src_tokens, src_lengths, cls_input=None):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -237,11 +245,7 @@ class TransformerEncoder(FairseqEncoder):
                 - **encoder_padding_mask** (ByteTensor): the positions of
                   padding elements of shape `(batch, src_len)`
         """
-        # embed tokens and positions
-        x = self.embed_scale * self.embed_tokens(src_tokens)
-        if self.embed_positions is not None:
-            x += self.embed_positions(src_tokens)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x, encoder_embedding = self.forward_embedding(src_tokens)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
@@ -261,6 +265,7 @@ class TransformerEncoder(FairseqEncoder):
         return {
             'encoder_out': x,  # T x B x C
             'encoder_padding_mask': encoder_padding_mask,  # B x T
+            'encoder_embedding': encoder_embedding,  # B x T x C
         }
 
     def reorder_encoder_out(self, encoder_out, new_order):
@@ -332,7 +337,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         embed_dim = args.decoder_embed_dim
         self.output_embed_dim = args.decoder_output_dim
 
-        padding_idx = embed_tokens.padding_idx
+        self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = args.max_target_positions
 
         self.embed_tokens = embed_tokens
@@ -341,7 +346,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.project_in_dim = Linear(input_embed_dim, embed_dim, bias=False) if embed_dim != input_embed_dim else None
 
         self.embed_positions = PositionalEmbedding(
-            args.max_target_positions, embed_dim, padding_idx,
+            args.max_target_positions, embed_dim, self.padding_idx,
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
