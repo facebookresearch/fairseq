@@ -189,4 +189,4 @@ replacing ``node_rank=0`` with ``node_rank=1`` on the second node:
         --lr 0.0005 --min-lr 1e-09 \
         --dropout 0.3 --weight-decay 0.0 --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
         --max-tokens 3584 \
-        --fp16
+        --fp16  --distributed-no-spawn 
