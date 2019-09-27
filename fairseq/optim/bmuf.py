@@ -127,7 +127,9 @@ class FairseqBMUF(FairseqOptimizer):
 
     def _is_bmuf_iter(self):
         # Check whether train iterations is equal to bmuf sync iter
-        if self.get_num_updates() % self.sync_iter == 0:
+        if (self.get_num_updates() > self.warmup_iteration) and (
+            self.get_num_updates() % self.sync_iter == 0
+        ):
             return True
         return False
 
