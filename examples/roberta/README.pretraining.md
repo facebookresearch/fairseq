@@ -4,7 +4,7 @@ This tutorial will walk you through pretraining RoBERTa over your own data.
 
 ### 1) Preprocess the data
 
-Data should be preprocessed following the [language modeling format](/examples/language_model).
+Data should be preprocessed following the [language modeling format](/examples/language_model), i.e. each document should be separated by an empty line (only useful with `--sample-break-mode complete_doc`). Lines will be concatenated as a 1D text stream during training.
 
 We'll use the [WikiText-103 dataset](https://www.salesforce.com/products/einstein/ai-research/the-wikitext-dependency-language-modeling-dataset/)
 to demonstrate how to preprocess raw text data with the GPT-2 BPE. Of course
