@@ -17,10 +17,30 @@ class FairseqDecoder(nn.Module):
         self.dictionary = dictionary
 
     def forward(self, prev_output_tokens, encoder_out):
+        """
+        Args:
+            prev_output_tokens (LongTensor): previous decoder outputs of shape
+                `(batch, tgt_len)`, for input feeding/teacher forcing
+            encoder_out (Tensor, optional): output from the encoder, used for
+                encoder-side attention
+
+        Returns:
+            tuple:
+                - the last decoder layer's output of shape
+                  `(batch, tgt_len, vocab)`
+                - the last decoder layer's attention weights of shape
+                  `(batch, tgt_len, src_len)`
+        """
         raise NotImplementedError
 
-    def get_normalized_probs(self, net_output, log_probs):
+    def get_normalized_probs(self, net_output, log_probs, sample):
         """Get normalized probabilities (or log probs) from a net's output."""
+
+        if hasattr(self, 'adaptive_softmax') and self.adaptive_softmax is not None:
+            assert sample is not None and 'target' in sample
+            out = self.adaptive_softmax.get_log_prob(net_output[0], sample['target'])
+            return out.exp_() if not log_probs else out
+
         logits = net_output[0].float()
         if log_probs:
             return F.log_softmax(logits, dim=-1)
@@ -29,7 +49,8 @@ class FairseqDecoder(nn.Module):
 
     def max_positions(self):
         """Maximum input length supported by the decoder."""
-        raise NotImplementedError
+        return 1e6  # an arbitrary large number
 
     def upgrade_state_dict(self, state_dict):
+        """Upgrade a (possibly old) state dict for new versions of fairseq."""
         return state_dict

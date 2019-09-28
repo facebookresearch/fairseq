@@ -5,6 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import torch
 import torch.nn.functional as F
 
 from fairseq import utils
@@ -28,13 +29,13 @@ class LinearizedConvolution(ConvTBC):
 
     def forward(self, input, incremental_state=None):
         """
-        Input:
-            Time x Batch x Channel during training
-            Batch x Time x Channel during inference
         Args:
             incremental_state: Used to buffer signal; if not None, then input is
                 expected to contain a single frame. If the input order changes
                 between time steps, call reorder_incremental_state.
+        Input:
+            Time x Batch x Channel during training
+            Batch x Time x Channel during inference
         """
         if incremental_state is None:
             output = super().forward(input)
@@ -59,8 +60,8 @@ class LinearizedConvolution(ConvTBC):
                 input_buffer[:, :-1, :] = input_buffer[:, 1:, :].clone()
             # append next input
             input_buffer[:, -1, :] = input[:, -1, :]
-            input = utils.volatile_variable(input_buffer)
-        with utils.maybe_no_grad():
+            input = input_buffer
+        with torch.no_grad():
             output = F.linear(input.view(bsz, -1), weight, self.bias)
         return output.view(bsz, 1, -1)
 

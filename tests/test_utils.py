@@ -8,7 +8,6 @@
 import unittest
 
 import torch
-from torch.autograd import Variable
 
 from fairseq import utils
 
@@ -76,16 +75,6 @@ class TestUtils(unittest.TestCase):
             right_pad_output,
             utils.make_positions(right_pad_input, pad, left_pad=False),
         )
-
-    def test_make_variable(self):
-        t = [{'k': torch.rand(5, 5)}]
-
-        v = utils.make_variable(t)[0]['k']
-        self.assertTrue(isinstance(v, Variable))
-        self.assertFalse(v.data.is_cuda)
-
-        v = utils.make_variable(t, cuda=True)[0]['k']
-        self.assertEqual(v.data.is_cuda, torch.cuda.is_available())
 
     def assertAlmostEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")

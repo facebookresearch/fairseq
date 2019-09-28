@@ -5,9 +5,10 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import numpy as np
 import os
 import struct
+
+import numpy as np
 import torch
 
 from fairseq.tokenizer import Tokenizer
@@ -48,10 +49,18 @@ def data_file_path(prefix_path):
     return prefix_path + '.bin'
 
 
-class IndexedDataset(object):
+class IndexedDataset(torch.utils.data.Dataset):
     """Loader for TorchNet IndexedDataset"""
 
-    def __init__(self, path):
+    def __init__(self, path, fix_lua_indexing=True, read_data=True):
+        super().__init__()
+        self.fix_lua_indexing = fix_lua_indexing
+        self.read_index(path)
+        self.data_file = None
+        if read_data:
+            self.read_data(path)
+
+    def read_index(self, path):
         with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
             assert magic == b'TNTIDX\x00\x00'
@@ -63,7 +72,6 @@ class IndexedDataset(object):
             self.dim_offsets = read_longs(f, self.size + 1)
             self.data_offsets = read_longs(f, self.size + 1)
             self.sizes = read_longs(f, self.s)
-        self.read_data(path)
 
     def read_data(self, path):
         self.data_file = open(data_file_path(path), 'rb', buffering=0)
@@ -73,7 +81,8 @@ class IndexedDataset(object):
             raise IndexError('index out of range')
 
     def __del__(self):
-        self.data_file.close()
+        if self.data_file:
+            self.data_file.close()
 
     def __getitem__(self, i):
         self.check_index(i)
@@ -81,10 +90,19 @@ class IndexedDataset(object):
         a = np.empty(tensor_size, dtype=self.dtype)
         self.data_file.seek(self.data_offsets[i] * self.element_size)
         self.data_file.readinto(a)
-        return torch.from_numpy(a)
+        item = torch.from_numpy(a).long()
+        if self.fix_lua_indexing:
+            item -= 1  # subtract 1 for 0-based indexing
+        return item
 
     def __len__(self):
         return self.size
+
+    def read_into(self, start, dst):
+        self.data_file.seek(start * self.element_size)
+        self.data_file.readinto(dst)
+        if self.fix_lua_indexing:
+            dst -= 1  # subtract 1 for 0-based indexing
 
     @staticmethod
     def exists(path):
@@ -92,6 +110,47 @@ class IndexedDataset(object):
             os.path.exists(index_file_path(path)) and
             os.path.exists(data_file_path(path))
         )
+
+
+class IndexedCachedDataset(IndexedDataset):
+
+    def __init__(self, path, fix_lua_indexing=True):
+        super().__init__(path, fix_lua_indexing, True)
+        self.cache = None
+        self.cache_index = {}
+
+    @property
+    def supports_prefetch(self):
+        return True
+
+    def prefetch(self, indices):
+        if all(i in self.cache_index for i in indices):
+            return
+        indices = sorted(set(indices))
+        total_size = 0
+        for i in indices:
+            total_size += self.data_offsets[i + 1] - self.data_offsets[i]
+        self.cache = np.empty(total_size, dtype=self.dtype)
+        ptx = 0
+        self.cache_index.clear()
+        for i in indices:
+            self.cache_index[i] = ptx
+            size = self.data_offsets[i + 1] - self.data_offsets[i]
+            a = self.cache[ptx : ptx + size]
+            self.data_file.seek(self.data_offsets[i] * self.element_size)
+            self.data_file.readinto(a)
+            ptx += size
+
+    def __getitem__(self, i):
+        self.check_index(i)
+        tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
+        a = np.empty(tensor_size, dtype=self.dtype)
+        ptx = self.cache_index[i]
+        np.copyto(a, self.cache[ptx : ptx + a.size])
+        item = torch.from_numpy(a).long()
+        if self.fix_lua_indexing:
+            item -= 1  # subtract 1 for 0-based indexing
+        return item
 
 
 class IndexedInMemoryDataset(IndexedDataset):
@@ -102,6 +161,8 @@ class IndexedInMemoryDataset(IndexedDataset):
         self.buffer = np.empty(self.data_offsets[-1], dtype=self.dtype)
         self.data_file.readinto(self.buffer)
         self.data_file.close()
+        if self.fix_lua_indexing:
+            self.buffer -= 1  # subtract 1 for 0-based indexing
 
     def __del__(self):
         pass
@@ -111,7 +172,7 @@ class IndexedInMemoryDataset(IndexedDataset):
         tensor_size = self.sizes[self.dim_offsets[i]:self.dim_offsets[i + 1]]
         a = np.empty(tensor_size, dtype=self.dtype)
         np.copyto(a, self.buffer[self.data_offsets[i]:self.data_offsets[i + 1]])
-        return torch.from_numpy(a)
+        return torch.from_numpy(a).long()
 
 
 class IndexedRawTextDataset(IndexedDataset):
@@ -133,8 +194,8 @@ class IndexedRawTextDataset(IndexedDataset):
                 self.lines.append(line.strip('\n'))
                 tokens = Tokenizer.tokenize(
                     line, dictionary, add_if_not_exist=False,
-                    append_eos=self.append_eos, reverse_order=self.reverse_order,
-                ) + 1  # +1 for Lua compatibility
+                    reverse_order=self.reverse_order,
+                ).long()
                 self.tokens_list.append(tokens)
                 self.sizes.append(len(tokens))
         self.sizes = np.array(self.sizes)
@@ -147,18 +208,27 @@ class IndexedRawTextDataset(IndexedDataset):
         self.check_index(i)
         return self.lines[i]
 
+    def read_into(self, start, dst):
+        if self.token_blob is None:
+            self.token_blob = [t for l in self.tokens_list for t in l]
+
+        np.copyto(dst, self.token_blob[start:])
+
     def __del__(self):
         pass
 
     def __len__(self):
         return self.size
 
+    @staticmethod
+    def exists(path):
+        return os.path.exists(path)
+
 
 class IndexedDatasetBuilder(object):
-
     element_sizes = {
         np.uint8: 1,
-        np.int8:  1,
+        np.int8: 1,
         np.int16: 2,
         np.int32: 4,
         np.int64: 8,
@@ -176,21 +246,39 @@ class IndexedDatasetBuilder(object):
 
     def add_item(self, tensor):
         # +1 for Lua compatibility
-        bytes = self.out_file.write(np.array(tensor.numpy() + 1, dtype=self.dtype))
+        bytes = self.out_file.write(np.array(tensor.numpy(), dtype=self.dtype))
         self.data_offsets.append(self.data_offsets[-1] + bytes / self.element_size)
         for s in tensor.size():
             self.sizes.append(s)
         self.dim_offsets.append(self.dim_offsets[-1] + len(tensor.size()))
+
+    def merge_file_(self, another_file):
+        index = IndexedDataset(another_file, read_data=False)
+        assert index.dtype == self.dtype
+
+        begin = self.data_offsets[-1]
+        for offset in index.data_offsets[1:]:
+            self.data_offsets.append(begin + offset)
+        self.sizes.extend(index.sizes)
+        begin = self.dim_offsets[-1]
+        for dim_offset in index.dim_offsets[1:]:
+            self.dim_offsets.append(begin + dim_offset)
+
+        with open(data_file_path(another_file), 'rb') as f:
+            while True:
+                data = f.read(1024)
+                if data:
+                    self.out_file.write(data)
+                else:
+                    break
 
     def finalize(self, index_file):
         self.out_file.close()
         index = open(index_file, 'wb')
         index.write(b'TNTIDX\x00\x00')
         index.write(struct.pack('<Q', 1))
-        index.write(struct.pack('<QQ', code(self.dtype),
-                                self.element_size))
-        index.write(struct.pack('<QQ', len(self.data_offsets) - 1,
-                                len(self.sizes)))
+        index.write(struct.pack('<QQ', code(self.dtype), self.element_size))
+        index.write(struct.pack('<QQ', len(self.data_offsets) - 1, len(self.sizes)))
         write_longs(index, self.dim_offsets)
         write_longs(index, self.data_offsets)
         write_longs(index, self.sizes)

@@ -5,8 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import torch.optim.lr_scheduler
-
 from . import FairseqLRScheduler, register_lr_scheduler
 
 
@@ -16,6 +14,9 @@ class FixedSchedule(FairseqLRScheduler):
 
     def __init__(self, args, optimizer):
         super().__init__(args, optimizer)
+
+        # set defaults
+        args.warmup_updates = getattr(args, 'warmup_updates', 0) or 0
 
         self.lr = args.lr[0]
         if args.warmup_updates > 0:
@@ -38,7 +39,7 @@ class FixedSchedule(FairseqLRScheduler):
             next_lr = lrs[min(epoch, len(lrs) - 1)]
         else:
             # annneal based on lr_shrink
-            next_lr = lrs[-1] * self.args.lr_shrink ** (epoch + 1 - self.args.force_anneal)
+            next_lr = lrs[-1] - self.args.lr_shrink * (epoch + 1 - self.args.force_anneal)
         return next_lr
 
     def step(self, epoch, val_loss=None):
@@ -50,7 +51,9 @@ class FixedSchedule(FairseqLRScheduler):
 
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
-        if num_updates <= self.args.warmup_updates:
+        if self.args.warmup_updates > 0 and num_updates <= self.args.warmup_updates:
             self.warmup_factor = num_updates / float(self.args.warmup_updates)
             self.optimizer.set_lr(self.warmup_factor * self.lr)
+        #else:
+        #    self.optimizer.set_lr(self.args.lr[-1] - self.args.lr_shrink * (num_updates + 1))
         return self.optimizer.get_lr()

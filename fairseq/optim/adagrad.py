@@ -27,4 +27,6 @@ class Adagrad(FairseqOptimizer):
         return {
             'lr': self.args.lr[0],
             'weight_decay': self.args.weight_decay,
+            'initial_accumulator_value': self.args.initial_accumulator_value,
+            'lr_decay':self.args.lr_decay,
         }
