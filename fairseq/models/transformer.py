@@ -122,6 +122,13 @@ class TransformerModel(FairseqEncoderDecoderModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        # args for "Cross+Self-Attention for Transformer Models" (Peitz et al., 2019)
+        parser.add_argument('--no-cross-attention', default=False, action='store_true',
+                            help='do not perform cross-attention')
+        parser.add_argument('--cross-self-attention', default=False, action='store_true',
+                            help='perform cross+self-attention')
+        parser.add_argument('--layer-wise-attention', default=False, action='store_true',
+                            help='perform layer-wise attention (cross-attention or cross+self-attention)')
         # fmt: on
 
     @classmethod
@@ -180,7 +187,12 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
     @classmethod
     def build_decoder(cls, args, tgt_dict, embed_tokens):
-        return TransformerDecoder(args, tgt_dict, embed_tokens)
+        return TransformerDecoder(
+            args,
+            tgt_dict,
+            embed_tokens,
+            no_encoder_attn=getattr(args, 'no_cross_attention', False),
+        )
 
 
 class TransformerEncoder(FairseqEncoder):
@@ -211,6 +223,8 @@ class TransformerEncoder(FairseqEncoder):
             learned=args.encoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
 
+        self.layer_wise_attention = getattr(args, 'layer_wise_attention', False)
+
         self.layers = nn.ModuleList([])
         self.layers.extend([
             TransformerEncoderLayer(args)
@@ -230,13 +244,15 @@ class TransformerEncoder(FairseqEncoder):
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x, embed
 
-    def forward(self, src_tokens, src_lengths, cls_input=None):
+    def forward(self, src_tokens, src_lengths, cls_input=None, return_all_hiddens=False):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
                 `(batch, src_len)`
             src_lengths (torch.LongTensor): lengths of each source sentence of
                 shape `(batch)`
+            return_all_hiddens (bool, optional): also return all of the
+                intermediate hidden states (default: False).
 
         Returns:
             dict:
@@ -244,7 +260,13 @@ class TransformerEncoder(FairseqEncoder):
                   shape `(src_len, batch, embed_dim)`
                 - **encoder_padding_mask** (ByteTensor): the positions of
                   padding elements of shape `(batch, src_len)`
+                - **encoder_states** (List[Tensor]): all intermediate
+                  hidden states of shape `(src_len, batch, embed_dim)`.
+                  Only populated if *return_all_hiddens* is True.
         """
+        if self.layer_wise_attention:
+            return_all_hiddens = True
+
         x, encoder_embedding = self.forward_embedding(src_tokens)
 
         # B x T x C -> T x B x C
@@ -255,17 +277,24 @@ class TransformerEncoder(FairseqEncoder):
         if not encoder_padding_mask.any():
             encoder_padding_mask = None
 
+        encoder_states = [] if return_all_hiddens else None
+
         # encoder layers
         for layer in self.layers:
             x = layer(x, encoder_padding_mask)
+            if return_all_hiddens:
+                encoder_states.append(x)
 
         if self.layer_norm:
             x = self.layer_norm(x)
+            if return_all_hiddens:
+                encoder_states[-1] = x
 
         return {
             'encoder_out': x,  # T x B x C
             'encoder_padding_mask': encoder_padding_mask,  # B x T
             'encoder_embedding': encoder_embedding,  # B x T x C
+            'encoder_states': encoder_states,  # List[T x B x C]
         }
 
     def reorder_encoder_out(self, encoder_out, new_order):
@@ -285,6 +314,9 @@ class TransformerEncoder(FairseqEncoder):
         if encoder_out['encoder_padding_mask'] is not None:
             encoder_out['encoder_padding_mask'] = \
                 encoder_out['encoder_padding_mask'].index_select(0, new_order)
+        if encoder_out.get('encoder_states', None) is not None:
+            for idx, state in enumerate(encoder_out['encoder_states']):
+                encoder_out['encoder_states'][idx] = state.index_select(1, new_order)
         return encoder_out
 
     def max_positions(self):
@@ -292,6 +324,14 @@ class TransformerEncoder(FairseqEncoder):
         if self.embed_positions is None:
             return self.max_source_positions
         return min(self.max_source_positions, self.embed_positions.max_positions())
+
+    def buffered_future_mask(self, tensor):
+        dim = tensor.size(0)
+        if not hasattr(self, '_future_mask') or self._future_mask is None or self._future_mask.device != tensor.device:
+            self._future_mask = torch.triu(utils.fill_with_neg_inf(tensor.new(dim, dim)), 1)
+            if self._future_mask.size(0) < dim:
+                self._future_mask = torch.triu(utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1)
+        return self._future_mask[:dim, :dim]
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
@@ -349,6 +389,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             args.max_target_positions, embed_dim, self.padding_idx,
             learned=args.decoder_learned_pos,
         ) if not args.no_token_positional_embeddings else None
+
+        self.cross_self_attention = getattr(args, 'cross_self_attention', False)
+        self.layer_wise_attention = getattr(args, 'layer_wise_attention', False)
 
         self.layers = nn.ModuleList([])
         self.layers.extend([
@@ -435,14 +478,26 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         inner_states = [x]
 
+        self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
+        if not self_attn_padding_mask.any() and not self.cross_self_attention:
+            self_attn_padding_mask = None
+
         # decoder layers
-        for layer in self.layers:
+        for idx, layer in enumerate(self.layers):
+            encoder_state = None
+            if encoder_out is not None:
+                if self.layer_wise_attention:
+                    encoder_state = encoder_out['encoder_states'][idx]
+                else:
+                    encoder_state = encoder_out['encoder_out']
+
             x, attn = layer(
                 x,
-                encoder_out['encoder_out'] if encoder_out is not None else None,
+                encoder_state,
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 incremental_state,
                 self_attn_mask=self.buffered_future_mask(x) if incremental_state is None else None,
+                self_attn_padding_mask=self_attn_padding_mask,
             )
             inner_states.append(x)
 
@@ -553,6 +608,9 @@ def base_architecture(args):
     args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
     args.adaptive_input = getattr(args, 'adaptive_input', False)
+    args.no_cross_attention = getattr(args, 'no_cross_attention', False)
+    args.cross_self_attention = getattr(args, 'cross_self_attention', False)
+    args.layer_wise_attention = getattr(args, 'layer_wise_attention', False)
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
     args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)

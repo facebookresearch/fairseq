@@ -186,8 +186,15 @@ class MultiheadAttention(nn.Module):
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
+            if 'prev_key_padding_mask' in saved_state and saved_state['prev_key_padding_mask'] is not None:
+                prev_key_padding_mask = saved_state['prev_key_padding_mask']
+                if static_kv:
+                    key_padding_mask = prev_key_padding_mask
+                else:
+                    key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
             saved_state['prev_key'] = k.view(bsz, self.num_heads, -1, self.head_dim)
             saved_state['prev_value'] = v.view(bsz, self.num_heads, -1, self.head_dim)
+            saved_state['prev_key_padding_mask'] = key_padding_mask
 
             self._set_input_buffer(incremental_state, saved_state)
 
@@ -311,7 +318,8 @@ class MultiheadAttention(nn.Module):
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
             for k in input_buffer.keys():
-                input_buffer[k] = input_buffer[k].index_select(0, new_order)
+                if input_buffer[k] is not None:
+                    input_buffer[k] = input_buffer[k].index_select(0, new_order)
             self._set_input_buffer(incremental_state, input_buffer)
 
     def _get_input_buffer(self, incremental_state):
