@@ -154,6 +154,23 @@ class TestTranslation(unittest.TestCase):
                 ], run_validation=True)
                 generate_main(data_dir)
 
+    def test_transformer_cross_self_attention(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_transformer_cross_self_attention') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'transformer_iwslt_de_en', [
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--no-cross-attention',
+                    '--cross-self-attention',
+                    '--layer-wise-attention',
+                ], run_validation=True)
+                generate_main(data_dir, extra_flags=[])
+
     def test_lightconv(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_lightconv') as data_dir:
@@ -543,6 +560,10 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
 
 
 def generate_main(data_dir, extra_flags=None):
+    if extra_flags is None:
+        extra_flags = [
+            '--print-alignment',
+        ]
     generate_parser = options.get_generation_parser()
     generate_args = options.parse_args_and_arch(
         generate_parser,
@@ -554,7 +575,6 @@ def generate_main(data_dir, extra_flags=None):
             '--max-len-b', '5',
             '--gen-subset', 'valid',
             '--no-progress-bar',
-            '--print-alignment',
         ] + (extra_flags or []),
     )
 
