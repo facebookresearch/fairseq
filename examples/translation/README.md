@@ -236,7 +236,7 @@ cat iwslt17.test.${SRC}-en.${SRC}.bpe \
     | fairseq-interactive data-bin/iwslt17.de_fr.en.bpe16k/ \
       --task multilingual_translation --source-lang ${SRC} --target-lang en \
       --path checkpoints/multilingual_transformer/checkpoint_best.pt \
-      --buffer 2000 --batch-size 128 \
+      --buffer-size 2000 --batch-size 128 \
       --beam 5 --remove-bpe=sentencepiece \
     > iwslt17.test.${SRC}-en.en.sys
 grep ^H iwslt17.test.${SRC}-en.en.sys | cut -f3 \
