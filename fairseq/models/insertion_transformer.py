@@ -6,7 +6,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from fairseq import libnat
+
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.levenshtein_transformer import (
     LevenshteinTransformerDecoder,
@@ -51,6 +51,13 @@ neg_scorer = NegativeDistanceScore()
 
 
 def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx, vocab_size, tau=None):
+    try:
+        from fairseq import libnat
+    except ImportError as e:
+        import sys
+        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
+        raise e
+
     B = in_tokens.size(0)
     T = in_tokens.size(1)
     V = vocab_size
