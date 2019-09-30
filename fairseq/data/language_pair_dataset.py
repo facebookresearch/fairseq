@@ -22,6 +22,28 @@ def collate(
             pad_idx, eos_idx, left_pad, move_eos_to_beginning,
         )
 
+    def check_alignment(alignment, src_len, tgt_len):
+        if alignment is None or len(alignment) == 0:
+            return False
+        if alignment[:, 0].max().item() >= src_len - 1 or alignment[:, 1].max().item() >= tgt_len - 1:
+            print("| alignment size mismatch found, skipping alignment!")
+            return False
+        return True
+
+    def compute_alignment_weights(alignments):
+        """
+        Given a tensor of shape [:, 2] containing the source-target indices
+        corresponding to the alignments, a weight vector containing the
+        inverse frequency of each target index is computed.
+        For e.g. if alignments = [[5, 7], [2, 3], [1, 3], [4, 2]], then
+        a tensor containing [1., 0.5, 0.5, 1] should be returned (since target
+        index 3 is repeated twice)
+        """
+        align_tgt = alignments[:, 1]
+        _, align_tgt_i, align_tgt_c = torch.unique(align_tgt, return_inverse=True, return_counts=True)
+        align_weights = align_tgt_c[align_tgt_i[np.arange(len(align_tgt))]]
+        return 1. / align_weights.float()
+
     id = torch.LongTensor([s['id'] for s in samples])
     src_tokens = merge('source', left_pad=left_pad_source)
     # sort by descending source length
@@ -35,6 +57,7 @@ def collate(
     if samples[0].get('target', None) is not None:
         target = merge('target', left_pad=left_pad_target)
         target = target.index_select(0, sort_order)
+        tgt_lengths = torch.LongTensor([s['target'].numel() for s in samples]).index_select(0, sort_order)
         ntokens = sum(len(s['target']) for s in samples)
 
         if input_feeding:
@@ -61,6 +84,32 @@ def collate(
     }
     if prev_output_tokens is not None:
         batch['net_input']['prev_output_tokens'] = prev_output_tokens
+
+    if samples[0].get('alignment', None) is not None:
+        bsz, tgt_sz = batch['target'].shape
+        src_sz = batch['net_input']['src_tokens'].shape[1]
+
+        offsets = torch.zeros((len(sort_order), 2), dtype=torch.long)
+        offsets[:, 1] += (torch.arange(len(sort_order), dtype=torch.long) * tgt_sz)
+        if left_pad_source:
+            offsets[:, 0] += (src_sz - src_lengths)
+        if left_pad_target:
+            offsets[:, 1] += (tgt_sz - tgt_lengths)
+
+        alignments = [
+            alignment + offset
+            for align_idx, offset, src_len, tgt_len in zip(sort_order, offsets, src_lengths, tgt_lengths)
+            for alignment in [samples[align_idx]['alignment'].view(-1, 2)]
+            if check_alignment(alignment, src_len, tgt_len)
+        ]
+
+        if len(alignments) > 0:
+            alignments = torch.cat(alignments, dim=0)
+            align_weights = compute_alignment_weights(alignments)
+
+            batch['alignments'] = alignments
+            batch['align_weights'] = align_weights
+
     return batch
 
 
@@ -91,6 +140,8 @@ class LanguagePairDataset(FairseqDataset):
             of source if it's present (default: False).
         append_eos_to_target (bool, optional): if set, appends eos to end of
             target if it's absent (default: False).
+        align_dataset (torch.utils.data.Dataset, optional): dataset
+            containing alignments.
     """
 
     def __init__(
@@ -98,7 +149,9 @@ class LanguagePairDataset(FairseqDataset):
         tgt=None, tgt_sizes=None, tgt_dict=None,
         left_pad_source=True, left_pad_target=False,
         max_source_positions=1024, max_target_positions=1024,
-        shuffle=True, input_feeding=True, remove_eos_from_source=False, append_eos_to_target=False,
+        shuffle=True, input_feeding=True,
+        remove_eos_from_source=False, append_eos_to_target=False,
+        align_dataset=None,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -118,6 +171,9 @@ class LanguagePairDataset(FairseqDataset):
         self.input_feeding = input_feeding
         self.remove_eos_from_source = remove_eos_from_source
         self.append_eos_to_target = append_eos_to_target
+        self.align_dataset = align_dataset
+        if self.align_dataset is not None:
+            assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
 
     def __getitem__(self, index):
         tgt_item = self.tgt[index] if self.tgt is not None else None
@@ -136,11 +192,14 @@ class LanguagePairDataset(FairseqDataset):
             if self.src[index][-1] == eos:
                 src_item = self.src[index][:-1]
 
-        return {
+        example = {
             'id': index,
             'source': src_item,
             'target': tgt_item,
         }
+        if self.align_dataset is not None:
+            example['alignment'] = self.align_dataset[index]
+        return example
 
     def __len__(self):
         return len(self.src)
@@ -212,3 +271,5 @@ class LanguagePairDataset(FairseqDataset):
         self.src.prefetch(indices)
         if self.tgt is not None:
             self.tgt.prefetch(indices)
+        if self.align_dataset is not None:
+            self.align_dataset.prefetch(indices)

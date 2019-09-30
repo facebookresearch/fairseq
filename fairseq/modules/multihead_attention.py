@@ -90,15 +90,37 @@ class MultiheadAttention(nn.Module):
         if self.bias_v is not None:
             nn.init.xavier_normal_(self.bias_v)
 
-    def forward(self, query, key, value, key_padding_mask=None, incremental_state=None,
-                need_weights=True, static_kv=False, attn_mask=None, before_softmax=False):
+    def forward(
+        self,
+        query, key, value,
+        key_padding_mask=None,
+        incremental_state=None,
+        need_weights=True,
+        static_kv=False,
+        attn_mask=None,
+        before_softmax=False,
+        need_head_weights=False,
+    ):
         """Input shape: Time x Batch x Channel
 
-        Timesteps can be masked by supplying a T x T mask in the
-        `attn_mask` argument. Padding elements can be excluded from
-        the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
-        batch x src_len, where padding elements are indicated by 1s.
+        Args:
+            key_padding_mask (ByteTensor, optional): mask to exclude
+                keys that are pads, of shape `(batch, src_len)`, where
+                padding elements are indicated by 1s.
+            need_weights (bool, optional): return the attention weights,
+                averaged over heads (default: False).
+            attn_mask (ByteTensor, optional): typically used to
+                implement causal attention, where the mask prevents the
+                attention from looking forward in time (default: None).
+            before_softmax (bool, optional): return the raw attention
+                weights and values before the attention softmax.
+            need_head_weights (bool, optional): return the attention
+                weights for each head. Implies *need_weights*. Default:
+                return the average attention weights over all heads.
         """
+        if need_head_weights:
+            need_weights = True
+
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
@@ -249,12 +271,11 @@ class MultiheadAttention(nn.Module):
         if before_softmax:
             return attn_weights, v
 
-        attn_weights = utils.softmax(
-            attn_weights, dim=-1, onnx_trace=self.onnx_trace,
-        ).type_as(attn_weights)
-        attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
+        attn_weights_float = utils.softmax(attn_weights, dim=-1, onnx_trace=self.onnx_trace)
+        attn_weights = attn_weights_float.type_as(attn_weights)
+        attn_probs = F.dropout(attn_weights_float.type_as(attn_weights), p=self.dropout, training=self.training)
 
-        attn = torch.bmm(attn_weights, v)
+        attn = torch.bmm(attn_probs, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         if (self.onnx_trace and attn.size(1) == 1):
             # when ONNX tracing a single decoder step (sequence length == 1)
@@ -265,9 +286,10 @@ class MultiheadAttention(nn.Module):
         attn = self.out_proj(attn)
 
         if need_weights:
-            # average attention weights over heads
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights.sum(dim=1) / self.num_heads
+            attn_weights = attn_weights_float.view(bsz, self.num_heads, tgt_len, src_len).transpose(1, 0)
+            if not need_head_weights:
+                # average attention weights over heads
+                attn_weights = attn_weights.mean(dim=0)
         else:
             attn_weights = None
 

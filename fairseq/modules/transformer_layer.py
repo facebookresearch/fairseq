@@ -195,16 +195,25 @@ class TransformerDecoderLayer(nn.Module):
         prev_attn_state=None,
         self_attn_mask=None,
         self_attn_padding_mask=None,
+        need_attn=False,
+        need_head_weights=False,
     ):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
-            encoder_padding_mask (ByteTensor): binary ByteTensor of shape
-                `(batch, src_len)` where padding elements are indicated by ``1``.
+            encoder_padding_mask (ByteTensor, optional): binary
+                ByteTensor of shape `(batch, src_len)` where padding
+                elements are indicated by ``1``.
+            need_attn (bool, optional): return attention weights
+            need_head_weights (bool, optional): return attention weights
+                for each head (default: return average over heads).
 
         Returns:
             encoded output of shape `(seq_len, batch, embed_dim)`
         """
+        if need_head_weights:
+            need_attn = True
+
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
         if prev_self_attn_state is not None:
@@ -259,7 +268,8 @@ class TransformerDecoderLayer(nn.Module):
                 key_padding_mask=encoder_padding_mask,
                 incremental_state=incremental_state,
                 static_kv=True,
-                need_weights=(not self.training and self.need_attn),
+                need_weights=need_attn or (not self.training and self.need_attn),
+                need_head_weights=need_head_weights,
             )
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = residual + x
