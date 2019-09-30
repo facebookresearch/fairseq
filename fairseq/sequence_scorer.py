@@ -14,6 +14,7 @@ class SequenceScorer(object):
 
     def __init__(self, tgt_dict, softmax_batch=None):
         self.pad = tgt_dict.pad()
+        self.eos = tgt_dict.eos()
         self.softmax_batch = softmax_batch or sys.maxsize
         assert self.softmax_batch > 0
 
@@ -44,6 +45,7 @@ class SequenceScorer(object):
             )
             return probs
 
+
         orig_target = sample['target']
 
         # compute scores for each model in the ensemble
@@ -53,6 +55,8 @@ class SequenceScorer(object):
             model.eval()
             decoder_out = model.forward(**net_input)
             attn = decoder_out[1]
+            if type(attn) is dict:
+                attn = attn.get('attn', None)
 
             batched = batch_for_softmax(decoder_out, orig_target)
             probs, idx = None, 0
@@ -100,8 +104,9 @@ class SequenceScorer(object):
             avg_probs_i = avg_probs[i][start_idxs[i]:start_idxs[i] + tgt_len]
             score_i = avg_probs_i.sum() / tgt_len
             if avg_attn is not None:
-                avg_attn_i = avg_attn[i, start_idxs[i]:]
-                _, alignment = avg_attn_i.max(dim=0)
+                avg_attn_i = avg_attn[i]
+                alignment = utils.extract_hard_alignment(avg_attn_i, sample['net_input']['src_tokens'][i],
+                                                         sample['target'][i], self.pad, self.eos)
             else:
                 avg_attn_i = alignment = None
             hypos.append([{

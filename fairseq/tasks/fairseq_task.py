@@ -198,8 +198,12 @@ class FairseqTask(object):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(self.target_dictionary)
         else:
-            from fairseq.sequence_generator import SequenceGenerator
-            return SequenceGenerator(
+            from fairseq.sequence_generator import SequenceGenerator, SequenceGeneratorWithAlignment
+            if getattr(args, 'print_alignment', False):
+                seq_gen_cls = SequenceGeneratorWithAlignment
+            else:
+                seq_gen_cls = SequenceGenerator
+            return seq_gen_cls(
                 self.target_dictionary,
                 beam_size=getattr(args, 'beam', 5),
                 max_len_a=getattr(args, 'max_len_a', 0),

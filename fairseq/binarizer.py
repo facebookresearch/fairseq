@@ -53,6 +53,22 @@ class Binarizer:
         return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': replaced}
 
     @staticmethod
+    def binarize_alignments(filename, alignment_parser, consumer, offset=0, end=-1):
+        nseq = 0
+
+        with open(filename, 'r') as f:
+            f.seek(offset)
+            line = safe_readline(f)
+            while line:
+                if end > 0 and f.tell() > end:
+                    break
+                ids = alignment_parser(line)
+                nseq += 1
+                consumer(ids)
+                line = f.readline()
+        return {'nseq': nseq}
+
+    @staticmethod
     def find_offsets(filename, num_chunks):
         with open(filename, 'r', encoding='utf-8') as f:
             size = os.fstat(f.fileno()).st_size
