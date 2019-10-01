@@ -156,6 +156,7 @@ class FairseqTask(object):
             required_batch_size_multiple=required_batch_size_multiple,
         )
 
+        print("| Created batch samples")
         # return a reusable, sharded iterator
         epoch_iter = iterators.EpochBatchIterator(
             dataset=dataset,

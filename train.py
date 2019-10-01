@@ -99,6 +99,10 @@ def main(args, init_distributed=False):
 
         reload_dataset = ':' in getattr(args, 'data', '')
         # sharded data: get train iterator for next epoch
+
+        # Hack delete previous iters
+        del epoch_itr._cur_epoch_itr.itr
+
         epoch_itr = trainer.get_train_iterator(epoch_itr.epoch, load_dataset=reload_dataset)
     train_meter.stop()
     print('| done training in {:.1f} seconds'.format(train_meter.sum))
@@ -123,11 +127,12 @@ def train(args, trainer, task, epoch_itr):
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
+
+    print("| starting training epoch: {0}".format(epoch_itr.epoch))
     for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
         log_output = trainer.train_step(samples)
         if log_output is None:
             continue
-
         # log mid-epoch stats
         stats = get_training_stats(trainer)
         for k, v in log_output.items():
@@ -160,6 +165,7 @@ def train(args, trainer, task, epoch_itr):
 
     # log end-of-epoch stats
     stats = get_training_stats(trainer)
+
     for k, meter in extra_meters.items():
         stats[k] = meter.avg
     progress.print(stats, tag='train', step=stats['num_updates'])
@@ -238,16 +244,19 @@ def validate(args, trainer, task, epoch_itr, subsets):
 
         for sample in progress:
             log_output = trainer.valid_step(sample)
-
             for k, v in log_output.items():
-                if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
+                if k in ['loss', 'nll_loss', 'ntokens', 'nsentences']:
                     continue
+                if k == 'accuracy':
+                    extra_meters[k].update(v, log_output['sample_size'])
                 extra_meters[k].update(v)
 
         # log validation stats
         stats = get_valid_stats(trainer, args, extra_meters)
+
         for k, meter in extra_meters.items():
-            stats[k] = meter.avg
+            if k != 'sample_size':
+                stats[k] = meter.avg
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
         valid_losses.append(
@@ -255,6 +264,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
             if args.best_checkpoint_metric == 'loss'
             else stats[args.best_checkpoint_metric]
         )
+        del itr.itr
     return valid_losses
 
 

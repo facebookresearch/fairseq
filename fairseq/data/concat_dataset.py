@@ -8,7 +8,8 @@ import bisect
 import numpy as np
 from torch.utils.data.dataloader import default_collate
 
-from . import FairseqDataset
+from . import FairseqDataset, plasma_utils
+from fairseq.data.resampling_dataset import ResamplingDataset
 
 
 class ConcatDataset(FairseqDataset):
@@ -21,7 +22,7 @@ class ConcatDataset(FairseqDataset):
             s += curr_len
         return r
 
-    def __init__(self, datasets, sample_ratios=1):
+    def __init__(self, datasets, sample_ratios=1, epoch=0, safe_to_remove_underlying_sizes=False):
         super(ConcatDataset, self).__init__()
         assert len(datasets) > 0, "datasets should not be an empty iterable"
         self.datasets = list(datasets)
@@ -30,6 +31,9 @@ class ConcatDataset(FairseqDataset):
         self.sample_ratios = sample_ratios
         self.cumulative_sizes = self.cumsum(self.datasets, sample_ratios)
         self.real_sizes = [len(d) for d in self.datasets]
+        self._safe_to_remove_underlying_sizes = safe_to_remove_underlying_sizes
+        self._init_sizes()
+        self._epoch = epoch
 
     def __len__(self):
         return self.cumulative_sizes[-1]
@@ -62,7 +66,8 @@ class ConcatDataset(FairseqDataset):
         return self.datasets[dataset_idx].size(sample_idx)
 
     def num_tokens(self, index: int):
-        return np.max(self.size(index))
+        # return np.max(self.size(index))
+        return self.sizes[index]
 
     def attr(self, attr: str, index: int):
         dataset_idx = bisect.bisect_right(self.cumulative_sizes, index)
@@ -70,6 +75,9 @@ class ConcatDataset(FairseqDataset):
 
     @property
     def sizes(self):
+        return self._sizes.array
+
+    def _init_sizes(self):
         _dataset_sizes = []
         for ds, sr in zip(self.datasets, self.sample_ratios):
             if isinstance(ds.sizes, np.ndarray):
@@ -78,7 +86,15 @@ class ConcatDataset(FairseqDataset):
                 # Only support underlying dataset with single size array.
                 assert isinstance(ds.sizes, list)
                 _dataset_sizes.append(np.tile(ds.sizes[0], sr))
-        return np.concatenate(_dataset_sizes)
+        self._sizes = plasma_utils.PlasmaArray(np.concatenate(_dataset_sizes))
+
+        # Hack to free up memory (only for multilingual_masked_lm)
+        if self._safe_to_remove_underlying_sizes:
+            for ds in self.datasets:
+                if isinstance(ds, ResamplingDataset):
+                    del ds.dataset.sizes[0]
+            # del ds.sizes[0]
+        # self._sizes = np.concatenate(_dataset_sizes)
 
     @property
     def supports_prefetch(self):
@@ -99,7 +115,11 @@ class ConcatDataset(FairseqDataset):
             frm = to
 
     def set_epoch(self, epoch):
+        if self._epoch == epoch:
+            return
+
         super().set_epoch(epoch)
         for ds in self.datasets:
             if hasattr(ds, 'set_epoch'):
                 ds.set_epoch(epoch)
+        self._init_sizes()
