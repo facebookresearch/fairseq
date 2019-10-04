@@ -255,17 +255,10 @@ class MultiheadAttention(nn.Module):
         if key_padding_mask is not None:
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            if self.onnx_trace:
-                attn_weights = torch.where(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2),
-                    torch.Tensor([float("-Inf")]),
-                    attn_weights.float()
-                ).type_as(attn_weights)
-            else:
-                attn_weights = attn_weights.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2),
-                    float('-inf'),
-                )
+            attn_weights = attn_weights.masked_fill(
+                key_padding_mask.unsqueeze(1).unsqueeze(2),
+                float('-inf'),
+            )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         if before_softmax:
