@@ -38,7 +38,7 @@ class LearnedPositionalEmbedding(nn.Embedding):
                 positions = input.data.new(1, 1).fill_(int(self.padding_idx + input.size(1)))
             else:
                 positions = utils.make_positions(
-                    input.data, self.padding_idx, onnx_trace=self.onnx_trace,
+                    input, self.padding_idx, onnx_trace=self.onnx_trace,
                 )
         return super().forward(positions)
 
