@@ -52,7 +52,6 @@ wget dl.fbaipublicfiles.com/fairseq/data/wmt14-en-de.extra_refs.tok
 
 Next apply BPE on the fly and run generation for each expert:
 ```bash
-BPEROOT=examples/translation/subword-nmt/
 BPE_CODE=examples/translation/wmt17_en_de/code
 for EXPERT in $(seq 0 2); do \
     cat wmt14-en-de.extra_refs.tok \
