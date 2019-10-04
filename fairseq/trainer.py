@@ -426,6 +426,14 @@ class Trainer(object):
 
             if 'nll_loss' in logging_output:
                 self.meters['train_nll_loss'].update(logging_output.get('nll_loss', 0), ntokens)
+
+            # clear CUDA cache to reduce memory fragmentation
+            if (self.args.empty_cache_freq > 0 and
+                    ((self.get_num_updates() + self.args.empty_cache_freq - 1) %
+                     self.args.empty_cache_freq) == 0 and
+                    torch.cuda.is_available() and
+                    not self.args.cpu):
+                torch.cuda.empty_cache()
         except OverflowError as e:
             print('| WARNING: overflow detected, ' + str(e))
             self.zero_grad()
