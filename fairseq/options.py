@@ -193,6 +193,8 @@ def get_parser(desc, default_task='translation'):
                         help='threshold FP16 loss scale from below')
     parser.add_argument('--user-dir', default=None,
                         help='path to a python module containing custom extensions (tasks and/or architectures)')
+    parser.add_argument('--empty-cache-freq', default=0, type=int,
+                        help='how often to clear the PyTorch CUDA cache (0 to disable)')
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():
