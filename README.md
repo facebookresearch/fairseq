@@ -99,6 +99,7 @@ as well as example training and evaluation commands.
 
 - [Translation](examples/translation/README.md): convolutional and transformer models are available
 - [Language Modeling](examples/language_model/README.md): convolutional and transformer models are available
+- [wav2vec](examples/wav2vec/README.md): wav2vec large model is available
 
 We also have more detailed READMEs to reproduce results from specific papers:
 - [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )

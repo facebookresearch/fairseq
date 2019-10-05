@@ -2,6 +2,27 @@
 
 Example to train a wav2vec model as described in [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](https://arxiv.org/abs/1904.05862).
 
+## Pre-trained models
+
+Description | Parameters | Dataset | Model
+---|---:|---|---
+Wav2Vec large <br> ([(Schneider et al., 2019)](https://arxiv.org/abs/1904.05862)) | 32.5M | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_large.pt)
+
+#### Example usage:
+```python
+import torch
+from fairseq.models.wav2vec import Wav2VecModel
+
+cp = torch.load('/path/to/wav2vec.pt')
+model = Wav2VecModel.build_model(cp['args'], task=None)
+model.load_state_dict(cp['model'])
+model.eval()
+
+wav_input_16khz = torch.randn(1,10000)
+z = model.feature_extractor(wav_input_16khz)
+c = model.feature_aggregator(z)
+```
+
 ## Training a new model with the CLI tools
 
 Given a directory containing wav files to be used for pretraining (we recommend splitting each file into separate file 10 to 30 seconds in length)
