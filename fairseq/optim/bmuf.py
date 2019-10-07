@@ -47,7 +47,7 @@ class FairseqBMUF(FairseqOptimizer):
         )
         parser.add_argument(
             "--global-sync-iter",
-            default=10,
+            default=50,
             type=int,
             help="Iteration for syncing global model",
         )
