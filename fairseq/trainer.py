@@ -313,10 +313,16 @@ class Trainer(object):
                         + '\n Skipping batch'
                     )
                     # TODO: print should really go to logger, this print goes
-                    # to stdout, which is buffered, which in many case is not
-                    # printed out if another exception happens
-                    # print(msg)
+                    # to stderr, which is buffered, which in many cases is not
+                    # printed out if another exception happens.
+                    # NB(jerry): added a flush to mitigate this
                     print(msg, file=sys.stderr)
+                    if torch.cuda.is_available() and hasattr(torch.cuda, "memory_summary"):
+                        for device_idx in range(torch.cuda.device_count()):
+                            print(torch.cuda.memory_summary(device=torch.cuda.device(device_idx)),
+                                  file=sys.stderr)
+                    sys.stderr.flush()
+
                     if raise_oom:
                         raise ValueError(msg)
                     ooms += 1
