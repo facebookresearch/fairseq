@@ -6,6 +6,8 @@
 import torch
 
 from fairseq.models.model_utils import skip_tensors as _skip
+from fairseq.models.nonautoregressive_ensembles import EnsembleLevT
+from fairseq.models.levenshtein_transformer import LevenshteinTransformerModel
 
 
 class IterativeRefinementGenerator(object):
@@ -44,9 +46,14 @@ class IterativeRefinementGenerator(object):
     @torch.no_grad()
     def generate(self, models, sample, prefix_tokens=None):
 
-        # TODO: model ensemble
-        assert len(models) == 1, 'only support single model'
-        model = models[0]
+        if len(models) == 1:
+            # Keep this for other NAT models for which we have yet to implement ensemble wrappers. Later delete this.
+            model = models[0]
+        elif isinstance(models[0], LevenshteinTransformerModel):
+            model = EnsembleLevT(models)
+        else:
+            raise NotImplementedError
+
         if not self.retain_dropout:
             model.eval()
 
