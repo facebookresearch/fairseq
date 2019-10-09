@@ -90,7 +90,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
                 os.remove(old_chk)
 
 
-def load_checkpoint(args, trainer):
+def load_checkpoint(args, trainer, data_selector=None):
     """Load a checkpoint and restore the training iterator."""
     # only one worker should attempt to create the required dir
     if args.distributed_rank == 0:
@@ -120,10 +120,10 @@ def load_checkpoint(args, trainer):
     if extra_state is not None and not args.reset_dataloader:
         # restore iterator from checkpoint
         itr_state = extra_state['train_iterator']
-        epoch_itr = trainer.get_train_iterator(epoch=itr_state['epoch'], load_dataset=True)
+        epoch_itr = trainer.get_train_iterator(epoch=itr_state['epoch'], load_dataset=True, data_selector=data_selector)
         epoch_itr.load_state_dict(itr_state)
     else:
-        epoch_itr = trainer.get_train_iterator(epoch=0, load_dataset=True)
+        epoch_itr = trainer.get_train_iterator(epoch=0, load_dataset=True, data_selector=data_selector)
 
     trainer.lr_step(epoch_itr.epoch)
 
