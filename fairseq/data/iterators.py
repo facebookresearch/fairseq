@@ -34,6 +34,8 @@ class CountingIterator(object):
 
     def __iter__(self):
         for x in self.iterable:
+            if self.count >= self.len:
+                return
             self.count += 1
             yield x
 
@@ -48,6 +50,12 @@ class CountingIterator(object):
         """Fast-forward the iterator by skipping *num_to_skip* elements."""
         next(itertools.islice(self.itr, num_to_skip, num_to_skip), None)
         return self
+
+    def take(self, n):
+        """
+        Truncates the iterator to n elements at most.
+        """
+        self.len = min(self.len, n)
 
 
 class EpochBatchIterating(object):
