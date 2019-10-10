@@ -58,3 +58,39 @@ def lengths_to_encoder_padding_mask(lengths, batch_first=False):
         return encoder_padding_mask.t(), max_lengths
     else:
         return encoder_padding_mask, max_lengths
+
+
+def encoder_padding_mask_to_lengths(
+    encoder_padding_mask, max_lengths, batch_size, device
+):
+    """
+    convert encoder_padding_mask (2-D binary tensor) to a 1-D tensor
+
+    Conventionally, encoder output contains a encoder_padding_mask, which is
+    a 2-D mask in a shape (T, B), whose (t, b) element indicate whether
+    encoder_out[t, b] is a valid output (=0) or not (=1). Occasionally, we
+    need to convert this mask tensor to a 1-D tensor in shape (B, ), where
+    [b] denotes the valid length of b-th sequence
+
+    Args:
+        encoder_padding_mask: a (T, B)-shaped binary tensor or None; if None,
+        indicating all are valid
+    Return:
+        seq_lengths: a (B,)-shaped tensor, where its (b, )-th element is the
+        number of valid elements of b-th sequence
+
+        max_lengths: maximum length of all sequence, if encoder_padding_mask is
+        not None, max_lengths must equal to encoder_padding_mask.size(0)
+
+        batch_size: batch size; if encoder_padding_mask is
+        not None, max_lengths must equal to encoder_padding_mask.size(1)
+
+        device: which device to put the result on
+    """
+    if encoder_padding_mask is None:
+        return torch.Tensor([max_lengths] * batch_size).to(torch.int32).to(device)
+
+    assert encoder_padding_mask.size(0) == max_lengths, "max_lengths does not match"
+    assert encoder_padding_mask.size(1) == batch_size, "batch_size does not match"
+
+    return max_lengths - torch.sum(encoder_padding_mask, dim=0)
