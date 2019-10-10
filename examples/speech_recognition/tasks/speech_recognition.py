@@ -11,6 +11,7 @@ import torch
 from fairseq.data import Dictionary
 from fairseq.tasks import FairseqTask, register_task
 from examples.speech_recognition.data import AsrDataset
+from examples.speech_recognition.data.replabels import replabel_symbol
 
 
 def get_asr_dataset_from_json(data_json_path, tgt_dict):
@@ -55,16 +56,12 @@ def get_asr_dataset_from_json(data_json_path, tgt_dict):
             speakers.append(m.group(1) + "_" + m.group(2))
         frame_sizes = [s[1]["input"]["length_ms"] for s in sorted_samples]
         tgt = [
-            torch.LongTensor(
-                [int(i) for i in s[1]["output"]["tokenid"].split(", ")]
-            )
+            torch.LongTensor([int(i) for i in s[1]["output"]["tokenid"].split(", ")])
             for s in sorted_samples
         ]
         # append eos
         tgt = [torch.cat([t, torch.LongTensor([tgt_dict.eos()])]) for t in tgt]
-        return AsrDataset(
-            aud_paths, frame_sizes, tgt, tgt_dict, ids, speakers
-        )
+        return AsrDataset(aud_paths, frame_sizes, tgt, tgt_dict, ids, speakers)
 
 
 @register_task("speech_recognition")
@@ -77,6 +74,9 @@ class SpeechRecognitionTask(FairseqTask):
     def add_args(parser):
         """Add task-specific arguments to the parser."""
         parser.add_argument("data", help="path to data directory")
+        parser.add_argument(
+            "--silence-token", default="\u2581", help="token for silence (used by w2l)"
+        )
 
     def __init__(self, args, tgt_dict):
         super().__init__(args)
@@ -90,6 +90,12 @@ class SpeechRecognitionTask(FairseqTask):
             raise FileNotFoundError("Dict not found: {}".format(dict_path))
         tgt_dict = Dictionary.load(dict_path)
 
+        if args.criterion == "ctc_loss":
+            tgt_dict.add_symbol("<ctc_blank>")
+        elif args.criterion == "asg_loss":
+            for i in range(1, args.max_replabel + 1):
+                tgt_dict.add_symbol(replabel_symbol(i))
+
         print("| dictionary: {} types".format(len(tgt_dict)))
         return cls(args, tgt_dict)
 
@@ -100,8 +106,20 @@ class SpeechRecognitionTask(FairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
         data_json_path = os.path.join(self.args.data, "{}.json".format(split))
-        self.datasets[split] = get_asr_dataset_from_json(
-            data_json_path, self.tgt_dict)
+        self.datasets[split] = get_asr_dataset_from_json(data_json_path, self.tgt_dict)
+
+    def build_generator(self, args):
+        w2l_decoder = getattr(args, "w2l_decoder", None)
+        if w2l_decoder == "viterbi":
+            from examples.speech_recognition.w2l_decoder import W2lViterbiDecoder
+
+            return W2lViterbiDecoder(args, self.target_dictionary)
+        elif w2l_decoder == "kenlm":
+            from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
+
+            return W2lKenLMDecoder(args, self.target_dictionary)
+        else:
+            return super().build_generator(args)
 
     @property
     def target_dictionary(self):

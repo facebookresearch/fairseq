@@ -9,11 +9,12 @@ Run inference for pre-processed data with a trained model.
 """
 
 import logging
+import math
 import os
 
 import sentencepiece as spm
 import torch
-from fairseq import options, progress_bar, utils, tasks
+from fairseq import checkpoint_utils, options, progress_bar, utils, tasks
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.utils import import_user_module
 
@@ -23,8 +24,6 @@ logger.setLevel(logging.INFO)
 
 
 def add_asr_eval_argument(parser):
-    parser.add_argument("--ctc", action="store_true", help="decode a ctc model")
-    parser.add_argument("--rnnt", default=False, help="decode a rnnt model")
     parser.add_argument("--kspmodel", default=None, help="sentence piece model")
     parser.add_argument(
         "--wfstlm", default=None, help="wfstlm on dictonary output units"
@@ -36,14 +35,24 @@ def add_asr_eval_argument(parser):
 output units",
     )
     parser.add_argument(
+        "--lm-weight",
         "--lm_weight",
+        type=float,
         default=0.2,
-        help="weight for wfstlm while interpolating\
-with neural score",
+        help="weight for lm while interpolating with neural score",
     )
     parser.add_argument(
         "--rnnt_len_penalty", default=-0.5, help="rnnt length penalty on word level"
     )
+    parser.add_argument(
+        "--w2l-decoder", choices=["viterbi", "kenlm"], help="use a w2l decoder"
+    )
+    parser.add_argument("--lexicon", help="lexicon for w2l decoder")
+    parser.add_argument("--kenlm-model", help="kenlm model for w2l decoder")
+    parser.add_argument("--beam-threshold", type=float, default=25.0)
+    parser.add_argument("--word-score", type=float, default=1.0)
+    parser.add_argument("--unk-weight", type=float, default=-math.inf)
+    parser.add_argument("--sil-weight", type=float, default=0.0)
     return parser
 
 
@@ -72,29 +81,21 @@ def get_dataset_itr(args, task):
     ).next_epoch_itr(shuffle=False)
 
 
-def process_predictions(args, hypos, sp, tgt_dict, target_tokens, res_files, speaker, id):
+def process_predictions(
+    args, hypos, sp, tgt_dict, target_tokens, res_files, speaker, id
+):
     for hypo in hypos[: min(len(hypos), args.nbest)]:
         hyp_pieces = tgt_dict.string(hypo["tokens"].int().cpu())
         hyp_words = sp.DecodePieces(hyp_pieces.split())
         print(
-            "{} ({}-{})".format(hyp_pieces, speaker, id),
-            file=res_files["hypo.units"],
+            "{} ({}-{})".format(hyp_pieces, speaker, id), file=res_files["hypo.units"]
         )
-        print(
-            "{} ({}-{})".format(hyp_words, speaker, id),
-            file=res_files["hypo.words"],
-        )
+        print("{} ({}-{})".format(hyp_words, speaker, id), file=res_files["hypo.words"])
 
         tgt_pieces = tgt_dict.string(target_tokens)
         tgt_words = sp.DecodePieces(tgt_pieces.split())
-        print(
-            "{} ({}-{})".format(tgt_pieces, speaker, id),
-            file=res_files["ref.units"],
-        )
-        print(
-            "{} ({}-{})".format(tgt_words, speaker, id),
-            file=res_files["ref.words"],
-        )
+        print("{} ({}-{})".format(tgt_pieces, speaker, id), file=res_files["ref.units"])
+        print("{} ({}-{})".format(tgt_words, speaker, id), file=res_files["ref.words"])
         # only score top hypothesis
         if not args.quiet:
             logger.debug("HYPO:" + hyp_words)
@@ -118,6 +119,30 @@ def prepare_result_files(args):
         "ref.words": get_res_file("ref.word"),
         "ref.units": get_res_file("ref.units"),
     }
+
+
+def load_models_and_criterions(filenames, arg_overrides=None, task=None):
+    models = []
+    criterions = []
+    for filename in filenames:
+        if not os.path.exists(filename):
+            raise IOError("Model file not found: {}".format(filename))
+        state = checkpoint_utils.load_checkpoint_to_cpu(filename, arg_overrides)
+
+        args = state["args"]
+        if task is None:
+            task = tasks.setup_task(args)
+
+        # build model for ensemble
+        model = task.build_model(args)
+        model.load_state_dict(state["model"], strict=True)
+        models.append(model)
+
+        criterion = task.build_criterion(args)
+        if "criterion" in state:
+            criterion.load_state_dict(state["criterion"], strict=True)
+        criterions.append(criterion)
+    return models, criterions, args
 
 
 def optimize_models(args, use_cuda, models):
@@ -156,21 +181,21 @@ def main(args):
     # Set dictionary
     tgt_dict = task.target_dictionary
 
-    if args.ctc or args.rnnt:
-        tgt_dict.add_symbol("<ctc_blank>")
-        if args.ctc:
-            logger.info("| decoding a ctc model")
-        if args.rnnt:
-            logger.info("| decoding a rnnt model")
+    logger.info("| decoding with criterion {}".format(args.criterion))
 
     # Load ensemble
     logger.info("| loading model(s) from {}".format(args.path))
-    models, _model_args = utils.load_ensemble_for_inference(
+    models, criterions, _model_args = load_models_and_criterions(
         args.path.split(":"),
-        task,
-        model_arg_overrides=eval(args.model_overrides),  # noqa
+        arg_overrides=eval(args.model_overrides),  # noqa
+        task=task,
     )
     optimize_models(args, use_cuda, models)
+
+    # hack to pass transitions to W2lDecoder
+    if args.criterion == "asg_loss":
+        trans = criterions[0].asg.trans.data
+        args.asg_transitions = torch.flatten(trans).tolist()
 
     # Load dataset (possibly sharded)
     itr = get_dataset_itr(args, task)
@@ -185,7 +210,7 @@ def main(args):
         os.makedirs(args.results_path)
 
     sp = spm.SentencePieceProcessor()
-    sp.Load(os.path.join(args.data, 'spm.model'))
+    sp.Load(os.path.join(args.data, "spm.model"))
 
     res_files = prepare_result_files(args)
     with progress_bar.build_progress_bar(args, itr) as t:
@@ -204,7 +229,7 @@ def main(args):
             num_generated_tokens = sum(len(h[0]["tokens"]) for h in hypos)
             gen_timer.stop(num_generated_tokens)
 
-            for i, sample_id in enumerate(sample['id'].tolist()):
+            for i, sample_id in enumerate(sample["id"].tolist()):
                 speaker = task.dataset(args.gen_subset).speakers[int(sample_id)]
                 id = task.dataset(args.gen_subset).ids[int(sample_id)]
                 target_tokens = (
