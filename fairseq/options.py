@@ -502,7 +502,7 @@ def add_generation_args(parser):
     group.add_argument('--print-step', action='store_true')
 
     # arguments for iterative refinement generator
-    group.add_argument('---iter-decode-eos-penalty', default=0.0, type=float, metavar='N',
+    group.add_argument('--iter-decode-eos-penalty', default=0.0, type=float, metavar='N',
                        help='if > 0.0, it penalized early-stopping in decoding.')
     group.add_argument('--iter-decode-max-iter', default=10, type=int, metavar='N',
                        help='maximum iterations for iterative refinement.')
