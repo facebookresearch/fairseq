@@ -6,7 +6,8 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-
+from fairseq import libnat
+from fairseq.utils import new_arange
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.levenshtein_transformer import (
     LevenshteinTransformerDecoder,
@@ -51,13 +52,6 @@ neg_scorer = NegativeDistanceScore()
 
 
 def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx, vocab_size, tau=None):
-    try:
-        from fairseq import libnat
-    except ImportError as e:
-        import sys
-        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
-        raise e
-
     B = in_tokens.size(0)
     T = in_tokens.size(1)
     V = vocab_size
@@ -102,8 +96,7 @@ def _apply_ins_words(in_tokens, in_scores, word_ins_pred, word_ins_scores, paddi
     word_ins_scores.masked_fill_(padding_masks, 0.0)
     word_ins_pred.masked_fill_(padding_masks, padding_idx)
 
-    in_coords = torch.arange(in_tokens.size(1), device=in_tokens.device)
-    in_coords = in_coords.unsqueeze(0).repeat(in_tokens.size(0), 1).type_as(in_scores)
+    in_coords = new_arange(in_tokens).type_as(in_scores)
 
     # shift all padding predictions to infinite
     out_coords = (in_coords[:, 1:] - 0.5).masked_fill(
@@ -188,7 +181,7 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
         cut_off = output_tokens.ne(self.pad).sum(1).max()
         output_tokens = output_tokens[:, :cut_off]
         output_scores = output_scores[:, :cut_off]
-        return {"output_tokens": output_tokens, "output_scores": output_scores}
+        return {"output_tokens": output_tokens, "output_scores": output_scores, "attn": None}
 
 
 class InsertionTransformerDecoder(LevenshteinTransformerDecoder):

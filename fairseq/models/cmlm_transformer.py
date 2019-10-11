@@ -10,7 +10,7 @@ Ghazvininejad, Marjan, et al.
 arXiv preprint arXiv:1904.09324 (2019).
 """
 
-import torch
+from fairseq.utils import new_arange
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.nonautoregressive_transformer import NATransformerModel
 
@@ -20,10 +20,7 @@ def _skeptical_unmasking(output_scores, output_masks, p):
     boundary_len = (
         (output_masks.sum(1, keepdim=True).type_as(output_scores) - 2) * p
     ).long()
-    skeptical_mask = (
-        torch.arange(output_masks.size(1), device=output_masks.device)[None, :]
-        < boundary_len
-    )
+    skeptical_mask = new_arange(output_masks) < boundary_len
     return skeptical_mask.scatter(1, sorted_index, skeptical_mask)
 
 

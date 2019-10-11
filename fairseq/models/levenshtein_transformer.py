@@ -5,7 +5,8 @@
 
 import torch
 import torch.nn.functional as F
-
+from fairseq import libnat
+from fairseq.utils import new_arange
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.model_utils import fill_tensors as _fill, skip_tensors as _skip
 from fairseq.models.transformer import (
@@ -18,13 +19,6 @@ from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 
 def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
-    try:
-        from fairseq import libnat
-    except ImportError as e:
-        import sys
-        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
-        raise e
-
     in_seq_len, out_seq_len = in_tokens.size(1), out_tokens.size(1)
 
     with torch.cuda.device_of(in_tokens):
@@ -67,13 +61,6 @@ def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
 
 
 def _get_del_targets(in_tokens, out_tokens, padding_idx):
-    try:
-        from fairseq import libnat
-    except ImportError as e:
-        import sys
-        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
-        raise e
-
     out_seq_len = out_tokens.size(1)
 
     with torch.cuda.device_of(in_tokens):
@@ -100,13 +87,6 @@ def _get_del_targets(in_tokens, out_tokens, padding_idx):
 
 
 def _get_del_ins_targets(in_tokens, out_tokens, padding_idx):
-    try:
-        from fairseq import libnat
-    except ImportError as e:
-        import sys
-        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
-        raise e
-
     in_seq_len, out_seq_len = in_tokens.size(1), out_tokens.size(1)
 
     with torch.cuda.device_of(in_tokens):
@@ -156,7 +136,7 @@ def _apply_ins_masks(
     out_lengths = in_lengths + mask_ins_pred.sum(1)
     out_max_len = out_lengths.max()
     out_masks = (
-        torch.arange(out_max_len, device=out_lengths.device)[None, :]
+        new_arange(out_lengths, out_max_len)[None, :]
         < out_lengths[:, None]
     )
 
@@ -205,9 +185,7 @@ def _apply_del_words(
     word_del_pred.masked_fill_(bos_eos_masks, 0)
 
     reordering = (
-        torch.arange(max_len, device=in_tokens.device)[None, :]
-        .expand_as(in_tokens)
-        .contiguous()
+        new_arange(in_tokens)
         .masked_fill_(word_del_pred, max_len)
         .sort(1)[1]
     )
