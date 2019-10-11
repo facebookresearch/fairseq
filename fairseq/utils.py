@@ -412,3 +412,13 @@ def extract_hard_alignment(attn, src_sent, tgt_sent, pad, eos):
         for tgt_idx, src_idx in zip(tgt_valid, src_indices):
             alignment.append((src_token_to_word[src_idx.item()] - 1, tgt_token_to_word[tgt_idx.item()] - 1))
     return alignment
+
+
+def new_arange(x, *size):
+    """
+    Return a Tensor of `size` filled with a range function on the device of x.
+    If size is empty, using the size of the variable x.
+    """
+    if len(size) == 0:
+        size = x.size()
+    return torch.arange(size[-1], device=x.device).expand(*size).contiguous()
