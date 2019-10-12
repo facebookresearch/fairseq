@@ -19,9 +19,20 @@ from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
 
+fb_pathmgr_registerd = False
+
 
 def main(args, init_distributed=False):
     utils.import_user_module(args)
+
+    try:
+        from fairseq.fb_pathmgr import fb_pathmgr
+        global fb_pathmgr_registerd
+        if not fb_pathmgr_registerd:
+            fb_pathmgr.register()
+            fb_pathmgr_registerd = True
+    except (ModuleNotFoundError, ImportError):
+        pass
 
     assert args.max_tokens is not None or args.max_sentences is not None, \
         'Must specify batch size either with --max-tokens or --max-sentences'
