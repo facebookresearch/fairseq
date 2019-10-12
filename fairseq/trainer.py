@@ -170,7 +170,13 @@ class Trainer(object):
         """Load all training state from a checkpoint file."""
         extra_state, self._optim_history, last_optim_state = None, [], None
 
-        if os.path.exists(filename):
+        try:
+            from fairseq.fb_pathmgr import fb_pathmgr
+            bexists = fb_pathmgr.isfile(filename)
+        except Exception:
+            bexists = os.path.exists(filename)
+
+        if bexists:
             state = checkpoint_utils.load_checkpoint_to_cpu(filename)
 
             # load model parameters
