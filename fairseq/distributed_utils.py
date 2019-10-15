@@ -87,7 +87,10 @@ def distributed_init(args):
             socket.gethostname(), args.distributed_rank), flush=True)
 
         # perform a dummy all-reduce to initialize the NCCL communicator
-        dist.all_reduce(torch.zeros(1).cuda())
+        if torch.cuda.is_available():
+            dist.all_reduce(torch.zeros(1).cuda())
+        else:
+            dist.all_reduce(torch.zeros(1))
 
         suppress_output(is_master(args))
 
