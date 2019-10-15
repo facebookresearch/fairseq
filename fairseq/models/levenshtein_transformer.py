@@ -5,7 +5,6 @@
 
 import torch
 import torch.nn.functional as F
-from fairseq import libnat
 from fairseq.utils import new_arange
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.model_utils import fill_tensors as _fill, skip_tensors as _skip
@@ -19,6 +18,13 @@ from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 
 def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
+    try:
+        from fairseq import libnat
+    except ImportError as e:
+        import sys
+        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
+        raise e
+
     in_seq_len, out_seq_len = in_tokens.size(1), out_tokens.size(1)
 
     with torch.cuda.device_of(in_tokens):
@@ -61,6 +67,13 @@ def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
 
 
 def _get_del_targets(in_tokens, out_tokens, padding_idx):
+    try:
+        from fairseq import libnat
+    except ImportError as e:
+        import sys
+        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
+        raise e
+
     out_seq_len = out_tokens.size(1)
 
     with torch.cuda.device_of(in_tokens):
@@ -87,6 +100,13 @@ def _get_del_targets(in_tokens, out_tokens, padding_idx):
 
 
 def _get_del_ins_targets(in_tokens, out_tokens, padding_idx):
+    try:
+        from fairseq import libnat
+    except ImportError as e:
+        import sys
+        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
+        raise e
+
     in_seq_len, out_seq_len = in_tokens.size(1), out_tokens.size(1)
 
     with torch.cuda.device_of(in_tokens):
