@@ -173,7 +173,7 @@ do
     fairseq-preprocess \
       --only-source \
       --trainpref "$TASK_DATA_FOLDER/processed/train.label" \
-      --validpref "${DEVPREF//LANG/'label'}" \
+      --validpref "${DEVPREF//LANG/label}" \
       --destdir "$TASK-bin/label" \
       --workers 60;
   else
