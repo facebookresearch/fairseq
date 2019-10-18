@@ -420,10 +420,16 @@ class LevenshteinTransformerModel(TransformerModel):
         initial_output_scores = initial_output_tokens.new_zeros(
             *initial_output_tokens.size()
         ).type_as(encoder_out["encoder_out"])
+
+        initial_attn = None
+        if getattr(self.decoder.layers[-1], "need_attn", False):
+            initial_attn = initial_output_tokens.new_zeros(
+                src_tokens.size(0), 2, src_tokens.size(1)
+            )
         return {
             "output_tokens": initial_output_tokens,
             "output_scores": initial_output_scores,
-            "attn": None,
+            "attn": initial_attn,
         }
 
 
