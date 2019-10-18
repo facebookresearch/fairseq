@@ -369,6 +369,9 @@ class FairseqLanguageModel(BaseFairseqModel):
         """
         return self.decoder(src_tokens, **kwargs)
 
+    def forward_decoder(self, prev_output_tokens, **kwargs):
+        return self.decoder(prev_output_tokens, **kwargs)
+
     def extract_features(self, src_tokens, **kwargs):
         """
         Similar to *forward* but only return features.
