@@ -6,24 +6,24 @@
 
 
 # raw glue data as downloaded by glue download script (https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e)
-if [[ $# -ne 2 ]]; then
+if [[ $# -ne 3 ]]; then
   echo "Run as following:"
-  echo "./examples/roberta/preprocess_GLUE_tasks.sh <glud_data_folder> <task_name>"
+  echo "./examples/roberta/preprocess_GLUE_tasks.sh <glue_data_folder> <task_name> <fairseq_dir>"
   exit 1
 fi
 
 GLUE_DATA_FOLDER=$1
+TASKS=$2 # QQP
+FAIRSEQ_DIR=$3
 
 # download bpe encoder.json, vocabulary and fairseq dictionary
 wget -N 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json'
 wget -N 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/vocab.bpe'
 wget -N 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/dict.txt'
 
-TASKS=$2 # QQP
-
 if [ "$TASKS" = "ALL" ]
 then
-  TASKS="QQP MNLI QNLI MRPC RTE STS-B SST-2 CoLA"
+  TASKS="QQP MNLI QNLI MRPC RTE STS-B SST-2 CoLA BoolQ"
 fi
 
 for TASK in $TASKS
@@ -67,6 +67,11 @@ do
     INPUT_COLUMNS=( 8 9 )
     TEST_INPUT_COLUMNS=( 8 9 )
     LABEL_COLUMN=10
+  elif [ "$TASK" = "BoolQ" ]
+  then
+    INPUT_COLUMNS=( 1 2 )
+    TEST_INPUT_COLUMNS=( 1 2 )
+    LABEL_COLUMN=3
   # Following are single sentence tasks.
   elif [ "$TASK" = "SST-2" ]
   then
@@ -134,7 +139,7 @@ do
     do
       LANG="input$INPUT_TYPE"
       echo "BPE encoding $SPLIT/$LANG"
-      python -m examples.roberta.multiprocessing_bpe_encoder \
+      python "$FAIRSEQ_DIR/examples/roberta/multiprocessing_bpe_encoder.py" \
       --encoder-json encoder.json \
       --vocab-bpe vocab.bpe \
       --inputs "$TASK_DATA_FOLDER/processed/$SPLIT.raw.$LANG" \
@@ -183,3 +188,7 @@ do
     awk '{print $1 / 5.0 }' "$TASK_DATA_FOLDER/processed/dev.label" > "$TASK-bin/label/valid.label"
   fi
 done
+
+rm -rf 'encoder.json'
+rm -rf 'vocab.bpe'
+rm -rf 'dict.txt'
