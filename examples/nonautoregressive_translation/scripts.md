@@ -38,7 +38,7 @@ fairseq-train \
     --ddp-backend=no_c10d \
     --task translation_lev \
     --criterion nat_loss \
-    --arch nonautoregressive_transformer \
+    --arch iterative_nonautoregressive_transformer \
     --noise full_mask \
     --share-all-embeddings \
     --optimizer adam --adam-betas '(0.9,0.98)' \
@@ -81,8 +81,6 @@ fairseq-train \
     --dropout 0.3 --weight-decay 0.01 \
     --decoder-learned-pos \
     --encoder-learned-pos \
-    --pred-length-offset \
-    --length-loss-factor 0.1 \
     --apply-bert-init \
     --log-format 'simple' --log-interval 100 \
     --fixed-validation-seed 7 \
