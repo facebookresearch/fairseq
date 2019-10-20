@@ -42,6 +42,7 @@ from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
 from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
 from .truncate_dataset import TruncateDataset
+from .dynamic_truncate_dataset import DynamicTruncateDataset
 from .resampling_dataset import ResamplingDataset
 
 from .iterators import (
@@ -97,5 +98,6 @@ __all__ = [
     'TransformEosDataset',
     'TransformEosLangPairDataset',
     'TruncateDataset',
+    'DynamicTruncateDataset',
     'TruncatedDictionary',
 ]
