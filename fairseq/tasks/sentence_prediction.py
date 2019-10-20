@@ -22,6 +22,7 @@ from fairseq.data import (
     SortDataset,
     StripTokenDataset,
     TruncateDataset,
+    DynamicTruncateDataset
 )
 
 from . import FairseqTask, register_task
@@ -51,6 +52,8 @@ class SentencePredictionTask(FairseqTask):
         parser.add_argument('--no-shuffle', action='store_true', default=False)
         parser.add_argument('--truncate-sequence', action='store_true', default=False,
                             help='Truncate sequence to max_sequence_length')
+        parser.add_argument('--truncate-first-input', action='store_true', default=False,
+                            help='Truncate the first input in the sequence')
 
     def __init__(self, args, data_dictionary, label_dictionary):
         super().__init__(args)
@@ -122,7 +125,10 @@ class SentencePredictionTask(FairseqTask):
             src_tokens = input0
         else:
             if self.args.separator_token is not None:
-                input1 = PrependTokenDataset(input1, self.args.separator_token)
+                input1 = PrependTokenDataset(input1, self.args.separator_token)              
+
+            if self.args.truncate_sequence and self.args.truncate_first_input:
+                input0 = DynamicTruncateDataset(input0, self.args.max_positions, input1)
 
             src_tokens = ConcatSentencesDataset(input0, input1)
 
