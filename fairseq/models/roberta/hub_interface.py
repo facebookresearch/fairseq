@@ -54,10 +54,10 @@ class RobertaHubInterface(nn.Module):
             >>> roberta.encode('world').tolist()
             [0, 8331, 2]
         """
-        bpe_sentence = '<s> ' + self.bpe.encode(sentence)
+        bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
         for s in addl_sentences:
             bpe_sentence += (' </s>' if not no_separator else '')
-            bpe_sentence += ' ' + self.bpe.encode(s)
+            bpe_sentence += ' ' + self.bpe.encode(s) + ' </s>'
         tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False)
         return tokens.long()
 
