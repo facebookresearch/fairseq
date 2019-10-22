@@ -31,3 +31,13 @@ class SentencepieceBPE(object):
 
     def decode(self, x: str) -> str:
         return x.replace(' ', '').replace('\u2581', ' ').strip()
+
+    def is_beginning_of_word(self, x: str) -> bool:
+        if x in ['<unk>', '<s>', '</s>', '<pad>']:
+            # special elements are always considered beginnings
+            # HACK: this logic is already present in fairseq/tasks/masked_lm.py
+            # but these special tokens are also contained in the sentencepiece
+            # vocabulary which causes duplicate special tokens. This hack makes
+            # sure that they are all taken into account.
+            return True
+        return x.startswith('\u2581')
