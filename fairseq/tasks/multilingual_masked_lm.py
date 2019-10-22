@@ -110,7 +110,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
-    def load_dataset(self, split, epoch=0, combine=False):
+    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
