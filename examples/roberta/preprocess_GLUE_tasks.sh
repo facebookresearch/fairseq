@@ -8,13 +8,12 @@
 # raw glue data as downloaded by glue download script (https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e)
 if [[ $# -ne 3 ]]; then
   echo "Run as following:"
-  echo "./examples/roberta/preprocess_GLUE_tasks.sh <glue_data_folder> <task_name> <fairseq_dir>"
+  echo "./examples/roberta/preprocess_GLUE_tasks.sh <glue_data_folder> <task_name>"
   exit 1
 fi
 
 GLUE_DATA_FOLDER=$1
 TASKS=$2 # QQP
-FAIRSEQ_DIR=$3
 
 # download bpe encoder.json, vocabulary and fairseq dictionary
 wget -N 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json'
@@ -139,7 +138,7 @@ do
     do
       LANG="input$INPUT_TYPE"
       echo "BPE encoding $SPLIT/$LANG"
-      python "$FAIRSEQ_DIR/examples/roberta/multiprocessing_bpe_encoder.py" \
+      python -m examples.roberta.multiprocessing_bpe_encoder \
       --encoder-json encoder.json \
       --vocab-bpe vocab.bpe \
       --inputs "$TASK_DATA_FOLDER/processed/$SPLIT.raw.$LANG" \
