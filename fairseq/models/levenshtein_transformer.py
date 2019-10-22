@@ -406,8 +406,8 @@ class LevenshteinTransformerModel(TransformerModel):
             word_ins_out, word_ins_attn = self.decoder.forward_word_ins(
                 _skip(output_tokens, can_ins_word), _skip(encoder_out, can_ins_word)
             )
-            word_ins_score = F.log_softmax(word_ins_out, 2)
-            word_ins_pred = word_ins_score.max(-1)[1]
+
+            word_ins_score, word_ins_pred = F.log_softmax(word_ins_out, 2).max(-1)
 
             _tokens, _scores = _apply_ins_words(
                 output_tokens[can_ins_word],
