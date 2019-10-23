@@ -6,7 +6,7 @@
 
 
 # raw glue data as downloaded by glue download script (https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e)
-if [[ $# -ne 3 ]]; then
+if [[ $# -ne 2 ]]; then
   echo "Run as following:"
   echo "./examples/roberta/preprocess_GLUE_tasks.sh <glue_data_folder> <task_name>"
   exit 1
