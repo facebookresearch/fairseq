@@ -142,6 +142,8 @@ class LanguagePairDataset(FairseqDataset):
             target if it's absent (default: False).
         align_dataset (torch.utils.data.Dataset, optional): dataset
             containing alignments.
+        append_bos (bool, optional): if set, appends bos to the beginning of
+            source/target sentence.
     """
 
     def __init__(
@@ -152,6 +154,7 @@ class LanguagePairDataset(FairseqDataset):
         shuffle=True, input_feeding=True,
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
+        append_bos=False
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -174,6 +177,7 @@ class LanguagePairDataset(FairseqDataset):
         self.align_dataset = align_dataset
         if self.align_dataset is not None:
             assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
+        self.append_bos = append_bos
 
     def __getitem__(self, index):
         tgt_item = self.tgt[index] if self.tgt is not None else None
@@ -186,6 +190,15 @@ class LanguagePairDataset(FairseqDataset):
             eos = self.tgt_dict.eos() if self.tgt_dict else self.src_dict.eos()
             if self.tgt and self.tgt[index][-1] != eos:
                 tgt_item = torch.cat([self.tgt[index], torch.LongTensor([eos])])
+
+        if self.append_bos:
+            bos = self.tgt_dict.bos() if self.tgt_dict else self.src_dict.bos()
+            if self.tgt and self.tgt[index][0] != bos:
+                tgt_item = torch.cat([torch.LongTensor([bos]), self.tgt[index]])
+
+            bos = self.src_dict.bos()
+            if self.src[index][-1] != bos:
+                src_item = torch.cat([torch.LongTensor([bos]), self.src[index]])
 
         if self.remove_eos_from_source:
             eos = self.src_dict.eos()

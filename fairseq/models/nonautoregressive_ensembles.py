@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 import math
 from fairseq.models.model_utils import fill_tensors as _fill, skip_tensors as _skip
-from fairseq.models.levenshtein_transformer import _apply_del_words, _apply_ins_masks, _apply_ins_words
+from fairseq.models.model_utils import _apply_del_words, _apply_ins_masks, _apply_ins_words
 
 
 class BasicEnsembleModel(torch.nn.Module):
