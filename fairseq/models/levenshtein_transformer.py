@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.fb_tracing_transformer import (
+from fairseq.models.tracing_compliant_transformer import (
     TracingTransformerDecoder,
     TracingTransformerEncoder,
     TracingTransformerModel,
