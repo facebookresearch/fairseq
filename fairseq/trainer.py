@@ -330,7 +330,7 @@ class Trainer(object):
                     print(msg, file=sys.stderr)
                     if torch.cuda.is_available() and hasattr(torch.cuda, "memory_summary"):
                         for device_idx in range(torch.cuda.device_count()):
-                            print(torch.cuda.memory_summary(device=torch.cuda.device(device_idx)),
+                            print(torch.cuda.memory_summary(device=device_idx),
                                   file=sys.stderr)
                     sys.stderr.flush()
 
