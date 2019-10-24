@@ -7,6 +7,7 @@ import math
 
 import torch.nn.functional as F
 from fairseq import utils
+import torch
 from torch import Tensor
 
 from . import FairseqCriterion, register_criterion
@@ -44,23 +45,27 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
                 if dim is None
                 else x.float().mean(dim).type_as(x)
             )
-
         if masks is not None:
             outputs, targets = outputs[masks], targets[masks]
 
-        logits = F.log_softmax(outputs, dim=-1)
-        if targets.dim() == 1:
-            losses = F.nll_loss(logits, targets, reduction="none")
-
-        else:  # soft-labels
-            losses = F.kl_div(logits, targets, reduction="none")
-            losses = losses.float().sum(-1).type_as(losses)
-
-        nll_loss = mean_ds(losses)
-        if label_smoothing > 0:
-            loss = nll_loss * (1 - label_smoothing) - mean_ds(logits) * label_smoothing
-        else:
+        if not masks.any():
+            nll_loss = torch.tensor(0)
             loss = nll_loss
+        else:
+            logits = F.log_softmax(outputs, dim=-1)
+            if targets.dim() == 1:
+                losses = F.nll_loss(logits, targets.to(logits.device), reduction='none')
+
+            else:  # soft-labels
+                losses = F.kl_div(logits, targets.to(logits.device), reduction='none')
+                losses = losses.sum(-1)
+
+            nll_loss = mean_ds(losses)
+            if label_smoothing > 0:
+                loss = nll_loss * (
+                    1 - label_smoothing) - mean_ds(logits) * label_smoothing
+            else:
+                loss = nll_loss
 
         loss = loss * factor
         return {"name": name, "loss": loss, "nll_loss": nll_loss, "factor": factor}
