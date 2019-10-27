@@ -78,6 +78,11 @@ class RobertaModel(FairseqLanguageModel):
                             help='number of positional embeddings to learn')
         parser.add_argument('--load-checkpoint-heads', action='store_true',
                             help='(re-)register and load heads when loading checkpoints')
+        # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
+        parser.add_argument('--encoder-layerdrop', type=float, metavar='D', default=0,
+                            help='LayerDrop probability for encoder')
+        parser.add_argument('--encoder-layers-to-keep', default=None,
+                            help='which layers to *keep* when pruning as a comma-separated list')
 
     @classmethod
     def build_model(cls, args, task):
@@ -245,6 +250,15 @@ class RobertaEncoder(FairseqDecoder):
     def __init__(self, args, dictionary):
         super().__init__(dictionary)
         self.args = args
+
+        # RoBERTa is a sentence encoder model, so users will intuitively trim
+        # encoder layers. However, the implementation uses the fairseq decoder,
+        # so we fix here.
+        if args.encoder_layers_to_keep:
+            args.encoder_layers = len(args.encoder_layers_to_keep.split(","))
+            args.decoder_layers_to_keep = args.encoder_layers_to_keep
+            args.encoder_layers_to_keep = None
+
         self.sentence_encoder = TransformerSentenceEncoder(
             padding_idx=dictionary.pad(),
             vocab_size=len(dictionary),
@@ -255,6 +269,7 @@ class RobertaEncoder(FairseqDecoder):
             dropout=args.dropout,
             attention_dropout=args.attention_dropout,
             activation_dropout=args.activation_dropout,
+            layerdrop=args.encoder_layerdrop,
             max_seq_len=args.max_positions,
             num_segments=0,
             encoder_normalize_before=True,
