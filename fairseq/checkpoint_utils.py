@@ -345,7 +345,7 @@ def prune_state_dict(state_dict, args):
     It's called by functions that load models from checkpoints and does not
     need to be called directly.
     """
-    if not args:
+    if not args or args.arch == "ptt_transformer":
         # args should not be none, but don't crash if it is.
         return state_dict
 
