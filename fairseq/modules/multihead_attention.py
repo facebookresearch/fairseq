@@ -62,16 +62,13 @@ class MultiheadAttention(nn.Module):
             self.enable_torch_version = True
         else:
             self.enable_torch_version = False
-
-    @property
-    def in_proj_weight(self):
-        # TODO: Remove this backward compatibility code (in_proj_weight)
-        return torch.cat((self.q_proj.weight, self.k_proj.weight, self.v_proj.weight))
-
-    @property
-    def in_proj_bias(self):
-        # TODO: Remove this backward compatibility code (in_proj_bias)
-        return torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias))
+        # For backward compatibility, to make sure old checkpoints still load
+        self.in_proj_weight = torch.cat(
+            (self.q_proj.weight.data, self.k_proj.weight.data, self.v_proj.weight.data)
+        )
+        self.in_proj_bias = torch.cat(
+            (self.q_proj.bias.data, self.k_proj.bias.data, self.v_proj.bias.data)
+        )
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
