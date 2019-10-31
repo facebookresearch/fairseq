@@ -64,8 +64,11 @@ class MultiheadAttention(nn.Module):
             self.enable_torch_version = False
 
     @property
+    def in_proj_weight(self):
+        return torch.cat((self.q_proj.weight, self.k_proj.weight, self.v_proj.weight))
+
+    @property
     def in_proj_bias(self):
-        # TODO: Remove this backward compatibility code (in_proj_bias)
         return torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias))
 
     def prepare_for_onnx_export_(self):
