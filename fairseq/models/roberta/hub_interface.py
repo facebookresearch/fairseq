@@ -101,7 +101,7 @@ class RobertaHubInterface(nn.Module):
         )
 
     def predict(self, head: str, tokens: torch.LongTensor, return_logits: bool = False):
-        features = self.extract_features(tokens)
+        features = self.extract_features(tokens.to(device=self.device))
         logits = self.model.classification_heads[head](features)
         if return_logits:
             return logits
