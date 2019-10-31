@@ -187,7 +187,7 @@ class Wav2VecModel(BaseFairseqModel):
         return result
 
     def upgrade_state_dict_named(self, state_dict, name):
-        return state_dict
+        super().upgrade_state_dict_named(state_dict, name)
 
     def max_positions(self):
         """Maximum length supported by the model."""

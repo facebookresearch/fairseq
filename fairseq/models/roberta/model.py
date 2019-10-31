@@ -146,6 +146,8 @@ class RobertaModel(FairseqLanguageModel):
         return RobertaHubInterface(x['args'], x['task'], x['models'][0])
 
     def upgrade_state_dict_named(self, state_dict, name):
+        super().upgrade_state_dict_named(state_dict, name)
+
         prefix = name + '.' if name != '' else ''
         current_head_names = [] if not hasattr(self, 'classification_heads') else \
             self.classification_heads.keys()
