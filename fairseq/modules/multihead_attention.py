@@ -63,14 +63,6 @@ class MultiheadAttention(nn.Module):
         else:
             self.enable_torch_version = False
 
-    @property
-    def in_proj_weight(self):
-        return torch.cat((self.q_proj.weight, self.k_proj.weight, self.v_proj.weight))
-
-    @property
-    def in_proj_bias(self):
-        return torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias))
-
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
@@ -132,7 +124,8 @@ class MultiheadAttention(nn.Module):
             return F.multi_head_attention_forward(query, key, value,
                                                   self.embed_dim, self.num_heads,
                                                   torch.empty([0]),
-                                                  self.in_proj_bias, self.bias_k, self.bias_v,
+                                                  torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias)),
+                                                  self.bias_k, self.bias_v,
                                                   self.add_zero_attn, self.dropout,
                                                   self.out_proj.weight, self.out_proj.bias,
                                                   self.training, key_padding_mask, need_weights,
