@@ -50,7 +50,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'fairseq'
-copyright = '2018, Facebook AI Research (FAIR)'
+copyright = '2019, Facebook AI Research (FAIR)'
 author = 'Facebook AI Research (FAIR)'
 
 github_doc_root = 'https://github.com/pytorch/fairseq/tree/master/docs/'

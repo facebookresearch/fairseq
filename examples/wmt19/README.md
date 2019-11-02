@@ -16,6 +16,15 @@ Model | Description | Download
 
 ## Example usage (torch.hub)
 
+#### Requirements
+
+We require a few additional Python dependencies for preprocessing:
+```bash
+pip install fastBPE sacremoses
+```
+
+#### Translation
+
 ```python
 import torch
 
@@ -38,7 +47,11 @@ en2ru.translate("Machine learning is great!")  # 'Машинное обучен�
 ru2en = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.ru-en', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
                        tokenizer='moses', bpe='fastbpe')
 ru2en.translate("Машинное обучение - это здорово!")  # 'Machine learning is great!'
+```
 
+#### Language Modeling
+
+```python
 # Sample from the English LM
 en_lm = torch.hub.load('pytorch.fairseq', 'transformer_lm.wmt19.en', tokenizer='moses', bpe='fastbpe')
 en_lm.sample("Machine learning is")  # 'Machine learning is the future of computing, says Microsoft boss Satya Nadella ...'

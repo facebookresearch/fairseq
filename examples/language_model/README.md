@@ -12,6 +12,11 @@ Model | Description | Dataset | Download
 
 ## Example usage
 
+We require a few additional Python dependencies for preprocessing:
+```bash
+pip install fastBPE sacremoses
+```
+
 To sample from a language model using PyTorch Hub:
 ```python
 import torch
