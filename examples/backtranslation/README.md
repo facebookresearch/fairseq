@@ -8,9 +8,14 @@ Model | Description | Dataset | Download
 ---|---|---|---
 `transformer.wmt18.en-de` | Transformer <br> ([Edunov et al., 2018](https://arxiv.org/abs/1808.09381)) <br> WMT'18 winner | [WMT'18 English-German](http://www.statmt.org/wmt18/translation-task.html) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt18.en-de.ensemble.tar.gz) <br> See NOTE in the archive
 
-## Example usage
+## Example usage (torch.hub)
 
-Interactive generation from the full ensemble via PyTorch Hub:
+We require a few additional Python dependencies for preprocessing:
+```bash
+pip install subword_nmt sacremoses
+```
+
+Then to generate translations from the full model ensemble:
 ```python
 import torch
 

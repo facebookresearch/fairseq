@@ -20,6 +20,11 @@ Model | Description | Dataset | Download
 
 ## Example usage (torch.hub)
 
+We require a few additional Python dependencies for preprocessing:
+```bash
+pip install sacremoses subword_nmt
+```
+
 Interactive translation via PyTorch Hub:
 ```python
 import torch
