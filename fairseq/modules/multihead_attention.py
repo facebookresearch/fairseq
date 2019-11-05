@@ -195,12 +195,14 @@ class MultiheadAttention(nn.Module):
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
-            if 'prev_key_padding_mask' in saved_state and saved_state['prev_key_padding_mask'] is not None:
-                prev_key_padding_mask = saved_state['prev_key_padding_mask']
-                if static_kv:
-                    key_padding_mask = prev_key_padding_mask
-                else:
-                    key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
+            key_padding_mask = self._append_prev_key_padding_mask(
+                key_padding_mask=key_padding_mask,
+                prev_key_padding_mask=saved_state.get('prev_key_padding_mask', None),
+                batch_size=bsz,
+                src_len=k.size(1),
+                static_kv=static_kv,
+            )
+
             saved_state['prev_key'] = k.view(bsz, self.num_heads, -1, self.head_dim)
             saved_state['prev_value'] = v.view(bsz, self.num_heads, -1, self.head_dim)
             saved_state['prev_key_padding_mask'] = key_padding_mask
@@ -274,6 +276,34 @@ class MultiheadAttention(nn.Module):
             attn_weights = None
 
         return attn, attn_weights
+
+    @staticmethod
+    def _append_prev_key_padding_mask(
+        key_padding_mask,
+        prev_key_padding_mask,
+        batch_size,
+        src_len,
+        static_kv,
+    ):
+        # saved key padding masks have shape (bsz, seq_len)
+        if prev_key_padding_mask is not None and static_kv:
+            key_padding_mask = prev_key_padding_mask
+        elif prev_key_padding_mask is not None and key_padding_mask is not None:
+            key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
+        # During incremental decoding, as the padding token enters and
+        # leaves the frame, there will be a time when prev or current
+        # is None
+        elif prev_key_padding_mask is not None:
+            filler = torch.zeros(batch_size, src_len - prev_key_padding_mask.size(1)).bool()
+            if prev_key_padding_mask.is_cuda:
+                filler = filler.cuda()
+            key_padding_mask = torch.cat((prev_key_padding_mask, filler), dim=1)
+        elif key_padding_mask is not None:
+            filler = torch.zeros(batch_size, src_len - key_padding_mask.size(1)).bool()
+            if key_padding_mask.is_cuda:
+                filler = filler.cuda()
+            key_padding_mask = torch.cat((filler, key_padding_mask), dim=1)
+        return key_padding_mask
 
     def reorder_incremental_state(self, incremental_state, new_order):
         """Reorder buffered internal state (for incremental generation)."""
