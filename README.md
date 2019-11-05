@@ -6,6 +6,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- November 2019: [XLM-R models and code released](examples/xlmr/README.md)
 - September 2019: [Nonautoregressive translation code released](examples/nonautoregressive_translation/README.md)
 - August 2019: [WMT'19 models released](examples/wmt19/README.md)
 - July 2019: fairseq relicensed under MIT license
