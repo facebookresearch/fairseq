@@ -318,24 +318,11 @@ class Trainer(object):
                         self._all_reduce_list[4] += logging_output.get('ntokens', 0.0)
             except RuntimeError as e:
                 if 'out of memory' in str(e):
-                    msg = (
-                        '| WARNING: ran out of memory with exception: '
-                        + '{};'.format(e)
-                        + '\n Skipping batch'
-                    )
-                    # TODO: print should really go to logger, this print goes
-                    # to stderr, which is buffered, which in many cases is not
-                    # printed out if another exception happens.
-                    # NB(jerry): added a flush to mitigate this
-                    print(msg, file=sys.stderr)
-                    if torch.cuda.is_available() and hasattr(torch.cuda, "memory_summary"):
-                        for device_idx in range(torch.cuda.device_count()):
-                            print(torch.cuda.memory_summary(device=device_idx),
-                                  file=sys.stderr)
-                    sys.stderr.flush()
-
+                    self._log_oom(e)
                     if raise_oom:
-                        raise ValueError(msg)
+                        raise e
+                    print("| WARNING: attempting to recover from OOM in forward/backward pass",
+                          file=sys.stderr)
                     ooms += 1
                     self.zero_grad()
                 else:
@@ -455,6 +442,11 @@ class Trainer(object):
             print('| WARNING: overflow detected, ' + str(e))
             self.zero_grad()
             logging_output = None
+        except RuntimeError as e:
+            if 'out of memory' in str(e):
+                self._log_oom(e)
+                print('| ERROR: OOM during optimization, irrecoverable')
+            raise e
 
         if self.args.fp16:
             self.meters['loss_scale'].reset()
@@ -483,16 +475,17 @@ class Trainer(object):
                     sample, self.model, self.criterion
                 )
             except RuntimeError as e:
-                if 'out of memory' in str(e) and not raise_oom:
-                    print('| WARNING: ran out of memory, retrying batch')
-                    for p in self.model.parameters():
-                        if p.grad is not None:
-                            p.grad = None  # free some memory
-                    if self.cuda:
-                        torch.cuda.empty_cache()
-                    return self.valid_step(sample, raise_oom=True)
-                else:
-                    raise e
+                if 'out of memory' in str(e):
+                    self._log_oom(e)
+                    if not raise_oom:
+                        print('| WARNING: ran out of memory in validation step, retrying batch')
+                        for p in self.model.parameters():
+                            if p.grad is not None:
+                                p.grad = None  # free some memory
+                        if self.cuda:
+                            torch.cuda.empty_cache()
+                        return self.valid_step(sample, raise_oom=True)
+                raise e
 
             if ignore_results:
                 logging_output, sample_size = {}, 0
@@ -621,3 +614,16 @@ class Trainer(object):
                 )
             )
         )
+
+    def _log_oom(self, exc):
+        msg = '| OOM: Ran out of memory with exception: {}'.format(exc)
+        # TODO: print should really go to logger, this print goes
+        # to stderr, which is buffered, which in many cases is not
+        # printed out if another exception happens.
+        # NB(jerry): added a flush to mitigate this
+        print(msg, file=sys.stderr)
+        if torch.cuda.is_available() and hasattr(torch.cuda, "memory_summary"):
+            for device_idx in range(torch.cuda.device_count()):
+                print(torch.cuda.memory_summary(device=device_idx),
+                      file=sys.stderr)
+        sys.stderr.flush()
