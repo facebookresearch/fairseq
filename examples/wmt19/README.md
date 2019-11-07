@@ -53,15 +53,15 @@ ru2en.translate("Машинное обучение - это здорово!")  #
 
 ```python
 # Sample from the English LM
-en_lm = torch.hub.load('pytorch.fairseq', 'transformer_lm.wmt19.en', tokenizer='moses', bpe='fastbpe')
+en_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.en', tokenizer='moses', bpe='fastbpe')
 en_lm.sample("Machine learning is")  # 'Machine learning is the future of computing, says Microsoft boss Satya Nadella ...'
 
 # Sample from the German LM
-de_lm = torch.hub.load('pytorch.fairseq', 'transformer_lm.wmt19.de', tokenizer='moses', bpe='fastbpe')
+de_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.de', tokenizer='moses', bpe='fastbpe')
 de_lm.sample("Maschinelles lernen ist")  # 'Maschinelles lernen ist das A und O (neues-deutschland.de) Die Arbeitsbedingungen für Lehrerinnen und Lehrer sind seit Jahren verbesserungswürdig ...'
 
 # Sample from the Russian LM
-ru_lm = torch.hub.load('pytorch.fairseq', 'transformer_lm.wmt19.ru', tokenizer='moses', bpe='fastbpe')
+ru_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.ru', tokenizer='moses', bpe='fastbpe')
 ru_lm.sample("машинное обучение это")  # 'машинное обучение это то, что мы называем "искусственным интеллектом".'
 ```
 
