@@ -108,23 +108,23 @@ class MaskedLMTask(FairseqTask):
         # create masked input and targets
         if self.args.mask_whole_words:
             bpe = encoders.build_bpe(self.args)
-            if bpe is not None:
+            assert bpe is not None
 
-                def is_beginning_of_word(i):
-                    if i < self.source_dictionary.nspecial:
-                        # special elements are always considered beginnings
-                        return True
-                    tok = self.source_dictionary[i]
-                    if tok.startswith('madeupword'):
-                        return True
-                    try:
-                        return bpe.is_beginning_of_word(tok)
-                    except ValueError:
-                        return True
+            def is_beginning_of_word(i):
+                if i < self.source_dictionary.nspecial:
+                    # special elements are always considered beginnings
+                    return True
+                tok = self.source_dictionary[i]
+                if tok.startswith('madeupword'):
+                    return True
+                try:
+                    return bpe.is_beginning_of_word(tok)
+                except ValueError:
+                    return True
 
-                mask_whole_words = torch.ByteTensor(list(
-                    map(is_beginning_of_word, range(len(self.source_dictionary)))
-                ))
+            mask_whole_words = torch.ByteTensor(list(
+                map(is_beginning_of_word, range(len(self.source_dictionary)))
+            ))
         else:
             mask_whole_words = None
 
