@@ -11,7 +11,7 @@ This model uses a `Byte Pair Encoding (BPE)
 vocabulary <https://arxiv.org/abs/1508.07909>`__, so we'll have to apply
 the encoding to the source text before it can be translated. This can be
 done with the
-`apply\_bpe.py <https://github.com/rsennrich/subword-nmt/blob/master/apply_bpe.py>`__
+`apply\_bpe.py <https://github.com/rsennrich/subword-nmt/blob/master/subword_nmt/apply_bpe.py>`__
 script using the ``wmt14.en-fr.fconv-cuda/bpecodes`` file. ``@@`` is
 used as a continuation marker and the original text can be easily
 recovered with e.g. ``sed s/@@ //g`` or by passing the ``--remove-bpe``
