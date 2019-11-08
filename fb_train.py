@@ -9,21 +9,45 @@ from pathlib import Path
 import sys
 
 import torch.fb.rendezvous.zeus  # noqa: F401
+from fvcore.common.file_io import PathManager
 
 from fairseq import options
+from fairseq.fb_pathmgr import fb_pathmgr
 
 from train import distributed_main, main
 
 
-def zeus_distributed_main(device_id, args, start_rank, log_path=None):
+def get_fb_training_parser():
+    parser = options.get_training_parser()
+    parser.add_argument("--tensorboard-manifold", action="store_true",
+                        help="[FB only] send tensorboard plots to manifold")
+    return parser
+
+
+def fb_main(device_id, args, start_rank, log_path=None):
+    """[FB] entry point for each worker process."""
+
     args.distributed_rank = start_rank + device_id
-    if log_path is not None and start_rank == 0 and device_id == 0:
-        with open(log_path, "a") as h:
+
+    # support Manifold for checkpoints
+    fb_pathmgr.register()
+
+    def train_main():
+        if args.distributed_world_size > 1:
+            distributed_main(device_id, args)
+        else:
+            main(args)
+
+    if log_path is not None and args.distributed_rank == 0:
+        # write logs from worker 0 to train.log
+        PathManager.mkdirs(os.path.dirname(log_path))
+        Path(log_path).touch(0o777, exist_ok=True)
+        with PathManager.open(log_path, "a") as h:
             with contextlib.redirect_stdout(tee(sys.stdout, h)):
                 with contextlib.redirect_stderr(tee(sys.stderr, h)):
-                    distributed_main(device_id, args)
+                    train_main()
     else:
-        distributed_main(device_id, args)
+        train_main()
 
 
 class tee(object):
@@ -51,33 +75,22 @@ class tee(object):
 
 
 if __name__ == '__main__':
-    parser = options.get_training_parser()
-    parser.add_argument("--tensorboard-manifold", action="store_true",
-                        help="[FB only] send tensorboard plots to manifold")
+    parser = get_fb_training_parser()
     args = options.parse_args_and_arch(parser)
-    if args.tensorboard_logdir and args.tensorboard_manifold:
-        raise ValueError(
-            "Invalid Args: --tensorboard_logdir and --tensorboard_manifold are both specified."
-        )
-    if args.tensorboard_manifold:
-        args.tbmf_wrapper = True
+
     log_path = os.path.join(args.save_dir, 'train.log')
-    Path(log_path).touch(0o777, exist_ok=True)
-    if args.distributed_init_method is not None:
-        # distributed training
-        if torch.cuda.device_count() > 1:
-            start_rank = args.distributed_rank
-            args.distributed_rank = None
-            torch.multiprocessing.spawn(
-                fn=zeus_distributed_main,
-                args=(args, start_rank, log_path),
-                nprocs=torch.cuda.device_count(),
-            )
-        else:
-            zeus_distributed_main(args.device_id, args, 0, log_path)
+
+    if (
+        args.distributed_init_method is not None
+        and torch.cuda.device_count() > 1
+    ):
+        start_rank = args.distributed_rank
+        args.distributed_rank = None
+        torch.multiprocessing.spawn(
+            fn=fb_main,
+            args=(args, start_rank, log_path),
+            nprocs=torch.cuda.device_count(),
+        )
     else:
-        with open(log_path, "a") as h:
-            with contextlib.redirect_stdout(tee(sys.stdout, h)):
-                with contextlib.redirect_stderr(tee(sys.stderr, h)):
-                    # single GPU training
-                    main(args)
+        # single GPU training
+        fb_main(args.device_id, args, 0, log_path)

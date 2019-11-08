@@ -173,7 +173,7 @@ class Trainer(object):
         try:
             from fairseq.fb_pathmgr import fb_pathmgr
             bexists = fb_pathmgr.isfile(filename)
-        except Exception:
+        except (ModuleNotFoundError, ImportError):
             bexists = os.path.exists(filename)
 
         if bexists:

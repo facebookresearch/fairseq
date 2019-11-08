@@ -16,8 +16,6 @@ import sys
 from fairseq import distributed_utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 
-g_tbmf_wrapper = None
-
 
 def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', no_progress_bar='none'):
     if args.log_format is None:
@@ -37,17 +35,14 @@ def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', 
     else:
         raise ValueError('Unknown log format: {}'.format(args.log_format))
 
-    if args.tbmf_wrapper and distributed_utils.is_master(args):
-        global g_tbmf_wrapper
-        if g_tbmf_wrapper is None:
-            try:
-                from fairseq.fb_tbmf_wrapper import fb_tbmf_wrapper
-            except Exception:
-                raise ImportError("fb_tbmf_wrapper package not found.")
-            g_tbmf_wrapper = fb_tbmf_wrapper
-        bar = g_tbmf_wrapper(bar, args, args.log_interval)
-    elif args.tensorboard_logdir and distributed_utils.is_master(args):
-        bar = tensorboard_log_wrapper(bar, args.tensorboard_logdir, args)
+    if args.tensorboard_logdir and distributed_utils.is_master(args):
+        try:
+            # [FB only] custom wrapper for TensorBoard
+            import palaas  # noqa
+            from fairseq.fb_tbmf_wrapper import fb_tbmf_wrapper
+            bar = fb_tbmf_wrapper(bar, args, args.log_interval)
+        except ImportError:
+            bar = tensorboard_log_wrapper(bar, args.tensorboard_logdir, args)
 
     return bar
 
