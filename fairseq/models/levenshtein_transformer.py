@@ -285,7 +285,7 @@ class LevenshteinTransformerModel(TracingTransformerModel):
             output_scores,
             attn: Tensor,
             word_del_attn: Optional[Tensor],
-            word_del_pred,
+            word_del_out,
             can_del_word,
             pad_idx: int,
             bos_idx: int,
@@ -294,6 +294,8 @@ class LevenshteinTransformerModel(TracingTransformerModel):
             # delete words
             # do not delete tokens if it is <s> </s>
             if can_del_word.sum() != 0:  # we cannot delete, skip
+                word_del_score = F.log_softmax(word_del_out, 2)
+                word_del_pred = torch.jit.Attribute(word_del_score.max(-1)[1], bool)
                 in_tokens = output_tokens[can_del_word]
                 in_scores = output_scores[can_del_word]
                 # apply deletion to a tensor
@@ -331,14 +333,24 @@ class LevenshteinTransformerModel(TracingTransformerModel):
         def ins_placeholders(
             output_tokens,
             output_scores,
-            mask_ins_pred,
+            mask_ins_out,
             can_ins_mask,
             pad_idx: int,
             unk_idx: int,
             eos_idx: int,
+            max_ratio: float,
+            max_lengths,
         ):
             # insert placeholders
             if can_ins_mask.sum() != 0:
+                mask_ins_score = F.log_softmax(mask_ins_out, 2)
+                if eos_penalty > 0.0:
+                    mask_ins_score[:, :, 0] -= eos_penalty
+                mask_ins_pred = mask_ins_score.max(-1)[1]
+                if max_ratio is not None and encoder_out[1] is not None:
+                    mask_ins_pred = torch.min(
+                        mask_ins_pred, max_lengths[can_ins_mask, None].expand_as(mask_ins_pred)
+                    )
                 in_tokens = output_tokens[can_ins_mask]
                 in_scores = output_scores[can_ins_mask]
                 in_masks = in_tokens.ne(pad_idx)
@@ -380,14 +392,15 @@ class LevenshteinTransformerModel(TracingTransformerModel):
             output_scores,
             attn: Tensor,
             word_ins_attn,
-            word_ins_pred,
-            word_ins_scores,
+            word_ins_out,
             can_ins_word,
             pad_idx: int,
             unk_idx: int,
         ):
             # insert words
             if can_ins_word.sum() != 0:
+                word_ins_scores = F.log_softmax(word_ins_out, 2)
+                word_ins_pred = word_ins_scores.max(-1)[1]
                 in_tokens = output_tokens[can_ins_word]
                 in_scores = output_scores[can_ins_word]
                 word_ins_masks = in_tokens.eq(unk_idx)
@@ -411,15 +424,13 @@ class LevenshteinTransformerModel(TracingTransformerModel):
             script_skip_tensor(output_tokens, can_del_word),
             script_skip_tensor_list(list(encoder_out), can_del_word),
         )
-        word_del_score = F.log_softmax(word_del_out, 2)
-        word_del_pred = word_del_score.max(-1)[1].bool()
 
         output_tokens, output_scores, attn = del_word(
             output_tokens,
             output_scores,
             attn,
             word_del_attn,
-            word_del_pred,
+            word_del_out,
             can_del_word,
             self.pad,
             self.bos,
@@ -431,23 +442,16 @@ class LevenshteinTransformerModel(TracingTransformerModel):
             script_skip_tensor(output_tokens, can_ins_mask),
             script_skip_tensor_list(encoder_out, can_ins_mask),
         )
-        mask_ins_score = F.log_softmax(mask_ins_out, 2)
-        if eos_penalty > 0.0:
-            mask_ins_score[:, :, 0] -= eos_penalty
-        mask_ins_pred = mask_ins_score.max(-1)[1]
-        if max_ratio is not None and encoder_out[1] is not None:
-            mask_ins_pred = torch.min(
-                mask_ins_pred, max_lengths[can_ins_mask, None].expand_as(mask_ins_pred)
-            )
-
         output_tokens, output_scores = ins_placeholders(
             output_tokens,
             output_scores,
-            mask_ins_pred,
+            mask_ins_out,
             can_ins_mask,
             self.pad,
             self.unk,
             self.eos,
+            max_ratio,
+            max_lengths,
         )
 
         can_ins_word = output_tokens.eq(self.unk).sum(1) > 0
@@ -455,16 +459,14 @@ class LevenshteinTransformerModel(TracingTransformerModel):
             script_skip_tensor(output_tokens, can_ins_word),
             script_skip_tensor_list(encoder_out, can_ins_word),
         )
-        word_ins_score = F.log_softmax(word_ins_out, 2)
-        word_ins_pred = word_ins_score.max(-1)[1]
+
 
         output_tokens, output_scores, attn = ins_words(
             output_tokens,
             output_scores,
             attn,
             word_ins_attn,
-            word_ins_pred,
-            word_ins_score,
+            word_ins_out,
             can_ins_word,
             self.pad,
             self.unk,
