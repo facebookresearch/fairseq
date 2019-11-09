@@ -67,8 +67,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
         }
         # fmt: on
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, args, encoder, decoder):
         super().__init__(encoder, decoder)
+        self.args = args
         self.supports_align_args = True
 
     @staticmethod
@@ -140,6 +141,10 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='which layers to *keep* when pruning as a comma-separated list')
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
+        parser.add_argument('--layernorm-embedding', action='store_true',
+                            help='add layernorm to embedding')
+        parser.add_argument('--no-scale-embedding', action='store_true',
+                            help='if True, dont scale embeddings')
         # fmt: on
 
     @classmethod
@@ -195,7 +200,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
-        return cls(encoder, decoder)
+        return cls(args, encoder, decoder)
 
     @classmethod
     def build_encoder(cls, args, src_dict, embed_tokens):
@@ -219,7 +224,7 @@ class TransformerAlignModel(TransformerModel):
     """
 
     def __init__(self, encoder, decoder, args):
-        super().__init__(encoder, decoder)
+        super().__init__(args, encoder, decoder)
         self.alignment_heads = args.alignment_heads
         self.alignment_layer = args.alignment_layer
         self.full_context_alignment = args.full_context_alignment
@@ -297,7 +302,9 @@ class TransformerEncoder(FairseqEncoder):
         self.max_source_positions = args.max_source_positions
 
         self.embed_tokens = embed_tokens
-        self.embed_scale = math.sqrt(embed_dim)
+
+        self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
+
         self.embed_positions = PositionalEmbedding(
             args.max_source_positions, embed_dim, self.padding_idx,
             learned=args.encoder_learned_pos,
@@ -315,17 +322,22 @@ class TransformerEncoder(FairseqEncoder):
             self.layer_norm = LayerNorm(embed_dim)
         else:
             self.layer_norm = None
-
+        if getattr(args, 'layernorm_embedding', False):
+            self.layernorm_embedding = LayerNorm(embed_dim)
+        else:
+            self.layernorm_embedding = None
 
     def forward_embedding(self, src_tokens):
         # embed tokens and positions
         embed = self.embed_scale * self.embed_tokens(src_tokens)
         if self.embed_positions is not None:
             x = embed + self.embed_positions(src_tokens)
+        if self.layernorm_embedding:
+            x = self.layernorm_embedding(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x, embed
 
-    def forward(self, src_tokens, src_lengths, cls_input=None, return_all_hiddens=False):
+    def forward(self, src_tokens, src_lengths, cls_input=None, return_all_hiddens=False, **unused):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -422,6 +434,7 @@ class TransformerEncoder(FairseqEncoder):
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             weights_key = '{}.embed_positions.weights'.format(name)
             if weights_key in state_dict:
+                print('deleting {0}'.format(weights_key))
                 del state_dict[weights_key]
             state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
         for i in range(len(self.layers)):
@@ -466,7 +479,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.max_target_positions = args.max_target_positions
 
         self.embed_tokens = embed_tokens
-        self.embed_scale = math.sqrt(embed_dim)  # todo: try with input_embed_dim
+
+        self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
 
         self.project_in_dim = Linear(input_embed_dim, embed_dim, bias=False) if embed_dim != input_embed_dim else None
 
@@ -507,6 +521,10 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layer_norm = LayerNorm(embed_dim)
         else:
             self.layer_norm = None
+        if getattr(args, 'layernorm_embedding', False):
+            self.layernorm_embedding = LayerNorm(embed_dim)
+        else:
+            self.layernorm_embedding = None
 
     def forward(
         self,
@@ -590,6 +608,10 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         if positions is not None:
             x += positions
+
+        if self.layernorm_embedding:
+            x = self.layernorm_embedding(x)
+
         x = F.dropout(x, p=self.dropout, training=self.training)
 
         # B x T x C -> T x B x C
@@ -757,6 +779,9 @@ def base_architecture(args):
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
     args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)
+
+    args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
+    args.layernorm_embedding = getattr(args, 'layernorm_embedding', False)
 
 
 @register_model_architecture('transformer', 'transformer_iwslt_de_en')

@@ -7,7 +7,12 @@ import numpy as np
 import torch
 
 from fairseq import tokenizer
-from fairseq.data import data_utils, FairseqDataset, iterators, Dictionary
+from fairseq.data import (
+    data_utils,
+    FairseqDataset,
+    iterators,
+    Dictionary,
+)
 
 
 class FairseqTask(object):

@@ -103,6 +103,10 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='LayerDrop probability for decoder')
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
+        parser.add_argument('--layernorm-embedding', action='store_true',
+                            help='add layernorm to embedding')
+        parser.add_argument('--no-scale-embedding', action='store_true',
+                            help='if True, dont scale embeddings')
         # fmt: on
 
     @classmethod
@@ -189,6 +193,9 @@ def base_lm_architecture(args):
 
     args.tie_adaptive_weights = getattr(args, 'tie_adaptive_weights', False)
     args.tie_adaptive_proj = getattr(args, 'tie_adaptive_proj', False)
+
+    args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
+    args.layernorm_embedding = getattr(args, 'layernorm_embedding', False)
 
 
 @register_model_architecture('transformer_lm', 'transformer_lm_big')
