@@ -58,7 +58,7 @@ class RobertaHubInterface(nn.Module):
         for s in addl_sentences:
             bpe_sentence += (' </s>' if not no_separator else '')
             bpe_sentence += ' ' + self.bpe.encode(s) + ' </s>'
-        tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False)
+        tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False, add_if_not_exist=False)
         return tokens.long()
 
     def decode(self, tokens: torch.LongTensor):
@@ -146,8 +146,9 @@ class RobertaHubInterface(nn.Module):
             [self.bpe.encode(text_span.rstrip()) for text_span in text_spans]
         ).strip()
         tokens = self.task.source_dictionary.encode_line(
-            '<s> ' + text_spans_bpe,
-            append_eos=True,
+            '<s> ' + text_spans_bpe + ' </s>',
+            append_eos=False,
+            add_if_not_exist=False,
         )
 
         masked_index = (tokens == self.task.mask_idx).nonzero()
@@ -168,6 +169,9 @@ class RobertaHubInterface(nn.Module):
         topk_filled_outputs = []
         for index, predicted_token_bpe in enumerate(topk_predicted_token_bpe.split(' ')):
             predicted_token = self.bpe.decode(predicted_token_bpe)
+            # Quick hack to fix https://github.com/pytorch/fairseq/issues/1306
+            if predicted_token_bpe.startswith('\u2581'):
+                predicted_token = ' ' + predicted_token
             if " {0}".format(masked_token) in masked_input:
                 topk_filled_outputs.append((
                     masked_input.replace(

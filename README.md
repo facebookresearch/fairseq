@@ -6,6 +6,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- November 2019: [CamemBERT model and code released](examples/camembert/README.md)
 - November 2019: [BART model and code released](examples/bart/README.md)
 - November 2019: [XLM-R models and code released](examples/xlmr/README.md)
 - September 2019: [Nonautoregressive translation code released](examples/nonautoregressive_translation/README.md)
