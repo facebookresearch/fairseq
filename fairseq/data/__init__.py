@@ -5,7 +5,7 @@
 
 from .dictionary import Dictionary, TruncatedDictionary
 
-from .fairseq_dataset import FairseqDataset
+from .fairseq_dataset import FairseqDataset, FairseqIterableDataset
 
 from .base_wrapper_dataset import BaseWrapperDataset
 
@@ -65,6 +65,7 @@ __all__ = [
     'Dictionary',
     'EpochBatchIterator',
     'FairseqDataset',
+    'FairseqIterableDataset',
     'GroupedIterator',
     'IdDataset',
     'IndexedCachedDataset',
