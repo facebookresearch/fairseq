@@ -97,6 +97,13 @@ else:
     dependency_links = []
 
 
+if 'clean' in sys.argv[1:]:
+    # Source: https://bit.ly/2NLVsgE
+    print("deleting Cython files...")
+    import subprocess
+    subprocess.run(['rm -f fairseq/*.so fairseq/**/*.so'], shell=True)
+
+
 setup(
     name='fairseq',
     version='0.8.0',
