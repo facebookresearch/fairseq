@@ -3,11 +3,20 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from collections import namedtuple
+
 import torch
+
 from fairseq import utils
-from fairseq.models.levenshtein_transformer import LevenshteinTransformerModel
-from fairseq.models.model_utils import script_skip_tensor_list, skip_tensors as _skip
-from fairseq.models.nonautoregressive_ensembles import EnsembleLevT
+
+
+DecoderOut = namedtuple('IterativeRefinementDecoderOut', [
+    'output_tokens',
+    'output_scores',
+    'attn',
+    'step',
+    'max_step',
+])
 
 
 class IterativeRefinementGenerator(object):
@@ -88,6 +97,8 @@ class IterativeRefinementGenerator(object):
 
     @torch.no_grad()
     def generate(self, models, sample, prefix_tokens=None):
+        from fairseq.models.levenshtein_transformer import LevenshteinTransformerModel
+        from fairseq.models.nonautoregressive_ensembles import EnsembleLevT
 
         if len(models) == 1:
             # Keep this for other NAT models for which we have yet to implement ensemble wrappers. Later delete this.
@@ -110,7 +121,7 @@ class IterativeRefinementGenerator(object):
 
         # initialize buffers (very model specific, with length prediction or not)
         prev_decoder_out = model.initialize_output_tokens(encoder_out, src_tokens)
-        prev_output_tokens = prev_decoder_out[0].clone()
+        prev_output_tokens = prev_decoder_out.output_tokens.clone()
 
         finalized = [[] for _ in range(bsz)]
 
@@ -150,8 +161,10 @@ class IterativeRefinementGenerator(object):
                 "max_ratio": self.max_ratio,
                 "decoding_format": self.decoding_format,
             }
-            prev_decoder_out[3] = step
-            prev_decoder_out[4] = self.max_iter + 1
+            prev_decoder_out = prev_decoder_out._replace(
+                step=step,
+                max_step=self.max_iter + 1,
+            )
 
             decoder_out = model.forward_decoder(
                 prev_decoder_out, encoder_out, **decoder_options
@@ -160,24 +173,26 @@ class IterativeRefinementGenerator(object):
             if self.adaptive:
                 # terminate if there is a loop
                 terminated, out_tokens, out_scores, out_attn = is_a_loop(
-                    prev_output_tokens, decoder_out[0], decoder_out[1], decoder_out[2]
+                    prev_output_tokens, decoder_out.output_tokens, decoder_out.output_scores, decoder_out.attn
                 )
-                decoder_out[0] = out_tokens
-                decoder_out[1] = out_scores
-                decoder_out[2] = out_attn
+                decoder_out = decoder_out._replace(
+                    output_tokens=out_tokens,
+                    output_scores=out_scores,
+                    attn=out_attn,
+                )
 
             else:
-                terminated = decoder_out[0].new_zeros(decoder_out[0].size(0)).bool()
+                terminated = decoder_out.output_tokens.new_zeros(decoder_out.output_tokens.size(0)).bool()
 
             if step == self.max_iter:  # reach last iteration, terminate
                 terminated.fill_(1)
 
             # collect finalized sentences
             finalized_idxs = sent_idxs[terminated]
-            finalized_tokens = decoder_out[0][terminated]
-            finalized_scores = decoder_out[1][terminated]
+            finalized_tokens = decoder_out.output_tokens[terminated]
+            finalized_scores = decoder_out.output_scores[terminated]
             finalized_attn = (
-                None if decoder_out[2] is None else decoder_out[2][terminated]
+                None if decoder_out.attn is None else decoder_out.attn[terminated]
             )
 
             for i in range(finalized_idxs.size(0)):
@@ -194,10 +209,15 @@ class IterativeRefinementGenerator(object):
                 break
 
             # for next step
-            prev_decoder_out = _skip(decoder_out, ~terminated)
-            encoder_out = script_skip_tensor_list(encoder_out, ~terminated)
-            sent_idxs = _skip(sent_idxs, ~terminated)
+            not_terminated = ~terminated
+            prev_decoder_out = decoder_out._replace(
+                output_tokens=decoder_out.output_tokens[not_terminated],
+                output_scores=decoder_out.output_scores[not_terminated],
+                attn=decoder_out.attn[not_terminated] if decoder_out.attn is not None else None,
+            )
+            encoder_out = model.encoder.reorder_encoder_out(encoder_out, not_terminated.nonzero().squeeze())
+            sent_idxs = sent_idxs[not_terminated]
 
-            prev_output_tokens = prev_decoder_out[0].clone()
+            prev_output_tokens = prev_decoder_out.output_tokens.clone()
 
         return finalized

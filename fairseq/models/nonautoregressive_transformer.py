@@ -5,7 +5,9 @@
 
 import torch
 import torch.nn.functional as F
+
 from fairseq import utils
+from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import (
     Embedding,
@@ -45,8 +47,8 @@ def _uniform_assignment(src_lens, trg_lens):
 
 @register_model("nonautoregressive_transformer")
 class NATransformerModel(TransformerModel):
-    def __init__(self, encoder, decoder):
-        super().__init__(encoder, decoder)
+    def __init__(self, args, encoder, decoder):
+        super().__init__(args, encoder, decoder)
         self.tgt_dict = decoder.dictionary
         self.bos = decoder.dictionary.bos()
         self.eos = decoder.dictionary.eos()
@@ -112,9 +114,9 @@ class NATransformerModel(TransformerModel):
         return self.encoder(*encoder_inputs)
 
     def forward_decoder(self, decoder_out, encoder_out, decoding_format=None, **kwargs):
-        step = decoder_out["step"]
-        output_tokens = decoder_out["output_tokens"]
-        output_scores = decoder_out["output_scores"]
+        step = decoder_out.step
+        output_tokens = decoder_out.output_tokens
+        output_scores = decoder_out.output_scores
 
         # execute the decoder
         output_masks = output_tokens.ne(self.pad)
@@ -127,12 +129,16 @@ class NATransformerModel(TransformerModel):
         output_tokens.masked_scatter_(output_masks, _tokens[output_masks])
         output_scores.masked_scatter_(output_masks, _scores[output_masks])
 
-        return {"output_tokens": output_tokens, "output_scores": output_scores, "attn": None}
+        return decoder_out._replace(
+            output_tokens=output_tokens,
+            output_scores=output_scores,
+            attn=None,
+        )
 
     def initialize_output_tokens(self, encoder_out, src_tokens):
         # length prediction
         _, length_tgt = self.decoder.forward_length_prediction(encoder_out)
-        max_length = length_tgt.max()
+        max_length = length_tgt.clamp_(min=2).max()
         idx_length = utils.new_arange(src_tokens, max_length)
 
         initial_output_tokens = src_tokens.new_zeros(
@@ -146,13 +152,15 @@ class NATransformerModel(TransformerModel):
 
         initial_output_scores = initial_output_tokens.new_zeros(
             *initial_output_tokens.size()
-        ).type_as(encoder_out["encoder_out"])
+        ).type_as(encoder_out.encoder_out)
 
-        return {
-            "output_tokens": initial_output_tokens,
-            "output_scores": initial_output_scores,
-            "attn": None
-        }
+        return DecoderOut(
+            output_tokens=initial_output_tokens,
+            output_scores=initial_output_scores,
+            attn=None,
+            step=0,
+            max_step=0,
+        )
 
 
 class NATransformerDecoder(TransformerDecoder):
@@ -220,8 +228,8 @@ class NATransformerDecoder(TransformerDecoder):
         """
         # embedding
         if embedding_copy:
-            src_embd = encoder_out["encoder_embedding"]
-            src_mask = encoder_out["encoder_padding_mask"]
+            src_embd = encoder_out.encoder_embedding
+            src_mask = encoder_out.encoder_padding_mask
             src_mask = (
                 ~src_mask
                 if src_mask is not None
@@ -253,10 +261,8 @@ class NATransformerDecoder(TransformerDecoder):
 
             x, attn = layer(
                 x,
-                encoder_out["encoder_out"] if encoder_out is not None else None,
-                encoder_out["encoder_padding_mask"]
-                if encoder_out is not None
-                else None,
+                encoder_out.encoder_out if encoder_out is not None else None,
+                encoder_out.encoder_padding_mask if encoder_out is not None else None,
                 self_attn_mask=None,
                 self_attn_padding_mask=decoder_padding_mask,
             )
@@ -311,8 +317,8 @@ class NATransformerDecoder(TransformerDecoder):
         return copied_embedding
 
     def forward_length_prediction(self, encoder_out, tgt_tokens=None):
-        enc_feats = encoder_out["encoder_out"]  # T x B x C
-        src_masks = encoder_out["encoder_padding_mask"]  # B x T or None
+        enc_feats = encoder_out.encoder_out  # T x B x C
+        src_masks = encoder_out.encoder_padding_mask  # B x T or None
 
         if self.pred_length_offset:
             if src_masks is None:

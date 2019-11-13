@@ -48,7 +48,7 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         if masks is not None:
             outputs, targets = outputs[masks], targets[masks]
 
-        if not masks.any():
+        if masks is not None and not masks.any():
             nll_loss = torch.tensor(0)
             loss = nll_loss
         else:
