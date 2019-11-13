@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
+
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.nonautoregressive_transformer import NATransformerModel
 

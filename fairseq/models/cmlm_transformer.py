@@ -10,9 +10,9 @@ Ghazvininejad, Marjan, et al.
 arXiv preprint arXiv:1904.09324 (2019).
 """
 
-from fairseq.utils import new_arange
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.nonautoregressive_transformer import NATransformerModel
+from fairseq.utils import new_arange
 
 
 def _skeptical_unmasking(output_scores, output_masks, p):
@@ -55,11 +55,11 @@ class CMLMNATransformerModel(NATransformerModel):
 
     def forward_decoder(self, decoder_out, encoder_out, decoding_format=None, **kwargs):
 
-        step = decoder_out["step"]
-        max_step = decoder_out["max_step"]
+        step = decoder_out.step
+        max_step = decoder_out.max_step
 
-        output_tokens = decoder_out["output_tokens"]
-        output_scores = decoder_out["output_scores"]
+        output_tokens = decoder_out.output_tokens
+        output_scores = decoder_out.output_scores
 
         # execute the decoder
         output_masks = output_tokens.eq(self.unk)
@@ -78,7 +78,11 @@ class CMLMNATransformerModel(NATransformerModel):
             output_tokens.masked_fill_(skeptical_mask, self.unk)
             output_scores.masked_fill_(skeptical_mask, 0.0)
 
-        return {"output_tokens": output_tokens, "output_scores": output_scores}
+        return decoder_out._replace(
+            output_tokens=output_tokens,
+            output_scores=output_scores,
+            attn=None,
+        )
 
 
 @register_model_architecture("cmlm_transformer", "cmlm_transformer")

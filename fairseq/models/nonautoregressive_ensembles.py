@@ -3,11 +3,18 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import math
+
 import torch
 import torch.nn.functional as F
-import math
-from fairseq.models.model_utils import fill_tensors as _fill, skip_tensors as _skip
-from fairseq.models.model_utils import _apply_del_words, _apply_ins_masks, _apply_ins_words
+
+from fairseq.models.levenshtein_transformer import (
+    _skip,
+    _apply_ins_masks,
+    _apply_ins_words,
+    _apply_del_words,
+)
+from fairseq.models.model_utils import fill_tensors as _fill
 
 
 class BasicEnsembleModel(torch.nn.Module):

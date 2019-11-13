@@ -6,7 +6,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from fairseq.utils import new_arange
+
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.levenshtein_transformer import (
     LevenshteinTransformerDecoder,
@@ -14,6 +14,7 @@ from fairseq.models.levenshtein_transformer import (
 )
 from fairseq.models.transformer import Linear, TransformerModel
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from fairseq.utils import new_arange
 
 
 class NegativeDistanceScore(object):
@@ -116,8 +117,8 @@ def _apply_ins_words(in_tokens, in_scores, word_ins_pred, word_ins_scores, paddi
 
 @register_model("insertion_transformer")
 class InsertionTransformerModel(LevenshteinTransformerModel):
-    def __init__(self, encoder, decoder):
-        super().__init__(encoder, decoder)
+    def __init__(self, args, encoder, decoder):
+        super().__init__(args, encoder, decoder)
 
     @staticmethod
     def add_args(parser):
@@ -169,8 +170,8 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
         self, decoder_out, encoder_out, eos_penalty=0.0, max_ratio=None, **kwargs
     ):
 
-        output_tokens = decoder_out["output_tokens"]
-        output_scores = decoder_out["output_scores"]
+        output_tokens = decoder_out.output_tokens
+        output_scores = decoder_out.output_scores
         # TODO: decoding for InsertionTransformer
         word_ins_out = self.decoder.forward_word_ins(
             output_tokens, encoder_out=encoder_out
@@ -187,7 +188,11 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
         cut_off = output_tokens.ne(self.pad).sum(1).max()
         output_tokens = output_tokens[:, :cut_off]
         output_scores = output_scores[:, :cut_off]
-        return {"output_tokens": output_tokens, "output_scores": output_scores, "attn": None}
+        return decoder_out._replace(
+            output_tokens=output_tokens,
+            output_scores=output_scores,
+            attn=None,
+        )
 
 
 class InsertionTransformerDecoder(LevenshteinTransformerDecoder):
@@ -206,7 +211,7 @@ class InsertionTransformerDecoder(LevenshteinTransformerDecoder):
         self.label_tau = getattr(args, "label_tau", None)
 
     def forward_word_ins(self, prev_output_tokens, encoder_out=None):
-        features, _ = self.extract_features(prev_output_tokens, encoder_out=encoder_out)
+        features = self.extract_features(prev_output_tokens, encoder_out=encoder_out)[0]
         features = self.pool_out(
             torch.cat([features[:, :-1, :], features[:, 1:, :]], 2)
         )
