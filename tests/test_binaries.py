@@ -384,6 +384,11 @@ class TestLanguageModeling(unittest.TestCase):
                     data_dir, 'transformer_lm', ['--add-bos-token'], run_validation=True,
                 )
                 eval_lm_main(data_dir)
+                generate_main(data_dir, [
+                    '--task', 'language_modeling',
+                    '--sample-break-mode', 'eos',
+                    '--tokens-per-sample', '500',
+                ])
 
 
 class TestMaskedLanguageModel(unittest.TestCase):
