@@ -123,3 +123,6 @@ data-bin/
 # Cython-generated C++ source files
 /fairseq/data/data_utils_fast.cpp
 /fairseq/data/token_block_utils_fast.cpp
+
+experiments/*
+examples/
