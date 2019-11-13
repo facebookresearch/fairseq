@@ -65,6 +65,8 @@ class TokenBlockDataset(FairseqDataset):
         if isinstance(sizes, list):
             sizes = np.array(sizes, dtype=np.int64)
         else:
+            if torch.is_tensor(sizes):
+                sizes = sizes.numpy()
             sizes = sizes.astype(np.int64)
 
         break_mode = break_mode if break_mode is not None else 'none'

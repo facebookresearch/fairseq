@@ -223,8 +223,9 @@ class LanguageModelingTask(FairseqTask):
     def inference_step(self, generator, models, sample, prefix_tokens=None):
         with torch.no_grad():
             if prefix_tokens is None and sample["net_input"]["src_tokens"].nelement():
-                # note: EOS has already been removed in build_dataset_for_inference
                 prefix_tokens = sample["net_input"]["src_tokens"]
+                if prefix_tokens[:, 0].eq(self.source_dictionary.eos()).all():
+                    prefix_tokens = prefix_tokens[:, 1:]
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)
 
     @property

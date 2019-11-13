@@ -195,7 +195,7 @@ class SequenceGenerator(object):
             possible score among unfinalized hypotheses.
             """
             assert len(finalized[sent]) <= beam_size
-            if len(finalized[sent]) == beam_size:
+            if len(finalized[sent]) == beam_size or step == max_len:
                 return True
             return False
 
@@ -298,21 +298,19 @@ class SequenceGenerator(object):
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
-            # handle min and max length constraints
+            # handle max length constraint
             if step >= max_len:
                 lprobs[:, :self.eos] = -math.inf
                 lprobs[:, self.eos + 1:] = -math.inf
-            elif step < self.min_len:
-                lprobs[:, self.eos] = -math.inf
 
             # handle prefix tokens (possibly with different lengths)
-            if prefix_tokens is not None and step < prefix_tokens.size(1):
+            if prefix_tokens is not None and step < prefix_tokens.size(1) and step < max_len:
                 prefix_toks = prefix_tokens[:, step].unsqueeze(-1).repeat(1, beam_size).view(-1)
                 prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
                 prefix_mask = prefix_toks.ne(self.pad)
                 lprobs[prefix_mask] = -math.inf
                 lprobs[prefix_mask] = lprobs[prefix_mask].scatter_(
-                    -1, prefix_toks[prefix_mask].unsqueeze(-1), prefix_lprobs
+                    -1, prefix_toks[prefix_mask].unsqueeze(-1), prefix_lprobs[prefix_mask]
                 )
                 # if prefix includes eos, then we should make sure tokens and
                 # scores are the same across all beams
@@ -333,6 +331,9 @@ class SequenceGenerator(object):
                     tokens = replicate_first_beam(tokens, eos_mask_batch_dim)
                     scores = replicate_first_beam(scores, eos_mask_batch_dim)
                     lprobs = replicate_first_beam(lprobs, eos_mask_batch_dim)
+            elif step < self.min_len:
+                # minimum length constraint (does not apply if using prefix_tokens)
+                lprobs[:, self.eos] = -math.inf
 
             if self.no_repeat_ngram_size > 0:
                 # for each beam and batch sentence, generate a list of previous ngrams
@@ -383,8 +384,9 @@ class SequenceGenerator(object):
             # and dimensions: [bsz, cand_size]
             cand_bbsz_idx = cand_beams.add(bbsz_offsets)
 
-            # finalize hypotheses that end in eos (except for blacklisted ones)
-            eos_mask = cand_indices.eq(self.eos)
+            # finalize hypotheses that end in eos, except for blacklisted ones
+            # or candidates with a score of -inf
+            eos_mask = cand_indices.eq(self.eos) & cand_scores.ne(-math.inf)
             eos_mask[:, :beam_size][blacklist] = 0
 
             # only consider eos when it's among the top beam_size indices
