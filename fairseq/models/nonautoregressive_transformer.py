@@ -117,6 +117,7 @@ class NATransformerModel(TransformerModel):
         step = decoder_out.step
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
+        history = decoder_out.history
 
         # execute the decoder
         output_masks = output_tokens.ne(self.pad)
@@ -127,12 +128,15 @@ class NATransformerModel(TransformerModel):
             step=step,
         )
         output_tokens.masked_scatter_(output_masks, _tokens[output_masks])
-        output_scores.masked_scatter_(output_masks, _scores[output_masks])
+        output_scores.masked_scatter_(output_masks, _scores[output_masks])    
+        if history is not None:
+            history.append(output_tokens.clone())
 
         return decoder_out._replace(
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=None,
+            history=history
         )
 
     def initialize_output_tokens(self, encoder_out, src_tokens):
@@ -160,6 +164,7 @@ class NATransformerModel(TransformerModel):
             attn=None,
             step=0,
             max_step=0,
+            history=None
         )
 
 

@@ -410,6 +410,7 @@ class LevenshteinTransformerModel(TransformerModel):
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
         attn = decoder_out.attn
+        history = decoder_out.history
 
         bsz = output_tokens.size(0)
         if max_ratio is None:
@@ -446,6 +447,9 @@ class LevenshteinTransformerModel(TransformerModel):
             output_scores = _fill(output_scores, can_del_word, _scores, 0)
             attn = _fill(attn, can_del_word, _attn, 0.)
 
+            if history is not None:
+                history.append(output_tokens.clone())
+
         # insert placeholders
         can_ins_mask = output_tokens.ne(self.pad).sum(1) < max_lens
         if can_ins_mask.sum() != 0:
@@ -472,6 +476,9 @@ class LevenshteinTransformerModel(TransformerModel):
             output_tokens = _fill(output_tokens, can_ins_mask, _tokens, self.pad)
             output_scores = _fill(output_scores, can_ins_mask, _scores, 0)
 
+            if history is not None:
+                history.append(output_tokens.clone())
+
         # insert words
         can_ins_word = output_tokens.eq(self.unk).sum(1) > 0
         if can_ins_word.sum() != 0:
@@ -480,8 +487,6 @@ class LevenshteinTransformerModel(TransformerModel):
                 _skip_encoder_out(self.encoder, encoder_out, can_ins_word)
             )
             word_ins_score, word_ins_pred = F.log_softmax(word_ins_out, 2).max(-1)
-            word_ins_pred = word_ins_score.max(-1)[1]
-
             _tokens, _scores = _apply_ins_words(
                 output_tokens[can_ins_word],
                 output_scores[can_ins_word],
@@ -494,6 +499,9 @@ class LevenshteinTransformerModel(TransformerModel):
             output_scores = _fill(output_scores, can_ins_word, _scores, 0)
             attn = _fill(attn, can_ins_word, word_ins_attn, 0.)
 
+            if history is not None:
+                history.append(output_tokens.clone())
+
         # delete some unnecessary paddings
         cut_off = output_tokens.ne(self.pad).sum(1).max()
         output_tokens = output_tokens[:, :cut_off]
@@ -504,6 +512,7 @@ class LevenshteinTransformerModel(TransformerModel):
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=attn,
+            history=history
         )
 
     def initialize_output_tokens(self, encoder_out, src_tokens):
@@ -520,6 +529,7 @@ class LevenshteinTransformerModel(TransformerModel):
             attn=None,
             step=0,
             max_step=0,
+            history=None
         )
 
 

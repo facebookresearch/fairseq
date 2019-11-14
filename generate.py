@@ -162,6 +162,15 @@ def main(args):
                         if args.print_step:
                             print('I-{}\t{}'.format(sample_id, hypo['steps']))
 
+                        if getattr(args, 'retain_iter_history', False):
+                            print("\n".join([
+                                    'E-{}_{}\t{}'.format(
+                                        sample_id, step,
+                                        utils.post_process_prediction(
+                                            h['tokens'].int().cpu(),
+                                            src_str, None, None, tgt_dict, None)[1])
+                                        for step, h in enumerate(hypo['history'])]))
+
                     # Score only the top hypothesis
                     if has_target and j == 0:
                         if align_dict is not None or args.remove_bpe is not None:

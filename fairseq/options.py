@@ -506,6 +506,8 @@ def add_generation_args(parser):
                        help='maximum iterations for iterative refinement.')
     group.add_argument('--iter-decode-force-max-iter', action='store_true',
                        help='if set, run exact the maximum number of iterations without early stop')
+    group.add_argument('--retain-iter-history', action='store_true',
+                       help='if set, decoding returns the whole history of iterative refinement')
 
     # special decoding format for advanced decoding.
     group.add_argument('--decoding-format', default=None, type=str, choices=['unigram', 'ensemble', 'vote', 'dp', 'bs'])

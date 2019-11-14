@@ -172,6 +172,8 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
 
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
+        history = decoder_out.history
+
         # TODO: decoding for InsertionTransformer
         word_ins_out = self.decoder.forward_word_ins(
             output_tokens, encoder_out=encoder_out
@@ -188,10 +190,15 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
         cut_off = output_tokens.ne(self.pad).sum(1).max()
         output_tokens = output_tokens[:, :cut_off]
         output_scores = output_scores[:, :cut_off]
+
+        if history is not None:
+            history.append(output_tokens.clone())
+
         return decoder_out._replace(
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=None,
+            history=history
         )
 
 
