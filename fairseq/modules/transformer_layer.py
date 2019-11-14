@@ -92,7 +92,8 @@ class TransformerEncoderLayer(nn.Module):
         # will become -inf, which results in NaN in model parameters
         # TODO: to formally solve this problem, we need to change fairseq's
         # MultiheadAttention. We will do this later on.
-        x, _ = self.self_attn(query=x, key=x, value=x, key_padding_mask=encoder_padding_mask)
+        x, _ = self.self_attn(query=x, key=x, value=x,
+                              key_padding_mask=encoder_padding_mask)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
@@ -135,7 +136,8 @@ class TransformerDecoderLayer(nn.Module):
     def __init__(self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
-        self.cross_self_attention = getattr(args, 'cross_self_attention', False)
+        self.cross_self_attention = getattr(
+            args, 'cross_self_attention', False)
         self.self_attn = MultiheadAttention(
             embed_dim=self.embed_dim,
             num_heads=args.decoder_attention_heads,
@@ -172,7 +174,8 @@ class TransformerDecoderLayer(nn.Module):
                 dropout=args.attention_dropout,
                 encoder_decoder_attention=True,
             )
-            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
+            self.encoder_attn_layer_norm = LayerNorm(
+                self.embed_dim, export=export)
 
         self.fc1 = Linear(self.embed_dim, args.decoder_ffn_embed_dim)
         self.fc2 = Linear(args.decoder_ffn_embed_dim, self.embed_dim)
@@ -196,6 +199,7 @@ class TransformerDecoderLayer(nn.Module):
         self_attn_mask=None,
         self_attn_padding_mask=None,
         need_attn=False,
+        need_attn_self=False,
         need_head_weights=False,
     ):
         """
@@ -204,7 +208,8 @@ class TransformerDecoderLayer(nn.Module):
             encoder_padding_mask (ByteTensor, optional): binary
                 ByteTensor of shape `(batch, src_len)` where padding
                 elements are indicated by ``1``.
-            need_attn (bool, optional): return attention weights
+            need_attn (bool, optional): return attention weights of enc_attn
+            need_attn_self (book,optipnal) : return attention wegiths of self_attn (maybe List[])
             need_head_weights (bool, optional): return attention weights
                 for each head (default: return average over heads).
 
@@ -227,11 +232,14 @@ class TransformerDecoderLayer(nn.Module):
 
         if self.cross_self_attention and not (incremental_state is not None and "prev_key" in self.self_attn._get_input_buffer(incremental_state)):
             if self_attn_mask is not None:
-                self_attn_mask = torch.cat((x.new(x.size(0), encoder_out.size(0)).zero_(), self_attn_mask), dim=1)
+                self_attn_mask = torch.cat(
+                    (x.new(x.size(0), encoder_out.size(0)).zero_(), self_attn_mask), dim=1)
             if self_attn_padding_mask is not None:
                 if encoder_padding_mask is None:
-                    encoder_padding_mask = self_attn_padding_mask.new(encoder_out.size(1), encoder_out.size(0)).zero_()
-                self_attn_padding_mask = torch.cat((encoder_padding_mask, self_attn_padding_mask), dim=1)
+                    encoder_padding_mask = self_attn_padding_mask.new(
+                        encoder_out.size(1), encoder_out.size(0)).zero_()
+                self_attn_padding_mask = torch.cat(
+                    (encoder_padding_mask, self_attn_padding_mask), dim=1)
             y = torch.cat((encoder_out, x), dim=0)
         else:
             y = x
@@ -251,7 +259,8 @@ class TransformerDecoderLayer(nn.Module):
 
         if self.encoder_attn is not None:
             residual = x
-            x = self.maybe_layer_norm(self.encoder_attn_layer_norm, x, before=True)
+            x = self.maybe_layer_norm(
+                self.encoder_attn_layer_norm, x, before=True)
             if prev_attn_state is not None:
                 if incremental_state is None:
                     incremental_state = {}
@@ -259,7 +268,8 @@ class TransformerDecoderLayer(nn.Module):
                 saved_state = {"prev_key": prev_key, "prev_value": prev_value}
                 if len(prev_attn_state) >= 3:
                     saved_state["prev_key_padding_mask"] = prev_attn_state[2]
-                self.encoder_attn._set_input_buffer(incremental_state, saved_state)
+                self.encoder_attn._set_input_buffer(
+                    incremental_state, saved_state)
 
             x, attn = self.encoder_attn(
                 query=x,
@@ -268,12 +278,14 @@ class TransformerDecoderLayer(nn.Module):
                 key_padding_mask=encoder_padding_mask,
                 incremental_state=incremental_state,
                 static_kv=True,
-                need_weights=need_attn or (not self.training and self.need_attn),
+                need_weights=need_attn or (
+                    not self.training and self.need_attn),
                 need_head_weights=need_head_weights,
             )
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = residual + x
-            x = self.maybe_layer_norm(self.encoder_attn_layer_norm, x, after=True)
+            x = self.maybe_layer_norm(
+                self.encoder_attn_layer_norm, x, after=True)
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
