@@ -209,7 +209,7 @@ class TransformerDecoderLayer(nn.Module):
                 ByteTensor of shape `(batch, src_len)` where padding
                 elements are indicated by ``1``.
             need_attn (bool, optional): return attention weights of enc_attn
-            need_attn_self (book,optipnal) : return attention wegiths of self_attn (maybe List[])
+            need_attn_self (book,optipnal) : return attention wegiths of self_attn (return self attention matrix)
             need_head_weights (bool, optional): return attention weights
                 for each head (default: return average over heads).
 
@@ -244,7 +244,7 @@ class TransformerDecoderLayer(nn.Module):
         else:
             y = x
 
-        x, attn = self.self_attn(
+        x, self_attn = self.self_attn(
             query=x,
             key=y,
             value=y,
@@ -302,7 +302,11 @@ class TransformerDecoderLayer(nn.Module):
             else:
                 self_attn_state = saved_state["prev_key"], saved_state["prev_value"]
             return x, attn, self_attn_state
-        return x, attn
+
+        if need_attn_self:
+            print("ret self_attn lits")
+            return x, self_attn, attn
+        return x, None, attn
 
     def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
         assert before ^ after

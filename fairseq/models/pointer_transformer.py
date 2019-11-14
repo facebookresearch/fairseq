@@ -561,6 +561,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         full_context_alignment=False,
         alignment_layer=None,
         alignment_heads=None,
+        attn_layer_for_gen=None,
         **unused,
     ):
         """
@@ -576,6 +577,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 heads at this layer (default: last layer).
             alignment_heads (int, optional): only average alignment over
                 this many heads (default: all heads).
+            attn_layer_for_gen(int,optional): this layer's self attention matrix is used for calculate generator probability and final state
 
         Returns:
             tuple:
@@ -584,6 +586,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         """
         if alignment_layer is None:
             alignment_layer = len(self.layers) - 1
+        if attn_layer_for_gen is None:
+            attn_layer_for_gen = le(self.layers) - 1
 
         # embed positions
         positions = self.embed_positions(
@@ -615,6 +619,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         # decoder layers
         attn = None
+        # TODO torch tensor
         inner_states = [x]
         for idx, layer in enumerate(self.layers):
             encoder_state = None
@@ -632,7 +637,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             dropout_probability = random.uniform(0, 1)
             if not self.training or (dropout_probability > self.decoder_layerdrop):
-                x, layer_attn = layer(
+                x, layer_self_attn, layer_attn = layer(
                     x,
                     encoder_state,
                     encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
@@ -640,9 +645,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                     self_attn_mask=self_attn_mask,
                     self_attn_padding_mask=self_attn_padding_mask,
                     need_attn=(idx == alignment_layer),
+                    need_attn_self=(idx == attn_layer_for_gen)
                     need_head_weights=(idx == alignment_layer),
                 )
                 inner_states.append(x)
+                if layer_self_attn is not None:
+                    self_attn = layer_self_attn
                 if layer_attn is not None and idx == alignment_layer:
                     attn = layer_attn.float()
 
@@ -658,11 +666,38 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
-
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
+        # TODO calc_p_gen
+        # self_attn
+        # print("
+        # p_gen_input = torch.cat((使うmat),1)
+        #p_gen = self.p_gen_linear(p_gen_input)
+        # p_gen = F.sigmoid(p_gen)  # (Batch,seq_len)
+        #final_dist = self._calc_final_distribution(x, p_gen, self_attn)
+        # ここで、pointer geneしてreturn?
         return x, {'attn': attn, 'inner_states': inner_states}
+
+    def _calc_final_distribution(self, x, prob_gens, attn):
+        """
+        Args:
+            x (Tensor): softmax output distribution "(Batch,seq_len,out_voc)
+            prob_gens(Tensor): generation probability (Batch,seq_len)
+            attn(Tensor): attention matrix (Batch,seq_len,seq_len) " attn matrix of self attnetion
+
+        Returns:
+            final_distribution (Tensor) : (Batch,seq_len,out_voc)
+                This will be calculated by (P_gen*x + (1-P_gen)*attn_prob)
+        """
+        # calc attn_dist_matrix_from attn_matrix
+        # attn_dist =
+        out = prob_gens*x
+        attn = (1-prob_gens)*attn_dist
+        # TODO ここの計算しっかり確認
+        # これって、att->attn_distにしてる感じがある。
+        final_dist = out.scatter_add(1, attn_dist)
+        return final_dist
 
     def output_layer(self, features, **kwargs):
         """Project features to the vocabulary size."""
@@ -694,7 +729,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         return self._future_mask[:dim, :dim]
 
     def upgrade_state_dict_named(self, state_dict, name):
-        """Upgrade a (possibly old) state dict for new versions of fairseq."""
+        """Upgrade a(possibly old) state dict for new versions of fairseq."""
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             weights_key = '{}.embed_positions.weights'.format(name)
             if weights_key in state_dict:
