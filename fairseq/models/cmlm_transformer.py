@@ -60,6 +60,7 @@ class CMLMNATransformerModel(NATransformerModel):
 
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
+        history = decoder_out.history
 
         # execute the decoder
         output_masks = output_tokens.eq(self.unk)
@@ -68,6 +69,9 @@ class CMLMNATransformerModel(NATransformerModel):
         )
         output_tokens.masked_scatter_(output_masks, _tokens[output_masks])
         output_scores.masked_scatter_(output_masks, _scores[output_masks])
+
+        if history is not None:
+            history.append(output_tokens.clone())
 
         # skeptical decoding (depend on the maximum decoding steps.)
         if (step + 1) < max_step:
@@ -78,10 +82,14 @@ class CMLMNATransformerModel(NATransformerModel):
             output_tokens.masked_fill_(skeptical_mask, self.unk)
             output_scores.masked_fill_(skeptical_mask, 0.0)
 
+            if history is not None:
+                history.append(output_tokens.clone())
+
         return decoder_out._replace(
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=None,
+            history=history
         )
 
 
