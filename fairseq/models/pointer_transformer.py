@@ -460,6 +460,8 @@ class PointerTransformerDecoder(FairseqIncrementalDecoder):
         else:
             self.layer_norm = None
 
+        self.p_gen_linear = nn.Linear(embed_dim, 1)
+
     def forward(
         self,
         prev_output_tokens,
@@ -488,7 +490,7 @@ class PointerTransformerDecoder(FairseqIncrementalDecoder):
             prev_output_tokens, encoder_out, incremental_state, **extra_args,
         )
         if not features_only:
-            x = self.output_layer(x)
+            x = self.output_layer(x)  # x:(b,seq_len,OutVoc)
         return x, extra
 
     def extract_features(
@@ -604,7 +606,7 @@ class PointerTransformerDecoder(FairseqIncrementalDecoder):
             x = self.layer_norm(x)
 
         # T x B x C -> B x T x C
-        x = x.transpose(0, 1)
+        x = x.transpose(0, 1)  # (B,seq_len,dim)
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
@@ -612,31 +614,37 @@ class PointerTransformerDecoder(FairseqIncrementalDecoder):
         if self_attn is not None:
             print("self->", self_attn.size())
         # self_attn (B,seq_len,seq_len)
-        # p_gen_input = torch.cat((使うmat),1)
-        #p_gen = self.p_gen_linear(p_gen_input)
-        # p_gen = F.sigmoid(p_gen)  # (Batch,seq_len)
-        #final_dist = self._calc_final_distribution(x, p_gen, self_attn)
+        # p__gen_inp: in paper, context_vector, decoder_out,emb_x
+        # p_gen_input = torch.cat((x), 1)  # x:(B,seq_len,dim)
+        p_gen_input = x
+        p_gen = self.p_gen_linear(p_gen_input)  # (b,seq_len,1)
+        p_gen = F.sigmoid(p_gen)  # (Batch,seq_len,1)
+        final_dist = self._calc_final_distribution(
+            x, p_gen, self_attn, prev_output_tokens)
         # ここで、pointer geneしてreturn?
+        #print("final->", final_dist.size())
         return x, {'attn': attn, 'inner_states': inner_states}
 
-    def _calc_final_distribution(self, x, prob_gens, attn):
+    def _calc_final_distribution(self, x, prob_gens, attn_mat, ind):
         """
         Args:
             x (Tensor): softmax output distribution "(Batch,seq_len,out_voc)
             prob_gens(Tensor): generation probability (Batch,seq_len)
-            attn(Tensor): attention matrix (Batch,seq_len,seq_len) " attn matrix of self attnetion
+            attn_mat(Tensor): attention matrix (Batch,seq_len,seq_len) " attn matrix of self attnetion
 
         Returns:
             final_distribution (Tensor) : (Batch,seq_len,out_voc)
                 This will be calculated by (P_gen*x + (1-P_gen)*attn_prob)
         """
         # calc attn_dist_matrix_from attn_matrix
-        attn_dist = attn
+        # indecisは decoder_ input tokenのことだと思われる?
+        print("ind->", ind.size())
+        print("out->", x.size())
         out = prob_gens*x
+        final_dist = out.scatter_add(1, ind, attn_mat)
         attn = (1-prob_gens)*attn_dist
         # TODO ここの計算しっかり確認
         # これって、att->attn_distにしてる感じがある。
-        final_dist = out.scatter_add(1, attn_dist)
         return final_dist
 
     def output_layer(self, features, **kwargs):
