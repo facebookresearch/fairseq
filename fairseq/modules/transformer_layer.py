@@ -133,7 +133,7 @@ class TransformerDecoderLayer(nn.Module):
             (default: False).
     """
 
-    def __init__(self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False):
+    def __init__(self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False, use_p_gen=False):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
         self.cross_self_attention = getattr(
@@ -184,6 +184,7 @@ class TransformerDecoderLayer(nn.Module):
         self.need_attn = True
 
         self.onnx_trace = False
+        self.use_p_gen = use_p_gen
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -250,7 +251,7 @@ class TransformerDecoderLayer(nn.Module):
             value=y,
             key_padding_mask=self_attn_padding_mask,
             incremental_state=incremental_state,
-            need_weights=False,
+            need_weights=need_attn_self,
             attn_mask=self_attn_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -303,10 +304,9 @@ class TransformerDecoderLayer(nn.Module):
                 self_attn_state = saved_state["prev_key"], saved_state["prev_value"]
             return x, attn, self_attn_state
 
-        if need_attn_self:
-            print("ret self_attn lits")
-            return x, self_attn, attn
-        return x, None, attn
+        if self.use_p_gen:  # pointer_generator transofrmer
+            return x, attn, self_attn
+        return x, attn  # transformer
 
     def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
         assert before ^ after
