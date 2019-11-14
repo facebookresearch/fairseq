@@ -24,7 +24,7 @@ class SubwordNMTBPE(object):
             raise ValueError('--bpe-codes is required for --bpe=subword_nmt')
         codes = file_utils.cached_path(args.bpe_codes)
         try:
-            from subword_nmt.subword_nmt import apply_bpe
+            from subword_nmt import apply_bpe
             bpe_parser = apply_bpe.create_parser()
             bpe_args = bpe_parser.parse_args([
                 '--codes', codes,
