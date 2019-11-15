@@ -321,6 +321,9 @@ class FairseqMultiModel(BaseFairseqModel):
             )
         return decoder_outs
 
+    def forward_decoder(self, prev_output_tokens, **kwargs):
+        return self.decoder(prev_output_tokens, **kwargs) 
+
     def max_positions(self):
         """Maximum length supported by the model."""
         return {
