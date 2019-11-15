@@ -95,6 +95,7 @@ class TransformerSentenceEncoder(nn.Module):
         freeze_embeddings: bool = False,
         n_trans_layers_to_freeze: int = 0,
         export: bool = False,
+        traceable: bool = False,
     ) -> None:
 
         super().__init__()
@@ -108,6 +109,7 @@ class TransformerSentenceEncoder(nn.Module):
         self.use_position_embeddings = use_position_embeddings
         self.apply_bert_init = apply_bert_init
         self.learned_pos_embedding = learned_pos_embedding
+        self.traceable = traceable
 
         self.embed_tokens = nn.Embedding(
             self.vocab_size, self.embedding_dim, self.padding_idx
@@ -182,7 +184,7 @@ class TransformerSentenceEncoder(nn.Module):
 
         # compute padding mask. This is needed for multi-head attention
         padding_mask = tokens.eq(self.padding_idx)
-        if not padding_mask.any():
+        if not self.traceable and not padding_mask.any():
             padding_mask = None
 
         x = self.embed_tokens(tokens)
@@ -229,4 +231,7 @@ class TransformerSentenceEncoder(nn.Module):
         if last_state_only:
             inner_states = [x]
 
-        return inner_states, sentence_rep
+        if self.traceable:
+            return torch.stack(inner_states), sentence_rep
+        else:
+            return inner_states, sentence_rep
