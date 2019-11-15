@@ -48,3 +48,9 @@ class ConcatSentencesDataset(FairseqDataset):
         for ds in self.datasets:
             if getattr(ds, 'supports_prefetch', False):
                 ds.prefetch(indices)
+
+    def set_epoch(self, epoch):
+        super().set_epoch(epoch)
+        for ds in self.datasets:
+            if hasattr(ds, 'set_epoch'):
+                ds.set_epoch(epoch)

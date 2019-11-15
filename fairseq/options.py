@@ -173,8 +173,6 @@ def get_parser(desc, default_task='translation'):
     parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
                         help='path to save logs for tensorboard, should match --logdir '
                              'of running tensorboard (default: no tensorboard logging)')
-    parser.add_argument("--tbmf-wrapper", action="store_true",
-                        help="[FB only] ")
     parser.add_argument('--seed', default=1, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
@@ -508,6 +506,8 @@ def add_generation_args(parser):
                        help='maximum iterations for iterative refinement.')
     group.add_argument('--iter-decode-force-max-iter', action='store_true',
                        help='if set, run exact the maximum number of iterations without early stop')
+    group.add_argument('--retain-iter-history', action='store_true',
+                       help='if set, decoding returns the whole history of iterative refinement')
 
     # special decoding format for advanced decoding.
     group.add_argument('--decoding-format', default=None, type=str, choices=['unigram', 'ensemble', 'vote', 'dp', 'bs'])

@@ -79,7 +79,7 @@ roberta = RobertaModel.from_pretrained(
 )
 
 label_fn = lambda label: roberta.task.label_dictionary.string(
-    [label + roberta.task.target_dictionary.nspecial]
+    [label + roberta.task.label_dictionary.nspecial]
 )
 ncorrect, nsamples = 0, 0
 roberta.cuda()

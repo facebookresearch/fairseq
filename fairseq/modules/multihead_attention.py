@@ -63,16 +63,6 @@ class MultiheadAttention(nn.Module):
         else:
             self.enable_torch_version = False
 
-    @property
-    def in_proj_weight(self):
-        # TODO: Remove this backward compatibility code (in_proj_weight)
-        return torch.cat((self.q_proj.weight, self.k_proj.weight, self.v_proj.weight))
-
-    @property
-    def in_proj_bias(self):
-        # TODO: Remove this backward compatibility code (in_proj_bias)
-        return torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias))
-
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
@@ -134,7 +124,8 @@ class MultiheadAttention(nn.Module):
             return F.multi_head_attention_forward(query, key, value,
                                                   self.embed_dim, self.num_heads,
                                                   torch.empty([0]),
-                                                  self.in_proj_bias, self.bias_k, self.bias_v,
+                                                  torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias)),
+                                                  self.bias_k, self.bias_v,
                                                   self.add_zero_attn, self.dropout,
                                                   self.out_proj.weight, self.out_proj.bias,
                                                   self.training, key_padding_mask, need_weights,
@@ -204,12 +195,14 @@ class MultiheadAttention(nn.Module):
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
-            if 'prev_key_padding_mask' in saved_state and saved_state['prev_key_padding_mask'] is not None:
-                prev_key_padding_mask = saved_state['prev_key_padding_mask']
-                if static_kv:
-                    key_padding_mask = prev_key_padding_mask
-                else:
-                    key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
+            key_padding_mask = self._append_prev_key_padding_mask(
+                key_padding_mask=key_padding_mask,
+                prev_key_padding_mask=saved_state.get('prev_key_padding_mask', None),
+                batch_size=bsz,
+                src_len=k.size(1),
+                static_kv=static_kv,
+            )
+
             saved_state['prev_key'] = k.view(bsz, self.num_heads, -1, self.head_dim)
             saved_state['prev_value'] = v.view(bsz, self.num_heads, -1, self.head_dim)
             saved_state['prev_key_padding_mask'] = key_padding_mask
@@ -284,6 +277,34 @@ class MultiheadAttention(nn.Module):
 
         return attn, attn_weights
 
+    @staticmethod
+    def _append_prev_key_padding_mask(
+        key_padding_mask,
+        prev_key_padding_mask,
+        batch_size,
+        src_len,
+        static_kv,
+    ):
+        # saved key padding masks have shape (bsz, seq_len)
+        if prev_key_padding_mask is not None and static_kv:
+            key_padding_mask = prev_key_padding_mask
+        elif prev_key_padding_mask is not None and key_padding_mask is not None:
+            key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
+        # During incremental decoding, as the padding token enters and
+        # leaves the frame, there will be a time when prev or current
+        # is None
+        elif prev_key_padding_mask is not None:
+            filler = torch.zeros(batch_size, src_len - prev_key_padding_mask.size(1)).bool()
+            if prev_key_padding_mask.is_cuda:
+                filler = filler.cuda()
+            key_padding_mask = torch.cat((prev_key_padding_mask, filler), dim=1)
+        elif key_padding_mask is not None:
+            filler = torch.zeros(batch_size, src_len - key_padding_mask.size(1)).bool()
+            if key_padding_mask.is_cuda:
+                filler = filler.cuda()
+            key_padding_mask = torch.cat((filler, key_padding_mask), dim=1)
+        return key_padding_mask
+
     def reorder_incremental_state(self, incremental_state, new_order):
         """Reorder buffered internal state (for incremental generation)."""
         input_buffer = self._get_input_buffer(incremental_state)
@@ -312,8 +333,6 @@ class MultiheadAttention(nn.Module):
         return attn_weights
 
     def upgrade_state_dict_named(self, state_dict, name):
-        # TODO: Remove this backward compatibility code (in_proj_weight)
-        # here, we convert in_proj_weight to individual q,k,v weights
         prefix = name + '.' if name != '' else ''
         items_to_add = {}
         keys_to_remove = []
@@ -341,5 +360,3 @@ class MultiheadAttention(nn.Module):
 
         for key, value in items_to_add.items():
             state_dict[key] = value
-
-        return state_dict

@@ -40,7 +40,9 @@ def init_bert_params(module):
         if module.padding_idx is not None:
             module.weight.data[module.padding_idx].zero_()
     if isinstance(module, MultiheadAttention):
-        module.in_proj_weight.data.normal_(mean=0.0, std=0.02)
+        module.q_proj.weight.data.normal_(mean=0.0, std=0.02)
+        module.k_proj.weight.data.normal_(mean=0.0, std=0.02)
+        module.v_proj.weight.data.normal_(mean=0.0, std=0.02)
 
 
 class TransformerSentenceEncoder(nn.Module):

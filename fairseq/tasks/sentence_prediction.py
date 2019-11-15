@@ -19,6 +19,7 @@ from fairseq.data import (
     PrependTokenDataset,
     RawLabelDataset,
     RightPadDataset,
+    RollDataset,
     SortDataset,
     StripTokenDataset,
     TruncateDataset,
@@ -51,11 +52,21 @@ class SentencePredictionTask(FairseqTask):
         parser.add_argument('--no-shuffle', action='store_true', default=False)
         parser.add_argument('--truncate-sequence', action='store_true', default=False,
                             help='Truncate sequence to max_sequence_length')
+        parser.add_argument('--add-prev-output-tokens', action='store_true', default=False,
+                            help='Add prev_output_tokens to sample, used for encoder-decoder arch')
 
     def __init__(self, args, data_dictionary, label_dictionary):
         super().__init__(args)
         self.dictionary = data_dictionary
-        self.label_dictionary = label_dictionary
+        self._label_dictionary = label_dictionary
+        if not hasattr(args, 'max_positions'):
+            self._max_positions = (
+                args.max_source_positions,
+                args.max_target_positions,
+            )
+        else:
+            self._max_positions = args.max_positions
+        args.tokens_per_sample = self._max_positions
 
     @classmethod
     def load_dictionary(cls, args, filename, source=True):
@@ -71,8 +82,6 @@ class SentencePredictionTask(FairseqTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         assert args.num_classes > 0, 'Must set --num-classes'
-
-        args.tokens_per_sample = args.max_positions
 
         # load data dictionary
         data_dict = cls.load_dictionary(
@@ -145,6 +154,15 @@ class SentencePredictionTask(FairseqTask):
             'ntokens': NumelDataset(src_tokens, reduce=True),
         }
 
+        if self.args.add_prev_output_tokens:
+            prev_tokens_dataset = RightPadDataset(
+                RollDataset(src_tokens, 1),
+                pad_idx=self.dictionary.pad(),
+            )
+            dataset['net_input'].update(
+                prev_output_tokens=prev_tokens_dataset,
+            )
+
         if not self.args.regression_target:
             label_dataset = make_dataset('label', self.target_dictionary)
             if label_dataset is not None:
@@ -197,7 +215,7 @@ class SentencePredictionTask(FairseqTask):
         return model
 
     def max_positions(self):
-        return self.args.max_positions
+        return self._max_positions
 
     @property
     def source_dictionary(self):
@@ -205,4 +223,8 @@ class SentencePredictionTask(FairseqTask):
 
     @property
     def target_dictionary(self):
-        return self.label_dictionary
+        return self.dictionary
+
+    @property
+    def label_dictionary(self):
+        return self._label_dictionary
