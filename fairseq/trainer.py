@@ -256,6 +256,7 @@ class Trainer(object):
             shard_id=self.args.distributed_rank,
             num_workers=self.args.num_workers,
             epoch=epoch,
+            remove_short_samples=getattr(self.args, 'remove_short_samples', False),
         )
 
     def train_step(self, samples, dummy_batch=False, raise_oom=False):
