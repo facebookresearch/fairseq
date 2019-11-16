@@ -175,8 +175,8 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False,
             ignored = indices[np.logical_or(dataset.sizes[indices] > max_positions, dataset.sizes[indices] < min_positions)].tolist()
             indices = indices[np.logical_and(dataset.sizes[indices] <= max_positions, dataset.sizes[indices] >= min_positions)]
         elif hasattr(dataset, 'sizes') and isinstance(dataset.sizes, list) and len(dataset.sizes) == 1:
-            ignored = indices[dataset.sizes[0][indices] > max_positions or dataset.sizes[0][indices] < min_positions].tolist()
-            indices = indices[min_positions <= dataset.sizes[0][indices] <= max_positions]
+            ignored = indices[np.logical_or(dataset.sizes[0][indices] > max_positions, dataset.sizes[0][indices] < min_positions)].tolist()
+            indices = indices[np.logical_and(min_positions <= dataset.sizes[0][indices], dataset.sizes[0][indices] <= max_positions)]
         else:
             indices, ignored = _filter_by_size_dynamic(indices, dataset.size, max_positions, min_positions=min_positions)
     else:
