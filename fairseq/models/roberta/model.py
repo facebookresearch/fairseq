@@ -383,6 +383,8 @@ def base_architecture(args):
     args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
     args.activation_dropout = getattr(args, 'activation_dropout', 0.0)
     args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
+    args.encoder_layers_to_keep = getattr(args, 'encoder_layers_to_keep', None)
+    args.encoder_layerdrop = getattr(args, 'encoder_layerdrop', 0.0)
 
 
 @register_model_architecture('roberta', 'roberta_base')
