@@ -4,6 +4,8 @@
 
 CamemBERT is a pretrained language model trained on 138GB of French text based on RoBERTa.
 
+Also available in [github.com/huggingface/transformers](https://github.com/huggingface/transformers/).
+
 ## Pre-trained models
 
 Model | #params | vocab size | Download
@@ -44,7 +46,7 @@ camembert.fill_mask(masked_line, topk=3)
 ##### Extract features from Camembert:
 ```python
 # Extract the last layer's features
-line = "J'aime le camembert!"
+line = "J'aime le camembert !"
 tokens = camembert.encode(line)
 last_layer_features = camembert.extract_features(tokens)
 assert last_layer_features.size() == torch.Size([1, 10, 768])
