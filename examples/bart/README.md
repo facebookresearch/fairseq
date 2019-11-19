@@ -12,6 +12,7 @@ Model | Description | # params | Download
 ---|---|---|---
 `bart.large` | BART model with 12 encoder and decoder layers | 400M | [bart.large.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/bart.large.tar.gz)
 `bart.large.mnli` | `bart.large` finetuned on `MNLI` | 400M | [bart.large.mnli.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/bart.large.mnli.tar.gz)
+`bart.large.cnn` | `bart.large` finetuned on `CNN-DM` | 400M | [bart.large.cnn.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/bart.large.cnn.tar.gz)
 
 ## Results
 
@@ -32,7 +33,7 @@ Model | SQuAD 1.1 EM/F1 | SQuAD 2.0 EM/F1
 `bart.large` | 88.8/94.6 | 86.1/89.2
 
 **[CNN/Daily Mail](http://nlpprogress.com/english/summarization.html)**
-_(dev set, no additional data used)_
+_(test set, no additional data used)_
 
 Model | R1 | R2 | RL
 ---|---|---|---
@@ -149,6 +150,51 @@ with open('glue_data/MNLI/dev_matched.tsv') as fin:
         print('| Accuracy: ', float(ncorrect)/float(nsamples))
 # Expected output: 0.9010
 ```
+
+#### Evaluating the `bart.large.cnn` model:
+Follow instructions [here](https://github.com/abisee/cnn-dailymail) to download and process into data-files such that `test.source` and `test.target` has one line for each non-tokenized sample.
+
+```python
+bart = torch.hub.load('pytorch/fairseq', 'bart.large.cnn')
+bart.cuda()
+bart.eval()
+bart.half()
+count = 1
+bsz = 32
+with open('test.source') as source, open('test.hypo', 'w') as fout:
+    sline = source.readline().strip()
+    slines = [sline]
+    for sline in source:
+        if count % bsz == 0:
+            with torch.no_grad():
+                hypotheses_batch = bart.sample(slines, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
+
+            for hypothesis in hypotheses_batch:
+                fout.write(hypothesis + '\n')
+                fout.flush()
+            slines = []
+
+        slines.append(sline.strip())
+        count += 1
+    if slines != []:
+        hypotheses_batch = bart.sample(slines, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
+        for hypothesis in hypotheses_batch:
+            fout.write(hypothesis + '\n')
+            fout.flush()
+```
+
+Install `files2rouge` from [here](https://github.com/pltrdy/files2rouge).
+
+```bash
+export CLASSPATH=/path/to/stanford-corenlp-full-2016-10-31/stanford-corenlp-3.7.0.jar
+
+# Tokenize hypothesis and target files.
+cat test.hypo | java edu.stanford.nlp.process.PTBTokenizer -ioFileList -preserveLines > test.hypo.tokenized
+cat test.target | java edu.stanford.nlp.process.PTBTokenizer -ioFileList -preserveLines > test.hypo.target
+files2rouge test.hypo.tokenized test.hypo.target
+# Expected output: (ROUGE-2 Average_F: 0.21238)
+```
+
 
 ## Finetuning
 

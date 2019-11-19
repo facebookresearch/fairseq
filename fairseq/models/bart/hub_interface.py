@@ -3,11 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import copy
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from typing import List
+
+from fairseq import utils
 from fairseq.data import encoders
 
 
@@ -24,6 +28,11 @@ class BARTHubInterface(nn.Module):
         self.model = model
 
         self.bpe = encoders.build_bpe(args)
+
+        self.max_positions = min(utils.resolve_max_positions(
+            self.task.max_positions(),
+            self.model.max_positions(),
+        ))
 
         # this is useful for determining the device
         self.register_buffer('_float_tensor', torch.tensor([0], dtype=torch.float))
@@ -52,7 +61,10 @@ class BARTHubInterface(nn.Module):
             >>> bart.encode('world').tolist()
             [0, 8331, 2]
         """
-        bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
+        tokens = self.bpe.encode(sentence)
+        if len(tokens.split(' ')) > self.max_positions - 2:
+            tokens = ' '.join(tokens.split(' ')[:self.max_positions - 2])
+        bpe_sentence = '<s> ' + tokens + ' </s>'
         for s in addl_sentences:
             bpe_sentence += (' </s>' if not no_separator else '')
             bpe_sentence += ' ' + self.bpe.encode(s) + ' </s>'
@@ -61,7 +73,7 @@ class BARTHubInterface(nn.Module):
 
     def decode(self, tokens: torch.LongTensor):
         assert tokens.dim() == 1
-        tokens = tokens.numpy()
+        tokens = tokens.cpu().numpy()
         if tokens[0] == self.task.source_dictionary.bos():
             tokens = tokens[1:]  # remove <s>
         eos_mask = (tokens == self.task.source_dictionary.eos())
@@ -71,6 +83,52 @@ class BARTHubInterface(nn.Module):
         if len(sentences) == 1:
             return sentences[0]
         return sentences
+
+    def _build_sample(self, src_tokens: List[torch.LongTensor]):
+        # assert torch.is_tensor(src_tokens)
+        dataset = self.task.build_dataset_for_inference(
+            src_tokens,
+            [x.numel() for x in src_tokens],
+        )
+        sample = dataset.collater(dataset)
+        sample = utils.apply_to_sample(
+            lambda tensor: tensor.to(self.device),
+            sample
+        )
+        return sample
+
+    def sample(self, sentences: List[str], beam: int = 1, verbose: bool = False, **kwargs) -> str:
+        input = [self.encode(sentence) for sentence in sentences]
+        hypos = self.generate(input, beam, verbose, **kwargs)
+        return [self.decode(x['tokens']) for x in hypos]
+
+    def generate(self, tokens: List[torch.LongTensor], beam: int = 5, verbose: bool = False, **kwargs) -> torch.LongTensor:
+        sample = self._build_sample(tokens)
+
+        # build generator using current args as well as any kwargs
+        gen_args = copy.copy(self.args)
+        gen_args.beam = beam
+        for k, v in kwargs.items():
+            setattr(gen_args, k, v)
+        generator = self.task.build_generator(gen_args)
+        translations = self.task.inference_step(
+            generator,
+            [self.model],
+            sample,
+            prefix_tokens=sample['net_input']['src_tokens'].new_zeros((len(tokens), 1)).fill_(self.task.source_dictionary.bos()),
+        )
+
+        if verbose:
+            src_str_with_unk = self.string(tokens)
+            print('S\t{}'.format(src_str_with_unk))
+
+        def getarg(name, default):
+            return getattr(gen_args, name, getattr(self.args, name, default))
+
+        # Process top predictions
+        hypos = [x[0] for x in translations]
+        hypos = [v for _, v in sorted(zip(sample['id'].tolist(), hypos))]
+        return hypos
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
         if tokens.dim() == 1:

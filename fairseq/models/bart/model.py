@@ -28,6 +28,7 @@ class BARTModel(TransformerModel):
         return {
             'bart.large': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.tar.gz',
             'bart.large.mnli': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.mnli.tar.gz',
+            'bart.large.cnn': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.cnn.tar.gz',
         }
 
     def __init__(self, args, encoder, decoder):
@@ -171,6 +172,13 @@ class BARTModel(TransformerModel):
                     keys_to_delete.append(k)
         for k in keys_to_delete:
             del state_dict[k]
+
+        # When finetuning on translation task, remove last row of
+        # embedding matrix that corresponds to mask_idx token.
+        if self.args.task == 'translation':
+            dict_size = state_dict['encoder.embed_tokens.weight'].size(0)
+            state_dict['encoder.embed_tokens.weight'] = state_dict['encoder.embed_tokens.weight'][:dict_size-1, :]
+            state_dict['decoder.embed_tokens.weight'] = state_dict['decoder.embed_tokens.weight'][:dict_size-1, :]
 
         # Copy any newly-added classification heads into the state dict
         # with their current weights.
