@@ -176,6 +176,7 @@ class EpochBatchIterator(EpochBatchIterating):
         self.num_workers = num_workers
 
         self.epoch = epoch
+        self.shuffle = True
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
         self._supports_prefetch = getattr(dataset, 'supports_prefetch', False)
@@ -202,6 +203,7 @@ class EpochBatchIterator(EpochBatchIterating):
                 self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus,
             )
         self.dataset.set_epoch(self.epoch)
+        self.shuffle = shuffle
         return self._cur_epoch_itr
 
     def end_of_epoch(self) -> bool:
@@ -222,6 +224,7 @@ class EpochBatchIterator(EpochBatchIterating):
         return {
             'epoch': self.epoch,
             'iterations_in_epoch': self.iterations_in_epoch,
+            'shuffle': self.shuffle,
         }
 
     def load_state_dict(self, state_dict):
