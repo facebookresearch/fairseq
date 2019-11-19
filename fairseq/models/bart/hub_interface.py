@@ -139,7 +139,12 @@ class BARTHubInterface(nn.Module):
             ))
         tokens.to(device=self.device),
         prev_output_tokens = tokens.clone()
-        prev_output_tokens[:, 0] = tokens[:, -1]
+
+        prev_output_tokens[:, 0] = tokens.gather(
+            1,
+            (tokens.ne(self.task.source_dictionary.pad()).sum(dim=1)- 1).unsqueeze(-1),
+        ).squeeze()
+
         prev_output_tokens[:, 1:] = tokens[:, :-1]
         features, extra = self.model(
             src_tokens=tokens,
