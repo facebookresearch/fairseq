@@ -255,6 +255,27 @@ class TestRobertaHub(unittest.TestCase):
             logprobs = bart.predict('mnli', batch)
             self.assertEqual(logprobs.argmax(dim=1).tolist(), [0, 2])
 
+    @torch.no_grad()
+    def test_bart_large_cnn(self):
+        with contextlib.redirect_stdout(StringIO()):
+            # Download BART already finetuned for MNLI
+            bart = fb_hub.load('bart.large.cnn')
+            bart.eval()  # disable dropout for evaluation
+
+            hypothesis = bart.sample(["""This is the first time anyone has been \
+recorded to run a full marathon of 42.195 kilometers \
+(approximately 26 miles) under this pursued landmark time. \
+It was not, however, an officially sanctioned world record, \
+as it was not an "open race" of the IAAF. His time was \
+1 hour 59 minutes 40.2 seconds. Kipchoge ran in Vienna, Austria. \
+It was an event specifically designed to help Kipchoge \
+break the two hour barrier. Kenyan runner Eliud Kipchoge \
+has run a marathon in less than two hours."""])
+
+            # Encode a pair of sentences and make a prediction
+            self.assertEqual(hypothesis[0], """Eliud Kipchoge has run a marathon in less than two hours. \
+Kenyan ran in Vienna, Austria. It was not an officially sanctioned world record."""
+            )
 
 if __name__ == '__main__':
     unittest.main()
