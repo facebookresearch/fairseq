@@ -532,6 +532,7 @@ class LevenshteinTransformerModel(TransformerModel):
             attn=initial_attn,
             step=0,
             max_step=0,
+            history=None
         )
 
 
