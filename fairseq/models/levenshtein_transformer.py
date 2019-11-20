@@ -389,15 +389,19 @@ class LevenshteinTransformerModel(TransformerModel):
         word_del_masks = word_predictions.ne(self.pad)
 
         return {
-            "mask_ins_out": mask_ins_out,
-            "mask_ins_tgt": mask_ins_targets,
-            "mask_ins_mask": mask_ins_masks,
-            "word_ins_out": word_ins_out,
-            "word_ins_tgt": tgt_tokens,
-            "word_ins_mask": masked_tgt_masks,
-            "word_del_out": word_del_out,
-            "word_del_tgt": word_del_targets,
-            "word_del_mask": word_del_masks,
+            "mask_ins": {
+                "out": mask_ins_out, "tgt": mask_ins_targets, 
+                "mask": mask_ins_masks, "ls": 0.01,
+            },
+            "word_ins": {
+                "out": word_ins_out, "tgt": tgt_tokens,
+                "mask": masked_tgt_masks, "ls": self.args.label_smoothing,
+                "nll_loss": True
+            },
+            "word_del": {
+                "out": word_del_out, "tgt": word_del_targets,
+                "mask": word_del_masks
+            }
         }
 
     def forward_encoder(self, encoder_inputs):

@@ -245,17 +245,23 @@ class LevenshteinTransformerModel(TransformerModel):
         # generate training labels for deletion
         word_del_targets = _get_del_targets(word_predictions, tgt_tokens, self.pad)
         word_del_out, _ = self.decoder.forward_word_del(word_predictions, encoder_out)
+
         return {
-            "mask_ins_out": mask_ins_out,
-            "mask_ins_tgt": mask_ins_targets,
-            "mask_ins_mask": mask_ins_masks,
-            "word_ins_out": word_ins_out,
-            "word_ins_tgt": tgt_tokens,
-            "word_ins_mask": masked_tgt_masks,
-            "word_del_out": word_del_out,
-            "word_del_tgt": word_del_targets,
-            "word_del_mask": word_predictions.ne(self.pad),
+            "mask_ins": {
+                "out": mask_ins_out, "tgt": mask_ins_targets, 
+                "mask": mask_ins_masks, "ls": 0.01,
+            },
+            "word_ins": {
+                "out": word_ins_out, "tgt": tgt_tokens,
+                "mask": masked_tgt_masks, "ls": self.args.label_smoothing,
+                "nll_loss": True
+            },
+            "word_del": {
+                "out": word_del_out, "tgt": word_del_targets,
+                "mask": word_predictions.ne(self.pad)
+            }
         }
+
 
     def forward_encoder(self, encoder_inputs):
         return self.encoder(*encoder_inputs)

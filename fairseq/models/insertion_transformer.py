@@ -161,9 +161,11 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
         word_ins_masks = prev_output_tokens[:, 1:].ne(self.pad)
 
         return {
-            "word_ins_out": word_ins_out,
-            "word_ins_tgt": word_ins_tgt,
-            "word_ins_mask": word_ins_masks,
+            "word_ins": {
+                "out": word_ins_out, "tgt": word_ins_tgt,
+                "mask": word_ins_masks, "ls": self.args.label_smoothing,
+                "nll_loss": True
+            }
         }
 
     def forward_decoder(
