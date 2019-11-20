@@ -53,7 +53,7 @@ class FixedSchedule(FairseqLRScheduler):
 
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
-        if self.args.warmup_updates > 0 and num_updates <= self.args.warmup_updates:
-            self.warmup_factor = num_updates / float(self.args.warmup_updates)
+        if self.args.warmup_updates > 0 and num_updates < self.args.warmup_updates:
+            self.warmup_factor = (num_updates + 1) / float(self.args.warmup_updates)
             self.optimizer.set_lr(self.warmup_factor * self.lr)
         return self.optimizer.get_lr()
