@@ -68,14 +68,6 @@ class BaseFairseqModel(nn.Module):
         """
         self.upgrade_state_dict(state_dict)
         new_state_dict = prune_state_dict(state_dict, args)
-
-        # Since layers are now pruned, *_layers_to_keep are no longer needed.
-        # This is more of "It would make it work fix" rather than a proper fix.
-        if "encoder_layers_to_keep" in vars(args):
-            args.encoder_layers_to_keep = None
-        if "decoder_layers_to_keep" in vars(args):
-            args.decoder_layers_to_keep = None
-
         return super().load_state_dict(new_state_dict, strict)
 
     def upgrade_state_dict(self, state_dict):
