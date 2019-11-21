@@ -8,11 +8,14 @@ import os
 
 from fairseq import options, utils
 from fairseq.data import (
+    AppendTokenDataset,
     ConcatDataset,
     data_utils,
     indexed_dataset,
     LanguagePairDataset,
     PrependTokenDataset,
+    StripTokenDataset,
+    TruncateDataset,
 )
 
 from . import FairseqTask, register_task
@@ -25,6 +28,7 @@ def load_langpair_dataset(
     combine, dataset_impl, upsample_primary,
     left_pad_source, left_pad_target, max_source_positions,
     max_target_positions, prepend_bos=False, load_alignments=False,
+    truncate_source=False,
 ):
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
@@ -47,9 +51,16 @@ def load_langpair_dataset(
             else:
                 raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
-        src_datasets.append(
-            data_utils.load_indexed_dataset(prefix + src, src_dict, dataset_impl)
-        )
+        src_dataset = data_utils.load_indexed_dataset(prefix + src, src_dict, dataset_impl)
+        if truncate_source:
+            src_dataset = AppendTokenDataset(
+                TruncateDataset(
+                    StripTokenDataset(src_dataset, src_dict.eos()),
+                    max_source_positions - 1,
+                ),
+                src_dict.eos(),
+            )
+        src_datasets.append(src_dataset)
         tgt_datasets.append(
             data_utils.load_indexed_dataset(prefix + tgt, tgt_dict, dataset_impl)
         )
@@ -139,6 +150,8 @@ class TranslationTask(FairseqTask):
                             help='max number of tokens in the target sequence')
         parser.add_argument('--upsample-primary', default=1, type=int,
                             help='amount to upsample primary dataset')
+        parser.add_argument('--truncate-source', default=False, action='store_true',
+                            help='boolean to truncate source to max-source-positions')
         # fmt: on
 
     def __init__(self, args, src_dict, tgt_dict):
@@ -203,6 +216,7 @@ class TranslationTask(FairseqTask):
             max_source_positions=self.args.max_source_positions,
             max_target_positions=self.args.max_target_positions,
             load_alignments=self.args.load_alignments,
+            truncate_source=self.args.truncate_source,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths):
