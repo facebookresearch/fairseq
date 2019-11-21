@@ -147,7 +147,6 @@ class DenoisingDataset(FairseqDataset):
             ps = torch.FloatTensor(ps)
             self.mask_span_distribution = torch.distributions.Categorical(ps)
 
-        self.verbose = args.verbose
         self.epoch = 0
 
     def set_epoch(self, epoch, **unused):
