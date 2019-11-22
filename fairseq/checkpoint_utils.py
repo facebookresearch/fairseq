@@ -408,6 +408,13 @@ def prune_state_dict(state_dict, args):
                 new_state_key = layer_name[:substitution_match.start(1)] + new_layer_number + layer_name[substitution_match.end(1):]
                 new_state_dict[new_state_key] = state_dict[layer_name]
 
+    # Since layers are now pruned, *_layers_to_keep are no longer needed.
+    # This is more of "It would make it work fix" rather than a proper fix.
+    if "encoder_layers_to_keep" in vars(args):
+        args.encoder_layers_to_keep = None
+    if "decoder_layers_to_keep" in vars(args):
+        args.decoder_layers_to_keep = None
+
     return new_state_dict
 
 
