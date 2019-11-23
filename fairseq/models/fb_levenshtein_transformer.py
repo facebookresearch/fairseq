@@ -14,8 +14,8 @@ from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.model_utils import (
     coalesce,
-    fill_tensors as _fill,
     script_skip_tensor,
+    expand_2d_or_3d_tensor
 )
 from fairseq.models.transformer import (
     TransformerDecoder,
@@ -26,6 +26,36 @@ from fairseq.models.transformer import (
 from fairseq.models.transformer import Embedding
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
+
+@torch.jit.script
+def _fill(x, mask, y, padding_idx: int):
+    """
+    Filling tensor x with y at masked positions (dim=0).
+    """
+    if x is None or x.size()[0] == 0:
+        return torch.empty([0])
+    assert x.dim() == y.dim() and mask.size(0) == x.size(0)
+    assert x.dim() == 2 or (x.dim() == 3 and x.size(2) == y.size(2))
+
+    n_selected = mask.sum()
+    if n_selected == 0:
+        return x
+    assert n_selected == y.size(0)
+    if n_selected == x.size(0):
+        return y
+
+    if x.size(1) < y.size(1):
+        x = expand_2d_or_3d_tensor(x, y.size(1), padding_idx)
+        x[mask] = y
+    elif x.size(1) > y.size(1):
+        x[mask] = torch.tensor(padding_idx).type_as(x)
+        if x.dim() == 2:
+            x[mask, :y.size(1)] = y
+        else:
+            x[mask, :y.size(1), :] = y
+    else:
+        x[mask] = y
+    return x
 
 def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
     try:
@@ -248,7 +278,7 @@ class LevenshteinTransformerModel(TransformerModel):
 
         return {
             "mask_ins": {
-                "out": mask_ins_out, "tgt": mask_ins_targets, 
+                "out": mask_ins_out, "tgt": mask_ins_targets,
                 "mask": mask_ins_masks, "ls": 0.01,
             },
             "word_ins": {
@@ -289,8 +319,8 @@ class LevenshteinTransformerModel(TransformerModel):
         def del_word(
             output_tokens,
             output_scores,
-            attn: Optional[Tensor],
-            word_del_attn: Optional[Tensor],
+            attn,
+            word_del_attn,
             word_del_out,
             can_del_word,
             pad_idx: int,
@@ -397,13 +427,13 @@ class LevenshteinTransformerModel(TransformerModel):
         def ins_words(
             output_tokens,
             output_scores,
-            attn: Optional[Tensor],
-            word_ins_attn: Optional[Tensor],
+            attn: Tensor,
+            word_ins_attn: Tensor,
             word_ins_out,
             can_ins_word,
             pad_idx: int,
             unk_idx: int,
-        ) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
+        ) -> Tuple[Tensor, Tensor, Tensor]:
             # insert words
             if can_ins_word.sum() != 0:
                 word_ins_scores = F.log_softmax(word_ins_out, 2)
@@ -490,9 +520,9 @@ class LevenshteinTransformerModel(TransformerModel):
             return x[:, :l]
 
         @torch.jit.script
-        def slice_wrap_attn(x: Optional[Tensor], l) -> Optional[Tensor]:
-            if x is None or x.size()[0] == 0:
-                return None
+        def slice_wrap_attn(x, l):
+            if x.size()[0] == 0:
+                return torch.empty([0])
             else:
                 return x[:, :l, :]
 
@@ -520,7 +550,7 @@ class LevenshteinTransformerModel(TransformerModel):
             encoder_out.encoder_out
         )
 
-        initial_attn = None
+        initial_attn = torch.empty([0])
         if getattr(self.decoder.layers[-1], "need_attn", True):
             initial_attn = torch.zeros([src_tokens.size(0), 2, src_tokens.size(1)]).to(
                 initial_output_tokens
