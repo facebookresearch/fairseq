@@ -576,8 +576,8 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
         self.unk = dictionary.unk()
         self.eos = dictionary.eos()
         self.sampling_for_deletion = getattr(args, "sampling_for_deletion", False)
-        self.embed_mask_ins = Embedding(256, self.output_embed_dim * 2, None)
-        self.embed_word_del = Embedding(2, self.output_embed_dim, None)
+        self.embed_mask_ins = nn.Linear(self.output_embed_dim * 2, 256, bias=False)
+        self.embed_word_del = nn.Linear(self.output_embed_dim, 2, bias=False)
 
         # del_word, ins_mask, ins_word
         self.early_exit = [int(i) for i in args.early_exit.split(",")]
@@ -600,6 +600,10 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
                     for _ in range(self.early_exit[0])
                 ]
             )
+        self.output_projection = nn.Linear(
+            self.embed_tokens.weight.shape[1], self.embed_tokens.weight.shape[0]
+        )
+        self.output_projection.weight = self.embed_tokens.weight
 
     def extract_features(
         self,
@@ -677,7 +681,7 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
             **unused
         )
         features_cat = torch.cat([features[:, :-1, :], features[:, 1:, :]], 2)
-        return F.linear(features_cat, self.embed_mask_ins.weight), attn
+        return self.embed_mask_ins(features_cat), attn
 
     def forward_word_ins(self, prev_output_tokens, encoder_out=None, **unused):
         features, attn, _ = self.extract_features(
@@ -687,7 +691,7 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
             layers=self.layers,
             **unused
         )
-        return self.output_layer(features), attn
+        return self.output_projection(features), attn
 
     def forward_word_del(self, prev_output_tokens, encoder_out=None, **unused):
         features, attn, _ = self.extract_features(
@@ -697,7 +701,7 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
             layers=self.layers_del,
             **unused
         )
-        return F.linear(features, self.embed_word_del.weight), attn
+        return self.embed_word_del(features), attn
 
 
 @register_model_architecture("fb_levenshtein_transformer", "fb_levenshtein_transformer")
