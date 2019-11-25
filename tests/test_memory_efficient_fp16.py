@@ -35,6 +35,7 @@ class TestMemoryEfficientFP16(unittest.TestCase):
                 fp16_scale_window=1,
                 fp16_scale_tolerance=1,
                 threshold_loss_scale=1,
+                min_loss_scale=1e-4,
             ),
             params,
             optimizer,

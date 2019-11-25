@@ -55,8 +55,15 @@ Fairseq provides reference implementations of various sequence-to-sequence model
 - mixed precision training (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
 - extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
 
-We also provide [pre-trained models](#pre-trained-models-and-examples) for several benchmark
-translation and language modeling datasets.
+We also provide [pre-trained models for translation and language modeling](#pre-trained-models-and-examples)
+with a convenient `torch.hub` interface:
+```python
+en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de.single_model')
+en2de.translate('Hello world', beam=5)
+# 'Hallo Welt'
+```
+See the PyTorch Hub tutorials for [translation](https://pytorch.org/hub/pytorch_fairseq_translation/)
+and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more examples.
 
 ![Model](fairseq.gif)
 
