@@ -30,6 +30,20 @@ def from_pretrained(
         if data_name_or_path is not None and data_name_or_path in archive_map:
             data_name_or_path = archive_map[data_name_or_path]
 
+        # allow archive_map to set default arg_overrides (e.g., tokenizer, bpe)
+        # for each model
+        if isinstance(model_name_or_path, dict):
+            for k, v in model_name_or_path.items():
+                if k == 'checkpoint_file':
+                    checkpoint_file = v
+                elif (
+                    k != 'path'
+                    # only set kwargs that don't already have overrides
+                    and k not in kwargs
+                ):
+                    kwargs[k] = v
+            model_name_or_path = model_name_or_path['path']
+
     model_path = file_utils.load_archive_file(model_name_or_path)
 
     # convenience hack for loading data and BPE codes from model archive
