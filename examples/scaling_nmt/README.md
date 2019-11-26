@@ -50,15 +50,35 @@ fairseq-train \
 
 Note that the `--fp16` flag requires you have CUDA 9.1 or greater and a Volta GPU or newer.
 
-If you want to train the above model with big batches (assuming your machine has 8 GPUs):
+***IMPORTANT:*** You will get better performance by training with big batches and
+increasing the learning rate. If you want to train the above model with big batches
+(assuming your machine has 8 GPUs):
 - add `--update-freq 16` to simulate training on 8x16=128 GPUs
 - increase the learning rate; 0.001 works well for big batches
 
 ##### 4. Evaluate
+
+Now we can evaluate our trained model.
+
+Note that the original [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+paper used a couple tricks to achieve better BLEU scores. We use these same tricks in
+the Scaling NMT paper, so it's important to apply them when reproducing our results.
+
+First, use the [average_checkpoints.py](/scripts/average_checkpoints.py) script to
+average the last few checkpoints. Averaging the last 5-10 checkpoints is usually
+good, but you may need to adjust this depending on how long you've trained:
+```bash
+python scripts/average_checkpoints \
+    --inputs /path/to/checkpoints \
+    --num-epoch-checkpoints 5 \
+    --output checkpoint.avg5.pt
+```
+
+Next, generate translations using a beam width of 4 and length penalty of 0.6:
 ```bash
 fairseq-generate \
     data-bin/wmt16_en_de_bpe32k \
-    --path checkpoints/checkpoint_best.pt \
+    --path checkpoint.avg5.pt \
     --beam 4 --lenpen 0.6 --remove-bpe
 ```
 
