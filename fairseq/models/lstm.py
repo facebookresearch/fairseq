@@ -356,6 +356,17 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
     def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+        x, attn_scores = self.extract_features(
+            prev_output_tokens, encoder_out, incremental_state
+        )
+        return self.output_layer(x), attn_scores
+
+    def extract_features(
+        self, prev_output_tokens, encoder_out, incremental_state=None
+    ):
+        """
+        Similar to *forward* but only return features.
+        """
         encoder_padding_mask = encoder_out['encoder_padding_mask']
         encoder_out = encoder_out['encoder_out']
 
@@ -429,22 +440,25 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         # T x B x C -> B x T x C
         x = x.transpose(1, 0)
 
+        if hasattr(self, 'additional_fc') and self.adaptive_softmax is None:
+            x = self.additional_fc(x)
+            x = F.dropout(x, p=self.dropout_out, training=self.training)
+
         # srclen x tgtlen x bsz -> bsz x tgtlen x srclen
         if not self.training and self.need_attn:
             attn_scores = attn_scores.transpose(0, 2)
         else:
             attn_scores = None
+        return x, attn_scores
 
-        # project back to size of vocabulary
+    def output_layer(self, x):
+        """Project features to the vocabulary size."""
         if self.adaptive_softmax is None:
-            if hasattr(self, 'additional_fc'):
-                x = self.additional_fc(x)
-                x = F.dropout(x, p=self.dropout_out, training=self.training)
             if self.share_input_output_embed:
                 x = F.linear(x, self.embed_tokens.weight)
             else:
                 x = self.fc_out(x)
-        return x, attn_scores
+        return x
 
     def reorder_incremental_state(self, incremental_state, new_order):
         super().reorder_incremental_state(incremental_state, new_order)
