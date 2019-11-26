@@ -86,7 +86,7 @@ class TestRobertaHub(unittest.TestCase):
 
             # Register a new (randomly initialized) classification head
             roberta.register_classification_head('new_task', num_classes=3)
-            logprobs = roberta.predict('new_task', tokens)
+            logprobs = roberta.predict('new_task', tokens)  # noqa
 
             # Test mask filling
             res = roberta.fill_mask('The first Star wars movie came out in <mask>', topk=3)
@@ -224,7 +224,7 @@ class TestRobertaHub(unittest.TestCase):
 
             # Register a new (randomly initialized) classification head
             bart.register_classification_head('new_task', num_classes=3)
-            logprobs = bart.predict('new_task', tokens)
+            logprobs = bart.predict('new_task', tokens)  # noqa
 
     @torch.no_grad()
     def test_bart_large_mnli(self):
