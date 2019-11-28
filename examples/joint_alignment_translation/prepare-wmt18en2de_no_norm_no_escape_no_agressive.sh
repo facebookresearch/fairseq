@@ -110,7 +110,7 @@ mkdir output
 mv $tmp/{train,valid,test}.{$src,$tgt} output
 
 #BPE
-git clone git@github.com:glample/fastBPE.git
+git clone https://github.com/glample/fastBPE.git
 pushd fastBPE
 g++ -std=c++11 -pthread -O3 fastBPE/main.cc -IfastBPE -o fast
 popd
