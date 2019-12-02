@@ -5,22 +5,23 @@
 
 import contextlib
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import torch.fb.rendezvous.zeus  # noqa: F401
-from fvcore.common.file_io import PathManager
-
 from fairseq import options
 from fairseq.fb_pathmgr import fb_pathmgr
-
+from fvcore.common.file_io import PathManager
 from train import distributed_main, main
 
 
 def get_fb_training_parser():
     parser = options.get_training_parser()
-    parser.add_argument("--tensorboard-manifold", action="store_true",
-                        help="[FB only] send tensorboard plots to manifold")
+    parser.add_argument(
+        "--tensorboard-manifold",
+        action="store_true",
+        help="[FB only] send tensorboard plots to manifold",
+    )
     return parser
 
 
@@ -74,16 +75,13 @@ class tee(object):
         self.fd2.flush()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = get_fb_training_parser()
     args = options.parse_args_and_arch(parser)
 
-    log_path = os.path.join(args.save_dir, 'train.log')
+    log_path = os.path.join(args.save_dir, "train.log")
 
-    if (
-        args.distributed_init_method is not None
-        and torch.cuda.device_count() > 1
-    ):
+    if args.distributed_init_method is not None and torch.cuda.device_count() > 1:
         start_rank = args.distributed_rank
         args.distributed_rank = None
         torch.multiprocessing.spawn(
