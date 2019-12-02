@@ -51,6 +51,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train.py cnn_dm-bin \
     --max-tokens $MAX_TOKENS \
     --task translation \
     --source-lang source --target-lang target \
+    --truncate-source \
     --layernorm-embedding \
     --share-all-embeddings \
     --share-decoder-input-output-embed \
@@ -64,7 +65,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train.py cnn_dm-bin \
     --clip-norm 0.1 \
     --lr-scheduler polynomial_decay --lr $LR --total-num-update $TOTAL_NUM_UPDATES --warmup-updates $WARMUP_UPDATES \
     --fp16 --update-freq $UPDATE_FREQ \
-    --skip-invalid-size-inputs-valid-test\
+    --skip-invalid-size-inputs-valid-test \
     --find-unused-parameters;
 ```
 Above is expected to run on `1` node with `8 32gb-V100`.
