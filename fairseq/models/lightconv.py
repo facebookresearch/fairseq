@@ -339,7 +339,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         if self.normalize:
             self.layer_norm = LayerNorm(embed_dim)
 
-    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
