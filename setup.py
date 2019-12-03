@@ -116,7 +116,7 @@ if 'test' in sys.argv[1:]:
 
 setup(
     name='fairseq',
-    version='0.8.0',
+    version='0.9.0',
     description='Facebook AI Research Sequence-to-Sequence Toolkit',
     url='https://github.com/pytorch/fairseq',
     classifiers=[
