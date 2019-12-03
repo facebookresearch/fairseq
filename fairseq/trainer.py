@@ -425,9 +425,15 @@ class Trainer(object):
         try:
             # normalize grads by sample size
             if sample_size > 0:
-                self.optimizer.multiply_grads(
-                    self.args.distributed_world_size / float(sample_size)
-                )
+                # In DDP: multiply gradients by #GPUs/#sample_size because
+                # gradients are accumulated and divided by #GPUs before.
+                # In BMUF: during non-sync gradients are divided by #sample_size
+                # whereas during sync (while calculating global model): sync accumulate
+                # gradients and divided by #GPUs and now multiply by #GPUs/#sample_size
+                if self._sync_stats():
+                    self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
+                else:
+                    self.optimizer.multiply_grads(1 / float(sample_size))
 
             # clip grads
             grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
@@ -643,11 +649,14 @@ class Trainer(object):
             torch.cuda.manual_seed(seed)
 
     def _sync_stats(self):
+        # Return True if it's using multiple GPUs and DDP or multiple GPUs with
+        # BMUF and it's a bmuf sync with warmup iterations completed before.
         return self.args.distributed_world_size > 1 and (
             (not self.args.use_bmuf)
             or (
                 self.args.use_bmuf
                 and (self.get_num_updates() + 1) % self.args.global_sync_iter == 0
+                and (self.get_num_updates() + 1) > self.args.warmup_iterations
             )
         )
 

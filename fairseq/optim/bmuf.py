@@ -59,13 +59,13 @@ class FairseqBMUF(FairseqOptimizer):
         )
         parser.add_argument(
             "--use-nbm",
-            default=True,
+            default=False,
             action="store_true",
             help="Specify whether you want to use classical BM / Nesterov BM",
         )
         parser.add_argument(
             "--average-sync",
-            default=True,
+            default=False,
             action="store_true",
             help="Specify whether you want to average the local momentum after each sync",
         )
