@@ -22,6 +22,7 @@ def align_bpe_to_words(roberta, bpe_tokens: torch.LongTensor, other_tokens: List
         List[str]: mapping from *other_tokens* to corresponding *bpe_tokens*.
     """
     assert bpe_tokens.dim() == 1
+    assert bpe_tokens[0] == 0
 
     def clean(text):
         return text.strip()
@@ -32,7 +33,6 @@ def align_bpe_to_words(roberta, bpe_tokens: torch.LongTensor, other_tokens: List
     other_tokens = [clean(str(o)) for o in other_tokens]
 
     # strip leading <s>
-    assert bpe_tokens[0] == '<s>'
     bpe_tokens = bpe_tokens[1:]
     assert ''.join(bpe_tokens) == ''.join(other_tokens)
 
