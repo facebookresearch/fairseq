@@ -41,7 +41,6 @@ class RunAll:
 
     def run_perl_scripts_norm(self, file_path, la_code):
         stem = self.stem_proc
-        print("HERE Stem", stem)
         starting_time = time()
         print("Running normalization 1 for", la_code)
         norm1_path = stem + '.norm1.' + la_code
