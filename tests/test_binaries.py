@@ -390,6 +390,21 @@ class TestLanguageModeling(unittest.TestCase):
                     '--tokens-per-sample', '500',
                 ])
 
+    def test_lightconv_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_lightconv_lm') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_language_model(
+                    data_dir, 'lightconv_lm', ['--add-bos-token'], run_validation=True,
+                )
+                eval_lm_main(data_dir)
+                generate_main(data_dir, [
+                    '--task', 'language_modeling',
+                    '--sample-break-mode', 'eos',
+                    '--tokens-per-sample', '500',
+                ])
+
 
 class TestMaskedLanguageModel(unittest.TestCase):
 
