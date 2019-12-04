@@ -244,10 +244,30 @@ class TestTranslation(unittest.TestCase):
                 ], task='translation_lev')
                 generate_main(data_dir, [
                     '--task', 'translation_lev',
-                    '--iter-decode-max-iter', '9',
+                    '--iter-decode-max-iter', '0',
                     '--iter-decode-eos-penalty', '0',
                     '--print-step',
                 ])
+
+    # def test_nat_crf_transformer(self):
+    #     with contextlib.redirect_stdout(StringIO()):
+    #         with tempfile.TemporaryDirectory('test_nat_crf_transformer') as data_dir:
+    #             create_dummy_data(data_dir)
+    #             preprocess_translation_data(data_dir, ['--joined-dictionary'])
+    #             train_translation_model(data_dir, 'nacrf_transformer', [
+    #                 '--apply-bert-init', '--criterion',
+    #                 'nat_loss', '--noise', 'full_mask', '--pred-length-offset',
+    #                 '--length-loss-factor', '0.1',
+    #                 '--word-ins-loss-factor', '0.5',
+    #                 '--crf-lowrank-approx', '1',
+    #                 '--crf-beam-approx', '1'
+    #             ], task='translation_lev')
+    #             generate_main(data_dir, [
+    #                 '--task', 'translation_lev',
+    #                 '--iter-decode-max-iter', '0',
+    #                 '--iter-decode-eos-penalty', '0',
+    #                 '--print-step',
+    #             ])
 
     def test_iterative_nonautoregressive_transformer(self):
         with contextlib.redirect_stdout(StringIO()):

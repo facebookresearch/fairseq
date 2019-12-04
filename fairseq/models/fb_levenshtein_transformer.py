@@ -57,6 +57,7 @@ def _fill(x, mask, y, padding_idx: int):
         x[mask] = y
     return x
 
+
 def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
     try:
         from fairseq import libnat
@@ -223,6 +224,10 @@ class LevenshteinTransformerModel(TransformerModel):
             "output layer if specified.)",
         )
 
+    @property
+    def validate(self):
+        return {'length-beam': False}
+
     @classmethod
     def build_decoder(cls, args, tgt_dict, embed_tokens):
         decoder = LevenshteinTransformerDecoder(args, tgt_dict, embed_tokens)
@@ -291,7 +296,6 @@ class LevenshteinTransformerModel(TransformerModel):
                 "mask": word_predictions.ne(self.pad)
             }
         }
-
 
     def forward_encoder(self, encoder_inputs):
         return self.encoder(*encoder_inputs)
@@ -576,8 +580,8 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
         self.unk = dictionary.unk()
         self.eos = dictionary.eos()
         self.sampling_for_deletion = getattr(args, "sampling_for_deletion", False)
-        self.embed_mask_ins = nn.Linear(self.output_embed_dim * 2, 256, bias=False)
-        self.embed_word_del = nn.Linear(self.output_embed_dim, 2, bias=False)
+        self.embed_mask_ins = Embedding(256, self.output_embed_dim * 2, None)
+        self.embed_word_del = Embedding(2, self.output_embed_dim, None)
 
         # del_word, ins_mask, ins_word
         self.early_exit = [int(i) for i in args.early_exit.split(",")]
@@ -600,10 +604,6 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
                     for _ in range(self.early_exit[0])
                 ]
             )
-        self.output_projection = nn.Linear(
-            self.embed_tokens.weight.shape[1], self.embed_tokens.weight.shape[0]
-        )
-        self.output_projection.weight = self.embed_tokens.weight
 
     def extract_features(
         self,
@@ -681,7 +681,7 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
             **unused
         )
         features_cat = torch.cat([features[:, :-1, :], features[:, 1:, :]], 2)
-        return self.embed_mask_ins(features_cat), attn
+        return F.linear(features_cat, self.embed_mask_ins.weight), attn
 
     def forward_word_ins(self, prev_output_tokens, encoder_out=None, **unused):
         features, attn, _ = self.extract_features(
@@ -691,7 +691,7 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
             layers=self.layers,
             **unused
         )
-        return self.output_projection(features), attn
+        return self.output_layer(features), attn
 
     def forward_word_del(self, prev_output_tokens, encoder_out=None, **unused):
         features, attn, _ = self.extract_features(
@@ -701,7 +701,7 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
             layers=self.layers_del,
             **unused
         )
-        return self.embed_word_del(features), attn
+        return F.linear(features, self.embed_word_del.weight), attn
 
 
 @register_model_architecture("fb_levenshtein_transformer", "fb_levenshtein_transformer")
@@ -731,7 +731,7 @@ def base_architecture(args):
     args.share_decoder_input_output_embed = getattr(
         args, "share_decoder_input_output_embed", False
     )
-    args.share_all_embeddings = getattr(args, "share_all_embeddings", False)
+    args.share_all_embeddings = getattr(args, "share_all_embeddings", True)
     args.no_token_positional_embeddings = getattr(
         args, "no_token_positional_embeddings", False
     )

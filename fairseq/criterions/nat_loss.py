@@ -12,7 +12,6 @@ from torch import Tensor
 
 from . import FairseqCriterion, register_criterion
 
-
 @register_criterion("nat_loss")
 class LabelSmoothedDualImitationCriterion(FairseqCriterion):
     @staticmethod

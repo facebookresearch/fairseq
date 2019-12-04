@@ -8,13 +8,15 @@ import torch
 import torch.nn.functional as F
 
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.levenshtein_transformer import (
+from fairseq.models.nat import (
     LevenshteinTransformerDecoder,
     LevenshteinTransformerModel,
+    FairseqNATModel,
+    ensemble_decoder
 )
-from fairseq.models.transformer import Linear, TransformerModel
-from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from fairseq.models.transformer import Linear
 from fairseq.utils import new_arange
+from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 
 class NegativeDistanceScore(object):
@@ -122,12 +124,7 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
 
     @staticmethod
     def add_args(parser):
-        TransformerModel.add_args(parser)
-        parser.add_argument(
-            "--apply-bert-init",
-            action="store_true",
-            help="use custom param initialization for BERT",
-        )
+        FairseqNATModel.add_args(parser)
         parser.add_argument("--label-tau", default=None, type=float)
 
     @classmethod
@@ -148,8 +145,11 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
 
         # generate training labels for insertion
         word_ins_out = self.decoder.forward_word_ins(
-            prev_output_tokens, encoder_out=encoder_out
+            normalize=False,
+            prev_output_tokens=prev_output_tokens,
+            encoder_out=encoder_out
         )
+
         word_ins_tgt = _get_ins_targets(
             prev_output_tokens,
             tgt_tokens,
@@ -177,10 +177,12 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
         history = decoder_out.history
 
         # TODO: decoding for InsertionTransformer
-        word_ins_out = self.decoder.forward_word_ins(
-            output_tokens, encoder_out=encoder_out
+        word_ins_score = self.decoder.forward_word_ins(
+            normalize=True,
+            prev_output_tokens=output_tokens,
+            encoder_out=encoder_out
         )
-        word_ins_score = F.log_softmax(word_ins_out, 2)
+
         if eos_penalty > 0.0:
             word_ins_score[:, :, self.pad] -= eos_penalty
         word_ins_score, word_ins_pred = word_ins_score.max(-1)
@@ -219,12 +221,14 @@ class InsertionTransformerDecoder(LevenshteinTransformerDecoder):
 
         self.label_tau = getattr(args, "label_tau", None)
 
-    def forward_word_ins(self, prev_output_tokens, encoder_out=None):
+    @ensemble_decoder
+    def forward_word_ins(self, normalize, encoder_out, prev_output_tokens):
         features = self.extract_features(prev_output_tokens, encoder_out=encoder_out)[0]
         features = self.pool_out(
             torch.cat([features[:, :-1, :], features[:, 1:, :]], 2)
         )
-        return self.output_layer(features)
+        decoder_out = self.output_layer(features)
+        return F.log_softmax(decoder_out, -1) if normalize else decoder_out
 
     def forward_mask_ins(self, *args, **kwargs):
         raise NotImplementedError
@@ -232,12 +236,9 @@ class InsertionTransformerDecoder(LevenshteinTransformerDecoder):
     def forward_word_del(self, *args, **kwargs):
         raise NotImplementedError
 
-    def forward_word_del_mask_ins(self, *args, **kwargs):
-        raise NotImplementedError
-
 
 @register_model_architecture("insertion_transformer", "insertion_transformer")
-def base_architecture(args):
+def insertion_base_architecture(args):
     args.encoder_embed_path = getattr(args, "encoder_embed_path", None)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)

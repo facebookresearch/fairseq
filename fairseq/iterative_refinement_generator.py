@@ -6,6 +6,7 @@
 from collections import namedtuple
 
 import torch
+import numpy as np
 
 from fairseq import utils
 
@@ -28,10 +29,12 @@ class IterativeRefinementGenerator(object):
         eos_penalty=0.0,
         max_iter=10,
         max_ratio=2,
+        beam_size=1,
         decoding_format=None,
         retain_dropout=False,
         adaptive=True,
         retain_history=False,
+        reranking=False,
     ):
         """
         Generates translations based on iterative refinement.
@@ -53,6 +56,8 @@ class IterativeRefinementGenerator(object):
         self.eos_penalty = eos_penalty
         self.max_iter = max_iter
         self.max_ratio = max_ratio
+        self.beam_size = beam_size
+        self.reranking = reranking
         self.decoding_format = decoding_format
         self.retain_dropout = retain_dropout
         self.retain_history = retain_history
@@ -98,32 +103,47 @@ class IterativeRefinementGenerator(object):
                 ref = utils.strip_pad(sample["target"][i, :], self.pad)
                 yield id, src, ref, hypos[i]
 
+
     @torch.no_grad()
     def generate(self, models, sample, prefix_tokens=None):
-        from fairseq.models.levenshtein_transformer import LevenshteinTransformerModel
-        from fairseq.models.nonautoregressive_ensembles import EnsembleLevT
 
-        if len(models) == 1:
-            # Keep this for other NAT models for which we have yet to implement ensemble wrappers. Later delete this.
-            model = models[0]
-        elif isinstance(models[0], LevenshteinTransformerModel):
-            model = EnsembleLevT(models)
-        else:
-            raise NotImplementedError
+        # TODO: iterative refinement generator does not support ensemble for now.
         if not self.retain_dropout:
-            model.eval()
+            for model in models:
+                model.eval()
+
+        model, reranker = models[0], None
+        if self.reranking:
+            assert len(models) > 1, "Assuming the last checkpoint is the reranker"
+            assert self.beam_size > 1, "Reranking requires multiple translation for each example"
+
+            reranker = models[-1]
+            models = models[:-1]
+
+        if len(models) > 1 and hasattr(model, 'enable_ensemble'):
+            assert model.allow_ensemble, "{} does not support ensembling".format(model.__class__.__name__)
+            model.enable_ensemble(models)
 
         # TODO: better encoder inputs?
         src_tokens = sample["net_input"]["src_tokens"]
         src_lengths = sample["net_input"]["src_lengths"]
         bsz, src_len = src_tokens.size()
-        sent_idxs = torch.arange(bsz)
 
-        # encoding
+        # initialize
         encoder_out = model.forward_encoder([src_tokens, src_lengths])
-
-        # initialize buffers (very model specific, with length prediction or not)
         prev_decoder_out = model.initialize_output_tokens(encoder_out, src_tokens)
+
+        if self.beam_size > 1:
+            assert model.allow_length_beam, \
+                "{} does not support decoding with length beam.".format(model.__class__.__name__)
+
+            # regenerate data based on length-beam
+            length_beam_order = utils.new_arange(src_tokens, self.beam_size, bsz).t().reshape(-1)
+            encoder_out = model.encoder.reorder_encoder_out(encoder_out, length_beam_order)
+            prev_decoder_out = model.regenerate_length_beam(prev_decoder_out, self.beam_size)
+            bsz = bsz * self.beam_size
+
+        sent_idxs = torch.arange(bsz)
         prev_output_tokens = prev_decoder_out.output_tokens.clone()
 
         if self.retain_history:
@@ -244,7 +264,48 @@ class IterativeRefinementGenerator(object):
             )
             encoder_out = model.encoder.reorder_encoder_out(encoder_out, not_terminated.nonzero().squeeze())
             sent_idxs = sent_idxs[not_terminated]
-
             prev_output_tokens = prev_decoder_out.output_tokens.clone()
+
+        if self.beam_size > 1:
+            if reranker is not None:
+                finalized = self.rerank(
+                    reranker, finalized, [src_tokens, src_lengths], self.beam_size
+                )
+
+            # aggregate information from length beam
+            finalized = [
+                finalized[np.argmax(
+                    [finalized[self.beam_size * i + j][0]['score'] for j in range(self.beam_size)]
+                    ) + self.beam_size * i] for i in range(len(finalized) // self.beam_size)
+                ]
+
+        return finalized
+
+    def rerank(self, reranker, finalized, encoder_input, beam_size):
+
+        def rebuild_batch(finalized):
+            finalized_tokens = [f[0]['tokens'] for f in finalized]
+            finalized_maxlen = max(f.size(0) for f in finalized_tokens)
+            final_output_tokens = finalized_tokens[0].new_zeros(len(finalized_tokens), finalized_maxlen).fill_(self.pad)
+            for i, f in enumerate(finalized_tokens):
+                final_output_tokens[i, :f.size(0)] = f
+            return final_output_tokens
+
+        final_output_tokens = rebuild_batch(finalized)
+        final_output_tokens[:, 0] = self.eos  # autoregressive model assumes starting with EOS
+
+        reranker_encoder_out = reranker.encoder(*encoder_input)
+        length_beam_order = utils.new_arange(
+            final_output_tokens, beam_size, reranker_encoder_out.encoder_out.size(1)).t().reshape(-1)
+        reranker_encoder_out = reranker.encoder.reorder_encoder_out(reranker_encoder_out, length_beam_order)
+        reranking_scores = reranker.get_normalized_probs(
+            reranker.decoder(final_output_tokens[:, :-1], reranker_encoder_out), True, None)
+        reranking_scores = reranking_scores.gather(2, final_output_tokens[:, 1:, None])
+        reranking_masks = final_output_tokens[:, 1:].ne(self.pad)
+        reranking_scores = reranking_scores[:, :, 0].masked_fill_(~reranking_masks, 0).sum(1)
+        reranking_scores = reranking_scores / reranking_masks.sum(1).type_as(reranking_scores)
+
+        for i in range(len(finalized)):
+            finalized[i][0]['score'] = reranking_scores[i]
 
         return finalized
