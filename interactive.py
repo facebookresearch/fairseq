@@ -46,6 +46,7 @@ def make_batches(lines, args, task, max_positions, encode_fn):
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
         max_positions=max_positions,
+        ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test
     ).next_epoch_itr(shuffle=False)
     for batch in itr:
         yield Batch(
