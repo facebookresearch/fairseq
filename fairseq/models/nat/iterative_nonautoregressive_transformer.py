@@ -6,7 +6,7 @@
 import torch
 
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.nonautoregressive_transformer import NATransformerModel
+from fairseq.models.nat import NATransformerModel
 
 
 def _sequential_poisoning(s, V, beta=0.33, bos=2, eos=3, pad=1):
@@ -76,17 +76,22 @@ class IterNATransformerModel(NATransformerModel):
 
         # encoding
         encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
-        length_out, length_tgt = self.decoder.forward_length_prediction(
-            encoder_out, tgt_tokens
-        )
+
+        # length prediction
+        length_out = self.decoder.forward_length(normalize=False, encoder_out=encoder_out)
+        length_tgt = self.decoder.forward_length_prediction(length_out, encoder_out, tgt_tokens)
+
+        # decoding
         word_ins_outs, word_ins_tgts, word_ins_masks = [], [], []
         for t in range(self.train_step):
-            word_ins_out, word_ins_tgt, word_ins_mask = self.decoder(
-                prev_output_tokens,
+            word_ins_out = self.decoder(
+                normalize=False, 
+                prev_output_tokens=prev_output_tokens,
                 encoder_out=encoder_out,
-                tgt_tokens=tgt_tokens,
                 step=t,
             )
+            word_ins_tgt = tgt_tokens
+            word_ins_mask = word_ins_tgt.ne(self.pad)
 
             word_ins_outs.append(word_ins_out)
             word_ins_tgts.append(word_ins_tgt)
@@ -142,7 +147,7 @@ class IterNATransformerModel(NATransformerModel):
 @register_model_architecture(
     "iterative_nonautoregressive_transformer", "iterative_nonautoregressive_transformer"
 )
-def base_architecture(args):
+def inat_base_architecture(args):
     args.encoder_embed_path = getattr(args, "encoder_embed_path", None)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
@@ -197,4 +202,4 @@ def base_architecture(args):
     "iterative_nonautoregressive_transformer_wmt_en_de",
 )
 def iter_nat_wmt_en_de(args):
-    base_architecture(args)
+    inat_base_architecture(args)

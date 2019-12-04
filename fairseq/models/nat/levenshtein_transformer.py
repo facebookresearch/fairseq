@@ -11,13 +11,17 @@ from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import (
     Embedding,
-    TransformerDecoder,
-    TransformerEncoder,
-    TransformerModel,
     TransformerDecoderLayer
 )
-from fairseq.modules.transformer_sentence_encoder import init_bert_params
+
+from fairseq.models.nat import (
+    FairseqNATModel,
+    FairseqNATDecoder,
+    ensemble_decoder
+)
 from fairseq.utils import new_arange
+from fairseq.modules.transformer_sentence_encoder import init_bert_params
+
 
 # -------------- Helper Functions --------------------------------------------------- #
 def _skip(x, mask):
@@ -286,26 +290,17 @@ def _apply_del_words(
 
     return out_tokens, out_scores, out_attn
 
-# ------------------------------------------------------------------------------------- #
 
 @register_model("levenshtein_transformer")
-class LevenshteinTransformerModel(TransformerModel):
-    def __init__(self, args, encoder, decoder):
-        super().__init__(args, encoder, decoder)
-        self.tgt_dict = decoder.dictionary
-        self.bos = decoder.dictionary.bos()
-        self.eos = decoder.dictionary.eos()
-        self.pad = decoder.dictionary.pad()
-        self.unk = decoder.dictionary.unk()
+class LevenshteinTransformerModel(FairseqNATModel):
+
+    @property
+    def allow_length_beam(self):
+        return False
 
     @staticmethod
     def add_args(parser):
-        TransformerModel.add_args(parser)
-        parser.add_argument(
-            "--apply-bert-init",
-            action="store_true",
-            help="use custom param initialization for BERT",
-        )
+        FairseqNATModel.add_args(parser)
         parser.add_argument(
             "--early-exit",
             default="6,6,6",
@@ -340,13 +335,6 @@ class LevenshteinTransformerModel(TransformerModel):
             decoder.apply(init_bert_params)
         return decoder
 
-    @classmethod
-    def build_encoder(cls, args, src_dict, embed_tokens):
-        encoder = TransformerEncoder(args, src_dict, embed_tokens)
-        if getattr(args, "apply_bert_init", False):
-            encoder.apply(init_bert_params)
-        return encoder
-
     def forward(
         self, src_tokens, src_lengths, prev_output_tokens, tgt_tokens, **kwargs
     ):
@@ -364,10 +352,14 @@ class LevenshteinTransformerModel(TransformerModel):
         mask_ins_masks = prev_output_tokens[:, 1:].ne(self.pad)
 
         mask_ins_out, _ = self.decoder.forward_mask_ins(
-            prev_output_tokens, encoder_out=encoder_out
+            normalize=False,
+            prev_output_tokens=prev_output_tokens,
+            encoder_out=encoder_out
         )
         word_ins_out, _ = self.decoder.forward_word_ins(
-            masked_tgt_tokens, encoder_out=encoder_out
+            normalize=False,
+            prev_output_tokens=masked_tgt_tokens,
+            encoder_out=encoder_out
         )
 
         # make online prediction
@@ -385,12 +377,14 @@ class LevenshteinTransformerModel(TransformerModel):
         # generate training labels for deletion
         word_del_targets = _get_del_targets(word_predictions, tgt_tokens, self.pad)
         word_del_out, _ = self.decoder.forward_word_del(
-            word_predictions, encoder_out)
+            normalize=False,
+            prev_output_tokens=word_predictions,
+            encoder_out=encoder_out)
         word_del_masks = word_predictions.ne(self.pad)
 
         return {
             "mask_ins": {
-                "out": mask_ins_out, "tgt": mask_ins_targets, 
+                "out": mask_ins_out, "tgt": mask_ins_targets,
                 "mask": mask_ins_masks, "ls": 0.01,
             },
             "word_ins": {
@@ -403,9 +397,6 @@ class LevenshteinTransformerModel(TransformerModel):
                 "mask": word_del_masks
             }
         }
-
-    def forward_encoder(self, encoder_inputs):
-        return self.encoder(*encoder_inputs)
 
     def forward_decoder(
         self, decoder_out, encoder_out, eos_penalty=0.0, max_ratio=None, **kwargs
@@ -431,11 +422,11 @@ class LevenshteinTransformerModel(TransformerModel):
         # do not delete tokens if it is <s> </s>
         can_del_word = output_tokens.ne(self.pad).sum(1) > 2
         if can_del_word.sum() != 0:  # we cannot delete, skip
-            word_del_out, word_del_attn = self.decoder.forward_word_del(
-                _skip(output_tokens, can_del_word),
-                _skip_encoder_out(self.encoder, encoder_out, can_del_word)
+            word_del_score, word_del_attn = self.decoder.forward_word_del(
+                normalize=True,
+                prev_output_tokens=_skip(output_tokens, can_del_word),
+                encoder_out=_skip_encoder_out(self.encoder, encoder_out, can_del_word)
             )
-            word_del_score = F.log_softmax(word_del_out, 2)
             word_del_pred = word_del_score.max(-1)[1].bool()
 
             _tokens, _scores, _attn = _apply_del_words(
@@ -457,11 +448,11 @@ class LevenshteinTransformerModel(TransformerModel):
         # insert placeholders
         can_ins_mask = output_tokens.ne(self.pad).sum(1) < max_lens
         if can_ins_mask.sum() != 0:
-            mask_ins_out, _ = self.decoder.forward_mask_ins(
-                _skip(output_tokens, can_ins_mask),
-                _skip_encoder_out(self.encoder, encoder_out, can_ins_mask)
+            mask_ins_score, _ = self.decoder.forward_mask_ins(
+                normalize=True,
+                prev_output_tokens=_skip(output_tokens, can_ins_mask),
+                encoder_out=_skip_encoder_out(self.encoder, encoder_out, can_ins_mask)
             )
-            mask_ins_score = F.log_softmax(mask_ins_out, 2)
             if eos_penalty > 0.0:
                 mask_ins_score[:, :, 0] = mask_ins_score[:, :, 0] - eos_penalty
             mask_ins_pred = mask_ins_score.max(-1)[1]
@@ -486,11 +477,12 @@ class LevenshteinTransformerModel(TransformerModel):
         # insert words
         can_ins_word = output_tokens.eq(self.unk).sum(1) > 0
         if can_ins_word.sum() != 0:
-            word_ins_out, word_ins_attn = self.decoder.forward_word_ins(
-                _skip(output_tokens, can_ins_word),
-                _skip_encoder_out(self.encoder, encoder_out, can_ins_word)
+            word_ins_score, word_ins_attn = self.decoder.forward_word_ins(
+                normalize=True,
+                prev_output_tokens=_skip(output_tokens, can_ins_word),
+                encoder_out=_skip_encoder_out(self.encoder, encoder_out, can_ins_word)
             )
-            word_ins_score, word_ins_pred = F.log_softmax(word_ins_out, 2).max(-1)
+            word_ins_score, word_ins_pred = word_ins_score.max(-1)
             _tokens, _scores = _apply_ins_words(
                 output_tokens[can_ins_word],
                 output_scores[can_ins_word],
@@ -527,6 +519,7 @@ class LevenshteinTransformerModel(TransformerModel):
         initial_output_scores = initial_output_tokens.new_zeros(
             *initial_output_tokens.size()
         ).type_as(encoder_out.encoder_out)
+
         return DecoderOut(
             output_tokens=initial_output_tokens,
             output_scores=initial_output_scores,
@@ -537,7 +530,7 @@ class LevenshteinTransformerModel(TransformerModel):
         )
 
 
-class LevenshteinTransformerDecoder(TransformerDecoder):
+class LevenshteinTransformerDecoder(FairseqNATDecoder):
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
         super().__init__(
             args, dictionary, embed_tokens, no_encoder_attn=no_encoder_attn
@@ -558,15 +551,15 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
         self.layers_msk = None
         if getattr(args, "no_share_maskpredictor", False):
             self.layers_msk = nn.ModuleList([
-                                    TransformerDecoderLayer(args, no_encoder_attn)
-                                    for _ in range(self.early_exit[1])
-                                ])
+                                TransformerDecoderLayer(args, no_encoder_attn)
+                                for _ in range(self.early_exit[1])
+                            ])
         self.layers_del = None
         if getattr(args, "no_share_discriminator", False):
             self.layers_del = nn.ModuleList([
-                                    TransformerDecoderLayer(args, no_encoder_attn)
-                                    for _ in range(self.early_exit[0])
-                                ])
+                                TransformerDecoderLayer(args, no_encoder_attn)
+                                for _ in range(self.early_exit[0])
+                            ])
 
         if getattr(args, "share_discriminator_maskpredictor", False):
             assert getattr(args, "no_share_discriminator", False), "must set saperate discriminator"
@@ -633,28 +626,40 @@ class LevenshteinTransformerDecoder(TransformerDecoder):
 
         return x, {"attn": attn, "inner_states": inner_states}
 
-    def forward_mask_ins(self, prev_output_tokens, encoder_out=None, **unused):
+    @ensemble_decoder
+    def forward_mask_ins(self, normalize, encoder_out, prev_output_tokens, **unused):
         features, extra = self.extract_features(
             prev_output_tokens, encoder_out=encoder_out, early_exit=self.early_exit[1], layers=self.layers_msk, **unused
         )
         features_cat = torch.cat([features[:, :-1, :], features[:, 1:, :]], 2)
-        return F.linear(features_cat, self.embed_mask_ins.weight), extra['attn']
+        decoder_out = F.linear(features_cat, self.embed_mask_ins.weight)
+        if normalize:
+            return F.log_softmax(decoder_out, -1), extra['attn']
+        return decoder_out, extra['attn']
 
-    def forward_word_ins(self, prev_output_tokens, encoder_out=None, **unused):
+    @ensemble_decoder
+    def forward_word_ins(self, normalize, encoder_out, prev_output_tokens, **unused):
         features, extra = self.extract_features(
             prev_output_tokens, encoder_out=encoder_out, early_exit=self.early_exit[2], layers=self.layers, **unused
         )
-        return self.output_layer(features), extra['attn']
+        decoder_out = self.output_layer(features)
+        if normalize:
+            return F.log_softmax(decoder_out, -1), extra['attn']
+        return decoder_out, extra['attn']
 
-    def forward_word_del(self, prev_output_tokens, encoder_out=None, **unused):
+    @ensemble_decoder
+    def forward_word_del(self, normalize, encoder_out, prev_output_tokens, **unused):
         features, extra = self.extract_features(
             prev_output_tokens, encoder_out=encoder_out, early_exit=self.early_exit[0], layers=self.layers_del, **unused
         )
-        return F.linear(features, self.embed_word_del.weight), extra['attn']
+        decoder_out = F.linear(features, self.embed_word_del.weight)
+        if normalize:
+            return F.log_softmax(decoder_out, -1), extra['attn']
+        return decoder_out, extra['attn']
 
 
 @register_model_architecture("levenshtein_transformer", "levenshtein_transformer")
-def base_architecture(args):
+def levenshtein_base_architecture(args):
     args.encoder_embed_path = getattr(args, "encoder_embed_path", None)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
@@ -703,7 +708,7 @@ def base_architecture(args):
     "levenshtein_transformer", "levenshtein_transformer_wmt_en_de"
 )
 def levenshtein_transformer_wmt_en_de(args):
-    base_architecture(args)
+    levenshtein_base_architecture(args)
 
 
 # similar parameters used in the "Attention Is All You Need" paper (Vaswani et al., 2017)
@@ -719,7 +724,7 @@ def levenshtein_transformer_vaswani_wmt_en_de_big(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 4096)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
     args.dropout = getattr(args, "dropout", 0.3)
-    base_architecture(args)
+    levenshtein_base_architecture(args)
 
 
 # default parameters used in tensor2tensor implementation

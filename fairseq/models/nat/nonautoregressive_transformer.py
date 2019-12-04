@@ -9,11 +9,12 @@ import torch.nn.functional as F
 from fairseq import utils
 from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.transformer import (
-    Embedding,
-    TransformerDecoder,
-    TransformerEncoder,
-    TransformerModel,
+from fairseq.models.transformer import Embedding
+
+from fairseq.models.nat import (
+    FairseqNATModel,
+    FairseqNATDecoder,
+    ensemble_decoder
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
@@ -46,23 +47,15 @@ def _uniform_assignment(src_lens, trg_lens):
 
 
 @register_model("nonautoregressive_transformer")
-class NATransformerModel(TransformerModel):
-    def __init__(self, args, encoder, decoder):
-        super().__init__(args, encoder, decoder)
-        self.tgt_dict = decoder.dictionary
-        self.bos = decoder.dictionary.bos()
-        self.eos = decoder.dictionary.eos()
-        self.pad = decoder.dictionary.pad()
-        self.unk = decoder.dictionary.unk()
+class NATransformerModel(FairseqNATModel):
+
+    @property
+    def allow_length_beam(self):
+        return True
 
     @staticmethod
     def add_args(parser):
-        TransformerModel.add_args(parser)
-        parser.add_argument(
-            "--apply-bert-init",
-            action="store_true",
-            help="use custom param initialization for BERT",
-        )
+        FairseqNATModel.add_args(parser)
 
         # length prediction
         parser.add_argument("--src-embedding-copy", action="store_true",
@@ -81,30 +74,26 @@ class NATransformerModel(TransformerModel):
             decoder.apply(init_bert_params)
         return decoder
 
-    @classmethod
-    def build_encoder(cls, args, src_dict, embed_tokens):
-        encoder = TransformerEncoder(args, src_dict, embed_tokens)
-        if getattr(args, "apply_bert_init", False):
-            encoder.apply(init_bert_params)
-        return encoder
-
     def forward(
         self, src_tokens, src_lengths, prev_output_tokens, tgt_tokens, **kwargs
     ):
         # encoding
         encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
-        length_out, length_tgt = self.decoder.forward_length_prediction(
-            encoder_out, tgt_tokens
-        )
 
-        word_ins_out, word_ins_tgt, word_ins_mask = self.decoder(
-            prev_output_tokens, encoder_out=encoder_out, tgt_tokens=tgt_tokens
-        )
+        # length prediction
+        length_out = self.decoder.forward_length(normalize=False, encoder_out=encoder_out)
+        length_tgt = self.decoder.forward_length_prediction(length_out, encoder_out, tgt_tokens)
+
+        # decoding
+        word_ins_out = self.decoder(
+            normalize=False,
+            prev_output_tokens=prev_output_tokens,
+            encoder_out=encoder_out)
 
         return {
             "word_ins": {
-                "out": word_ins_out, "tgt": word_ins_tgt,
-                "mask": word_ins_mask, "ls": self.args.label_smoothing,
+                "out": word_ins_out, "tgt": tgt_tokens,
+                "mask": tgt_tokens.ne(self.pad), "ls": self.args.label_smoothing,
                 "nll_loss": True
             },
             "length": {
@@ -112,9 +101,6 @@ class NATransformerModel(TransformerModel):
                 "factor": self.decoder.length_loss_factor
             }
         }
-            
-    def forward_encoder(self, encoder_inputs):
-        return self.encoder(*encoder_inputs)
 
     def forward_decoder(self, decoder_out, encoder_out, decoding_format=None, **kwargs):
         step = decoder_out.step
@@ -125,13 +111,14 @@ class NATransformerModel(TransformerModel):
         # execute the decoder
         output_masks = output_tokens.ne(self.pad)
         _scores, _tokens = self.decoder(
-            output_tokens,
+            normalize=True,
+            prev_output_tokens=output_tokens,
             encoder_out=encoder_out,
-            decoding_format=decoding_format,
             step=step,
-        )
+        ).max(-1)
+
         output_tokens.masked_scatter_(output_masks, _tokens[output_masks])
-        output_scores.masked_scatter_(output_masks, _scores[output_masks])    
+        output_scores.masked_scatter_(output_masks, _scores[output_masks])
         if history is not None:
             history.append(output_tokens.clone())
 
@@ -144,7 +131,11 @@ class NATransformerModel(TransformerModel):
 
     def initialize_output_tokens(self, encoder_out, src_tokens):
         # length prediction
-        _, length_tgt = self.decoder.forward_length_prediction(encoder_out)
+        length_tgt = self.decoder.forward_length_prediction(
+            self.decoder.forward_length(normalize=True, encoder_out=encoder_out),
+            encoder_out=encoder_out
+        )
+
         max_length = length_tgt.clamp_(min=2).max()
         idx_length = utils.new_arange(src_tokens, max_length)
 
@@ -170,13 +161,38 @@ class NATransformerModel(TransformerModel):
             history=None
         )
 
+    def regenerate_length_beam(self, decoder_out, beam_size):
+        output_tokens = decoder_out.output_tokens
+        length_tgt = output_tokens.ne(self.pad).sum(1)
+        length_tgt = length_tgt[:, None] + utils.new_arange(length_tgt, 1, beam_size) - beam_size // 2
+        length_tgt = length_tgt.view(-1).clamp_(min=2)
+        max_length = length_tgt.max()
+        idx_length = utils.new_arange(length_tgt, max_length)
 
-class NATransformerDecoder(TransformerDecoder):
+        initial_output_tokens = output_tokens.new_zeros(
+            length_tgt.size(0), max_length
+        ).fill_(self.pad)
+        initial_output_tokens.masked_fill_(
+            idx_length[None, :] < length_tgt[:, None], self.unk
+        )
+        initial_output_tokens[:, 0] = self.bos
+        initial_output_tokens.scatter_(1, length_tgt[:, None] - 1, self.eos)
+
+        initial_output_scores = initial_output_tokens.new_zeros(
+            *initial_output_tokens.size()
+        ).type_as(decoder_out.output_scores)
+
+        return decoder_out._replace(
+            output_tokens=initial_output_tokens,
+            output_scores=initial_output_scores
+        )
+
+
+class NATransformerDecoder(FairseqNATDecoder):
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
         super().__init__(
             args, dictionary, embed_tokens, no_encoder_attn=no_encoder_attn
         )
-
         self.dictionary = dictionary
         self.bos = dictionary.bos()
         self.unk = dictionary.unk()
@@ -189,29 +205,25 @@ class NATransformerDecoder(TransformerDecoder):
         self.src_embedding_copy = getattr(args, "src_embedding_copy", False)
         self.embed_length = Embedding(256, self.encoder_embed_dim, None)
 
-    def forward(
-        self,
-        prev_output_tokens,
-        encoder_out=None,
-        tgt_tokens=None,
-        decoding_format=None,
-        step=0,
-        **kwargs
-    ):
-
+    @ensemble_decoder
+    def forward(self, normalize, encoder_out, prev_output_tokens, step=0, **unused):
         features, _ = self.extract_features(
             prev_output_tokens,
             encoder_out=encoder_out,
             embedding_copy=(step == 0) & self.src_embedding_copy,
         )
+        decoder_out = self.output_layer(features)
+        return F.log_softmax(decoder_out, -1) if normalize else decoder_out
 
-        if tgt_tokens is not None:
-            word_ins_mask = tgt_tokens.ne(self.padding_idx)
-            word_ins_tgt = tgt_tokens
-            return self.output_layer(features), word_ins_tgt, word_ins_mask
-
-        else:
-            return F.log_softmax(self.output_layer(features), -1).max(-1)
+    @ensemble_decoder
+    def forward_length(self, normalize, encoder_out):
+        enc_feats = encoder_out.encoder_out  # T x B x C
+        src_masks = encoder_out.encoder_padding_mask  # B x T or None
+        enc_feats = _mean_pooling(enc_feats, src_masks)
+        if self.sg_length_pred:
+            enc_feats = enc_feats.detach()
+        length_out = F.linear(enc_feats, self.embed_length.weight)
+        return F.log_softmax(length_out, -1) if normalize else length_out
 
     def extract_features(
         self,
@@ -324,10 +336,9 @@ class NATransformerDecoder(TransformerDecoder):
         )
         return copied_embedding
 
-    def forward_length_prediction(self, encoder_out, tgt_tokens=None):
+    def forward_length_prediction(self, length_out, encoder_out, tgt_tokens=None):
         enc_feats = encoder_out.encoder_out  # T x B x C
         src_masks = encoder_out.encoder_padding_mask  # B x T or None
-
         if self.pred_length_offset:
             if src_masks is None:
                 src_lengs = enc_feats.new_ones(enc_feats.size(1)).fill_(
@@ -336,12 +347,6 @@ class NATransformerDecoder(TransformerDecoder):
             else:
                 src_lengs = (~src_masks).transpose(0, 1).type_as(enc_feats).sum(0)
             src_lengs = src_lengs.long()
-
-        enc_feats = _mean_pooling(enc_feats, src_masks)
-        if self.sg_length_pred:
-            enc_feats = enc_feats.detach()
-
-        length_out = F.linear(enc_feats, self.embed_length.weight)
 
         if tgt_tokens is not None:
             # obtain the length target
@@ -361,7 +366,7 @@ class NATransformerDecoder(TransformerDecoder):
             else:
                 length_tgt = pred_lengs
 
-        return length_out, length_tgt
+        return length_tgt
 
 
 @register_model_architecture(

@@ -11,7 +11,7 @@ arXiv preprint arXiv:1904.09324 (2019).
 """
 
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.nonautoregressive_transformer import NATransformerModel
+from fairseq.models.nat import NATransformerModel
 from fairseq.utils import new_arange
 
 
@@ -35,19 +35,22 @@ class CMLMNATransformerModel(NATransformerModel):
     ):
         assert not self.decoder.src_embedding_copy, "do not support embedding copy."
 
+        # encoding
         encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
-        length_out, length_tgt = self.decoder.forward_length_prediction(
-            encoder_out, tgt_tokens
-        )
+        # length prediction
+        length_out = self.decoder.forward_length(normalize=False, encoder_out=encoder_out)
+        length_tgt = self.decoder.forward_length_prediction(length_out, encoder_out, tgt_tokens)
 
-        word_ins_out, word_ins_tgt, _ = self.decoder(
-            prev_output_tokens, encoder_out=encoder_out, tgt_tokens=tgt_tokens
-        )
+        # decoding
+        word_ins_out = self.decoder(
+            normalize=False,
+            prev_output_tokens=prev_output_tokens,
+            encoder_out=encoder_out)
         word_ins_mask = prev_output_tokens.eq(self.unk)
 
         return {
             "word_ins": {
-                "out": word_ins_out, "tgt": word_ins_tgt,
+                "out": word_ins_out, "tgt": tgt_tokens,
                 "mask": word_ins_mask, "ls": self.args.label_smoothing,
                 "nll_loss": True
             },
@@ -69,8 +72,10 @@ class CMLMNATransformerModel(NATransformerModel):
         # execute the decoder
         output_masks = output_tokens.eq(self.unk)
         _scores, _tokens = self.decoder(
-            output_tokens, encoder_out=encoder_out, decoding_format=decoding_format
-        )
+            normalize=True,
+            prev_output_tokens=output_tokens,
+            encoder_out=encoder_out,
+        ).max(-1)
         output_tokens.masked_scatter_(output_masks, _tokens[output_masks])
         output_scores.masked_scatter_(output_masks, _scores[output_masks])
 
@@ -98,7 +103,7 @@ class CMLMNATransformerModel(NATransformerModel):
 
 
 @register_model_architecture("cmlm_transformer", "cmlm_transformer")
-def base_architecture(args):
+def cmlm_base_architecture(args):
     args.encoder_embed_path = getattr(args, "encoder_embed_path", None)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
@@ -145,5 +150,5 @@ def base_architecture(args):
 
 
 @register_model_architecture("cmlm_transformer", "cmlm_transformer_wmt_en_de")
-def iter_nat_wmt_en_de(args):
-    base_architecture(args)
+def cmlm_wmt_en_de(args):
+    cmlm_base_architecture(args)

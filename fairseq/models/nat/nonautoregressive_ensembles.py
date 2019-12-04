@@ -8,7 +8,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from fairseq.models.levenshtein_transformer import (
+from fairseq.models.nat import (
     _fill,
     _skip,
     _skip_encoder_out,

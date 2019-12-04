@@ -10,6 +10,7 @@ from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
 from .dynamic_convolution import DynamicConv, DynamicConv1dTBC
+from .dynamic_crf_layer import DynamicCRF
 from .gelu import gelu, gelu_accurate
 from .grad_multiply import GradMultiply
 from .highway import Highway
@@ -38,6 +39,7 @@ __all__ = [
     'DownsampledMultiHeadAttention',
     'DynamicConv1dTBC',
     'DynamicConv',
+    'DynamicCRF',
     'gelu',
     'gelu_accurate',
     'GradMultiply',
