@@ -75,6 +75,7 @@ Expected training time is about `5 hours`. Training time can be reduced with dis
 After training the model as mentioned in previous step, you can perform inference with checkpoints in `checkpoints/` directory using following python code snippet:
 
 ```python
+import torch
 from fairseq.models.bart import BARTModel
 
 bart = BARTModel.from_pretrained(
