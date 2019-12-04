@@ -64,7 +64,7 @@ class TransformerSentenceEncoder(nn.Module):
     Output:
         - a tuple of the following:
             - a list of internal model states used to compute the
-              predictions where each tensor has shape B x T x C
+              predictions where each tensor has shape T x B x C
             - sentence representation associated with first input token
               in format B x C.
     """
@@ -222,11 +222,7 @@ class TransformerSentenceEncoder(nn.Module):
                 if not last_state_only:
                     inner_states.append(x)
 
-
-        # T x B x C -> B x T x C
-        x = x.transpose(0, 1)
-
-        sentence_rep = x[:, 0, :]
+        sentence_rep = x[0, :, :]
 
         if last_state_only:
             inner_states = [x]

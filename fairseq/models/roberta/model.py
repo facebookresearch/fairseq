@@ -346,7 +346,8 @@ class RobertaEncoder(FairseqDecoder):
             tuple:
                 - the LM output of shape `(batch, src_len, vocab)`
                 - a dictionary of additional data, where 'inner_states'
-                  is a list of hidden states.
+                  is a list of hidden states. Note that the hidden
+                  states have shape `(src_len, batch, vocab)`.
         """
         x, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
         if not features_only:
@@ -358,7 +359,7 @@ class RobertaEncoder(FairseqDecoder):
             src_tokens,
             last_state_only=not return_all_hiddens,
         )
-        features = inner_states[-1]
+        features = inner_states[-1].transpose(0, 1)  # T x B x C -> B x T x C
         return features, {'inner_states': inner_states if return_all_hiddens else None}
 
     def output_layer(self, features, masked_tokens=None, **unused):
