@@ -43,7 +43,7 @@ class PathManager:
                 newline=newline,
             )
         return open(
-            path=path,
+            path,
             mode=mode,
             buffering=buffering,
             encoding=encoding,
