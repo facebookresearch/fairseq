@@ -16,6 +16,7 @@ from itertools import chain
 
 import torch
 from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
+from fairseq.file_io import PathManager
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.optim import lr_scheduler
 
@@ -179,13 +180,7 @@ class Trainer(object):
         """Load all training state from a checkpoint file."""
         extra_state, self._optim_history, last_optim_state = None, [], None
 
-        try:
-            from fairseq.fb_pathmgr import fb_pathmgr
-
-            bexists = fb_pathmgr.isfile(filename)
-        except (ModuleNotFoundError, ImportError):
-            bexists = os.path.exists(filename)
-
+        bexists = PathManager.isfile(filename)
         if bexists:
             state = checkpoint_utils.load_checkpoint_to_cpu(filename)
 
