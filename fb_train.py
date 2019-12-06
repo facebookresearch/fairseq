@@ -10,8 +10,8 @@ from pathlib import Path
 
 import torch.fb.rendezvous.zeus  # noqa: F401
 from fairseq import options
-from fairseq.fb_pathmgr import fb_pathmgr
-from fvcore.common.file_io import PathManager
+from fairseq.file_io import PathManager
+from fvcore.fb.manifold import ManifoldPathHandler
 from train import distributed_main, main
 
 
@@ -31,7 +31,7 @@ def fb_main(device_id, args, start_rank, log_path=None):
     args.distributed_rank = start_rank + device_id
 
     # support Manifold for checkpoints
-    fb_pathmgr.register()
+    PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
 
     def train_main():
         if args.distributed_world_size > 1:

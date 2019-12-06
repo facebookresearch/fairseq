@@ -7,12 +7,12 @@ import collections
 import logging
 import os
 import re
-import shutil
 import traceback
 from collections import OrderedDict
 from typing import Union
 
 import torch
+from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
 from torch.serialization import default_restore_location
 
@@ -65,12 +65,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     if len(checkpoints) > 0:
         trainer.save_checkpoint(checkpoints[0], extra_state)
         for cp in checkpoints[1:]:
-            try:
-                from fairseq.fb_pathmgr import fb_pathmgr
-
-                fb_pathmgr.copy(checkpoints[0], cp, True)
-            except (ModuleNotFoundError, ImportError):
-                shutil.copyfile(checkpoints[0], cp)
+            PathManager.copy(checkpoints[0], cp, overwrite=True)
 
         write_timer.stop()
         print(
@@ -147,18 +142,11 @@ def load_checkpoint(args, trainer, **passthrough_args):
 
 def load_checkpoint_to_cpu(path, arg_overrides=None):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility)."""
-    try:
-        from fairseq.fb_pathmgr import fb_pathmgr
-
-        with fb_pathmgr.open(path, "rb") as f:
-            state = torch.load(
-                f, map_location=lambda s, l: default_restore_location(s, "cpu")
-            )
-    except (ModuleNotFoundError, ImportError):
-        # if path manager not found, continue with local file.
+    with PathManager.open(path, "rb") as f:
         state = torch.load(
-            path, map_location=lambda s, l: default_restore_location(s, "cpu")
+            f, map_location=lambda s, l: default_restore_location(s, "cpu")
         )
+
     args = state["args"]
     if arg_overrides is not None:
         for arg_name, arg_val in arg_overrides.items():
@@ -280,14 +268,8 @@ def save_state(
             optimizer.state_dict()
         )
 
-    try:
-        from fairseq.fb_pathmgr import fb_pathmgr
-
-        with fb_pathmgr.open(filename, "wb") as f:
-            torch_persistent_save(state_dict, f)
-    except (ModuleNotFoundError, ImportError):
-        # if path manager not found, continue with local file.
-        torch_persistent_save(state_dict, filename)
+    with PathManager.open(filename, "wb") as f:
+        torch_persistent_save(state_dict, f)
 
 
 def _upgrade_state_dict(state):
