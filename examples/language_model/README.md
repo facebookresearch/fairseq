@@ -63,22 +63,29 @@ fairseq-preprocess \
 
 ### 2) Train a language model
 
-Next we'll train a transformer language model using [adaptive inputs](transformer_lm/README.md):
-```bash
-fairseq-train --task language_modeling \
-    data-bin/wikitext-103 \
-    --save-dir checkpoints/transformer_wikitext-103 \
-    --arch transformer_lm_wiki103 \
-    --max-update 286000 --max-lr 1.0 --t-mult 2 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 \
-    --warmup-updates 16000 --warmup-init-lr 1e-07 --min-lr 1e-09 --optimizer nag --lr 0.0001 --clip-norm 0.1 \
-    --criterion adaptive_loss --max-tokens 3072 --update-freq 3 --tokens-per-sample 3072 --seed 1 \
-    --sample-break-mode none --skip-invalid-size-inputs-valid-test --ddp-backend=no_c10d
+Next we'll train a basic transformer language model on wikitext-103. For more
+advanced examples (e.g., using [adaptive inputs](https://arxiv.org/abs/1809.10853)),
+please see the [Transformer LM README](transformer_lm/README.md).
+
+To train a basic LM (assumes 2 GPUs):
+```
+$ fairseq-train --task language_modeling \
+  data-bin/wikitext-103 \
+  --save-dir checkpoints/transformer_wikitext-103 \
+  --arch transformer_lm --share-decoder-input-output-embed \
+  --dropout 0.1 \
+  --optimizer adam --adam-betas '(0.9, 0.98)' --weight-decay 0.01 --clip-norm 0.0 \
+  --lr 0.0005 --lr-scheduler inverse_sqrt --warmup-updates 4000 --warmup-init-lr 1e-07 \
+  --tokens-per-sample 512 --sample-break-mode none \
+  --max-tokens 2048 --update-freq 16 \
+  --fp16 \
+  --max-update 50000
 ```
 
-If the above command runs out of memory, try reducing `--max-tokens` (max number
-of tokens per batch) or `--tokens-per-sample` (max sequence length). You can
-also increase `--update-freq` to accumulate gradients and simulate training on
-more GPUs.
+If you run out of memory, try reducing `--max-tokens` (max number of tokens per
+batch) or `--tokens-per-sample` (max sequence length). You can also adjust
+`--update-freq` to accumulate gradients and simulate training on a different
+number of GPUs.
 
 ### 3) Evaluate
 ```bash
