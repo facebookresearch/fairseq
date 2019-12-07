@@ -506,6 +506,10 @@ def add_generation_args(parser):
                        help='maximum iterations for iterative refinement.')
     group.add_argument('--iter-decode-force-max-iter', action='store_true',
                        help='if set, run exact the maximum number of iterations without early stop')
+    group.add_argument('--iter-decode-with-beam', default=1, type=int, metavar='N',
+                       help='if > 1, model will generate translations varying by the lengths.')
+    group.add_argument('--iter-decode-with-external-reranker', action='store_true',
+                       help='if set, the last checkpoint are assumed to be a reranker to rescore the translations'),
     group.add_argument('--retain-iter-history', action='store_true',
                        help='if set, decoding returns the whole history of iterative refinement')
 
@@ -522,6 +526,8 @@ def add_interactive_args(parser):
                        help='read this many sentences into a buffer before processing them')
     group.add_argument('--input', default='-', type=str, metavar='FILE',
                        help='file to read from; use - for stdin')
+    group.add_argument('--sentencepiece_vocab',require=True,
+                       help='path to sentencepiece.bpe.model')
     # fmt: on
 
 
