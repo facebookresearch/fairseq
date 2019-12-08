@@ -7,7 +7,16 @@
  */
 
 #include <torch/torch.h> // @manual=//caffe2:torch_extension
+#include <pybind11/detail/common.h>
+#include <pybind11/pybind11.h>
 #include <vector>
+#include <algorithm>
+#include <cstdint>
+#include <iosfwd>
+#include <memory>
+#include <new>
+#include <string>
+#include <utility>
 
 using namespace ::std;
 
