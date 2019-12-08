@@ -6,6 +6,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- November 2019: [VizSeq released (a visual analysis toolkit for evaluating fairseq models)](https://facebookresearch.github.io/vizseq/docs/getting_started/fairseq_example)
 - November 2019: [CamemBERT model and code released](examples/camembert/README.md)
 - November 2019: [BART model and code released](examples/bart/README.md)
 - November 2019: [XLM-R models and code released](examples/xlmr/README.md)
