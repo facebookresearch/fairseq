@@ -457,7 +457,8 @@ class LevenshteinTransformerModel(TransformerModel):
                     out_scores = None
                 output_tokens = coalesce(_fill(output_tokens, can_ins_word, out_tokens, pad_idx), output_tokens)
                 output_scores = coalesce(_fill(output_scores, can_ins_word, out_scores, 0), output_scores)
-                attn = _fill(attn, can_ins_word, word_ins_attn, 0)
+                attn = coalesce(_fill(attn, can_ins_word, word_ins_attn, 0), attn)
+
             return output_tokens, output_scores, attn
 
         can_del_word = output_tokens.ne(self.pad).sum(1) > 2
