@@ -8,10 +8,10 @@ XLM-R (XLM-RoBERTa) is scaled cross lingual sentence encoder. It is trained on `
 
 Model | Description | #params | vocab size | Download
 ---|---|---|---|---
-`xlmr.base.v0` | XLM-R using the BERT-base architecture | 250M | 250k | [xlm.base.v0.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xlmr.base.v0.tar.gz)
-`xlmr.large.v0` | XLM-R using the BERT-large architecture | 560M | 250k | [xlm.large.v0.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xlmr.large.v0.tar.gz)
+`xlmr.base` | XLM-R using the BERT-base architecture | 250M | 250k | [xlm.base.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xlmr.base.tar.gz)
+`xlmr.large` | XLM-R using the BERT-large architecture | 560M | 250k | [xlm.large.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xlmr.large.tar.gz)
 
-(Note: The above models are still under training, we will update the weights, once fully trained, the results are based on the above checkpoints.)
+(Note: Above are final model checkpoints. If you were using previously released `v0` version, we recommend using above. They have same architecture and dictionary.)
 
 ## Results
 
@@ -20,7 +20,7 @@ Model | Description | #params | vocab size | Download
 Model | average | en | fr | es | de | el | bg | ru | tr | ar | vi | th | zh | hi | sw | ur
 ---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---
 `roberta.large.mnli` _(TRANSLATE-TEST)_ | 77.8 | 91.3 | 82.9 | 84.3 | 81.2 | 81.7 | 83.1 | 78.3 | 76.8 | 76.6 | 74.2 | 74.1 | 77.5 | 70.9 | 66.7 | 66.8
-`xlmr.large.v0` _(TRANSLATE-TRAIN-ALL)_ | **82.4** | 88.7 | 85.2 | 85.6 | 84.6 | 83.6 | 85.5 | 82.4 | 81.6 | 80.9 | 83.4 | 80.9 | 83.3 | 79.8 | 75.9 | 74.3
+`xlmr.large` _(TRANSLATE-TRAIN-ALL)_ | **83.6** | 89.1 | 85.1 | 86.6 | 85.7 | 85.3 | 85.9 | 83.5 | 83.2 | 83.1 | 83.7 | 81.5 | 83.7 | 81.6 | 78.0 | 78.1
 
 **[MLQA (Lewis et al., 2018)](https://arxiv.org/abs/1910.07475)**
 
@@ -28,7 +28,7 @@ Model | average | en | es | de | ar | hi | vi | zh
 ---|---|---|---|---|---|---|---|---
 `BERT-large` | - | 80.2/67.4 | - | - | - | - | - | -
 `mBERT` | 57.7 / 41.6 | 77.7 / 65.2 | 64.3 / 46.6 | 57.9 / 44.3 | 45.7 / 29.8| 43.8 / 29.7 | 57.1 / 38.6 | 57.5 / 37.3
-`xlmr.large.v0` | **70.0 / 52.2** | 80.1 / 67.7 | 73.2 / 55.1 | 68.3 / 53.7 | 62.8 / 43.7 | 68.3 / 51.0 | 70.5 / 50.1 | 67.1 / 44.4
+`xlmr.large` | **70.7 / 52.7** | 80.6 / 67.8 | 74.1 / 56.0 | 68.5 / 53.6 | 63.1 / 43.5 | 69.2 / 51.6 | 71.3 / 50.9 | 68.0 / 45.4
 
 
 ## Example usage
@@ -36,19 +36,19 @@ Model | average | en | es | de | ar | hi | vi | zh
 ##### Load XLM-R from torch.hub (PyTorch >= 1.1):
 ```python
 import torch
-xlmr = torch.hub.load('pytorch/fairseq', 'xlmr.large.v0')
+xlmr = torch.hub.load('pytorch/fairseq', 'xlmr.large')
 xlmr.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
 ##### Load XLM-R (for PyTorch 1.0 or custom models):
 ```python
 # Download xlmr.large model
-wget https://dl.fbaipublicfiles.com/fairseq/models/xlmr.large.v0.tar.gz
-tar -xzvf xlmr.large.v0.tar.gz
+wget https://dl.fbaipublicfiles.com/fairseq/models/xlmr.large.tar.gz
+tar -xzvf xlmr.large.tar.gz
 
 # Load the model in fairseq
 from fairseq.models.roberta import XLMRModel
-xlmr = XLMRModel.from_pretrained('/path/to/xlmr.large.v0', checkpoint_file='model.pt')
+xlmr = XLMRModel.from_pretrained('/path/to/xlmr.large', checkpoint_file='model.pt')
 xlmr.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
