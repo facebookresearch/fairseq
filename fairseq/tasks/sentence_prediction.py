@@ -208,7 +208,7 @@ class SentencePredictionTask(FairseqTask):
         model = models.build_model(args, self)
 
         model.register_classification_head(
-            'sentence_classification_head',
+            getattr(args, 'classification_head_name', 'sentence_classification_head'),
             num_classes=self.args.num_classes,
         )
 

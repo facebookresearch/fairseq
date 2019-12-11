@@ -32,6 +32,9 @@ class SentenceRankingCriterion(FairseqCriterion):
         # fmt: off
         parser.add_argument('--save-predictions', metavar='FILE',
                             help='file to save predictions to')
+        parser.add_argument('--ranking-head-name',
+                            default='sentence_classification_head',
+                            help='name of the ranking head to use')
         # fmt: on
 
     def forward(self, model, sample, reduce=True):
@@ -42,11 +45,16 @@ class SentenceRankingCriterion(FairseqCriterion):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
+        assert (
+            hasattr(model, 'classification_heads')
+            and self.args.ranking_head_name in model.classification_heads
+        ), 'model must provide sentence ranking head for --criterion=sentence_ranking'
+
         scores = []
         for idx in range(self.args.num_classes):
             score, _ = model(
                 **sample['net_input{idx}'.format(idx=idx+1)],
-                classification_head_name='sentence_classification_head',
+                classification_head_name=self.args.ranking_head_name,
             )
             scores.append(score)
 

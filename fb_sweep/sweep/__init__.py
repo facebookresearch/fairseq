@@ -84,7 +84,7 @@ def get_args():
 class hyperparam(object):
     """Base class for defining hyperparameters."""
 
-    def __init__(self, name, values=None, binary_flag=False, save_dir_key=None):
+    def __init__(self, name, values=None, binary_flag=False, save_dir_key=None, positional_arg=False):
         """
         Arguments:
         - name : the name of the hyperparameter (e.g., `--dropout`)
@@ -92,6 +92,7 @@ class hyperparam(object):
         - binary_flag : whether the hyperparameter uses a boolean flag (e.g., `--no-save`)
         - save_dir_key : function that takes the hyperparameter value and returns the "key"
                          to be appended to the output directory name
+        - positional_arg : whether the hyperparameter is a positional argument
         """
         self.name = name
         if values is None:  # syntactic sugar for binary flags
@@ -101,7 +102,11 @@ class hyperparam(object):
             self.values = values if isinstance(values, list) else [values]
             self.binary_flag = binary_flag
         self.save_dir_key = save_dir_key
+        self.positional_arg = positional_arg
         self.current_value = None
+
+        if positional_arg and name.startswith('-'):
+            raise ValueError(f'positional arguments must not start with a dash ({name})')
 
         if len(self.values) > 1 and self.save_dir_key is None:
             raise ValueError(f'{name} has more than one value but is missing a save_dir_key!')
@@ -109,6 +114,8 @@ class hyperparam(object):
     def get_cli_args(self):
         if self.binary_flag:
             return [self.name] if self.current_value else []
+        elif self.positional_arg:
+            return [self.current_value]
         else:
             return [self.name, self.current_value]
 

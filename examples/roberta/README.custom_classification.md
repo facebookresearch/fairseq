@@ -3,12 +3,15 @@
 This example shows how to finetune RoBERTa on the IMDB dataset, but should illustrate the process for most classification tasks.
 
 ### 1) Get the data
+
 ```bash
 wget http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz
 tar zxvf aclImdb_v1.tar.gz
 ```
 
+
 ### 2) Format data
+
 `IMDB` data has one data-sample in each file, below python code-snippet converts it one file for train and valid each for ease of processing.  
 ```python
 import argparse
@@ -44,7 +47,9 @@ if __name__ == '__main__':
     main(args)
 ```
 
-### 3) BPE Encode
+
+### 3) BPE encode
+
 Run `multiprocessing_bpe_encoder`, you can also do this in previous step for each sample but that might be slower.
 ```bash
 # Download encoder.json and vocab.bpe
@@ -61,6 +66,7 @@ for SPLIT in train dev; do
         --keep-empty
 done
 ```
+
 
 ### 4) Preprocess data
 
@@ -85,15 +91,17 @@ fairseq-preprocess \
 
 ```
 
-### 5) Run Training
+
+### 5) Run training
 
 ```bash
 TOTAL_NUM_UPDATES=7812  # 10 epochs through IMDB for bsz 32
 WARMUP_UPDATES=469      # 6 percent of the number of updates
 LR=1e-05                # Peak LR for polynomial LR scheduler.
-NUM_CLASSES=2
-MAX_SENTENCES=8        # Batch size.
-ROBERTA_PATH=/path/to/roberta/model.pt
+HEAD_NAME=imdb_head     # Custom name for the classification head.
+NUM_CLASSES=2           # Number of classes for the classification task.
+MAX_SENTENCES=8         # Batch size.
+ROBERTA_PATH=/path/to/roberta.large/model.pt
 
 CUDA_VISIBLE_DEVICES=0 python train.py IMDB-bin/ \
     --restore-file $ROBERTA_PATH \
@@ -106,6 +114,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py IMDB-bin/ \
     --init-token 0 --separator-token 2 \
     --arch roberta_large \
     --criterion sentence_prediction \
+    --classification-head-name $HEAD_NAME \
     --num-classes $NUM_CLASSES \
     --dropout 0.1 --attention-dropout 0.1 \
     --weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
@@ -118,5 +127,42 @@ CUDA_VISIBLE_DEVICES=0 python train.py IMDB-bin/ \
     --find-unused-parameters \
     --update-freq 4
 ```
-Above will train with effective batch-size of `32`, tested on one `Nvidia V100 32gb`.
-Expected `best-validation-accuracy` after `10` epochs is `~96.5%`.
+
+The above command will finetune RoBERTa-large with an effective batch-size of 32
+sentences (`--max-sentences=8 --update-freq=4`). The expected
+`best-validation-accuracy` after 10 epochs is ~96.5%.
+
+If you run out of GPU memory, try decreasing `--max-sentences` and increase
+`--update-freq` to compensate.
+
+
+### 6) Load model using hub interface
+
+Now we can load the trained model checkpoint using the RoBERTa hub interface.
+
+Assuming your checkpoints are stored in `checkpoints/`:
+```python
+from fairseq.models.roberta import RobertaModel
+roberta = RobertaModel.from_pretrained(
+    'checkpoints',
+    checkpoint_file='checkpoint_best.pt',
+    data_name_or_path='IMDB-bin'
+)
+roberta.eval()  # disable dropout
+```
+
+Finally you can make predictions using the `imdb_head` (or whatever you set
+`--classification-head-name` to during training):
+```python
+label_fn = lambda label: roberta.task.label_dictionary.string(
+    [label + roberta.task.label_dictionary.nspecial]
+)
+
+tokens = roberta.encode('Best movie this year')
+pred = label_fn(roberta.predict('imdb_head', tokens).argmax().item())
+assert pred == '1'  # positive
+
+tokens = roberta.encode('Worst movie ever')
+pred = label_fn(roberta.predict('imdb_head', tokens).argmax().item())
+assert pred == '0'  # negative
+```
