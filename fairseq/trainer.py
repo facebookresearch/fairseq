@@ -267,7 +267,9 @@ class Trainer(object):
             max_tokens=self.args.max_tokens,
             max_sentences=self.args.max_sentences,
             max_positions=utils.resolve_max_positions(
-                self.task.max_positions(), self.model.max_positions()
+                self.task.max_positions(),
+                self.model.max_positions(),
+                self.args.max_tokens,
             ),
             ignore_invalid_inputs=True,
             required_batch_size_multiple=self.args.required_batch_size_multiple,

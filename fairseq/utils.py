@@ -236,6 +236,16 @@ def fill_with_neg_inf(t):
     return t.float().fill_(float('-inf')).type_as(t)
 
 
+def _match_types(arg1, arg2):
+    if (isinstance(arg1, float) or isinstance(arg1, int)) and isinstance(arg2, tuple):
+        arg1_tuple = (arg1, arg1)
+        return arg1_tuple, arg2
+    if (isinstance(arg2, float) or isinstance(arg2, int)) and isinstance(arg1, tuple):
+        arg2_tuple = (arg2, arg2)
+        return arg1, arg2_tuple
+    return arg1, arg2
+
+
 def resolve_max_positions(*args):
     """Resolve max position constraints from multiple sources."""
 
@@ -262,6 +272,7 @@ def resolve_max_positions(*args):
         if max_positions is None:
             max_positions = arg
         elif arg is not None:
+            max_positions, arg = _match_types(max_positions, arg)
             if isinstance(arg, float) or isinstance(arg, int):
                 max_positions = min(max_positions, arg)
             elif isinstance(arg, dict):
