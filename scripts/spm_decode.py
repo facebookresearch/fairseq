@@ -38,8 +38,10 @@ def main():
 
     with open(args.input, "r", encoding="utf-8") as h:
         for line in h:
-            print(decode(list(map(tok2int, line.rstrip().split()))))
-
+            if args.input_format == "id":
+                print(decode(list(map(tok2int, line.rstrip().split()))))
+            elif args.input_format == "piece":
+                print(decode(line.rstrip().split()))
 
 if __name__ == "__main__":
     main()
