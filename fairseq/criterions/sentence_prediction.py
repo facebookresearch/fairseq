@@ -21,6 +21,9 @@ class SentencePredictionCriterion(FairseqCriterion):
         # fmt: off
         parser.add_argument('--save-predictions', metavar='FILE',
                             help='file to save predictions to')
+        parser.add_argument('--classification-head-name',
+                            default='sentence_classification_head',
+                            help='name of the classification head to use')
         # fmt: on
 
     def forward(self, model, sample, reduce=True):
@@ -31,14 +34,15 @@ class SentencePredictionCriterion(FairseqCriterion):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
-        assert hasattr(model, 'classification_heads') and \
-            'sentence_classification_head' in model.classification_heads, \
-            "model must provide sentence classification head for --criterion=sentence_prediction"
+        assert (
+            hasattr(model, 'classification_heads')
+            and self.args.classification_head_name in model.classification_heads
+        ), 'model must provide sentence classification head for --criterion=sentence_prediction'
 
         logits, _ = model(
             **sample['net_input'],
             features_only=True,
-            classification_head_name='sentence_classification_head',
+            classification_head_name=self.args.classification_head_name,
         )
         targets = model.get_targets(sample, [logits]).view(-1)
         sample_size = targets.numel()

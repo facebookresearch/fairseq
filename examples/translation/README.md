@@ -43,6 +43,20 @@ en2de.translate('Hello world!')
 # 'Hallo Welt!'
 ```
 
+Loading custom models:
+```python
+from fairseq.models.transformer import TransformerModel
+zh2en = TransformerModel.from_pretrained(
+  '/path/to/checkpoints',
+  checkpoint_file='checkpoint_best.pt',
+  data_name_or_path='data-bin/wmt17_zh_en_full',
+  bpe='subword_nmt',
+  bpe_codes='data-bin/wmt17_zh_en_full/zh.code'
+)
+zh2en.translate('你好 世界')
+# 'Hello World'
+```
+
 ## Example usage (CLI tools)
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for WMT 2014 English-French on a GTX-1080ti:
