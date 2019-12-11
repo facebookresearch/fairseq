@@ -168,7 +168,7 @@ class TestRobertaHub(unittest.TestCase):
     @torch.no_grad()
     def test_xlmr(self):
         with contextlib.redirect_stdout(StringIO()):
-            xlmr = fb_hub.load('xlmr.large.v0')
+            xlmr = fb_hub.load('xlmr.large')
             xlmr.eval()  # disable dropout (or leave in train mode to finetune)
 
             # Test sentencepiece
