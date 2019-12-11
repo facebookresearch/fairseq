@@ -185,7 +185,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
                     '--fp16-scale-window must be given explicitly when using a '
                     'custom --update-freq schedule'
                 )
-            scale_window = 2**14 / args.distributed_world_size / args.update_freq[0]
+            scale_window = int(2**14 / args.distributed_world_size / args.update_freq[0])
         else:
             scale_window = args.fp16_scale_window
 
