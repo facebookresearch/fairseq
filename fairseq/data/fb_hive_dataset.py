@@ -126,7 +126,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
     Args:
         table: Hive table to query from.
         namespace: Data warehouse namespace in which that table lives.
-        limit: Limit on the total number of rows to fetch each epoch.
+        limit: Limit on the total number of rows to fetch.
         where_clause: SQL filter to be appended (via 'AND') to the query.
             Note that only Koski functions are supported.
         date_ranges: List of tuples of date ranges from which to fetch data,
@@ -145,7 +145,8 @@ class StreamingHiveDataset(FairseqIterableDataset):
         self,
         table: str,
         namespace: str,
-        limit: int = None,
+        limit: int,
+        columns: Optional[List[str]] = None,
         where_clause: Optional[str] = None,
         date_ranges: Optional[List[Tuple[str, str]]] = None,
         shuffle=False,
@@ -157,6 +158,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
         self.namespace = namespace
         self.limit = limit
 
+        self.columns = columns
         self.given_filter = where_clause
         self.date_ranges = date_ranges
         self.fresh_date_ranges = fresh_date_ranges
@@ -189,6 +191,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
         dataframe = _set_up_dataframe(
             table=self.table,
             namespace=self.namespace,
+            column_projections=self.columns,
             where_clause=self._build_where_clause(
                 date_clause=_date_where_clause(self.fresh_date_ranges),
             ),
@@ -206,6 +209,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
             dataframe = _set_up_dataframe(
                 table=self.table,
                 namespace=self.namespace,
+                column_projections=self.columns,
                 where_clause=self._build_where_clause(
                     date_clause=_date_where_clause(self.date_ranges),
                     shuffle_clause=f"abs(hash(thread_key) % {num_slices}) = {i}",
@@ -219,6 +223,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
         dataframe = _set_up_dataframe(
             table=self.table,
             namespace=self.namespace,
+            column_projections=self.columns,
             where_clause=self._build_where_clause(
                 date_clause=_date_where_clause(self.date_ranges)
             ),
