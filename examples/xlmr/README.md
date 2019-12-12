@@ -1,8 +1,32 @@
 # Unsupervised Cross-lingual Representation Learning at Scale (XLM-RoBERTa)
+https://arxiv.org/pdf/1911.02116.pdf
 
 ## Introduction
 
-XLM-R (XLM-RoBERTa) is scaled cross lingual sentence encoder. It is trained on `2.5T` of data across `100` languages data filtered from Common Crawl. XLM-R achieves state-of-the-arts results on multiple cross lingual benchmarks.
+XLM-R (XLM-RoBERTa) is a generic cross lingual sentence encoder that obtains state-of-the-art results on many cross-lingual understanding (XLU) benchmarks. It is trained on 2.5T of filtered CommonCrawl data in 100 languages (list below).
+
+ Language | Language|Language |Language | Language
+---|---|---|---|---
+Afrikaans | Albanian | Amharic | Arabic | Armenian 
+Assamese | Azerbaijani | Basque | Belarusian | Bengali 
+Bengali Romanize | Bosnian | Breton | Bulgarian | Burmese 
+Burmese zawgyi font | Catalan | Chinese (Simplified) | Chinese (Traditional) | Croatian 
+Czech | Danish | Dutch | English | Esperanto 
+Estonian | Filipino | Finnish | French | Galician
+Georgian | German | Greek | Gujarati | Hausa
+Hebrew | Hindi | Hindi Romanize | Hungarian | Icelandic
+Indonesian | Irish | Italian | Japanese | Javanese
+Kannada | Kazakh | Khmer | Korean | Kurdish (Kurmanji)
+Kyrgyz | Lao | Latin | Latvian | Lithuanian
+Macedonian | Malagasy | Malay | Malayalam | Marathi
+Mongolian | Nepali | Norwegian | Oriya | Oromo
+Pashto | Persian | Polish | Portuguese | Punjabi
+Romanian | Russian | Sanskri | Scottish Gaelic | Serbian
+Sindhi | Sinhala | Slovak | Slovenian | Somali
+Spanish | Sundanese | Swahili | Swedish | Tamil
+Tamil Romanize | Telugu | Telugu Romanize | Thai | Turkish
+Ukrainian | Urdu | Urdu Romanize | Uyghur | Uzbek
+Vietnamese | Welsh | Western Frisian | Xhosa | Yiddish
 
 ## Pre-trained models
 
@@ -90,14 +114,10 @@ assert torch.all(all_layers[-1] == last_layer_features)
 ## Citation
 
 ```bibtex
-@article{,
-    title = {Unsupervised Cross-lingual Representation Learning at Scale},
-    author = {Alexis Conneau and Kartikay Khandelwal
-        and Naman Goyal and Vishrav Chaudhary and Guillaume Wenzek
-        and Francisco Guzm\'an and Edouard Grave and Myle Ott
-        and Luke Zettlemoyer and Veselin Stoyanov
-    },
-    journal={},
-    year = {2019},
+@article{conneau2019unsupervised,
+  title={Unsupervised Cross-lingual Representation Learning at Scale},
+  author={Conneau, Alexis and Khandelwal, Kartikay and Goyal, Naman and Chaudhary, Vishrav and Wenzek, Guillaume and Guzm{\'a}n, Francisco and Grave, Edouard and Ott, Myle and Zettlemoyer, Luke and Stoyanov, Veselin},
+  journal={arXiv preprint arXiv:1911.02116},
+  year={2019}
 }
 ```
