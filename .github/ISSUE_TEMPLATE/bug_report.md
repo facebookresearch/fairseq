@@ -2,7 +2,7 @@
 name: Bug report
 about: Create a report to help us improve
 title: ''
-labels: bug
+labels: bug, needs_triage
 assignees: ''
 
 ---
@@ -31,7 +31,8 @@ Minimal means having the shortest code but still preserving the bug. -->
 
 ### Environment
 
- - fairesq Version (e.g., 1.0 or master):
+ - fairseq Version (e.g., 1.0 or master):
+ - PyTorch Version (e.g., 1.0)
  - OS (e.g., Linux):
  - How you installed fairseq (`pip`, source):
  - Build command you used (if compiling from source):
