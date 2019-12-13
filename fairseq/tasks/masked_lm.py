@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -64,9 +65,7 @@ class MaskedLMTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        paths = args.data.split(':')
-        assert len(paths) > 0
-        dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
+        dictionary = Dictionary.load(str(Path(args.data) / 'dict.txt'))
         print('| dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
