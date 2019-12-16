@@ -1,10 +1,7 @@
 ---
-name: Typos and doc fixes
-about: Typos and doc fixes
-title: ''
-labels: typo
-assignees: ''
-
+name: 📚 Documentation/Typos
+about: Report an issue related to documentation or a typo
+labels: 'documentation, needs triage'
 ---
 
 ## 📚 Documentation
@@ -12,7 +9,7 @@ assignees: ''
 For typos and doc fixes, please go ahead and:
 
 1. Create an issue.
-2. Fix the typo.   
+2. Fix the typo.
 3. Submit a PR.
 
 Thanks!
