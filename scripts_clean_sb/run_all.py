@@ -1,5 +1,6 @@
 """Runs all preprocessing scripts, assuming that clean_original_corpus.py and fast_elim_dupl_multi.py lie in the same directory
 Requires Moses scripts: https://github.com/moses-smt/mosesdecoder/tree/master/scripts
+For language identification requires installation of lang_detect: https://pypi.org/project/langdetect/
 """
 # Author: Sophie Henning
 # modified: Damyana Gateva 29.11.2019
@@ -102,8 +103,11 @@ class RunAll:
     
 
     
-    def filter_wrong_lang(self):
-        lanCleaner = lang_detect.LanguageCleaning(self.stem_proc, self.l1, self.l2)
+    def filter_wrong_lang(self, l1_path, l2_path):
+        stem_in = self.get_stem(l1_path)
+        assert ( stem_in == self.get_stem(l2_path) ) , "Different basenames of input filepaths"
+        stem_out = self.stem_proc
+        lanCleaner = lang_detect.LanguageCleaning(stem_in, stem_out, self.l1, self.l2)
         lanCleaner.run()
         return lanCleaner.out_files
 
@@ -146,7 +150,7 @@ class RunAll:
 
 
             if (self.lang_detect):
-                l1_cleaner, l2_cleaner = self.filter_wrong_lang()
+                l1_cleaner, l2_cleaner = self.filter_wrong_lang(l1_cleaner, l2_cleaner)
 
         ###
         l1_tc = self.run_perl_scripts_tok_tc(l1_cleaner, self.l1)

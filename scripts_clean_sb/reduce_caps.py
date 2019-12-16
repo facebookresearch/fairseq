@@ -28,7 +28,7 @@ def process_file_lc(inF, outF):
                 line = line.lower()
                 lower +=1
             fOUT.write(line)
-        print("Lowercased {} sentences".format(lower))
+        print("Lowercased {} sentences in {}".format(lower, inF))
 
 
 
