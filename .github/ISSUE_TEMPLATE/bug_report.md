@@ -1,10 +1,7 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: bug, needs_triage
-assignees: ''
-
+name: 🐛 Bug Report
+about: Submit a bug report to help us improve
+labels: 'bug, needs triage'
 ---
 
 ## 🐛 Bug

@@ -1,10 +1,7 @@
 ---
-name: How to question
-about: Asking how-to questions
-title: ''
-labels: question
-assignees: ''
-
+name: ❓ Questions/Help
+about: If you have questions, please first search existing issues and docs
+labels: 'question, needs triage'
 ---
 
 ## ❓ Questions and Help
