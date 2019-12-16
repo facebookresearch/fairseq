@@ -56,11 +56,11 @@ def get_asr_dataset_from_json(data_json_path, tgt_dict):
             speakers.append(m.group(1) + "_" + m.group(2))
         frame_sizes = [s[1]["input"]["length_ms"] for s in sorted_samples]
         tgt = [
-            torch.LongTensor([int(i) for i in s[1]["output"]["tokenid"].split(", ")])
+            [int(i) for i in s[1]["output"]["tokenid"].split(", ")]
             for s in sorted_samples
         ]
         # append eos
-        tgt = [torch.cat([t, torch.LongTensor([tgt_dict.eos()])]) for t in tgt]
+        tgt = [[*t, tgt_dict.eos()] for t in tgt]
         return AsrDataset(aud_paths, frame_sizes, tgt, tgt_dict, ids, speakers)
 
 

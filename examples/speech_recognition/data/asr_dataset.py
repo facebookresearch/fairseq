@@ -56,6 +56,11 @@ class AsrDataset(FairseqDataset):
         self.frame_length = frame_length
         self.frame_shift = frame_shift
 
+        self.s2s_collater = Seq2SeqCollater(
+            0, 1, pad_index=self.tgt_dict.pad(),
+            eos_index=self.tgt_dict.eos(), move_eos_to_beginning=True
+        )
+
     def __getitem__(self, index):
         import torchaudio
         import torchaudio.compliance.kaldi as kaldi
@@ -72,10 +77,6 @@ class AsrDataset(FairseqDataset):
             frame_shift=self.frame_shift
         )
         output_cmvn = data_utils.apply_mv_norm(output)
-        self.s2s_collater = Seq2SeqCollater(
-            0, 1, pad_index=self.tgt_dict.pad(),
-            eos_index=self.tgt_dict.eos(), move_eos_to_beginning=True
-        )
 
         return {"id": index, "data": [output_cmvn.detach(), tgt_item]}
 
