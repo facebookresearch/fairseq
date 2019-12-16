@@ -40,7 +40,10 @@ class GPT2BPE(object):
         return ' '.join(map(str, self.bpe.encode(x)))
 
     def decode(self, x: str) -> str:
-        return self.bpe.decode(map(int, x.split()))
+        return self.bpe.decode([
+            int(tok) if tok not in {'<unk>'} else tok
+            for tok in x.split()
+        ])
 
     def is_beginning_of_word(self, x: str) -> bool:
         return self.decode(x).startswith(' ')
