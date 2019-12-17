@@ -147,6 +147,7 @@ class SequenceGenerator(object):
                 # exclude the EOS marker
                 model.max_decoder_positions() - 1,
             )
+        assert self.min_len <= max_len, 'min_len cannot be larger than max_len, please adjust these!'
 
         # compute the encoder output for each beam
         encoder_outs = model.forward_encoder(encoder_input)
