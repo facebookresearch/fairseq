@@ -96,7 +96,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _get_slice_indices_fast(np.ndarray[DTYPE_t, nd
     elif break_mode == 'eos':
         slice_indices = np.zeros((len(sizes), 2), dtype=DTYPE)
         cumsum = sizes.cumsum(axis=0)
-        slice_indices[1:, 0] = cumsum[:-1]
+        slice_indices[1:, 0] = cumsum[:cumsum.shape[0] - 1]
         slice_indices[:, 1] = cumsum
     else:
         raise ValueError('Invalid break_mode: ' + break_mode)
