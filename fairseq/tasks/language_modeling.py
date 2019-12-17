@@ -197,7 +197,7 @@ class LanguageModelingTask(FairseqTask):
                 self.target_dictionary,
                 add_eos_for_other_targets=False,
                 shuffle=False,
-                add_bos_token=self.args.add_bos_token,
+                add_bos_token=False,  # we handle this in inference_step
             ),
             eos=self.source_dictionary.eos(),
             # remove EOS since this will be used as a prefix for generation
@@ -211,7 +211,13 @@ class LanguageModelingTask(FairseqTask):
                 prefix_tokens = sample["net_input"]["src_tokens"]
                 if prefix_tokens[:, 0].eq(self.source_dictionary.eos()).all():
                     prefix_tokens = prefix_tokens[:, 1:]
-            return generator.generate(models, sample, prefix_tokens=prefix_tokens)
+            if getattr(self.args, 'add_bos_token', False):
+                bos_token = self.source_dictionary.bos()
+            else:
+                bos_token = None
+            return generator.generate(
+                models, sample, prefix_tokens=prefix_tokens, bos_token=bos_token,
+            )
 
     @property
     def source_dictionary(self):

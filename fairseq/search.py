@@ -225,31 +225,27 @@ class Sampling(Search):
             # only the first beam
             lprobs = lprobs[:, ::beam_size, :].contiguous()
 
-        # we exclude the first two vocab items, one of which is pad
-        assert self.pad <= 1, 'sampling assumes the first two symbols can be ignored'
-        lprobs_nopad = lprobs[:, :, 2:]
-
         if self.sampling_topp > 0:
             # only sample from the smallest set of words whose cumulative probability mass exceeds p
-            probs_nopad, top_indices = self._sample_topp(lprobs_nopad)
+            probs, top_indices = self._sample_topp(lprobs)
         elif self.sampling_topk > 0:
             # only sample from top-k candidates
-            lprobs_nopad, top_indices = lprobs_nopad.topk(self.sampling_topk)
-            probs_nopad = lprobs_nopad.exp_()
+            lprobs, top_indices = lprobs.topk(self.sampling_topk)
+            probs = lprobs.exp_()
         else:
-            probs_nopad = lprobs_nopad.exp_()
+            probs = lprobs.exp_()
 
         # sample
         if step == 0:
             self.indices_buf = torch.multinomial(
-                probs_nopad.view(bsz, -1),
+                probs.view(bsz, -1),
                 beam_size,
                 replacement=True,
                 out=self.indices_buf,
             ).view(bsz, beam_size)
         else:
             self.indices_buf = torch.multinomial(
-                probs_nopad.view(bsz * beam_size, -1),
+                probs.view(bsz * beam_size, -1),
                 1,
                 replacement=True,
                 out=self.indices_buf,
@@ -257,11 +253,11 @@ class Sampling(Search):
 
         if step == 0:
             # expand to beam size
-            probs_nopad = probs_nopad.expand(bsz, beam_size, -1)
+            probs = probs.expand(bsz, beam_size, -1)
 
         # gather scores
         torch.gather(
-            probs_nopad,
+            probs,
             dim=2,
             index=self.indices_buf.unsqueeze(-1),
             out=self.scores_buf,
@@ -275,9 +271,6 @@ class Sampling(Search):
                 dim=2,
                 index=self.indices_buf.unsqueeze(-1),
             ).squeeze(2)
-
-        # remap indices since we excluded the first two vocab items
-        self.indices_buf.add_(2)
 
         if step == 0:
             self.beams_buf = self.indices_buf.new_zeros(bsz, beam_size)
