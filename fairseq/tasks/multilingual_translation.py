@@ -142,7 +142,7 @@ class MultilingualTranslationTask(FairseqTask):
         # load dictionaries
         dicts = OrderedDict()
         for lang in sorted_langs:
-            paths = args.data.split(':')
+            paths = args.data.split(os.pathsep)
             assert len(paths) > 0
             dicts[lang] = Dictionary.load(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
             if len(dicts) > 0:
@@ -197,7 +197,7 @@ class MultilingualTranslationTask(FairseqTask):
     def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
 
-        paths = self.args.data.split(':')
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 

@@ -175,7 +175,7 @@ class TranslationTask(FairseqTask):
             utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
             args.dataset_impl = 'lazy'
 
-        paths = args.data.split(':')
+        paths = args.data.split(os.pathsep)
         assert len(paths) > 0
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
@@ -200,7 +200,7 @@ class TranslationTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(':')
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 

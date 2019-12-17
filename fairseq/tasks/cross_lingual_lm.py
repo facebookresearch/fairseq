@@ -104,7 +104,7 @@ class CrossLingualLMTask(FairseqTask):
     def _load_single_lang_dataset(self, split, epoch):
         loaded_datasets = []
 
-        paths = self.args.data.split(':')
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
@@ -170,5 +170,5 @@ class CrossLingualLMTask(FairseqTask):
 
         self.datasets[split] = MultiCorpusSampledDataset(dataset_map)
         print('| {} {} {} examples'.format(
-            self.args.data.split(':')[epoch], split, len(self.datasets[split]))
+            self.args.data.split(os.pathsep)[epoch], split, len(self.datasets[split]))
         )

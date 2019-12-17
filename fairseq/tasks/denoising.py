@@ -109,7 +109,7 @@ class DenoisingTask(FairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
 
-        paths = self.args.data.split(':')
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
         split_path = os.path.join(data_path, split)
