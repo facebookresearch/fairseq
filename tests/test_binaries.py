@@ -586,7 +586,7 @@ class TestCommonOptions(unittest.TestCase):
                     generate_main(data_dir)
 
 
-def create_dummy_data(data_dir, num_examples=1000, maxlen=20, alignment=False):
+def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
 
     def _create_dummy_data(filename):
         data = torch.rand(num_examples * maxlen)
