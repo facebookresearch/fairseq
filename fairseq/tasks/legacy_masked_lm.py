@@ -66,7 +66,7 @@ class LegacyMaskedLMTask(FairseqTask):
     def setup_task(cls, args, **kwargs):
         """Setup the task.
         """
-        paths = args.data.split(':')
+        paths = args.data.split(os.pathsep)
         assert len(paths) > 0
         dictionary = BertDictionary.load(os.path.join(paths[0], 'dict.txt'))
         print('| dictionary: {} types'.format(len(dictionary)))
@@ -80,7 +80,7 @@ class LegacyMaskedLMTask(FairseqTask):
         """
         loaded_datasets = []
 
-        paths = self.args.data.split(':')
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
         print("| data_path", data_path)
