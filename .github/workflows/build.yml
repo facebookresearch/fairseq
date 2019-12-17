@@ -1,4 +1,4 @@
-name: CI
+name: build
 
 on:
   # Trigger the workflow on push to master or any pull request
@@ -14,7 +14,7 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        python-version: [3.6, 3.7]
+        python-version: [3.6]
 
     steps:
     - uses: actions/checkout@v1
