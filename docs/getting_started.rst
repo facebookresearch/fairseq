@@ -158,14 +158,6 @@ Fairseq supports FP16 training with the ``--fp16`` flag:
 
     > fairseq-train --fp16 (...)
 
-Lazily loading large training datasets
---------------------------------------
-
-By default fairseq loads the entire training set into system memory. For large
-datasets, the ``--lazy-load`` option can be used to instead load batches on-demand.
-For optimal performance, use the ``--num-workers`` option to control the number
-of background processes that will load batches.
-
 Distributed training
 --------------------
 

@@ -46,10 +46,6 @@ class CrossLingualLMTask(FairseqTask):
         parser.add_argument('--monolingual-langs', default='en', type=str,
                             help='comma separated list of languages for which we'
                                  ' want to train XLM on')
-        parser.add_argument('--raw-text', default=False, action='store_true',
-                            help='load raw text dataset')
-        parser.add_argument('--lazy-load', action='store_true',
-                            help='load the dataset lazily')
         parser.add_argument('--shuffle', action='store_true',
                             help='shuffle each monolingual dataset while'
                             ' training')

@@ -32,8 +32,6 @@ class DenoisingTask(FairseqTask):
         parser.add_argument('--tokens-per-sample', default=512, type=int,
                             help='max number of total tokens over all segments'
                                  ' per sample for dataset')
-        parser.add_argument('--raw-text', default=False, action='store_true',
-                            help='load raw text dataset')
         parser.add_argument(
             '--sample-break-mode', default="complete_doc", type=str,
             help='mode for breaking sentence',

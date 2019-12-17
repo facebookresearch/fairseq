@@ -63,8 +63,8 @@ def check_args(args):
         not args.sampling or args.nbest == args.beam
     ), "--sampling requires --nbest to be equal to --beam"
     assert (
-        args.replace_unk is None or args.raw_text
-    ), "--replace-unk requires a raw text dataset (--raw-text)"
+        args.replace_unk is None or args.dataset_impl == "raw"
+    ), "--replace-unk requires a raw text dataset (--dataset-impl=raw)"
 
 
 def get_dataset_itr(args, task):

@@ -63,10 +63,6 @@ class LanguageModelingTask(FairseqTask):
                                  'If set to "eos", includes only one sentence per sample.')
         parser.add_argument('--tokens-per-sample', default=1024, type=int,
                             help='max number of tokens per sample for LM dataset')
-        parser.add_argument('--lazy-load', action='store_true',
-                            help='load the dataset lazily')
-        parser.add_argument('--raw-text', default=False, action='store_true',
-                            help='load raw text dataset')
         parser.add_argument('--output-dictionary-size', default=-1, type=int,
                             help='limit the size of output dictionary')
         parser.add_argument('--self-target', action='store_true',
@@ -97,17 +93,6 @@ class LanguageModelingTask(FairseqTask):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
-        if getattr(args, "raw_text", False):
-            utils.deprecation_warning(
-                "--raw-text is deprecated, please use --dataset-impl=raw"
-            )
-            args.dataset_impl = "raw"
-        elif getattr(args, "lazy_load", False):
-            utils.deprecation_warning(
-                "--lazy-load is deprecated, please use --dataset-impl=lazy"
-            )
-            args.dataset_impl = "lazy"
-
         dictionary = None
         output_dictionary = None
         if args.data:

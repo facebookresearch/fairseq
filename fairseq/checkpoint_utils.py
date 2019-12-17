@@ -326,6 +326,11 @@ def _upgrade_state_dict(state):
     # default to translation task
     if not hasattr(state["args"], "task"):
         state["args"].task = "translation"
+    # --raw-text and --lazy-load are deprecated
+    if getattr(state["args"], "raw_text", False):
+        state["args"].dataset_impl = "raw"
+    elif getattr(state["args"], "lazy_load", False):
+        state["args"].dataset_impl = "lazy"
 
     # set any missing default values in the task, model or other registries
     registry.set_defaults(state["args"], tasks.TASK_REGISTRY[state["args"].task])
