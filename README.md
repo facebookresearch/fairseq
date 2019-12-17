@@ -1,6 +1,7 @@
 <p align="center">
   <img src="fairseq_logo.png" width="150">
-  <br>
+  <br />
+  <br />
   <a href="https://github.com/pytorch/fairseq/blob/master/LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <a href="https://github.com/pytorch/fairseq/releases"><img alt="Latest Release" src="https://img.shields.io/github/release/pytorch/fairseq.svg" /></a>
   <img alt="Build Status" src="https://github.com/pytorch/fairseq/workflows/build/badge.svg" />
