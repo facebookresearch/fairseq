@@ -9,8 +9,8 @@ from setuptools import setup, find_packages, Extension
 import sys
 
 
-if sys.version_info < (3, 5):
-    sys.exit('Sorry, Python >=3.5 is required for fairseq.')
+if sys.version_info < (3, 6):
+    sys.exit('Sorry, Python >= 3.6 is required for fairseq.')
 
 
 with open('README.md') as f:
@@ -122,7 +122,6 @@ setup(
     classifiers=[
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
