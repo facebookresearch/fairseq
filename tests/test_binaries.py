@@ -41,6 +41,7 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--dataset-impl', 'raw'])
                 generate_main(data_dir, ['--dataset-impl', 'raw'])
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_fp16(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_fp16') as data_dir:
@@ -49,6 +50,7 @@ class TestTranslation(unittest.TestCase):
                 train_translation_model(data_dir, 'fconv_iwslt_de_en', ['--fp16'])
                 generate_main(data_dir)
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_memory_efficient_fp16(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_memory_efficient_fp16') as data_dir:
@@ -656,6 +658,7 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
             '--distributed-world-size', '1',
             '--source-lang', 'in',
             '--target-lang', 'out',
+            '--num-workers', 0,
         ] + (extra_flags or []),
     )
     train.main(train_args)
