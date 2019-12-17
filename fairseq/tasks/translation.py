@@ -134,10 +134,6 @@ class TranslationTask(FairseqTask):
                             help='source language')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                             help='target language')
-        parser.add_argument('--lazy-load', action='store_true',
-                            help='load the dataset lazily')
-        parser.add_argument('--raw-text', action='store_true',
-                            help='load raw text dataset')
         parser.add_argument('--load-alignments', action='store_true',
                             help='load the binarized alignments')
         parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
@@ -168,12 +164,6 @@ class TranslationTask(FairseqTask):
         """
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
-        if getattr(args, 'raw_text', False):
-            utils.deprecation_warning('--raw-text is deprecated, please use --dataset-impl=raw')
-            args.dataset_impl = 'raw'
-        elif getattr(args, 'lazy_load', False):
-            utils.deprecation_warning('--lazy-load is deprecated, please use --dataset-impl=lazy')
-            args.dataset_impl = 'lazy'
 
         paths = args.data.split(os.pathsep)
         assert len(paths) > 0

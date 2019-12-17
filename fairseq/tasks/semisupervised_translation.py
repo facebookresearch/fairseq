@@ -8,6 +8,8 @@ import os
 
 from fairseq.data import (
     BacktranslationDataset,
+    data_utils,
+    indexed_dataset,
     IndexedCachedDataset,
     IndexedDataset,
     IndexedRawTextDataset,
@@ -143,21 +145,10 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
             else:
                 filename = os.path.join(data_path, '{}.{}-None.{}'.format(split, src, tgt))
-            if self.args.raw_text and IndexedRawTextDataset.exists(filename):
-                return True
-            elif not self.args.raw_text and IndexedDataset.exists(filename):
-                return True
-            return False
+            return indexed_dataset.dataset_exists(filename, impl=self.args.dataset_impl)
 
-        def indexed_dataset(path, dictionary):
-            if self.args.raw_text:
-                return IndexedRawTextDataset(path, dictionary)
-            elif IndexedDataset.exists(path):
-                if self.args.lazy_load:
-                    return IndexedDataset(path, fix_lua_indexing=True)
-                else:
-                    return IndexedCachedDataset(path, fix_lua_indexing=True)
-            return None
+        def load_indexed_dataset(path, dictionary):
+            return data_utils.load_indexed_dataset(path, dictionary, self.args.dataset_impl)
 
         # load parallel datasets
         src_datasets, tgt_datasets = {}, {}
@@ -170,8 +161,8 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     prefix = os.path.join(data_path, '{}.{}-{}.'.format(split, tgt, src))
                 else:
                     continue
-                src_datasets[lang_pair] = indexed_dataset(prefix + src, self.dicts[src])
-                tgt_datasets[lang_pair] = indexed_dataset(prefix + tgt, self.dicts[tgt])
+                src_datasets[lang_pair] = load_indexed_dataset(prefix + src, self.dicts[src])
+                tgt_datasets[lang_pair] = load_indexed_dataset(prefix + tgt, self.dicts[tgt])
                 print('| parallel-{} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
             if len(src_datasets) == 0:
                 raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
@@ -184,7 +175,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 if not split_exists(split, tgt, None, tgt):
                     raise FileNotFoundError('Dataset not found: backtranslation {} ({})'.format(split, data_path))
                 filename = os.path.join(data_path, '{}.{}-None.{}'.format(split, tgt, tgt))
-                dataset = indexed_dataset(filename, self.dicts[tgt])
+                dataset = load_indexed_dataset(filename, self.dicts[tgt])
                 lang_pair_dataset_tgt = LanguagePairDataset(
                     dataset,
                     dataset.sizes,
@@ -232,8 +223,8 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 if not split_exists(split, tgt, None, tgt):
                     continue
                 filename = os.path.join(data_path, '{}.{}-None.{}'.format(split, tgt, tgt))
-                tgt_dataset1 = indexed_dataset(filename, self.dicts[tgt])
-                tgt_dataset2 = indexed_dataset(filename, self.dicts[tgt])
+                tgt_dataset1 = load_indexed_dataset(filename, self.dicts[tgt])
+                tgt_dataset2 = load_indexed_dataset(filename, self.dicts[tgt])
                 noising_dataset = NoisingDataset(
                     tgt_dataset1,
                     self.dicts[tgt],
