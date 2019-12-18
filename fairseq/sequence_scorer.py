@@ -45,7 +45,6 @@ class SequenceScorer(object):
             )
             return probs
 
-
         orig_target = sample['target']
 
         # compute scores for each model in the ensemble
@@ -53,7 +52,7 @@ class SequenceScorer(object):
         avg_attn = None
         for model in models:
             model.eval()
-            decoder_out = model.forward(**net_input)
+            decoder_out = model(**net_input)
             attn = decoder_out[1]
             if type(attn) is dict:
                 attn = attn.get('attn', None)
@@ -105,8 +104,13 @@ class SequenceScorer(object):
             score_i = avg_probs_i.sum() / tgt_len
             if avg_attn is not None:
                 avg_attn_i = avg_attn[i]
-                alignment = utils.extract_hard_alignment(avg_attn_i, sample['net_input']['src_tokens'][i],
-                                                         sample['target'][i], self.pad, self.eos)
+                alignment = utils.extract_hard_alignment(
+                    avg_attn_i,
+                    sample['net_input']['src_tokens'][i],
+                    sample['target'][i],
+                    self.pad,
+                    self.eos,
+                )
             else:
                 avg_attn_i = alignment = None
             hypos.append([{

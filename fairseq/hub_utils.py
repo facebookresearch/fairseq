@@ -121,6 +121,11 @@ class GeneratorHubInterface(nn.Module):
         hypo = self.generate(input, beam, verbose, **kwargs)[0]['tokens']
         return self.decode(hypo)
 
+    def score(self, sentence: str, **kwargs):
+        # NOTE: this doesn't support translation tasks currently
+        input = self.encode(sentence)
+        return self.generate(input, score_reference=True, **kwargs)[0]
+
     def generate(self, tokens: torch.LongTensor, beam: int = 5, verbose: bool = False, **kwargs) -> torch.LongTensor:
         sample = self._build_sample(tokens)
 
