@@ -386,7 +386,8 @@ class Trainer(object):
         elif self._sync_stats():
             logging_outputs, sample_sizes, ooms, prev_norms = zip(
                 *distributed_utils.all_gather_list(
-                    [logging_outputs, sample_sizes, ooms, self._prev_grad_norm]
+                    [logging_outputs, sample_sizes, ooms, self._prev_grad_norm],
+                    max_size=getattr(self.args, 'all_gather_list_size', 16384),
                 )
             )
             logging_outputs = list(chain.from_iterable(logging_outputs))

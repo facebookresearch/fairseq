@@ -193,6 +193,8 @@ def get_parser(desc, default_task='translation'):
                         help='path to a python module containing custom extensions (tasks and/or architectures)')
     parser.add_argument('--empty-cache-freq', default=0, type=int,
                         help='how often to clear the PyTorch CUDA cache (0 to disable)')
+    parser.add_argument('--all-gather-list-size', default=16384, type=int,
+                        help='number of bytes reserved for gathering stats from workers')
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():
