@@ -10,6 +10,8 @@ import os
 import tempfile
 import unittest
 
+import torch
+
 from . import test_binaries
 
 
@@ -67,12 +69,14 @@ class TestReproducibility(unittest.TestCase):
     def test_reproducibility(self):
         self._test_reproducibility('test_reproducibility')
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_reproducibility_fp16(self):
         self._test_reproducibility('test_reproducibility_fp16', [
             '--fp16',
             '--fp16-init-scale', '4096',
         ])
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_reproducibility_memory_efficient_fp16(self):
         self._test_reproducibility('test_reproducibility_memory_efficient_fp16', [
             '--memory-efficient-fp16',
