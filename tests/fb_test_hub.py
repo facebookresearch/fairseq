@@ -61,6 +61,21 @@ class TestTranslationHub(unittest.TestCase):
             self.assertEqual(de, 'PyTorch Hub ist ein vorgefertigtes Modell-Repository, das die Reproduzierbarkeit der Forschung erleichtern soll.')
 
 
+class TestLMHub(unittest.TestCase):
+
+    @torch.no_grad()
+    def test_transformer_lm_wmt19_en(self):
+        with contextlib.redirect_stdout(StringIO()):
+            # Load an English LM trained on WMT'19 News Crawl data
+            en_lm = fb_hub.load('transformer_lm.wmt19.en')
+
+            # Sample from the language model
+            en_lm.sample('Barack Obama', beam=1, sampling=True, sampling_topk=10, temperature=0.8)
+
+            ppl = en_lm.score('Barack Obama is coming to Sydney and New Zealand')['positional_scores'].mean().neg().exp()
+            self.assertAlmostEqual(ppl.item(), 15.1474, places=4)
+
+
 class TestRobertaHub(unittest.TestCase):
 
     @torch.no_grad()

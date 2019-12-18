@@ -5,13 +5,20 @@
 
 import os
 
+import numpy as np
 import torch
 
 from fairseq import utils
 from fairseq.data import (
     data_utils,
     Dictionary,
+    IdDataset,
     MonolingualDataset,
+    NestedDictionaryDataset,
+    NumelDataset,
+    PadDataset,
+    PrependTokenDataset,
+    StripTokenDataset,
     TokenBlockDataset,
     TransformEosDataset,
     TruncatedDictionary,
@@ -180,41 +187,59 @@ class LanguageModelingTask(FairseqTask):
             add_bos_token=self.args.add_bos_token,
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths):
-        return TransformEosDataset(
-            MonolingualDataset(
-                TokenBlockDataset(
-                    src_tokens,
-                    src_lengths,
-                    block_size=None,
-                    pad=self.source_dictionary.pad(),
-                    eos=self.source_dictionary.eos(),
-                    break_mode="eos",
-                    include_targets=False,
-                ),
-                src_lengths,
-                self.source_dictionary,
-                self.target_dictionary,
-                add_eos_for_other_targets=False,
-                shuffle=False,
-                add_bos_token=False,  # we handle this in inference_step
-            ),
+    def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):
+        """
+        Generate batches for inference. We prepend an eos token to src_tokens
+        (or bos if `--add-bos-token` is set) and we append an eos to target.
+        This is convenient both for generation with a prefix and LM scoring.
+        """
+        tgt_dataset = TokenBlockDataset(
+            src_tokens,
+            src_lengths,
+            block_size=None,  # ignored for "eos" break mode
+            pad=self.source_dictionary.pad(),
             eos=self.source_dictionary.eos(),
-            # remove EOS since this will be used as a prefix for generation
-            remove_eos_from_src=True,
-            has_target=False,
+            break_mode="eos",
+        )
+        src_dataset = PrependTokenDataset(
+            StripTokenDataset(
+                tgt_dataset,
+                # remove eos from (end of) target sequence
+                self.source_dictionary.eos(),
+            ),
+            token=(
+                self.source_dictionary.bos()
+                if getattr(self.args, "add_bos_token", False)
+                else self.source_dictionary.eos()
+            ),
+        )
+        return NestedDictionaryDataset(
+            {
+                "id": IdDataset(),
+                "net_input": {
+                    "src_tokens": PadDataset(src_dataset, pad_idx=self.source_dictionary.pad(), left_pad=False),
+                    "src_lengths": NumelDataset(src_dataset, reduce=False),
+                },
+                "target": PadDataset(tgt_dataset, pad_idx=self.source_dictionary.pad(), left_pad=False),
+            },
+            sizes=[np.array(src_lengths)],
         )
 
     def inference_step(self, generator, models, sample, prefix_tokens=None):
         with torch.no_grad():
-            if prefix_tokens is None and sample["net_input"]["src_tokens"].nelement():
-                prefix_tokens = sample["net_input"]["src_tokens"]
-                if prefix_tokens[:, 0].eq(self.source_dictionary.eos()).all():
-                    prefix_tokens = prefix_tokens[:, 1:]
-            if getattr(self.args, 'add_bos_token', False):
+            # Generation will always be conditioned on bos_token
+            if getattr(self.args, "add_bos_token", False):
                 bos_token = self.source_dictionary.bos()
             else:
-                bos_token = None
+                bos_token = self.source_dictionary.eos()
+
+            # SequenceGenerator doesn't use src_tokens directly, we need to
+            # pass the `prefix_tokens` argument instead
+            if prefix_tokens is None and sample["net_input"]["src_tokens"].nelement():
+                prefix_tokens = sample["net_input"]["src_tokens"]
+                if prefix_tokens[:, 0].eq(bos_token).all():
+                    prefix_tokens = prefix_tokens[:, 1:]
+
             return generator.generate(
                 models, sample, prefix_tokens=prefix_tokens, bos_token=bos_token,
             )
