@@ -12,6 +12,7 @@ from fairseq.optim.adam import FairseqAdam
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 
 
+@unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
 class TestMemoryEfficientFP16(unittest.TestCase):
 
     def test_load_state_dict(self):
