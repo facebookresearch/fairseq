@@ -340,6 +340,19 @@ class FairseqMultiModel(BaseFairseqModel):
     def decoder(self):
         return self.models[self.keys[0]].decoder
 
+    def forward_decoder(self, prev_output_tokens, **kwargs):
+        return self.decoder(prev_output_tokens, **kwargs)
+
+    def load_state_dict(self, state_dict, strict=True, args=None):
+        """Copies parameters and buffers from *state_dict* into this module and
+        its descendants.
+
+        Overrides the method in :class:`nn.Module`. Compared with that method
+        this additionally "upgrades" *state_dicts* from old checkpoints.
+        """
+        self.upgrade_state_dict(state_dict)
+        new_state_dict = prune_state_dict(state_dict, args)
+        return super().load_state_dict(new_state_dict, strict)
 
 class FairseqLanguageModel(BaseFairseqModel):
     """Base class for decoder-only models.

@@ -237,12 +237,23 @@ def fill_with_neg_inf(t):
 
 
 def _match_types(arg1, arg2):
-    if (isinstance(arg1, float) or isinstance(arg1, int)) and isinstance(arg2, tuple):
-        arg1_tuple = (arg1, arg1)
-        return arg1_tuple, arg2
-    if (isinstance(arg2, float) or isinstance(arg2, int)) and isinstance(arg1, tuple):
-        arg2_tuple = (arg2, arg2)
-        return arg1, arg2_tuple
+    """Convert the numerical argument to the same type as the other argument"""
+    def upgrade(arg_number, arg_structure):
+        if isinstance(arg_structure, tuple):
+            return (arg_number, arg_number)
+        elif isinstance(arg_structure, dict):
+            arg = copy.deepcopy(arg_structure)
+            for k in arg:
+                arg[k] = upgrade(arg_number, arg_structure[k])
+            return arg
+        else:
+            return arg_number
+
+    if (isinstance(arg1, float) or isinstance(arg1, int)):
+        return upgrade(arg1, arg2), arg2
+    elif (isinstance(arg2, float) or isinstance(arg2, int)):
+        return arg1, upgrade(arg2, arg1)
+
     return arg1, arg2
 
 
