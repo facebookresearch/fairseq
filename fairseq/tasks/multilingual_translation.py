@@ -122,7 +122,8 @@ class MultilingualTranslationTask(FairseqTask):
 
         if args.lang_pairs is None:
             raise ValueError('--lang-pairs is required. List all the language pairs in the training objective.')
-        args.lang_pairs = args.lang_pairs.split(',')
+        if isinstance(args.lang_pairs, str):
+            args.lang_pairs = args.lang_pairs.split(',')
         sorted_langs = sorted(list({x for lang_pair in args.lang_pairs for x in lang_pair.split('-')}))
         if args.source_lang is not None or args.target_lang is not None:
             training = False

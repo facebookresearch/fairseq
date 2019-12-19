@@ -156,6 +156,42 @@ class TestTranslation(unittest.TestCase):
                 ], run_validation=True)
                 generate_main(data_dir)
 
+    def test_multilingual_transformer(self):
+        # test with all combinations of encoder/decoder lang tokens
+        encoder_langtok_flags = [[], ['--encoder-langtok', 'src'], ['--encoder-langtok', 'tgt']]
+        decoder_langtok_flags = [[], ['--decoder-langtok']]
+        with contextlib.redirect_stdout(StringIO()):
+            for i in range(len(encoder_langtok_flags)):
+                for j in range(len(decoder_langtok_flags)):
+                    enc_ltok_flag = encoder_langtok_flags[i]
+                    dec_ltok_flag = decoder_langtok_flags[j]
+                    with tempfile.TemporaryDirectory(f'test_multilingual_transformer_{i}_{j}') as data_dir:
+                        create_dummy_data(data_dir)
+                        preprocess_translation_data(data_dir)
+                        train_translation_model(
+                            data_dir,
+                            arch='multilingual_transformer',
+                            task='multilingual_translation',
+                            extra_flags=[
+                                '--encoder-layers', '2',
+                                '--decoder-layers', '2',
+                                '--encoder-embed-dim', '8',
+                                '--decoder-embed-dim', '8',
+                            ] + enc_ltok_flag + dec_ltok_flag,
+                            lang_flags=['--lang-pairs', 'in-out,out-in'],
+                            run_validation=True,
+                            extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
+                        )
+                        generate_main(
+                            data_dir,
+                            extra_flags=[
+                                '--task', 'multilingual_translation',
+                                '--lang-pairs', 'in-out,out-in',
+                                '--source-lang', 'in',
+                                '--target-lang', 'out',
+                            ] + enc_ltok_flag + dec_ltok_flag,
+                        )
+
     def test_transformer_cross_self_attention(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_transformer_cross_self_attention') as data_dir:
@@ -587,7 +623,6 @@ class TestCommonOptions(unittest.TestCase):
 
 
 def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
-
     def _create_dummy_data(filename):
         data = torch.rand(num_examples * maxlen)
         data = 97 + torch.floor(26 * data).int()
@@ -642,7 +677,13 @@ def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess.main(preprocess_args)
 
 
-def train_translation_model(data_dir, arch, extra_flags=None, task='translation', run_validation=False):
+def train_translation_model(data_dir, arch, extra_flags=None, task='translation', run_validation=False,
+                            lang_flags=None, extra_valid_flags=None):
+    if lang_flags is None:
+        lang_flags = [
+            '--source-lang', 'in',
+            '--target-lang', 'out',
+        ]
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
@@ -656,10 +697,8 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
             '--max-epoch', '1',
             '--no-progress-bar',
             '--distributed-world-size', '1',
-            '--source-lang', 'in',
-            '--target-lang', 'out',
             '--num-workers', 0,
-        ] + (extra_flags or []),
+        ] + lang_flags + (extra_flags or []),
     )
     train.main(train_args)
 
@@ -675,7 +714,7 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
                 '--valid-subset', 'valid',
                 '--max-tokens', '500',
                 '--no-progress-bar',
-            ]
+            ] + lang_flags + (extra_valid_flags or [])
         )
         validate.main(validate_args)
 
