@@ -361,7 +361,7 @@ class TransformerEncoder(FairseqEncoder):
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x, embed
 
-    def forward(self, src_tokens, src_lengths, cls_input=None, return_all_hiddens=False, **unused):
+    def forward(self, src_tokens, src_lengths, cls_input=None, return_all_hiddens=False, return_all_attn=False, **unused):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -370,6 +370,8 @@ class TransformerEncoder(FairseqEncoder):
                 shape `(batch)`
             return_all_hiddens (bool, optional): also return all of the
                 intermediate hidden states (default: False).
+            return_all_attn (bool, optional): also return all of the
+                intermediate layers' attention weights (default: False).
 
         Returns:
             namedtuple:
@@ -382,6 +384,9 @@ class TransformerEncoder(FairseqEncoder):
                 - **encoder_states** (List[Tensor]): all intermediate
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
+                - **encoder_attn** (List[Tensor]): all intermediate
+                  layers' attention weights of shape `(src_len, batch, embed_dim)`.
+                  Only populated if *return_all_attn* is True.
         """
         if self.layer_wise_attention:
             return_all_hiddens = True
@@ -397,15 +402,18 @@ class TransformerEncoder(FairseqEncoder):
             encoder_padding_mask = None
 
         encoder_states = [] if return_all_hiddens else None
+        encoder_attn = [] if return_all_attn else None
 
         # encoder layers
         for layer in self.layers:
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             dropout_probability = random.uniform(0, 1)
             if not self.training or (dropout_probability > self.encoder_layerdrop):
-                x = layer(x, encoder_padding_mask)
+                x, attn = layer(x, encoder_padding_mask, need_head_weights=return_all_attn)
                 if return_all_hiddens:
                     encoder_states.append(x)
+                if return_all_attn:
+                    encoder_attn.append(attn)
 
         if self.layer_norm:
             x = self.layer_norm(x)
@@ -417,6 +425,7 @@ class TransformerEncoder(FairseqEncoder):
             encoder_padding_mask=encoder_padding_mask,  # B x T
             encoder_embedding=encoder_embedding,  # B x T x C
             encoder_states=encoder_states,  # List[T x B x C]
+            encoder_attn=encoder_attn,  # List[T x B x C]
         )
 
     def reorder_encoder_out(self, encoder_out, new_order):
@@ -445,6 +454,9 @@ class TransformerEncoder(FairseqEncoder):
         if encoder_out.encoder_states is not None:
             for idx, state in enumerate(encoder_out.encoder_states):
                 encoder_out.encoder_states[idx] = state.index_select(1, new_order)
+        if encoder_out.encoder_attn is not None:
+            for idx, state in enumerate(encoder_out.encoder_attn):
+                encoder_out.encoder_attn[idx] = state.index_select(1, new_order)
         return encoder_out
 
     def max_positions(self):
