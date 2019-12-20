@@ -300,6 +300,7 @@ EncoderOut = namedtuple('TransformerEncoderOut', [
     'encoder_padding_mask',  # B x T
     'encoder_embedding',  # B x T x C
     'encoder_states',  # List[T x B x C]
+    'encoder_attn',  # List[T x B x C]
 ])
 
 
