@@ -65,22 +65,28 @@ class TransformerEncoderLayer(nn.Module):
                     ] = state_dict[k]
                     del state_dict[k]
 
-    def forward(self, x, encoder_padding_mask, attn_mask=None):
+    def forward(self, x, encoder_padding_mask, attn_mask=None, need_attn=False, need_head_weights=False):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
             encoder_padding_mask (ByteTensor): binary ByteTensor of shape
                 `(batch, src_len)` where padding elements are indicated by ``1``.
             attn_mask (ByteTensor): binary tensor of shape (T_tgt, T_src), where
-            T_tgt is the length of query, while T_src is the length of key,
-            though here both query and key is x here,
-            attn_mask[t_tgt, t_src] = 1 means when calculating embedding
-            for t_tgt, t_src is excluded (or masked out), =0 means it is
-            included in attention
+                T_tgt is the length of query, while T_src is the length of key,
+                though here both query and key is x here,
+                attn_mask[t_tgt, t_src] = 1 means when calculating embedding
+                for t_tgt, t_src is excluded (or masked out), =0 means it is
+                included in attention
+            need_attn (bool, optional): return attention weights
+            need_head_weights (bool, optional): return attention weights
+                for each head (default: return average over heads).
 
         Returns:
             encoded output of shape `(seq_len, batch, embed_dim)`
         """
+        if need_head_weights:
+            need_attn = True
+            
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
         if attn_mask is not None:
@@ -92,7 +98,11 @@ class TransformerEncoderLayer(nn.Module):
         # will become -inf, which results in NaN in model parameters
         # TODO: to formally solve this problem, we need to change fairseq's
         # MultiheadAttention. We will do this later on.
-        x, _ = self.self_attn(query=x, key=x, value=x, key_padding_mask=encoder_padding_mask)
+        x, attn = self.self_attn(
+            query=x, key=x, value=x, key_padding_mask=encoder_padding_mask, 
+            need_weights=need_attn,
+            need_head_weights=need_head_weights,
+        )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
@@ -105,7 +115,7 @@ class TransformerEncoderLayer(nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
-        return x
+        return x, attn
 
     def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
         assert before ^ after
