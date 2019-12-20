@@ -658,6 +658,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         # decoder layers
         attn = None
+        self_attn = None
         inner_states = [x]
         for idx, layer in enumerate(self.layers):
             encoder_state = None
@@ -675,7 +676,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             dropout_probability = random.uniform(0, 1)
             if not self.training or (dropout_probability > self.decoder_layerdrop):
-                x, layer_attn = layer(
+                x, layer_attn, layer_self_attn = layer(
                     x,
                     encoder_state,
                     encoder_out.encoder_padding_mask if encoder_out is not None else None,
@@ -683,11 +684,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                     self_attn_mask=self_attn_mask,
                     self_attn_padding_mask=self_attn_padding_mask,
                     need_attn=(idx == alignment_layer),
+                    need_self_attn=(idx == alignment_layer),
                     need_head_weights=(idx == alignment_layer),
                 )
                 inner_states.append(x)
                 if layer_attn is not None and idx == alignment_layer:
                     attn = layer_attn.float()
+                if layer_self_attn is not None and idx == alignment_layer:
+                    self_attn = layer_self_attn.float()
 
         if attn is not None:
             if alignment_heads is not None:
@@ -695,6 +699,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
             # average probabilities over heads
             attn = attn.mean(dim=0)
+        if self_attn is not None:
+            if alignment_heads is not None:
+                self_attn = self_attn[:alignment_heads]
+
+            # average probabilities over heads
+            self_attn = self_attn.mean(dim=0)
 
         if self.layer_norm:
             x = self.layer_norm(x)
@@ -705,7 +715,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        return x, {'attn': attn, 'inner_states': inner_states}
+        return x, {'attn': attn, 'self_attn': self_attn, 'inner_states': inner_states}
 
     def output_layer(self, features, **kwargs):
         """Project features to the vocabulary size."""
