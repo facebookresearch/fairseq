@@ -196,6 +196,7 @@ class TransformerDecoderLayer(nn.Module):
         self_attn_mask=None,
         self_attn_padding_mask=None,
         need_attn=False,
+        need_self_attn=False,
         need_head_weights=False,
     ):
         """
@@ -205,6 +206,7 @@ class TransformerDecoderLayer(nn.Module):
                 ByteTensor of shape `(batch, src_len)` where padding
                 elements are indicated by ``1``.
             need_attn (bool, optional): return attention weights
+            need_self_attn (bool, optional): return self attention weights
             need_head_weights (bool, optional): return attention weights
                 for each head (default: return average over heads).
 
@@ -213,6 +215,7 @@ class TransformerDecoderLayer(nn.Module):
         """
         if need_head_weights:
             need_attn = True
+            need_self_attn = True
 
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
@@ -236,13 +239,14 @@ class TransformerDecoderLayer(nn.Module):
         else:
             y = x
 
-        x, attn = self.self_attn(
+        x, self_attn = self.self_attn(
             query=x,
             key=y,
             value=y,
             key_padding_mask=self_attn_padding_mask,
             incremental_state=incremental_state,
-            need_weights=False,
+            need_weights=need_self_attn or (not self.training and self.need_self_attn),
+            need_head_weights=need_head_weights,
             attn_mask=self_attn_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -289,8 +293,8 @@ class TransformerDecoderLayer(nn.Module):
                 self_attn_state = saved_state["prev_key"], saved_state["prev_value"], saved_state["prev_key_padding_mask"]
             else:
                 self_attn_state = saved_state["prev_key"], saved_state["prev_value"]
-            return x, attn, self_attn_state
-        return x, attn
+            return x, attn, self_attn, self_attn_state
+        return x, attn, self_attn
 
     def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
         assert before ^ after
