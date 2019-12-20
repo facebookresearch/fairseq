@@ -115,7 +115,9 @@ class TransformerEncoderLayer(nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
-        return x, attn
+        if need_attn:
+            return x, attn
+        return x
 
     def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
         assert before ^ after
