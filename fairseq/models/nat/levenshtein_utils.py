@@ -15,7 +15,7 @@ def load_libnat():
         return libnat_cuda, True
 
     except ImportError as e:
-        print(e + '... fall back to CPU version')
+        print(str(e) + '... fall back to CPU version')
 
         try:
             from fairseq import libnat
