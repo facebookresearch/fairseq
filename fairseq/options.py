@@ -410,6 +410,10 @@ def add_checkpoint_args(parser):
                        help='metric to use for saving "best" checkpoints')
     group.add_argument('--maximize-best-checkpoint-metric', action='store_true',
                        help='select the largest metric value for saving "best" checkpoints')
+    group.add_argument('--patience', type=int, default=-1, metavar='N',
+                       help=('early stop training if valid performance doesn\'t '
+                             'improve for N consecutive validation runs; note '
+                             'that this is influenced by --validate-interval'))
     # fmt: on
     return group
 
