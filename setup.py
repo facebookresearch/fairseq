@@ -76,9 +76,20 @@ try:
             sources=[
                 'fairseq/clib/libnat/edit_dist.cpp',
             ],
-        ),
+        )
     ])
+
+    if 'CUDA_HOME' in os.environ:
+        extensions.extend([
+            cpp_extension.CppExtension(
+                'fairseq.libnat_cuda',
+                sources=[
+                    'fairseq/clib/libnat_cuda/edit_dist.cu',
+                    'fairseq/clib/libnat_cuda/binding.cpp'
+                ],
+            )])
     cmdclass['build_ext'] = cpp_extension.BuildExtension
+
 except ImportError:
     pass
 
