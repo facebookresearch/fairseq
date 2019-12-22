@@ -537,7 +537,10 @@ class Trainer(object):
         # gather logging outputs from all replicas
         if self.args.distributed_world_size > 1:
             logging_output, sample_size = zip(
-                *distributed_utils.all_gather_list([logging_output, sample_size])
+                *distributed_utils.all_gather_list(
+                    [logging_output, sample_size],
+                    max_size=getattr(self.args, 'all_gather_list_size', 16384),
+                )
             )
             logging_output = list(logging_output)
             sample_size = list(sample_size)
