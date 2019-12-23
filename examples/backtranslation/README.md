@@ -33,7 +33,7 @@ len(en2de_ensemble.models)
 # 5
 
 # Translate
-en2de_ensemble.translate('Hello world!')
+en2de_ensemble.translate(['Hello world!'])
 # 'Hallo Welt!'
 ```
 

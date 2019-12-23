@@ -31,22 +31,22 @@ import torch
 # English to German translation
 en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
                        tokenizer='moses', bpe='fastbpe')
-en2de.translate("Machine learning is great!")  # 'Maschinelles Lernen ist großartig!'
+en2de.translate(["Machine learning is great!"])  # ['Maschinelles Lernen ist großartig!']
 
 # German to English translation
 de2en = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.de-en', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
                        tokenizer='moses', bpe='fastbpe')
-de2en.translate("Maschinelles Lernen ist großartig!")  # 'Machine learning is great!'
+de2en.translate(["Maschinelles Lernen ist großartig!"])  # ['Machine learning is great!']
 
 # English to Russian translation
 en2ru = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-ru', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
                        tokenizer='moses', bpe='fastbpe')
-en2ru.translate("Machine learning is great!")  # 'Машинное обучение - это здорово!'
+en2ru.translate(["Machine learning is great!"])  # ['Машинное обучение - это здорово!']
 
 # Russian to English translation
 ru2en = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.ru-en', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
                        tokenizer='moses', bpe='fastbpe')
-ru2en.translate("Машинное обучение - это здорово!")  # 'Machine learning is great!'
+ru2en.translate(["Машинное обучение - это здорово!"])  # ['Machine learning is great!']
 ```
 
 #### Language Modeling
@@ -54,15 +54,15 @@ ru2en.translate("Машинное обучение - это здорово!")  #
 ```python
 # Sample from the English LM
 en_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.en', tokenizer='moses', bpe='fastbpe')
-en_lm.sample("Machine learning is")  # 'Machine learning is the future of computing, says Microsoft boss Satya Nadella ...'
+en_lm.sample(["Machine learning is"])  # ['Machine learning is the future of computing, says Microsoft boss Satya Nadella ...']
 
 # Sample from the German LM
 de_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.de', tokenizer='moses', bpe='fastbpe')
-de_lm.sample("Maschinelles lernen ist")  # 'Maschinelles lernen ist das A und O (neues-deutschland.de) Die Arbeitsbedingungen für Lehrerinnen und Lehrer sind seit Jahren verbesserungswürdig ...'
+de_lm.sample(["Maschinelles lernen ist"])  # ['Maschinelles lernen ist das A und O (neues-deutschland.de) Die Arbeitsbedingungen für Lehrerinnen und Lehrer sind seit Jahren verbesserungswürdig ...']
 
 # Sample from the Russian LM
 ru_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.ru', tokenizer='moses', bpe='fastbpe')
-ru_lm.sample("машинное обучение это")  # 'машинное обучение это то, что мы называем "искусственным интеллектом".'
+ru_lm.sample(["машинное обучение это"])  # ['машинное обучение это то, что мы называем "искусственным интеллектом".']
 ```
 
 ## Citation

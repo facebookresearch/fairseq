@@ -70,7 +70,7 @@ We also provide [pre-trained models for translation and language modeling](#pre-
 with a convenient `torch.hub` interface:
 ```python
 en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de.single_model')
-en2de.translate('Hello world', beam=5)
+en2de.translate(['Hello world'], beam=5)
 # 'Hallo Welt'
 ```
 See the PyTorch Hub tutorials for [translation](https://pytorch.org/hub/pytorch_fairseq_translation/)

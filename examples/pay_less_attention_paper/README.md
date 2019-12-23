@@ -70,7 +70,7 @@ zh2en = torch.hub.load('pytorch/fairseq', 'lightconv.glu.wmt17.zh-en', tokenizer
 assert isinstance(zh2en.models[0], fairseq.models.lightconv.LightConvModel)
 
 # Translate a sentence
-zh2en.translate('你好 世界')
+zh2en.translate(['你好 世界'])
 # 'Hello World'
 ```
 
@@ -84,7 +84,7 @@ en2fr = LightConvModel.from_pretrained(
   bpe='subword_nmt',
   bpe_codes='data-bin/wmt14_en_fr/en.code'
 )
-en2fr.translate('Hello world!')
+en2fr.translate(['Hello world!'])
 # 'Bonjour le monde'
 ```
 

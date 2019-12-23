@@ -39,7 +39,7 @@ en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt16.en-de', tokenizer='
 assert isinstance(en2de.models[0], fairseq.models.transformer.TransformerModel)
 
 # Translate a sentence
-en2de.translate('Hello world!')
+en2de.translate(['Hello world!'])
 # 'Hallo Welt!'
 ```
 
