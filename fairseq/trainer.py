@@ -395,9 +395,15 @@ class Trainer(object):
             ooms = sum(ooms)
 
             if not self.args.use_bmuf:
-                assert all(norm == prev_norms[0] for norm in prev_norms) or all(
-                    math.isnan(norm) or math.isinf(norm) for norm in prev_norms
-                ), "Fatal error: gradients are inconsistent between workers"
+                norms = [norm for norm in prev_norms if norm is not None]
+                if not (
+                    all(norm == norms[0] for norm in norms)
+                    or all(math.isnan(norm) or math.isinf(norm) for norm in norms)
+                ):
+                    raise RuntimeError(
+                        "Fatal error: gradients are inconsistent between workers. "
+                        "Try --ddp-backend=no_c10d."
+                    )
 
         self.meters["oom"].update(ooms, len(samples))
         if ooms == self.args.distributed_world_size * len(samples):
