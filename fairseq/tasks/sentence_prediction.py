@@ -51,9 +51,9 @@ class SentencePredictionTask(FairseqTask):
         parser.add_argument('--regression-target', action='store_true', default=False)
         parser.add_argument('--no-shuffle', action='store_true', default=False)
         parser.add_argument('--truncate-sequence', action='store_true', default=False,
-                            help='Truncate sequence to max_sequence_length')
+                            help='truncate sequence to max-positions')
         parser.add_argument('--add-prev-output-tokens', action='store_true', default=False,
-                            help='Add prev_output_tokens to sample, used for encoder-decoder arch')
+                            help='add prev_output_tokens to sample, used for encoder-decoder arch')
 
     def __init__(self, args, data_dictionary, label_dictionary):
         super().__init__(args)
