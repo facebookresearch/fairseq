@@ -7,7 +7,7 @@
 import argparse
 import copy
 import os
-from typing import List, Dict, Iterator, Tuple
+from typing import List, Dict, Iterator, Tuple, Any
 
 import torch
 from torch import nn
@@ -141,16 +141,12 @@ class GeneratorHubInterface(nn.Module):
 
         results = []
         for batch in self._build_batches(tokenized_sentences):
-            ids, src_tokens, src_lengths = batch
-            src_tokens = src_tokens.to(self.device)
-            src_lengths = src_lengths.to(self.device)
-            sample = {
-                "net_input": {"src_tokens": src_tokens, "src_lengths": src_lengths}
-            }
+            for k, input_tensor in batch["net_input"].items():
+                batch["net_input"][k] = input_tensor.to(self.device)
             translations = self.task.inference_step(
-                generator, self.models, sample
+                generator, self.models, batch
             )
-            for (iden, hypos) in zip(ids.tolist(), translations):
+            for (iden, hypos) in zip(batch["id"].tolist(), translations):
                 results.append((iden, hypos))
         
         # sort output to match input order
@@ -210,16 +206,15 @@ class GeneratorHubInterface(nn.Module):
     def string(self, tokens: torch.LongTensor) -> str:
         return self.tgt_dict.string(tokens)
     
-    def _build_batches(self, tokens: List[List[int]]) -> Iterator[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    def _build_batches(self, tokens: List[List[int]]) -> Iterator[Dict[str, Any]]:
         lengths = torch.LongTensor([t.numel() for t in tokens])
-        itr = self.task.get_batch_iterator(
+        batch_iterator = self.task.get_batch_iterator(
             dataset=self.task.build_dataset_for_inference(tokens, lengths),
             max_tokens=self.args.max_tokens,
             max_sentences=self.args.max_sentences,
             max_positions=self.max_positions,
         ).next_epoch_itr(shuffle=False)
-        for batch in itr:
-            yield (batch["id"], batch["net_input"]["src_tokens"], batch["net_input"]["src_lengths"])
+        return batch_iterator
 
 
 class BPEHubInterface(object):
