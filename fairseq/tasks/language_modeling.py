@@ -21,6 +21,7 @@ from fairseq.data import (
     StripTokenDataset,
     TokenBlockDataset,
     TransformEosDataset,
+    TruncateDataset,
     TruncatedDictionary,
 )
 from fairseq.tasks import FairseqTask, register_task
@@ -82,6 +83,8 @@ class LanguageModelingTask(FairseqTask):
                             help='prepend beginning of sentence token (<s>)')
         parser.add_argument('--max-target-positions', type=int, metavar='N',
                             help='max number of tokens in the target sequence')
+        parser.add_argument('--truncate-sequence', action='store_true', default=False,
+                            help='truncate sequences to --tokens-per-sample')
         # fmt: on
 
     def __init__(self, args, dictionary, output_dictionary=None, targets=None):
@@ -160,6 +163,9 @@ class LanguageModelingTask(FairseqTask):
             raise FileNotFoundError(
                 "Dataset not found: {} ({})".format(split, split_path)
             )
+
+        if self.args.truncate_sequence:
+            dataset = TruncateDataset(dataset, self.args.tokens_per_sample)
 
         dataset = TokenBlockDataset(
             dataset,
