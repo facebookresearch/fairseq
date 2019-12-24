@@ -121,13 +121,19 @@ class TranslationMoETask(TranslationTask):
         bsz = sample['target'].size(0)
 
         def get_lprob_y(encoder_out, prev_output_tokens_k):
-            net_output = model.decoder(prev_output_tokens_k, encoder_out)
+            net_output = model.decoder(
+                prev_output_tokens=prev_output_tokens_k,
+                encoder_out=encoder_out,
+            )
             loss, _ = criterion.compute_loss(model, net_output, sample, reduce=False)
             loss = loss.view(bsz, -1)
             return -loss.sum(dim=1, keepdim=True)  # -> B x 1
 
         def get_lprob_yz(winners=None):
-            encoder_out = model.encoder(sample['net_input']['src_tokens'], sample['net_input']['src_lengths'])
+            encoder_out = model.encoder(
+                src_tokens=sample['net_input']['src_tokens'],
+                src_lengths=sample['net_input']['src_lengths'],
+            )
 
             if winners is None:
                 lprob_y = []
