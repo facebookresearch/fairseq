@@ -17,26 +17,27 @@ class TestTranslationHub(unittest.TestCase):
     @torch.no_grad()
     def test_transformer_wmt14_en_fr(self):
         with contextlib.redirect_stdout(StringIO()):
-            # Load an En-Fr Transformer model trained on WMT'14 data :
+            # Load an En-Fr Transformer model trained on WMT'14 data
             en2fr = fb_hub.load('transformer.wmt14.en-fr', tokenizer='moses', bpe='subword_nmt')
+            en2fr.eval()  # disable dropout
 
-            # Translate with beam search:
+            # Translate with beam search
             fr = en2fr.translate('Hello world!', beam=5)
             self.assertEqual(fr, 'Bonjour à tous !')
 
-            # Manually tokenize:
+            # Manually tokenize
             en_toks = en2fr.tokenize('Hello world!')
             self.assertEqual(en_toks, 'Hello world !')
 
-            # Manually apply BPE:
+            # Manually apply BPE
             en_bpe = en2fr.apply_bpe(en_toks)
             self.assertEqual(en_bpe, 'H@@ ello world !')
 
-            # Manually binarize:
+            # Manually binarize
             en_bin = en2fr.binarize(en_bpe)
             self.assertEqual(en_bin.tolist(), [329, 14044, 682, 812, 2])
 
-            # Generate five translations with top-k sampling:
+            # Generate five translations with top-k sampling
             fr_bin = en2fr.generate(en_bin, beam=5, sampling=True, sampling_topk=20)
             self.assertEqual(len(fr_bin), 5)
 
@@ -47,11 +48,16 @@ class TestTranslationHub(unittest.TestCase):
             fr = en2fr.detokenize(fr_toks)
             self.assertEqual(fr, en2fr.decode(fr_sample))
 
+            # Batched translation
+            fr_batch = en2fr.translate(['Hello world', 'The cat sat on the mat.'])
+            self.assertEqual(fr_batch, ['Bonjour à tous.', 'Le chat était assis sur le tapis.'])
+
     @torch.no_grad()
     def test_transformer_wmt19_en_de_single_model(self):
         with contextlib.redirect_stdout(StringIO()):
-            # Load an En-De Transformer model trained on WMT'19 data:
+            # Load an En-De Transformer model trained on WMT'19 data
             en2de = fb_hub.load('transformer.wmt19.en-de.single_model', tokenizer='moses', bpe='fastbpe')
+            en2de.eval()  # disable dropout
 
             # Access the underlying TransformerModel
             self.assertTrue(isinstance(en2de.models[0], torch.nn.Module))
@@ -68,6 +74,7 @@ class TestLMHub(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             # Load an English LM trained on WMT'19 News Crawl data
             en_lm = fb_hub.load('transformer_lm.wmt19.en')
+            en_lm.eval()  # disable dropout
 
             # Sample from the language model
             en_lm.sample('Barack Obama', beam=1, sampling=True, sampling_topk=10, temperature=0.8)
@@ -83,7 +90,7 @@ class TestRobertaHub(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             # Load RoBERTa
             roberta = fb_hub.load('roberta.base')
-            roberta.eval()  # disable dropout (or leave in train mode to finetune)
+            roberta.eval()  # disable dropout
 
             # Apply Byte-Pair Encoding (BPE) to input text
             tokens = roberta.encode('Hello world!')
@@ -143,7 +150,7 @@ class TestRobertaHub(unittest.TestCase):
     def test_roberta_large_wsc(self):
         with contextlib.redirect_stdout(StringIO()):
             roberta = fb_hub.load('roberta.large.wsc', user_dir='examples/roberta/wsc')
-            roberta.eval()  # disable dropout (or leave in train mode to finetune)
+            roberta.eval()  # disable dropout
 
             ans = roberta.disambiguate_pronoun('The _trophy_ would not fit in the brown suitcase because [it] was too big.')
             self.assertTrue(ans)
@@ -161,7 +168,7 @@ class TestRobertaHub(unittest.TestCase):
     def test_camembert(self):
         with contextlib.redirect_stdout(StringIO()):
             camembert = fb_hub.load('camembert.v0')
-            camembert.eval()  # disable dropout (or leave in train mode to finetune)
+            camembert.eval()  # disable dropout
 
             # Filling masks
             masked_line = 'Le camembert est <mask> :)'
@@ -184,7 +191,7 @@ class TestRobertaHub(unittest.TestCase):
     def test_xlmr(self):
         with contextlib.redirect_stdout(StringIO()):
             xlmr = fb_hub.load('xlmr.large')
-            xlmr.eval()  # disable dropout (or leave in train mode to finetune)
+            xlmr.eval()  # disable dropout
 
             # Test sentencepiece
             en_tokens = xlmr.encode('Hello world!')
@@ -221,7 +228,7 @@ class TestRobertaHub(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             # Load BART
             bart = fb_hub.load('bart.large')
-            bart.eval()  # disable dropout (or leave in train mode to finetune)
+            bart.eval()  # disable dropout
 
             # Apply Byte-Pair Encoding (BPE) to input text
             tokens = bart.encode('Hello world!')
