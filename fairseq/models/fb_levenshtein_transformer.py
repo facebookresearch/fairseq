@@ -43,6 +43,7 @@ def _fill(x, mask, y, padding_idx: int):
     assert n_selected == y.size(0)
     if n_selected == x.size(0):
         return y
+    y = y.to(x)
 
     if x.size(1) < y.size(1):
         x = expand_2d_or_3d_tensor(x, y.size(1), padding_idx)
