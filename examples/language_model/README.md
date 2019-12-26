@@ -26,6 +26,10 @@ torch.hub.list('pytorch/fairseq')  # [..., 'transformer_lm.wmt19.en', ...]
 
 # Load an English LM trained on WMT'19 News Crawl data
 en_lm = torch.hub.load('pytorch/fairseq', 'transformer_lm.wmt19.en', tokenizer='moses', bpe='fastbpe')
+en_lm.eval()  # disable dropout
+
+# Move model to GPU
+en_lm.cuda()
 
 # Sample from the language model
 en_lm.sample('Barack Obama', beam=1, sampling=True, sampling_topk=10, temperature=0.8)
