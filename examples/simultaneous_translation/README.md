@@ -28,7 +28,13 @@ We will assume that the data is downloaded in a directory called `DATA_ROOT`.
 Train a SentencePiece model:
 ```
 for lang in en de; do
-    python $FAIRSEQ/examples/simulast_shared_task/data/train_spm.py --data-path $DATA_ROOT/data --vocab-size 10000 --model-type unigram --lang $lang --out-path .
+    python $FAIRSEQ/examples/simulast_shared_task/data/train_spm.py \
+        --data-path $DATA_ROOT/data \
+        --vocab-size 10000 \
+        --max-frame 3000 \
+        --model-type unigram \
+        --lang $lang \
+        --out-path .
 ```
 
 Process the data with the SentencePiece model:
@@ -37,7 +43,10 @@ proc_dir=proc
 mkdir -p $proc_dir
 for split in train dev tst-COMMON tst-HE; do
     for lang in en de; do
-        spm_encode --model unigram-$lang-10000-3000/spm.model < $DATA_ROOT/data/$split/txt/$split.$lang > $proc_dir/$split.spm.$lang
+        spm_encode \
+            --model unigram-$lang-10000-3000/spm.model \
+            < $DATA_ROOT/data/$split/txt/$split.$lang \
+            > $proc_dir/$split.spm.$lang
     done
 done
 ```
@@ -46,7 +55,15 @@ Binarize the data:
 
 ```
 proc_dir=proc
-fairseq-preprocess --source-lang en --target-lang de --trainpref $proc_dir/train.spm --validpref $proc_dir/dev.spm --testpref $proc_dir/tst-COMMON.spm --destdir ./data-bin/mustc_en_de --thresholdtgt 0 --thresholdsrc 0 --workers 20
+fairseq-preprocess \
+    --source-lang en --target-lang de \
+    --trainpref $proc_dir/train.spm \
+    --validpref $proc_dir/dev.spm \
+    --testpref $proc_dir/tst-COMMON.spm \
+    --thresholdtgt 0 \
+    --thresholdsrc 0 \
+    --workers 20 \
+    --destdir ./data-bin/mustc_en_de \
 ```
 
 ## Training
@@ -67,4 +84,28 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
     --log-interval 10 \
     --criterion cross_entropy_acc \
     --user-dir $FAIRSEQ/examples/simultaneous_translation
+```
+
+## Evaluation
+
+### Set up evaluation server
+
+```
+python ./eval/server.py \
+    --hostname localhost \
+    --port 12321 \
+    --src-file $DATA_ROOT/data/dev/txt/dev.en \
+    --ref-file $DATA_ROOT/data/dev/txt/dev.de
+```
+
+### Decode and evaluate with client
+
+```
+python $fairseq_dir/examples/simultaneous_translation/evaluate.py \
+    data-bin/mustc_en_de \
+    --user-dir $FAIRSEQ/examples/simultaneous_translation \
+    --src-spm unigram-en-10000-3000/spm.model\
+    --tgt-spm unigram-de-10000-3000/spm.model\
+    -s en -t de \
+    --path checkpoints/checkpoint_best.pt
 ```
