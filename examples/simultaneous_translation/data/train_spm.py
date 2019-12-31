@@ -98,13 +98,12 @@ def gen_metadata_json(
             tokens = spm.EncodeAsPieces(rr)
             token_ids = spm.EncodeAsIds(rr)
             assert len(tokens) == len(token_ids)
-            if split in ['train', 'dev']:
-                if n_frames < MIN_FRAMES or len(tokens) < MIN_TOKENS:
-                    n_filtered += 1
-                    continue
-                if split == 'train' and (n_frames > MAX_FRAMES or len(tokens) > MAX_TOKENS):
-                    n_filtered += 1
-                    continue
+            if n_frames < MIN_FRAMES or len(tokens) < MIN_TOKENS:
+                n_filtered += 1
+                continue
+            if split == 'train' and (n_frames > MAX_FRAMES or len(tokens) > MAX_TOKENS):
+                n_filtered += 1
+                continue
 
             output['utts'][cur_id] = {
                 'input': {
