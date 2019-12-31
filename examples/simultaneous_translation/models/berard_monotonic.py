@@ -72,20 +72,8 @@ class BerardSimulASTModel(BerardASTModel):
         lprobs.batch_first = True
         return lprobs
 
-    def get_action(self, buffer):
-        src_tokens = buffer["src_indices"]
-        src_lengths = torch.LongTensor([src_tokens.numel()])
-
-        tgt_tokens = buffer["tgt_indices"]
-        tgt_tokens = tgt_tokens.to(src_tokens.device)
-
-        self.eval()
-        decoder_states, dict_out = self.forward(src_tokens, src_lengths, tgt_tokens)
-        action = dict_out["p_choose"][-1, 0].item()
-
-        buffer["decoder_states"] = decoder_states
-
-        return action
+    def get_action(self, states):
+        return self.decoder.attention.action_from_state_dict(states)
 
 
 @register_model("berard_simul_text")
@@ -338,7 +326,6 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
 
         #attn_scores = x.new_zeros(bsz, srclen)
         prev_alpha = None
-        alpha_list = []
         attention_outs = []
         outs = []
         for j in range(seqlen):
@@ -363,17 +350,15 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
                 if attention_out is None:
                     if incremental_state is None:
                         self.attention.set_target_step(j)
-                    attention_out, prev_alpha, p_choose = self.attention(
+                    attention_out = self.attention(
                         hidden, 
                         encoder_outs, 
                         encoder_padding_mask,
-                        prev_alpha,
                         incremental_state
                     )
                     if self.dropout is not None:
                         attention_out = self.dropout(attention_out)
                     attention_outs.append(attention_out)
-                    alpha_list.append(prev_alpha.t().unsqueeze(1))
                 input = attention_out
 
             # collect the output of the top layer
@@ -409,31 +394,7 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
         # to account for subsampling input frames
         # tgt_len, bsz, src_len
 
-        # bsz, tgt_len, src_len
-        alpha = torch.cat(alpha_list, dim=1)
-
-        return x, {'alpha' : alpha, 'encoder_padding_mask' : encoder_padding_mask, 'p_choose' : p_choose}
-
-    def reorder_incremental_state(self, incremental_state, new_order):
-        super().reorder_incremental_state(incremental_state, new_order)
-        cached_state = utils.get_incremental_state(
-            self, incremental_state, "cached_state"
-        )
-        if cached_state is None:
-            return
-
-        def reorder_state(state):
-            if isinstance(state, list):
-                return [reorder_state(state_i) for state_i in state]
-            return state.index_select(0, new_order)
-
-        new_state = tuple(map(reorder_state, cached_state))
-        utils.set_incremental_state(self, incremental_state, "cached_state", new_state)
-
-        step_list = utils.get_incremental_state(self.attention, incremental_state, "step")
-        for i, step in enumerate(step_list):
-            step_list[i] = step.index_select(1, new_order)
-        utils.set_incremental_state(self.attention, incremental_state, "step", step_list)
+        return x, {'encoder_padding_mask' : encoder_padding_mask}
 
 
 @register_model_architecture(model_name="berard_simul", arch_name="berard_simul_ast")
@@ -458,7 +419,7 @@ def berard_simul_ast(args):
     )
 
 @register_model_architecture(model_name="berard_simul_text", arch_name="berard_simul_text_iwslt")
-def berard_simul_ast(args):
+def berard_simul_mt(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.num_lstm_layers = getattr(args, "num_lstm_layers", 2)
     args.lstm_size = getattr(args, "lstm_size", 512)
