@@ -180,11 +180,6 @@ class LatencyInference(object):
             "average_proportion": AverageProportion(),
         }
 
-        self.variance_calculator = {
-            "variance_delay": VarianceDelay(),
-            "variance_proportion": VarianceProportion()
-        }
-
         self.start_from_zero = start_from_zero
 
     def __call__(self, monotonic_step, src_lens):
