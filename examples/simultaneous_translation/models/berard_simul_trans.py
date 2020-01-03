@@ -31,7 +31,7 @@ class BerardSimulASTModel(BerardASTModel):
     @classmethod
     def build_encoder(cls, args, task):
         if getattr(args, 'encoder_hidden_size', None) is None:
-            args.encoder_hidden_size = args.lstm
+            args.encoder_hidden_size = args.lstm_size
         encoder = BerardSimulEncoder(
             input_layers=literal_eval(args.input_layers),
             conv_layers=literal_eval(args.conv_layers),
@@ -73,7 +73,10 @@ class BerardSimulASTModel(BerardASTModel):
         return lprobs
 
     def get_action(self, states):
-        return self.decoder.attention.action_from_state_dict(states)
+        if states["src_indices"] is None:
+            return 0
+        return self.decoder.attention.action_from_state_dict(
+            states, self.encoder.subsampling_ratio)
 
 
 @register_model("berard_simul_text")
@@ -98,6 +101,9 @@ class BerardSimulTextModel(BerardSimulASTModel):
             pretrained_embed=None,
         )
         return encoder
+
+    def get_action(self, states):
+        return self.decoder.attention.action_from_state_dict(states)
 
 
 class BerardSimulEncoder(FairseqEncoder):
@@ -149,6 +155,7 @@ class BerardSimulEncoder(FairseqEncoder):
 
         self.conv_layers = nn.ModuleList()
         lstm_input_dim = input_layers[-1]
+        self.subsampling_ratio = 1
         for conv_layer in conv_layers:
             out_channels, conv_kernel_size, conv_stride = conv_layer
             self.conv_layers.append(
@@ -162,6 +169,7 @@ class BerardSimulEncoder(FairseqEncoder):
             )
             in_channels = out_channels
             lstm_input_dim //= conv_stride
+            self.subsampling_ratio *= conv_stride
 
         lstm_input_dim *= conv_layers[-1][0]
         self.lstm_size = lstm_size
