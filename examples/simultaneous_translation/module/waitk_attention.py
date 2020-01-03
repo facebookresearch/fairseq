@@ -110,8 +110,13 @@ class WaitKAttentionLayer(nn.Module):
     def get_target_step(self):
         return self.target_step
     
-    def action_from_state_dict(self, states_dict):
-        if states_dict["tgt_step"] + self.waitk - states_dict["src_step"] > 0:
+    def action_from_state_dict(self, states_dict, subsampling_ratio=1):
+        lagging = (
+            (states_dict["tgt_step"] + self.waitk) 
+            * self.stride 
+            * subsampling_ratio
+        )
+        if lagging - states_dict["src_step"] > 0:
             return READ
         else:
             return WRITE
