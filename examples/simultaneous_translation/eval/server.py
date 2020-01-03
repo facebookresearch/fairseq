@@ -106,10 +106,10 @@ class SimulSTScorer(object):
 
         translations = [" ".join([ti[0] for ti in t[:-1]]) for t in self.translations[:-1]]
 
-        # TODO: implement latency metrics
-        bleu_score = BLEUScorer(sent_level=False, corpus_level=True).score(
-            translations, [self.references]
-        )
+        bleu_score = BLEUScorer(
+            sent_level=False, corpus_level=True,
+            extra_args={'bleu_tokenizer': '13a'}
+        ).score(translations, [self.references])
         ter_score = TERScorer(sent_level=False, corpus_level=True).score(
             translations, [self.references]
         )
