@@ -8,7 +8,7 @@ import json
 
 
 from tornado import web, ioloop
-from examples.simultaneous_translation.data.data_loader import TextDataLoader
+from examples.simultaneous_translation.data.data_loader import TextDataLoader, AudioDataLoader
 from examples.simultaneous_translation.utils.eval_latency import LatencyScorer
 
 DEFAULT_HOSTNAME = 'localhost'
@@ -27,14 +27,35 @@ parser.add_argument('--src-file', type=str,
 parser.add_argument('--ref-file', type=str,
                     help='Target file')
 parser.add_argument('--debug', action='store_true', help='debug mode')
+
+parser.add_argument('--data-type', type=str, default="text", choices=["text", "speech"],
+                    help='Type of data to evaluate')
 args, _ = parser.parse_known_args()
 
 
 class SimulSTScorer(object):
-    def __init__(self, src_file, ref_file):
-        self.data = {"src" : src_file, "ref" : ref_file}
-        self.references = self._load_from_file(ref_file)
+    def __init__(self, args):
+        self.data_type=args.data_type
+        if args.data_type == "text":
+            self.data = {"src" : args.src_file, "ref" : args.ref_file}
+            self.references = self._load_from_file(args.ref_file)
+            self.data_loader = TextDataLoader
+        elif args.data_type == "speech":
+            assert args.ref_file is not None
+            self.data = {"src" : args.ref_file, "ref" : args.ref_file}
+            self.references = self._load_from_json(args.ref_file)
+            self.data_loader = AudioDataLoader
+        else:
+            raise NotImplementedError
         self.reset()
+
+    @classmethod
+    def _load_from_json(cls, file):
+        list_to_return = []
+        with open(file) as f:
+            content = json.load(f)
+            for item in content["utts"].values():
+                list_to_return.append(item["output"]["text"].strip())
         
     @classmethod
     def _load_from_file(cls, file):
@@ -69,7 +90,7 @@ class SimulSTScorer(object):
             self.translations.append([])
 
     def reset(self):
-        self.source_loader = TextDataLoader(self.data["src"]).load()
+        self.source_loader = self.data_loader(self.data["src"]).load()
         self.sources = None
         self.translations = [[]]
         self.curr_step = -1
@@ -114,7 +135,7 @@ class SimulSTScorer(object):
         }
 
 
-scorer = SimulSTScorer(args.src_file, args.ref_file)
+scorer = SimulSTScorer(args)
 
 
 class StartSessionHandler(web.RequestHandler):
