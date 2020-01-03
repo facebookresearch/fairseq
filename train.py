@@ -131,14 +131,15 @@ def should_stop_early(args, valid_loss):
 
 def train(args, trainer, task, epoch_itr):
     """Train the model for one epoch."""
-    # Update parameters every N batches
-    update_freq = args.update_freq[epoch_itr.epoch - 1] \
-        if epoch_itr.epoch <= len(args.update_freq) else args.update_freq[-1]
-
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
         shuffle=(epoch_itr.epoch >= args.curriculum),
+    )
+    update_freq = (
+        args.update_freq[epoch_itr.epoch - 1]
+        if epoch_itr.epoch <= len(args.update_freq)
+        else args.update_freq[-1]
     )
     itr = iterators.GroupedIterator(itr, update_freq)
     progress = progress_bar.build_progress_bar(
