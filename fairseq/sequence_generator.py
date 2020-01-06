@@ -24,14 +24,10 @@ class SequenceGenerator(object):
         len_penalty=1.,
         unk_penalty=0.,
         retain_dropout=False,
-        sampling=False,
-        sampling_topk=-1,
-        sampling_topp=-1.0,
         temperature=1.,
-        diverse_beam_groups=-1,
-        diverse_beam_strength=0.5,
         match_source_len=False,
         no_repeat_ngram_size=0,
+        search_strategy=None,
     ):
         """Generates translations of a given source sentence.
 
@@ -50,18 +46,9 @@ class SequenceGenerator(object):
                 produces more unks, >0 produces fewer (default: 0.0)
             retain_dropout (bool, optional): use dropout when generating
                 (default: False)
-            sampling (bool, optional): sample outputs instead of beam search
-                (default: False)
-            sampling_topk (int, optional): only sample among the top-k choices
-                at each step (default: -1)
-            sampling_topp (float, optional): only sample among the smallest set
-                of words whose cumulative probability mass exceeds p
-                at each step (default: -1.0)
             temperature (float, optional): temperature, where values
                 >1.0 produce more uniform samples and values <1.0 produce
                 sharper samples (default: 1.0)
-            diverse_beam_groups/strength (float, optional): parameters for
-                Diverse Beam Search sampling
             match_source_len (bool, optional): outputs should match the source
                 length (default: False)
         """
@@ -82,20 +69,12 @@ class SequenceGenerator(object):
         self.temperature = temperature
         self.match_source_len = match_source_len
         self.no_repeat_ngram_size = no_repeat_ngram_size
-        assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
-        assert sampling_topp < 0 or sampling, '--sampling-topp requires --sampling'
         assert temperature > 0, '--temperature must be greater than 0'
 
-        if sampling:
-            self.search = search.Sampling(tgt_dict, sampling_topk, sampling_topp)
-        elif diverse_beam_groups > 0:
-            self.search = search.DiverseBeamSearch(tgt_dict, diverse_beam_groups, diverse_beam_strength)
-        elif match_source_len:
-            self.search = search.LengthConstrainedBeamSearch(
-                tgt_dict, min_len_a=1, min_len_b=0, max_len_a=1, max_len_b=0,
-            )
-        else:
-            self.search = search.BeamSearch(tgt_dict)
+        self.search = (
+            search.BeamSearch(tgt_dict) if search_strategy is None else search_strategy
+        )
+
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):

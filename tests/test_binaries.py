@@ -111,6 +111,15 @@ class TestTranslation(unittest.TestCase):
                     '--beam', '2',
                     '--nbest', '2',
                 ])
+                generate_main(data_dir, [
+                    '--diversity-rate', '0.5',
+                    '--beam', '6',
+                ])
+                with self.assertRaises(ValueError):
+                    generate_main(data_dir, [
+                        '--diverse-beam-groups', '4',
+                        '--match-source-len',
+                    ])
                 generate_main(data_dir, ['--prefix-size', '2'])
 
     def test_lstm(self):

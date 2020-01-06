@@ -286,3 +286,68 @@ class Sampling(Search):
             )
 
         return self.scores_buf, self.indices_buf, self.beams_buf
+
+
+class DiverseSiblingsSearch(Search):
+    """
+    Beam search with diverse siblings.
+
+    See "A Simple, Fast Diverse Decoding Algorithm for Neural Generation" for details.
+    https://arxiv.org/abs/1611.08562
+
+    1/ Calculate hypotheses for each beam
+    2/ Intra-sibling ordering
+    3/ Rewrite scores
+    4/ Choose top K hypotheses
+
+    if diversity_rate == 0 is equivalent to BeamSearch
+    """
+
+    def __init__(self, tgt_dict, diversity_rate):
+        super().__init__(tgt_dict)
+        self.diversity_rate = diversity_rate
+        self.beam = BeamSearch(tgt_dict)
+
+    def step(self, step, lprobs, scores):
+        super()._init_buffers(lprobs)
+        bsz, beam_size, vocab_size = lprobs.size()
+        k = min(
+            # Take the best 2 x beam_size predictions. We'll choose the first
+            # beam_size of these which don't predict eos to continue with.
+            beam_size * 2,
+            lprobs.view(bsz, -1).size(1) - 1,  # -1 so we never select pad
+        )
+        s_list = [lprobs.new() for i in range(beam_size)]
+        i_list = [torch.LongTensor().to(device=lprobs.device) for i in range(beam_size)]
+        sibling_score = lprobs.new(range(1, k + 1)) * self.diversity_rate
+
+        if step == 0:
+            return self.beam.step(step, lprobs, scores)
+        lprobs.add_(scores[:, :, step - 1].unsqueeze(-1))
+
+        # 1/ Calculate hypotheses for each beam
+        for i in range(beam_size):
+            torch.topk(lprobs[:, i, :].view(bsz, -1), k, out=(s_list[i], i_list[i]))
+            i_list[i].fmod_(vocab_size)
+
+            # 2/ Intra-sibling ordering by default from topk + 3/ Rewrite scores
+            s_list[i].sub_(sibling_score)
+
+        # 4/ Choose top K hypotheses
+        indices = torch.stack(i_list, dim=1).view(bsz, -1)
+
+        final_scores = lprobs.new()
+        final_indices = torch.LongTensor().to(device=lprobs.device)
+        final_beams = torch.LongTensor().to(device=lprobs.device)
+        torch.topk(
+            torch.stack(s_list, dim=1).view(bsz, -1),
+            k,
+            out=(final_scores, final_indices),
+        )
+
+        torch.div(final_indices, k, out=final_beams)
+
+        for i in range(bsz):
+            final_indices[i] = indices[i][final_indices[i]]
+
+        return final_scores, final_indices, final_beams
