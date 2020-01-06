@@ -17,7 +17,7 @@ from . import test_binaries
 
 class TestReproducibility(unittest.TestCase):
 
-    def _test_reproducibility(self, name, extra_flags=None):
+    def _test_reproducibility(self, name, extra_flags=None, delta=0.0001):
         if extra_flags is None:
             extra_flags = []
 
@@ -58,13 +58,10 @@ class TestReproducibility(unittest.TestCase):
             stdout = stdout.getvalue()
             train_res_log, valid_res_log = map(json.loads, stdout.split('\n')[-5:-3])
 
-            def cast(s):
-                return round(float(s), 3)
-
             for k in ['train_loss', 'train_ppl', 'train_num_updates', 'train_gnorm']:
-                self.assertEqual(cast(train_log[k]), cast(train_res_log[k]))
+                self.assertAlmostEqual(float(train_log[k]), float(train_res_log[k]), delta=delta)
             for k in ['valid_loss', 'valid_ppl', 'valid_num_updates', 'valid_best_loss']:
-                self.assertEqual(cast(valid_log[k]), cast(valid_res_log[k]))
+                self.assertAlmostEqual(float(valid_log[k]), float(valid_res_log[k]), delta=delta)
 
     def test_reproducibility(self):
         self._test_reproducibility('test_reproducibility')
@@ -74,7 +71,7 @@ class TestReproducibility(unittest.TestCase):
         self._test_reproducibility('test_reproducibility_fp16', [
             '--fp16',
             '--fp16-init-scale', '4096',
-        ])
+        ], delta=0.01)
 
     @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_reproducibility_memory_efficient_fp16(self):
