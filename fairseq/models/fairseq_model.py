@@ -276,7 +276,7 @@ class FairseqMultiModel(BaseFairseqModel):
             assert isinstance(decoders[key], FairseqDecoder)
 
         self.models = nn.ModuleDict({
-            key: FairseqModel(encoders[key], decoders[key])
+            key: FairseqEncoderDecoderModel(encoders[key], decoders[key])
             for key in self.keys
         })
 

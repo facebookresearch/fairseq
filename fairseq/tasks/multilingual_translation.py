@@ -95,7 +95,6 @@ class MultilingualTranslationTask(FairseqTask):
         self.training = training
         if training:
             self.lang_pairs = args.lang_pairs
-            args.source_lang, args.target_lang = args.lang_pairs[0].split('-')
         else:
             self.lang_pairs = ['{}-{}'.format(args.source_lang, args.target_lang)]
         # eval_lang_pairs for multilingual translation is usually all of the
@@ -300,21 +299,6 @@ class MultilingualTranslationTask(FairseqTask):
                     if self.args.decoder_langtok else self.target_dictionary.eos(),
             )
 
-    def init_logging_output(self, sample):
-        return {
-            'ntokens': sum(
-                sample_lang.get('ntokens', 0)
-                for sample_lang in sample.values()
-            ) if sample is not None else 0,
-            'nsentences': sum(
-                sample_lang['target'].size(0) if 'target' in sample_lang else 0
-                for sample_lang in sample.values()
-            ) if sample is not None else 0,
-        }
-
-    def grad_denom(self, sample_sizes, criterion):
-        return criterion.__class__.grad_denom(sample_sizes)
-
     def aggregate_logging_outputs(self, logging_outputs, criterion, logging_output_keys=None):
         logging_output_keys = logging_output_keys or self.eval_lang_pairs
         # aggregate logging outputs for each language pair
@@ -344,11 +328,17 @@ class MultilingualTranslationTask(FairseqTask):
 
     @property
     def source_dictionary(self):
-        return self.dicts[self.args.source_lang]
+        if self.training:
+            return next(iter(self.dicts.values()))
+        else:
+            return self.dicts[self.args.source_lang]
 
     @property
     def target_dictionary(self):
-        return self.dicts[self.args.target_lang]
+        if self.training:
+            return next(iter(self.dicts.values()))
+        else:
+            return self.dicts[self.args.target_lang]
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
