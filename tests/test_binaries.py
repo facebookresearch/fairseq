@@ -14,13 +14,7 @@ import unittest
 import torch
 
 from fairseq import options
-
-import preprocess
-import train
-import generate
-import interactive
-import eval_lm
-import validate
+from fairseq_cli import preprocess, train, generate, interactive, eval_lm, validate
 
 
 class TestTranslation(unittest.TestCase):
