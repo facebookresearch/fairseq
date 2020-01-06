@@ -501,6 +501,8 @@ def add_generation_args(parser):
                        help='number of groups for Diverse Beam Search')
     group.add_argument('--diverse-beam-strength', default=0.5, type=float, metavar='N',
                        help='strength of diversity penalty for Diverse Beam Search')
+    group.add_argument('--diversity-rate', default=-1.0, type=float, metavar='N',
+                       help='strength of diversity penalty for Diverse Siblings Search')
     group.add_argument('--print-alignment', action='store_true',
                        help='if set, uses attention feedback to compute and print alignment to source tokens')
     group.add_argument('--print-step', action='store_true')
