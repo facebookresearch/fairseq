@@ -7,6 +7,7 @@
 Translate pre-processed data with a trained model.
 """
 
+import os
 import torch
 
 from fairseq import bleu, checkpoint_utils, options, progress_bar, tasks, utils
@@ -20,11 +21,17 @@ def main(args):
     assert args.replace_unk is None or args.dataset_impl == 'raw', \
         '--replace-unk requires a raw text dataset (--dataset-impl=raw)'
 
+    if args.results_path is not None:
+        os.makedirs(args.results_path, exist_ok=True)
+        output_file = open(os.path.join(args.results_path, "generate-results.txt"), 'w', buffering=1)
+    else:
+        output_file = None
+
     utils.import_user_module(args)
 
     if args.max_tokens is None and args.max_sentences is None:
         args.max_tokens = 12000
-    print(args)
+    print(args, file=output_file)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
@@ -40,7 +47,7 @@ def main(args):
     tgt_dict = task.target_dictionary
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(args.path))
+    print('| loading model(s) from {}'.format(args.path), file=output_file)
     models, _model_args = checkpoint_utils.load_model_ensemble(
         args.path.split(':'),
         arg_overrides=eval(args.model_overrides),
@@ -128,9 +135,9 @@ def main(args):
 
                 if not args.quiet:
                     if src_dict is not None:
-                        print('S-{}\t{}'.format(sample_id, src_str))
+                        print('S-{}\t{}'.format(sample_id, src_str), file=output_file)
                     if has_target:
-                        print('T-{}\t{}'.format(sample_id, target_str))
+                        print('T-{}\t{}'.format(sample_id, target_str), file=output_file)
 
                 # Process top predictions
                 for j, hypo in enumerate(hypos[i][:args.nbest]):
@@ -144,23 +151,23 @@ def main(args):
                     )
 
                     if not args.quiet:
-                        print('H-{}\t{}\t{}'.format(sample_id, hypo['score'], hypo_str))
+                        print('H-{}\t{}\t{}'.format(sample_id, hypo['score'], hypo_str), file=output_file)
                         print('P-{}\t{}'.format(
                             sample_id,
                             ' '.join(map(
                                 lambda x: '{:.4f}'.format(x),
                                 hypo['positional_scores'].tolist(),
                             ))
-                        ))
+                        ), file=output_file)
 
                         if args.print_alignment:
                             print('A-{}\t{}'.format(
                                 sample_id,
                                 ' '.join(['{}-{}'.format(src_idx, tgt_idx) for src_idx, tgt_idx in alignment])
-                            ))
+                            ), file=output_file)
 
                         if args.print_step:
-                            print('I-{}\t{}'.format(sample_id, hypo['steps']))
+                            print('I-{}\t{}'.format(sample_id, hypo['steps']), file=output_file)
 
                         if getattr(args, 'retain_iter_history', False):
                             print("\n".join([
@@ -169,7 +176,7 @@ def main(args):
                                         utils.post_process_prediction(
                                             h['tokens'].int().cpu(),
                                             src_str, None, None, tgt_dict, None)[1])
-                                        for step, h in enumerate(hypo['history'])]))
+                                        for step, h in enumerate(hypo['history'])]), file=output_file)
 
                     # Score only the top hypothesis
                     if has_target and j == 0:
@@ -186,9 +193,10 @@ def main(args):
             num_sentences += sample['nsentences']
 
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
-        num_sentences, gen_timer.n, gen_timer.sum, num_sentences / gen_timer.sum, 1. / gen_timer.avg))
+        num_sentences, gen_timer.n, gen_timer.sum, num_sentences / gen_timer.sum, 1. / gen_timer.avg), file=output_file)
     if has_target:
-        print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
+        print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()),
+              file=output_file)
 
     return scorer
 
