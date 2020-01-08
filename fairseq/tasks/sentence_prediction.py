@@ -164,15 +164,15 @@ class SentencePredictionTask(FairseqTask):
             )
 
         if not self.args.regression_target:
-            label_dataset = make_dataset('label', self.target_dictionary)
+            label_dataset = make_dataset('label', self.label_dictionary)
             if label_dataset is not None:
                 dataset.update(
                     target=OffsetTokensDataset(
                         StripTokenDataset(
                             label_dataset,
-                            id_to_strip=self.target_dictionary.eos(),
+                            id_to_strip=self.label_dictionary.eos(),
                         ),
-                        offset=-self.target_dictionary.nspecial,
+                        offset=-self.label_dictionary.nspecial,
                     )
                 )
         else:
@@ -223,7 +223,7 @@ class SentencePredictionTask(FairseqTask):
 
     @property
     def target_dictionary(self):
-        return self._label_dictionary
+        return self.dictionary
 
     @property
     def label_dictionary(self):
