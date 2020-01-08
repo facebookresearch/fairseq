@@ -279,11 +279,10 @@ def add_dataset_args(parser, train=False, gen=False):
                         help='output dataset implementation')
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
-                           choices=['train', 'valid', 'test'],
-                           help='data subset to use for training (train, valid, test)')
+                           help='data subset to use for training (e.g. train, valid, test)')
         group.add_argument('--valid-subset', default='valid', metavar='SPLIT',
                            help='comma separated list of data subsets to use for validation'
-                                ' (train, valid, valid1, test, test1)')
+                                ' (e.g. train, valid, test)')
         group.add_argument('--validate-interval', type=int, default=1, metavar='N',
                            help='validate every N epochs')
         group.add_argument('--fixed-validation-seed', default=None, type=int, metavar='N',
