@@ -114,7 +114,7 @@ class SentencePredictionTask(FairseqTask):
 
             dataset = data_utils.load_indexed_dataset(
                 split_path,
-                self.source_dictionary,
+                dictionary,
                 self.args.dataset_impl,
                 combine=combine,
             )
@@ -223,7 +223,7 @@ class SentencePredictionTask(FairseqTask):
 
     @property
     def target_dictionary(self):
-        return self.dictionary
+        return self._label_dictionary
 
     @property
     def label_dictionary(self):
