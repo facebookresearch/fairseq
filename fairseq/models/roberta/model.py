@@ -247,8 +247,8 @@ class UmbertoModel(RobertaModel):
     def hub_models(cls):
 
         return {
-            'umberto.wikipedia.uncased': 'https://mxmdownloads.s3.amazonaws.com/umberto/umberto.wikipedia.tar.gz',
-            'umberto.commoncrawl.cased': 'https://mxmdownloads.s3.amazonaws.com/umberto/umberto.commoncrawl.tar.gz'
+            'umberto.wikipedia.uncased': 'https://mxmdownloads.s3.amazonaws.com/umberto/umberto.wikipedia.uncased.tar.gz',
+            'umberto.commoncrawl.cased': 'https://mxmdownloads.s3.amazonaws.com/umberto/umberto.commoncrawl.cased.tar.gz'
         }
 
     @classmethod
