@@ -241,6 +241,33 @@ class CamembertModel(RobertaModel):
         return RobertaHubInterface(x['args'], x['task'], x['models'][0])
 
 
+@register_model('umberto')
+class UmbertoModel(RobertaModel):
+    @classmethod
+    def hub_models(cls):
+
+        return {
+            'umberto.wikipedia.uncased': 'https://mxmdownloads.s3.amazonaws.com/umberto/umberto.wikipedia.tar.gz',
+            'umberto.commoncrawl.cased': 'https://mxmdownloads.s3.amazonaws.com/umberto/umberto.commoncrawl.tar.gz'
+        }
+
+    @classmethod
+    def from_pretrained(cls, model_name_or_path, checkpoint_file='model.pt', data_name_or_path='.', bpe='sentencepiece', **kwargs):
+        from fairseq import hub_utils
+        x = hub_utils.from_pretrained(
+            model_name_or_path,
+            checkpoint_file,
+            data_name_or_path,
+            archive_map=cls.hub_models(),
+            bpe=bpe,
+            load_checkpoint_heads=True,
+            **kwargs,
+        )
+        
+        return RobertaHubInterface(x['args'], x['task'], x['models'][0])
+
+
+
 class RobertaLMHead(nn.Module):
     """Head for masked language modeling."""
 
