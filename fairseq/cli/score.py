@@ -32,11 +32,7 @@ def get_parser():
     return parser
 
 
-def main():
-    parser = get_parser()
-    args = parser.parse_args()
-    print(args)
-
+def main(args):
     assert args.sys == '-' or os.path.exists(args.sys), \
         "System output file {} does not exist".format(args.sys)
     assert os.path.exists(args.ref), \
@@ -83,6 +79,10 @@ def main():
         with open(args.sys, 'r') as f:
             score(f)
 
+def cli_main():
+    parser = get_parser()
+    args = parser.parse_args()
+    main(args)
 
 if __name__ == '__main__':
-    main()
+    cli_main()
