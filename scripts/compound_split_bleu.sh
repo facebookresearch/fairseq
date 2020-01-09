@@ -15,6 +15,6 @@ if [ $(tail -n 1 $GEN | grep BLEU | wc -l) -ne 1 ]; then
     exit
 fi
 
-grep ^H $GEN | cut -f3- | perl -ple 's{(\S)-(\S)}{$1 ##AT##-##AT## $2}g' > $SYS
+grep ^H $GEN | awk -F '\t' '{print $NF}' | perl -ple 's{(\S)-(\S)}{$1 ##AT##-##AT## $2}g' > $SYS
 grep ^T $GEN | cut -f2- | perl -ple 's{(\S)-(\S)}{$1 ##AT##-##AT## $2}g' > $REF
 fairseq-score --sys $SYS --ref $REF
