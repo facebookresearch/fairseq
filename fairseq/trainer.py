@@ -402,7 +402,8 @@ class Trainer(object):
                 ):
                     raise RuntimeError(
                         "Fatal error: gradients are inconsistent between workers. "
-                        "Try --ddp-backend=no_c10d."
+                        "Try --ddp-backend=no_c10d, which is a more robust but "
+                        "slightly slower DDP implementation."
                     )
 
         self.meters["oom"].update(ooms, len(samples))
