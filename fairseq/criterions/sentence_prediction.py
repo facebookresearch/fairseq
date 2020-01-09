@@ -19,8 +19,6 @@ class SentencePredictionCriterion(FairseqCriterion):
     @staticmethod
     def add_args(parser):
         # fmt: off
-        parser.add_argument('--save-predictions', metavar='FILE',
-                            help='file to save predictions to')
         parser.add_argument('--classification-head-name',
                             default='sentence_classification_head',
                             help='name of the classification head to use')
