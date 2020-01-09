@@ -96,12 +96,27 @@ batch) or `--tokens-per-sample` (max sequence length). You can also adjust
 number of GPUs.
 
 ### 3) Evaluate
+
 ```bash
 fairseq-eval-lm data-bin/wikitext-103 \
     --path checkpoints/transformer_wiki103/checkpoint_best.pt \
-    --sample-break-mode complete --max-tokens 3072 \
-    --context-window 2560 --softmax-batch 1024
+    --max-sentences 2 \
+    --tokens-per-sample 512 \
+    --context-window 400
+# | Evaluated 245569 tokens in 56.1s (4379.02 tokens/s)
+# | Loss: 3.4164, Perplexity: 30.46
 ```
+
+*Note:* The `--context-window` option controls how much context is provided to
+each token when computing perplexity. When the window size is 0, the dataset is
+chunked into segments of length 512 and perplexity is computed over each segment
+normally. However, this results in worse (higher) perplexity since tokens that
+appear earlier in each segment have less conditioning. When the maximum window
+size is used (511 in this case), then we compute perplexity for each token
+fully conditioned on 511 tokens of context. This slows down evaluation
+significantly, since we must run a separate forward pass for every token in the
+dataset, but results in better (lower) perplexity.
+
 
 ## Convolutional language models
 
