@@ -327,6 +327,11 @@ def add_distributed_training_args(parser):
                        help='which GPU to use (usually configured automatically)')
     group.add_argument('--distributed-no-spawn', action='store_true',
                        help='do not spawn multiple processes even if multiple GPUs are visible')
+    # "c10d" is PyTorch's DDP implementation and provides the fastest
+    # training. "no_c10d" is a more robust, but slightly slower DDP
+    # implementation. Try this if you get warning messages about
+    # inconsistent gradients between workers, or if some of your model
+    # parameters are not always used.
     group.add_argument('--ddp-backend', default='c10d', type=str,
                        choices=['c10d', 'no_c10d'],
                        help='DistributedDataParallel backend')
