@@ -417,7 +417,7 @@ class Trainer(object):
             logging_output = self.task.aggregate_logging_outputs(
                 logging_outputs, self.get_criterion()
             )
-            sample_size = self.task.grad_denom(sample_sizes, self.get_criterion())
+            sample_size = sum(sample_sizes)
 
         if not all(k in logging_output for k in ["ntokens", "nsentences"]):
             raise Exception(
@@ -559,7 +559,7 @@ class Trainer(object):
         logging_output = self.task.aggregate_logging_outputs(
             logging_output, self.get_criterion()
         )
-        sample_size = self.task.grad_denom(sample_size, self.get_criterion())
+        sample_size = sum(sample_size)
 
         # update meters for validation
         ntokens = logging_output.get("ntokens", 0)

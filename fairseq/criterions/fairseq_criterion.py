@@ -37,8 +37,3 @@ class FairseqCriterion(_Loss):
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
         raise NotImplementedError
-
-    @staticmethod
-    def grad_denom(sample_sizes):
-        """Compute the gradient denominator for a set of sample sizes."""
-        return sum(sample_sizes)
