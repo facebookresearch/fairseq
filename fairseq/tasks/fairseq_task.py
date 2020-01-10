@@ -308,9 +308,6 @@ class FairseqTask(object):
            learning rate update of each step"""
         pass
 
-    def grad_denom(self, sample_sizes, criterion):
-        return criterion.__class__.grad_denom(sample_sizes)
-
     def aggregate_logging_outputs(self, logging_outputs, criterion):
         return criterion.__class__.aggregate_logging_outputs(logging_outputs)
 

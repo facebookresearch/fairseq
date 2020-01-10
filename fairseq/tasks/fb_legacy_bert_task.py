@@ -75,11 +75,6 @@ class BertTask(FairseqTask):
 
         return cls(args, dictionary)
 
-    def grad_denom(self, sample_sizes, criterion):
-        """Hack to avoid grad denom since we are using mean loss
-        """
-        return self.distributed_world_size
-
     def load_dataset(self, split, combine=False):
         """Load a given dataset split.
         Args:
