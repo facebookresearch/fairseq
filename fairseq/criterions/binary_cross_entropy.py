@@ -4,13 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 from fairseq import utils
-
-from . import FairseqCriterion, register_criterion
+from fairseq.criterions import FairseqCriterion, register_criterion
 
 
 @register_criterion('binary_cross_entropy')

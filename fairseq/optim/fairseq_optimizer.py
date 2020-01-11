@@ -3,8 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import math
-
 import torch
 
 
@@ -91,7 +89,7 @@ class FairseqOptimizer(object):
         if max_norm > 0:
             return torch.nn.utils.clip_grad_norm_(self.params, max_norm)
         else:
-            return math.sqrt(sum(p.grad.data.norm()**2 for p in self.params if p.grad is not None))
+            return torch.sqrt(sum(p.grad.data.norm()**2 for p in self.params if p.grad is not None))
 
     def step(self, closure=None):
         """Performs a single optimization step."""
