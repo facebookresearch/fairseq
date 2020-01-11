@@ -8,6 +8,8 @@ from io import StringIO
 import tempfile
 import unittest
 
+import torch
+
 from tests.test_binaries import (
     create_dummy_data,
     preprocess_translation_data,
@@ -18,6 +20,7 @@ from tests.test_binaries import (
 
 class TestTranslation(unittest.TestCase):
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_fb_levenshtein_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_fb_levenshtein_transformer') as data_dir:

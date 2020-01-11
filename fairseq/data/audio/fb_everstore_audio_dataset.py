@@ -11,7 +11,6 @@ import os
 
 import torch
 
-from .fb_soundfile import read as sf_read
 from .raw_audio_dataset import RawAudioDataset
 
 
@@ -67,6 +66,8 @@ class EverstoreAudioDataset(RawAudioDataset):
         self.clients = {}  # this will leak every epoch!!! is cleared in prefetch
 
     def __getitem__(self, index):
+        from .fb_soundfile import read as sf_read
+
         pid = os.getpid()
         if pid not in self.clients:
             from langtech import EverstoreIo

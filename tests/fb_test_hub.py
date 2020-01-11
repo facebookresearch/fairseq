@@ -12,6 +12,7 @@ import torch
 from fairseq import fb_hub
 
 
+@unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
 class TestTranslationHub(unittest.TestCase):
 
     @torch.no_grad()
@@ -67,6 +68,7 @@ class TestTranslationHub(unittest.TestCase):
             self.assertEqual(de, 'PyTorch Hub ist ein vorgefertigtes Modell-Repository, das die Reproduzierbarkeit der Forschung erleichtern soll.')
 
 
+@unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
 class TestLMHub(unittest.TestCase):
 
     @torch.no_grad()
@@ -83,6 +85,7 @@ class TestLMHub(unittest.TestCase):
             self.assertAlmostEqual(ppl.item(), 15.1474, places=4)
 
 
+@unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
 class TestRobertaHub(unittest.TestCase):
 
     @torch.no_grad()
