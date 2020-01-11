@@ -345,8 +345,7 @@ def add_distributed_training_args(parser):
                        help='disable unused parameter detection (not applicable to '
                        'no_c10d ddp-backend')
     group.add_argument('--fast-stat-sync', default=False, action='store_true',
-                        help='Enable fast sync of stats between nodes, this hardcodes to '
-                        'sync only some default stats from logging_output.')
+                       help='[deprecated] this is now defined per Criterion')
     # fmt: on
     return group
 

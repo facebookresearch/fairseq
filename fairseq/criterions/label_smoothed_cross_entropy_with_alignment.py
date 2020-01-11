@@ -88,3 +88,12 @@ class LabelSmoothedCrossEntropyCriterionWithAlignment(LabelSmoothedCrossEntropyC
             'nsentences': nsentences,
             'sample_size': sample_size,
         }
+
+    @staticmethod
+    def logging_outputs_can_be_summed() -> bool:
+        """
+        Whether the logging outputs returned by `forward` can be summed
+        across workers prior to calling `aggregate_logging_outputs`.
+        Setting this to True will improves distributed training speed.
+        """
+        return True
