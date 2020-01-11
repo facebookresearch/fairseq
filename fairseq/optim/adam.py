@@ -26,7 +26,7 @@ class FairseqAdam(FairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args)
         fused_adam_cls = get_fused_adam_class()
-        if fused_adam_cls is not None and torch.cuda.is_available():
+        if not args.use_old_adam and fused_adam_cls is not None and torch.cuda.is_available():
             print('| using FusedAdam')
             self._optimizer = fused_adam_cls(params, **self.optimizer_config)
         else:
@@ -42,6 +42,14 @@ class FairseqAdam(FairseqOptimizer):
                             help='epsilon for Adam optimizer')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
+        # Maintain backward compatibility with old checkpoints that have stored
+        # optimizer state as fairseq.optim.adam.Adam.
+        parser.add_argument(
+            "--use-old-adam",
+            action='store_true',
+            default=False,
+            help="Use fairseq.optim.adam.Adam",
+        )
         # fmt: on
 
     @property
