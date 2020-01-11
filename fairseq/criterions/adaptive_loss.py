@@ -90,3 +90,12 @@ class AdaptiveLoss(FairseqCriterion):
         if sample_size != ntokens:
             agg_output['nll_loss'] = loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.
         return agg_output
+
+    @staticmethod
+    def logging_outputs_can_be_summed() -> bool:
+        """
+        Whether the logging outputs returned by `forward` can be summed
+        across workers prior to calling `aggregate_logging_outputs`.
+        Setting this to True will improves distributed training speed.
+        """
+        return True
