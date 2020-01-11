@@ -4,11 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+
 import torch.nn.functional as F
 
-from fairseq import utils
-
-from . import FairseqCriterion, register_criterion
+from fairseq import metrics, utils
+from fairseq.criterions import FairseqCriterion, register_criterion
 
 
 @register_criterion('cross_entropy')
@@ -30,7 +30,6 @@ class CrossEntropyCriterion(FairseqCriterion):
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
-            'nll_loss': utils.item(loss.data) if reduce else loss.data,
             'ntokens': sample['ntokens'],
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
@@ -50,27 +49,24 @@ class CrossEntropyCriterion(FairseqCriterion):
         return loss, loss
 
     @staticmethod
-    def aggregate_logging_outputs(logging_outputs):
+    def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
         loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
         ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
-        agg_output = {
-            'loss': loss_sum / sample_size / math.log(2) if sample_size > 0 else 0.,
-            'ntokens': ntokens,
-            'nsentences': nsentences,
-            'sample_size': sample_size,
-        }
+
+        metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
         if sample_size != ntokens:
-            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
-        return agg_output
+            metrics.log_scalar('nll_loss', loss_sum / ntokens / math.log(2), ntokens, round=3)
+            metrics.log_derived('ppl', lambda meters: round(2**meters['nll_loss'].avg, 3))
+        else:
+            metrics.log_derived('ppl', lambda meters: round(2**meters['loss'].avg, 3))
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
         """
         Whether the logging outputs returned by `forward` can be summed
-        across workers prior to calling `aggregate_logging_outputs`.
-        Setting this to True will improves distributed training speed.
+        across workers prior to calling `reduce_metrics`. Setting this
+        to True will improves distributed training speed.
         """
         return True

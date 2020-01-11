@@ -3,10 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import warnings
+
 import numpy as np
 import torch
 
-from fairseq import search, tokenizer
+from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import (
     data_utils,
     FairseqDataset,
@@ -304,12 +306,52 @@ class FairseqTask(object):
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)
 
     def update_step(self, num_updates):
-        """Task level update when number of update increases. This is called after optimization step and
-           learning rate update of each step"""
+        """Task level update when number of update increases.
+
+        This is called after the optimization step and learning rate
+        update at each iteration.
+        """
         pass
 
     def aggregate_logging_outputs(self, logging_outputs, criterion):
-        return criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        """[deprecated] Aggregate logging outputs from data parallel training."""
+        utils.deprecation_warning(
+            'The aggregate_logging_outputs API is deprecated. '
+            'Please use the reduce_metrics API instead.'
+        )
+        with metrics.aggregate() as agg:
+            self.reduce_metrics(logging_outputs, criterion)
+            return agg.get_smoothed_values()
+
+    def reduce_metrics(self, logging_outputs, criterion):
+        """Aggregate logging outputs from data parallel training."""
+        # backward compatibility for tasks that override aggregate_logging_outputs
+        base_func = FairseqTask.aggregate_logging_outputs
+        self_func = getattr(self, 'aggregate_logging_outputs').__func__
+        if self_func is not base_func:
+            utils.deprecation_warning(
+                'Tasks should implement the reduce_metrics API. '
+                'Falling back to deprecated aggregate_logging_outputs API.'
+            )
+            agg_logging_outputs = self.aggregate_logging_outputs(logging_outputs, criterion)
+            for k, v in agg_logging_outputs.items():
+                metrics.log_scalar(k, v)
+            return
+
+        if not any('ntokens' in log for log in logging_outputs):
+            warnings.warn('ntokens not found in Criterion logging outputs, cannot log wpb or wps')
+        else:
+            ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
+            metrics.log_scalar('wpb', ntokens, priority=180, round=1)
+            metrics.log_speed('wps', ntokens, priority=90, round=1)
+
+        if not any('nsentences' in log for log in logging_outputs):
+            warnings.warn('nsentences not found in Criterion logging outputs, cannot log bsz')
+        else:
+            nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
+            metrics.log_scalar('bsz', nsentences, priority=190, round=1)
+
+        criterion.__class__.reduce_metrics(logging_outputs)
 
     def max_positions(self):
         """Return the max input length allowed by the task."""

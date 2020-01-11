@@ -13,6 +13,8 @@ from numbers import Number
 import os
 import sys
 
+import torch
+
 from fairseq import distributed_utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 
@@ -56,6 +58,8 @@ def format_stat(stat):
         stat = '{:g}'.format(round(stat.avg))
     elif isinstance(stat, StopwatchMeter):
         stat = '{:g}'.format(round(stat.sum))
+    elif torch.is_tensor(stat):
+        stat = stat.tolist()
     return stat
 
 
@@ -119,9 +123,17 @@ class json_progress_bar(progress_bar):
         size = float(len(self.iterable))
         for i, obj in enumerate(self.iterable, start=self.offset):
             yield obj
-            if self.stats is not None and i > 0 and \
-                    self.log_interval is not None and i % self.log_interval == 0:
-                update = self.epoch - 1 + float(i / size) if self.epoch is not None else None
+            if (
+                self.stats is not None
+                and i > 0
+                and self.log_interval is not None
+                and (i + 1) % self.log_interval == 0
+            ):
+                update = (
+                    self.epoch - 1 + float(i / size)
+                    if self.epoch is not None
+                    else None
+                )
                 stats = self._format_stats(self.stats, epoch=self.epoch, update=update)
                 print(json.dumps(stats), flush=True)
 
@@ -180,8 +192,12 @@ class simple_progress_bar(progress_bar):
         size = len(self.iterable)
         for i, obj in enumerate(self.iterable, start=self.offset):
             yield obj
-            if self.stats is not None and i > 0 and \
-                    self.log_interval is not None and i % self.log_interval == 0:
+            if (
+                self.stats is not None
+                and i > 0
+                and self.log_interval is not None
+                and (i + 1) % self.log_interval == 0
+            ):
                 postfix = self._str_commas(self.stats)
                 print('{}:  {:5d} / {:d} {}'.format(self.prefix, i, size, postfix),
                       flush=True)
