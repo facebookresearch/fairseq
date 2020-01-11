@@ -5,7 +5,7 @@
 
 import torch
 
-from fairseq import modules, utils
+from fairseq import metrics, modules, utils
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
@@ -178,6 +178,7 @@ class TranslationMoETask(TranslationTask):
         logging_output = {
             'loss': utils.item(loss.data),
             'ntokens': sample['ntokens'],
+            'nsentences': bsz,
             'sample_size': sample_size,
             'posterior': prob_z_xy.float().sum(dim=0).cpu(),
         }
@@ -207,9 +208,9 @@ class TranslationMoETask(TranslationTask):
                 bos_token=self.expert_index(expert),
             )
 
-    def aggregate_logging_outputs(self, logging_outputs, criterion):
-        agg_logging_outputs = criterion.__class__.aggregate_logging_outputs(logging_outputs)
-        agg_logging_outputs['posterior'] = sum(
-            log['posterior'] for log in logging_outputs if 'posterior' in log
+    def reduce_metrics(self, logging_outputs, criterion):
+        super().reduce_metrics(logging_outputs, criterion)
+        metrics.log_scalar(
+            'posterior',
+            sum(log['posterior'] for log in logging_outputs if 'posterior' in log)
         )
-        return agg_logging_outputs

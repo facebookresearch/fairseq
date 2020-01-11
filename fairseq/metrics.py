@@ -50,10 +50,11 @@ def aggregate(name: Optional[str] = None, exclusive: bool = False):
 
         with metrics.aggregate("train"):
             for step, batch in enumerate(epoch):
-                with metrics.aggregate() as agg:
+                with metrics.aggregate("train_inner") as agg:
                     metrics.log_scalar("loss", get_loss(batch))
                     if step % log_interval == 0:
                         print(agg.get_smoothed_value("loss"))
+                        agg.reset()
         print(metrics.get_smoothed_values("train")["loss"])
 
     Args:
@@ -174,33 +175,47 @@ def log_stop_time(key: str, weight: float = 0.):
 
 def reset_meters(name: str):
     """Reset Meter instances aggregated under a given *name*."""
-    try:
-        for meter in get_meters(name).values():
-            meter.reset()
-    except KeyError:
-        pass
+    meters = get_meters(name)
+    if meters is not None:
+        meters.reset()
 
 
 def get_meter(name: str, key: str) -> Meter:
-    """Get Meter instance."""
-    return _aggregators[name][key]
+    """Get a single Meter instance aggregated under *name* and *key*.
+
+    Returns:
+        Meter or None if no metrics have been logged under *name* and *key*.
+    """
+    if name not in _aggregators:
+        return None
+    return _aggregators[name].get(key, None)
 
 
 def get_meters(name: str) -> MetersDict:
-    """Get Meter instances aggregated under a given *name*."""
-    return _aggregators[name]
+    """Get Meter instances aggregated under a given *name*.
+
+    Returns:
+        MetersDict or None if no metrics have been logged under *name*.
+    """
+    return _aggregators.get(name, None)
 
 
 def get_smoothed_value(name: str, key: str) -> float:
-    """Get a single smoothed value."""
-    meters = get_meters(name)
-    return meters.get_smoothed_value(key)
+    """Get a single smoothed value.
+
+    Raises:
+        KeyError: if no metrics have been logged under *name* and *key*.
+    """
+    return _aggregators[name].get_smoothed_value(key)
 
 
 def get_smoothed_values(name: str) -> Dict[str, float]:
-    """Get smoothed values aggregated under a given *name*."""
-    meters = get_meters(name)
-    return meters.get_smoothed_values()
+    """Get smoothed values aggregated under a given *name*.
+
+    Raises:
+        KeyError: if no metrics have been logged under *name*.
+    """
+    return _aggregators[name].get_smoothed_values()
 
 
 def state_dict():
