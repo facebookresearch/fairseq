@@ -8,14 +8,15 @@ Train a network across multiple GPUs.
 """
 
 import contextlib
+from itertools import chain
 import math
 import os
 import sys
-from collections import OrderedDict
-from itertools import chain
+from typing import Any, Dict, List
 
 import torch
-from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
+
+from fairseq import checkpoint_utils, distributed_utils, metrics, models, optim, utils
 from fairseq.file_io import PathManager
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.optim import lr_scheduler
@@ -53,6 +54,7 @@ class Trainer(object):
         self._num_updates = 0
         self._optim_history = None
         self._optimizer = None
+        self._warn_once = set()
         self._wrapped_criterion = None
         self._wrapped_model = None
 
@@ -61,31 +63,7 @@ class Trainer(object):
         else:
             self._grad_norm_buf = None
 
-        if args.fast_stat_sync:
-            utils.deprecation_warning(
-                '--fast-stat-sync is deprecated. If needed, please update your '
-                'Criterion to define the logging_outputs_can_be_summed() method.'
-            )
-
-        self.init_meters(args)
-
-    def init_meters(self, args):
-        self.meters = OrderedDict()
-        self.meters["train_loss"] = AverageMeter()
-        self.meters["train_nll_loss"] = AverageMeter()
-        self.meters["valid_loss"] = AverageMeter()
-        self.meters["valid_nll_loss"] = AverageMeter()
-        self.meters["wps"] = TimeMeter()  # words per second
-        self.meters["ups"] = TimeMeter()  # updates per second
-        self.meters["wpb"] = AverageMeter()  # words per batch
-        self.meters["bsz"] = AverageMeter()  # sentences per batch
-        self.meters["gnorm"] = AverageMeter()  # gradient norm
-        self.meters["clip"] = AverageMeter()  # % of updates clipped
-        self.meters["oom"] = AverageMeter()  # out of memory
-        if args.fp16:
-            self.meters["loss_scale"] = AverageMeter()  # dynamic loss scale
-        self.meters["wall"] = TimeMeter()  # wall time in seconds
-        self.meters["train_wall"] = StopwatchMeter()  # train wall time in seconds
+        metrics.log_start_time("wall", priority=790, round=0)
 
     @property
     def criterion(self):
@@ -161,7 +139,7 @@ class Trainer(object):
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         if distributed_utils.is_master(self.args):  # only save one checkpoint
-            extra_state["train_meters"] = self.meters
+            extra_state["metrics"] = metrics.state_dict()
             checkpoint_utils.save_state(
                 filename,
                 self.args,
@@ -237,12 +215,11 @@ class Trainer(object):
 
             self.lr_step(epoch)
 
-            if "train_meters" in extra_state and not reset_meters:
-                self.meters.update(extra_state["train_meters"])
-                del extra_state["train_meters"]
+            if "metrics" in extra_state and not reset_meters:
+                metrics.load_state_dict(extra_state["metrics"])
 
                 # reset TimeMeters, since their start times don't make sense anymore
-                for meter in self.meters.values():
+                for meter in metrics.get_meters("default"):
                     if isinstance(meter, TimeMeter):
                         meter.reset()
         else:
@@ -285,6 +262,7 @@ class Trainer(object):
             epoch=epoch,
         )
 
+    @metrics.aggregate("train")
     def train_step(self, samples, dummy_batch=False, raise_oom=False):
         """Do forward, backward and parameter update."""
         if self._dummy_batch is None:
@@ -296,7 +274,7 @@ class Trainer(object):
         self.zero_grad()
 
         if not dummy_batch:
-            self.meters["train_wall"].start()
+            metrics.log_start_time("train_wall", priority=800, round=0)
 
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
@@ -361,37 +339,28 @@ class Trainer(object):
                 logging_outputs, sample_size, ooms,
             )
 
-        self.meters["oom"].update(ooms, len(samples))
+        metrics.log_scalar("oom", ooms, len(samples), priority=600, round=3)
         if ooms == self.args.distributed_world_size * len(samples):
             print("| WARNING: OOM in all workers, skipping update")
             self.zero_grad()
             return None
 
-        # aggregate logging outputs and sample sizes
-        logging_output = self.task.aggregate_logging_outputs(
-            logging_outputs, self.get_criterion()
-        )
-
-        if not all(k in logging_output for k in ["ntokens", "nsentences"]):
-            raise Exception(
-                (
-                    "Please update the {}.aggregate_logging_outputs() method to "
-                    "return ntokens and nsentences"
-                ).format(self.task.__class__.__name__)
-            )
-
         try:
             # normalize grads by sample size
-            if sample_size > 0:
-                # In DDP: multiply gradients by #GPUs/#sample_size because
-                # gradients are accumulated and divided by #GPUs before.
-                # In BMUF: during non-sync gradients are divided by #sample_size
-                # whereas during sync (while calculating global model): sync accumulate
-                # gradients and divided by #GPUs and now multiply by #GPUs/#sample_size
+            if not self.args.use_bmuf:
+                # multiply gradients by (# GPUs / sample_size) since DDP
+                # already normalizes by the number of GPUs. Thus we get
+                # (sum_of_gradients / sample_size).
+                self.optimizer.multiply_grads(self.args.distributed_world_size / sample_size)
+            elif sample_size > 0:
+                # during non-sync gradients are divided by
+                # sample_size whereas during sync (while calculating
+                # global model): sync accumulate gradients and
+                # divided by #GPUs and now multiply by #GPUs/#sample_size
                 if self._sync_stats():
-                    self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
+                    self.optimizer.multiply_grads(self.args.distributed_world_size / sample_size)
                 else:
-                    self.optimizer.multiply_grads(1 / float(sample_size))
+                    self.optimizer.multiply_grads(1 / sample_size)
 
             # clip grads
             grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
@@ -406,29 +375,16 @@ class Trainer(object):
             # task specific update per step
             self.task.update_step(self._num_updates)
 
-            # update meters
-            ntokens = logging_output.get("ntokens", 0)
-            nsentences = logging_output.get("nsentences", 0)
-            self.meters["wps"].update(ntokens)
-            self.meters["ups"].update(1.0)
-            self.meters["wpb"].update(ntokens)
-            self.meters["bsz"].update(nsentences)
-            self.meters["gnorm"].update(grad_norm)
-            self.meters["clip"].update(
-                1.0
-                if grad_norm > self.args.clip_norm and self.args.clip_norm > 0
-                else 0.0
+            # log stats
+            logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
+            metrics.log_speed("ups", 1., priority=100, round=2)
+            metrics.log_scalar("gnorm", grad_norm, priority=400, round=3)
+            metrics.log_scalar(
+                "clip",
+                100 if grad_norm > self.args.clip_norm > 0 else 0,
+                priority=500,
+                round=1,
             )
-            self.meters["train_loss"].update(logging_output.get("loss", 0), sample_size)
-            if "train_acc" in self.meters:
-                self.meters["train_acc"].update(
-                    logging_output.get("acc", 0), sample_size
-                )
-
-            if "nll_loss" in logging_output:
-                self.meters["train_nll_loss"].update(
-                    logging_output.get("nll_loss", 0), ntokens
-                )
 
             # clear CUDA cache to reduce memory fragmentation
             if (
@@ -436,8 +392,7 @@ class Trainer(object):
                 and (
                     (self.get_num_updates() + self.args.empty_cache_freq - 1)
                     % self.args.empty_cache_freq
-                )
-                == 0
+                ) == 0
                 and torch.cuda.is_available()
                 and not self.args.cpu
             ):
@@ -453,14 +408,14 @@ class Trainer(object):
             raise e
 
         if self.args.fp16:
-            self.meters["loss_scale"].reset()
-            self.meters["loss_scale"].update(self.optimizer.scaler.loss_scale)
+            metrics.log_scalar("loss_scale", self.optimizer.scaler.loss_scale, priority=700, round=0)
 
         self.clear_buffered_stats()
-        self.meters["train_wall"].stop()
+        metrics.log_stop_time("train_wall")
 
         return logging_output
 
+    @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
         with torch.no_grad():
@@ -494,38 +449,18 @@ class Trainer(object):
                 raise e
 
             if ignore_results:
-                logging_output, sample_size = {}, 0
+                logging_outputs, sample_size = [], 0
+            else:
+                logging_outputs = [logging_output]
 
         # gather logging outputs from all replicas
         if self.args.distributed_world_size > 1:
-            logging_output, sample_size = zip(
-                *distributed_utils.all_gather_list(
-                    [logging_output, sample_size],
-                    max_size=getattr(self.args, 'all_gather_list_size', 16384),
-                )
+            logging_outputs, sample_size = self._aggregate_logging_outputs(
+                logging_outputs, sample_size
             )
-            logging_output = list(logging_output)
-            sample_size = list(sample_size)
-        else:
-            logging_output = [logging_output]
-            sample_size = [sample_size]
 
-        # aggregate logging outputs and sample sizes
-        logging_output = self.task.aggregate_logging_outputs(
-            logging_output, self.get_criterion()
-        )
-        sample_size = sum(sample_size)
-
-        # update meters for validation
-        ntokens = logging_output.get("ntokens", 0)
-        self.meters["valid_loss"].update(logging_output.get("loss", 0), sample_size)
-        if "valid_acc" in self.meters:
-            self.meters["valid_acc"].update(logging_output.get("acc", 0), sample_size)
-
-        if "nll_loss" in logging_output:
-            self.meters["valid_nll_loss"].update(
-                logging_output.get("nll_loss", 0), ntokens
-            )
+        # log validation stats
+        logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
 
         return logging_output
 
@@ -557,7 +492,9 @@ class Trainer(object):
 
     def lr_step_update(self):
         """Update the learning rate after each update."""
-        return self.lr_scheduler.step_update(self.get_num_updates())
+        new_lr = self.lr_scheduler.step_update(self.get_num_updates())
+        metrics.log_scalar("lr", new_lr, weight=0, priority=300)
+        return new_lr
 
     def get_lr(self):
         """Get the current learning rate."""
@@ -572,10 +509,40 @@ class Trainer(object):
         return self._criterion
 
     def get_meter(self, name):
-        """Get a specific meter by name."""
-        if name not in self.meters:
-            return None
-        return self.meters[name]
+        """[deprecated] Get a specific meter by name."""
+        from fairseq import meters
+
+        if 'get_meter' not in self._warn_once:
+            self._warn_once.add('get_meter')
+            utils.deprecation_warning(
+                'Trainer.get_meter is deprecated. Please use fairseq.metrics instead.'
+            )
+
+        train_meters = metrics.get_meters("train")
+        if train_meters is None:
+            train_meters = {}
+
+        if name == "train_loss" and "loss" in train_meters:
+            return train_meters["loss"]
+        elif name == "train_nll_loss":
+            # support for legacy train.py, which assumed this meter is
+            # always initialized
+            m = train_meters.get("nll_loss", None)
+            return m or meters.AverageMeter()
+        elif name == "wall":
+            # support for legacy train.py, which assumed this meter is
+            # always initialized
+            m = metrics.get_meter("default", "wall")
+            return m or meters.TimeMeter()
+        elif name in {"valid_loss", "valid_nll_loss"}:
+            # support for legacy train.py, which assumed these meters
+            # are always initialized
+            k = name[len("valid_"):]
+            m = metrics.get_meter("valid", k)
+            return m or meters.AverageMeter()
+        elif name in train_meters:
+            return train_meters[name]
+        return None
 
     def get_num_updates(self):
         """Get the number of parameters updates."""
@@ -585,6 +552,7 @@ class Trainer(object):
         """Set the number of parameters updates."""
         self._num_updates = num_updates
         self.lr_step_update()
+        metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
     def _prepare_sample(self, sample):
         if sample is None or len(sample) == 0:
@@ -635,13 +603,21 @@ class Trainer(object):
                 print(torch.cuda.memory_summary(device=device_idx), file=sys.stderr)
         sys.stderr.flush()
 
-    def _aggregate_logging_outputs(self, logging_outputs, *extra_stats_to_sum):
+    def _aggregate_logging_outputs(
+        self,
+        logging_outputs: List[Dict[str, Any]],
+        *extra_stats_to_sum
+    ):
         if self.get_criterion().__class__.logging_outputs_can_be_summed():
             return self._fast_stat_sync_sum(logging_outputs, *extra_stats_to_sum)
         else:
             return self._all_gather_list_sync(logging_outputs, *extra_stats_to_sum)
 
-    def _all_gather_list_sync(self, logging_outputs, *extra_stats_to_sum):
+    def _all_gather_list_sync(
+        self,
+        logging_outputs: List[Dict[str, Any]],
+        *extra_stats_to_sum
+    ):
         """
         Sync logging outputs across workers. all_gather_list_sync is
         suitable when logging outputs are complex types.
@@ -657,20 +633,44 @@ class Trainer(object):
         extra_stats_to_sum = [sum(s) for s in extra_stats_to_sum]
         return [logging_outputs] + extra_stats_to_sum
 
-    def _fast_stat_sync_sum(self, logging_outputs, *extra_stats_to_sum):
+    def _fast_stat_sync_sum(
+        self,
+        logging_outputs: List[Dict[str, Any]],
+        *extra_stats_to_sum
+    ):
         """
         Sync logging outputs across workers. fast_stat_sync_sum is
         faster than all_gather_list_sync, but is only suitable when
         logging outputs are scalars and can be summed.
         """
-        sorted_keys = sorted(logging_outputs[0].keys())
         num_extra = len(extra_stats_to_sum)
-        stats = list(extra_stats_to_sum) + [
-            sum(log.get(k, 0) for log in logging_outputs)
-            for k in sorted_keys
-        ]
-        buf = torch.cuda.DoubleTensor(stats)
+        if len(logging_outputs) > 0:
+            sorted_keys = sorted(logging_outputs[0].keys())
+            stats = list(extra_stats_to_sum) + [
+                sum(log.get(k, 0) for log in logging_outputs)
+                for k in sorted_keys
+            ]
+            buf = torch.cuda.DoubleTensor(stats)
+
+            # When the number of batches is not evenly divisible by the
+            # number of GPUs, logging_outputs will be empty for some
+            # workers in the last iteration. But we still need to know
+            # the keys and buffer size, so we cache the state in case it
+            # needs to be reused by this worker later.
+            self._fss_buf = buf
+            self._fss_sorted_keys = sorted_keys
+        elif self._fss_buf is not None:
+            buf = self._fss_buf
+            buf.zero_()
+            buf[:num_extra] = torch.cuda.DoubleTensor(extra_stats_to_sum)
+            sorted_keys = self._fss_sorted_keys
+        else:
+            raise RuntimeError(
+                'fast_stat_sync failed, perhaps (# GPUs) > (# batches)?'
+            )
+
         distributed_utils.all_reduce(buf)
+
         buf = buf.tolist()
         extra_stats_to_sum, stats = buf[:num_extra], buf[num_extra:]
         stats = [{k: stats[i] for i, k in enumerate(sorted_keys)}]
@@ -687,3 +687,22 @@ class Trainer(object):
                     "Fatal error: gradients are inconsistent between workers. "
                     "Try --ddp-backend=no_c10d."
                 )
+
+    def _reduce_and_log_stats(self, logging_outputs, sample_size):
+        with metrics.aggregate() as agg:
+            # convert logging_outputs to CPU to avoid unnecessary
+            # device-to-host transfers in reduce_metrics
+            logging_outputs = utils.apply_to_sample(
+                lambda t: t.to(device='cpu', non_blocking=True),
+                logging_outputs
+            )
+
+            self.task.reduce_metrics(logging_outputs, self.get_criterion())
+
+            # support legacy interface
+            logging_output = agg.get_smoothed_values()
+            logging_output["sample_size"] = sample_size
+            for key_to_delete in ["ppl", "wps", "wpb", "bsz"]:
+                if key_to_delete in logging_output:
+                    del logging_output[key_to_delete]
+            return logging_output

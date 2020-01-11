@@ -7,17 +7,18 @@
 Train a new model on one or across multiple GPUs.
 """
 
-import collections
 import math
 import random
 
 import numpy as np
 import torch
 
-from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
+from fairseq import (
+    checkpoint_utils, distributed_utils, metrics, options, progress_bar, tasks, utils
+)
 from fairseq.data import iterators
 from fairseq.trainer import Trainer
-from fairseq.meters import AverageMeter, StopwatchMeter
+from fairseq.meters import StopwatchMeter
 
 
 def main(args, init_distributed=False):
@@ -146,32 +147,19 @@ def train(args, trainer, task, epoch_itr):
         args, itr, epoch_itr.epoch, no_progress_bar='simple',
     )
 
-    extra_meters = collections.defaultdict(lambda: AverageMeter())
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
-    for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
-        log_output = trainer.train_step(samples)
-        if log_output is None:
-            continue
+    for samples in progress:
+        with metrics.aggregate('train_inner'):
+            log_output = trainer.train_step(samples)
+            num_updates = trainer.get_num_updates()
+            if log_output is None:
+                continue
 
-        # log mid-epoch stats
-        stats = get_training_stats(trainer)
-        for k, v in log_output.items():
-            if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
-                continue  # these are already logged above
-            if 'loss' in k or k == 'accuracy':
-                extra_meters[k].update(v, log_output['sample_size'])
-            else:
-                extra_meters[k].update(v)
-            stats[k] = extra_meters[k].avg
-        progress.log(stats, tag='train', step=stats['num_updates'])
+            # log mid-epoch stats
+            stats = get_training_stats('train_inner')
+            progress.log(stats, tag='train', step=num_updates)
 
-        # ignore the first mini-batch in words-per-second and updates-per-second calculation
-        if i == 0:
-            trainer.get_meter('wps').reset()
-            trainer.get_meter('ups').reset()
-
-        num_updates = trainer.get_num_updates()
         if (
             not args.disable_validation
             and args.save_interval_updates > 0
@@ -185,42 +173,18 @@ def train(args, trainer, task, epoch_itr):
             break
 
     # log end-of-epoch stats
-    stats = get_training_stats(trainer)
-    for k, meter in extra_meters.items():
-        stats[k] = meter.avg
-    progress.print(stats, tag='train', step=stats['num_updates'])
+    stats = get_training_stats('train')
+    progress.print(stats, tag='train', step=num_updates)
 
-    # reset training meters
-    for k in [
-        'train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'gnorm', 'clip',
-    ]:
-        meter = trainer.get_meter(k)
-        if meter is not None:
-            meter.reset()
+    # reset epoch-level meters
+    metrics.reset_meters('train')
 
 
-def get_training_stats(trainer):
-    stats = collections.OrderedDict()
-    stats['loss'] = trainer.get_meter('train_loss')
-    if trainer.get_meter('train_nll_loss').count > 0:
-        nll_loss = trainer.get_meter('train_nll_loss')
-        stats['nll_loss'] = nll_loss
-    else:
-        nll_loss = trainer.get_meter('train_loss')
-    stats['ppl'] = utils.get_perplexity(nll_loss.avg)
-    stats['wps'] = trainer.get_meter('wps')
-    stats['ups'] = trainer.get_meter('ups')
-    stats['wpb'] = trainer.get_meter('wpb')
-    stats['bsz'] = trainer.get_meter('bsz')
-    stats['num_updates'] = trainer.get_num_updates()
-    stats['lr'] = trainer.get_lr()
-    stats['gnorm'] = trainer.get_meter('gnorm')
-    stats['clip'] = trainer.get_meter('clip')
-    stats['oom'] = trainer.get_meter('oom')
-    if trainer.get_meter('loss_scale') is not None:
-        stats['loss_scale'] = trainer.get_meter('loss_scale')
-    stats['wall'] = round(trainer.get_meter('wall').elapsed_time)
-    stats['train_wall'] = trainer.get_meter('train_wall')
+def get_training_stats(stats_key):
+    stats = metrics.get_smoothed_values(stats_key)
+    if 'nll_loss' in stats and 'ppl' not in stats:
+        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
+    stats['wall'] = round(metrics.get_meter('default', 'wall').elapsed_time, 0)
     return stats
 
 
@@ -256,61 +220,30 @@ def validate(args, trainer, task, epoch_itr, subsets):
         )
 
         # reset validation loss meters
-        for k in ['valid_loss', 'valid_nll_loss']:
-            meter = trainer.get_meter(k)
-            if meter is not None:
-                meter.reset()
-        extra_meters = collections.defaultdict(lambda: AverageMeter())
+        metrics.reset_meters('valid')
 
         for sample in progress:
-            log_output = trainer.valid_step(sample)
-
-            for k, v in log_output.items():
-                if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
-                    continue
-                extra_meters[k].update(v)
+            trainer.valid_step(sample)
 
         # log validation stats
-        stats = get_valid_stats(trainer, args, extra_meters)
-        for k, meter in extra_meters.items():
-            stats[k] = meter.avg
+        stats = get_valid_stats(args, trainer)
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
-        valid_losses.append(
-            stats[args.best_checkpoint_metric].avg
-            if args.best_checkpoint_metric == 'loss'
-            else stats[args.best_checkpoint_metric]
-        )
+        valid_losses.append(stats[args.best_checkpoint_metric])
     return valid_losses
 
 
-def get_valid_stats(trainer, args, extra_meters=None):
-    stats = collections.OrderedDict()
-    stats['loss'] = trainer.get_meter('valid_loss')
-    if trainer.get_meter('valid_nll_loss').count > 0:
-        nll_loss = trainer.get_meter('valid_nll_loss')
-        stats['nll_loss'] = nll_loss
-    else:
-        nll_loss = stats['loss']
-    stats['ppl'] = utils.get_perplexity(nll_loss.avg)
+def get_valid_stats(args, trainer):
+    stats = metrics.get_smoothed_values('valid')
+    if 'valid_nll_loss' in stats and 'ppl' not in stats:
+        stats['valid_ppl'] = utils.get_perplexity(stats['nll_loss'])
     stats['num_updates'] = trainer.get_num_updates()
     if hasattr(checkpoint_utils.save_checkpoint, 'best'):
         key = 'best_{0}'.format(args.best_checkpoint_metric)
         best_function = max if args.maximize_best_checkpoint_metric else min
-
-        current_metric = None
-        if args.best_checkpoint_metric == 'loss':
-            current_metric = stats['loss'].avg
-        elif args.best_checkpoint_metric in extra_meters:
-            current_metric = extra_meters[args.best_checkpoint_metric].avg
-        elif args.best_checkpoint_metric in stats:
-            current_metric = stats[args.best_checkpoint_metric]
-        else:
-            raise ValueError("best_checkpoint_metric not found in logs")
-
         stats[key] = best_function(
             checkpoint_utils.save_checkpoint.best,
-            current_metric,
+            stats[args.best_checkpoint_metric],
         )
     return stats
 

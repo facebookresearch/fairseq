@@ -8,7 +8,7 @@ import os
 
 import torch
 
-from fairseq import options, utils
+from fairseq import metrics, options
 from fairseq.data import (
     Dictionary,
     LanguagePairDataset,
@@ -299,15 +299,20 @@ class MultilingualTranslationTask(FairseqTask):
                     if self.args.decoder_langtok else self.target_dictionary.eos(),
             )
 
-    def aggregate_logging_outputs(self, logging_outputs, criterion, logging_output_keys=None):
+    def reduce_metrics(self, logging_outputs, criterion, logging_output_keys=None):
         logging_output_keys = logging_output_keys or self.eval_lang_pairs
+
         # aggregate logging outputs for each language pair
-        agg_logging_outputs = {
-            key: criterion.__class__.aggregate_logging_outputs([
-                logging_output.get(key, {}) for logging_output in logging_outputs
-            ])
-            for key in logging_output_keys
-        }
+        agg_logging_outputs = {}
+        for key in logging_output_keys:
+            with metrics.aggregate() as agg:
+                logging_outputs_key = [
+                    logging_output.get(key, {}) for logging_output in logging_outputs
+                ]
+                for k in ['sample_size', 'nsentences', 'ntokens']:
+                    metrics.log_scalar(k, sum(l[k] for l in logging_outputs_key))
+                super().reduce_metrics(logging_outputs_key, criterion)
+                agg_logging_outputs[key] = agg.get_smoothed_values()
 
         def sum_over_languages(key):
             return sum(logging_output[key] for logging_output in agg_logging_outputs.values())

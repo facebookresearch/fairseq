@@ -168,6 +168,7 @@ def all_gather_list(data, group=None, max_size=16384):
 
     all_reduce(buffer, group=group)
 
+    buffer = buffer.cpu()
     try:
         result = []
         for i in range(world_size):
@@ -183,5 +184,6 @@ def all_gather_list(data, group=None, max_size=16384):
             'that the workers have fallen out of sync somehow. Workers can fall out of '
             'sync if one of them runs out of memory, or if there are other conditions '
             'in your training script that can cause one worker to finish an epoch '
-            'while other workers are still iterating over their portions of the data.'
+            'while other workers are still iterating over their portions of the data. '
+            'Try rerunning with --ddp-backend=no_c10d and see if that helps.'
         )

@@ -3,13 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-
 import math
+
 import torch
 import torch.nn.functional as F
 
 from fairseq import utils
-from . import FairseqCriterion, register_criterion
+from fairseq.criterions import FairseqCriterion, register_criterion
 
 
 def compute_cross_entropy_loss(logits, targets, ignore_index=-100):
@@ -150,7 +150,7 @@ class LegacyMaskedLmLoss(FairseqCriterion):
     def logging_outputs_can_be_summed() -> bool:
         """
         Whether the logging outputs returned by `forward` can be summed
-        across workers prior to calling `aggregate_logging_outputs`.
-        Setting this to True will improves distributed training speed.
+        across workers prior to calling `reduce_metrics`. Setting this
+        to True will improves distributed training speed.
         """
         return True

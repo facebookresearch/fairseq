@@ -225,6 +225,13 @@ class MetersDict(OrderedDict):
         """Get all smoothed values."""
         return OrderedDict([(key, self.get_smoothed_value(key)) for key in self.keys()])
 
+    def reset(self):
+        """Reset Meter instances."""
+        for meter in self.values():
+            if isinstance(meter, MetersDict._DerivedMeter):
+                continue
+            meter.reset()
+
     class _DerivedMeter(Meter):
         """A Meter whose values are derived from other Meters."""
 

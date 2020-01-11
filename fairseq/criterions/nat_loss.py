@@ -6,11 +6,12 @@
 import math
 
 import torch.nn.functional as F
-from fairseq import utils
 import torch
 from torch import Tensor
 
-from . import FairseqCriterion, register_criterion
+from fairseq import metrics, utils
+from fairseq.criterions import FairseqCriterion, register_criterion
+
 
 @register_criterion("nat_loss")
 class LabelSmoothedDualImitationCriterion(FairseqCriterion):
@@ -138,41 +139,31 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         return loss, sample_size, logging_output
 
     @staticmethod
-    def aggregate_logging_outputs(logging_outputs):
+    def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
-        nsentences = sum(log.get("nsentences", 0) for log in logging_outputs)
         sample_size = sum(log.get("sample_size", 0) for log in logging_outputs)
         loss = sum(log.get("loss", 0) for log in logging_outputs)
         nll_loss = sum(log.get("nll_loss", 0) for log in logging_outputs)
 
-        results = {
-            "loss": loss / sample_size / math.log(2) if sample_size > 0 else 0.0,
-            "nll_loss": nll_loss / sample_size / math.log(2)
-            if sample_size > 0
-            else 0.0,
-            "ntokens": ntokens,
-            "nsentences": nsentences,
-            "sample_size": sample_size,
-        }
+        metrics.log_scalar('loss', loss / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_scalar('nll_loss', nll_loss / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_derived('ppl', lambda meters: round(2**meters['nll_loss'].avg, 3))
 
         for key in logging_outputs[0]:
             if key[-5:] == "-loss":
-                results[key[:-5]] = (
-                    sum(log.get(key, 0) for log in logging_outputs)
-                    / sample_size
-                    / math.log(2)
-                    if sample_size > 0
-                    else 0.0
+                val = sum(log.get(key, 0) for log in logging_outputs)
+                metrics.log_scalar(
+                    key[:-5],
+                    val / sample_size / math.log(2) if sample_size > 0 else 0.0,
+                    sample_size,
+                    round=3,
                 )
-
-        return results
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
         """
         Whether the logging outputs returned by `forward` can be summed
-        across workers prior to calling `aggregate_logging_outputs`.
-        Setting this to True will improves distributed training speed.
+        across workers prior to calling `reduce_metrics`. Setting this
+        to True will improves distributed training speed.
         """
         return True
