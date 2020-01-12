@@ -366,7 +366,8 @@ class Trainer(object):
             grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
 
             # check that grad norms are consistent across workers
-            self._check_grad_norms(grad_norm)
+            if not self.args.use_bmuf:
+                self._check_grad_norms(grad_norm)
 
             # take an optimization step
             self.optimizer.step()
