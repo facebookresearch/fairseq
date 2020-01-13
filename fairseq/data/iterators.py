@@ -242,8 +242,6 @@ class EpochBatchIterator(EpochBatchIterating):
     def _get_iterator_for_epoch(self, epoch, shuffle, fix_batches_to_gpus=False, offset=0):
 
         def shuffle_batches(batches, seed):
-            # set seed based on the seed and epoch number so that we get
-            # reproducible results when resuming from checkpoints
             with data_utils.numpy_seed(seed):
                 np.random.shuffle(batches)
             return batches
