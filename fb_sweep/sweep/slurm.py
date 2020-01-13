@@ -115,7 +115,7 @@ def launch_train(args, config):
         return
 
     # generate train command
-    train_cmd = ['python', os.path.join(destination, 'train.py')]
+    train_cmd = [args.python, os.path.join(destination, args.script)]
     train_cmd.extend(['--distributed-world-size', str(args.num_nodes * args.num_gpus)])
     if args.num_nodes > 1:
         train_cmd.extend([

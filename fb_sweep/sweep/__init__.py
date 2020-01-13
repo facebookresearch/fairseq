@@ -24,6 +24,8 @@ def get_args():
                         help='output only a list of actions to perform without performing them')
     parser.add_argument('--local', action='store_true', help='run job locally')
     parser.add_argument('--debug', action='store_true', help='debug')
+    parser.add_argument('--script', default='train.py', help='script to launch')
+    parser.add_argument('--python', default='python', help='path to nonstandard python binary')
 
     hostname = socket.gethostname()
     if 'fair' in hostname:
