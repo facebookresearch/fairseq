@@ -12,11 +12,12 @@ from fairseq import utils
 class SequenceScorer(object):
     """Scores the target for a given source sentence."""
 
-    def __init__(self, tgt_dict, softmax_batch=None):
+    def __init__(self, tgt_dict, softmax_batch=None, compute_alignment=False):
         self.pad = tgt_dict.pad()
         self.eos = tgt_dict.eos()
         self.softmax_batch = softmax_batch or sys.maxsize
         assert self.softmax_batch > 0
+        self.compute_alignment = compute_alignment
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):
@@ -104,13 +105,16 @@ class SequenceScorer(object):
             score_i = avg_probs_i.sum() / tgt_len
             if avg_attn is not None:
                 avg_attn_i = avg_attn[i]
-                alignment = utils.extract_hard_alignment(
-                    avg_attn_i,
-                    sample['net_input']['src_tokens'][i],
-                    sample['target'][i],
-                    self.pad,
-                    self.eos,
-                )
+                if self.compute_alignment:
+                    alignment = utils.extract_hard_alignment(
+                        avg_attn_i,
+                        sample['net_input']['src_tokens'][i],
+                        sample['target'][i],
+                        self.pad,
+                        self.eos,
+                    )
+                else:
+                    alignment = None
             else:
                 avg_attn_i = alignment = None
             hypos.append([{
