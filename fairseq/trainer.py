@@ -379,7 +379,7 @@ class Trainer(object):
             # log stats
             logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
             metrics.log_speed("ups", 1., priority=100, round=2)
-            metrics.log_scalar("gnorm", grad_norm, priority=400, round=3)
+            metrics.log_scalar("gnorm", utils.item(grad_norm), priority=400, round=3)
             metrics.log_scalar(
                 "clip",
                 100 if grad_norm > self.args.clip_norm > 0 else 0,
@@ -534,6 +534,9 @@ class Trainer(object):
             # support for legacy train.py, which assumed this meter is
             # always initialized
             m = metrics.get_meter("default", "wall")
+            return m or meters.TimeMeter()
+        elif name == "wps":
+            m = metrics.get_meter("train", "wps")
             return m or meters.TimeMeter()
         elif name in {"valid_loss", "valid_nll_loss"}:
             # support for legacy train.py, which assumed these meters
