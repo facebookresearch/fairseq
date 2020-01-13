@@ -29,6 +29,37 @@ class TranslationLevenshteinTask(TranslationTask):
             default='random_delete',
             choices=['random_delete', 'random_mask', 'no_noise', 'full_mask'])
 
+    @classmethod
+    def load_dictionary(cls, filename):
+        """ fairseq.tasks.fairseq_task.FairseqTask.load_dictionary """
+        from fairseq.data.dictionary import Dictionary
+        d = Dictionary(extra_special_symbols=['<mask>'])
+        d.add_from_file(filename)
+        return d
+
+    @classmethod
+    def build_dictionary(
+        cls,
+        filenames,
+        workers=1,
+        threshold=-1,
+        nwords=-1,
+        padding_factor=8
+    ):
+        """ fairseq.tasks.fairseq_task.FairseqTask.build_dictionary """
+        from fairseq.data.dictionary import Dictionary
+        from fairseq.tokenizer import tokenize_line
+        d = Dictionary(extra_special_symbols=['<mask>'])
+        for filename in filenames:
+            Dictionary.add_file_to_dictionary(
+                filename, d, tokenize_line, workers)
+        d.finalize(
+            threshold=threshold,
+            nwords=nwords,
+            padding_factor=padding_factor
+        )
+        return d
+
     def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
 
@@ -88,7 +119,7 @@ class TranslationLevenshteinTask(TranslationTask):
             pad = self.tgt_dict.pad()
             bos = self.tgt_dict.bos()
             eos = self.tgt_dict.eos()
-            unk = self.tgt_dict.unk()
+            mask = self.tgt_dict.index('<mask>')
 
             target_masks = target_tokens.ne(pad) & \
                            target_tokens.ne(bos) & \
@@ -102,18 +133,18 @@ class TranslationLevenshteinTask(TranslationTask):
             _, target_rank = target_score.sort(1)
             target_cutoff = new_arange(target_rank) < target_length[:, None].long()
             prev_target_tokens = target_tokens.masked_fill(
-                target_cutoff.scatter(1, target_rank, target_cutoff), unk)
+                target_cutoff.scatter(1, target_rank, target_cutoff), mask)
             return prev_target_tokens
 
         def _full_mask(target_tokens):
             pad = self.tgt_dict.pad()
             bos = self.tgt_dict.bos()
             eos = self.tgt_dict.eos()
-            unk = self.tgt_dict.unk()
+            mask = self.tgt_dict.index('<mask>')
 
             target_mask = target_tokens.eq(bos) | target_tokens.eq(
                 eos) | target_tokens.eq(pad)
-            return target_tokens.masked_fill(~target_mask, unk)
+            return target_tokens.masked_fill(~target_mask, mask)
 
         if self.args.noise == 'random_delete':
             return _random_delete(target_tokens)

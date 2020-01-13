@@ -85,7 +85,7 @@ class LevenshteinTransformerModel(FairseqNATModel):
 
         # generate training labels for insertion
         masked_tgt_masks, masked_tgt_tokens, mask_ins_targets = _get_ins_targets(
-            prev_output_tokens, tgt_tokens, self.pad, self.unk
+            prev_output_tokens, tgt_tokens, self.pad, self.mask
         )
         mask_ins_targets = mask_ins_targets.clamp(min=0, max=255)  # for safe prediction
         mask_ins_masks = prev_output_tokens[:, 1:].ne(self.pad)
@@ -204,7 +204,7 @@ class LevenshteinTransformerModel(FairseqNATModel):
                 output_scores[can_ins_mask],
                 mask_ins_pred,
                 self.pad,
-                self.unk,
+                self.mask,
                 self.eos,
             )
             output_tokens = _fill(output_tokens, can_ins_mask, _tokens, self.pad)
@@ -214,7 +214,7 @@ class LevenshteinTransformerModel(FairseqNATModel):
                 history.append(output_tokens.clone())
 
         # insert words
-        can_ins_word = output_tokens.eq(self.unk).sum(1) > 0
+        can_ins_word = output_tokens.eq(self.mask).sum(1) > 0
         if can_ins_word.sum() != 0:
             word_ins_score, word_ins_attn = self.decoder.forward_word_ins(
                 normalize=True,
@@ -227,7 +227,7 @@ class LevenshteinTransformerModel(FairseqNATModel):
                 output_scores[can_ins_word],
                 word_ins_pred,
                 word_ins_score,
-                self.unk,
+                self.mask,
             )
 
             output_tokens = _fill(output_tokens, can_ins_word, _tokens, self.pad)
@@ -276,7 +276,7 @@ class LevenshteinTransformerDecoder(FairseqNATDecoder):
         )
         self.dictionary = dictionary
         self.bos = dictionary.bos()
-        self.unk = dictionary.unk()
+        self.mask = dictionary.index('<mask>')
         self.eos = dictionary.eos()
         self.sampling_for_deletion = getattr(args, "sampling_for_deletion", False)
         self.embed_mask_ins = Embedding(256, self.output_embed_dim * 2, None)
