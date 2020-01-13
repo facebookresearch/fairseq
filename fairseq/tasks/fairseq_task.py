@@ -203,7 +203,10 @@ class FairseqTask(object):
     def build_generator(self, args):
         if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
-            return SequenceScorer(self.target_dictionary)
+            return SequenceScorer(
+                self.target_dictionary,
+                compute_alignment=getattr(args, 'print_alignment', False),
+            )
 
         from fairseq.sequence_generator import SequenceGenerator, SequenceGeneratorWithAlignment
 
