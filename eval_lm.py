@@ -8,6 +8,8 @@
 Evaluate the perplexity of a trained language model.
 """
 
+import math
+
 import numpy as np
 import torch
 
@@ -95,7 +97,7 @@ def main(parsed_args):
 
     assert len(models) > 0
 
-    print('num. model params: {}'.format(sum(p.numel() for p in models[0].parameters())))
+    print('| num. model params: {}'.format(sum(p.numel() for p in models[0].parameters())))
 
     itr = task.get_batch_iterator(
         dataset=dataset,
@@ -208,9 +210,9 @@ def main(parsed_args):
             wps_meter.update(sample['ntokens'])
             t.log({'wps': round(wps_meter.avg)})
 
-    avg_nll_loss = -score_sum / count
+    avg_nll_loss = -score_sum / count / math.log(2)  # convert to base 2
     print('| Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)'.format(gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
-    print('| Loss: {:.4f}, Perplexity: {:.2f}'.format(avg_nll_loss, np.exp(avg_nll_loss)))
+    print('| Loss (base 2): {:.4f}, Perplexity: {:.2f}'.format(avg_nll_loss, 2**avg_nll_loss))
 
     if args.output_word_stats:
         for ws in sorted(word_stats.values(), key=lambda x: x.count, reverse=True):
