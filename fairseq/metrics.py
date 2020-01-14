@@ -11,7 +11,7 @@ on the aggregation context in which the logging occurs. See the
 :func:`aggregate` context manager for more details.
 """
 
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 import contextlib
 import time
 from typing import Callable, Dict, List, Optional
@@ -24,11 +24,13 @@ from .meters import *
 # created by the :func:`aggregate` context manager.
 _aggregators = OrderedDict()
 _active_aggregators = OrderedDict()
+_active_aggregators_cnt = defaultdict(lambda: 0)
 
 
 # The "default" aggregator observes all logged values.
 _aggregators["default"] = MetersDict()
 _active_aggregators["default"] = _aggregators["default"]
+_active_aggregators_cnt["default"] = 1
 
 
 @contextlib.contextmanager
@@ -75,14 +77,23 @@ def aggregate(name: Optional[str] = None, exclusive: bool = False):
     if exclusive:
         backup_aggregators = _active_aggregators.copy()
         _active_aggregators.clear()
+        backup_aggregators_cnt = _active_aggregators_cnt.copy()
+        _active_aggregators_cnt.clear()
 
     _active_aggregators[name] = agg
+    _active_aggregators_cnt[name] += 1
+
     yield agg
-    del _active_aggregators[name]
+
+    _active_aggregators_cnt[name] -= 1
+    if _active_aggregators_cnt[name] == 0 and name in _active_aggregators:
+        del _active_aggregators[name]
 
     if exclusive:
         _active_aggregators.clear()
         _active_aggregators.update(backup_aggregators)
+        _active_aggregators_cnt.clear()
+        _active_aggregators_cnt.update(backup_aggregators_cnt)
 
 
 def get_active_aggregators() -> List[MetersDict]:
@@ -173,7 +184,38 @@ def log_stop_time(key: str, weight: float = 0.):
         agg[key].stop(weight)
 
 
-def reset_meters(name: str):
+def log_custom(
+    new_meter_fn: Callable[[], Meter],
+    key: str,
+    *args,
+    priority: int = 50,
+    **kwargs,
+):
+    """Log using a custom Meter.
+
+    Any extra *args* or *kwargs* will be passed through to the Meter's
+    *update* method.
+
+    Args:
+        new_meter_fn (Callable[[], Meter]): function that returns a new
+            Meter instance
+        key (str): name of the field to log
+        priority (int): smaller values are logged earlier in the output
+    """
+    for agg in get_active_aggregators():
+        if key not in agg:
+            agg.add_meter(key, new_meter_fn(), priority)
+        agg[key].update(*args, **kwargs)
+
+
+def reset_meter(name: str, key: str) -> None:
+    """Reset Meter instance aggregated under a given *name* and *key*."""
+    meter = get_meter(name, key)
+    if meter is not None:
+        meter.reset()
+
+
+def reset_meters(name: str) -> None:
     """Reset Meter instances aggregated under a given *name*."""
     meters = get_meters(name)
     if meters is not None:

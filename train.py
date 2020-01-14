@@ -235,8 +235,8 @@ def validate(args, trainer, task, epoch_itr, subsets):
 
 def get_valid_stats(args, trainer):
     stats = metrics.get_smoothed_values('valid')
-    if 'valid_nll_loss' in stats and 'ppl' not in stats:
-        stats['valid_ppl'] = utils.get_perplexity(stats['nll_loss'])
+    if 'nll_loss' in stats and 'ppl' not in stats:
+        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
     stats['num_updates'] = trainer.get_num_updates()
     if hasattr(checkpoint_utils.save_checkpoint, 'best'):
         key = 'best_{0}'.format(args.best_checkpoint_metric)
