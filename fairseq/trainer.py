@@ -347,17 +347,11 @@ class Trainer(object):
 
         try:
             # normalize grads by sample size
-            if not self.args.use_bmuf:
-                # multiply gradients by (# GPUs / sample_size) since DDP
-                # already normalizes by the number of GPUs. Thus we get
-                # (sum_of_gradients / sample_size).
-                self.optimizer.multiply_grads(self.args.distributed_world_size / sample_size)
-            elif sample_size > 0:
-                # during non-sync gradients are divided by
-                # sample_size whereas during sync (while calculating
-                # global model): sync accumulate gradients and
-                # divided by #GPUs and now multiply by #GPUs/#sample_size
+            if sample_size > 0:
                 if self._sync_stats():
+                    # multiply gradients by (# GPUs / sample_size) since DDP
+                    # already normalizes by the number of GPUs. Thus we get
+                    # (sum_of_gradients / sample_size).
                     self.optimizer.multiply_grads(self.args.distributed_world_size / sample_size)
                 else:
                     self.optimizer.multiply_grads(1 / sample_size)
