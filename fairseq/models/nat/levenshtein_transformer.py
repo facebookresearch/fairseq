@@ -33,6 +33,10 @@ from .levenshtein_utils import (
 @register_model("levenshtein_transformer")
 class LevenshteinTransformerModel(FairseqNATModel):
 
+    def __init__(self, args, encoder, decoder):
+        super().__init__(args, encoder, decoder)
+        self.mask = self.tgt_dict.index('<mask>')
+
     @property
     def allow_length_beam(self):
         return False
@@ -276,7 +280,6 @@ class LevenshteinTransformerDecoder(FairseqNATDecoder):
         )
         self.dictionary = dictionary
         self.bos = dictionary.bos()
-        self.mask = dictionary.index('<mask>')
         self.eos = dictionary.eos()
         self.sampling_for_deletion = getattr(args, "sampling_for_deletion", False)
         self.embed_mask_ins = Embedding(256, self.output_embed_dim * 2, None)
