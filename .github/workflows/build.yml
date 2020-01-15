@@ -14,7 +14,8 @@ jobs:
       max-parallel: 4
       matrix:
         platform: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: [3.6]
+        python-version: [3.6, 3.7]
+      fail-fast: false
 
     runs-on: ${{ matrix.platform }}
 
