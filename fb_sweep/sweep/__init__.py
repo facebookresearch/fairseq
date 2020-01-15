@@ -5,7 +5,10 @@ import socket
 
 
 def get_args():
-    parser = argparse.ArgumentParser('Script for launching hyperparameter sweeps')
+    parser = argparse.ArgumentParser('Script for launching hyperparameter sweeps ')
+    parser.add_argument('--grid', help='grid function we used', default=None)
+    parser.add_argument('--pair', help='language direction', default=None)
+
     parser.add_argument('-d', '--data', help='path to data directory')
     parser.add_argument('-p', '--prefix', required=True,
                         help='save checkpoints and logs in <checkpoints-dir>/<prefix>.<save_dir_key>')
@@ -73,12 +76,16 @@ def get_args():
                         help='Flag for creating a snapshot of training code while creating slurm job,'
                             ' path is "./slurm_snapshot_code/<TIME_ISO_FORMAT/>:", '
                             'can find time from comment of slurm job.')
+    parser.add_argument('--snapshot-root', type=str, default='.', help='root path for saving the snapshot code.')
     parser.add_argument('--tensorboard-logdir',
                         default=os.path.join('/checkpoint', os.environ['USER'], 'tensorboard_logs', str(datetime.date.today())),
                         help='save tensorboard logs in <tensorboard-logdir>/<prefix>.<save_dir_key>')
     parser.add_argument('--no-tensorboard', action='store_true',
                         help='disable tensorboard logging')
-
+    parser.add_argument('--post-steps', nargs='+',
+                        help='additional steps to execute after the primary job is complete. '
+                            'this can be a file with the steps, or a string. some placeholders such as '
+                            '{job_dir} will be replaced')
     args = parser.parse_args()
     return args
 
@@ -139,4 +146,5 @@ def main(get_grid, postprocess_hyperparams):
     elif args.backend == 'slurm':
         from .slurm import main as backend_main
 
+    get_grid = get_grid[args.grid] if args.grid is not None else get_grid
     backend_main(get_grid, postprocess_hyperparams, args)

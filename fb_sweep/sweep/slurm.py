@@ -53,7 +53,9 @@ def copy_all_python_files(source, snapshot_main_dir, code_snapshot_hash):
     assert not os.path.exists(destination), \
         'Code snapshot: {0} alredy exists'.format(code_snapshot_hash)
     os.makedirs(destination)
-    all_pys = glob(os.path.join(source, 'fairseq/**/*.py'), recursive=True) + glob(os.path.join(source, '*.py'))
+    all_pys = glob(os.path.join(source, 'fairseq/**/*.py'), recursive=True) + \
+            glob(os.path.join(source, 'fairseq/**/*.so'), recursive=True) + \
+            glob(os.path.join(source, '*.py'))
 
     for filepath in all_pys:
         directory, filename = os.path.split(filepath)
@@ -72,7 +74,8 @@ def launch_train(args, config):
     if args.snapshot_code:
         # Currently hash is just the current time in ISO format.
         code_snapshot_hash = datetime.datetime.now().isoformat()
-        destination = copy_all_python_files('.', 'slurm_snapshot_code', code_snapshot_hash)
+        destination = copy_all_python_files(
+            '.', os.path.join(args.snapshot_root, 'slurm_snapshot_code'), code_snapshot_hash)
 
     # compute save_dir
     save_dir_key = '.'.join(filter(
@@ -128,9 +131,24 @@ def launch_train(args, config):
         train_cmd.extend(['--tensorboard-logdir', tensorboard_logdir])
     for hp in config.values():
         train_cmd.extend(map(str, hp.get_cli_args()))
+
+    # post cmds
+    post_cmds = []
+    if args.post_steps:
+        for post_step in args.post_steps:
+            if os.path.isfile(post_step):
+                from pathlib import Path
+                post_cmd = Path(post_step).read_text()
+            else:
+                post_cmd = post_step
+            post_cmd = post_cmd.strip().format(job_dir=save_dir)  # assume to provide job_dir
+            post_cmds.append(post_cmd)
+    
     if args.dry_run:
         train_cmd_str = ' '.join(train_cmd)
         dry_run(f'train command: {train_cmd_str}')
+        for post_cmd in post_cmds:
+            dry_run(f'post steps command: {post_cmd}')
 
     # start training
     env = os.environ.copy()
@@ -143,6 +161,11 @@ def launch_train(args, config):
             env['NCCL_DEBUG'] = 'INFO'
             train_proc = subprocess.Popen(train_cmd, env=env)
             train_proc.wait()
+
+            for post_cmd in post_cmds:
+                post_cmd_proc = subprocess.Popen(post_cmd, shell=True, env=env)
+                post_cmd_proc.wait()
+
     else:
         train_log = os.path.join(save_dir, 'train.log')
         train_stderr = os.path.join(save_dir, 'train.stderr.%j')  # %j = slurm job id
@@ -152,7 +175,7 @@ def launch_train(args, config):
             env['NCCL_SOCKET_IFNAME'] = '^docker0,lo'
             env['NCCL_DEBUG'] = 'INFO'
 
-        srun_cmd = [
+        base_srun_cmd = [
             'srun',
             '--job-name', f'{args.prefix}.{save_dir_key}',
             '--output', train_log,
@@ -161,12 +184,17 @@ def launch_train(args, config):
             '--unbuffered',
         ]
         if args.salloc:
-            srun_cmd += [
+            base_srun_cmd += [
                 '--nodes', str(args.num_nodes),
                 '--ntasks', str(args.num_nodes),
             ]
-        srun_cmd += train_cmd
-        srun_cmd_str = ' '.join(map(shlex.quote, srun_cmd)) + ' &'
+        srun_cmd = base_srun_cmd + train_cmd
+        srun_cmd_str = ' '.join(map(shlex.quote, srun_cmd)) 
+        for post_cmd in post_cmds:
+            post_cmd_str = ' '.join(map(shlex.quote, base_srun_cmd)) + f' {post_cmd}'
+            srun_cmd_str = f'({srun_cmd_str} && {post_cmd_str})' if len(srun_cmd_str) > 0 else post_cmd_str
+
+        srun_cmd_str = srun_cmd_str + ' &'
 
         # build command
         if not args.salloc:
