@@ -115,16 +115,6 @@ if 'clean' in sys.argv[1:]:
     subprocess.run(['rm -f fairseq/*.so fairseq/**/*.so fairseq/*.pyd fairseq/**/*.pyd'], shell=True)
 
 
-if 'test' in sys.argv[1:]:
-    try:
-        import fairseq.data.token_block_utils_fast
-    except (ImportError, ModuleNotFoundError):
-        raise Exception(
-            'Please install Cython components with `python setup.py build_ext --inplace`'
-            'before running unit tests.'
-        )
-
-
 setup(
     name='fairseq',
     version='0.9.0',
