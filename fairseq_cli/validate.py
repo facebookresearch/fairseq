@@ -7,12 +7,37 @@
 
 import torch
 
+<<<<<<< HEAD
+<<<<<<< HEAD
 from fairseq import checkpoint_utils, options, progress_bar, utils
+=======
+from fairseq import checkpoint_utils, metrics, options, progress_bar, utils
+>>>>>>> replace symlinks with actual files to prevent Windows CLI issues when building from source.
+=======
+from fairseq import checkpoint_utils, metrics, options, progress_bar, utils
+=======
+from fairseq import checkpoint_utils, options, progress_bar, utils
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
+>>>>>>> fix rebase.
 
 
 def main(args, override_args=None):
     utils.import_user_module(args)
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+    assert args.max_tokens is not None or args.max_sentences is not None, \
+        'Must specify batch size either with --max-tokens or --max-sentences'
+
+>>>>>>> replace symlinks with actual files to prevent Windows CLI issues when building from source.
+=======
+    assert args.max_tokens is not None or args.max_sentences is not None, \
+        'Must specify batch size either with --max-tokens or --max-sentences'
+
+=======
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
+>>>>>>> fix rebase.
     use_fp16 = args.fp16
     use_cuda = torch.cuda.is_available() and not args.cpu
 
@@ -79,7 +104,22 @@ def main(args, override_args=None):
             progress.log(log_output, step=i)
             log_outputs.append(log_output)
 
+<<<<<<< HEAD
+<<<<<<< HEAD
         log_output = task.aggregate_logging_outputs(log_outputs, criterion)
+=======
+        with metrics.aggregate() as agg:
+            task.reduce_metrics(log_outputs, criterion)
+            log_output = agg.get_smoothed_values()
+>>>>>>> replace symlinks with actual files to prevent Windows CLI issues when building from source.
+=======
+        with metrics.aggregate() as agg:
+            task.reduce_metrics(log_outputs, criterion)
+            log_output = agg.get_smoothed_values()
+=======
+        log_output = task.aggregate_logging_outputs(log_outputs, criterion)
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
+>>>>>>> fix rebase.
 
         progress.print(log_output, tag=subset, step=i)
 

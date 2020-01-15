@@ -7,17 +7,29 @@
 Train a new model on one or across multiple GPUs.
 """
 
+<<<<<<< HEAD
+=======
 import collections
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
 import math
 import random
 
 import numpy as np
 import torch
 
+<<<<<<< HEAD
+from fairseq import (
+    checkpoint_utils, distributed_utils, metrics, options, progress_bar, tasks, utils
+)
+from fairseq.data import iterators
+from fairseq.trainer import Trainer
+from fairseq.meters import StopwatchMeter
+=======
 from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
 from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
 
 
 def main(args, init_distributed=False):
@@ -146,6 +158,21 @@ def train(args, trainer, task, epoch_itr):
         args, itr, epoch_itr.epoch, no_progress_bar='simple',
     )
 
+<<<<<<< HEAD
+    valid_subsets = args.valid_subset.split(',')
+    max_update = args.max_update or math.inf
+    for samples in progress:
+        with metrics.aggregate('train_inner'):
+            log_output = trainer.train_step(samples)
+            num_updates = trainer.get_num_updates()
+            if log_output is None:
+                continue
+
+            # log mid-epoch stats
+            stats = get_training_stats('train_inner')
+            progress.log(stats, tag='train', step=num_updates)
+
+=======
     extra_meters = collections.defaultdict(lambda: AverageMeter())
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
@@ -172,6 +199,7 @@ def train(args, trainer, task, epoch_itr):
             trainer.get_meter('ups').reset()
 
         num_updates = trainer.get_num_updates()
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
         if (
             not args.disable_validation
             and args.save_interval_updates > 0
@@ -185,6 +213,20 @@ def train(args, trainer, task, epoch_itr):
             break
 
     # log end-of-epoch stats
+<<<<<<< HEAD
+    stats = get_training_stats('train')
+    progress.print(stats, tag='train', step=num_updates)
+
+    # reset epoch-level meters
+    metrics.reset_meters('train')
+
+
+def get_training_stats(stats_key):
+    stats = metrics.get_smoothed_values(stats_key)
+    if 'nll_loss' in stats and 'ppl' not in stats:
+        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
+    stats['wall'] = round(metrics.get_meter('default', 'wall').elapsed_time, 0)
+=======
     stats = get_training_stats(trainer)
     for k, meter in extra_meters.items():
         stats[k] = meter.avg
@@ -221,6 +263,7 @@ def get_training_stats(trainer):
         stats['loss_scale'] = trainer.get_meter('loss_scale')
     stats['wall'] = round(trainer.get_meter('wall').elapsed_time)
     stats['train_wall'] = trainer.get_meter('train_wall')
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
     return stats
 
 
@@ -256,6 +299,25 @@ def validate(args, trainer, task, epoch_itr, subsets):
         )
 
         # reset validation loss meters
+<<<<<<< HEAD
+        metrics.reset_meters('valid')
+
+        for sample in progress:
+            trainer.valid_step(sample)
+
+        # log validation stats
+        stats = get_valid_stats(args, trainer)
+        progress.print(stats, tag=subset, step=trainer.get_num_updates())
+
+        valid_losses.append(stats[args.best_checkpoint_metric])
+    return valid_losses
+
+
+def get_valid_stats(args, trainer):
+    stats = metrics.get_smoothed_values('valid')
+    if 'nll_loss' in stats and 'ppl' not in stats:
+        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
+=======
         for k in ['valid_loss', 'valid_nll_loss']:
             meter = trainer.get_meter(k)
             if meter is not None:
@@ -293,10 +355,16 @@ def get_valid_stats(trainer, args, extra_meters=None):
     else:
         nll_loss = stats['loss']
     stats['ppl'] = utils.get_perplexity(nll_loss.avg)
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
     stats['num_updates'] = trainer.get_num_updates()
     if hasattr(checkpoint_utils.save_checkpoint, 'best'):
         key = 'best_{0}'.format(args.best_checkpoint_metric)
         best_function = max if args.maximize_best_checkpoint_metric else min
+<<<<<<< HEAD
+        stats[key] = best_function(
+            checkpoint_utils.save_checkpoint.best,
+            stats[args.best_checkpoint_metric],
+=======
 
         current_metric = None
         if args.best_checkpoint_metric == 'loss':
@@ -311,6 +379,7 @@ def get_valid_stats(trainer, args, extra_meters=None):
         stats[key] = best_function(
             checkpoint_utils.save_checkpoint.best,
             current_metric,
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
         )
     return stats
 
@@ -348,7 +417,11 @@ def cli_main():
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
         args.distributed_rank = None  # set based on device id
         if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
+<<<<<<< HEAD
+            print('| NOTE: you may get faster training with: --ddp-backend=no_c10d')
+=======
             print('| NOTE: you may get better performance with: --ddp-backend=no_c10d')
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
         torch.multiprocessing.spawn(
             fn=distributed_main,
             args=(args, ),

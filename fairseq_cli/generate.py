@@ -7,7 +7,13 @@
 Translate pre-processed data with a trained model.
 """
 
+<<<<<<< HEAD
+import math
 import os
+
+=======
+import os
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
 import torch
 
 from fairseq import bleu, checkpoint_utils, options, progress_bar, tasks, utils
@@ -151,12 +157,22 @@ def main(args):
                     )
 
                     if not args.quiet:
+<<<<<<< HEAD
+                        score = hypo['score'] / math.log(2)  # convert to base 2
+                        print('H-{}\t{}\t{}'.format(sample_id, score, hypo_str), file=output_file)
+=======
                         print('H-{}\t{}\t{}'.format(sample_id, hypo['score'], hypo_str), file=output_file)
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
                         print('P-{}\t{}'.format(
                             sample_id,
                             ' '.join(map(
                                 lambda x: '{:.4f}'.format(x),
+<<<<<<< HEAD
+                                # convert from base e to base 2
+                                hypo['positional_scores'].div_(math.log(2)).tolist(),
+=======
                                 hypo['positional_scores'].tolist(),
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
                             ))
                         ), file=output_file)
 
@@ -192,6 +208,10 @@ def main(args):
             t.log({'wps': round(wps_meter.avg)})
             num_sentences += sample['nsentences']
 
+<<<<<<< HEAD
+    print('| NOTE: hypothesis and token scores are output in base 2')
+=======
+>>>>>>> 8573e5bb18e63c00e090f0c81bcbc613f262d0f2
     print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
         num_sentences, gen_timer.n, gen_timer.sum, num_sentences / gen_timer.sum, 1. / gen_timer.avg), file=output_file)
     if has_target:
