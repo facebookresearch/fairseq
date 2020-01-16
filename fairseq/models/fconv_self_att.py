@@ -26,7 +26,7 @@ from fairseq.modules import (
     LearnedPositionalEmbedding,
     LinearizedConvolution,
 )
-
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 @register_model('fconv_self_att')
 class FConvModelSelfAtt(FairseqEncoderDecoderModel):
@@ -287,6 +287,7 @@ class FConvEncoder(FairseqEncoder):
         return self.embed_positions.max_positions()
 
 
+@with_incremental_state
 class FConvDecoder(FairseqDecoder):
     """Convolutional decoder"""
     def __init__(

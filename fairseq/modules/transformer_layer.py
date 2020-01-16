@@ -225,10 +225,11 @@ class TransformerDecoderLayer(nn.Module):
             if len(prev_self_attn_state) >= 3:
                 saved_state["prev_key_padding_mask"] = prev_self_attn_state[2]
             self.self_attn._set_input_buffer(incremental_state, saved_state)
-
+        input_buffer = self.self_attn._get_input_buffer(incremental_state)
         if self.cross_self_attention and not (
             incremental_state is not None
-            and "prev_key" in self.self_attn._get_input_buffer(incremental_state)
+            and input_buffer is not None
+            and "prev_key" in input_buffer
         ):
             if self_attn_mask is not None:
                 self_attn_mask = torch.cat(
