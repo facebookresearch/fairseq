@@ -5,9 +5,20 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+import sys
+
 import torch
 
 from fairseq import checkpoint_utils, metrics, options, progress_bar, utils
+
+logging.basicConfig(
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+    stream=sys.stdout,
+)
+logger = logging.getLogger('fairseq_cli.train')
 
 
 def main(args, override_args=None):
@@ -26,7 +37,7 @@ def main(args, override_args=None):
         overrides = None
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(args.path))
+    logger.info('loading model(s) from {}'.format(args.path))
     models, model_args, task = checkpoint_utils.load_model_ensemble_and_task(
         [args.path],
         arg_overrides=overrides,
@@ -41,7 +52,7 @@ def main(args, override_args=None):
             model.cuda()
 
     # Print args
-    print(model_args)
+    logger.info(model_args)
 
     # Build criterion
     criterion = task.build_criterion(model_args)

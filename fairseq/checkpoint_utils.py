@@ -17,6 +17,9 @@ from fairseq.models import FairseqDecoder, FairseqEncoder
 from torch.serialization import default_restore_location
 
 
+logger = logging.getLogger(__name__)
+
+
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
     from fairseq import distributed_utils, meters
 
@@ -77,7 +80,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
             PathManager.copy(checkpoints[0], cp, overwrite=True)
 
         write_timer.stop()
-        print(
+        logger.info(
             "| saved checkpoint {} (epoch {} @ {} updates, score {}) (writing took {} seconds)".format(
                 checkpoints[0], epoch, updates, val_loss, write_timer.sum
             )
@@ -231,7 +234,7 @@ def torch_persistent_save(*args, **kwargs):
             return torch.save(*args, **kwargs)
         except Exception:
             if i == 2:
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
 
 
 def convert_state_dict_type(state_dict, ttype=torch.FloatTensor):
@@ -388,8 +391,8 @@ def prune_state_dict(state_dict, args):
         return state_dict
 
     # apply pruning
-    print(
-        "| Pruning model to specified layer configuration - this works best if the model was trained with LayerDrop"
+    logger.info(
+        "Pruning model to specified layer configuration - this works best if the model was trained with LayerDrop"
     )
 
     def create_pruning_pass(layers_to_keep, layer_name):
@@ -485,7 +488,7 @@ def verify_checkpoint_directory(save_dir: str) -> None:
         with open(temp_file_path, "w"):
             pass
     except OSError as e:
-        print("| Unable to access checkpoint save directory: {}".format(save_dir))
+        logger.warning("Unable to access checkpoint save directory: {}".format(save_dir))
         raise e
     else:
         os.remove(temp_file_path)

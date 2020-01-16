@@ -3,10 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import itertools
-import os
-
 from collections import OrderedDict
+import itertools
+import logging
+import os
 
 import numpy as np
 
@@ -14,23 +14,26 @@ from fairseq import tokenizer
 from fairseq.data.legacy.masked_lm_dictionary import MaskedLMDictionary
 
 from fairseq.data import (
+    Dictionary,
     ConcatDataset,
     data_utils,
     TokenBlockDataset,
 )
-
-from fairseq.data import Dictionary
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.multi_corpus_sampled_dataset import MultiCorpusSampledDataset
+from fairseq.tasks import FairseqTask, register_task
 
-from . import FairseqTask, register_task
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('cross_lingual_lm')
 class CrossLingualLMTask(FairseqTask):
     """
     Task for training cross-lingual language models.
+
     For more details look at: https://arxiv.org/pdf/1901.07291.pdf
+
     Args:
         dictionary (Dictionary): the dictionary for the input of the task
     """
@@ -89,12 +92,9 @@ class CrossLingualLMTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        """Setup the task.
-        """
+        """Setup the task."""
         dictionary = MaskedLMDictionary.load(os.path.join(args.data, 'dict.txt'))
-
-        print('| dictionary: {} types'.format(len(dictionary)))
-
+        logger.info('dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
     def _load_single_lang_dataset(self, split, epoch):
@@ -125,7 +125,7 @@ class CrossLingualLMTask(FairseqTask):
                 )
             )
 
-            print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
+            logger.info('{} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
 
         if len(loaded_datasets) == 1:
             dataset = loaded_datasets[0]
@@ -141,7 +141,6 @@ class CrossLingualLMTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-
         dataset_map = OrderedDict()
 
         for lang in self.langs2id.keys():
@@ -165,6 +164,6 @@ class CrossLingualLMTask(FairseqTask):
             )
 
         self.datasets[split] = MultiCorpusSampledDataset(dataset_map)
-        print('| {} {} {} examples'.format(
+        logger.info('{} {} {} examples'.format(
             self.args.data.split(os.pathsep)[epoch], split, len(self.datasets[split]))
         )

@@ -6,6 +6,7 @@
 
 import argparse
 import copy
+import logging
 import os
 from typing import List, Dict, Iterator, Tuple, Any
 
@@ -14,6 +15,9 @@ from torch import nn
 
 from fairseq import utils
 from fairseq.data import encoders
+
+
+logger = logging.getLogger(__name__)
 
 
 def from_pretrained(
@@ -172,15 +176,15 @@ class GeneratorHubInterface(nn.Module):
 
             for source_tokens, target_hypotheses in zip(tokenized_sentences, outputs):
                 src_str_with_unk = self.string(source_tokens)
-                print('S\t{}'.format(src_str_with_unk))
+                logger.info('S\t{}'.format(src_str_with_unk))
                 for hypo in target_hypotheses:
                     hypo_str = self.decode(hypo['tokens'])
-                    print('H\t{}\t{}'.format(hypo['score'], hypo_str))
-                    print('P\t{}'.format(
+                    logger.info('H\t{}\t{}'.format(hypo['score'], hypo_str))
+                    logger.info('P\t{}'.format(
                         ' '.join(map(lambda x: '{:.4f}'.format(x), hypo['positional_scores'].tolist()))
                     ))
                     if hypo['alignment'] is not None and getarg('print_alignment', False):
-                        print('A\t{}'.format(
+                        logger.info('A\t{}'.format(
                             ' '.join(map(lambda x: str(utils.item(x)), hypo['alignment'].int().cpu()))
                         ))
         return outputs

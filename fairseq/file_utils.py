@@ -54,7 +54,7 @@ def load_archive_file(archive_file):
     try:
         resolved_archive_file = cached_path(archive_file, cache_dir=None)
     except EnvironmentError:
-        print(
+        logger.info(
             "Archive name '{}' was not found in archive name list. "
             "We assumed '{}' was a path or URL but couldn't find any file "
             "associated to this path or URL.".format(
@@ -65,16 +65,16 @@ def load_archive_file(archive_file):
         return None
 
     if resolved_archive_file == archive_file:
-        print("loading archive file {}".format(archive_file))
+        logger.info("loading archive file {}".format(archive_file))
     else:
-        print("loading archive file {} from cache at {}".format(
+        logger.info("loading archive file {} from cache at {}".format(
             archive_file, resolved_archive_file))
 
     # Extract archive to temp dir and replace .tar.bz2 if necessary
     tempdir = None
     if not os.path.isdir(resolved_archive_file):
         tempdir = tempfile.mkdtemp()
-        print("extracting archive file {} to temp dir {}".format(
+        logger.info("extracting archive file {} to temp dir {}".format(
             resolved_archive_file, tempdir))
         ext = os.path.splitext(archive_file)[1][1:]
         with tarfile.open(resolved_archive_file, 'r:' + ext) as archive:

@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import math
 import types
 
@@ -12,6 +13,8 @@ import torch.distributed as dist
 
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from fairseq.optim.fused_adam import get_fused_adam_class
+
+logger = logging.getLogger(__name__)
 
 
 @register_optimizer('adam')
@@ -27,7 +30,7 @@ class FairseqAdam(FairseqOptimizer):
         super().__init__(args)
         fused_adam_cls = get_fused_adam_class()
         if not args.use_old_adam and fused_adam_cls is not None and torch.cuda.is_available():
-            print('| using FusedAdam')
+            logger.info('using FusedAdam')
             self._optimizer = fused_adam_cls(params, **self.optimizer_config)
         else:
             self._optimizer = Adam(params, **self.optimizer_config)

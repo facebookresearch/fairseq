@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import namedtuple
+import logging
 import math
 
 import torch
@@ -28,8 +29,12 @@ from fairseq.modules import (
 )
 import random
 
+
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('transformer')
@@ -466,7 +471,7 @@ class TransformerEncoder(FairseqEncoder):
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             weights_key = '{}.embed_positions.weights'.format(name)
             if weights_key in state_dict:
-                print('deleting {0}'.format(weights_key))
+                logger.info('deleting {0}'.format(weights_key))
                 del state_dict[weights_key]
             state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
         for i in range(len(self.layers)):

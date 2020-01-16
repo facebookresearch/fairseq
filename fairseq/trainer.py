@@ -9,6 +9,7 @@ Train a network across multiple GPUs.
 
 import contextlib
 from itertools import chain
+import logging
 import math
 import os
 import sys
@@ -20,6 +21,9 @@ from fairseq import checkpoint_utils, distributed_utils, metrics, models, optim,
 from fairseq.file_io import PathManager
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.optim import lr_scheduler
+
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer(object):
@@ -113,8 +117,8 @@ class Trainer(object):
 
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
-                print(
-                    "| WARNING: your device does NOT support faster training with --fp16, "
+                logger.info(
+                    "NOTE: your device does NOT support faster training with --fp16, "
                     "please switch to FP32 which is likely to be faster"
                 )
             if self.args.memory_efficient_fp16:
@@ -125,7 +129,7 @@ class Trainer(object):
                 self._optimizer = optim.FP16Optimizer.build_optimizer(self.args, params)
         else:
             if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
-                print("| NOTICE: your device may support faster training with --fp16")
+                logger.info("NOTE: your device may support faster training with --fp16")
             self._optimizer = optim.build_optimizer(self.args, params)
 
         if self.args.use_bmuf:
@@ -207,8 +211,8 @@ class Trainer(object):
 
         if extra_state is not None:
             epoch = extra_state["train_iterator"]["epoch"]
-            print(
-                "| loaded checkpoint {} (epoch {} @ {} updates)".format(
+            logger.info(
+                "loaded checkpoint {} (epoch {} @ {} updates)".format(
                     filename, epoch, self.get_num_updates()
                 )
             )
@@ -223,7 +227,7 @@ class Trainer(object):
                     if isinstance(meter, TimeMeter):
                         meter.reset()
         else:
-            print("| no existing checkpoint found {}".format(filename))
+            logger.info("no existing checkpoint found {}".format(filename))
 
         return extra_state
 
@@ -237,7 +241,7 @@ class Trainer(object):
     ):
         """Return an EpochBatchIterator over the training set for a given epoch."""
         if load_dataset:
-            print("| loading train data for epoch {}".format(epoch))
+            logger.info("loading train data for epoch {}".format(epoch))
             self.task.load_dataset(
                 self.args.train_subset,
                 epoch=epoch,
@@ -318,8 +322,8 @@ class Trainer(object):
                     self._log_oom(e)
                     if raise_oom:
                         raise e
-                    print(
-                        "| WARNING: attempting to recover from OOM in forward/backward pass",
+                    logger.warning(
+                        "attempting to recover from OOM in forward/backward pass",
                         file=sys.stderr,
                     )
                     ooms += 1
@@ -341,7 +345,7 @@ class Trainer(object):
 
         metrics.log_scalar("oom", ooms, len(samples), priority=600, round=3)
         if ooms == self.args.distributed_world_size * len(samples):
-            print("| WARNING: OOM in all workers, skipping update")
+            logger.warning("OOM in all workers, skipping update")
             self.zero_grad()
             return None
 
@@ -393,13 +397,13 @@ class Trainer(object):
             ):
                 torch.cuda.empty_cache()
         except OverflowError as e:
-            print("| WARNING: overflow detected, " + str(e))
+            logger.info("NOTE: overflow detected, " + str(e))
             self.zero_grad()
             logging_output = None
         except RuntimeError as e:
             if "out of memory" in str(e):
                 self._log_oom(e)
-                print("| ERROR: OOM during optimization, irrecoverable")
+                logger.error("OOM during optimization, irrecoverable")
             raise e
 
         if self.args.fp16:
@@ -432,8 +436,8 @@ class Trainer(object):
                 if "out of memory" in str(e):
                     self._log_oom(e)
                     if not raise_oom:
-                        print(
-                            "| WARNING: ran out of memory in validation step, retrying batch"
+                        logger.warning(
+                            "ran out of memory in validation step, retrying batch"
                         )
                         for p in self.model.parameters():
                             if p.grad is not None:
@@ -590,15 +594,11 @@ class Trainer(object):
         )
 
     def _log_oom(self, exc):
-        msg = "| OOM: Ran out of memory with exception: {}".format(exc)
-        # TODO: print should really go to logger, this print goes
-        # to stderr, which is buffered, which in many cases is not
-        # printed out if another exception happens.
-        # NB(jerry): added a flush to mitigate this
-        print(msg, file=sys.stderr)
+        msg = "OOM: Ran out of memory with exception: {}".format(exc)
+        logger.warning(msg)
         if torch.cuda.is_available() and hasattr(torch.cuda, "memory_summary"):
             for device_idx in range(torch.cuda.device_count()):
-                print(torch.cuda.memory_summary(device=device_idx), file=sys.stderr)
+                logger.warning(torch.cuda.memory_summary(device=device_idx))
         sys.stderr.flush()
 
     def _aggregate_logging_outputs(

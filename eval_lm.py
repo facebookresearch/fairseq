@@ -8,15 +8,23 @@
 Evaluate the perplexity of a trained language model.
 """
 
+import logging
 import math
 
-import numpy as np
 import torch
 
 from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
 from fairseq.data import LMContextWindowDataset
 from fairseq.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
+
+
+logging.basicConfig(
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+)
+logger = logging.getLogger('fairseq_cli.eval_lm')
 
 
 class WordStat(object):
@@ -50,14 +58,14 @@ def main(parsed_args):
 
     utils.import_user_module(parsed_args)
 
-    print(parsed_args)
+    logger.info(parsed_args)
 
     use_cuda = torch.cuda.is_available() and not parsed_args.cpu
 
     task = tasks.setup_task(parsed_args)
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(parsed_args.path))
+    logger.info('loading model(s) from {}'.format(parsed_args.path))
     models, args = checkpoint_utils.load_model_ensemble(
         parsed_args.path.split(':'),
         arg_overrides=eval(parsed_args.model_overrides),
@@ -85,7 +93,7 @@ def main(parsed_args):
             context_window=args.context_window,
             pad_idx=task.source_dictionary.pad(),
         )
-    print('| {} {} {} examples'.format(args.data, args.gen_subset, len(dataset)))
+    logger.info('{} {} {} examples'.format(args.data, args.gen_subset, len(dataset)))
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
@@ -97,7 +105,7 @@ def main(parsed_args):
 
     assert len(models) > 0
 
-    print('| num. model params: {}'.format(sum(p.numel() for p in models[0].parameters())))
+    logger.info('num. model params: {}'.format(sum(p.numel() for p in models[0].parameters())))
 
     itr = task.get_batch_iterator(
         dataset=dataset,
@@ -123,11 +131,11 @@ def main(parsed_args):
             raise NotImplementedError
         else:
             bpe_cont = args.remove_bpe.rstrip()
-            bpe_toks = set(
+            bpe_toks = {
                 i
                 for i in range(len(task.source_dictionary))
                 if task.source_dictionary[i].endswith(bpe_cont)
-            )
+            }
         bpe_len = len(bpe_cont)
     else:
         bpe_toks = None
@@ -171,8 +179,10 @@ def main(parsed_args):
 
                 inf_scores = pos_scores.eq(float('inf')) | pos_scores.eq(float('-inf'))
                 if inf_scores.any():
-                    print('| Skipping tokens with inf scores:',
-                          task.target_dictionary.string(tokens[inf_scores.nonzero()]))
+                    logger.info(
+                        'skipping tokens with inf scores:',
+                        task.target_dictionary.string(tokens[inf_scores.nonzero()])
+                    )
                     pos_scores = pos_scores[(~inf_scores).nonzero()]
                 score_sum += pos_scores.sum().cpu()
                 count += pos_scores.numel() - skipped_toks
@@ -202,7 +212,7 @@ def main(parsed_args):
                             is_bpe = False
                             w = ''
                     if args.output_word_probs:
-                        print(
+                        logger.info(
                             str(int(sample_id)) + " "
                             + ('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
                         )
@@ -211,12 +221,16 @@ def main(parsed_args):
             t.log({'wps': round(wps_meter.avg)})
 
     avg_nll_loss = -score_sum / count / math.log(2)  # convert to base 2
-    print('| Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)'.format(gen_timer.n, gen_timer.sum, 1. / gen_timer.avg))
-    print('| Loss (base 2): {:.4f}, Perplexity: {:.2f}'.format(avg_nll_loss, 2**avg_nll_loss))
+    logger.info('Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)'.format(
+        gen_timer.n, gen_timer.sum, 1. / gen_timer.avg
+    ))
+    logger.info('Loss (base 2): {:.4f}, Perplexity: {:.2f}'.format(
+        avg_nll_loss, 2**avg_nll_loss
+    ))
 
     if args.output_word_stats:
         for ws in sorted(word_stats.values(), key=lambda x: x.count, reverse=True):
-            print(ws)
+            logger.info(ws)
 
 
 def cli_main():

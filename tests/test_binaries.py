@@ -5,6 +5,7 @@
 
 import contextlib
 from io import StringIO
+import logging
 import os
 import random
 import sys
@@ -24,6 +25,12 @@ import validate
 
 
 class TestTranslation(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_fconv(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -396,6 +403,12 @@ class TestTranslation(unittest.TestCase):
 
 class TestStories(unittest.TestCase):
 
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
     def test_fconv_self_att_wp(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_fconv_self_att_wp') as data_dir:
@@ -428,6 +441,12 @@ class TestStories(unittest.TestCase):
 
 
 class TestLanguageModeling(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_fconv_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -474,6 +493,12 @@ class TestLanguageModeling(unittest.TestCase):
 
 
 class TestMaskedLanguageModel(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_legacy_masked_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -609,6 +634,12 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
 
 
 class TestCommonOptions(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_optimizers(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -823,6 +854,69 @@ def eval_lm_main(data_dir):
         ],
     )
     eval_lm.main(eval_lm_args)
+
+
+def train_masked_language_model(data_dir, arch, extra_args=()):
+    train_parser = options.get_training_parser()
+    # TODO: langs should be in and out right?
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            "--task",
+            "cross_lingual_lm",
+            data_dir,
+            "--arch",
+            arch,
+            # Optimizer args
+            "--optimizer",
+            "adam",
+            "--lr-scheduler",
+            "reduce_lr_on_plateau",
+            "--lr-shrink",
+            "0.5",
+            "--lr",
+            "0.0001",
+            "--min-lr",
+            "1e-09",
+            # dropout, attention args
+            "--dropout",
+            "0.1",
+            "--attention-dropout",
+            "0.1",
+            # MLM args
+            "--criterion",
+            "masked_lm_loss",
+            "--masked-lm-only",
+            "--monolingual-langs",
+            "in,out",
+            "--num-segment",
+            "5",
+            # Transformer args: use a small transformer model for fast training
+            "--encoder-layers",
+            "1",
+            "--encoder-embed-dim",
+            "32",
+            "--encoder-attention-heads",
+            "1",
+            "--encoder-ffn-embed-dim",
+            "32",
+            # Other training args
+            "--max-tokens",
+            "500",
+            "--tokens-per-sample",
+            "500",
+            "--save-dir",
+            data_dir,
+            "--max-epoch",
+            "1",
+            "--no-progress-bar",
+            "--distributed-world-size",
+            "1",
+            "--dataset-impl",
+            "raw",
+        ] + list(extra_args),
+    )
+    train.main(train_args)
 
 
 if __name__ == '__main__':

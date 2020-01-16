@@ -7,8 +7,10 @@
 Train a new model on one or across multiple GPUs.
 """
 
+import logging
 import math
 import random
+import sys
 
 import numpy as np
 import torch
@@ -19,6 +21,15 @@ from fairseq import (
 from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import StopwatchMeter
+
+
+logging.basicConfig(
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+    stream=sys.stdout,
+)
+logger = logging.getLogger('fairseq_cli.train')
 
 
 def main(args, init_distributed=False):
@@ -39,7 +50,7 @@ def main(args, init_distributed=False):
         checkpoint_utils.verify_checkpoint_directory(args.save_dir)
 
     # Print args
-    print(args)
+    logger.info(args)
 
     # Setup task, e.g., translation, language modeling, etc.
     task = tasks.setup_task(args)
@@ -51,17 +62,17 @@ def main(args, init_distributed=False):
     # Build model and criterion
     model = task.build_model(args)
     criterion = task.build_criterion(args)
-    print(model)
-    print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
-    print('| num. model params: {} (num. trained: {})'.format(
+    logger.info(model)
+    logger.info('model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
+    logger.info('num. model params: {} (num. trained: {})'.format(
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
     # Build trainer
     trainer = Trainer(args, task, model, criterion)
-    print('| training on {} GPUs'.format(args.distributed_world_size))
-    print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
+    logger.info('training on {} GPUs'.format(args.distributed_world_size))
+    logger.info('max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
         args.max_sentences,
     ))
@@ -103,14 +114,14 @@ def main(args, init_distributed=False):
 
         # early stop
         if should_stop_early(args, valid_losses[0]):
-            print('| Early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
+            logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
             break
 
         reload_dataset = ':' in getattr(args, 'data', '')
         # sharded data: get train iterator for next epoch
         epoch_itr = trainer.get_train_iterator(epoch_itr.epoch, load_dataset=reload_dataset)
     train_meter.stop()
-    print('| done training in {:.1f} seconds'.format(train_meter.sum))
+    logger.info('done training in {:.1f} seconds'.format(train_meter.sum))
 
 
 def should_stop_early(args, valid_loss):
@@ -281,7 +292,7 @@ def cli_main():
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
         args.distributed_rank = None  # set based on device id
         if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
-            print('| NOTE: you may get faster training with: --ddp-backend=no_c10d')
+            logger.info('NOTE: you may get faster training with: --ddp-backend=no_c10d')
         torch.multiprocessing.spawn(
             fn=distributed_main,
             args=(args, ),
