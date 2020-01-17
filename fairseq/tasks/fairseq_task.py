@@ -308,8 +308,12 @@ class FairseqTask(object):
         with torch.no_grad():
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)
 
+    def begin_epoch(self, epoch, model):
+        """Hook function called before the start of each epoch."""
+        pass
+
     def update_step(self, num_updates):
-        """Task level update when number of update increases.
+        """Task level update when number of updates increases.
 
         This is called after the optimization step and learning rate
         update at each iteration.
