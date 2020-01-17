@@ -122,5 +122,4 @@ class LightconvLayer(nn.Module):
         return utils.set_incremental_state(self, incremental_state, 'input_buffer', new_buffer)
 
     def half(self):
-        print("HALF")
         return self._apply(lambda t: t.half() if t.is_floating_point() else t)

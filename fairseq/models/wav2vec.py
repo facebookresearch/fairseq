@@ -3,17 +3,20 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
-
+import logging
 import math
+import sys
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import (
+from fairseq.models import (
     BaseFairseqModel, register_model, register_model_architecture
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('wav2vec')
@@ -74,7 +77,7 @@ class Wav2VecModel(BaseFairseqModel):
         base_wav2vec_architecture(args)
 
         model = Wav2VecModel(args)
-        print(model)
+        logger.info(model)
         return model
 
     def __init__(self, args):
@@ -268,9 +271,10 @@ class ConvFeatureExtractionModel(nn.Module):
 
         in_d = 1
         self.conv_layers = nn.ModuleList()
-        for i, (dim, k, stride) in enumerate(conv_layers):
+        for dim, k, stride in conv_layers:
             self.conv_layers.append(
-                block(in_d, dim, k, stride))
+                block(in_d, dim, k, stride)
+            )
             in_d = dim
 
         self.log_compression = log_compression
@@ -331,7 +335,7 @@ class ConvAggegator(nn.Module):
         in_d = embed
         self.conv_layers = nn.ModuleList()
         self.residual_proj = nn.ModuleList()
-        for i, (dim, k, stride) in enumerate(conv_layers):
+        for dim, k, stride in conv_layers:
             if in_d != dim and skip_connections:
                 self.residual_proj.append(
                     nn.Conv1d(in_d, dim, 1, bias=False),
@@ -340,7 +344,8 @@ class ConvAggegator(nn.Module):
                 self.residual_proj.append(None)
 
             self.conv_layers.append(
-                block(in_d, dim, k, stride))
+                block(in_d, dim, k, stride)
+            )
             in_d = dim
         self.conv_layers = nn.Sequential(*self.conv_layers)
         self.skip_connections = skip_connections

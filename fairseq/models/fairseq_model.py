@@ -6,6 +6,7 @@
 Base classes for various fairseq models.
 """
 
+import logging
 from typing import Dict, List, Optional
 
 import torch
@@ -16,6 +17,9 @@ from fairseq import utils
 from fairseq.checkpoint_utils import prune_state_dict
 from fairseq.data import Dictionary
 from fairseq.models import FairseqDecoder, FairseqEncoder
+
+
+logger = logging.getLogger(__name__)
 
 
 class BaseFairseqModel(nn.Module):
@@ -173,7 +177,7 @@ class BaseFairseqModel(nn.Module):
             archive_map=cls.hub_models(),
             **kwargs,
         )
-        print(x['args'])
+        logger.info(x['args'])
         return hub_utils.GeneratorHubInterface(x['args'], x['task'], x['models'])
 
     @classmethod

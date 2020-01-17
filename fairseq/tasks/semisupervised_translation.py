@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import OrderedDict
+import logging
 import os
 
 from fairseq.data import (
@@ -20,9 +21,11 @@ from fairseq.data import (
 from fairseq.models import FairseqMultiModel
 from fairseq.sequence_generator import SequenceGenerator
 
-
 from .multilingual_translation import MultilingualTranslationTask
 from . import register_task
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_bt_dataset_key(lang_pair):
@@ -163,7 +166,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     continue
                 src_datasets[lang_pair] = load_indexed_dataset(prefix + src, self.dicts[src])
                 tgt_datasets[lang_pair] = load_indexed_dataset(prefix + tgt, self.dicts[tgt])
-                print('| parallel-{} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
+                logger.info('parallel-{} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
             if len(src_datasets) == 0:
                 raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
@@ -210,7 +213,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                         tgt_lang=tgt,
                     ).collater,
                 )
-                print('| backtranslate-{}: {} {} {} examples'.format(
+                logger.info('backtranslate-{}: {} {} {} examples'.format(
                     tgt, data_path, split, len(backtranslate_datasets[lang_pair]),
                 ))
                 self.backtranslate_datasets[lang_pair] = backtranslate_datasets[lang_pair]
@@ -249,7 +252,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     tgt_eos=self.dicts[tgt].eos(),
                     tgt_lang=tgt,
                 )
-                print('| denoising-{}: {} {} {} examples'.format(
+                logger.info('denoising-{}: {} {} {} examples'.format(
                     tgt, data_path, split, len(noising_datasets[lang_pair]),
                 ))
 

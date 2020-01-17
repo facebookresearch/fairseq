@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 import numpy as np
@@ -21,8 +22,10 @@ from fairseq.data import (
     SortDataset,
     TruncateDataset,
 )
+from fairseq.tasks import FairseqTask, register_task
 
-from . import FairseqTask, register_task
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('sentence_ranking')
@@ -77,7 +80,7 @@ class SentenceRankingTask(FairseqTask):
             os.path.join(args.data, 'input0', 'dict.txt'),
             source=True,
         )
-        print('| [input] dictionary: {} types'.format(len(data_dict)))
+        logger.info('[input] dictionary: {} types'.format(len(data_dict)))
         return SentenceRankingTask(args, data_dict)
 
     def load_dataset(self, split, combine=False, **kwargs):
@@ -165,7 +168,7 @@ class SentenceRankingTask(FairseqTask):
                 sort_order=[shuffle],
             )
 
-        print("| Loaded {0} with #samples: {1}".format(split, len(dataset)))
+        logger.info("Loaded {0} with #samples: {1}".format(split, len(dataset)))
 
         self.datasets[split] = dataset
         return self.datasets[split]
