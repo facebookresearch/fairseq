@@ -581,7 +581,7 @@ def add_model_args(parser):
     # 2) --arch argument
     # 3) --encoder/decoder-* arguments (highest priority)
     from fairseq.models import ARCH_MODEL_REGISTRY
-    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH', required=True,
+    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
                        choices=ARCH_MODEL_REGISTRY.keys(),
                        help='Model Architecture')
     # fmt: on
