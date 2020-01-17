@@ -43,6 +43,7 @@ class AdaptiveInput(nn.Module):
                 nn.Linear(dim, output_dim, bias=False)
             )
             self.embeddings.append(seq)
+            self.padding_idx = None
 
         def init_weights(m):
             if isinstance(m, nn.Embedding):
