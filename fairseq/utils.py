@@ -7,6 +7,7 @@ from collections import defaultdict
 import contextlib
 import copy
 import importlib.util
+import logging
 import math
 import os
 import sys
@@ -18,6 +19,9 @@ import torch.nn.functional as F
 
 from itertools import accumulate
 from fairseq.modules import gelu, gelu_accurate
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
@@ -110,7 +114,9 @@ def print_embed_overlap(embed_dict, vocab_dict):
     embed_keys = set(embed_dict.keys())
     vocab_keys = set(vocab_dict.symbols)
     overlap = len(embed_keys & vocab_keys)
-    print("| Found {}/{} types in embedding file.".format(overlap, len(vocab_dict)))
+    logger.info(
+        'found {}/{} types in embedding file'.format(overlap, len(vocab_dict))
+    )
 
 
 def parse_embedding(embed_path):

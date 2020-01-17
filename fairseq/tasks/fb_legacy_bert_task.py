@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import itertools
+import logging
 import numpy as np
 import os
 
@@ -24,10 +25,14 @@ from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from . import FairseqTask, register_task
 
 
+logger = logging.getLogger(__name__)
+
+
 @register_task('fb_bert')
 class BertTask(FairseqTask):
     """
     Train BERT model.
+
     Args:
         dictionary (Dictionary): the dictionary for the input of the task
     """
@@ -68,19 +73,18 @@ class BertTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        """Setup the task.
-        """
+        """Setup the task."""
         dictionary = BertDictionary.load(os.path.join(args.data, 'dict.txt'))
-        print('| dictionary: {} types'.format(len(dictionary)))
-
+        logger.info('dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
     def load_dataset(self, split, combine=False):
-        """Load a given dataset split.
+        """
+        Load a given dataset split.
+
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-
         loaded_datasets = []
 
         for k in itertools.count():
@@ -109,7 +113,7 @@ class BertTask(FairseqTask):
                         break_mode=self.args.break_mode,
                     ))
 
-            print('| {} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
+            logger.info('{} {} {} examples'.format(self.args.data, split_k, len(loaded_datasets[-1])))
 
             if not combine:
                 break

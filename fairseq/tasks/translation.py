@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import itertools
+import logging
 import os
 
 from fairseq import options, utils
@@ -21,6 +22,9 @@ from fairseq.data import (
 from . import FairseqTask, register_task
 
 
+logger = logging.getLogger(__name__)
+
+
 def load_langpair_dataset(
     data_path, split,
     src, src_dict,
@@ -30,6 +34,7 @@ def load_langpair_dataset(
     max_target_positions, prepend_bos=False, load_alignments=False,
     truncate_source=False,
 ):
+
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
         return indexed_dataset.dataset_exists(filename, impl=dataset_impl)
@@ -65,7 +70,9 @@ def load_langpair_dataset(
             data_utils.load_indexed_dataset(prefix + tgt, tgt_dict, dataset_impl)
         )
 
-        print('| {} {} {}-{} {} examples'.format(data_path, split_k, src, tgt, len(src_datasets[-1])))
+        logger.info('{} {} {}-{} {} examples'.format(
+            data_path, split_k, src, tgt, len(src_datasets[-1])
+        ))
 
         if not combine:
             break
@@ -179,8 +186,8 @@ class TranslationTask(FairseqTask):
         assert src_dict.pad() == tgt_dict.pad()
         assert src_dict.eos() == tgt_dict.eos()
         assert src_dict.unk() == tgt_dict.unk()
-        print('| [{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
-        print('| [{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict)))
+        logger.info('[{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
+        logger.info('[{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict)))
 
         return cls(args, src_dict, tgt_dict)
 

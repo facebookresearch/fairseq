@@ -22,13 +22,12 @@ class TestReproducibility(unittest.TestCase):
             extra_flags = []
 
         with tempfile.TemporaryDirectory(name) as data_dir:
-            with contextlib.redirect_stdout(StringIO()):
+            with self.assertLogs() as logs:
                 test_binaries.create_dummy_data(data_dir)
                 test_binaries.preprocess_translation_data(data_dir)
 
             # train epochs 1 and 2 together
-            stdout = StringIO()
-            with contextlib.redirect_stdout(stdout):
+            with self.assertLogs() as logs:
                 test_binaries.train_translation_model(
                     data_dir, 'fconv_iwslt_de_en', [
                         '--dropout', '0.0',
@@ -37,16 +36,14 @@ class TestReproducibility(unittest.TestCase):
                         '--max-epoch', '3',
                     ] + extra_flags,
                 )
-            stdout = stdout.getvalue()
-            train_log, valid_log = map(json.loads, stdout.split('\n')[-5:-3])
+            train_log, valid_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
 
             # train epoch 2, resuming from previous checkpoint 1
             os.rename(
                 os.path.join(data_dir, 'checkpoint1.pt'),
                 os.path.join(data_dir, 'checkpoint_last.pt'),
             )
-            stdout = StringIO()
-            with contextlib.redirect_stdout(stdout):
+            with self.assertLogs() as logs:
                 test_binaries.train_translation_model(
                     data_dir, 'fconv_iwslt_de_en', [
                         '--dropout', '0.0',
@@ -55,8 +52,7 @@ class TestReproducibility(unittest.TestCase):
                         '--max-epoch', '3',
                     ] + extra_flags,
                 )
-            stdout = stdout.getvalue()
-            train_res_log, valid_res_log = map(json.loads, stdout.split('\n')[-5:-3])
+            train_res_log, valid_res_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
 
             for k in ['train_loss', 'train_ppl', 'train_num_updates', 'train_gnorm']:
                 self.assertAlmostEqual(float(train_log[k]), float(train_res_log[k]), delta=delta)

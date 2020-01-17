@@ -5,12 +5,16 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-import os
 from itertools import count
+import logging
+import os
 
 from fairseq.data.audio.fb_everstore_audio_dataset import EverstoreAudioDataset
 
 from . import FairseqTask, register_task
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_task("fb_audio_pretraining")
@@ -51,7 +55,7 @@ class SpeechPretrainingTask(FairseqTask):
         return cls(args)
 
     def create_dataset(self, manifest):
-        print("Reading manifest " + manifest)
+        logger.info("Reading manifest " + manifest)
         return EverstoreAudioDataset(
             manifest,
             sample_rate=self.args.sample_rate,

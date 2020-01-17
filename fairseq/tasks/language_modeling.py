@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 import numpy as np
@@ -25,6 +26,9 @@ from fairseq.data import (
     TruncatedDictionary,
 )
 from fairseq.tasks import FairseqTask, register_task
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_task("language_modeling")
@@ -109,7 +113,7 @@ class LanguageModelingTask(FairseqTask):
             paths = args.data.split(":")
             assert len(paths) > 0
             dictionary = Dictionary.load(os.path.join(paths[0], "dict.txt"))
-            print("| dictionary: {} types".format(len(dictionary)))
+            logger.info("dictionary: {} types".format(len(dictionary)))
             output_dictionary = dictionary
             if args.output_dictionary_size >= 0:
                 output_dictionary = TruncatedDictionary(

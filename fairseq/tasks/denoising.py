@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 from fairseq.data import (
@@ -14,9 +15,11 @@ from fairseq.data import (
     StripTokenDataset,
     TokenBlockDataset,
 )
-
 from fairseq.data.encoders.utils import get_whole_word_mask
-from . import FairseqTask, register_task
+from fairseq.tasks import FairseqTask, register_task
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('denoising')
@@ -95,7 +98,7 @@ class DenoisingTask(FairseqTask):
         """Setup the task.
         """
         dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
-        print('| dictionary: {} types'.format(len(dictionary)))
+        logger.info('dictionary: {} types'.format(len(dictionary)))
         if not hasattr(args, 'shuffle_instance'):
             args.shuffle_instance = False
         return cls(args, dictionary)
@@ -146,8 +149,8 @@ class DenoisingTask(FairseqTask):
             mask_whole_words, shuffle=self.args.shuffle_instance,
             seed=self.seed, args=self.args
         )
-        print(
-            "| Split: {0}, Loaded {1} samples of denoising_dataset".format(
+        logger.info(
+            "Split: {0}, Loaded {1} samples of denoising_dataset".format(
                 split,
                 len(self.datasets[split]),
             )

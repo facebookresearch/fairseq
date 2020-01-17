@@ -9,12 +9,23 @@ Translate raw text with a trained model. Batches data on-the-fly.
 
 from collections import namedtuple
 import fileinput
+import logging
 import math
+import sys
 
 import torch
 
 from fairseq import checkpoint_utils, options, tasks, utils
 from fairseq.data import encoders
+
+
+logging.basicConfig(
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+    stream=sys.stdout,
+)
+logger = logging.getLogger('fairseq_cli.interactive')
 
 
 Batch = namedtuple('Batch', 'ids src_tokens src_lengths')
@@ -69,7 +80,7 @@ def main(args):
     assert not args.max_sentences or args.max_sentences <= args.buffer_size, \
         '--max-sentences/--batch-size cannot be larger than --buffer-size'
 
-    print(args)
+    logger.info(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
@@ -77,7 +88,7 @@ def main(args):
     task = tasks.setup_task(args)
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(args.path))
+    logger.info('loading model(s) from {}'.format(args.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
         args.path.split(':'),
         arg_overrides=eval(args.model_overrides),
@@ -130,9 +141,9 @@ def main(args):
     )
 
     if args.buffer_size > 1:
-        print('| Sentence buffer size:', args.buffer_size)
-    print('| NOTE: hypothesis and token scores are output in base 2')
-    print('| Type the input sentence and press return:')
+        logger.info('Sentence buffer size:', args.buffer_size)
+    logger.info('NOTE: hypothesis and token scores are output in base 2')
+    logger.info('Type the input sentence and press return:')
     start_id = 0
     for inputs in buffered_read(args.input, args.buffer_size):
         results = []

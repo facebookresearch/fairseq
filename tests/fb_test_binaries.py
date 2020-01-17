@@ -5,6 +5,7 @@
 
 import contextlib
 from io import StringIO
+import logging
 import tempfile
 import unittest
 
@@ -19,6 +20,12 @@ from tests.test_binaries import (
 
 
 class TestTranslation(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_fb_levenshtein_transformer(self):

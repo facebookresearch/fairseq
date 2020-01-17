@@ -5,6 +5,7 @@
 
 import contextlib
 from io import StringIO
+import logging
 import unittest
 
 import torch
@@ -14,6 +15,12 @@ from fairseq import fb_hub
 
 @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
 class TestTranslationHub(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     @torch.no_grad()
     def test_transformer_wmt14_en_fr(self):
@@ -87,6 +94,12 @@ class TestLMHub(unittest.TestCase):
 
 @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
 class TestRobertaHub(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     @torch.no_grad()
     def test_roberta_base(self):

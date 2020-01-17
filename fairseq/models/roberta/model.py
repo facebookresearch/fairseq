@@ -6,6 +6,8 @@
 RoBERTa: A Robustly Optimized BERT Pretraining Approach.
 """
 
+import logging
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,6 +26,9 @@ from fairseq.modules import (
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 from .hub_interface import RobertaHubInterface
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('roberta')
@@ -113,8 +118,8 @@ class RobertaModel(FairseqLanguageModel):
             prev_num_classes = self.classification_heads[name].out_proj.out_features
             prev_inner_dim = self.classification_heads[name].dense.out_features
             if num_classes != prev_num_classes or inner_dim != prev_inner_dim:
-                print(
-                    'WARNING: re-registering head "{}" with num_classes {} (prev: {}) '
+                logger.warning(
+                    're-registering head "{}" with num_classes {} (prev: {}) '
                     'and inner_dim {} (prev: {})'.format(
                         name, num_classes, prev_num_classes, inner_dim, prev_inner_dim
                     )
@@ -167,8 +172,8 @@ class RobertaModel(FairseqLanguageModel):
                     self.register_classification_head(head_name, num_classes, inner_dim)
             else:
                 if head_name not in current_head_names:
-                    print(
-                        'WARNING: deleting classification head ({}) from checkpoint '
+                    logger.warning(
+                        'deleting classification head ({}) from checkpoint '
                         'not present in current model: {}'.format(head_name, k)
                     )
                     keys_to_delete.append(k)
@@ -176,8 +181,8 @@ class RobertaModel(FairseqLanguageModel):
                     num_classes != self.classification_heads[head_name].out_proj.out_features
                     or inner_dim != self.classification_heads[head_name].dense.out_features
                 ):
-                    print(
-                        'WARNING: deleting classification head ({}) from checkpoint '
+                    logger.warning(
+                        'deleting classification head ({}) from checkpoint '
                         'with different dimensions than current model: {}'.format(head_name, k)
                     )
                     keys_to_delete.append(k)
@@ -190,7 +195,7 @@ class RobertaModel(FairseqLanguageModel):
             cur_state = self.classification_heads.state_dict()
             for k, v in cur_state.items():
                 if prefix + 'classification_heads.' + k not in state_dict:
-                    print('Overwriting', prefix + 'classification_heads.' + k)
+                    logger.info('Overwriting', prefix + 'classification_heads.' + k)
                     state_dict[prefix + 'classification_heads.' + k] = v
 
 

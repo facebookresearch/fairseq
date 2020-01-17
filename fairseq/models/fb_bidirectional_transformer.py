@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import math
 
 import torch
@@ -32,6 +33,9 @@ from fairseq.modules.character_token_embedder import CHAR_PAD_IDX
 from fairseq.modules.fb_bidirectional_multihead_attention import (
     BidirectionalMultiheadSelfAttention,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('bi_transformer_lm')
@@ -96,7 +100,6 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
-
         # make sure all arguments are present in older models
         base_bi_lm_architecture(args)
 
@@ -118,7 +121,7 @@ class BiTransformerLanguageModel(FairseqLanguageModel):
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_embed_dim, task.dictionary.pad())
 
-        print("Model args:", args)
+        logger.info(args)
 
         decoder = BiTransformerDecoder(args, task.output_dictionary, embed_tokens)
         return BiTransformerLanguageModel(decoder)

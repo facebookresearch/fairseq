@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import OrderedDict
+import logging
 import os
 
 import torch
@@ -18,8 +19,10 @@ from fairseq.data import (
 from fairseq.models import FairseqMultiModel
 from fairseq.tasks.translation import load_langpair_dataset
 
-
 from . import FairseqTask, register_task
+
+
+logger = logging.getLogger(__name__)
 
 
 def _lang_token(lang: str):
@@ -142,7 +145,7 @@ class MultilingualTranslationTask(FairseqTask):
             if args.encoder_langtok is not None or args.decoder_langtok:
                 for lang_to_add in sorted_langs:
                     dicts[lang].add_symbol(_lang_token(lang_to_add))
-            print('| [{}] dictionary: {} types'.format(lang, len(dicts[lang])))
+            logger.info('[{}] dictionary: {} types'.format(lang, len(dicts[lang])))
         return dicts, training
 
     def get_encoder_langtok(self, src_lang, tgt_lang):

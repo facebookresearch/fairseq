@@ -3,9 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+
 import numpy as np
 
 from . import BaseWrapperDataset
+
+
+logger = logging.getLogger(__name__)
 
 
 class SubsampleDataset(BaseWrapperDataset):
@@ -23,7 +28,7 @@ class SubsampleDataset(BaseWrapperDataset):
         self.indices = np.random.choice(
             list(range(len(self.dataset))), self.actual_size, replace=False
         )
-        print(
+        logger.info(
             "subsampled dataset from {} to {} (ratio={})".format(
                 len(self.dataset), self.actual_size, size_ratio
             )

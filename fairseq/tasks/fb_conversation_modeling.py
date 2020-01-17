@@ -94,7 +94,7 @@ class BaseConversationTask(FairseqTask):
         dictionary.add_from_file(
             f=os.path.join(args.dictionary, 'dict.txt'),
         )
-        print('| dictionary: {} types'.format(len(dictionary)))
+        logger.info('dictionary: {} types'.format(len(dictionary)))
 
         if args.data_loading == 'stream':
             return StreamingConversationTask(args, dictionary)
@@ -182,7 +182,7 @@ class BaseConversationTask(FairseqTask):
         else:
             logger.error(f"Invalid dataset split: {split}")
 
-        print(f'| Probability range for split: {split}, {start}, {end}')
+        logger.info(f'Probability range for split: {split}, {start}, {end}')
 
         return start, end
 
@@ -198,7 +198,7 @@ class PreloadConversationTask(BaseConversationTask):
 
     def _set_up_train_dataset(self, split_range) -> torch.utils.data.Dataset:
         new_date_ranges = _date_list_from_arg(self.args.new_data_date_range)
-        print(f'| Setting up training data: {split_range}, {new_date_ranges}')
+        logger.info(f'Setting up training data: {split_range}, {new_date_ranges}')
         new_hive_data = HiveDataset(
             table=self.args.table,
             namespace=self.args.namespace,
@@ -227,7 +227,7 @@ class PreloadConversationTask(BaseConversationTask):
             dictionary=self.dictionary,
             split_range=split_range,
         )
-        print(f"| Created train dataset of size: {len(conversations)} conversations")
+        logger.info(f"Created train dataset of size: {len(conversations)} conversations")
 
         return conversations
 
@@ -242,7 +242,7 @@ class PreloadConversationTask(BaseConversationTask):
         else:
             logger.error("Invalid dataset split: {split}".format(**locals()))
 
-        print(f'| Data split: {split}, {prob_range[0]}, {prob_range[1]}, {date_ranges}')
+        logger.info(f'Data split: {split}, {prob_range[0]}, {prob_range[1]}, {date_ranges}')
 
         hive_dataset = HiveDataset(
             table=self.args.table,

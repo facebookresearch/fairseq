@@ -98,13 +98,13 @@ class HiveDataset(FairseqDataset):
             where_clause=_date_where_clause(date_ranges),
             limit=limit,
         )
-        print("| Loading Hive data...")
+        logger.info("Loading Hive data...")
         self.data = []
         for c in dataframe.rows(num_worker_threads=KOSKI_THREADS):
             if filter is not None and not filter_fn(c):
                 continue
             self.data.append(c)
-        print(f"| Finished loading {len(self.data)} rows")
+        logger.info(f"Finished loading {len(self.data)} rows")
 
     def __len__(self):
         return len(self.data)

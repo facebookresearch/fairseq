@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
+import logging
 import os
 import sys
 from pathlib import Path
@@ -30,6 +31,20 @@ def fb_main(device_id, args, start_rank, log_path=None):
 
     args.distributed_rank = start_rank + device_id
 
+    def add_handler(handler):
+        for root in ["fairseq", "fairseq_cli"]:
+            logger = logging.getLogger(root)
+            logger.propagate = False  # don't propagate to parent loggers
+            handler.setLevel(logging.INFO)
+            handler.setFormatter(logging.Formatter(
+                fmt='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S',
+            ))
+            logger.addHandler(handler)
+
+    # write fairseq logs to stdout
+    add_handler(logging.StreamHandler(sys.stdout))
+
     # support Manifold for checkpoints
     PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
 
@@ -41,38 +56,12 @@ def fb_main(device_id, args, start_rank, log_path=None):
 
     if log_path is not None and args.distributed_rank == 0:
         # write logs from worker 0 to train.log
-        PathManager.mkdirs(os.path.dirname(log_path))
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
         Path(log_path).touch(0o777, exist_ok=True)
-        with PathManager.open(log_path, "a") as h:
-            with contextlib.redirect_stdout(tee(sys.stdout, h)):
-                with contextlib.redirect_stderr(tee(sys.stderr, h)):
-                    train_main()
+        add_handler(logging.FileHandler(log_path))
+        train_main()
     else:
         train_main()
-
-
-class tee(object):
-    """Source: http://shallowsky.com/blog/programming/python-tee.html"""
-
-    def __init__(self, _fd1, _fd2):
-        self.fd1 = _fd1
-        self.fd2 = _fd2
-
-    def __del__(self):
-        if self.fd1 != sys.stdout and self.fd1 != sys.stderr:
-            self.fd1.close()
-        if self.fd2 != sys.stdout and self.fd2 != sys.stderr:
-            self.fd2.close()
-
-    def write(self, text):
-        self.fd1.write(text)
-        self.fd1.flush()
-        self.fd2.write(text)
-        self.fd2.flush()
-
-    def flush(self):
-        self.fd1.flush()
-        self.fd2.flush()
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import math
 import os
 
@@ -26,6 +27,9 @@ from fairseq.modules import (
     LearnedPositionalEmbedding,
     LinearizedConvolution,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('fconv_self_att')
@@ -108,7 +112,7 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
         trained_encoder, trained_decoder = None, None
         pretrained = eval(args.pretrained)
         if pretrained:
-            print("| loading pretrained model")
+            logger.info('loading pretrained model')
             if not os.path.exists(args.pretrained_checkpoint):
                 new_pretrained_checkpoint = os.path.join(args.data, args.pretrained_checkpoint)
                 if os.path.exists(new_pretrained_checkpoint):

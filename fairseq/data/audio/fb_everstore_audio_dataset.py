@@ -7,11 +7,15 @@
 
 
 import io
+import logging
 import os
 
 import torch
 
 from .raw_audio_dataset import RawAudioDataset
+
+
+logger = logging.getLogger(__name__)
 
 
 class EverstoreAudioDataset(RawAudioDataset):
@@ -77,7 +81,7 @@ class EverstoreAudioDataset(RawAudioDataset):
         if not success:
             self.fails += 1
             if self.fails % 10000 == 0:
-                print(
+                logger.warning(
                     f"failed {self.fails} times out of {self.gets} ({100*self.fails/self.gets}%)"
                 )
             return {"id": index, "source": None}

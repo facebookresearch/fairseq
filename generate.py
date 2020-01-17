@@ -7,8 +7,10 @@
 Translate pre-processed data with a trained model.
 """
 
+import logging
 import math
 import os
+import sys
 
 import torch
 
@@ -25,15 +27,27 @@ def main(args):
 
     if args.results_path is not None:
         os.makedirs(args.results_path, exist_ok=True)
-        output_file = open(os.path.join(args.results_path, "generate-results.txt"), 'w', buffering=1)
+        output_path = os.path.join(args.results_path, 'generate-{}.txt'.format(args.gen_subset))
+        with open(output_path, 'w', buffering=1) as h:
+            return _main(args, h)
     else:
-        output_file = None
+        return _main(args, sys.stdout)
+
+
+def _main(args, output_file):
+    logging.basicConfig(
+        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        level=logging.INFO,
+        stream=output_file,
+    )
+    logger = logging.getLogger('fairseq_cli.generate')
 
     utils.import_user_module(args)
 
     if args.max_tokens is None and args.max_sentences is None:
         args.max_tokens = 12000
-    print(args, file=output_file)
+    logger.info(args)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
@@ -49,7 +63,7 @@ def main(args):
     tgt_dict = task.target_dictionary
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(args.path), file=output_file)
+    logger.info('loading model(s) from {}'.format(args.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
         args.path.split(':'),
         arg_overrides=eval(args.model_overrides),
@@ -174,13 +188,16 @@ def main(args):
                             print('I-{}\t{}'.format(sample_id, hypo['steps']), file=output_file)
 
                         if getattr(args, 'retain_iter_history', False):
-                            print("\n".join([
-                                    'E-{}_{}\t{}'.format(
-                                        sample_id, step,
-                                        utils.post_process_prediction(
-                                            h['tokens'].int().cpu(),
-                                            src_str, None, None, tgt_dict, None)[1])
-                                        for step, h in enumerate(hypo['history'])]), file=output_file)
+                            for step, h in enumerate(hypo['history']):
+                                _, h_str, _ = utils.post_process_prediction(
+                                    hypo_tokens=h['tokens'].int().cpu(),
+                                    src_str=src_str,
+                                    alignment=None,
+                                    align_dict=None,
+                                    tgt_dict=tgt_dict,
+                                    remove_bpe=None,
+                                )
+                                print('E-{}_{}\t{}'.format(sample_id, step, h_str), file=output_file)
 
                     # Score only the top hypothesis
                     if has_target and j == 0:
@@ -196,12 +213,11 @@ def main(args):
             t.log({'wps': round(wps_meter.avg)})
             num_sentences += sample['nsentences']
 
-    print('| NOTE: hypothesis and token scores are output in base 2')
-    print('| Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
-        num_sentences, gen_timer.n, gen_timer.sum, num_sentences / gen_timer.sum, 1. / gen_timer.avg), file=output_file)
+    logger.info('NOTE: hypothesis and token scores are output in base 2')
+    logger.info('Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
+        num_sentences, gen_timer.n, gen_timer.sum, num_sentences / gen_timer.sum, 1. / gen_timer.avg))
     if has_target:
-        print('| Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()),
-              file=output_file)
+        logger.info('Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
 
     return scorer
 

@@ -47,7 +47,7 @@ class CompositeEncoder(FairseqEncoder):
         return encoder_out
 
     def max_positions(self):
-        return min([self.encoders[key].max_positions() for key in self.encoders])
+        return min(self.encoders[key].max_positions() for key in self.encoders)
 
     def upgrade_state_dict(self, state_dict):
         for key in self.encoders:
