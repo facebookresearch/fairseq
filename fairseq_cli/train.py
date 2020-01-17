@@ -158,6 +158,9 @@ def train(args, trainer, task, epoch_itr):
         args, itr, epoch_itr.epoch, no_progress_bar='simple',
     )
 
+    # task specific setup per epoch
+    task.begin_epoch(epoch_itr.epoch, trainer.get_model())
+
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
     for samples in progress:
