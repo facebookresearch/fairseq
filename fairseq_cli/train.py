@@ -163,39 +163,38 @@ def train(args, trainer, task, epoch_itr):
 
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
-    for samples in progress:
-        with metrics.aggregate('train_inner'):
+    with metrics.aggregate() as agg:
+        for samples in progress:
             log_output = trainer.train_step(samples)
             num_updates = trainer.get_num_updates()
             if log_output is None:
                 continue
 
             # log mid-epoch stats
-            stats = get_training_stats('train_inner')
+            stats = get_training_stats(agg.get_smoothed_values())
             progress.log(stats, tag='train', step=num_updates)
 
-        if (
-            not args.disable_validation
-            and args.save_interval_updates > 0
-            and num_updates % args.save_interval_updates == 0
-            and num_updates > 0
-        ):
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+            if (
+                not args.disable_validation
+                and args.save_interval_updates > 0
+                and num_updates % args.save_interval_updates == 0
+                and num_updates > 0
+            ):
+                valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+                checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
-        if num_updates >= max_update:
-            break
+            if num_updates >= max_update:
+                break
 
     # log end-of-epoch stats
-    stats = get_training_stats('train')
+    stats = get_training_stats(agg.get_smoothed_values())
     progress.print(stats, tag='train', step=num_updates)
 
     # reset epoch-level meters
     metrics.reset_meters('train')
 
 
-def get_training_stats(stats_key):
-    stats = metrics.get_smoothed_values(stats_key)
+def get_training_stats(stats):
     if 'nll_loss' in stats and 'ppl' not in stats:
         stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
     stats['wall'] = round(metrics.get_meter('default', 'wall').elapsed_time, 0)
@@ -233,22 +232,22 @@ def validate(args, trainer, task, epoch_itr, subsets):
             no_progress_bar='simple'
         )
 
-        # reset validation loss meters
+        # reset validation meters
         metrics.reset_meters('valid')
 
-        for sample in progress:
-            trainer.valid_step(sample)
+        with metrics.aggregate() as agg:
+            for sample in progress:
+                trainer.valid_step(sample)
 
         # log validation stats
-        stats = get_valid_stats(args, trainer)
+        stats = get_valid_stats(args, trainer, agg.get_smoothed_values())
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
         valid_losses.append(stats[args.best_checkpoint_metric])
     return valid_losses
 
 
-def get_valid_stats(args, trainer):
-    stats = metrics.get_smoothed_values('valid')
+def get_valid_stats(args, trainer, stats):
     if 'nll_loss' in stats and 'ppl' not in stats:
         stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
     stats['num_updates'] = trainer.get_num_updates()
