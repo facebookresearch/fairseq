@@ -87,7 +87,7 @@ class SentenceRankingCriterion(FairseqCriterion):
             'sample_size': sample_size,
         }
         if targets is not None:
-            logging_output['ncorrect'] = (logits.argmax(dim=1) == targets).sum()
+            logging_output['ncorrect'] = utils.item((logits.argmax(dim=1) == targets).sum())
 
         return loss, sample_size, logging_output
 
@@ -105,7 +105,7 @@ class SentenceRankingCriterion(FairseqCriterion):
 
         if len(logging_outputs) > 0 and 'ncorrect' in logging_outputs[0]:
             ncorrect = sum(log.get('ncorrect', 0) for log in logging_outputs)
-            metrics.log_scalar('accuracy', ncorrect / nsentences, nsentences, round=3)
+            metrics.log_scalar('accuracy', 100.0 * ncorrect / nsentences, nsentences, round=1)
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
