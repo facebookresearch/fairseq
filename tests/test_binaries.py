@@ -128,6 +128,19 @@ class TestTranslation(unittest.TestCase):
                     ])
                 generate_main(data_dir, ['--prefix-size', '2'])
 
+    def test_eval_bleu(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_eval_bleu') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'fconv_iwslt_de_en', [
+                    '--eval-bleu',
+                    '--eval-bleu-print-samples',
+                    '--eval-bleu-remove-bpe',
+                    '--eval-bleu-detok', 'space',
+                    '--eval-bleu-args', '{"beam": 4, "min_len": 10}',
+                ])
+
     def test_lstm(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_lstm') as data_dir:
