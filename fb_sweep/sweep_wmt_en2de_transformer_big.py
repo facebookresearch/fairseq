@@ -12,10 +12,10 @@ def get_grid(args):
     return [
         hyperparam('--fp16', save_dir_key=lambda val: 'fp16'),
         #hyperparam('--ddp-backend', 'no_c10d', save_dir_key=lambda val: 'no_c10d'),
-        hyperparam('--max-epoch', 3),
+        hyperparam('--max-epoch', 70),
 
         # equivalent to training on 16x GPUs
-        hyperparam('--update-freq', 1, save_dir_key=lambda val: f'updatefreq{val}'),
+        hyperparam('--update-freq', 16 if not args.local else 1, save_dir_key=lambda val: f'updatefreq{val}'),
 
         hyperparam('--arch', 'transformer_wmt_en_de_big', save_dir_key=lambda val: val),
         hyperparam('--share-all-embeddings', [True], binary_flag=True, save_dir_key=lambda val: 'shareemb'),
@@ -38,8 +38,8 @@ def get_grid(args):
         hyperparam('--max-tokens', 3584, save_dir_key=lambda val: f'maxtok{val}'),
         hyperparam('--seed', [2], save_dir_key=lambda val: f'seed{val}'),
 
-        hyperparam('--log-format', 'simple'),
-        hyperparam('--log-interval', 10),
+        hyperparam('--log-format', 'json'),
+        hyperparam('--log-interval', 100 if not args.local else 10),
     ]
 
 def postprocess_hyperparams(args, config):
