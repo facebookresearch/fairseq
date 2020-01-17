@@ -1,9 +1,15 @@
-import rerank_utils
-import os
-from fairseq import options
-from examples.noisychannel import rerank_options
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 from contextlib import redirect_stdout
-import generate
+import os
+
+from fairseq import options
+from fairseq_cli import generate
+
+from . import rerank_options, rerank_utils
 
 
 def score_bw(args):

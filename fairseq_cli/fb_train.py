@@ -13,7 +13,7 @@ import torch.fb.rendezvous.zeus  # noqa: F401
 from fairseq import options
 from fairseq.file_io import PathManager
 from fvcore.fb.manifold import ManifoldPathHandler
-from train import distributed_main, main
+from fairseq_cli.train import distributed_main, main
 
 
 def get_fb_training_parser():
