@@ -323,8 +323,7 @@ class Trainer(object):
                     if raise_oom:
                         raise e
                     logger.warning(
-                        "attempting to recover from OOM in forward/backward pass",
-                        file=sys.stderr,
+                        "attempting to recover from OOM in forward/backward pass"
                     )
                     ooms += 1
                     self.zero_grad()
