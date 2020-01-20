@@ -34,19 +34,19 @@ _active_aggregators_cnt["default"] = 1
 
 
 @contextlib.contextmanager
-def aggregate(name: Optional[str] = None, exclusive: bool = False):
+def aggregate(name: Optional[str] = None, new_root: bool = False):
     """Context manager to aggregate metrics under a given name.
 
-    Aggregations can be nested. If *exclusive* is ``False``, then logged
+    Aggregations can be nested. If *new_root* is ``False``, then logged
     metrics will be recorded along the entire stack of nested
-    aggregators, including a global "default" aggregator. If *exclusive*
-    is ``True``, then only the most recent aggregator will be used.
+    aggregators, including a global "default" aggregator. If *new_root*
+    is ``True``, then this aggregator will be the root of a new
+    aggregation stack, thus bypassing any parent aggregators.
 
     Note that aggregation contexts are uniquely identified by their
     *name* (e.g., train, valid). Creating a context with an existing
     name will reuse the corresponding :class:`MetersDict` instance.
-    If no name is given then a temporary aggregator will be created
-    and reset when the context manager exits.
+    If no name is given, then a temporary aggregator will be created.
 
     Usage::
 
@@ -62,8 +62,8 @@ def aggregate(name: Optional[str] = None, exclusive: bool = False):
     Args:
         name (str): name of the aggregation. Defaults to a
             random/temporary name if not given explicitly.
-        exclusive (bool): only log to the most recent aggregation
-            context, instead of all nested aggregations.
+        new_root (bool): make this aggregation the root of a new
+            aggregation stack.
     """
     if name is None:
         # generate a temporary name
@@ -74,7 +74,7 @@ def aggregate(name: Optional[str] = None, exclusive: bool = False):
         assert name != "default"
         agg = _aggregators.setdefault(name, MetersDict())
 
-    if exclusive:
+    if new_root:
         backup_aggregators = _active_aggregators.copy()
         _active_aggregators.clear()
         backup_aggregators_cnt = _active_aggregators_cnt.copy()
@@ -89,7 +89,7 @@ def aggregate(name: Optional[str] = None, exclusive: bool = False):
     if _active_aggregators_cnt[name] == 0 and name in _active_aggregators:
         del _active_aggregators[name]
 
-    if exclusive:
+    if new_root:
         _active_aggregators.clear()
         _active_aggregators.update(backup_aggregators)
         _active_aggregators_cnt.clear()
