@@ -56,15 +56,12 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         not hasattr(save_checkpoint, "best")
         or is_better(val_loss, save_checkpoint.best)
     )
-    checkpoint_conds["checkpoint.best_{}_{:.2f}.pt".format(
-        args.best_checkpoint_metric, val_loss)] = (
-        val_loss is not None
-        and args.keep_best_checkpoints > 0
-        and (
+    if val_loss is not None and args.keep_best_checkpoints > 0:
+        checkpoint_conds["checkpoint.best_{}_{:.2f}.pt".format(
+            args.best_checkpoint_metric, val_loss)] = (
             not hasattr(save_checkpoint, "best")
             or is_better(val_loss, save_checkpoint.best)
         )
-    )
     checkpoint_conds["checkpoint_last.pt"] = not args.no_last_checkpoints
 
     extra_state = {"train_iterator": epoch_itr.state_dict(), "val_loss": val_loss}
@@ -81,7 +78,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
         write_timer.stop()
         logger.info(
-            "| saved checkpoint {} (epoch {} @ {} updates, score {}) (writing took {} seconds)".format(
+            "saved checkpoint {} (epoch {} @ {} updates, score {}) (writing took {} seconds)".format(
                 checkpoints[0], epoch, updates, val_loss, write_timer.sum
             )
         )
