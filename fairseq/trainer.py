@@ -313,10 +313,16 @@ class Trainer(object):
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample, self.model, self.criterion, self.optimizer, ignore_grad
                     )
+                    del loss
 
                 if not ignore_grad:
                     logging_outputs.append(logging_output)
                     sample_size += sample_size_i
+
+                # emptying the CUDA cache after the first step can
+                # reduce the chance of OOM
+                if self.cuda and self.get_num_updates() == 0:
+                    torch.cuda.empty_cache()
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     self._log_oom(e)
@@ -371,7 +377,7 @@ class Trainer(object):
             self.set_num_updates(self.get_num_updates() + 1)
 
             # task specific update per step
-            self.task.update_step(self._num_updates)
+            self.task.update_step(self.get_num_updates())
 
             # log stats
             logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
@@ -408,7 +414,6 @@ class Trainer(object):
         if self.args.fp16:
             metrics.log_scalar("loss_scale", self.optimizer.scaler.loss_scale, priority=700, round=0)
 
-        self.clear_buffered_stats()
         metrics.log_stop_time("train_wall")
 
         return logging_output
@@ -478,9 +483,6 @@ class Trainer(object):
 
     def zero_grad(self):
         self.optimizer.zero_grad()
-
-    def clear_buffered_stats(self):
-        self._all_reduce_list = [0.0] * 6
 
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate based on the validation loss."""
