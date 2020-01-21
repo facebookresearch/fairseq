@@ -17,7 +17,14 @@ from . import test_binaries
 
 class TestReproducibility(unittest.TestCase):
 
-    def _test_reproducibility(self, name, extra_flags=None, delta=0.0001):
+    def _test_reproducibility(
+        self,
+        name,
+        extra_flags=None,
+        delta=0.0001,
+        resume_checkpoint='checkpoint1.pt',
+        max_epoch=3,
+    ):
         if extra_flags is None:
             extra_flags = []
 
@@ -33,14 +40,14 @@ class TestReproducibility(unittest.TestCase):
                         '--dropout', '0.0',
                         '--log-format', 'json',
                         '--log-interval', '1',
-                        '--max-epoch', '3',
+                        '--max-epoch', str(max_epoch),
                     ] + extra_flags,
                 )
             train_log, valid_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
 
             # train epoch 2, resuming from previous checkpoint 1
             os.rename(
-                os.path.join(data_dir, 'checkpoint1.pt'),
+                os.path.join(data_dir, resume_checkpoint),
                 os.path.join(data_dir, 'checkpoint_last.pt'),
             )
             with self.assertLogs() as logs:
@@ -49,7 +56,7 @@ class TestReproducibility(unittest.TestCase):
                         '--dropout', '0.0',
                         '--log-format', 'json',
                         '--log-interval', '1',
-                        '--max-epoch', '3',
+                        '--max-epoch', str(max_epoch),
                     ] + extra_flags,
                 )
             train_res_log, valid_res_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
@@ -75,6 +82,14 @@ class TestReproducibility(unittest.TestCase):
             '--memory-efficient-fp16',
             '--fp16-init-scale', '4096',
         ])
+
+    def test_mid_epoch_reproducibility(self):
+        self._test_reproducibility(
+            'test_mid_epoch_reproducibility',
+            ['--save-interval-updates', '3'],
+            resume_checkpoint='checkpoint_1_3.pt',
+            max_epoch=1,
+        )
 
 
 if __name__ == '__main__':

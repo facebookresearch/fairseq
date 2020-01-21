@@ -141,6 +141,7 @@ def should_stop_early(args, valid_loss):
         return should_stop_early.num_runs > args.patience
 
 
+@metrics.aggregate('train')
 def train(args, trainer, task, epoch_itr):
     """Train the model for one epoch."""
     # Initialize data iterator
@@ -163,31 +164,30 @@ def train(args, trainer, task, epoch_itr):
 
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
-    with metrics.aggregate() as agg:
-        for samples in progress:
-            log_output = trainer.train_step(samples)
-            num_updates = trainer.get_num_updates()
-            if log_output is None:
-                continue
+    for samples in progress:
+        log_output = trainer.train_step(samples)
+        num_updates = trainer.get_num_updates()
+        if log_output is None:
+            continue
 
-            # log mid-epoch stats
-            stats = get_training_stats(agg.get_smoothed_values())
-            progress.log(stats, tag='train', step=num_updates)
+        # log mid-epoch stats
+        stats = get_training_stats(metrics.get_smoothed_values('train'))
+        progress.log(stats, tag='train', step=num_updates)
 
-            if (
-                not args.disable_validation
-                and args.save_interval_updates > 0
-                and num_updates % args.save_interval_updates == 0
-                and num_updates > 0
-            ):
-                valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-                checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+        if (
+            not args.disable_validation
+            and args.save_interval_updates > 0
+            and num_updates % args.save_interval_updates == 0
+            and num_updates > 0
+        ):
+            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
-            if num_updates >= max_update:
-                break
+        if num_updates >= max_update:
+            break
 
     # log end-of-epoch stats
-    stats = get_training_stats(agg.get_smoothed_values())
+    stats = get_training_stats(metrics.get_smoothed_values('train'))
     progress.print(stats, tag='train', step=num_updates)
 
     # reset epoch-level meters
@@ -232,10 +232,9 @@ def validate(args, trainer, task, epoch_itr, subsets):
             no_progress_bar='simple'
         )
 
-        # reset validation meters
-        metrics.reset_meters('valid')
-
-        with metrics.aggregate() as agg:
+        # create a new root metrics aggregator so validation metrics
+        # don't pollute other aggregators (e.g., train meters)
+        with metrics.aggregate(new_root=True) as agg:
             for sample in progress:
                 trainer.valid_step(sample)
 
