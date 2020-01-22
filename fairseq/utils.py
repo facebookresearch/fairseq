@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from collections import defaultdict
 import contextlib
 import copy
 import importlib.util
@@ -11,13 +10,13 @@ import logging
 import math
 import os
 import sys
-from typing import Callable, List
 import warnings
+from collections import defaultdict
+from itertools import accumulate
+from typing import Callable, List
 
 import torch
 import torch.nn.functional as F
-
-from itertools import accumulate
 from fairseq.modules import gelu, gelu_accurate
 
 
@@ -26,12 +25,13 @@ logger = logging.getLogger(__name__)
 
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     from fairseq import checkpoint_utils
+
     deprecation_warning(
-        'utils.load_ensemble_for_inference is deprecated. '
-        'Please use checkpoint_utils.load_model_ensemble instead.'
+        "utils.load_ensemble_for_inference is deprecated. "
+        "Please use checkpoint_utils.load_model_ensemble instead."
     )
     return checkpoint_utils.load_model_ensemble(
-        filenames, arg_overrides=model_arg_overrides, task=task,
+        filenames, arg_overrides=model_arg_overrides, task=task
     )
 
 
@@ -43,10 +43,7 @@ def apply_to_sample(f, sample):
         if torch.is_tensor(x):
             return f(x)
         elif isinstance(x, dict):
-            return {
-                key: _apply(value)
-                for key, value in x.items()
-            }
+            return {key: _apply(value) for key, value in x.items()}
         elif isinstance(x, list):
             return [_apply(x) for x in x]
         else:
@@ -56,7 +53,6 @@ def apply_to_sample(f, sample):
 
 
 def move_to_cuda(sample):
-
     def _move_to_cuda(tensor):
         return tensor.cuda()
 
@@ -71,11 +67,13 @@ def _get_full_incremental_state_key(module_instance, key):
 
     # assign a unique ID to each module instance, so that incremental state is
     # not shared across module instances
-    if not hasattr(module_instance, '_fairseq_instance_id'):
+    if not hasattr(module_instance, "_fairseq_instance_id"):
         INCREMENTAL_STATE_INSTANCE_ID[module_name] += 1
-        module_instance._fairseq_instance_id = INCREMENTAL_STATE_INSTANCE_ID[module_name]
+        module_instance._fairseq_instance_id = INCREMENTAL_STATE_INSTANCE_ID[
+            module_name
+        ]
 
-    return '{}.{}.{}'.format(module_name, module_instance._fairseq_instance_id, key)
+    return "{}.{}.{}".format(module_name, module_instance._fairseq_instance_id, key)
 
 
 def get_incremental_state(module, incremental_state, key):
@@ -99,7 +97,7 @@ def load_align_dict(replace_unk):
     elif isinstance(replace_unk, str) and len(replace_unk) > 0:
         # Load alignment dictionary for unknown word replacement if it was passed as an argument.
         align_dict = {}
-        with open(replace_unk, 'r') as f:
+        with open(replace_unk, "r") as f:
             for line in f:
                 cols = line.split()
                 align_dict[cols[0]] = cols[1]
@@ -135,7 +133,9 @@ def parse_embedding(embed_path):
         next(f_embed)  # skip header
         for line in f_embed:
             pieces = line.rstrip().split(" ")
-            embed_dict[pieces[0]] = torch.Tensor([float(weight) for weight in pieces[1:]])
+            embed_dict[pieces[0]] = torch.Tensor(
+                [float(weight) for weight in pieces[1:]]
+            )
     return embed_dict
 
 
@@ -149,22 +149,27 @@ def load_embedding(embed_dict, vocab, embedding):
 
 def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
     from fairseq import tokenizer
+
     # Tokens are strings here
     hypo_tokens = tokenizer.tokenize_line(hypo_str)
     # TODO: Very rare cases where the replacement is '<eos>' should be handled gracefully
-    src_tokens = tokenizer.tokenize_line(src_str) + ['<eos>']
+    src_tokens = tokenizer.tokenize_line(src_str) + ["<eos>"]
     for i, ht in enumerate(hypo_tokens):
         if ht == unk:
             src_token = src_tokens[alignment[i]]
             # Either take the corresponding value in the aligned dictionary or just copy the original value.
             hypo_tokens[i] = align_dict.get(src_token, src_token)
-    return ' '.join(hypo_tokens)
+    return " ".join(hypo_tokens)
 
 
-def post_process_prediction(hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None):
+def post_process_prediction(
+    hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None
+):
     hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
     if align_dict is not None:
-        hypo_str = replace_unk(hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string())
+        hypo_str = replace_unk(
+            hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string()
+        )
     if align_dict is not None or remove_bpe is not None:
         # Convert back to tokens for evaluating with unk replacement or without BPE
         # Note that the dictionary can be modified inside the method.
@@ -182,9 +187,7 @@ def make_positions(tensor, padding_idx, onnx_trace=False):
     # prefers ints, cumsum defaults to output longs, and ONNX doesn't know
     # how to handle the dtype kwarg in cumsum.
     mask = tensor.ne(padding_idx).int()
-    return (
-        torch.cumsum(mask, dim=1).type_as(mask) * mask
-    ).long() + padding_idx
+    return (torch.cumsum(mask, dim=1).type_as(mask) * mask).long() + padding_idx
 
 
 def strip_pad(tensor, pad):
@@ -192,14 +195,16 @@ def strip_pad(tensor, pad):
 
 
 def buffered_arange(max):
-    if not hasattr(buffered_arange, 'buf'):
+    if not hasattr(buffered_arange, "buf"):
         buffered_arange.buf = torch.LongTensor()
     if max > buffered_arange.buf.numel():
         torch.arange(max, out=buffered_arange.buf)
     return buffered_arange.buf[:max]
 
 
-def convert_padding_direction(src_tokens, padding_idx, right_to_left=False, left_to_right=False):
+def convert_padding_direction(
+    src_tokens, padding_idx, right_to_left=False, left_to_right=False
+):
     assert right_to_left ^ left_to_right
     pad_mask = src_tokens.eq(padding_idx)
     if not pad_mask.any():
@@ -222,9 +227,9 @@ def convert_padding_direction(src_tokens, padding_idx, right_to_left=False, left
 
 
 def item(tensor):
-    if hasattr(tensor, 'item'):
+    if hasattr(tensor, "item"):
         return tensor.item()
-    if hasattr(tensor, '__getitem__'):
+    if hasattr(tensor, "__getitem__"):
         return tensor[0]
     return tensor
 
@@ -239,7 +244,7 @@ def clip_grad_norm_(tensor, max_norm):
 
 def fill_with_neg_inf(t):
     """FP16-compatible function that fills a tensor with -inf."""
-    return t.float().fill_(float('-inf')).type_as(t)
+    return t.float().fill_(float("-inf")).type_as(t)
 
 
 def _match_types(arg1, arg2):
@@ -295,19 +300,19 @@ def resolve_max_positions(*args):
             elif isinstance(arg, dict):
                 max_positions = map_value_update(max_positions, arg)
             else:
-                max_positions = tuple(
-                    map(nullsafe_min, zip(max_positions, arg))
-                )
+                max_positions = tuple(map(nullsafe_min, zip(max_positions, arg)))
 
     return max_positions
 
 
 def import_user_module(args):
-    module_path = getattr(args, 'user_dir', None)
+    module_path = getattr(args, "user_dir", None)
     if module_path is not None:
         module_path = os.path.abspath(args.user_dir)
         if not os.path.exists(module_path):
-            fairseq_rel_path = os.path.join(os.path.dirname(__file__), '..', args.user_dir)
+            fairseq_rel_path = os.path.join(
+                os.path.dirname(__file__), "..", args.user_dir
+            )
             if os.path.exists(fairseq_rel_path):
                 module_path = fairseq_rel_path
         module_parent, module_name = os.path.split(module_path)
@@ -334,9 +339,9 @@ def log_softmax(x, dim, onnx_trace=False):
 
 def get_perplexity(loss):
     try:
-        return float('{:.2f}'.format(math.pow(2, loss)))
+        return float("{:.2f}".format(math.pow(2, loss)))
     except OverflowError:
-        return float('inf')
+        return float("inf")
 
 
 def deprecation_warning(message, stacklevel=3):
@@ -346,18 +351,20 @@ def deprecation_warning(message, stacklevel=3):
 
 def get_activation_fn(activation: str) -> Callable:
     """ Returns the activation function corresponding to `activation` """
-    if activation == 'relu':
+    if activation == "relu":
         return F.relu
-    elif activation == 'gelu':
+    elif activation == "gelu":
         return gelu
-    elif activation == 'gelu_fast':
-        deprecation_warning('--activation-fn=gelu_fast has been renamed to gelu_accurate')
+    elif activation == "gelu_fast":
+        deprecation_warning(
+            "--activation-fn=gelu_fast has been renamed to gelu_accurate"
+        )
         return gelu_accurate
-    elif activation == 'gelu_accurate':
+    elif activation == "gelu_accurate":
         return gelu_accurate
-    elif activation == 'tanh':
+    elif activation == "tanh":
         return torch.tanh
-    elif activation == 'linear':
+    elif activation == "linear":
         return lambda x: x
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))
@@ -365,12 +372,12 @@ def get_activation_fn(activation: str) -> Callable:
 
 def get_available_activation_fns() -> List:
     return [
-        'relu',
-        'gelu',
-        'gelu_fast',  # deprecated
-        'gelu_accurate',
-        'tanh',
-        'linear',
+        "relu",
+        "gelu",
+        "gelu_fast",  # deprecated
+        "gelu_accurate",
+        "tanh",
+        "linear",
     ]
 
 
@@ -413,7 +420,7 @@ def parse_alignment(line):
     alignments = line.strip().split()
     parsed_alignment = torch.IntTensor(2 * len(alignments))
     for idx, alignment in enumerate(alignments):
-        src_idx, tgt_idx = alignment.split('-')
+        src_idx, tgt_idx = alignment.split("-")
         parsed_alignment[2 * idx] = int(src_idx)
         parsed_alignment[2 * idx + 1] = int(tgt_idx)
     return parsed_alignment
@@ -435,10 +442,15 @@ def extract_hard_alignment(attn, src_sent, tgt_sent, pad, eos):
     alignment = []
     if len(tgt_valid) != 0 and len(src_invalid) < len(src_sent):
         attn_valid = attn[tgt_valid]
-        attn_valid[:, src_invalid] = float('-inf')
+        attn_valid[:, src_invalid] = float("-inf")
         _, src_indices = attn_valid.max(dim=1)
         for tgt_idx, src_idx in zip(tgt_valid, src_indices):
-            alignment.append((src_token_to_word[src_idx.item()] - 1, tgt_token_to_word[tgt_idx.item()] - 1))
+            alignment.append(
+                (
+                    src_token_to_word[src_idx.item()] - 1,
+                    tgt_token_to_word[tgt_idx.item()] - 1,
+                )
+            )
     return alignment
 
 
