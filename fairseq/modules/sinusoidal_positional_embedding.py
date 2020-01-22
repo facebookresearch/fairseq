@@ -4,11 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from typing import Any, Optional
 
 import torch
-import torch.nn as nn
 import torch.onnx.operators
 from fairseq import utils
+from torch import Tensor, nn
 
 
 class SinusoidalPositionalEmbedding(nn.Module):
@@ -26,12 +27,15 @@ class SinusoidalPositionalEmbedding(nn.Module):
         )
         self.onnx_trace = False
         self.register_buffer("_float_tensor", torch.FloatTensor(1))
+        self.max_positions = int(1e5)
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
     @staticmethod
-    def get_embedding(num_embeddings, embedding_dim, padding_idx=None):
+    def get_embedding(
+        num_embeddings: int, embedding_dim: int, padding_idx: Optional[int] = None
+    ):
         """Build sinusoidal embeddings.
 
         This matches the implementation in tensor2tensor, but differs slightly
@@ -53,9 +57,16 @@ class SinusoidalPositionalEmbedding(nn.Module):
             emb[padding_idx, :] = 0
         return emb
 
-    def forward(self, input, incremental_state=None, timestep=None, **kwargs):
+    def forward(
+        self,
+        input,
+        incremental_state: Optional[Any] = None,
+        timestep: Optional[Tensor] = None,
+        positions: Optional[Any] = None,
+    ):
         """Input is expected to be of size [bsz x seqlen]."""
-        bsz, seq_len = torch.onnx.operators.shape_as_tensor(input)
+        bspair = torch.onnx.operators.shape_as_tensor(input)
+        bsz, seq_len = bspair[0], bspair[1]
         max_pos = self.padding_idx + 1 + seq_len
         if self.weights is None or max_pos > self.weights.size(0):
             # recompute/expand embeddings if needed
@@ -81,7 +92,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
         if self.onnx_trace:
             flat_embeddings = self.weights.detach().index_select(0, positions.view(-1))
             embedding_shape = torch.cat(
-                (bsz.view(1), seq_len.view(1), torch.LongTensor([-1]))
+                (bsz.view(1), seq_len.view(1), torch.tensor([-1], dtype=torch.long))
             )
             embeddings = torch.onnx.operators.reshape_from_tensor_shape(
                 flat_embeddings, embedding_shape
@@ -92,7 +103,3 @@ class SinusoidalPositionalEmbedding(nn.Module):
             .view(bsz, seq_len, -1)
             .detach()
         )
-
-    def max_positions(self):
-        """Maximum number of supported positions."""
-        return int(1e5)  # an arbitrary large number

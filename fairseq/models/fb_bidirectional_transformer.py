@@ -397,7 +397,7 @@ class BiTransformerDecoder(FairseqDecoder):
         """Maximum output length supported by the decoder."""
         if self.embed_positions is None:
             return self.max_target_positions
-        return min(self.max_target_positions, self.embed_positions.max_positions())
+        return min(self.max_target_positions, self.embed_positions.max_positions)
 
     def upgrade_state_dict_named(self, state_dict, name):
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):

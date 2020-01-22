@@ -182,7 +182,7 @@ def post_process_prediction(
     return hypo_tokens, hypo_str, alignment
 
 
-def make_positions(tensor, padding_idx, onnx_trace=False):
+def make_positions(tensor, padding_idx: int, onnx_trace: bool = False):
     """Replace non-padding symbols with their position numbers.
 
     Position numbers begin at padding_idx+1. Padding symbols are ignored.
