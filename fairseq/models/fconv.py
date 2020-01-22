@@ -289,7 +289,7 @@ class FConvEncoder(FairseqEncoder):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
 
 class AttentionLayer(nn.Module):
@@ -505,7 +505,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
-        return self.embed_positions.max_positions() if self.embed_positions is not None else float('inf')
+        return self.embed_positions.max_positions if self.embed_positions is not None else float('inf')
 
     def upgrade_state_dict(self, state_dict):
         if utils.item(state_dict.get('decoder.version', torch.Tensor([1]))[0]) < 2:
