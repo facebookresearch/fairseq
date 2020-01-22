@@ -455,7 +455,7 @@ def load_pretrained_component_from_model(
     mismatch in the architecture of the corresponding `component` found in the
     `checkpoint` file.
     """
-    if not os.path.exists(checkpoint):
+    if not PathManager.exists(checkpoint):
         raise IOError("Model file not found: {}".format(checkpoint))
     state = load_checkpoint_to_cpu(checkpoint)
     if isinstance(component, FairseqEncoder):
