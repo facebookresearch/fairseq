@@ -13,11 +13,13 @@ import sys
 import warnings
 from collections import defaultdict
 from itertools import accumulate
-from typing import Callable, List
+from typing import Callable, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
 from fairseq.modules import gelu, gelu_accurate
+from fairseq.modules.multihead_attention import MultiheadAttention
+from torch import Tensor
 
 
 logger = logging.getLogger(__name__)
@@ -59,24 +61,22 @@ def move_to_cuda(sample):
     return apply_to_sample(_move_to_cuda, sample)
 
 
-INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
+INCREMENTAL_STATE_INSTANCE_ID = {}
 
 
-def _get_full_incremental_state_key(module_instance, key):
-    module_name = module_instance.__class__.__name__
-
-    # assign a unique ID to each module instance, so that incremental state is
-    # not shared across module instances
-    if not hasattr(module_instance, "_fairseq_instance_id"):
-        INCREMENTAL_STATE_INSTANCE_ID[module_name] += 1
-        module_instance._fairseq_instance_id = INCREMENTAL_STATE_INSTANCE_ID[
-            module_name
-        ]
-
-    return "{}.{}.{}".format(module_name, module_instance._fairseq_instance_id, key)
+def _get_full_incremental_state_key(
+    module_instance: MultiheadAttention, key: str
+) -> str:
+    return "{}.{}.{}".format(
+        module_instance.module_name, module_instance._fairseq_instance_id, key
+    )
 
 
-def get_incremental_state(module, incremental_state, key):
+def get_incremental_state(
+    module: MultiheadAttention,
+    incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+    key: str,
+) -> Optional[Dict[str, Optional[Tensor]]]:
     """Helper for getting incremental state for an nn.Module."""
     full_key = _get_full_incremental_state_key(module, key)
     if incremental_state is None or full_key not in incremental_state:
@@ -84,7 +84,12 @@ def get_incremental_state(module, incremental_state, key):
     return incremental_state[full_key]
 
 
-def set_incremental_state(module, incremental_state, key, value):
+def set_incremental_state(
+    module: MultiheadAttention,
+    incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+    key: str,
+    value: Dict[str, Optional[Tensor]],
+):
     """Helper for setting incremental state for an nn.Module."""
     if incremental_state is not None:
         full_key = _get_full_incremental_state_key(module, key)
@@ -323,7 +328,7 @@ def import_user_module(args):
             sys.path.pop(0)
 
 
-def softmax(x, dim, onnx_trace=False):
+def softmax(x, dim: int, onnx_trace: bool = False):
     if onnx_trace:
         return F.softmax(x.float(), dim=dim)
     else:

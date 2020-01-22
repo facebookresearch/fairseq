@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from .unfold import unfold1d
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 
 def DynamicConv(input_size, kernel_size=1, padding_l=None, num_heads=1,
@@ -38,6 +39,7 @@ def Linear(in_features, out_features, bias=True):
     return m
 
 
+@with_incremental_state
 class DynamicConv1dTBC(nn.Module):
     '''Dynamic lightweight convolution taking T x B x C inputs
     Args:

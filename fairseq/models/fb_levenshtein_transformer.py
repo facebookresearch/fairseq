@@ -28,11 +28,11 @@ from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 
 @torch.jit.script
-def _fill(x, mask, y, padding_idx: int):
+def _fill(x: Optional[Tensor], mask, y: Optional[Tensor], padding_idx: int):
     """
     Filling tensor x with y at masked positions (dim=0).
     """
-    if x is None or x.size()[0] == 0:
+    if x is None or x.size()[0] == 0 or y is None:
         return torch.empty([0])
     assert x.dim() == y.dim() and mask.size(0) == x.size(0)
     assert x.dim() == 2 or (x.dim() == 3 and x.size(2) == y.size(2))
@@ -324,8 +324,8 @@ class LevenshteinTransformerModel(TransformerModel):
         def del_word(
             output_tokens,
             output_scores,
-            attn,
-            word_del_attn,
+            attn: Optional[Tensor],
+            word_del_attn: Optional[Tensor],
             word_del_out,
             can_del_word,
             pad_idx: int,
@@ -432,13 +432,13 @@ class LevenshteinTransformerModel(TransformerModel):
         def ins_words(
             output_tokens,
             output_scores,
-            attn: Tensor,
-            word_ins_attn: Tensor,
+            attn: Optional[Tensor],
+            word_ins_attn: Optional[Tensor],
             word_ins_out,
             can_ins_word,
             pad_idx: int,
             unk_idx: int,
-        ) -> Tuple[Tensor, Tensor, Tensor]:
+        ) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
             # insert words
             if can_ins_word.sum() != 0:
                 word_ins_scores = F.log_softmax(word_ins_out, 2)
@@ -458,7 +458,8 @@ class LevenshteinTransformerModel(TransformerModel):
                     out_scores = None
                 output_tokens = coalesce(_fill(output_tokens, can_ins_word, out_tokens, pad_idx), output_tokens)
                 output_scores = coalesce(_fill(output_scores, can_ins_word, out_scores, 0), output_scores)
-                attn = coalesce(_fill(attn, can_ins_word, word_ins_attn, 0), attn)
+                if attn is not None:
+                    attn = coalesce(_fill(attn, can_ins_word, word_ins_attn, 0), attn)
 
             return output_tokens, output_scores, attn
 
@@ -506,7 +507,6 @@ class LevenshteinTransformerModel(TransformerModel):
             script_skip_tensor(output_tokens, can_ins_word),
             skip_encoder_out(encoder_out, can_ins_word),
         )
-
         output_tokens, output_scores, attn = ins_words(
             output_tokens,
             output_scores,
@@ -526,8 +526,8 @@ class LevenshteinTransformerModel(TransformerModel):
             return x[:, :l]
 
         @torch.jit.script
-        def slice_wrap_attn(x, l):
-            if x.size()[0] == 0:
+        def slice_wrap_attn(x: Optional[Tensor], l):
+            if x is None or x.size()[0] == 0:
                 return torch.empty([0])
             else:
                 return x[:, :l, :]
