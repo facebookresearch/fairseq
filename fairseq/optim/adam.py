@@ -29,7 +29,12 @@ class FairseqAdam(FairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args)
         fused_adam_cls = get_fused_adam_class()
-        if not args.use_old_adam and fused_adam_cls is not None and torch.cuda.is_available():
+        use_fused_adam = (
+            not getattr(args, 'use_old_adam', False)
+            and fused_adam_cls is not None
+            and torch.cuda.is_available()
+        )
+        if use_fused_adam:
             logger.info('using FusedAdam')
             self._optimizer = fused_adam_cls(params, **self.optimizer_config)
         else:

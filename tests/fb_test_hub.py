@@ -78,6 +78,12 @@ class TestTranslationHub(unittest.TestCase):
 @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
 class TestLMHub(unittest.TestCase):
 
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
     @torch.no_grad()
     def test_transformer_lm_wmt19_en(self):
         with contextlib.redirect_stdout(StringIO()):
