@@ -4,8 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 from fairseq.models import FairseqDecoder
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 
+@with_incremental_state
 class FairseqIncrementalDecoder(FairseqDecoder):
     """Base class for incremental decoders.
 
