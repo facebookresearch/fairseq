@@ -78,7 +78,7 @@ for SRC in "${SRCS[@]}"; do
             | sed -e 's/<\/description>//g' \
             | sed 's/^\s*//g' \
             | sed 's/\s*$//g' \
-            > "$DATA/train.${SRC}-${TGT}.${LANG}"
+            >> "$DATA/train.${SRC}-${TGT}.${LANG}"
     done
 done
 
@@ -92,7 +92,7 @@ for ((i=0;i<${#SRCS[@]};++i)); do
                 | sed -e 's/<seg id="[0-9]*">\s*//g' \
                 | sed -e 's/\s*<\/seg>\s*//g' \
                 | sed -e "s/\’/\'/g" \
-                > "$DATA/valid.${SRC}-${TGT}.${LANG}"
+                >> "$DATA/valid.${SRC}-${TGT}.${LANG}"
         done
     done
 done
