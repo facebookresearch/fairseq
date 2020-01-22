@@ -288,7 +288,7 @@ class FConvEncoder(FairseqEncoder):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
 
 @with_incremental_state
@@ -472,7 +472,7 @@ class FConvDecoder(FairseqDecoder):
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
     def make_generation_fast_(self, need_attn=False, **kwargs):
         self.need_attn = need_attn
