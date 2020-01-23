@@ -200,7 +200,7 @@ class Wav2VecModel(BaseFairseqModel):
         logits = net_output['cpc_logits']
         return logits
 
-    def get_targets(self, sample, net_output, expand_steps=True):
+    def get_targets(self, sample, net_output):
         t = net_output['cpc_targets']
         return t.contiguous()
 
