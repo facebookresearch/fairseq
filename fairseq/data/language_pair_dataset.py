@@ -3,10 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+
 import numpy as np
 import torch
 
 from . import data_utils, FairseqDataset
+
+
+logger = logging.getLogger(__name__)
 
 
 def collate(
@@ -26,7 +31,7 @@ def collate(
         if alignment is None or len(alignment) == 0:
             return False
         if alignment[:, 0].max().item() >= src_len - 1 or alignment[:, 1].max().item() >= tgt_len - 1:
-            print("| alignment size mismatch found, skipping alignment!")
+            logger.warning("alignment size mismatch found, skipping alignment!")
             return False
         return True
 

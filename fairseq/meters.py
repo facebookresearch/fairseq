@@ -30,6 +30,13 @@ class Meter(object):
         raise NotImplementedError
 
 
+def safe_round(number, ndigits):
+    if hasattr(number, '__round__'):
+        return round(number, ndigits)
+    else:
+        return number
+
+
 class AverageMeter(Meter):
     """Computes and stores the average and current value"""
 
@@ -71,7 +78,7 @@ class AverageMeter(Meter):
     def smoothed_value(self) -> float:
         val = self.avg
         if self.round is not None and val is not None:
-            val = round(val, self.round)
+            val = safe_round(val, self.round)
         return val
 
 
@@ -117,7 +124,7 @@ class TimeMeter(Meter):
     def smoothed_value(self) -> float:
         val = self.avg
         if self.round is not None and val is not None:
-            val = round(val, self.round)
+            val = safe_round(val, self.round)
         return val
 
 
@@ -171,7 +178,7 @@ class StopwatchMeter(Meter):
     def smoothed_value(self) -> float:
         val = self.avg if self.sum > 0 else self.elapsed_time
         if self.round is not None and val is not None:
-            val = round(val, self.round)
+            val = safe_round(val, self.round)
         return val
 
 
@@ -223,7 +230,18 @@ class MetersDict(OrderedDict):
 
     def get_smoothed_values(self) -> Dict[str, float]:
         """Get all smoothed values."""
-        return OrderedDict([(key, self.get_smoothed_value(key)) for key in self.keys()])
+        return OrderedDict([
+            (key, self.get_smoothed_value(key))
+            for key in self.keys()
+            if not key.startswith("_")
+        ])
+
+    def reset(self):
+        """Reset Meter instances."""
+        for meter in self.values():
+            if isinstance(meter, MetersDict._DerivedMeter):
+                continue
+            meter.reset()
 
     class _DerivedMeter(Meter):
         """A Meter whose values are derived from other Meters."""

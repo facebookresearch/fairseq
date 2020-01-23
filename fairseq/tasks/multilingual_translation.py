@@ -4,11 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import OrderedDict
+import logging
 import os
 
 import torch
 
-from fairseq import options, utils
+from fairseq import metrics, options
 from fairseq.data import (
     Dictionary,
     LanguagePairDataset,
@@ -18,8 +19,10 @@ from fairseq.data import (
 from fairseq.models import FairseqMultiModel
 from fairseq.tasks.translation import load_langpair_dataset
 
-
 from . import FairseqTask, register_task
+
+
+logger = logging.getLogger(__name__)
 
 
 def _lang_token(lang: str):
@@ -142,7 +145,7 @@ class MultilingualTranslationTask(FairseqTask):
             if args.encoder_langtok is not None or args.decoder_langtok:
                 for lang_to_add in sorted_langs:
                     dicts[lang].add_symbol(_lang_token(lang_to_add))
-            print('| [{}] dictionary: {} types'.format(lang, len(dicts[lang])))
+            logger.info('[{}] dictionary: {} types'.format(lang, len(dicts[lang])))
         return dicts, training
 
     def get_encoder_langtok(self, src_lang, tgt_lang):
@@ -299,15 +302,20 @@ class MultilingualTranslationTask(FairseqTask):
                     if self.args.decoder_langtok else self.target_dictionary.eos(),
             )
 
-    def aggregate_logging_outputs(self, logging_outputs, criterion, logging_output_keys=None):
+    def reduce_metrics(self, logging_outputs, criterion, logging_output_keys=None):
         logging_output_keys = logging_output_keys or self.eval_lang_pairs
+
         # aggregate logging outputs for each language pair
-        agg_logging_outputs = {
-            key: criterion.__class__.aggregate_logging_outputs([
-                logging_output.get(key, {}) for logging_output in logging_outputs
-            ])
-            for key in logging_output_keys
-        }
+        agg_logging_outputs = {}
+        for key in logging_output_keys:
+            with metrics.aggregate() as agg:
+                logging_outputs_key = [
+                    logging_output.get(key, {}) for logging_output in logging_outputs
+                ]
+                for k in ['sample_size', 'nsentences', 'ntokens']:
+                    metrics.log_scalar(k, sum(l[k] for l in logging_outputs_key))
+                super().reduce_metrics(logging_outputs_key, criterion)
+                agg_logging_outputs[key] = agg.get_smoothed_values()
 
         def sum_over_languages(key):
             return sum(logging_output[key] for logging_output in agg_logging_outputs.values())

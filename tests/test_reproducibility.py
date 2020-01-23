@@ -17,46 +17,49 @@ from . import test_binaries
 
 class TestReproducibility(unittest.TestCase):
 
-    def _test_reproducibility(self, name, extra_flags=None, delta=0.0001):
+    def _test_reproducibility(
+        self,
+        name,
+        extra_flags=None,
+        delta=0.0001,
+        resume_checkpoint='checkpoint1.pt',
+        max_epoch=3,
+    ):
         if extra_flags is None:
             extra_flags = []
 
         with tempfile.TemporaryDirectory(name) as data_dir:
-            with contextlib.redirect_stdout(StringIO()):
+            with self.assertLogs() as logs:
                 test_binaries.create_dummy_data(data_dir)
                 test_binaries.preprocess_translation_data(data_dir)
 
             # train epochs 1 and 2 together
-            stdout = StringIO()
-            with contextlib.redirect_stdout(stdout):
+            with self.assertLogs() as logs:
                 test_binaries.train_translation_model(
                     data_dir, 'fconv_iwslt_de_en', [
                         '--dropout', '0.0',
                         '--log-format', 'json',
                         '--log-interval', '1',
-                        '--max-epoch', '3',
+                        '--max-epoch', str(max_epoch),
                     ] + extra_flags,
                 )
-            stdout = stdout.getvalue()
-            train_log, valid_log = map(json.loads, stdout.split('\n')[-5:-3])
+            train_log, valid_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
 
             # train epoch 2, resuming from previous checkpoint 1
             os.rename(
-                os.path.join(data_dir, 'checkpoint1.pt'),
+                os.path.join(data_dir, resume_checkpoint),
                 os.path.join(data_dir, 'checkpoint_last.pt'),
             )
-            stdout = StringIO()
-            with contextlib.redirect_stdout(stdout):
+            with self.assertLogs() as logs:
                 test_binaries.train_translation_model(
                     data_dir, 'fconv_iwslt_de_en', [
                         '--dropout', '0.0',
                         '--log-format', 'json',
                         '--log-interval', '1',
-                        '--max-epoch', '3',
+                        '--max-epoch', str(max_epoch),
                     ] + extra_flags,
                 )
-            stdout = stdout.getvalue()
-            train_res_log, valid_res_log = map(json.loads, stdout.split('\n')[-5:-3])
+            train_res_log, valid_res_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
 
             for k in ['train_loss', 'train_ppl', 'train_num_updates', 'train_gnorm']:
                 self.assertAlmostEqual(float(train_log[k]), float(train_res_log[k]), delta=delta)
@@ -71,7 +74,7 @@ class TestReproducibility(unittest.TestCase):
         self._test_reproducibility('test_reproducibility_fp16', [
             '--fp16',
             '--fp16-init-scale', '4096',
-        ], delta=0.01)
+        ], delta=0.011)
 
     @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_reproducibility_memory_efficient_fp16(self):
@@ -79,6 +82,14 @@ class TestReproducibility(unittest.TestCase):
             '--memory-efficient-fp16',
             '--fp16-init-scale', '4096',
         ])
+
+    def test_mid_epoch_reproducibility(self):
+        self._test_reproducibility(
+            'test_mid_epoch_reproducibility',
+            ['--save-interval-updates', '3'],
+            resume_checkpoint='checkpoint_1_3.pt',
+            max_epoch=1,
+        )
 
 
 if __name__ == '__main__':

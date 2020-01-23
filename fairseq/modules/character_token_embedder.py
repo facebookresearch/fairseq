@@ -3,18 +3,22 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
-import torch.nn.functional as F
-
-from torch import nn
-
+import logging
 from typing import List, Tuple
 
-from .highway import Highway
+import torch
+from torch import nn
+import torch.nn.functional as F
+
 from fairseq.data import Dictionary
+
+from .highway import Highway
 
 CHAR_PAD_IDX = 0
 CHAR_EOS_IDX = 257
+
+
+logger = logging.getLogger(__name__)
 
 
 class CharacterTokenEmbedder(torch.nn.Module):
@@ -77,7 +81,7 @@ class CharacterTokenEmbedder(torch.nn.Module):
             word_to_char[i] = torch.LongTensor(char_idxs)
 
         if truncated > 0:
-            print('Truncated {} words longer than {} characters'.format(truncated, max_char_len))
+            logger.info('truncated {} words longer than {} characters'.format(truncated, max_char_len))
 
         self.vocab = vocab
         self.word_to_char = word_to_char
@@ -143,7 +147,7 @@ class CharacterTokenEmbedder(torch.nn.Module):
 
         conv_result = []
 
-        for i, conv in enumerate(self.convolutions):
+        for conv in self.convolutions:
             x = conv(char_embs)
             x, _ = torch.max(x, -1)
             x = F.relu(x)

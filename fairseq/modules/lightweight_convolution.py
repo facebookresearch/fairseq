@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from fairseq.modules.unfold import unfold1d
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 
 def LightweightConv(input_size, kernel_size=1, padding_l=None, num_heads=1,
@@ -99,6 +100,7 @@ class LightweightConv1d(nn.Module):
         return output
 
 
+@with_incremental_state
 class LightweightConv1dTBC(nn.Module):
     '''Lightweight Convolution assuming the input is TxBxC
     Args:
@@ -136,7 +138,6 @@ class LightweightConv1dTBC(nn.Module):
             self.bias = None
 
         self.reset_parameters()
-
         self.onnx_trace = False
 
     def reset_parameters(self):

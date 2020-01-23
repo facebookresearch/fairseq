@@ -5,6 +5,7 @@
 
 import contextlib
 from io import StringIO
+import logging
 import os
 import random
 import sys
@@ -14,16 +15,21 @@ import unittest
 import torch
 
 from fairseq import options
-
-import preprocess
-import train
-import generate
-import interactive
-import eval_lm
-import validate
+from fairseq_cli import preprocess
+from fairseq_cli import train
+from fairseq_cli import generate
+from fairseq_cli import interactive
+from fairseq_cli import eval_lm
+from fairseq_cli import validate
 
 
 class TestTranslation(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_fconv(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -121,6 +127,19 @@ class TestTranslation(unittest.TestCase):
                         '--match-source-len',
                     ])
                 generate_main(data_dir, ['--prefix-size', '2'])
+
+    def test_eval_bleu(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_eval_bleu') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'fconv_iwslt_de_en', [
+                    '--eval-bleu',
+                    '--eval-bleu-print-samples',
+                    '--eval-bleu-remove-bpe',
+                    '--eval-bleu-detok', 'space',
+                    '--eval-bleu-args', '{"beam": 4, "min_len": 10}',
+                ])
 
     def test_lstm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -396,6 +415,12 @@ class TestTranslation(unittest.TestCase):
 
 class TestStories(unittest.TestCase):
 
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
     def test_fconv_self_att_wp(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_fconv_self_att_wp') as data_dir:
@@ -428,6 +453,12 @@ class TestStories(unittest.TestCase):
 
 
 class TestLanguageModeling(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_fconv_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -474,6 +505,12 @@ class TestLanguageModeling(unittest.TestCase):
 
 
 class TestMaskedLanguageModel(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_legacy_masked_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -609,6 +646,12 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
 
 
 class TestCommonOptions(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_optimizers(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -823,6 +866,69 @@ def eval_lm_main(data_dir):
         ],
     )
     eval_lm.main(eval_lm_args)
+
+
+def train_masked_language_model(data_dir, arch, extra_args=()):
+    train_parser = options.get_training_parser()
+    # TODO: langs should be in and out right?
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            "--task",
+            "cross_lingual_lm",
+            data_dir,
+            "--arch",
+            arch,
+            # Optimizer args
+            "--optimizer",
+            "adam",
+            "--lr-scheduler",
+            "reduce_lr_on_plateau",
+            "--lr-shrink",
+            "0.5",
+            "--lr",
+            "0.0001",
+            "--min-lr",
+            "1e-09",
+            # dropout, attention args
+            "--dropout",
+            "0.1",
+            "--attention-dropout",
+            "0.1",
+            # MLM args
+            "--criterion",
+            "masked_lm_loss",
+            "--masked-lm-only",
+            "--monolingual-langs",
+            "in,out",
+            "--num-segment",
+            "5",
+            # Transformer args: use a small transformer model for fast training
+            "--encoder-layers",
+            "1",
+            "--encoder-embed-dim",
+            "32",
+            "--encoder-attention-heads",
+            "1",
+            "--encoder-ffn-embed-dim",
+            "32",
+            # Other training args
+            "--max-tokens",
+            "500",
+            "--tokens-per-sample",
+            "500",
+            "--save-dir",
+            data_dir,
+            "--max-epoch",
+            "1",
+            "--no-progress-bar",
+            "--distributed-world-size",
+            "1",
+            "--dataset-impl",
+            "raw",
+        ] + list(extra_args),
+    )
+    train.main(train_args)
 
 
 if __name__ == '__main__':

@@ -7,10 +7,11 @@ import torch
 import torch.nn.functional as F
 
 from fairseq import utils
-
 from .conv_tbc import ConvTBC
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 
+@with_incremental_state
 class LinearizedConvolution(ConvTBC):
     """An optimized version of nn.Conv1d.
 

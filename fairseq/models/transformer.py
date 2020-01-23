@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import namedtuple
+import logging
 import math
 
 import torch
@@ -28,8 +29,12 @@ from fairseq.modules import (
 )
 import random
 
+
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('transformer')
@@ -451,7 +456,7 @@ class TransformerEncoder(FairseqEncoder):
         """Maximum input length supported by the encoder."""
         if self.embed_positions is None:
             return self.max_source_positions
-        return min(self.max_source_positions, self.embed_positions.max_positions())
+        return min(self.max_source_positions, self.embed_positions.max_positions)
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
@@ -466,7 +471,7 @@ class TransformerEncoder(FairseqEncoder):
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
             weights_key = '{}.embed_positions.weights'.format(name)
             if weights_key in state_dict:
-                print('deleting {0}'.format(weights_key))
+                logger.info('deleting {0}'.format(weights_key))
                 del state_dict[weights_key]
             state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
         for i in range(len(self.layers)):
@@ -722,7 +727,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         """Maximum output length supported by the decoder."""
         if self.embed_positions is None:
             return self.max_target_positions
-        return min(self.max_target_positions, self.embed_positions.max_positions())
+        return min(self.max_target_positions, self.embed_positions.max_positions)
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)

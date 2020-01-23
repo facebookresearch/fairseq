@@ -60,19 +60,31 @@ class _FP16OptimizerMixin(object):
         # forward __init__ call to the next class in mro(method resolution order)
         super().__init__(*args, **kwargs)
 
+    @property
+    def has_flat_params(self):
+        return torch.is_tensor(self.fp32_params)
+
     @classmethod
-    def build_fp32_params(cls, params):
+    def build_fp32_params(cls, params, flatten=True):
         # create FP32 copy of parameters and grads
-        total_param_size = sum(p.data.numel() for p in params)
-        fp32_params = params[0].new(0).float().new(total_param_size)
-        offset = 0
-        for p in params:
-            numel = p.data.numel()
-            fp32_params[offset:offset+numel].copy_(p.data.view(-1))
-            offset += numel
-        fp32_params = torch.nn.Parameter(fp32_params)
-        fp32_params.grad = fp32_params.data.new(total_param_size)
-        return fp32_params
+        if flatten:
+            total_param_size = sum(p.data.numel() for p in params)
+            fp32_params = torch.zeros(total_param_size, dtype=torch.float, device=params[0].device)
+            offset = 0
+            for p in params:
+                numel = p.data.numel()
+                fp32_params[offset:offset+numel].copy_(p.data.view(-1))
+                offset += numel
+            fp32_params = torch.nn.Parameter(fp32_params)
+            fp32_params.grad = fp32_params.data.new(total_param_size)
+            return fp32_params
+        else:
+            fp32_params = []
+            for p in params:
+                p32 = torch.nn.Parameter(p.data.float())
+                p32.grad = torch.zeros_like(p32.data)
+                fp32_params.append(p32)
+            return fp32_params
 
     def state_dict(self):
         """Return the optimizer's state dict."""
@@ -105,18 +117,29 @@ class _FP16OptimizerMixin(object):
 
     def _sync_fp16_grads_to_fp32(self, multiply_grads=1.):
         if self._needs_sync:
-            # copy FP16 grads to FP32
-            offset = 0
-            for p in self.fp16_params:
-                if not p.requires_grad:
-                    continue
-                grad_data = p.grad.data if p.grad is not None else p.data.new_zeros(p.data.shape)
-                numel = grad_data.numel()
-                self.fp32_params.grad.data[offset:offset+numel].copy_(grad_data.view(-1))
-                offset += numel
-
             # correct for dynamic loss scaler
-            self.fp32_params.grad.data.mul_(multiply_grads / self.scaler.loss_scale)
+            multiply_grads /= self.scaler.loss_scale
+
+            # copy FP16 grads to FP32
+            if self.has_flat_params:
+                offset = 0
+                for p in self.fp16_params:
+                    if not p.requires_grad:
+                        continue
+                    grad_data = p.grad.data if p.grad is not None else p.data.new_zeros(p.data.shape)
+                    numel = grad_data.numel()
+                    self.fp32_params.grad.data[offset:offset+numel].copy_(grad_data.view(-1))
+                    offset += numel
+                self.fp32_params.grad.data.mul_(multiply_grads)
+            else:
+                for p, p32 in zip(self.fp16_params, self.fp32_params):
+                    if not p.requires_grad:
+                        continue
+                    if p.grad is not None:
+                        p32.grad.data.copy_(p.grad.data)
+                        p32.grad.data.mul_(multiply_grads)
+                    else:
+                        p32.grad = torch.zeros_like(p.data, dtype=torch.float)
 
             self._needs_sync = False
 
@@ -124,13 +147,19 @@ class _FP16OptimizerMixin(object):
         """Multiplies grads by a constant ``c``."""
         if self._needs_sync:
             self._sync_fp16_grads_to_fp32(c)
-        else:
+        elif self.has_flat_params:
             self.fp32_params.grad.data.mul_(c)
+        else:
+            for p32 in self.fp32_params:
+                p32.grad.data.mul_(c)
 
     def clip_grad_norm(self, max_norm):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._sync_fp16_grads_to_fp32()
-        grad_norm = utils.clip_grad_norm_(self.fp32_params.grad.data, max_norm)
+        if self.has_flat_params:
+            grad_norm = utils.clip_grad_norm_(self.fp32_params.grad.data, max_norm)
+        else:
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.fp32_params, max_norm)
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
@@ -153,18 +182,29 @@ class _FP16OptimizerMixin(object):
         self.fp32_optimizer.step(closure)
 
         # copy FP32 params back into FP16 model
-        offset = 0
-        for p in self.fp16_params:
-            if not p.requires_grad:
-                continue
-            numel = p.data.numel()
-            p.data.copy_(self.fp32_params.data[offset:offset+numel].view_as(p.data))
-            offset += numel
+        if self.has_flat_params:
+            offset = 0
+            for p in self.fp16_params:
+                if not p.requires_grad:
+                    continue
+                numel = p.data.numel()
+                p.data.copy_(self.fp32_params.data[offset:offset+numel].view_as(p.data))
+                offset += numel
+        else:
+            for p, p32 in zip(self.fp16_params, self.fp32_params):
+                if not p.requires_grad:
+                    continue
+                p.data.copy_(p32.data)
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
         for p in self.fp16_params:
             p.grad = None
+        if self.has_flat_params:
+            self.fp32_params.grad.zero_()
+        else:
+            for p32 in self.fp32_params:
+                p32.grad.zero_()
         self._needs_sync = False
 
 
@@ -204,8 +244,12 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
             args (argparse.Namespace): fairseq args
             params (iterable): iterable of parameters to optimize
         """
-        fp32_params = cls.build_fp32_params(params)
-        fp32_optimizer = optim.build_optimizer(args, [fp32_params])
+        flatten = not getattr(args, 'fp16_no_flatten_grads', False)
+        fp32_params = cls.build_fp32_params(params, flatten=flatten)
+        if flatten:
+            fp32_optimizer = optim.build_optimizer(args, [fp32_params])
+        else:
+            fp32_optimizer = optim.build_optimizer(args, fp32_params)
         return cls(args, params, fp32_optimizer, fp32_params)
 
     @property

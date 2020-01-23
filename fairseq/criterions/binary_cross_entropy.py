@@ -4,13 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 from fairseq import utils
-
-from . import FairseqCriterion, register_criterion
+from fairseq.criterions import FairseqCriterion, register_criterion
 
 
 @register_criterion('binary_cross_entropy')
@@ -29,7 +29,7 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         logits = model.get_logits(net_output).float()
-        target = model.get_targets(sample, net_output, expand_steps=False).float()
+        target = model.get_targets(sample, net_output).float()
 
         if hasattr(model, 'get_target_weights'):
             weights = model.get_target_weights(target, net_output)

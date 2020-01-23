@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 import numpy as np
@@ -26,6 +27,10 @@ from fairseq.data import (
     TokenBlockDataset,
 )
 from fairseq.tasks import FairseqTask, register_task
+
+
+logger = logging.getLogger(__name__)
+
 
 @register_task('multilingual_masked_lm')
 class MultiLingualMaskedLMTask(FairseqTask):
@@ -72,7 +77,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
         paths = args.data.split(os.pathsep)
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
-        print('| dictionary: {} types'.format(len(dictionary)))
+        logger.info('dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
     def _get_whole_word_mask(self):
@@ -120,12 +125,13 @@ class MultiLingualMaskedLMTask(FairseqTask):
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
-        languages = [
+        languages = sorted(
             name for name in os.listdir(data_path)
             if os.path.isdir(os.path.join(data_path, name))
-        ]
-        print("| Training on {0} languages: {1}".format(len(languages), languages))
-        print("| Language to id mapping: ", {
+        )
+
+        logger.info("Training on {0} languages: {1}".format(len(languages), languages))
+        logger.info("Language to id mapping: ", {
                 lang: id for id, lang in enumerate(languages)
             }
         )
@@ -153,7 +159,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
                 eos=self.source_dictionary.eos(),
                 break_mode=self.args.sample_break_mode,
             )
-            print('| loaded {} blocks from: {}'.format(len(dataset), split_path))
+            logger.info('loaded {} blocks from: {}'.format(len(dataset), split_path))
 
             # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
             dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
@@ -194,20 +200,26 @@ class MultiLingualMaskedLMTask(FairseqTask):
             )
             lang_datasets.append(lang_dataset)
 
+
+        dataset_lengths = np.array(
+            [len(d) for d in lang_datasets],
+            dtype=float,
+        )
+        logger.info(
+            'loaded total {} blocks for all languages'.format(
+                dataset_lengths.sum(),
+            )
+        )
         if split == self.args.train_subset:
             # For train subset, additionally up or down sample languages.
-            dataset_lengths = np.array(
-                [len(d) for d in lang_datasets],
-                dtype=float,
-            )
             sample_probs = self._get_sample_prob(dataset_lengths)
-            print("| Sample probability by language: ", {
+            logger.info("Sample probability by language: ", {
                     lang: "{0:.4f}".format(sample_probs[id])
                     for id, lang in enumerate(languages)
                 }
             )
             size_ratio = (sample_probs * dataset_lengths.sum()) / dataset_lengths
-            print("| Up/Down Sampling ratio by language: ", {
+            logger.info("Up/Down Sampling ratio by language: ", {
                     lang: "{0:.2f}".format(size_ratio[id])
                     for id, lang in enumerate(languages)
                 }
@@ -286,12 +298,14 @@ class MultiLingualMaskedLMTask(FairseqTask):
     ):
         # Recreate epoch iterator every epoch cause the underlying
         # datasets are dynamic due to sampling.
-        self.dataset_to_epoch_iter = None
-        return super().get_batch_iterator(
+        self.dataset_to_epoch_iter = {}
+        epoch_iter = super().get_batch_iterator(
             dataset, max_tokens, max_sentences, max_positions,
             ignore_invalid_inputs, required_batch_size_multiple,
             seed, num_shards, shard_id, num_workers, epoch,
         )
+        self.dataset_to_epoch_iter = {}
+        return epoch_iter
 
     @property
     def source_dictionary(self):
