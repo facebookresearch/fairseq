@@ -85,14 +85,15 @@ done
 echo "pre-processing valid data..."
 for ((i=0;i<${#SRCS[@]};++i)); do
     SRC=${SRCS[i]}
-    VALID_SET=${VALID_SETS[i]}
-    for FILE in ${VALID_SET[@]}; do
+    VALID_SET=(${VALID_SETS[i]})
+    for ((j=0;j<${#VALID_SET[@]};++j)); do
+        FILE=${VALID_SET[j]}
         for LANG in "$SRC" "$TGT"; do
             grep '<seg id' "$ORIG/${SRC}-${TGT}/${FILE}.${LANG}.xml" \
                 | sed -e 's/<seg id="[0-9]*">\s*//g' \
                 | sed -e 's/\s*<\/seg>\s*//g' \
                 | sed -e "s/\’/\'/g" \
-                > "$DATA/valid.${SRC}-${TGT}.${LANG}"
+                > "$DATA/valid${j}.${SRC}-${TGT}.${LANG}"
         done
     done
 done
