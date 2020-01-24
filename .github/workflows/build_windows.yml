@@ -1,4 +1,4 @@
-name: build
+name: build_windows
 
 on:
   # Trigger the workflow on push to master or any pull request
@@ -13,7 +13,7 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        platform: [ubuntu-latest, macos-latest]
+        platform: [windows-latest]
         python-version: [3.6, 3.7]
 
     runs-on: ${{ matrix.platform }}

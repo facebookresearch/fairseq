@@ -65,7 +65,7 @@ def _main(args, output_file):
     # Load ensemble
     logger.info('loading model(s) from {}'.format(args.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
-        args.path.split(':'),
+        args.path.split(os.pathsep),
         arg_overrides=eval(args.model_overrides),
         task=task,
     )

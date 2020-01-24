@@ -99,7 +99,7 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(":")
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
 
         if self.args.multiple_datasets:

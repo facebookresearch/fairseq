@@ -9,6 +9,7 @@ Train a new model on one or across multiple GPUs.
 
 import logging
 import math
+import os
 import random
 import sys
 
@@ -117,9 +118,11 @@ def main(args, init_distributed=False):
             logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
             break
 
-        reload_dataset = ':' in getattr(args, 'data', '')
-        # sharded data: get train iterator for next epoch
-        epoch_itr = trainer.get_train_iterator(epoch_itr.epoch, load_dataset=reload_dataset)
+        epoch_itr = trainer.get_train_iterator(
+            epoch_itr.epoch,
+            # sharded data: get train iterator for next epoch
+            load_dataset=(os.pathsep in getattr(args, 'data', '')),
+        )
     train_meter.stop()
     logger.info('done training in {:.1f} seconds'.format(train_meter.sum))
 
