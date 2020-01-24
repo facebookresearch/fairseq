@@ -91,7 +91,7 @@ class TimeMeter(Meter):
 
     def reset(self, init=0, n=0):
         self.init = init
-        self.start = time.time()
+        self.start = time.perf_counter()
         self.n = n
 
     def update(self, val=1):
@@ -118,7 +118,7 @@ class TimeMeter(Meter):
 
     @property
     def elapsed_time(self):
-        return self.init + (time.time() - self.start)
+        return self.init + (time.perf_counter() - self.start)
 
     @property
     def smoothed_value(self) -> float:
@@ -138,11 +138,11 @@ class StopwatchMeter(Meter):
         self.start_time = None
 
     def start(self):
-        self.start_time = time.time()
+        self.start_time = time.perf_counter()
 
     def stop(self, n=1):
         if self.start_time is not None:
-            delta = time.time() - self.start_time
+            delta = time.perf_counter() - self.start_time
             self.sum += delta
             self.n += n
 
@@ -172,7 +172,7 @@ class StopwatchMeter(Meter):
     def elapsed_time(self):
         if self.start_time is None:
             return 0.
-        return time.time() - self.start_time
+        return time.perf_counter() - self.start_time
 
     @property
     def smoothed_value(self) -> float:

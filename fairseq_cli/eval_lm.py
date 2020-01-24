@@ -10,6 +10,7 @@ Evaluate the perplexity of a trained language model.
 
 import logging
 import math
+import os
 
 import torch
 
@@ -67,7 +68,7 @@ def main(parsed_args):
     # Load ensemble
     logger.info('loading model(s) from {}'.format(parsed_args.path))
     models, args = checkpoint_utils.load_model_ensemble(
-        parsed_args.path.split(':'),
+        parsed_args.path.split(os.pathsep),
         arg_overrides=eval(parsed_args.model_overrides),
         task=task,
     )

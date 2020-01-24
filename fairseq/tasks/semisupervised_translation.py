@@ -50,7 +50,7 @@ def parse_lambda_config(x):
     if len(split) == 1:
         return float(x), None
     else:
-        split = [s.split(':') for s in split]
+        split = [s.split(os.pathsep) for s in split]
         assert all(len(s) == 2 for s in split)
         assert all(k.isdigit() for k, _ in split)
         assert all(int(split[i][0]) < int(split[i + 1][0]) for i in range(len(split) - 1))

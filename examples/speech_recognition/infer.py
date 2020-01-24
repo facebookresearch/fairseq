@@ -186,7 +186,7 @@ def main(args):
     # Load ensemble
     logger.info("| loading model(s) from {}".format(args.path))
     models, criterions, _model_args = load_models_and_criterions(
-        args.path.split(":"),
+        args.path.split(os.pathsep),
         arg_overrides=eval(args.model_overrides),  # noqa
         task=task,
     )
