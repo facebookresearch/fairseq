@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 import lightconv_cuda
 from fairseq import utils
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 
 class lightconvFunction(Function):
@@ -32,6 +33,7 @@ class lightconvFunction(Function):
         return grad_input, grad_weights, None
 
 
+@with_incremental_state
 class LightconvLayer(nn.Module):
     def __init__(
             self,
