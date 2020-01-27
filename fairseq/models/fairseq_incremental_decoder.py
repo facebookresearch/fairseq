@@ -67,14 +67,16 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         order changes between time steps based on the selection of beams.
         """
         seen = set()
-
-        def apply_reorder_incremental_state(module):
-            if module != self and hasattr(module, 'reorder_incremental_state') \
-                    and module not in seen:
+        for module in self.modules():
+            if (
+                module != self
+                and hasattr(module, 'reorder_incremental_state')
+                and module not in seen
+            ):
                 seen.add(module)
-                module.reorder_incremental_state(incremental_state, new_order)
-
-        self.apply(apply_reorder_incremental_state)
+                result = module.reorder_incremental_state(incremental_state, new_order)
+                if result is not None:
+                    incremental_state = result
 
     def set_beam_size(self, beam_size):
         """Sets the beam size in the decoder and all children."""

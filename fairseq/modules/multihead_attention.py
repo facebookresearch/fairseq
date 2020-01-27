@@ -274,7 +274,7 @@ class MultiheadAttention(nn.Module):
             saved_state["prev_key_padding_mask"] = key_padding_mask
             # In this branch incremental_state is never None
             assert incremental_state is not None
-            self._set_input_buffer(incremental_state, saved_state)
+            incremental_state = self._set_input_buffer(incremental_state, saved_state)
         assert k is not None
         src_len = k.size(1)
 
@@ -405,28 +405,25 @@ class MultiheadAttention(nn.Module):
             for k in input_buffer.keys():
                 if input_buffer[k] is not None:
                     input_buffer[k] = input_buffer[k].index_select(0, new_order)
-            self._set_input_buffer(incremental_state, input_buffer)
+            incremental_state = self._set_input_buffer(incremental_state, input_buffer)
+        return incremental_state
 
     def _get_input_buffer(
         self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
     ) -> Dict[str, Optional[Tensor]]:
-        empty_dict_annotated: Dict[str, Optional[Tensor]] = {}
-        if incremental_state is None:
-            return empty_dict_annotated
-        full_key = utils._get_full_incremental_state_key(self, "attn_state")
-        if full_key not in incremental_state:
-            return empty_dict_annotated
-        return incremental_state[full_key]
+        result = self.get_incremental_state(incremental_state, "attn_state")
+        if result is not None:
+            return result
+        else:
+            empty_result: Dict[str, Optional[Tensor]] = {}
+            return empty_result
 
     def _set_input_buffer(
         self,
         incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
         buffer: Dict[str, Optional[Tensor]],
     ):
-        full_key = utils._get_full_incremental_state_key(
-            self, "attn_state"
-        )
-        incremental_state[full_key] = buffer
+        return self.set_incremental_state(incremental_state, "attn_state", buffer)
 
     def apply_sparse_mask(attn_weights, tgt_len: int, src_len: int, bsz: int):
         return attn_weights
