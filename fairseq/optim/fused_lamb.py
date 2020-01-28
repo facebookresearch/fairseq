@@ -44,3 +44,7 @@ class FairseqLAMB(FairseqOptimizer):
             'eps': self.args.lamb_eps,
             'weight_decay': self.args.weight_decay,
         }
+
+    @property
+    def supports_flat_params(self):
+        return False

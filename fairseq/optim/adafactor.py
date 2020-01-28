@@ -102,6 +102,10 @@ class Adafactor(torch.optim.Optimizer):
     def supports_memory_efficient_fp16(self):
         return True
 
+    @property
+    def supports_flat_params(self):
+        return False
+
     def _get_lr(self, param_group, param_state):
         rel_step_sz = param_group['lr']
         if param_group['relative_step']:

@@ -90,6 +90,10 @@ class FusedAdamV1(torch.optim.Optimizer):
     def supports_memory_efficient_fp16(self):
         return True
 
+    @property
+    def supports_flat_params(self):
+        return True
+
     def step(self, closure=None, grads=None, scale=1., grad_norms=None):
         """Performs a single optimization step.
         Arguments:
@@ -207,6 +211,10 @@ try:
 
         @property
         def supports_memory_efficient_fp16(self):
+            return True
+
+        @property
+        def supports_flat_params(self):
             return True
 
         def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None):
