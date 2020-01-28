@@ -157,9 +157,9 @@ class _FP16OptimizerMixin(object):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._sync_fp16_grads_to_fp32()
         if self.has_flat_params:
-            grad_norm = utils.clip_grad_norm_(self.fp32_params.grad.data, max_norm)
+            grad_norm = utils.clip_grad_norm_([self.fp32_params.grad.data], max_norm)
         else:
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.fp32_params, max_norm)
+            grad_norm = utils.clip_grad_norm_(self.fp32_params, max_norm)
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
@@ -250,6 +250,11 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
             fp32_optimizer = optim.build_optimizer(args, [fp32_params])
         else:
             fp32_optimizer = optim.build_optimizer(args, fp32_params)
+        if flatten and not fp32_optimizer.supports_flat_params:
+            raise RuntimeError(
+                'chosen optimizer does not support flat params, '
+                'please set --fp16-no-flatten-grads'
+            )
         return cls(args, params, fp32_optimizer, fp32_params)
 
     @property
@@ -272,6 +277,10 @@ class _MemoryEfficientFP16OptimizerMixin(object):
     def __init__(self, *args, **kwargs):
         # forward __init__ call to the next class in mro(method resolution order)
         super().__init__(*args, **kwargs)
+
+    @property
+    def has_flat_params(self):
+        return False
 
     def state_dict(self):
         """Return the optimizer's state dict."""

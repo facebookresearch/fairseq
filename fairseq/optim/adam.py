@@ -124,6 +124,10 @@ class Adam(torch.optim.Optimizer):
     def supports_memory_efficient_fp16(self):
         return True
 
+    @property
+    def supports_flat_params(self):
+        return True
+
     def step(self, closure=None):
         """Performs a single optimization step.
 

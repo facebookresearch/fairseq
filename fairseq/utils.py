@@ -227,12 +227,21 @@ def item(tensor):
     return tensor
 
 
-def clip_grad_norm_(tensor, max_norm):
-    grad_norm = item(torch.norm(tensor))
-    if grad_norm > max_norm > 0:
-        clip_coef = max_norm / (grad_norm + 1e-6)
-        tensor.mul_(clip_coef)
-    return grad_norm
+def clip_grad_norm_(params, max_norm):
+    params = list(params)
+    if len(params) == 1:
+        p = params[0]
+        grad_norm = torch.norm(p)
+        if grad_norm > max_norm > 0:
+            clip_coef = max_norm / (grad_norm + 1e-6)
+            p.mul_(clip_coef)
+        return grad_norm
+    elif max_norm > 0:
+        return torch.nn.utils.clip_grad_norm_(params, max_norm)
+    else:
+        return torch.sqrt(
+            sum(p.grad.data.norm()**2 for p in params if p.grad is not None)
+        )
 
 
 def fill_with_neg_inf(t):
