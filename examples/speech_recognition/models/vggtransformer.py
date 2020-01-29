@@ -656,7 +656,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # decoder layers
         for layer in self.layers:
             if isinstance(layer, TransformerDecoderLayer):
-                x, _ = layer(
+                x, _, _ = layer(
                     x,
                     (encoder_out["encoder_out"] if encoder_out is not None else None),
                     (
