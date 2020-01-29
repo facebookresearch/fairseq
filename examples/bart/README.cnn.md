@@ -1,6 +1,8 @@
 # Fine-tuning BART on CNN-Dailymail summarization task
 
-### 1) Follow instructions [here](https://github.com/abisee/cnn-dailymail) to download and process into data-files with non-tokenized cased samples.
+### 1) Download the CNN and Daily Mail data and preprocess it into data files with non-tokenized cased samples.
+
+Follow the instructions [here](https://github.com/abisee/cnn-dailymail) to download the original CNN and Daily Mail datasets. To preprocess the data, refer to the pointers in [this issue](https://github.com/pytorch/fairseq/issues/1391) or check out the code [here](https://github.com/artmatsak/cnn-dailymail).
 
 ### 2) BPE preprocess:
 ```bash
