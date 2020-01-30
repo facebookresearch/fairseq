@@ -72,12 +72,4 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         }
         if sample_size != ntokens:
             agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
-        for key in ["logits", "target"]:
-            if key in logging_outputs[0]:
-                if len(logging_outputs) == 1:
-                    agg_output[key] = logging_outputs[0][key]  # avoid copying
-                else:
-                    agg_output[key] = np.concatenate(
-                        [log[key] for log in logging_outputs]
-                    )
         return agg_output
