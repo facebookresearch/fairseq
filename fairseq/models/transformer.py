@@ -4,8 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-import random
-from collections import namedtuple
+from typing import Any, Dict, List, NamedTuple, Optional
 
 import torch
 import torch.nn as nn
@@ -26,6 +25,7 @@ from fairseq.modules import (
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
+from torch import Tensor
 
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
@@ -235,6 +235,42 @@ class TransformerModel(FairseqEncoderDecoderModel):
             no_encoder_attn=getattr(args, "no_cross_attention", False),
         )
 
+    # TorchScript doesn't support optional arguments with variable length (**kwargs).
+    # Current workaround is to add union of all arguments in child classes.
+    def forward(
+        self,
+        src_tokens,
+        src_lengths,
+        prev_output_tokens,
+        cls_input: Optional[Tensor] = None,
+        return_all_hiddens: bool = True,
+        features_only: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
+    ):
+        """
+        Run the forward pass for an encoder-decoder model.
+
+        Copied from the base class, but without ``**kwargs``,
+        which are not supported by TorchScript.
+        """
+        encoder_out = self.encoder(
+            src_tokens,
+            src_lengths=src_lengths,
+            cls_input=cls_input,
+            return_all_hiddens=return_all_hiddens,
+        )
+        decoder_out = self.decoder(
+            prev_output_tokens,
+            encoder_out=encoder_out,
+            features_only=features_only,
+            alignment_layer=alignment_layer,
+            alignment_heads=alignment_heads,
+            src_lengths=src_lengths,
+            return_all_hiddens=return_all_hiddens,
+        )
+        return decoder_out
+
 
 @register_model("transformer_align")
 class TransformerAlignModel(TransformerModel):
@@ -287,9 +323,7 @@ class TransformerAlignModel(TransformerModel):
             "alignment_layer": self.alignment_layer,
             "alignment_heads": self.alignment_heads,
         }
-        decoder_out = self.decoder(
-            prev_output_tokens, encoder_out, **attn_args, **extra_args
-        )
+        decoder_out = self.decoder(prev_output_tokens, encoder_out, **attn_args)
 
         if self.full_context_alignment:
             attn_args["full_context_alignment"] = self.full_context_alignment
@@ -305,13 +339,13 @@ class TransformerAlignModel(TransformerModel):
         return decoder_out
 
 
-EncoderOut = namedtuple(
-    "TransformerEncoderOut",
+EncoderOut = NamedTuple(
+    "EncoderOut",
     [
-        "encoder_out",  # T x B x C
-        "encoder_padding_mask",  # B x T
-        "encoder_embedding",  # B x T x C
-        "encoder_states",  # List[T x B x C]
+        ("encoder_out", Tensor),  # T x B x C
+        ("encoder_padding_mask", Tensor),  # B x T
+        ("encoder_embedding", Tensor),  # B x T x C
+        ("encoder_states", Optional[List[Tensor]]),  # List[T x B x C]
     ],
 )
 
@@ -359,6 +393,7 @@ class TransformerEncoder(FairseqEncoder):
         self.layers.extend(
             [TransformerEncoderLayer(args) for i in range(args.encoder_layers)]
         )
+        self.num_layers = len(self.layers)
 
         if args.encoder_normalize_before:
             self.layer_norm = LayerNorm(embed_dim)
@@ -374,7 +409,7 @@ class TransformerEncoder(FairseqEncoder):
         x = embed = self.embed_scale * self.embed_tokens(src_tokens)
         if self.embed_positions is not None:
             x = embed + self.embed_positions(src_tokens)
-        if self.layernorm_embedding:
+        if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x, embed
@@ -383,9 +418,8 @@ class TransformerEncoder(FairseqEncoder):
         self,
         src_tokens,
         src_lengths,
-        cls_input=None,
-        return_all_hiddens=False,
-        **unused,
+        cls_input: Optional[Tensor] = None,
+        return_all_hiddens: bool = False,
     ):
         """
         Args:
@@ -418,21 +452,20 @@ class TransformerEncoder(FairseqEncoder):
 
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
-        if not encoder_padding_mask.any():
-            encoder_padding_mask = None
 
         encoder_states = [] if return_all_hiddens else None
 
         # encoder layers
         for layer in self.layers:
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.empty(1).uniform_()
             if not self.training or (dropout_probability > self.encoder_layerdrop):
                 x = layer(x, encoder_padding_mask)
                 if return_all_hiddens:
+                    assert encoder_states is not None
                     encoder_states.append(x)
 
-        if self.layer_norm:
+        if self.layer_norm is not None:
             x = self.layer_norm(x)
             if return_all_hiddens:
                 encoder_states[-1] = x
@@ -508,7 +541,7 @@ class TransformerEncoder(FairseqEncoder):
             state_dict[
                 "{}.embed_positions._float_tensor".format(name)
             ] = torch.FloatTensor(1)
-        for i in range(len(self.layers)):
+        for i in range(self.num_layers):
             # update layer norms
             self.layers[i].upgrade_state_dict_named(
                 state_dict, "{}.layers.{}".format(name, i)
@@ -539,6 +572,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
+        self._future_mask = torch.empty(0)
 
         self.dropout = args.dropout
         self.decoder_layerdrop = args.decoder_layerdrop
@@ -582,6 +616,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 for _ in range(args.decoder_layers)
             ]
         )
+        self.num_layers = len(self.layers)
 
         self.adaptive_softmax = None
 
@@ -621,10 +656,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
     def forward(
         self,
         prev_output_tokens,
-        encoder_out=None,
-        incremental_state=None,
-        features_only=False,
-        **extra_args,
+        encoder_out: Optional[EncoderOut] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        features_only: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
+        src_lengths: Optional[Any] = None,
+        return_all_hiddens: bool = False,
     ):
         """
         Args:
@@ -646,7 +684,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             prev_output_tokens,
             encoder_out=encoder_out,
             incremental_state=incremental_state,
-            **extra_args,
+            alignment_layer=alignment_layer,
+            alignment_heads=alignment_heads,
         )
         if not features_only:
             x = self.output_layer(x)
@@ -655,12 +694,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
     def extract_features(
         self,
         prev_output_tokens,
-        encoder_out=None,
-        incremental_state=None,
-        full_context_alignment=False,
-        alignment_layer=None,
-        alignment_heads=None,
-        **unused,
+        encoder_out: Optional[EncoderOut] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        full_context_alignment: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
     ):
         """
         Similar to *forward* but only return features.
@@ -682,7 +720,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - a dictionary with any model-specific outputs
         """
         if alignment_layer is None:
-            alignment_layer = len(self.layers) - 1
+            alignment_layer = self.num_layers - 1
 
         # embed positions
         positions = (
@@ -707,7 +745,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if positions is not None:
             x += positions
 
-        if self.layernorm_embedding:
+        if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
 
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -715,18 +753,20 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        self_attn_padding_mask = None
+        self_attn_padding_mask: Optional[Tensor] = None
         if self.cross_self_attention or prev_output_tokens.eq(self.padding_idx).any():
             self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
 
         # decoder layers
-        attn = None
-        inner_states = [x]
+        attn: Optional[Tensor] = None
+        inner_states: List[Optional[Tensor]] = [x]
         for idx, layer in enumerate(self.layers):
-            encoder_state = None
+            encoder_state: Optional[Tensor] = None
             if encoder_out is not None:
                 if self.layer_wise_attention:
-                    encoder_state = encoder_out.encoder_states[idx]
+                    encoder_states = encoder_out.encoder_states
+                    assert encoder_states is not None
+                    encoder_state = encoder_states[idx]
                 else:
                     encoder_state = encoder_out.encoder_out
 
@@ -736,9 +776,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 self_attn_mask = None
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.empty(1).uniform_()
             if not self.training or (dropout_probability > self.decoder_layerdrop):
-                x, layer_attn = layer(
+                x, layer_attn, _ = layer(
                     x,
                     encoder_state,
                     encoder_out.encoder_padding_mask
@@ -747,8 +787,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                     incremental_state,
                     self_attn_mask=self_attn_mask,
                     self_attn_padding_mask=self_attn_padding_mask,
-                    need_attn=(idx == alignment_layer),
-                    need_head_weights=(idx == alignment_layer),
+                    need_attn=bool((idx == alignment_layer)),
+                    need_head_weights=bool((idx == alignment_layer)),
                 )
                 inner_states.append(x)
                 if layer_attn is not None and idx == alignment_layer:
@@ -761,7 +801,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             # average probabilities over heads
             attn = attn.mean(dim=0)
 
-        if self.layer_norm:
+        if self.layer_norm is not None:
             x = self.layer_norm(x)
 
         # T x B x C -> B x T x C
@@ -770,9 +810,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        return x, {"attn": attn, "inner_states": inner_states}
+        return x, {"attn": [attn], "inner_states": inner_states}
 
-    def output_layer(self, features, **kwargs):
+    def output_layer(self, features):
         """Project features to the vocabulary size."""
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
@@ -791,14 +831,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
+        # self._future_mask.device != tensor.device is not working in TorchScript. This is a workaround.
         if (
-            not hasattr(self, "_future_mask")
-            or self._future_mask is None
-            or self._future_mask.device != tensor.device
+            self._future_mask.size(0) == 0
+            or (not self._future_mask.device == tensor.device)
             or self._future_mask.size(0) < dim
         ):
             self._future_mask = torch.triu(
-                utils.fill_with_neg_inf(tensor.new(dim, dim)), 1
+                utils.fill_with_neg_inf(torch.zeros([dim, dim])), 1
             )
         return self._future_mask[:dim, :dim]
 
@@ -812,7 +852,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 "{}.embed_positions._float_tensor".format(name)
             ] = torch.FloatTensor(1)
 
-        for i in range(len(self.layers)):
+        for i in range(self.num_layers):
             # update layer norms
             layer_norm_map = {
                 "0": "self_attn_layer_norm",
