@@ -58,7 +58,7 @@ class LabelSmoothedCrossEntropyCriterionWithAlignment(LabelSmoothedCrossEntropyC
         return loss, sample_size, logging_output
 
     def compute_alignment_loss(self, sample, net_output):
-        attn_prob = net_output[1]['attn']
+        attn_prob = net_output[1]['attn'][0]
         bsz, tgt_sz, src_sz = attn_prob.shape
         attn = attn_prob.view(bsz * tgt_sz, src_sz)
 

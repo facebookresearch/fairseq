@@ -403,8 +403,9 @@ class MultiheadAttention(nn.Module):
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
             for k in input_buffer.keys():
-                if input_buffer[k] is not None:
-                    input_buffer[k] = input_buffer[k].index_select(0, new_order)
+                input_buffer_k = input_buffer[k]
+                if input_buffer_k is not None:
+                    input_buffer[k] = input_buffer_k.index_select(0, new_order)
             incremental_state = self._set_input_buffer(incremental_state, input_buffer)
         return incremental_state
 

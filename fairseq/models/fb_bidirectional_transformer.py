@@ -288,12 +288,12 @@ class BiTransformerDecoder(FairseqDecoder):
 
         # decoder layers
         for fwd, back in zip(self.forward_layers, self.backward_layers):
-            fwd_x, _ = fwd(
+            fwd_x, _, _ = fwd(
                 fwd_x,
                 self_attn_mask=future_mask,
                 self_attn_padding_mask=padding_mask,
             )
-            bwd_x, _ = back(
+            bwd_x, _, _ = back(
                 bwd_x,
                 self_attn_mask=past_mask,
                 self_attn_padding_mask=padding_mask,
