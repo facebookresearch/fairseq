@@ -371,6 +371,9 @@ def add_distributed_training_args(parser):
                        'no_c10d ddp-backend')
     group.add_argument('--fast-stat-sync', default=False, action='store_true',
                        help='[deprecated] this is now defined per Criterion')
+    group.add_argument('--broadcast-buffers', default=False, action='store_true',
+                       help='Copy non-trainable parameters between GPUs, such as '
+                      'batchnorm population statistics')
     # fmt: on
     return group
 
