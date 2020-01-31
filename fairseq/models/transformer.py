@@ -839,7 +839,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         ):
             self._future_mask = torch.triu(
                 utils.fill_with_neg_inf(torch.zeros([dim, dim])), 1
-            )
+            ).to(device=tensor.device)
         return self._future_mask[:dim, :dim]
 
     def upgrade_state_dict_named(self, state_dict, name):
