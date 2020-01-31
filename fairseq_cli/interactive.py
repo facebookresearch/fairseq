@@ -142,7 +142,7 @@ def main(args):
     )
 
     if args.buffer_size > 1:
-        logger.info('Sentence buffer size:', args.buffer_size)
+        logger.info('Sentence buffer size: %s', args.buffer_size)
     logger.info('NOTE: hypothesis and token scores are output in base 2')
     logger.info('Type the input sentence and press return:')
     start_id = 0
