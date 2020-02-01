@@ -26,6 +26,7 @@ def get_training_parser(default_task="translation"):
     add_model_args(parser)
     add_optimization_args(parser)
     add_checkpoint_args(parser)
+    add_comparable_args(parser)
     return parser
 
 
@@ -285,6 +286,73 @@ def add_preprocess_args(parser):
     # fmt: on
     return parser
 
+def add_comparable_args(parser, train=True, gen=False):
+    group = parser.add_argument_group('Comparable Data')
+    group.add_argument('--comparable', action="store_true", default=False,
+                       help='Use comparable data during training.')
+    group.add_argument('--sim_measure', '-sim_measure', default="margin",
+                       help="""Similarity measure to be used for extrtacting
+                           parallel sentences. Options: [cosine|margin]
+                           """)
+    group.add_argument('--threshold', '-threshold', type=float, default=float('-inf'),
+                       help="Decision threshold for keeping a similar pair.")
+    group.add_argument('--threshold_dynamics', '-threshold_dynamics', default='static',
+                       help="""Set threshold dynamics. Options: [static|grow|decay]""")
+    group.add_argument('--comp_example_limit', '-comp_example_limit', type=int, default=float('inf'),
+                       help="""Limit number of training samples from comparable
+                           data.""")
+    group.add_argument('--no_base', '-no_base', action="store_true",
+                       help="""No training on parallel sentences. Start with
+                           comparable training directly.""")
+    group.add_argument('--comp_log', '-comp_log',
+                       help="""Path where comparable rejected/accepted pairs will be logged.""")
+    group.add_argument('--cove_type', '-cove_type', default="sum",
+                       help="""Method for merging word context vectors. Options: [sum|mean]
+                           """)
+    group.add_argument('--comp_epochs', '-comp_epochs', type=int, default=1,
+                       help="""Number of epochs for comparable training.""")
+    group.add_argument('--comparable_data', '-comparable_data', default=None,
+                       help="""Path to comparable data list.""")
+    group.add_argument('--second', '-second', action="store_true",
+                       help="""Use second best filtering.""")
+    group.add_argument('--representations', '-representations', default='dual',
+                       help="""Sentece representations used.
+                           Options: [dual|embed-only|hidden-only]""")
+    group.add_argument('--max_len', '-max_len', type=int, default=100,
+                       help="""Maximum length of sentences to when creating comparable corpus.""")
+    group.add_argument('--no_valid', '-no_valid', action="store_true",
+                       help="""Do not perform validation.""")
+    group.add_argument('--fast', '-fast', action="store_true",
+                       help="""Only look at first batch per document.""")
+    group.add_argument('--write_dual', '-write_dual', action="store_true",
+                       help="""Write sentences accepted by only one representation type.""")
+    group.add_argument('--no_swaps', '-no_swaps', action="store_true",
+                       help="""Do not perform random swaps of src-tgt.""")
+    group.add_argument('--k', '-k', type=int,
+                       help="""Number of k-knearest neighbors to use when scoring.""")
+    group.add_argument('--symmetric', '-symmetric', action="store_true",
+                       help="""Train on both directions of an extracted pair.""")
+    group.add_argument('--test_data', '-test_data', type=str,
+                       help="""Test data that should be excluded from training.""")
+    group.add_argument('--use_bt', '-use_bt', action="store_true",
+                       help="""Apply backtranslation to non-match sentences.""")
+    group.add_argument('--trans_opts', '-trans_opts', type=str,
+                       help="""Translator options comfiguration file.""")
+    group.add_argument('--filter_bt', '-filter_bt', action="store_true",
+                       help="""Filter backtranslations using SSNMT.""")
+    group.add_argument('--bt_sleep_period', '-bt_sleep_period', type=int, default=50,
+                       help="""Amount of steps to pause back-translations.""")
+    group.add_argument('--mono', '-mono', default=None,
+                       help="""Path to list of monolingual corpora.""")
+    group.add_argument('--substitution', '-substitution', action="store_true",
+                       help="""Use word-for-word substitution.""")
+    group.add_argument('--add_noise', '-add_noise', action="store_true",
+                       help="""Add noise to backtranslation src.""")
+    group.add_argument('--vocab_list', '-vocab_list', type=str, default=None,
+                       help="""Path to list of vocabulary files used for substitution.""")
+    group.add_argument('--modeltype', '-modeltype', default='transformer',
+                       help="""Set the model type. Options: [transformer|lstm]""")
+    return group
 
 def add_dataset_args(parser, train=False, gen=False):
     group = parser.add_argument_group("Dataset and data loading")
