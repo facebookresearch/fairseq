@@ -158,43 +158,41 @@ def train(args, trainer, task, epoch_itr):
         else args.update_freq[-1]
     )
     itr = iterators.GroupedIterator(itr, update_freq)
-    progress = progress_bar.build_progress_bar(
-        args, itr, epoch_itr.epoch, no_progress_bar='simple',
-    )
+    with progress_bar.build_progress_bar(args, itr, epoch_itr.epoch, no_progress_bar='simple') as progress:
 
-    # task specific setup per epoch
-    task.begin_epoch(epoch_itr.epoch, trainer.get_model())
+        # task specific setup per epoch
+        task.begin_epoch(epoch_itr.epoch, trainer.get_model())
 
-    valid_subsets = args.valid_subset.split(',')
-    max_update = args.max_update or math.inf
-    for samples in progress:
-        log_output = trainer.train_step(samples)
-        num_updates = trainer.get_num_updates()
-        if log_output is None:
-            continue
+        valid_subsets = args.valid_subset.split(',')
+        max_update = args.max_update or math.inf
+        for samples in progress:
+            log_output = trainer.train_step(samples)
+            num_updates = trainer.get_num_updates()
+            if log_output is None:
+                continue
 
-        # log mid-epoch stats
+            # log mid-epoch stats
+            stats = get_training_stats(metrics.get_smoothed_values('train'))
+            progress.log(stats, tag='train', step=num_updates)
+
+            if (
+                not args.disable_validation
+                and args.save_interval_updates > 0
+                and num_updates % args.save_interval_updates == 0
+                and num_updates > 0
+            ):
+                valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+                checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+
+            if num_updates >= max_update:
+                break
+
+        # log end-of-epoch stats
         stats = get_training_stats(metrics.get_smoothed_values('train'))
-        progress.log(stats, tag='train', step=num_updates)
+        progress.print(stats, tag='train', step=num_updates)
 
-        if (
-            not args.disable_validation
-            and args.save_interval_updates > 0
-            and num_updates % args.save_interval_updates == 0
-            and num_updates > 0
-        ):
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
-
-        if num_updates >= max_update:
-            break
-
-    # log end-of-epoch stats
-    stats = get_training_stats(metrics.get_smoothed_values('train'))
-    progress.print(stats, tag='train', step=num_updates)
-
-    # reset epoch-level meters
-    metrics.reset_meters('train')
+        # reset epoch-level meters
+        metrics.reset_meters('train')
 
 
 def get_training_stats(stats):
@@ -229,23 +227,23 @@ def validate(args, trainer, task, epoch_itr, subsets):
             shard_id=args.distributed_rank,
             num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
-        progress = progress_bar.build_progress_bar(
+        with progress_bar.build_progress_bar(
             args, itr, epoch_itr.epoch,
             prefix='valid on \'{}\' subset'.format(subset),
             no_progress_bar='simple'
-        )
+        ) as progress:
 
-        # create a new root metrics aggregator so validation metrics
-        # don't pollute other aggregators (e.g., train meters)
-        with metrics.aggregate(new_root=True) as agg:
-            for sample in progress:
-                trainer.valid_step(sample)
+            # create a new root metrics aggregator so validation metrics
+            # don't pollute other aggregators (e.g., train meters)
+            with metrics.aggregate(new_root=True) as agg:
+                for sample in progress:
+                    trainer.valid_step(sample)
 
-        # log validation stats
-        stats = get_valid_stats(args, trainer, agg.get_smoothed_values())
-        progress.print(stats, tag=subset, step=trainer.get_num_updates())
+            # log validation stats
+            stats = get_valid_stats(args, trainer, agg.get_smoothed_values())
+            progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
-        valid_losses.append(stats[args.best_checkpoint_metric])
+            valid_losses.append(stats[args.best_checkpoint_metric])
     return valid_losses
 
 

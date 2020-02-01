@@ -80,24 +80,24 @@ def main(args, override_args=None):
             seed=args.seed,
             num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
-        progress = progress_bar.build_progress_bar(
+        with progress_bar.build_progress_bar(
             args, itr,
             prefix='valid on \'{}\' subset'.format(subset),
             no_progress_bar='simple'
-        )
+        ) as progress:
 
-        log_outputs = []
-        for i, sample in enumerate(progress):
-            sample = utils.move_to_cuda(sample) if use_cuda else sample
-            _loss, _sample_size, log_output = task.valid_step(sample, model, criterion)
-            progress.log(log_output, step=i)
-            log_outputs.append(log_output)
+            log_outputs = []
+            for i, sample in enumerate(progress):
+                sample = utils.move_to_cuda(sample) if use_cuda else sample
+                _loss, _sample_size, log_output = task.valid_step(sample, model, criterion)
+                progress.log(log_output, step=i)
+                log_outputs.append(log_output)
 
-        with metrics.aggregate() as agg:
-            task.reduce_metrics(log_outputs, criterion)
-            log_output = agg.get_smoothed_values()
+            with metrics.aggregate() as agg:
+                task.reduce_metrics(log_outputs, criterion)
+                log_output = agg.get_smoothed_values()
 
-        progress.print(log_output, tag=subset, step=i)
+            progress.print(log_output, tag=subset, step=i)
 
 
 def cli_main():
