@@ -3,8 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from collections import Counter
 import os
+from collections import Counter
 
 from fairseq.tokenizer import tokenize_line
 
@@ -20,10 +20,17 @@ def safe_readline(f):
 
 
 class Binarizer:
-
     @staticmethod
-    def binarize(filename, dict, consumer, tokenize=tokenize_line, append_eos=True, reverse_order=False,
-                 offset=0, end=-1):
+    def binarize(
+        filename,
+        dict,
+        consumer,
+        tokenize=tokenize_line,
+        append_eos=True,
+        reverse_order=False,
+        offset=0,
+        end=-1,
+    ):
         nseq, ntok = 0, 0
         replaced = Counter()
 
@@ -31,7 +38,7 @@ class Binarizer:
             if idx == dict.unk_index and word != dict.unk_word:
                 replaced.update([word])
 
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filename, "r", encoding="utf-8") as f:
             f.seek(offset)
             # next(f) breaks f.tell(), hence readline() must be used
             line = safe_readline(f)
@@ -39,24 +46,29 @@ class Binarizer:
                 if end > 0 and f.tell() > end:
                     break
                 ids = dict.encode_line(
-                        line=line,
-                        line_tokenizer=tokenize,
-                        add_if_not_exist=False,
-                        consumer=replaced_consumer,
-                        append_eos=append_eos,
-                        reverse_order=reverse_order,
+                    line=line,
+                    line_tokenizer=tokenize,
+                    add_if_not_exist=False,
+                    consumer=replaced_consumer,
+                    append_eos=append_eos,
+                    reverse_order=reverse_order,
                 )
                 nseq += 1
                 ntok += len(ids)
                 consumer(ids)
                 line = f.readline()
-        return {'nseq': nseq, 'nunk': sum(replaced.values()), 'ntok': ntok, 'replaced': replaced}
+        return {
+            "nseq": nseq,
+            "nunk": sum(replaced.values()),
+            "ntok": ntok,
+            "replaced": replaced,
+        }
 
     @staticmethod
     def binarize_alignments(filename, alignment_parser, consumer, offset=0, end=-1):
         nseq = 0
 
-        with open(filename, 'r') as f:
+        with open(filename, "r") as f:
             f.seek(offset)
             line = safe_readline(f)
             while line:
@@ -66,11 +78,11 @@ class Binarizer:
                 nseq += 1
                 consumer(ids)
                 line = f.readline()
-        return {'nseq': nseq}
+        return {"nseq": nseq}
 
     @staticmethod
     def find_offsets(filename, num_chunks):
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filename, "r", encoding="utf-8") as f:
             size = os.fstat(f.fileno()).st_size
             chunk_size = size // num_chunks
             offsets = [0 for _ in range(num_chunks + 1)]
