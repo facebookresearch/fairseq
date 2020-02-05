@@ -792,7 +792,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 )
                 inner_states.append(x)
                 if layer_attn is not None and idx == alignment_layer:
-                    attn = layer_attn.float()
+                    attn = layer_attn.float().to(x)
 
         if attn is not None:
             if alignment_heads is not None:
@@ -839,7 +839,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         ):
             self._future_mask = torch.triu(
                 utils.fill_with_neg_inf(torch.zeros([dim, dim])), 1
-            ).to(device=tensor.device)
+            )
+        self._future_mask = self._future_mask.to(tensor)
         return self._future_mask[:dim, :dim]
 
     def upgrade_state_dict_named(self, state_dict, name):
