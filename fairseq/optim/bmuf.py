@@ -6,6 +6,8 @@
 import torch
 import torch.distributed as dist
 
+from typing import Iterable
+
 from . import FairseqOptimizer
 
 
@@ -19,19 +21,21 @@ class FairseqBMUF(FairseqOptimizer):
     model-update filtering
     """
 
-    def __init__(self, args, optimizer):
+    def __init__(self, optimizer, lr: Iterable[float], block_lr: float=1.0, block_momentum: float=0.875,
+                 global_sync_iter: int=50, warmup_iterations: int=500, use_nbm: bool=False, average_sync: bool=False):
 
-        super().__init__(args)
+        super().__init__()
+        self.lr = lr
+        self.block_lr = block_lr
+        self.block_momentum = block_momentum
+        self.sync_iter = global_sync_iter
+        self.warmup_iteration = warmup_iterations
+        self.use_nbm = use_nbm
+        self.average_sync = average_sync
         self._optimizer = optimizer
         self._num_updates = 0
-        self.sync_iter = self.args.global_sync_iter
-        self.block_momentum = self.args.block_momentum
-        self.block_lr = self.args.block_lr
         self._reset_local_data()
-        self.warmup_iteration = self.args.warmup_iterations
-        self.use_nbm = self.args.use_nbm
         self.initial_state = self._optimizer.state_dict()
-        self.average_sync = self.args.average_sync
 
     @staticmethod
     def add_args(parser):
