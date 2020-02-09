@@ -7,6 +7,8 @@ from itertools import chain
 
 import torch
 
+from typing import Iterable, Optional
+
 from fairseq import optim, utils
 
 
@@ -213,29 +215,37 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
     Wrap an *optimizer* to support FP16 (mixed precision) training.
     """
 
-    def __init__(self, args, params, fp32_optimizer, fp32_params):
-        super().__init__(args)
+    def __init__(self, params, fp32_optimizer, fp32_params, fp16_scale_window: Optional[int]=None,
+                 update_freq: Iterable[int]=(1,), distributed_world_size: int=1, fp16_init_scale: int=2 ** 7,
+                 fp16_scale_tolerance: float=0.0, threshold_loss_scale: float=1.0, min_loss_scale: float=1e-4):
+        super().__init__()
         self.fp16_params = params
         self.fp32_optimizer = fp32_optimizer
         self.fp32_params = fp32_params
+        self.fp16_scale_window = fp16_scale_window
+        self.update_freq = update_freq
+        self.fp16_init_scale = fp16_init_scale
+        self.fp16_scale_tolerance = fp16_scale_tolerance
+        self.threshold_loss_scale = threshold_loss_scale
+        self.min_loss_scale = min_loss_scale
 
-        if getattr(args, 'fp16_scale_window', None) is None:
-            if len(args.update_freq) > 1:
+        if fp16_scale_window is None:
+            if len(update_freq) > 1:
                 raise ValueError(
                     '--fp16-scale-window must be given explicitly when using a '
                     'custom --update-freq schedule'
                 )
-            scale_window = int(2**14 / args.distributed_world_size / args.update_freq[0])
+            scale_window = int(2**14 / distributed_world_size / update_freq[0])
         else:
-            scale_window = args.fp16_scale_window
+            scale_window = fp16_scale_window
 
         self.scaler = DynamicLossScaler(
-            init_scale=args.fp16_init_scale,
+            init_scale=self.fp16_init_scale,
             scale_window=scale_window,
-            tolerance=args.fp16_scale_tolerance,
-            threshold=args.threshold_loss_scale,
+            tolerance=self.fp16_scale_tolerance,
+            threshold=self.threshold_loss_scale,
         )
-        self.min_loss_scale = self.args.min_loss_scale
+        self.min_loss_scale = self.min_loss_scale
 
     @classmethod
     def build_optimizer(cls, args, params):
@@ -255,7 +265,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
                 'chosen optimizer does not support flat params, '
                 'please set --fp16-no-flatten-grads'
             )
-        return cls(args, params, fp32_optimizer, fp32_params)
+        return cls(params, fp32_optimizer, fp32_params, **vars(args))
 
     @property
     def optimizer(self):
