@@ -4,10 +4,42 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+from typing import ClassVar
 
 
 REGISTRIES = {}
 
+
+class Registry(object):
+    """A class for registering other classes with the intent to look them up by name
+    and constructing them with positional and key-word arguments.
+    """
+    def __init__(self):
+        self.__class_by_key = dict()
+
+    def register(self, registration_key: str):
+        """A decorator which will register the decorated class with a __unique__ key.
+
+        :param registration_key: the name of the key to use for registration
+        :return: inner_f
+        """
+        def inner_f(cls: ClassVar['T']) -> None:
+            self.__class_by_key[registration_key] = cls
+        return inner_f
+
+    def get(self, registration_key: str, *args, **kwargs):
+        """Constructs an instance of the class registered with `registration_key` or throws a ValueError if no
+        such registrant exists.
+
+        :param registration_key: the name of the key used to register the class which should be constructed
+        :param args: the positional arguments used to construct the class registered with `registration_key`
+        :param kwargs: the key-word arguments used to construct the class registered with `registration_key`
+        :return:
+        """
+        cls = self.__class_by_key.get(registration_key)
+        if cls is None:
+            raise ValueError(f"Unregistered key '{registration_key}'")
+        return cls(*args, **kwargs)
 
 def setup_registry(
     registry_name: str,
