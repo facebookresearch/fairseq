@@ -5,13 +5,20 @@
 
 import torch.optim
 
-from . import FairseqOptimizer, register_optimizer
+from . import FairseqOptimizer, register_optimizer, optimizer_registry
 
+from typing import Iterable
 
-@register_optimizer('adadelta')
+@optimizer_registry.register('adadelta')
 class Adadelta(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr: Iterable[float], adadelta_rho: float=0.9, adadelta_eps: float=1e-6,
+                 weight_decay: float=0.0, anneal_eps: bool=False):
+        super().__init__()
+        self.lr = lr
+        self.adadelta_rho = adadelta_rho
+        self.adadelta_eps = adadelta_eps
+        self.weight_decay = weight_decay
+        self.anneal_eps = anneal_eps
         self._optimizer = torch.optim.Adadelta(params, **self.optimizer_config)
 
     @staticmethod
@@ -36,10 +43,10 @@ class Adadelta(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'rho': self.args.adadelta_rho,
-            'eps': self.args.adadelta_eps,
-            'weight_decay': self.args.weight_decay,
+            'lr': self.lr[0],
+            'rho': self.adadelta_rho,
+            'eps': self.adadelta_eps,
+            'weight_decay': self.weight_decay,
         }
 
     @property
