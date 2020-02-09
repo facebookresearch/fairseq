@@ -25,6 +25,7 @@ class Registry(object):
         """
         def inner_f(cls: ClassVar['T']) -> None:
             self.__class_by_key[registration_key] = cls
+            return cls
         return inner_f
 
     def get(self, registration_key: str, *args, **kwargs):
