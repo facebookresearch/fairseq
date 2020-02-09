@@ -6,13 +6,18 @@
 import torch
 from torch.optim.optimizer import Optimizer, required
 
-from . import FairseqOptimizer, register_optimizer
+from typing import Iterable
+
+from . import FairseqOptimizer, register_optimizer, optimizer_registry
 
 
-@register_optimizer('nag')
+@optimizer_registry.register('nag')
 class FairseqNAG(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr: Iterable[float], momentum: float=0.99, weight_decay: float=0.0):
+        super().__init__()
+        self.lr = lr
+        self.momentum = momentum
+        self.weight_decay = weight_decay
         self._optimizer = NAG(params, **self.optimizer_config)
 
     @staticmethod
@@ -34,9 +39,9 @@ class FairseqNAG(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'momentum': self.args.momentum,
-            'weight_decay': self.args.weight_decay,
+            'lr': self.lr[0],
+            'momentum': self.momentum,
+            'weight_decay': self.weight_decay,
         }
 
 
