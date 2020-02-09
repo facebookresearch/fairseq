@@ -6,13 +6,21 @@
 import torch
 import torch.optim
 
-from . import FairseqOptimizer, register_optimizer
+from typing import Iterable, Tuple
+
+from . import FairseqOptimizer, register_optimizer, optimizer_registry
 
 
-@register_optimizer('adamax')
+@optimizer_registry.register('adamax')
 class FairseqAdamax(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr: Iterable[float], adamax_betas: Tuple[float, float]=(0.9, 0.999),
+                 adamax_eps: float=1e-8, weight_decay: float=0.0, no_bias_correct: bool=False):
+        super().__init__()
+        self.lr = lr
+        self.adamax_betas = adamax_betas
+        self.adamax_eps = adamax_eps
+        self.weight_decay = weight_decay
+        self.bias_correction = not no_bias_correct
         self._optimizer = Adamax(params, **self.optimizer_config)
 
     @staticmethod
@@ -38,11 +46,11 @@ class FairseqAdamax(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'betas': eval(self.args.adamax_betas),
-            'eps': self.args.adamax_eps,
-            'weight_decay': self.args.weight_decay,
-            'bias_correction': not self.args.no_bias_correction,
+            'lr': self.lr[0],
+            'betas': self.adamax_betas,
+            'eps': self.adamax_eps,
+            'weight_decay': self.weight_decay,
+            'bias_correction': self.bias_correction,
         }
 
 
