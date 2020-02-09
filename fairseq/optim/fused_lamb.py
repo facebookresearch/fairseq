@@ -3,17 +3,24 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq.optim import FairseqOptimizer, register_optimizer
+from fairseq.optim import FairseqOptimizer, register_optimizer, optimizer_registry
+
+from typing import Iterable, Tuple
 
 
-@register_optimizer('lamb')
+@optimizer_registry.register('lamb')
 class FairseqLAMB(FairseqOptimizer):
     """LAMB optimizer."""
 
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr: Iterable[float], lamb_betas: Tuple[float, float]=(0.9, 0.999), lamb_eps: float=1e-8,
+                 weight_decay: float=0.0):
+        super().__init__()
         try:
             from apex.optimizers import FusedLAMB
+            self.lr = lr
+            self.lamb_betas = lamb_betas
+            self.lamb_eps = lamb_eps
+            self.weight_decay = weight_decay
             self._optimizer = FusedLAMB(params, **self.optimizer_config)
         except ImportError:
             raise ImportError('Please install apex to use LAMB optimizer')
@@ -39,10 +46,10 @@ class FairseqLAMB(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'betas': eval(self.args.lamb_betas),
-            'eps': self.args.lamb_eps,
-            'weight_decay': self.args.weight_decay,
+            'lr': self.lr[0],
+            'betas': self.lamb_betas,
+            'eps': self.lamb_eps,
+            'weight_decay': self.weight_decay,
         }
 
     @property

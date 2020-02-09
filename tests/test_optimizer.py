@@ -40,3 +40,6 @@ class TestOptimizer(TestCase):
         
     def test_adamax(self):
         self._test_optimizer("adamax", fairseq.optim.adamax.FairseqAdamax, lr=[1e-3])
+
+    def test_lamb(self):
+        self._test_optimizer("lamb", fairseq.optim.fused_lamb.FairseqLAMB, lr=[1e-3])
