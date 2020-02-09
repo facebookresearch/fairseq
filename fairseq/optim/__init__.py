@@ -25,6 +25,7 @@ build_optimizer, register_optimizer, OPTIMIZER_REGISTRY = registry.setup_registr
     default='nag',
 )
 
+optimizer_registry = registry.Registry()
 
 # automatically import any Python files in the optim/ directory
 for file in os.listdir(os.path.dirname(__file__)):
