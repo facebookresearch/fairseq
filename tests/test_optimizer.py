@@ -46,3 +46,6 @@ class TestOptimizer(TestCase):
 
     def test_nag(self):
         self._test_optimizer("nag", fairseq.optim.nag.FairseqNAG, lr=[1e-3])
+
+    def test_sgd(self):
+        self._test_optimizer("sgd", fairseq.optim.sgd.SGD, lr=[1e-3])
