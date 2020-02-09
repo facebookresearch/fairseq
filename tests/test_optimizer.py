@@ -34,3 +34,6 @@ class TestOptimizer(TestCase):
 
     def test_adagrad(self):
         self._test_optimizer("adagrad", fairseq.optim.adagrad.Adagrad, lr=[1e-3])
+
+    def test_adam(self):
+        self._test_optimizer("adam", fairseq.optim.adam.FairseqAdam, lr=[1e-3])

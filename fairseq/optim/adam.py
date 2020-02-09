@@ -11,13 +11,15 @@ import torch
 import torch.optim
 import torch.distributed as dist
 
-from fairseq.optim import FairseqOptimizer, register_optimizer
+from fairseq.optim import FairseqOptimizer, register_optimizer, optimizer_registry
 from fairseq.optim.fused_adam import get_fused_adam_class
+
+from typing import Iterable, Tuple
 
 logger = logging.getLogger(__name__)
 
 
-@register_optimizer('adam')
+@optimizer_registry.register('adam')
 class FairseqAdam(FairseqOptimizer):
     """Adam optimizer for fairseq.
 
@@ -26,11 +28,17 @@ class FairseqAdam(FairseqOptimizer):
     analogous to torch.optim.AdamW from PyTorch.
     """
 
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr: Iterable[float], adam_betas: Tuple[float, float]=(0.9, 0.999),
+                 adam_eps: float=1e-8, weight_decay: float=0.0, use_old_adam: bool=False):
+        super().__init__()
+        self.lr = lr
+        self.adam_betas = adam_betas
+        self.adam_eps = adam_eps
+        self.weight_decay = weight_decay
+        self.use_old_adam = use_old_adam
         fused_adam_cls = get_fused_adam_class()
         use_fused_adam = (
-            not getattr(args, 'use_old_adam', False)
+            not use_old_adam
             and fused_adam_cls is not None
             and torch.cuda.is_available()
         )
@@ -69,10 +77,10 @@ class FairseqAdam(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'betas': eval(self.args.adam_betas),
-            'eps': self.args.adam_eps,
-            'weight_decay': self.args.weight_decay,
+            'lr': self.lr[0],
+            'betas': self.adam_betas,
+            'eps': self.adam_eps,
+            'weight_decay': self.weight_decay,
         }
 
     def average_params(self):
