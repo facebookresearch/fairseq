@@ -36,7 +36,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion, dummy_batch=None, oom_batch=None):
+    def __init__(self, args, task, model, criterion):
         self.args = args
         self.task = task
 
@@ -51,9 +51,7 @@ class Trainer(object):
             self._criterion = self._criterion.cuda()
             self._model = self._model.cuda()
 
-        self._dummy_batch = dummy_batch
-        self._oom_batch = oom_batch or dummy_batch
-
+        self._dummy_batch = None
         self._lr_scheduler = None
         self._num_updates = 0
         self._optim_history = None
@@ -267,7 +265,7 @@ class Trainer(object):
         )
 
     @metrics.aggregate("train")
-    def train_step(self, samples, dummy_batch=False, raise_oom=False):
+    def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
         if self._dummy_batch is None:
             self._dummy_batch = samples[0]
@@ -277,8 +275,7 @@ class Trainer(object):
         self.criterion.train()
         self.zero_grad()
 
-        if not dummy_batch:
-            metrics.log_start_time("train_wall", priority=800, round=0)
+        metrics.log_start_time("train_wall", priority=800, round=0)
 
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
@@ -335,12 +332,6 @@ class Trainer(object):
                     self.zero_grad()
                 else:
                     raise e
-
-        if ooms > 0 and self._oom_batch is not None:
-            self.handle_ooms(ooms)
-
-        if dummy_batch:
-            return None
 
         # gather logging outputs from all replicas
         if self._sync_stats():
@@ -466,20 +457,6 @@ class Trainer(object):
         logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
 
         return logging_output
-
-    def dummy_train_step(self, dummy_batch):
-        """Dummy training step for warming caching allocator."""
-        self.train_step(dummy_batch, dummy_batch=True)
-        self.zero_grad()
-
-    def handle_ooms(self, number_of_ooms):
-        """
-        c10d accumulates/syncs gradients between gpus during backward pass.
-        In case of OOMs, gpus may fail to sync, so we manually iterate
-        extra to make sure each gpu makes same number of iterations.
-        """
-        for _ in range(number_of_ooms):
-            self.train_step([self._oom_batch], True)
 
     def zero_grad(self):
         self.optimizer.zero_grad()
