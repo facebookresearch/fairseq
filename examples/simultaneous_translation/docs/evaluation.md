@@ -101,10 +101,10 @@ class Agent(object):
 
  
 ```
-Here an implementation of agent of text [*wait-k* model](somelink). Notice that the tokenization is not considered.
+Here an implementation of agent of text [*wait-k* model](../eval/agent.py). Notice that the tokenization is not considered.
 
 ## Quality
-The quality is measured by detokenized BLEU. So make sure that the predicted words sent to server are detokenized. An implementation is can be find [here](some link)
+The quality is measured by detokenized BLEU. So make sure that the predicted words sent to server are detokenized. An implementation is can be find [here](../eval/agent.py)
 
 ## Latency
 The latency metrics are 
