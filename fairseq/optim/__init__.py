@@ -5,11 +5,15 @@
 
 import importlib
 import os
+import logging
 
 from fairseq import registry
 from fairseq.optim.fairseq_optimizer import FairseqOptimizer
 from fairseq.optim.fp16_optimizer import FP16Optimizer, MemoryEfficientFP16Optimizer
 from fairseq.optim.bmuf import FairseqBMUF  # noqa
+
+
+
 
 
 __all__ = [
@@ -18,6 +22,7 @@ __all__ = [
     'MemoryEfficientFP16Optimizer',
 ]
 
+optimizer_registry = registry.Registry()
 
 build_optimizer, register_optimizer, OPTIMIZER_REGISTRY = registry.setup_registry(
     '--optimizer',
@@ -25,7 +30,6 @@ build_optimizer, register_optimizer, OPTIMIZER_REGISTRY = registry.setup_registr
     default='nag',
 )
 
-optimizer_registry = registry.Registry()
 
 # automatically import any Python files in the optim/ directory
 for file in os.listdir(os.path.dirname(__file__)):

@@ -9,9 +9,11 @@ import os
 from fairseq import registry
 from fairseq.criterions.fairseq_criterion import FairseqCriterion
 
+criterion_registry = registry.Registry()
 
 build_criterion, register_criterion, CRITERION_REGISTRY = registry.setup_registry(
     '--criterion',
+    criterion_registry,
     base_class=FairseqCriterion,
     default='cross_entropy',
 )

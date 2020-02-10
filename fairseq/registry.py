@@ -3,11 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import argparse
 from typing import ClassVar
+from collections import defaultdict
 
-
-REGISTRIES = {}
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 
 
 class Registry(object):
@@ -16,6 +18,12 @@ class Registry(object):
     """
     def __init__(self):
         self.__class_by_key = dict()
+
+    def __contains__(self, item):
+        return item in self.__class_by_key
+
+    def __iter__(self):
+        yield from self.__class_by_key
 
     def register(self, registration_key: str):
         """A decorator which will register the decorated class with a __unique__ key.
@@ -42,39 +50,37 @@ class Registry(object):
             raise ValueError(f"Unregistered key '{registration_key}'")
         return cls(*args, **kwargs)
 
+
+REGISTRIES = {}
+
 def setup_registry(
     registry_name: str,
+    registry: Registry,
     base_class=None,
-    default=None,
+    default=None
 ):
     assert registry_name.startswith('--')
     registry_name = registry_name[2:].replace('-', '_')
 
-    REGISTRY = {}
+    REGISTRIES[registry_name] = registry
+
+    REGISTRY = REGISTRIES[registry_name]
     REGISTRY_CLASS_NAMES = set()
 
     # maintain a registry of all registries
     if registry_name in REGISTRIES:
         return  # registry already exists
-    REGISTRIES[registry_name] = {
-        'registry': REGISTRY,
-        'default': default,
-    }
 
     def build_x(args, *extra_args, **extra_kwargs):
         choice = getattr(args, registry_name, None)
         if choice is None:
             return None
         cls = REGISTRY[choice]
-        if hasattr(cls, 'build_' + registry_name):
-            builder = getattr(cls, 'build_' + registry_name)
-        else:
-            builder = cls
         set_defaults(args, cls)
-        return builder(args, *extra_args, **extra_kwargs)
+        return cls.from_args(args, *extra_args, **extra_kwargs)
 
     def register_x(name):
-
+        logger.warning("Legacy registration API is deprecated. Use fairseq.registry.Registry instead.")
         def register_x_cls(cls):
             if name in REGISTRY:
                 raise ValueError('Cannot register duplicate {} ({})'.format(registry_name, name))
@@ -86,7 +92,7 @@ def setup_registry(
                 )
             if base_class is not None and not issubclass(cls, base_class):
                 raise ValueError('{} must extend {}'.format(cls.__name__, base_class.__name__))
-            REGISTRY[name] = cls
+            REGISTRY.register(name)(cls)
             REGISTRY_CLASS_NAMES.add(cls.__name__)
             return cls
 

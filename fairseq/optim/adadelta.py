@@ -3,11 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import torch
 import torch.optim
 
 from . import FairseqOptimizer, register_optimizer, optimizer_registry
 
+import argparse
 from typing import Iterable
+
 
 @optimizer_registry.register('adadelta')
 class Adadelta(FairseqOptimizer):
@@ -20,6 +23,10 @@ class Adadelta(FairseqOptimizer):
         self.weight_decay = weight_decay
         self.anneal_eps = anneal_eps
         self._optimizer = torch.optim.Adadelta(params, **self.optimizer_config)
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace, params: Iterable[torch.nn.Parameter]):
+        return cls(params, args.lr, args.adadelta_rho, args.adadelta_eps, args.weight_decay, args.anneal_eps)
 
     @staticmethod
     def add_args(parser):

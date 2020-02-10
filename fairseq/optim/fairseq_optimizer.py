@@ -7,11 +7,19 @@ import torch
 
 from fairseq import utils
 
+import argparse
+
+from typing import Iterable
+
 
 class FairseqOptimizer(object):
 
     def __init__(self):
         super().__init__()
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace, params: Iterable[torch.nn.Parameter]):
+        raise NotImplementedError("Optimizer must implement `from_args`")
 
     @staticmethod
     def add_args(parser):
