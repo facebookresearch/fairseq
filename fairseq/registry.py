@@ -5,7 +5,7 @@
 
 import logging
 import argparse
-from typing import ClassVar
+from typing import ClassVar, Optional
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,8 @@ class Registry(object):
     """A class for registering other classes with the intent to look them up by name
     and constructing them with positional and key-word arguments.
     """
-    def __init__(self):
+    def __init__(self, default: Optional[str]=None):
+        self.default = default
         self.__class_by_key = dict()
 
     def __contains__(self, item):
@@ -24,6 +25,12 @@ class Registry(object):
 
     def __iter__(self):
         yield from self.__class_by_key
+
+    def keys(self):
+        return self.__class_by_key.keys()
+
+    def __getitem__(self, item):
+        return self.__class_by_key[item]
 
     def register(self, registration_key: str):
         """A decorator which will register the decorated class with a __unique__ key.
@@ -62,14 +69,15 @@ def setup_registry(
     assert registry_name.startswith('--')
     registry_name = registry_name[2:].replace('-', '_')
 
-    REGISTRIES[registry_name] = registry
-
-    REGISTRY = REGISTRIES[registry_name]
     REGISTRY_CLASS_NAMES = set()
 
     # maintain a registry of all registries
     if registry_name in REGISTRIES:
         return  # registry already exists
+
+    REGISTRIES[registry_name] = registry
+
+    REGISTRY = REGISTRIES[registry_name]
 
     def build_x(args, *extra_args, **extra_kwargs):
         choice = getattr(args, registry_name, None)
