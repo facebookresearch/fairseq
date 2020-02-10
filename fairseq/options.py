@@ -138,7 +138,7 @@ def parse_args_and_arch(
     for registry_name, REGISTRY in REGISTRIES.items():
         choice = getattr(args, registry_name, None)
         if choice is not None:
-            cls = REGISTRY["registry"][choice]
+            cls = REGISTRY[choice]
             if hasattr(cls, "add_args"):
                 cls.add_args(parser)
     if hasattr(args, "task"):
@@ -227,8 +227,8 @@ def get_parser(desc, default_task="translation"):
     for registry_name, REGISTRY in REGISTRIES.items():
         parser.add_argument(
             '--' + registry_name.replace('_', '-'),
-            default=REGISTRY['default'],
-            choices=REGISTRY['registry'].keys(),
+            default=REGISTRY.default,
+            choices=REGISTRY.keys(),
         )
 
     # Task definitions can be found under fairseq/tasks/

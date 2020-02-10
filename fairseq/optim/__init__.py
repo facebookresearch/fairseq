@@ -26,6 +26,7 @@ optimizer_registry = registry.Registry()
 
 build_optimizer, register_optimizer, OPTIMIZER_REGISTRY = registry.setup_registry(
     '--optimizer',
+    optimizer_registry,
     base_class=FairseqOptimizer,
     default='nag',
 )

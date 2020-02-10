@@ -9,15 +9,20 @@ import os
 
 from fairseq import registry
 
+tokenizer_registry = registry.Registry()
 
 build_tokenizer, register_tokenizer, TOKENIZER_REGISTRY = registry.setup_registry(
     '--tokenizer',
+    tokenizer_registry,
     default=None,
 )
 
 
+bpe_registry = registry.Registry()
+
 build_bpe, register_bpe, BPE_REGISTRY = registry.setup_registry(
     '--bpe',
+    bpe_registry,
     default=None,
 )
 

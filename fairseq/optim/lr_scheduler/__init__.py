@@ -10,8 +10,11 @@ from fairseq import registry
 from fairseq.optim.lr_scheduler.fairseq_lr_scheduler import FairseqLRScheduler
 
 
+lr_scheduler_registry = registry.Registry()
+
 build_lr_scheduler, register_lr_scheduler, LR_SCHEDULER_REGISTRY = registry.setup_registry(
     '--lr-scheduler',
+    lr_scheduler_registry,
     base_class=FairseqLRScheduler,
     default='fixed',
 )
