@@ -592,7 +592,7 @@ class Trainer(object):
         *extra_stats_to_sum,
         ignore=False,
     ):
-        if self.get_criterion().__class__.logging_outputs_can_be_summed():
+        if self.task.__class__.logging_outputs_can_be_summed(self.get_criterion()):
             return self._fast_stat_sync_sum(
                 logging_outputs, *extra_stats_to_sum, ignore=ignore
             )
