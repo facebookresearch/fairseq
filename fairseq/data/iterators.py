@@ -18,16 +18,22 @@ class CountingIterator(object):
 
     Args:
         iterable (iterable): iterable to wrap
+        start (int): starting iteration count
+        override_len (int): override the iterator length
+            returned by ``__len__``
 
     Attributes:
         count (int): number of elements consumed from this iterator
     """
 
-    def __init__(self, iterable, start=0):
+    def __init__(self, iterable, start=0, override_len=None):
         self.iterable = iterable
         self.count = start
         self.itr = iter(self)
-        self.len = start + len(iterable)
+        if override_len is None:
+            self.len = start + len(iterable)
+        else:
+            self.len = override_len
 
     def __len__(self):
         return self.len
