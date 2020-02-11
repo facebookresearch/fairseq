@@ -372,7 +372,7 @@ class Trainer(object):
 
             # log stats
             logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
-            metrics.log_speed("ups", 1., priority=100, round=2)
+            metrics.log_speed("ups", 1., ignore_first=10, priority=100, round=2)
             metrics.log_scalar("gnorm", utils.item(grad_norm), priority=400, round=3)
             metrics.log_scalar(
                 "clip",
