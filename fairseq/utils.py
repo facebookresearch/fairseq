@@ -105,9 +105,7 @@ def print_embed_overlap(embed_dict, vocab_dict):
     embed_keys = set(embed_dict.keys())
     vocab_keys = set(vocab_dict.symbols)
     overlap = len(embed_keys & vocab_keys)
-    logger.info(
-        'found {}/{} types in embedding file'.format(overlap, len(vocab_dict))
-    )
+    logger.info("found {}/{} types in embedding file".format(overlap, len(vocab_dict)))
 
 
 def parse_embedding(embed_path):
@@ -240,7 +238,7 @@ def clip_grad_norm_(params, max_norm):
         return torch.nn.utils.clip_grad_norm_(params, max_norm)
     else:
         return torch.sqrt(
-            sum(p.grad.data.norm()**2 for p in params if p.grad is not None)
+            sum(p.grad.data.norm() ** 2 for p in params if p.grad is not None)
         )
 
 
@@ -251,6 +249,7 @@ def fill_with_neg_inf(t):
 
 def _match_types(arg1, arg2):
     """Convert the numerical argument to the same type as the other argument"""
+
     def upgrade(arg_number, arg_structure):
         if isinstance(arg_structure, tuple):
             return (arg_number, arg_number)
@@ -262,9 +261,9 @@ def _match_types(arg1, arg2):
         else:
             return arg_number
 
-    if (isinstance(arg1, float) or isinstance(arg1, int)):
+    if isinstance(arg1, float) or isinstance(arg1, int):
         return upgrade(arg1, arg2), arg2
-    elif (isinstance(arg2, float) or isinstance(arg2, int)):
+    elif isinstance(arg2, float) or isinstance(arg2, int):
         return arg1, upgrade(arg2, arg1)
 
     return arg1, arg2
