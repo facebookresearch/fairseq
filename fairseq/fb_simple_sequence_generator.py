@@ -7,14 +7,19 @@ import math
 
 import torch
 import torch.nn as nn
-
 from fairseq import search, utils
 from fairseq.models import FairseqIncrementalDecoder
 
 
 class SimpleSequenceGenerator(nn.Module):
     def __init__(
-        self, model, tgt_dict, beam_size=1, normalize_scores=True, len_penalty=1., unk_penalty=0.
+        self,
+        model,
+        tgt_dict,
+        beam_size=1,
+        normalize_scores=True,
+        len_penalty=1.0,
+        unk_penalty=0.0,
     ):
         """Generates translations of a given source sentence.
         Args:
@@ -52,25 +57,28 @@ class SimpleSequenceGenerator(nn.Module):
         """
         for sample in data_itr:
             s = utils.move_to_cuda(sample) if cuda else sample
-            if 'net_input' not in s:
+            if "net_input" not in s:
                 continue
-            input = s['net_input']
+            input = s["net_input"]
             # model.forward normally channels prev_output_tokens into the decoder
             # separately, but SequenceGenerator directly calls model.encoder
             encoder_input = {
-                k: v for k, v in input.items()
-                if k != 'prev_output_tokens'
+                k: v for k, v in input.items() if k != "prev_output_tokens"
             }
             if timer is not None:
                 timer.start()
             with torch.no_grad():
                 hypos = self.generate(encoder_input)
             if timer is not None:
-                timer.stop(sum(len(h[0]['tokens']) for h in hypos))
-            for i, id in enumerate(s['id'].data):
+                timer.stop(sum(len(h[0]["tokens"]) for h in hypos))
+            for i, id in enumerate(s["id"].data):
                 # remove padding
-                src = utils.strip_pad(input['src_tokens'].data[i, :], self.pad)
-                ref = utils.strip_pad(s['target'].data[i, :], self.pad) if s['target'] is not None else None
+                src = utils.strip_pad(input["src_tokens"].data[i, :], self.pad)
+                ref = (
+                    utils.strip_pad(s["target"].data[i, :], self.pad)
+                    if s["target"] is not None
+                    else None
+                )
                 yield id, src, ref, hypos[i]
 
     def generate(self, encoder_input):
@@ -79,9 +87,11 @@ class SimpleSequenceGenerator(nn.Module):
             return self._generate(encoder_input)
 
     def _generate(self, encoder_input):
-        src_tokens = encoder_input['src_tokens']
+        src_tokens = encoder_input["src_tokens"]
         # length of the source text being the character length except EndOfSentence and pad
-        src_lengths = (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
+        src_lengths = (
+            (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
+        )
         # bsz: total number of sentences in beam
         bsz, srclen = src_tokens.size()
 
@@ -103,13 +113,21 @@ class SimpleSequenceGenerator(nn.Module):
         encoder_out = self.model.encoder.reorder_encoder_out(encoder_out, new_order)
 
         # initialize buffers
-        scores = src_tokens.data.new(bsz * beam_size, self.maxlen + 1).float().fill_(0)  # +1 for eos; pad is never choosed for scoring
-        tokens = src_tokens.data.new(bsz * beam_size, self.maxlen + 2).fill_(self.pad)  # +2 for eos and pad
+        scores = (
+            src_tokens.data.new(bsz * beam_size, self.maxlen + 1).float().fill_(0)
+        )  # +1 for eos; pad is never choosed for scoring
+        tokens = src_tokens.data.new(bsz * beam_size, self.maxlen + 2).fill_(
+            self.pad
+        )  # +2 for eos and pad
         tokens[:, 0] = self.eos
 
         # list of completed sentences
-        finalized = [[] for i in range(bsz)]  # contains lists of dictionaries of infomation about the hypothesis being finalized at each step
-        finished = [False for i in range(bsz)]  # a boolean array indicating if the sentence at the index is finished or not
+        finalized = [
+            [] for i in range(bsz)
+        ]  # contains lists of dictionaries of infomation about the hypothesis being finalized at each step
+        finished = [
+            False for i in range(bsz)
+        ]  # a boolean array indicating if the sentence at the index is finished or not
         num_remaining_sent = bsz  # number of sentences remaining
 
         # number of candidate hypos per step
@@ -127,11 +145,13 @@ class SimpleSequenceGenerator(nn.Module):
             assert bbsz_idx.numel() == eos_scores.numel()
 
             # clone relevant token and attention tensors
-            tokens_clone = tokens.index_select(0, bbsz_idx)[:, 1:step + 2]  # skip the first index, which is EOS
+            tokens_clone = tokens.index_select(0, bbsz_idx)[
+                :, 1 : step + 2
+            ]  # skip the first index, which is EOS
             tokens_clone[:, step] = self.eos
 
             # compute scores per token position
-            pos_scores = scores.index_select(0, bbsz_idx)[:, :step+1]
+            pos_scores = scores.index_select(0, bbsz_idx)[:, : step + 1]
             pos_scores[:, step] = eos_scores
             # convert from cumulative to per-position scores
             pos_scores[:, 1:] = pos_scores[:, 1:] - pos_scores[:, :-1]
@@ -141,18 +161,22 @@ class SimpleSequenceGenerator(nn.Module):
                 eos_scores /= (step + 1) ** self.len_penalty
 
             sents_seen = set()
-            for i, (idx, score) in enumerate(zip(bbsz_idx.tolist(), eos_scores.tolist())):
+            for i, (idx, score) in enumerate(
+                zip(bbsz_idx.tolist(), eos_scores.tolist())
+            ):
                 sent = idx // beam_size
                 sents_seen.add(sent)
 
                 if len(finalized[sent]) < beam_size:
-                    finalized[sent].append({
-                        'tokens': tokens_clone[i],
-                        'score': score,
-                        'attention': None,  # src_len x tgt_len
-                        'alignment': None,
-                        'positional_scores': pos_scores[i],
-                    })
+                    finalized[sent].append(
+                        {
+                            "tokens": tokens_clone[i],
+                            "score": score,
+                            "attention": None,  # src_len x tgt_len
+                            "alignment": None,
+                            "positional_scores": pos_scores[i],
+                        }
+                    )
 
             newly_finished = 0
             for sent in sents_seen:
@@ -167,17 +191,27 @@ class SimpleSequenceGenerator(nn.Module):
             # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
                 if isinstance(self.model.decoder, FairseqIncrementalDecoder):
-                    self.model.decoder.reorder_incremental_state(incremental_states[self.model], reorder_state)
-                encoder_out = self.model.encoder.reorder_encoder_out(encoder_out, reorder_state)
+                    self.model.decoder.reorder_incremental_state(
+                        incremental_states[self.model], reorder_state
+                    )
+                encoder_out = self.model.encoder.reorder_encoder_out(
+                    encoder_out, reorder_state
+                )
 
-            lprobs = self._decode(tokens[:, :step + 1], encoder_out, incremental_states)
+            lprobs = self._decode(
+                tokens[:, : step + 1], encoder_out, incremental_states
+            )
 
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             scores = scores.type_as(lprobs)
-            eos_bbsz_idx = tokens.new()  # indices of hypothesis ending with eos (finished sentences)
-            eos_scores = scores.new()  # scores of hypothesis ending with eos (finished sentences)
+            eos_bbsz_idx = (
+                tokens.new()
+            )  # indices of hypothesis ending with eos (finished sentences)
+            eos_scores = (
+                scores.new()
+            )  # scores of hypothesis ending with eos (finished sentences)
             if step < self.maxlen:
                 self.search.set_src_lengths(src_lengths)
                 cand_scores, cand_indices, cand_beams = self.search.step(
@@ -192,9 +226,7 @@ class SimpleSequenceGenerator(nn.Module):
                 # finalize all active hypotheses once we hit maxlen
                 # pick the hypothesis with the highest prob of EOS right now
                 torch.sort(
-                    lprobs[:, self.eos],
-                    descending=True,
-                    out=(eos_scores, eos_bbsz_idx),
+                    lprobs[:, self.eos], descending=True, out=(eos_scores, eos_bbsz_idx)
                 )
                 num_remaining_sent -= finalize_hypos(step, eos_bbsz_idx, eos_scores)
                 assert num_remaining_sent == 0
@@ -203,15 +235,16 @@ class SimpleSequenceGenerator(nn.Module):
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
             # and dimensions: [bsz, cand_size]
-            cand_bbsz_idx = cand_beams.add((torch.arange(0, bsz) * beam_size).unsqueeze(1).type_as(tokens))
+            cand_bbsz_idx = cand_beams.add(
+                (torch.arange(0, bsz) * beam_size).unsqueeze(1).type_as(tokens)
+            )
 
             # finalize hypotheses that end in eos
             eos_mask = cand_indices.eq(self.eos)
 
             # only consider eos when it's among the top beam_size indices
             eos_bbsz_idx = torch.masked_select(
-                cand_bbsz_idx[:, :beam_size],
-                mask=eos_mask[:, :beam_size],
+                cand_bbsz_idx[:, :beam_size], mask=eos_mask[:, :beam_size]
             )
             if eos_bbsz_idx.numel() > 0:
                 torch.masked_select(
@@ -229,38 +262,32 @@ class SimpleSequenceGenerator(nn.Module):
             # After, the min values per row are the top candidate active hypos
             active_mask = torch.add(
                 eos_mask.type_as(cand_offsets) * cand_size,
-                cand_offsets[:eos_mask.size(1)],
+                cand_offsets[: eos_mask.size(1)],
             )
 
             # get the top beam_size active hypotheses, which are just the hypos
             # with the smallest values in active_mask
-            _, active_hypos = torch.topk(
-                active_mask, k=beam_size, dim=1, largest=False,
-            )
+            _, active_hypos = torch.topk(active_mask, k=beam_size, dim=1, largest=False)
 
-            active_bbsz_idx = torch.gather(
-                cand_bbsz_idx, dim=1, index=active_hypos,
-            )
-            active_scores = torch.gather(
-                cand_scores, dim=1, index=active_hypos,
-            )
+            active_bbsz_idx = torch.gather(cand_bbsz_idx, dim=1, index=active_hypos)
+            active_scores = torch.gather(cand_scores, dim=1, index=active_hypos)
 
             active_bbsz_idx = active_bbsz_idx.view(-1)
             active_scores = active_scores.view(-1)
 
             # copy tokens and scores for active hypotheses
-            tokens[:, :step + 1] = torch.index_select(
-                tokens[:, :step + 1], dim=0, index=active_bbsz_idx,
+            tokens[:, : step + 1] = torch.index_select(
+                tokens[:, : step + 1], dim=0, index=active_bbsz_idx
             )
             tokens.view(bsz, beam_size, -1)[:, :, step + 1] = torch.gather(
-                cand_indices, dim=1, index=active_hypos,
+                cand_indices, dim=1, index=active_hypos
             )
 
             scores[:, :step] = torch.index_select(
-                scores[:, :step], dim=0, index=active_bbsz_idx,
+                scores[:, :step], dim=0, index=active_bbsz_idx
             )
             scores.view(bsz, beam_size, -1)[:, :, step] = torch.gather(
-                cand_scores, dim=1, index=active_hypos,
+                cand_scores, dim=1, index=active_hypos
             )
 
             # reorder incremental state in decoder
@@ -268,14 +295,22 @@ class SimpleSequenceGenerator(nn.Module):
 
         # sort by score descending
         for sent in range(len(finalized)):
-            finalized[sent] = sorted(finalized[sent], key=lambda r: r['score'], reverse=True)
+            finalized[sent] = sorted(
+                finalized[sent], key=lambda r: r["score"], reverse=True
+            )
 
         return finalized
 
     def _decode(self, tokens, encoder_out, incremental_states):
         with torch.no_grad():
             if incremental_states[self.model] is not None:
-                decoder_out = list(self.model.decoder(tokens, encoder_out, incremental_state=incremental_states[self.model]))
+                decoder_out = list(
+                    self.model.decoder(
+                        tokens,
+                        encoder_out,
+                        incremental_state=incremental_states[self.model],
+                    )
+                )
             else:
                 decoder_out = list(self.model.decoder(tokens, encoder_out))
             decoder_out[0] = decoder_out[0][:, -1, :]
