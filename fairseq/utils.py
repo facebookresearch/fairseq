@@ -15,6 +15,7 @@ from collections import defaultdict
 from itertools import accumulate
 from typing import Callable, Dict, List, Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from fairseq.modules import gelu, gelu_accurate
@@ -338,11 +339,10 @@ def log_softmax(x, dim, onnx_trace=False):
         return F.log_softmax(x, dim=dim, dtype=torch.float32)
 
 
-def get_perplexity(loss):
-    try:
-        return float("{:.2f}".format(math.pow(2, loss)))
-    except OverflowError:
-        return float("inf")
+def get_perplexity(loss, round=2, base=2):
+    if loss is None:
+        return 0.
+    return np.round(np.power(base, loss), round)
 
 
 def deprecation_warning(message, stacklevel=3):

@@ -77,16 +77,16 @@ class LabelSmoothedCrossEntropyCriterionWithAlignment(LabelSmoothedCrossEntropyC
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
-        nll_loss_sum = sum(log.get('nll_loss', 0) for log in logging_outputs)
-        alignment_loss_sum = sum(log.get('alignment_loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
+        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
+        nll_loss_sum = utils.item(sum(log.get('nll_loss', 0) for log in logging_outputs))
+        alignment_loss_sum = utils.item(sum(log.get('alignment_loss', 0) for log in logging_outputs))
+        ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
+        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
 
         metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
         metrics.log_scalar('nll_loss', nll_loss_sum / ntokens / math.log(2), ntokens, round=3)
         metrics.log_scalar('alignment_loss', alignment_loss_sum / sample_size / math.log(2), sample_size, round=3)
-        metrics.log_derived('ppl', lambda meters: round(2**meters['nll_loss'].avg, 3))
+        metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['nll_loss'].avg))
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:

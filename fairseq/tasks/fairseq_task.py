@@ -347,14 +347,14 @@ class FairseqTask(object):
         if not any('ntokens' in log for log in logging_outputs):
             warnings.warn('ntokens not found in Criterion logging outputs, cannot log wpb or wps')
         else:
-            ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
+            ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
             metrics.log_scalar('wpb', ntokens, priority=180, round=1)
             metrics.log_speed('wps', ntokens, ignore_first=10, priority=90, round=1)
 
         if not any('nsentences' in log for log in logging_outputs):
             warnings.warn('nsentences not found in Criterion logging outputs, cannot log bsz')
         else:
-            nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
+            nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
             metrics.log_scalar('bsz', nsentences, priority=190, round=1)
 
         criterion.__class__.reduce_metrics(logging_outputs)
