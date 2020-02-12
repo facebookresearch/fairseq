@@ -47,7 +47,7 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
 
         sample_size = target.numel()
         logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
+            'loss': loss.data,
             'ntokens': sample_size,
             'nsentences': logits.size(0),
             'sample_size': sample_size,
@@ -60,10 +60,10 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
+        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
+        ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
+        nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
+        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
         agg_output = {
             'loss': loss_sum / sample_size / math.log(2),
             'ntokens': ntokens,

@@ -60,7 +60,7 @@ class SentencePredictionCriterion(FairseqCriterion):
             )
 
         logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
+            'loss': loss.data,
             'ntokens': sample['ntokens'],
             'nsentences': sample_size,
             'sample_size': sample_size,
@@ -74,10 +74,10 @@ class SentencePredictionCriterion(FairseqCriterion):
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
+        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
+        ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
+        nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
+        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
 
         metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
         if sample_size != ntokens:
