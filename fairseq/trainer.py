@@ -40,16 +40,20 @@ class Trainer(object):
         self.args = args
         self.task = task
 
+        self.cuda = torch.cuda.is_available() and not args.cpu
+        if self.cuda:
+            self.device = torch.device('cuda')
+        else:
+            self.device = torch.device('cpu')
+
         # copy model and criterion to current device
         self._criterion = criterion
         self._model = model
-        self.cuda = torch.cuda.is_available() and not args.cpu
         if args.fp16:
             self._criterion = self._criterion.half()
             self._model = self._model.half()
-        if self.cuda:
-            self._criterion = self._criterion.cuda()
-            self._model = self._model.cuda()
+        self._criterion = self._criterion.to(device=self.device)
+        self._model = self._model.to(device=self.device)
 
         self._dummy_batch = None
         self._lr_scheduler = None
@@ -285,9 +289,9 @@ class Trainer(object):
                 # when sample is None, run forward/backward on a dummy batch
                 # and ignore the resulting gradients
                 sample = self._prepare_sample(self._dummy_batch)
-                ignore_grad = True
+                is_dummy_batch = True
             else:
-                ignore_grad = False
+                is_dummy_batch = False
 
             def maybe_no_sync():
                 """
@@ -308,12 +312,16 @@ class Trainer(object):
                 with maybe_no_sync():
                     # forward and backward
                     loss, sample_size_i, logging_output = self.task.train_step(
-                        sample, self.model, self.criterion, self.optimizer, ignore_grad
+                        sample=sample,
+                        model=self.model,
+                        criterion=self.criterion,
+                        optimizer=self.optimizer,
+                        ignore_grad=is_dummy_batch,
                     )
                     del loss
 
-                if not ignore_grad:
-                    logging_outputs.append(logging_output)
+                logging_outputs.append(logging_output)
+                if not is_dummy_batch:
                     sample_size += sample_size_i
 
                 # emptying the CUDA cache after the first step can
@@ -335,8 +343,8 @@ class Trainer(object):
 
         # gather logging outputs from all replicas
         if self._sync_stats():
-            logging_outputs, sample_size, ooms = self._aggregate_logging_outputs(
-                logging_outputs, sample_size, ooms,
+            logging_outputs, (sample_size, ooms) = self._aggregate_logging_outputs(
+                logging_outputs, sample_size, ooms, ignore=is_dummy_batch,
             )
 
         metrics.log_scalar("oom", ooms, len(samples), priority=600, round=3)
@@ -419,9 +427,9 @@ class Trainer(object):
             sample = self._prepare_sample(sample)
             if sample is None:
                 sample = self._prepare_sample(self._dummy_batch)
-                ignore_results = True
+                is_dummy_batch = True
             else:
-                ignore_results = False
+                is_dummy_batch = False
 
             try:
                 _loss, sample_size, logging_output = self.task.valid_step(
@@ -442,15 +450,14 @@ class Trainer(object):
                         return self.valid_step(sample, raise_oom=True)
                 raise e
 
-            if ignore_results:
-                logging_outputs, sample_size = [], 0
-            else:
-                logging_outputs = [logging_output]
+            logging_outputs = [logging_output]
+            if is_dummy_batch:
+                sample_size = 0
 
         # gather logging outputs from all replicas
         if self.args.distributed_world_size > 1:
-            logging_outputs, sample_size = self._aggregate_logging_outputs(
-                logging_outputs, sample_size
+            logging_outputs, (sample_size, ) = self._aggregate_logging_outputs(
+                logging_outputs, sample_size, ignore=is_dummy_batch,
             )
 
         # log validation stats
@@ -582,22 +589,30 @@ class Trainer(object):
     def _aggregate_logging_outputs(
         self,
         logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum
+        *extra_stats_to_sum,
+        ignore=False,
     ):
         if self.get_criterion().__class__.logging_outputs_can_be_summed():
-            return self._fast_stat_sync_sum(logging_outputs, *extra_stats_to_sum)
+            return self._fast_stat_sync_sum(
+                logging_outputs, *extra_stats_to_sum, ignore=ignore
+            )
         else:
-            return self._all_gather_list_sync(logging_outputs, *extra_stats_to_sum)
+            return self._all_gather_list_sync(
+                logging_outputs, *extra_stats_to_sum, ignore=ignore
+            )
 
     def _all_gather_list_sync(
         self,
         logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum
+        *extra_stats_to_sum,
+        ignore=False,
     ):
         """
         Sync logging outputs across workers. all_gather_list_sync is
         suitable when logging outputs are complex types.
         """
+        if ignore:
+            logging_outputs = []
         results = list(zip(
             *distributed_utils.all_gather_list(
                 [logging_outputs] + list(extra_stats_to_sum),
@@ -607,48 +622,48 @@ class Trainer(object):
         logging_outputs, extra_stats_to_sum = results[0], results[1:]
         logging_outputs = list(chain.from_iterable(logging_outputs))
         extra_stats_to_sum = [sum(s) for s in extra_stats_to_sum]
-        return [logging_outputs] + extra_stats_to_sum
+        return logging_outputs, extra_stats_to_sum
 
     def _fast_stat_sync_sum(
         self,
         logging_outputs: List[Dict[str, Any]],
         *extra_stats_to_sum,
-        min_buffer_size: int = 50,
+        ignore=False,
     ):
         """
         Sync logging outputs across workers. fast_stat_sync_sum is
         faster than all_gather_list_sync, but is only suitable when
-        logging outputs are scalars and can be summed.
+        logging outputs are scalars and can be summed. Note that
+        *logging_outputs* cannot contain any nested dicts/lists.
         """
-        num_extra = len(extra_stats_to_sum)
+        data = {}
+        for i, stat in enumerate(extra_stats_to_sum):
+            data['extra_stats_' + str(i)] = stat
         if len(logging_outputs) > 0:
-            sorted_keys = sorted(logging_outputs[0].keys())
-            stats = [0.] + list(extra_stats_to_sum) + [
-                sum(log.get(k, 0) for log in logging_outputs)
-                for k in sorted_keys
-            ]
-            stats = stats + [0.]*(min_buffer_size - len(stats))
-            buf = torch.cuda.DoubleTensor(stats)
+            log_keys = list(logging_outputs[0].keys())
+            for k in log_keys:
+                if not ignore:
+                    v = sum(log[k] for log in logging_outputs if k in log)
+                else:
+                    v = logging_outputs[0][k]
+                    v = torch.zeros_like(v) if torch.is_tensor(v) else 0
+                data['logging_outputs_' + k] = v
         else:
-            buf = torch.zeros(min_buffer_size, dtype=torch.double, device='cuda')
-            buf[0] = 1.  # flag to indicate we should fallback to _all_gather_list_sync
+            log_keys = None
 
-        # stats buffer is organized like:
-        # 0: flag to indicate whether fast-stat-sync should be disabled
-        # 1-i: extra_stats_to_sum
-        # i-j: values from logging_outputs (sorted by key)
-        # j-min_buffer_size: padded with 0s
-        distributed_utils.all_reduce(buf)
+        data = distributed_utils.all_reduce_dict(
+            data,
+            device=self.device,
+        )
 
-        buf = buf.tolist()
-        fallback = buf[0]
-        if fallback > 0.:
-            # fallback to _all_gather_list_sync
-            return self._all_gather_list_sync(logging_outputs, *extra_stats_to_sum)
+        extra_stats_to_sum = [
+            data['extra_stats_' + str(i)] for i in range(len(extra_stats_to_sum))
+        ]
+        if log_keys is not None:
+            logging_outputs = [{k: data['logging_outputs_' + k] for k in log_keys}]
         else:
-            extra_stats_to_sum, stats = buf[1:num_extra + 1], buf[num_extra + 1:]
-            stats = [{k: stats[i] for i, k in enumerate(sorted_keys)}]
-            return [stats] + extra_stats_to_sum
+            logging_outputs = []
+        return logging_outputs, extra_stats_to_sum
 
     def _check_grad_norms(self, grad_norm):
         """Check that grad norms are consistent across workers."""
@@ -663,6 +678,8 @@ class Trainer(object):
                 )
 
     def _reduce_and_log_stats(self, logging_outputs, sample_size):
+        if logging_outputs is None or len(logging_outputs) == 0:
+            return {"sample_size": sample_size}
         with metrics.aggregate() as agg:
             # convert logging_outputs to CPU to avoid unnecessary
             # device-to-host transfers in reduce_metrics
