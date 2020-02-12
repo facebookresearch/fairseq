@@ -53,10 +53,20 @@ def register_task(name):
     return register_task_cls
 
 
+def get_task(name):
+    return TASK_REGISTRY[name]
+
+
 # automatically import any Python files in the tasks/ directory
-for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        task_name = file[:file.find('.py')]
+tasks_dir = os.path.dirname(__file__)
+for file in os.listdir(tasks_dir):
+    path = os.path.join(tasks_dir, file)
+    if (
+        not file.startswith('_')
+        and not file.startswith('.')
+        and (file.endswith('.py') or os.path.isdir(path))
+    ):
+        task_name = file[:file.find('.py')] if file.endswith('.py') else file
         importlib.import_module('fairseq.tasks.' + task_name)
 
         # expose `task_parser` for sphinx
@@ -70,7 +80,3 @@ for file in os.listdir(os.path.dirname(__file__)):
             group_args = parser.add_argument_group('Additional command-line arguments')
             TASK_REGISTRY[task_name].add_args(group_args)
             globals()[task_name + '_parser'] = parser
-
-
-def get_task(name):
-    return TASK_REGISTRY[name]
