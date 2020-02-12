@@ -580,6 +580,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         input_embed_dim = embed_tokens.embedding_dim
         embed_dim = args.decoder_embed_dim
+        self.embed_dim = embed_dim
         self.output_embed_dim = args.decoder_output_dim
 
         self.padding_idx = embed_tokens.padding_idx
