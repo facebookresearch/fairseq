@@ -10,6 +10,8 @@ import socket
 import struct
 import subprocess
 import warnings
+from collections import OrderedDict
+from typing import Any, Dict, Mapping
 
 import torch
 import torch.distributed as dist
@@ -183,3 +185,54 @@ def all_gather_list(data, group=None, max_size=16384):
             'while other workers are still iterating over their portions of the data. '
             'Try rerunning with --ddp-backend=no_c10d and see if that helps.'
         )
+
+
+def all_reduce_dict(
+    data: Mapping[str, Any],
+    device,
+    group=None,
+) -> Dict[str, Any]:
+    """
+    AllReduce a dictionary of values across workers. We separately
+    reduce items that are already on the device and items on CPU for
+    better performance.
+
+    Args:
+        data (Mapping[str, Any]): dictionary of data to all-reduce, but
+            cannot be a nested dictionary
+        device (torch.device): device for the reduction
+        group (optional): group of the collective
+    """
+    data_keys = list(data.keys())
+
+    # We want to separately reduce items that are already on the
+    # device and items on CPU for performance reasons.
+    cpu_data = OrderedDict()
+    device_data = OrderedDict()
+    for k in data_keys:
+        t = data[k]
+        if not torch.is_tensor(t):
+            cpu_data[k] = torch.tensor(t, dtype=torch.double)
+        elif t.device.type != device.type:
+            cpu_data[k] = t.to(dtype=torch.double)
+        else:
+            device_data[k] = t.to(dtype=torch.double)
+
+    def _all_reduce_dict(data: OrderedDict):
+        if len(data) == 0:
+            return data
+        buf = torch.stack(list(data.values())).to(device=device)
+        all_reduce(buf, group=group)
+        return {k: buf[i] for i, k in enumerate(data)}
+
+    cpu_data = _all_reduce_dict(cpu_data)
+    device_data = _all_reduce_dict(device_data)
+
+    def get_from_stack(key):
+        if key in cpu_data:
+            return cpu_data[key]
+        elif key in device_data:
+            return device_data[key]
+        raise KeyError
+
+    return OrderedDict([(key, get_from_stack(key)) for key in data_keys])
