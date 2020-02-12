@@ -8,7 +8,7 @@ import json
 
 
 from tornado import web, ioloop
-from examples.simultaneous_translation.data.data_loader import TextDataLoader, AudioDataLoader
+from examples.simultaneous_translation.data import TextDataLoader, AudioDataLoader
 from examples.simultaneous_translation.utils.eval_latency import LatencyScorer
 
 DEFAULT_HOSTNAME = 'localhost'

@@ -102,8 +102,42 @@ class BerardSimulTextModel(BerardSimulASTModel):
         )
         return encoder
 
-    def get_action(self, states):
-        return self.decoder.attention.action_from_state_dict(states)
+    def decision_from_states(self, states):
+        return self.decoder.attention.decision_from_states(states)
+    
+
+    def predict_from_states(self, states):
+        self.eval()
+
+        src_indices = torch.LongTensor(
+            [states["indices"]["src"][: 1 + states["steps"]["src"]]]
+            )
+        src_lengths = torch.LongTensor([src_indices.size(1)])
+
+
+        tgt_indices = torch.LongTensor(
+            [
+                [self.decoder.dictionary.eos()]
+                + states["indices"]["tgt"]
+            ]
+        )
+
+        # Update encoder state
+        encoder_outs = self.encoder(src_indices, src_lengths) 
+
+        # Generate decoder state
+        decoder_states, _ = self.decoder(tgt_indices, encoder_outs, states)
+
+        lprobs = self.get_normalized_probs(
+            [decoder_states[:, -1:]], 
+            log_probs=True
+        )
+
+        index = lprobs.argmax(dim=-1)
+
+        token = self.decoder.dictionary.string(index) 
+
+        return token, index.item()
 
 
 class BerardSimulEncoder(FairseqEncoder):
