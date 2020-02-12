@@ -5,7 +5,6 @@
 
 import warnings
 
-import numpy as np
 import torch
 
 from fairseq import metrics, search, tokenizer, utils
