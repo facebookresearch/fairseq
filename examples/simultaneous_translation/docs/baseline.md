@@ -137,7 +137,7 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
 ## Evaluation
 ---
 ### Evaluation Server
-For text translation models, the server is set up as follow give input file and reference file. 
+For text translation models, the server needs an input file and reference file. 
 
 ``` shell
 python ./eval/server.py \
