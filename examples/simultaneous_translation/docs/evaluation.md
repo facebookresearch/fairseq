@@ -111,4 +111,4 @@ The latency metrics are
 * Average Proportion
 * Average Lagging
 * Differentiable Average Lagging
-Again Thery will also be evaluated on detokenized text.
+Again, they will also be evaluated on detokenized text.
