@@ -264,7 +264,8 @@ class MultilingualTranslationTask(FairseqTask):
 
     def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
         model.train()
-        agg_loss, agg_sample_size, agg_logging_output = 0., 0., {}
+        from collections import defaultdict
+        agg_loss, agg_sample_size, agg_logging_output = 0., 0., defaultdict(float)
         for lang_pair in self.model_lang_pairs:
             if sample[lang_pair] is None or len(sample[lang_pair]) == 0:
                 continue
@@ -275,13 +276,16 @@ class MultilingualTranslationTask(FairseqTask):
             agg_loss += loss.detach().item()
             # TODO make summing of the sample sizes configurable
             agg_sample_size += sample_size
-            agg_logging_output[lang_pair] = logging_output
+            for k in logging_output:
+                agg_logging_output[k] += logging_output[k]
+                agg_logging_output[f"{lang_pair}:{k}"] += logging_output[k]
         return agg_loss, agg_sample_size, agg_logging_output
 
     def valid_step(self, sample, model, criterion):
         model.eval()
         with torch.no_grad():
-            agg_loss, agg_sample_size, agg_logging_output = 0., 0., {}
+            from collections import defaultdict
+            agg_loss, agg_sample_size, agg_logging_output = 0., 0., defaultdict(float)
             for lang_pair in self.eval_lang_pairs:
                 if lang_pair not in sample or sample[lang_pair] is None or len(sample[lang_pair]) == 0:
                     continue
@@ -289,7 +293,9 @@ class MultilingualTranslationTask(FairseqTask):
                 agg_loss += loss.data.item()
                 # TODO make summing of the sample sizes configurable
                 agg_sample_size += sample_size
-                agg_logging_output[lang_pair] = logging_output
+                for k in logging_output:
+                    agg_logging_output[k] += logging_output[k]
+                    agg_logging_output[f"{lang_pair}:{k}"] += logging_output[k]
         return agg_loss, agg_sample_size, agg_logging_output
 
     def inference_step(self, generator, models, sample, prefix_tokens=None):
@@ -302,37 +308,12 @@ class MultilingualTranslationTask(FairseqTask):
                     if self.args.decoder_langtok else self.target_dictionary.eos(),
             )
 
-    def reduce_metrics(self, logging_outputs, criterion, logging_output_keys=None):
-        logging_output_keys = logging_output_keys or self.eval_lang_pairs
-
-        # aggregate logging outputs for each language pair
-        agg_logging_outputs = {}
-        for key in logging_output_keys:
-            with metrics.aggregate() as agg:
-                logging_outputs_key = [
-                    logging_output.get(key, {}) for logging_output in logging_outputs
-                ]
-                for k in ['sample_size', 'nsentences', 'ntokens']:
-                    metrics.log_scalar(k, sum(l[k] for l in logging_outputs_key))
-                super().reduce_metrics(logging_outputs_key, criterion)
-                agg_logging_outputs[key] = agg.get_smoothed_values()
-
-        def sum_over_languages(key):
-            return sum(logging_output[key] for logging_output in agg_logging_outputs.values())
-
-        # flatten logging outputs
-        flat_logging_output = {
-            '{}:{}'.format(lang_pair, k): v
-            for lang_pair, agg_logging_output in agg_logging_outputs.items()
-            for k, v in agg_logging_output.items()
-        }
-        flat_logging_output['loss'] = sum_over_languages('loss')
-        if any('nll_loss' in logging_output for logging_output in agg_logging_outputs.values()):
-            flat_logging_output['nll_loss'] = sum_over_languages('nll_loss')
-        flat_logging_output['sample_size'] = sum_over_languages('sample_size')
-        flat_logging_output['nsentences'] = sum_over_languages('nsentences')
-        flat_logging_output['ntokens'] = sum_over_languages('ntokens')
-        return flat_logging_output
+    def reduce_metrics(self, logging_outputs, criterion):
+        with metrics.aggregate():
+            # pass 'sample_size', 'nsentences', 'ntokens' stats to fairseq_task
+            super().reduce_metrics(logging_outputs, criterion)
+            for k in ['sample_size', 'nsentences', 'ntokens']:
+                metrics.log_scalar(k, sum(l[k] for l in logging_outputs))
 
     @property
     def source_dictionary(self):

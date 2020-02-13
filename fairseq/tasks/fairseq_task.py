@@ -27,6 +27,15 @@ class FairseqTask(object):
         """Add task-specific arguments to the parser."""
         pass
 
+    @staticmethod
+    def logging_outputs_can_be_summed(criterion) -> bool:
+        """
+        Whether the logging outputs returned by `train_step` and `valid_step` can
+        be summed across workers prior to calling `aggregate_logging_outputs`.
+        Setting this to True will improves distributed training speed.
+        """
+        return criterion.logging_outputs_can_be_summed()
+
     def __init__(self, args):
         self.args = args
         self.datasets = {}
