@@ -1,7 +1,7 @@
 # **Baseline Simultaneous Translation**
 ---
 
-This is an instruction of training and evaluating a *wait-k* simultanoes LSTM model on MUST-C English-Gernam Dataset.
+This is an instruction of training and evaluating a *wait-k* simultaneous LSTM model on the MUST-C English-German dataset.
 
 [STACL: Simultaneous Translation with Implicit Anticipation and Controllable Latency using Prefix-to-Prefix Framework](https://https://www.aclweb.org/anthology/P19-1289/)
 
