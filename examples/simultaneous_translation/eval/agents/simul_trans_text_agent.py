@@ -177,7 +177,7 @@ class SimulTransTextAgent(Agent):
             return {'key': GET, 'value': None} 
 
         # Only request new word if there is no buffered tokens
-        if len(states["tokens"]) < states["steps"]["src"]:
+        if len(states["tokens"]["src"]) <= states["steps"]["src"]:
             return {'key': GET, 'value': None}
 
         return None
