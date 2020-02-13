@@ -37,7 +37,7 @@ The client will handle the evaluation process mentioned above. It should be out-
 
 
 
-The core of the client module is the agent, which needs to be modified to different models accordingly. The abstract class of agent is as follow, the evaluation process happens in the `decode()` function. 
+The core of the client module is the agent, which needs to be modified for different models accordingly. The abstract class of agent is as follow, the evaluation process happens in the `decode()` function. 
 ```python
 class Agent(object):
     "an agent needs to follow this pattern"
