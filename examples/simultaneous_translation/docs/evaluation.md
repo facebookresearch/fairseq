@@ -7,7 +7,7 @@ An server-client protocol that will be used in evaluation. For example, when a *
 Every time the client needs to read a new state (word or speech chunk), a "GET" request needs to be sent to the server. Whenever a new token is generated, a "SEND" request with the predicted word (untokenized word) will be sent to the server immediately. The server can hence calculate both the latency and BLEU score of the sentence.
 
 ### Server
-The server code is provided and can be set up directly locally for development purpose. For example, to evaluate a text simultaneous test set,
+The server code is provided and can be set up locally for development purposes. For example, to evaluate a text simultaneous test set,
 
 ```shell
 
