@@ -1,4 +1,4 @@
-# Introduction to evaluation interface
+# Introduction to the evaluation interface
 The simultaneous translation models from the shared task participants are evaluated under a server-client protocol. The participants are required to plug in their own model API in the protocol, and submit a Docker image.
 
 ## Server-Client Protocol
