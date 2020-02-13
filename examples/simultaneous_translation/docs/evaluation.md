@@ -74,7 +74,7 @@ class Agent(object):
         states = self.init_states()
         self.reset()      
 
-        # Evaluataion protocol happens here
+        # Evaluation protocol happens here
         while True:
             # Get action from the current states according to self.policy()
             action = self.policy(states)
