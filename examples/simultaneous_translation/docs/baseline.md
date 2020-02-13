@@ -156,7 +156,7 @@ python ./eval/server.py \
 ```
 
 ### Decode and Evaluate with Client
-Once the server is set up, run client to evaluate translation quality and latency.
+Once the server is set up, run the client to evaluate translation quality and latency.
 ```shell
 # TEXT
 python $fairseq_dir/examples/simultaneous_translation/evaluate.py \
