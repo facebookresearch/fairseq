@@ -44,7 +44,7 @@ Example fine-tuning cmd
 TOTAL_NUM_UPDATES=20000  
 WARMUP_UPDATES=500      
 LR=3e-05
-MAX_TOKENS=2048
+MAX_TOKENS=1024
 UPDATE_FREQ=4
 BART_PATH=/path/to/bart/model.pt
 
