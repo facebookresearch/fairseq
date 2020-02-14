@@ -332,7 +332,7 @@ def softmax(x, dim: int, onnx_trace: bool = False):
         return F.softmax(x, dim=dim, dtype=torch.float32)
 
 
-def log_softmax(x, dim, onnx_trace=False):
+def log_softmax(x, dim: int, onnx_trace: bool = False):
     if onnx_trace:
         return F.log_softmax(x.float(), dim=dim)
     else:

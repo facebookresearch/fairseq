@@ -4,14 +4,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from typing import Dict, List, NamedTuple, Optional
 
 import torch
 import torch.nn as nn
-from fairseq import search, utils
-from fairseq.models import FairseqIncrementalDecoder
+from fairseq import search
+from fairseq import utils
+from fairseq.models.fairseq_encoder import EncoderOut
+from torch import Tensor
 
 
 class SimpleSequenceGenerator(nn.Module):
+    incremental_states: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
+
     def __init__(
         self,
         model,
@@ -20,6 +25,7 @@ class SimpleSequenceGenerator(nn.Module):
         normalize_scores=True,
         len_penalty=1.0,
         unk_penalty=0.0,
+        temperature=1.0,
     ):
         """Generates translations of a given source sentence.
         Args:
@@ -31,7 +37,7 @@ class SimpleSequenceGenerator(nn.Module):
             unk_penalty (float, optional): unknown word penalty, where <0
                 produces more unks, >0 produces fewer (default: 0.0)
         """
-        super(SimpleSequenceGenerator, self).__init__()
+        super().__init__()
         self.model = model
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
@@ -42,12 +48,21 @@ class SimpleSequenceGenerator(nn.Module):
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
+        self.temperature = temperature
+        assert temperature > 0, '--temperature must be greater than 0'
 
         self.search = search.BeamSearch(tgt_dict)
+        self.model.eval()
+
+        self.incremental_states = {}
 
     def cuda(self):
         self.model.cuda()
         return self
+
+    def forward(self, encoder_input: Dict[str, Tensor]):
+        """Generate translations."""
+        return self._generate(encoder_input)
 
     def generate_batched_itr(self, data_itr, beam_size=None, cuda=False, timer=None):
         """Iterate over a batched dataset and yield individual translations.
@@ -86,7 +101,7 @@ class SimpleSequenceGenerator(nn.Module):
         with torch.no_grad():
             return self._generate(encoder_input)
 
-    def _generate(self, encoder_input):
+    def _generate(self, encoder_input: Dict[str, Tensor]):
         src_tokens = encoder_input["src_tokens"]
         # length of the source text being the character length except EndOfSentence and pad
         src_lengths = (
@@ -98,33 +113,33 @@ class SimpleSequenceGenerator(nn.Module):
         # the max beam size is the dictionary size - 1, since we never select pad
         beam_size = min(self.beam_size, self.vocab_size - 1)
 
-        incremental_states = {}
-        self.model.eval()
-        if isinstance(self.model.decoder, FairseqIncrementalDecoder):
-            incremental_states[self.model] = {}
-        else:
-            incremental_states[self.model] = None
-
         # compute the encoder output for each beam
-        encoder_out = self.model.encoder(**encoder_input)
+        encoder_out = self.model.encoder.forward(
+            src_tokens=encoder_input["src_tokens"],
+            src_lengths=encoder_input["src_lengths"],
+        )
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
         new_order = new_order.to(src_tokens.device).long()
         encoder_out = self.model.encoder.reorder_encoder_out(encoder_out, new_order)
 
         # initialize buffers
-        scores = (
-            src_tokens.data.new(bsz * beam_size, self.maxlen + 1).float().fill_(0)
+        scores = torch.zeros(bsz * beam_size, self.maxlen + 1).to(
+            src_tokens.data
         )  # +1 for eos; pad is never choosed for scoring
-        tokens = src_tokens.data.new(bsz * beam_size, self.maxlen + 2).fill_(
-            self.pad
+        tokens = (
+            torch.zeros(bsz * beam_size, self.maxlen + 2)
+            .fill_(self.pad)
+            .to(src_tokens.data)
         )  # +2 for eos and pad
         tokens[:, 0] = self.eos
 
         # list of completed sentences
-        finalized = [
-            [] for i in range(bsz)
-        ]  # contains lists of dictionaries of infomation about the hypothesis being finalized at each step
+        finalized = torch.jit.annotate(
+            List[List[Dict[str, Tensor]]],
+            [torch.jit.annotate(List[Dict[str, Tensor]], []) for i in range(bsz)],
+        )  # contains lists of dictionaries of infomation about the hypothesis being finalized at each step
+
         finished = [
             False for i in range(bsz)
         ]  # a boolean array indicating if the sentence at the index is finished or not
@@ -136,81 +151,28 @@ class SimpleSequenceGenerator(nn.Module):
         # offset arrays for converting between different indexing schemes
         cand_offsets = torch.arange(0, cand_size).type_as(tokens)
 
-        def finalize_hypos(step, bbsz_idx, eos_scores):
-            """Finalize hypothesis, store finalized information in `finalized`, and change `finished` accordingly.
-            Returns number of sentences being finalized.
-            Args:
-                bbsz_idx (Tensor):
-            """
-            assert bbsz_idx.numel() == eos_scores.numel()
-
-            # clone relevant token and attention tensors
-            tokens_clone = tokens.index_select(0, bbsz_idx)[
-                :, 1 : step + 2
-            ]  # skip the first index, which is EOS
-            tokens_clone[:, step] = self.eos
-
-            # compute scores per token position
-            pos_scores = scores.index_select(0, bbsz_idx)[:, : step + 1]
-            pos_scores[:, step] = eos_scores
-            # convert from cumulative to per-position scores
-            pos_scores[:, 1:] = pos_scores[:, 1:] - pos_scores[:, :-1]
-
-            # normalize sentence-level scores
-            if self.normalize_scores:
-                eos_scores /= (step + 1) ** self.len_penalty
-
-            sents_seen = set()
-            for i, (idx, score) in enumerate(
-                zip(bbsz_idx.tolist(), eos_scores.tolist())
-            ):
-                sent = idx // beam_size
-                sents_seen.add(sent)
-
-                if len(finalized[sent]) < beam_size:
-                    finalized[sent].append(
-                        {
-                            "tokens": tokens_clone[i],
-                            "score": score,
-                            "attention": None,  # src_len x tgt_len
-                            "alignment": None,
-                            "positional_scores": pos_scores[i],
-                        }
-                    )
-
-            newly_finished = 0
-            for sent in sents_seen:
-                # check termination conditions for this sentence
-                if not finished[sent] and len(finalized[sent]) == beam_size:
-                    finished[sent] = True
-                    newly_finished += 1
-            return newly_finished
-
-        reorder_state = None
+        reorder_state: Optional[Tensor] = None
         for step in range(self.maxlen + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
-                if isinstance(self.model.decoder, FairseqIncrementalDecoder):
-                    self.model.decoder.reorder_incremental_state(
-                        incremental_states[self.model], reorder_state
-                    )
+                # self.model.decoder.reorder_incremental_state(
+                #     self.incremental_states, reorder_state
+                # )
                 encoder_out = self.model.encoder.reorder_encoder_out(
                     encoder_out, reorder_state
                 )
 
-            lprobs = self._decode(
-                tokens[:, : step + 1], encoder_out, incremental_states
-            )
+            lprobs = self._decode(tokens[:, : step + 1], encoder_out, self.temperature)
 
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
             scores = scores.type_as(lprobs)
-            eos_bbsz_idx = (
-                tokens.new()
+            eos_bbsz_idx = torch.empty(0).to(
+                tokens
             )  # indices of hypothesis ending with eos (finished sentences)
-            eos_scores = (
-                scores.new()
+            eos_scores = torch.empty(0).to(
+                scores
             )  # scores of hypothesis ending with eos (finished sentences)
             if step < self.maxlen:
                 self.search.set_src_lengths(src_lengths)
@@ -225,10 +187,25 @@ class SimpleSequenceGenerator(nn.Module):
 
                 # finalize all active hypotheses once we hit maxlen
                 # pick the hypothesis with the highest prob of EOS right now
-                torch.sort(
-                    lprobs[:, self.eos], descending=True, out=(eos_scores, eos_bbsz_idx)
+                eos_scores, eos_bbsz_idx = torch.sort(
+                    lprobs[:, self.eos], descending=True
                 )
-                num_remaining_sent -= finalize_hypos(step, eos_bbsz_idx, eos_scores)
+
+                num_remaining_sent -= self.finalize_hypos(
+                    step,
+                    eos_bbsz_idx,
+                    eos_scores,
+                    tokens,
+                    scores,
+                    finalized,
+                    finished,
+                    beam_size,
+                )
+
+                # dummy data to be consistent with true branch for type check
+                cand_beams = torch.empty(0)
+                cand_indices = torch.empty(0)
+                cand_scores = torch.empty(0)
                 assert num_remaining_sent == 0
                 break
 
@@ -252,7 +229,16 @@ class SimpleSequenceGenerator(nn.Module):
                     mask=eos_mask[:, :beam_size],
                     out=eos_scores,
                 )
-                num_remaining_sent -= finalize_hypos(step, eos_bbsz_idx, eos_scores)
+                num_remaining_sent -= self.finalize_hypos(
+                    step,
+                    eos_bbsz_idx,
+                    eos_scores,
+                    tokens,
+                    scores,
+                    finalized,
+                    finished,
+                    beam_size,
+                )
 
             if num_remaining_sent == 0:
                 break
@@ -295,24 +281,98 @@ class SimpleSequenceGenerator(nn.Module):
 
         # sort by score descending
         for sent in range(len(finalized)):
-            finalized[sent] = sorted(
-                finalized[sent], key=lambda r: r["score"], reverse=True
-            )
+            # make into beam container
+            BCList = [BeamContainer(elem["score"], elem) for elem in finalized[sent]]
+            BCList.sort()
+            BCList.reverse()
+            finalized[sent] = torch.jit.annotate(List[Dict[str, Tensor]], [x.elem for x in BCList])
 
         return finalized
 
-    def _decode(self, tokens, encoder_out, incremental_states):
-        with torch.no_grad():
-            if incremental_states[self.model] is not None:
-                decoder_out = list(
-                    self.model.decoder(
-                        tokens,
-                        encoder_out,
-                        incremental_state=incremental_states[self.model],
-                    )
+    def finalize_hypos(
+        self,
+        step: int,
+        bbsz_idx,
+        eos_scores,
+        tokens,
+        scores,
+        finalized: List[List[Dict[str, Tensor]]],
+        finished: List[bool],
+        beam_size: int,
+    ):
+        """Finalize hypothesis, store finalized information in `finalized`, and change `finished` accordingly.
+        Returns number of sentences being finalized.
+        Args:
+            bbsz_idx (Tensor):
+        """
+        assert bbsz_idx.numel() == eos_scores.numel()
+
+        # clone relevant token and attention tensors
+        tokens_clone = tokens.index_select(0, bbsz_idx)[
+            :, 1 : step + 2
+        ]  # skip the first index, which is EOS
+        tokens_clone[:, step] = self.eos
+
+        # compute scores per token position
+        pos_scores = scores.index_select(0, bbsz_idx)[:, : step + 1]
+        pos_scores[:, step] = eos_scores
+        # convert from cumulative to per-position scores
+        pos_scores[:, 1:] = pos_scores[:, 1:] - pos_scores[:, :-1]
+
+        # normalize sentence-level scores
+        if self.normalize_scores:
+            eos_scores /= (step + 1) ** self.len_penalty
+
+        # set() is not supported in script export
+        sents_seen: Dict[int, Optional[Tensor]] = {}
+        for i in range(bbsz_idx.size()[0]):
+            idx = bbsz_idx[i]
+            score = eos_scores[i]
+            sent = idx // beam_size
+            if sent not in sents_seen:
+                sents_seen[sent] = None
+
+            if len(finalized[sent]) < beam_size:
+                finalized[sent].append(
+                    {
+                        "tokens": tokens_clone[i],
+                        "score": score,
+                        "attention": torch.empty(0),  # src_len x tgt_len
+                        "alignment": torch.empty(0),
+                        "positional_scores": pos_scores[i],
+                    }
                 )
-            else:
-                decoder_out = list(self.model.decoder(tokens, encoder_out))
-            decoder_out[0] = decoder_out[0][:, -1, :]
-        probs = self.model.get_normalized_probs(decoder_out, log_probs=True)
+
+        newly_finished = 0
+        for sent in sents_seen.keys():
+            # check termination conditions for this sentence
+            if not finished[sent] and len(finalized[sent]) == beam_size:
+                finished[sent] = True
+                newly_finished += 1
+        return newly_finished
+
+    def _decode(self, tokens, encoder_out: EncoderOut, temperature: float = 1.0):
+        if self.incremental_states is not None:
+            decoder_out = self.model.decoder.forward(
+                tokens,
+                encoder_out=encoder_out,
+                incremental_state=self.incremental_states,
+            )
+        else:
+            decoder_out = self.model.decoder.forward(tokens, encoder_out=encoder_out)
+        tep = (decoder_out[0][:, -1, :].div_(temperature), decoder_out[1])
+        probs = self.model.get_normalized_probs(tep, log_probs=True)
         return probs
+
+
+@torch.jit.script
+class BeamContainer(object):
+    def __init__(self, score: float, elem: Dict[str, Tensor]):
+        self.score = score
+        self.elem = elem
+
+    def __lt__(self, other):
+        # type: (BeamContainer) -> bool
+        # Due to https://github.com/pytorch/pytorch/issues/20388,
+        # this has to use old style type annotations
+        return self.score < other.score

@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import options, utils
+from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -339,17 +340,6 @@ class TransformerAlignModel(TransformerModel):
         return decoder_out
 
 
-EncoderOut = NamedTuple(
-    "EncoderOut",
-    [
-        ("encoder_out", Tensor),  # T x B x C
-        ("encoder_padding_mask", Tensor),  # B x T
-        ("encoder_embedding", Tensor),  # B x T x C
-        ("encoder_states", Optional[List[Tensor]]),  # List[T x B x C]
-    ],
-)
-
-
 class TransformerEncoder(FairseqEncoder):
     """
     Transformer encoder consisting of *args.encoder_layers* layers. Each layer
@@ -477,7 +467,8 @@ class TransformerEncoder(FairseqEncoder):
             encoder_states=encoder_states,  # List[T x B x C]
         )
 
-    def reorder_encoder_out(self, encoder_out, new_order):
+    @torch.jit.export
+    def reorder_encoder_out(self, encoder_out: EncoderOut, new_order):
         """
         Reorder encoder output according to *new_order*.
 
@@ -488,26 +479,35 @@ class TransformerEncoder(FairseqEncoder):
         Returns:
             *encoder_out* rearranged according to *new_order*
         """
-        if encoder_out.encoder_out is not None:
-            encoder_out = encoder_out._replace(
-                encoder_out=encoder_out.encoder_out.index_select(1, new_order)
-            )
-        if encoder_out.encoder_padding_mask is not None:
-            encoder_out = encoder_out._replace(
-                encoder_padding_mask=encoder_out.encoder_padding_mask.index_select(
-                    0, new_order
-                )
-            )
-        if encoder_out.encoder_embedding is not None:
-            encoder_out = encoder_out._replace(
-                encoder_embedding=encoder_out.encoder_embedding.index_select(
-                    0, new_order
-                )
-            )
-        if encoder_out.encoder_states is not None:
-            for idx, state in enumerate(encoder_out.encoder_states):
-                encoder_out.encoder_states[idx] = state.index_select(1, new_order)
-        return encoder_out
+        new_encoder_out: Dict[str, Tensor] = {}
+
+        new_encoder_out["encoder_out"] = (
+            encoder_out.encoder_out
+            if encoder_out.encoder_out is None
+            else encoder_out.encoder_out.index_select(1, new_order)
+        )
+        new_encoder_out["encoder_padding_mask"] = (
+            encoder_out.encoder_padding_mask
+            if encoder_out.encoder_padding_mask is None
+            else encoder_out.encoder_padding_mask.index_select(0, new_order)
+        )
+        new_encoder_out["encoder_embedding"] = (
+            encoder_out.encoder_embedding
+            if encoder_out.encoder_embedding is None
+            else encoder_out.encoder_embedding.index_select(0, new_order)
+        )
+
+        encoder_states = encoder_out.encoder_states
+        if encoder_states is not None:
+            for idx, state in enumerate(encoder_states):
+                encoder_states[idx] = state.index_select(1, new_order)
+
+        return EncoderOut(
+            encoder_out=new_encoder_out["encoder_out"],  # T x B x C
+            encoder_padding_mask=new_encoder_out["encoder_padding_mask"],  # B x T
+            encoder_embedding=new_encoder_out["encoder_embedding"],  # B x T x C
+            encoder_states=encoder_states,  # List[T x B x C]
+        )
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
