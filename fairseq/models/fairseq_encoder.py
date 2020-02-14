@@ -4,6 +4,18 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch.nn as nn
+from typing import List, NamedTuple, Optional
+from torch import Tensor
+
+EncoderOut = NamedTuple(
+    "EncoderOut",
+    [
+        ("encoder_out", Tensor),  # T x B x C
+        ("encoder_padding_mask", Tensor),  # B x T
+        ("encoder_embedding", Tensor),  # B x T x C
+        ("encoder_states", Optional[List[Tensor]]),  # List[T x B x C]
+    ],
+)
 
 
 class FairseqEncoder(nn.Module):
