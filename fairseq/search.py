@@ -6,24 +6,27 @@
 import math
 
 import torch
+import torch.nn as nn
 
 
-class Search(object):
-
+class Search(nn.Module):
     def __init__(self, tgt_dict):
+        super().__init__()
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
         self.eos = tgt_dict.eos()
         self.vocab_size = len(tgt_dict)
-        self.scores_buf = None
-        self.indices_buf = None
-        self.beams_buf = None
+        self.src_lengths = torch.tensor(-1)
+        self.scores_buf = torch.Tensor()
+        self.indices_buf = torch.Tensor().long()
+        self.beams_buf = torch.Tensor().long()
 
+    @torch.jit.export
     def _init_buffers(self, t):
-        if self.scores_buf is None:
-            self.scores_buf = t.new()
-            self.indices_buf = torch.LongTensor().to(device=t.device)
-            self.beams_buf = torch.LongTensor().to(device=t.device)
+        if not self.scores_buf.size()[0]:
+            self.scores_buf = torch.empty(0).to(t)
+            self.indices_buf = torch.empty(0).to(t).long()
+            self.beams_buf = torch.empty(0).to(t).long()
 
     def step(self, step, lprobs, scores):
         """Take a single search step.
@@ -47,17 +50,18 @@ class Search(object):
         """
         raise NotImplementedError
 
+    @torch.jit.export
     def set_src_lengths(self, src_lengths):
         self.src_lengths = src_lengths
 
 
 class BeamSearch(Search):
-
     def __init__(self, tgt_dict):
         super().__init__(tgt_dict)
 
-    def step(self, step, lprobs, scores):
-        super()._init_buffers(lprobs)
+    @torch.jit.export
+    def step(self, step: int, lprobs, scores):
+        self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
 
         if step == 0:
@@ -68,7 +72,7 @@ class BeamSearch(Search):
             # make probs contain cumulative scores for each hypothesis
             lprobs.add_(scores[:, :, step - 1].unsqueeze(-1))
 
-        torch.topk(
+        top_prediction = torch.topk(
             lprobs.view(bsz, -1),
             k=min(
                 # Take the best 2 x beam_size predictions. We'll choose the first
@@ -76,9 +80,10 @@ class BeamSearch(Search):
                 beam_size * 2,
                 lprobs.view(bsz, -1).size(1) - 1,  # -1 so we never select pad
             ),
-            out=(self.scores_buf, self.indices_buf),
         )
-        torch.div(self.indices_buf, vocab_size, out=self.beams_buf)
+        self.scores_buf = top_prediction[0]
+        self.indices_buf = top_prediction[1]
+        self.beams_buf = torch.div(self.indices_buf, vocab_size)
         self.indices_buf.fmod_(vocab_size)
         return self.scores_buf, self.indices_buf, self.beams_buf
 

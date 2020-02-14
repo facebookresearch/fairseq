@@ -3,8 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from typing import Dict, List, Optional, Tuple
+
 import torch.nn as nn
 from fairseq import utils
+from torch import Tensor
 
 
 class FairseqDecoder(nn.Module):
@@ -52,7 +55,12 @@ class FairseqDecoder(nn.Module):
         """
         raise NotImplementedError
 
-    def get_normalized_probs(self, net_output, log_probs, sample):
+    def get_normalized_probs(
+        self,
+        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        log_probs: bool,
+        sample: Optional[Dict[str, Tensor]],
+    ):
         """Get normalized probabilities (or log probs) from a net's output."""
 
         if hasattr(self, "adaptive_softmax") and self.adaptive_softmax is not None:

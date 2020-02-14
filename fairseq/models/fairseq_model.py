@@ -7,7 +7,7 @@ Base classes for various fairseq models.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -16,6 +16,7 @@ from fairseq import utils
 from fairseq.checkpoint_utils import prune_state_dict
 from fairseq.data import Dictionary
 from fairseq.models import FairseqDecoder, FairseqEncoder
+from torch import Tensor
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,12 @@ class BaseFairseqModel(nn.Module):
         """Get targets from either the sample or the net's output."""
         return sample["target"]
 
-    def get_normalized_probs(self, net_output, log_probs, sample=None):
+    def get_normalized_probs(
+        self,
+        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        log_probs: bool,
+        sample: Optional[Dict[str, Tensor]] = None,
+    ):
         """Get normalized probabilities (or log probs) from a net's output."""
         if hasattr(self, "decoder"):
             return self.decoder.get_normalized_probs(net_output, log_probs, sample)
