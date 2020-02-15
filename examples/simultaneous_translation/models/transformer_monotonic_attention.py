@@ -51,10 +51,10 @@ DEFAULT_MAX_TARGET_POSITIONS = 1024
 @register_model('transformer_monotonic')
 class TransformerMonotonicModel(TransformerModel):
 
-    @classmethod
-    def build_model(cls, args, task):
-        super_model = super().build_model(args, task)
-        return cls(super_model.encoder, super_model.decoder)
+    #@classmethod
+    #def build_model(cls, args, task):
+    #    super_model = super().build_model(args, task)
+    #    return cls(super_model.encoder, super_model.decoder)
 
     @classmethod
     def build_encoder(cls, args, src_dict, embed_tokens):
@@ -64,22 +64,27 @@ class TransformerMonotonicModel(TransformerModel):
     def build_decoder(cls, args, tgt_dict, embed_tokens):
         return TransformerMonotonicDecoder(args, tgt_dict, embed_tokens)
 
-    def predict_token_from_states(self, states):
-        src_tokens = states["src_indices"][:, :states["src_len"]]
-        src_lengths = torch.LongTensor([src_tokens.size(1)])
+    def predict_from_states(self, states):
+        src_indices = torch.LongTensor(
+            [states["indices"]["src"][: 1 + states["steps"]["src"]]]
+            )
+        src_lengths = torch.LongTensor([src_indices.size(1)])
 
-        tgt_tokens = states["tgt_indices"]
-        tgt_tokens = tgt_tokens.to(src_tokens.device)
+        tgt_indices = torch.LongTensor(
+            [
+                [self.decoder.dictionary.eos()]
+                + states["indices"]["tgt"]
+            ]
+        )
 
         self.eval()
 
         # Update encoder state
-        import pdb; pdb.set_trace()
-        encoder_outs = self.encoder(src_tokens, src_lengths)
+        encoder_outs = self.encoder(src_indices, src_lengths)
 
         # Generate decoder state
         decoder_states, _ = self.decoder(
-            tgt_tokens, encoder_outs#, states
+            tgt_indices, encoder_outs#, states
         )
 
         lprobs = self.get_normalized_probs(
@@ -87,44 +92,39 @@ class TransformerMonotonicModel(TransformerModel):
             log_probs=True
         )
 
-        tgt_idx = lprobs.argmax(dim=-1)
+        index = lprobs.argmax(dim=-1)
 
-        states["tgt_indices"] = torch.cat(
-            [states["tgt_indices"].to(tgt_idx.device), tgt_idx],
-            dim=1
-        )
+        token = self.decoder.dictionary.string(index) 
 
-        tgt_token = self.decoder.dictionary.string(tgt_idx) 
-        states["tgt_subwords"].append(tgt_token)
+        return token, index[0, 0].item()
 
-        return tgt_token, tgt_idx[0, 0].item()
-
-    def get_action(self, states):
-        if states["src_indices"] is None:
+    def decision_from_states(self, states):
+        if len(states["indices"]["src"]) == 0:
             return 0
-        
-        #print(states["src_indices"])
-        #print(states["src_len"])
-        print(states["tgt_tokens"])
-        print(states["src_tokens"])
-        print(states["src_indices"])
-        src_tokens = states["src_indices"][:, :states["src_len"]]
-        src_lengths = torch.LongTensor([src_tokens.size(1)])
-        encoder_out_dict = self.encoder(src_tokens, src_lengths)
+
+        src_indices = torch.LongTensor(
+            [states["indices"]["src"][: 1 + states["steps"]["src"]]]
+            )
+        src_lengths = torch.LongTensor([src_indices.size(1)])
+
+        encoder_out_dict = self.encoder(src_indices, src_lengths)
+
+        tgt_indices = torch.LongTensor(
+            [
+                [self.decoder.dictionary.eos()]
+                + states["indices"]["tgt"]
+            ]
+        )
 
         # Only use the last token since we buffered 
         # the decoder states 
         # tgt_tokens = states["tgt_indices"][:, -1:]
-        tgt_tokens = states["tgt_indices"]
-        
-        tgt_tokens = tgt_tokens.to(src_tokens.device)
-
         (
             x,
             encoder_out,
             encoder_padding_mask
         ) = self.decoder.pre_attention(
-            tgt_tokens,
+            tgt_indices,
             encoder_out_dict,
         )
         action = 1
@@ -148,9 +148,8 @@ class TransformerMonotonicModel(TransformerModel):
             )
             # Update pointer
             #print(encoder_out.size())
-            #print(attn["p_choose"].size())
             if attn["p_choose"].size(2) == 1:
-                p_choose = attn["p_choose"][:, :, -1] 
+                p_choose = attn["p_choose"][:, -1:, -1] 
             else:
                 #import pdb; pdb.set_trace()
                 pointer = layer.encoder_attn.get_pointer(states)["step"].clamp(0.0, attn["p_choose"].size(2) - 1)
@@ -159,11 +158,12 @@ class TransformerMonotonicModel(TransformerModel):
                     attn["p_choose"][:,-1:,:], 2, pointer.long().unsqueeze(2))[:, :, -1]
 
                 #print(layer.encoder_attn.get_pointer(states)["step"].t())
+            
             layer.encoder_attn.set_pointer(states, p_choose)
             
             pointer = layer.encoder_attn.get_fastest_pointer(states)
             #print(layer.encoder_attn.get_pointer(states)["step"].t())
-            if pointer.item() >= states["src_indices"].size(1):
+            if pointer.item() >= len(states["indices"]["src"]):
                 action = 0
         #import pdb; pdb.set_trace()
         #print(action)
@@ -228,13 +228,12 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        encoder_out = encoder_out_dict.get('encoder_out', None)
-        encoder_padding_mask = encoder_out_dict.get(
-            'encoder_padding_mask', None)
+        encoder_out = encoder_out_dict.encoder_out
+        encoder_padding_mask = encoder_out_dict.encoder_padding_mask
 
         return x, encoder_out, encoder_padding_mask
 
-    def extract_features(self, prev_output_tokens, encoder_out_dict={}, incremental_state=None, **unused):
+    def extract_features(self, prev_output_tokens, encoder_out, incremental_state=None, **unused):
         """
         Similar to *forward* but only return features.
 
@@ -249,7 +248,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
             encoder_padding_mask
         ) = self.pre_attention(
             prev_output_tokens,
-            encoder_out_dict,
+            encoder_out,
             incremental_state
         )
         # embed positions
@@ -280,7 +279,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        return x, {'attn': attn_list, 'inner_states': inner_states, "attn_list": attn_list, "encoder_out": encoder_out_dict}
+        return x, {'attn': attn_list, 'inner_states': inner_states, "attn_list": attn_list, "encoder_out": encoder_out}
 
     @staticmethod
     def increase_monotonic_step_buffer(encoder_out, num_layers, num_heads):

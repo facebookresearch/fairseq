@@ -215,3 +215,156 @@ class LatencyInference(object):
             ).t()
 
         return return_dict
+
+class LatencyTraining(object):
+    def __init__(
+        self, avg_weight, var_weight, avg_type, var_type,
+        stay_on_last_token, average_method, var_power, var_span,
+    ):
+        self.avg_weight = avg_weight
+        self.var_weight = var_weight
+        self.avg_type = avg_type
+        self.var_type = var_type
+        self.stay_on_last_token = stay_on_last_token
+        self.average_method = average_method
+
+        self.metric_calculator = {
+            "differentiable_average_lagging": DifferentiableAverageLagging(),
+            "average_lagging": AverageLagging(),
+            "average_proportion": AverageProportion(),
+        }
+
+        self.variance_calculator = {
+            "variance_delay": VarianceDelay(),
+        }
+
+    def expected_delays_from_attention(
+        self, attention, source_padding_mask=None, target_padding_mask=None
+    ):
+        if type(attention) == list:
+            # bsz, num_heads, tgt_len, src_len
+            bsz, num_heads, tgt_len, src_len = attention[0].size()
+            attention = torch.cat(attention, dim=1)
+            bsz, num_heads_x_layers, tgt_len, src_len = attention.size()
+            # bsz * num_heads * num_layers, tgt_len, src_len
+            attention = attention.view(-1, tgt_len, src_len)
+        else:
+            # bsz * num_heads * num_layers, tgt_len, src_len
+            bsz, tgt_len, src_len = attention.size()
+            num_heads_x_layers = 1
+            attention = attention.view(-1, tgt_len, src_len)
+
+        if not self.stay_on_last_token:
+            residual_attention = \
+                1 - attention[:, :, :-1].sum(dim=2, keepdim=True)
+            attention = torch.cat(
+                [attention[:, :, :-1], residual_attention],
+                dim=2
+            )
+
+        # bsz * num_heads_x_num_layers, tgt_len, src_len for MMA
+        steps = (
+            torch
+            .arange(1, 1 + src_len)
+            .unsqueeze(0)
+            .unsqueeze(1)
+            .expand_as(attention)
+            .type_as(attention)
+        )
+
+        if source_padding_mask is not None:
+            src_offset = (
+                source_padding_mask.type_as(attention)
+                .sum(dim=1, keepdim=True)
+                .expand(bsz, num_heads_x_layers)
+                .contiguous()
+                .view(-1, 1)
+            )
+            src_lens = src_len - src_offset
+            if source_padding_mask[:, 0].any():
+                # Pad left
+                src_offset = src_offset.view(-1, 1, 1)
+                steps = steps - src_offset
+                steps = steps.masked_fill(steps <= 0, 0)
+        else:
+            src_lens = attention.new_ones([bsz, num_heads_x_layers]) * src_len
+            src_lens = src_lens.view(-1, 1)
+
+        # bsz * num_heads_num_layers, tgt_len, src_len
+        expected_delays = (steps * attention).sum(dim=2).view(
+            bsz, num_heads_x_layers, tgt_len
+        )
+
+        if target_padding_mask is not None:
+            expected_delays.masked_fill_(
+                target_padding_mask.unsqueeze(1),
+                0
+            )
+
+        return expected_delays, src_lens
+
+    def avg_loss(self, expected_delays, src_lens, target_padding_mask):
+
+        bsz, num_heads_x_layers, tgt_len = expected_delays.size()
+        target_padding_mask = (
+            target_padding_mask
+            .unsqueeze(1)
+            .expand_as(expected_delays)
+            .contiguous()
+            .view(-1, tgt_len)
+        )
+
+        if self.average_method == "average":
+            # bsz * tgt_len
+            expected_delays = expected_delays.mean(dim=1)
+        elif self.average_method == "weighted_average":
+            weights = torch.nn.functional.softmax(expected_delays, dim=1)
+            expected_delays = torch.sum(expected_delays * weights, dim=1)
+        elif self.average_method == "max":
+            # bsz * num_heads_x_num_layers, tgt_len
+            expected_delays = expected_delays.max(dim=1)[0]
+        else:
+            raise RuntimeError(f"{self.average_method} is not supported")
+
+        src_lens = src_lens.view(bsz, -1)[:, :1]
+        target_padding_mask = target_padding_mask.view(bsz, -1, tgt_len)[:, 0]
+
+        if self.avg_weight > 0.0:
+            if self.avg_type in self.metric_calculator:
+                average_delays = self.metric_calculator[self.avg_type](expected_delays, src_lens, target_padding_mask,batch_first=True, start_from_zero=False)
+            else:
+                raise RuntimeError(f"{self.avg_type} is not supported.")
+
+            # bsz * num_heads_x_num_layers, 1
+            return self.avg_weight * average_delays.sum()
+        else:
+            return 0.0
+
+    def var_loss(self, expected_delays, src_lens, target_padding_mask):
+        src_lens = src_lens.view(expected_delays.size(0), expected_delays.size(1))[:, :1]
+        if self.var_weight > 0.0:
+            if self.var_type in self.variance_calculator:
+                variance_delays = self.variance_calculator[self.var_type](
+                    expected_delays, src_lens, target_padding_mask,
+                    batch_first=True, start_from_zero=False
+                )
+            else:
+                raise RuntimeError(f"{self.var_type} is not supported.")
+
+            return self.var_weight * variance_delays.sum()
+        else:
+            return 0.0
+
+    def loss(self, attention, source_padding_mask=None, target_padding_mask=None):
+        expected_delays, src_lens = self.expected_delays_from_attention(
+            attention, source_padding_mask, target_padding_mask
+        )
+
+        latency_loss = 0
+
+        latency_loss += self.avg_loss(expected_delays, src_lens, target_padding_mask)
+
+        latency_loss += self.var_loss(expected_delays, src_lens, target_padding_mask)
+
+        return latency_loss
+

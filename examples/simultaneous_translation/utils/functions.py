@@ -40,3 +40,96 @@ def safe_cumprod(tensor, dim: int, eps: float = 1e-10):
     cumsum_log_tensor = torch.cumsum(log_tensor, dim)
     exp_cumsum_log_tensor = torch.exp(cumsum_log_tensor)
     return exp_cumsum_log_tensor
+
+def lengths_to_mask(lengths, max_len: int, dim: int = 0, negative_mask: bool = False):
+    """
+    Convert a tensor of lengths to mask
+    For example, lengths = [[2, 3, 4]], max_len = 5
+    mask =
+       [[1, 1, 1],
+        [1, 1, 1],
+        [0, 1, 1],
+        [0, 0, 1],
+        [0, 0, 0]]
+    """
+    assert len(lengths.size()) <= 2
+    if len(lengths) == 2:
+        if dim == 1:
+            lengths = lengths.t()
+        lengths = lengths
+    else:
+        lengths = lengths.unsqueeze(1)
+
+    # lengths : batch_size, 1
+    lengths = lengths.view(-1, 1)
+
+    batch_size = lengths.size(0)
+    # batch_size, max_len
+    mask = torch.arange(max_len).expand(batch_size, max_len).type_as(lengths) < lengths
+
+    if negative_mask:
+        mask = ~mask
+
+    if dim == 0:
+        # max_len, batch_size
+        mask = mask.t()
+
+    return mask
+
+def moving_sum(x, start_idx: int, end_idx: int):
+    """
+    From MONOTONIC CHUNKWISE ATTENTION
+    https://arxiv.org/pdf/1712.05382.pdf
+    Equation (18)
+
+    x = [x_1, x_2, ..., x_N]
+    MovingSum(x, start_idx, end_idx)_n = Sigma_{m=n−(start_idx−1)}^{n+end_idx-1} x_m
+    for n in {1, 2, 3, ..., N}
+
+    x : src_len, batch_size
+    start_idx : start idx
+    end_idx : end idx
+
+    Example
+    src_len = 5
+    batch_size = 3
+    x =
+       [[ 0, 5, 10],
+        [ 1, 6, 11],
+        [ 2, 7, 12],
+        [ 3, 8, 13],
+        [ 4, 9, 14]]
+
+    MovingSum(x, 3, 1) =
+       [[ 0,  5, 10],
+        [ 1, 11, 21],
+        [ 3, 18, 33],
+        [ 6, 21, 36],
+        [ 9, 24, 39]]
+
+    MovingSum(x, 1, 3) =
+       [[ 3, 18, 33],
+        [ 6, 21, 36],
+        [ 9, 24, 39],
+        [ 7, 17, 27],
+        [ 4,  9, 14]]
+    """
+    assert start_idx > 0 and end_idx > 0
+    assert len(x.size()) == 2
+    src_len, batch_size = x.size()
+    # batch_size, 1, src_len
+    x = x.t().unsqueeze(1)
+    # batch_size, 1, src_len
+    moving_sum_weight = x.new_ones([1, 1, end_idx + start_idx - 1])
+
+    moving_sum = torch.nn.functional.conv1d(
+        x,
+        moving_sum_weight,
+        padding=start_idx + end_idx - 1
+    ).squeeze(1).t()
+    moving_sum = moving_sum[end_idx: -start_idx]
+
+    assert src_len == moving_sum.size(0)
+    assert batch_size == moving_sum.size(1)
+
+    return moving_sum

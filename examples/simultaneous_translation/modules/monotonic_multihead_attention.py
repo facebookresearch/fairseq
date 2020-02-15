@@ -35,6 +35,7 @@ class MonotonicMultiheadAttention(MultiheadAttention):
             dropout=args.attention_dropout,
             encoder_decoder_attention=True
         )
+        self.bias = True
         self.eps = args.attention_eps
         self.mass_preservation = args.mass_preservation
 
@@ -70,7 +71,7 @@ class MonotonicMultiheadAttention(MultiheadAttention):
     def forward(self, query, key, value, 
                 incremental_state=None, key_padding_mask=None,
                 need_weights=True, static_kv=False, attn_mask=None, 
-                monotonic_step=None, encoder_decoder_attn=None):
+                monotonic_step=None, encoder_decoder_attn=None, *args, **kwargs):
         """Input shape: Time x Batch x Channel
 
         Timesteps can be masked by supplying a T x T mask in the
@@ -391,7 +392,7 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         if softmax:
             q = self.in_proj_q_soft(query)
         else:
-            q = self.in_proj_q(query)
+            q = self.q_proj(query)
 
         if key is None:
             # using prev_key and prev_value
@@ -401,11 +402,11 @@ class MonotonicMultiheadAttention(MultiheadAttention):
             if softmax:
                 k = self.in_proj_k_soft(key)
             else:
-                k = self.in_proj_k(key)
+                k = self.k_proj(key)
             if softmax:
                 v = k
             else:
-                v = self.in_proj_v(key)
+                v = self.v_proj(key)
 
         q *= self.scaling
 
@@ -570,7 +571,7 @@ class MonotonicInfiniteLookbackMultiheadAttention(MonotonicMultiheadAttention):
 
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None,
                 need_weights=True, static_kv=False, attn_mask=None, monotonic_step=None,
-                encoder_decoder_attn=None):
+                encoder_decoder_attn=None, *args, **kwargs):
         """Input shape: Time x Batch x Channel
 
         Timesteps can be masked by supplying a T x T mask in the
@@ -711,8 +712,7 @@ class MonotonicInfiniteLookbackMultiheadAttention(MonotonicMultiheadAttention):
             # self.v_proj_weight_soft = Parameter(torch.Tensor(embed_dim, self.vdim))
             self.q_proj_weight_soft = Parameter(torch.Tensor(embed_dim, embed_dim))
 
-        bias = self.in_proj_bias is not None
-        if bias:
+        if self.bias:
             self.in_proj_bias_soft = Parameter(torch.Tensor(2 * embed_dim))
         else:
             self.register_parameter('in_proj_bias_soft', None)
