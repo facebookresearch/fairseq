@@ -1,4 +1,6 @@
-# Monotonic Multihead Attention
+# Simultaneous Machine Translation
+
+This directory contains the code for the paper [Monotonic Multihead Attention](https://openreview.net/forum?id=Hyg96gBKPS)
 
 ## Prepare Data
 [Please instructions to download and preprocess the WMT'14 En-De dataset.](https://github.com/pytorch/fairseq/tree/simulastsharedtask/examples/translation#prepare-wmt14en2desh)
@@ -15,7 +17,7 @@ fairseq-train \
     --latency-weight-avg-type differentiable_average_lagging \
     --max-update 50000 \
     --arch transformer_monotonic_iwslt_de_en save_dir_key=lambda \
-    --optimizer adam --adam-betas '(0.9, 0.98)' --lr-scheduler 'inverse_sqrt'),
+    --optimizer adam --adam-betas '(0.9, 0.98)' --lr-scheduler 'inverse_sqrt' \
     --warmup-init-lr 1e-7  --warmup-updates 4000 \
     --lr 5e-4 --min-lr 1e-9 --clip-norm 0.0 --weight-decay 0.0001\
     --dropout 0.3 \
