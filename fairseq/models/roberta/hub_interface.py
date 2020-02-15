@@ -54,10 +54,11 @@ class RobertaHubInterface(nn.Module):
             >>> roberta.encode('world').tolist()
             [0, 8331, 2]
         """
-        bpe_sentence = '<s> ' + self.bpe.encode(sentence) + ' </s>'
+        encode = self.bpe.encode if self.bpe is not None else lambda x: x
+        bpe_sentence = '<s> ' + encode(sentence) + ' </s>'
         for s in addl_sentences:
             bpe_sentence += (' </s>' if not no_separator else '')
-            bpe_sentence += ' ' + self.bpe.encode(s) + ' </s>'
+            bpe_sentence += ' ' + encode(s) + ' </s>'
         tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False, add_if_not_exist=False)
         return tokens.long()
 
@@ -94,10 +95,10 @@ class RobertaHubInterface(nn.Module):
             return features  # just the last layer's features
 
     def register_classification_head(
-        self, name: str, num_classes: int = None, embedding_size: int = None, **kwargs
+        self, name: str, num_classes: int = None, sequence_tagging: bool = False, embedding_size: int = None, **kwargs
     ):
         self.model.register_classification_head(
-            name, num_classes=num_classes, embedding_size=embedding_size, **kwargs
+            name, num_classes=num_classes, sequence_tagging=sequence_tagging, embedding_size=embedding_size, **kwargs
         )
 
     def predict(self, head: str, tokens: torch.LongTensor, return_logits: bool = False):
@@ -106,6 +107,16 @@ class RobertaHubInterface(nn.Module):
         if return_logits:
             return logits
         return F.log_softmax(logits, dim=-1)
+
+    def predict_class(self, head: str, tokens: torch.LongTensor):
+        pred_token = self.predict(head, tokens).argmax().item()
+        return self.task.label_dictionary.string(
+            [pred_token + self.task.label_dictionary.nspecial]
+        )
+
+    def predict_tags(self, head: str, tokens: torch.LongTensor):
+        pred_tokens = self.predict(head, tokens)[0, 1:-1, :].argmax(dim=1).numpy()
+        return [self.task.label_dictionary.string([t + self.task.label_dictionary.nspecial]) for t in pred_tokens]
 
     def extract_features_aligned_to_words(self, sentence: str, return_all_hiddens: bool = False) -> torch.Tensor:
         """Extract RoBERTa features, aligned to spaCy's word-level tokenizer."""

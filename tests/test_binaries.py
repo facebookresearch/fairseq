@@ -553,6 +553,21 @@ class TestMaskedLanguageModel(unittest.TestCase):
                 preprocess_lm_data(os.path.join(data_dir, 'label'))
                 train_roberta_head(data_dir, "roberta_base", num_classes=num_classes)
 
+    def test_roberta_sequence_tagging(self):
+        num_classes = 3
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_roberta_head_per_token") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes, sequence_tagging=True, maxlen=20)
+                preprocess_lm_data(os.path.join(data_dir, 'input'))
+                preprocess_lm_data(os.path.join(data_dir, 'label'))
+                train_roberta_head(
+                    data_dir,
+                    "roberta_base",
+                    num_classes=num_classes,
+                    tagging=True,
+                    extra_flags=['--max-positions', '15', '--skip-invalid-size-inputs-valid-test']
+                )
+
     def test_roberta_regression_single(self):
         num_classes = 1
         with contextlib.redirect_stdout(StringIO()):
@@ -793,11 +808,13 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
 
 
 def create_dummy_roberta_head_data(data_dir, num_examples=100, maxlen=10, num_classes=2, regression=False):
-    input_dir = 'input0'
+    input_dir = 'input' if sequence_tagging else 'input0'
     def _create_dummy_data(filename):
         random_data = torch.rand(num_examples * maxlen)
         input_data = 97 + torch.floor(26 * random_data).int()
-        if regression:
+        if sequence_tagging:
+            output_data = 1 + torch.floor(num_classes * random_data).int()
+        elif regression:
             output_data = torch.rand((num_examples, num_classes))
         else:
             output_data = 1 + torch.floor(num_classes * torch.rand(num_examples)).int()
@@ -811,7 +828,10 @@ def create_dummy_roberta_head_data(data_dir, num_examples=100, maxlen=10, num_cl
                     ex_str = ' '.join(map(chr, input_data[offset:offset+ex_len]))
                     print(ex_str, file=f_in)
                     # write example label
-                    if regression:
+                    if sequence_tagging:
+                        ex_str = ' '.join(map('class{}'.format, output_data[offset:offset+ex_len]))
+                        print(ex_str, file=f_out)
+                    elif regression:
                         class_str = ' '.join(map(str, output_data[i].numpy()))
                         print(class_str, file=f_out)
                     else:
@@ -952,18 +972,19 @@ def train_masked_lm(data_dir, arch, extra_flags=None):
     train.main(train_args)
 
 
-def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
+def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None, tagging=False):
     train_parser = options.get_training_parser()
+    task_and_criterion = 'sequence_tagging' if tagging else 'sentence_prediction'
     train_args = options.parse_args_and_arch(
         train_parser,
         [
-            '--task', 'sentence_prediction',
+            '--task', task_and_criterion,
             data_dir,
             '--arch', arch,
             '--num-classes', str(num_classes),
             '--optimizer', 'adam',
             '--lr', '0.0001',
-            '--criterion', 'sentence_prediction',
+            '--criterion', task_and_criterion,
             '--max-tokens', '500',
             '--max-positions', '500',
             '--max-sentences', '500',

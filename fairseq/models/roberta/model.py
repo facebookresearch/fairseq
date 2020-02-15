@@ -112,7 +112,7 @@ class RobertaModel(FairseqLanguageModel):
             x = self.classification_heads[classification_head_name](x)
         return x, extra
 
-    def register_classification_head(self, name, num_classes=None, inner_dim=None, **kwargs):
+    def register_classification_head(self, name, num_classes=None, sequence_tagging=False, inner_dim=None, **kwargs):
         """Register a classification head."""
         if name in self.classification_heads:
             prev_num_classes = self.classification_heads[name].out_proj.out_features
@@ -130,6 +130,7 @@ class RobertaModel(FairseqLanguageModel):
             num_classes,
             self.args.pooler_activation_fn,
             self.args.pooler_dropout,
+            sequence_tagging
         )
 
     @property
@@ -230,15 +231,18 @@ class RobertaLMHead(nn.Module):
 class RobertaClassificationHead(nn.Module):
     """Head for sentence-level classification tasks."""
 
-    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout):
+    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout, sequence_tagging):
         super().__init__()
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout = nn.Dropout(p=pooler_dropout)
         self.out_proj = nn.Linear(inner_dim, num_classes)
+        self.sequence_tagging = sequence_tagging
 
     def forward(self, features, **kwargs):
-        x = features[:, 0, :]  # take <s> token (equiv. to [CLS])
+        x = features
+        if not self.sequence_tagging:
+            x = x[:, 0, :]  # take <s> token (equiv. to [CLS])
         x = self.dropout(x)
         x = self.dense(x)
         x = self.activation_fn(x)

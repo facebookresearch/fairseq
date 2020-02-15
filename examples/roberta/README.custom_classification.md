@@ -154,15 +154,11 @@ roberta.eval()  # disable dropout
 Finally you can make predictions using the `imdb_head` (or whatever you set
 `--classification-head-name` to during training):
 ```python
-label_fn = lambda label: roberta.task.label_dictionary.string(
-    [label + roberta.task.label_dictionary.nspecial]
-)
-
 tokens = roberta.encode('Best movie this year')
-pred = label_fn(roberta.predict('imdb_head', tokens).argmax().item())
+pred = roberta.predict_class('imdb_head', tokens)
 assert pred == '1'  # positive
 
 tokens = roberta.encode('Worst movie ever')
-pred = label_fn(roberta.predict('imdb_head', tokens).argmax().item())
+pred = roberta.predict_class('imdb_head', tokens)
 assert pred == '0'  # negative
 ```

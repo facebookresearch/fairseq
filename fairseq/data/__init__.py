@@ -10,6 +10,7 @@ from .fairseq_dataset import FairseqDataset, FairseqIterableDataset
 from .base_wrapper_dataset import BaseWrapperDataset
 
 from .append_token_dataset import AppendTokenDataset
+from .assert_same_length_dataset import AssertSameLengthDataset
 from .audio.raw_audio_dataset import FileAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .colorize_dataset import ColorizeDataset
@@ -55,6 +56,7 @@ from .iterators import (
 
 __all__ = [
     'AppendTokenDataset',
+    'AssertSameLengthDataset',
     'BacktranslationDataset',
     'BaseWrapperDataset',
     'ColorizeDataset',

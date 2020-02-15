@@ -282,6 +282,10 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 
 See the [tutorial for pretraining RoBERTa using your own data](README.pretraining.md).
 
+## Sequence tagging
+
+- [Training RoBERTa on a sequence tagging task](README.sequence_tagging.md)
+
 ## Citation
 
 ```bibtex

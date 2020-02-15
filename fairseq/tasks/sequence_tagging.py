@@ -9,7 +9,6 @@ import os
 import numpy as np
 
 from fairseq.data import (
-    ConcatSentencesDataset,
     data_utils,
     Dictionary,
     IdDataset,
@@ -17,13 +16,10 @@ from fairseq.data import (
     NumSamplesDataset,
     NumelDataset,
     OffsetTokensDataset,
-    PrependTokenDataset,
-    RawLabelDataset,
     RightPadDataset,
-    RollDataset,
     SortDataset,
-    StripTokenDataset,
-    TruncateDataset,
+    ReplaceDataset,
+    AssertSameLengthDataset
 )
 from fairseq.tasks import FairseqTask, register_task
 
@@ -31,10 +27,11 @@ from fairseq.tasks import FairseqTask, register_task
 logger = logging.getLogger(__name__)
 
 
-@register_task('sentence_prediction')
-class SentencePredictionTask(FairseqTask):
+@register_task('sequence_tagging')
+class SequenceTaggingTask(FairseqTask):
     """
-    Sentence (or sentence pair) prediction (classification or regression) task.
+    Sequence tagging (also called sentence tagging or sequence labelling) task that predicts a class for each input token.
+    Inputs should be stored in 'input' directory, labels in 'label' directory.
 
     Args:
         dictionary (Dictionary): the dictionary for the input of the task
@@ -46,17 +43,8 @@ class SentencePredictionTask(FairseqTask):
         parser.add_argument('data', metavar='FILE',
                             help='file prefix for data')
         parser.add_argument('--num-classes', type=int, default=-1,
-                            help='number of classes or regression targets')
-        parser.add_argument('--init-token', type=int, default=None,
-                            help='add token at the beginning of each batch item')
-        parser.add_argument('--separator-token', type=int, default=None,
-                            help='add separator token between inputs')
-        parser.add_argument('--regression-target', action='store_true', default=False)
+                            help='number of classes')
         parser.add_argument('--no-shuffle', action='store_true', default=False)
-        parser.add_argument('--truncate-sequence', action='store_true', default=False,
-                            help='truncate sequence to max-positions')
-        parser.add_argument('--add-prev-output-tokens', action='store_true', default=False,
-                            help='add prev_output_tokens to sample, used for encoder-decoder arch')
 
     def __init__(self, args, data_dictionary, label_dictionary):
         super().__init__(args)
@@ -89,23 +77,19 @@ class SentencePredictionTask(FairseqTask):
         # load data dictionary
         data_dict = cls.load_dictionary(
             args,
-            os.path.join(args.data, 'input0', 'dict.txt'),
+            os.path.join(args.data, 'input', 'dict.txt'),
             source=True,
         )
         logger.info('[input] dictionary: {} types'.format(len(data_dict)))
 
-        label_dict = None
-        if not args.regression_target:
-            # load label dictionary
-            label_dict = cls.load_dictionary(
-                args,
-                os.path.join(args.data, 'label', 'dict.txt'),
-                source=False,
-            )
-            logger.info('[label] dictionary: {} types'.format(len(label_dict)))
-        else:
-            label_dict = data_dict
-        return SentencePredictionTask(args, data_dict, label_dict)
+        # load label dictionary
+        label_dict = cls.load_dictionary(
+            args,
+            os.path.join(args.data, 'label', 'dict.txt'),
+            source=False,
+        )
+        logger.info('[label] dictionary: {} types'.format(len(label_dict)))
+        return SequenceTaggingTask(args, data_dict, label_dict)
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split (e.g., train, valid, test)."""
@@ -121,28 +105,15 @@ class SentencePredictionTask(FairseqTask):
                 self.args.dataset_impl,
                 combine=combine,
             )
+            assert dataset is not None, 'could not find dataset: {}'.format(get_path(type, split))
             return dataset
 
-        input0 = make_dataset('input0', self.source_dictionary)
-        assert input0 is not None, 'could not find dataset: {}'.format(get_path('input0', split))
-        input1 = make_dataset('input1', self.source_dictionary)
-
-        if self.args.init_token is not None:
-            input0 = PrependTokenDataset(input0, self.args.init_token)
-
-        if input1 is None:
-            src_tokens = input0
-        else:
-            if self.args.separator_token is not None:
-                input1 = PrependTokenDataset(input1, self.args.separator_token)
-
-            src_tokens = ConcatSentencesDataset(input0, input1)
+        src_tokens = make_dataset('input', self.source_dictionary)
 
         with data_utils.numpy_seed(self.args.seed):
             shuffle = np.random.permutation(len(src_tokens))
 
-        if self.args.truncate_sequence:
-            src_tokens = TruncateDataset(src_tokens, self.args.max_positions)
+        label_dataset = make_dataset('label', self.label_dictionary)
 
         dataset = {
             'id': IdDataset(),
@@ -153,44 +124,24 @@ class SentencePredictionTask(FairseqTask):
                 ),
                 'src_lengths': NumelDataset(src_tokens, reduce=False),
             },
+            'target': RightPadDataset(  # use -1 as padding, will be used to mask out padding when calculating loss
+                    ReplaceDataset( # replace eos and existing padding (used when some tokens should not be predicted) with -1
+                        OffsetTokensDataset( # offset tokens to get the targets to the correct range (0,1,2,...)
+                            label_dataset,
+                            offset=-self.label_dictionary.nspecial,
+                        ),
+                        replace_map={
+                            self.label_dictionary.eos()-self.label_dictionary.nspecial: -1,
+                            self.label_dictionary.pad()-self.label_dictionary.nspecial: -1,
+                        },
+                        offsets=np.zeros(len(label_dataset), dtype=np.int)
+                    ),
+                pad_idx=-1
+            ),
             'nsentences': NumSamplesDataset(),
             'ntokens': NumelDataset(src_tokens, reduce=True),
+            '_assert_lengths_match': AssertSameLengthDataset(src_tokens, label_dataset),
         }
-
-        if self.args.add_prev_output_tokens:
-            prev_tokens_dataset = RightPadDataset(
-                RollDataset(src_tokens, 1),
-                pad_idx=self.dictionary.pad(),
-            )
-            dataset['net_input'].update(
-                prev_output_tokens=prev_tokens_dataset,
-            )
-
-        if not self.args.regression_target:
-            label_dataset = make_dataset('label', self.label_dictionary)
-            if label_dataset is not None:
-                dataset.update(
-                    target=OffsetTokensDataset(
-                        StripTokenDataset(
-                            label_dataset,
-                            id_to_strip=self.label_dictionary.eos(),
-                        ),
-                        offset=-self.label_dictionary.nspecial,
-                    )
-                )
-        else:
-            label_path = "{0}.label".format(get_path('label', split))
-            if os.path.exists(label_path):
-                def parse_regression_target(i, line):
-                    values = line.split()
-                    assert len(values) == self.args.num_classes, \
-                        f'expected num_classes={self.args.num_classes} regression target values on line {i}, found: "{line}"'
-                    return [float(x) for x in values]
-                dataset.update(
-                    target=RawLabelDataset([
-                        parse_regression_target(i, line.strip()) for i, line in enumerate(open(label_path).readlines())
-                    ])
-                )
 
         nested_dataset = NestedDictionaryDataset(
             dataset,
@@ -218,6 +169,7 @@ class SentencePredictionTask(FairseqTask):
         model.register_classification_head(
             getattr(args, 'classification_head_name', 'sentence_classification_head'),
             num_classes=self.args.num_classes,
+            sequence_tagging=True
         )
 
         return model
