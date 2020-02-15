@@ -15,10 +15,11 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 @register_criterion('sentence_prediction')
 class SentencePredictionCriterion(FairseqCriterion):
 
-    def __init__(self, task, classification_head_name, regression_target):
+    def __init__(self, task, classification_head_name, regression_target, freeze_encoder):
         super().__init__(task)
         self.classification_head_name = classification_head_name
         self.regression_target = regression_target
+        self.freeze_encoder = freeze_encoder
 
     @staticmethod
     def add_args(parser):
@@ -26,6 +27,8 @@ class SentencePredictionCriterion(FairseqCriterion):
         parser.add_argument('--classification-head-name',
                             default='sentence_classification_head',
                             help='name of the classification head to use')
+        parser.add_argument('--freeze-encoder', action='store_true', default=False,
+                            help='Freeze encoder weights and disable encoder dropout during training')
         # fmt: on
 
     def forward(self, model, sample, reduce=True):
@@ -45,6 +48,7 @@ class SentencePredictionCriterion(FairseqCriterion):
             **sample['net_input'],
             features_only=True,
             classification_head_name=self.classification_head_name,
+            freeze_encoder=self.freeze_encoder
         )
         targets = model.get_targets(sample, [logits]).view(-1)
         sample_size = targets.numel()

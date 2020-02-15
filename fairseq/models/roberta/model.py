@@ -290,7 +290,7 @@ class RobertaEncoder(FairseqDecoder):
             weight=self.sentence_encoder.embed_tokens.weight,
         )
 
-    def forward(self, src_tokens, features_only=False, return_all_hiddens=False, masked_tokens=None, **unused):
+    def forward(self, src_tokens, features_only=False, return_all_hiddens=False, masked_tokens=None, freeze_encoder=False, **unused):
         """
         Args:
             src_tokens (LongTensor): input tokens of shape `(batch, src_len)`
@@ -299,6 +299,9 @@ class RobertaEncoder(FairseqDecoder):
                 `(batch, src_len, embed_dim)`.
             return_all_hiddens (bool, optional): also return all of the
                 intermediate hidden states (default: False).
+            masked_tokens (BoolTensor, optional): tokens masked during
+                masked LM training (default: None).
+            freeze_encoder (bool, optional): freeze encoder weights (default: False).
 
         Returns:
             tuple:
@@ -307,7 +310,13 @@ class RobertaEncoder(FairseqDecoder):
                   is a list of hidden states. Note that the hidden
                   states have shape `(src_len, batch, vocab)`.
         """
-        x, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
+        with torch.set_grad_enabled(not freeze_encoder):
+            was_training = self.training
+            if freeze_encoder:
+                self.eval()  # disable dropout when encoder is frozen
+            x, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
+            if was_training and freeze_encoder:
+                self.train()
         if not features_only:
             x = self.output_layer(x, masked_tokens=masked_tokens)
         return x, extra
