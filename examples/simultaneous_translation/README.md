@@ -1,4 +1,4 @@
-# *Monotonic Multihead Attention*
+# Monotonic Multihead Attention
 
 ## Prepare Data
 [Please instructions to download and preprocess the WMT'14 En-De dataset.](https://github.com/pytorch/fairseq/tree/simulastsharedtask/examples/translation#prepare-wmt14en2desh)
