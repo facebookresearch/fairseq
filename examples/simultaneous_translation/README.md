@@ -24,12 +24,6 @@ fairseq-train \
 ```
 
 ## Evaluation
-### Start the server
-```shell
-python ./eval/server.py \
-    --src-file $SRC_FILE \
-    --ref-file $TGT_FILE
-```
 
 ### Start the server
 ```shell
