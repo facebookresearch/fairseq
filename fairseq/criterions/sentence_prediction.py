@@ -15,6 +15,10 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 @register_criterion('sentence_prediction')
 class SentencePredictionCriterion(FairseqCriterion):
 
+    def __init__(self, task, classification_head_name):
+        super().__init__(task)
+        self.classification_head_name = classification_head_name
+
     @staticmethod
     def add_args(parser):
         # fmt: off
@@ -22,6 +26,10 @@ class SentencePredictionCriterion(FairseqCriterion):
                             default='sentence_classification_head',
                             help='name of the classification head to use')
         # fmt: on
+
+    @classmethod
+    def from_args(cls, task, args):
+        return cls(task, args.classification_head_name)
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
