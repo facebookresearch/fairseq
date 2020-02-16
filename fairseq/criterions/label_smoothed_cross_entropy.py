@@ -33,9 +33,14 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=T
 @register_criterion('label_smoothed_cross_entropy')
 class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, task):
-        super().__init__(args, task)
-        self.eps = args.label_smoothing
+    def __init__(self, task, sentence_avg, label_smoothing):
+        super().__init__(task, label_smoothing)
+        self.sentence_avg = sentence_avg
+        self.eps = label_smoothing
+
+    @classmethod
+    def from_args(cls, task, args):
+        return cls(task, args.sentence_avg, args.label_smoothing)
 
     @staticmethod
     def add_args(parser):
@@ -55,7 +60,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        sample_size = sample['target'].size(0) if self.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': loss.data,
             'nll_loss': nll_loss.data,
