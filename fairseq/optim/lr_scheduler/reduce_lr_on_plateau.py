@@ -45,6 +45,7 @@ class ReduceLROnPlateau(FairseqLRScheduler):
         """ initial learning rate"""
         """this self.lr is used only during init and/or warm up period"""
         self.lr = warmup_init_lr
+        self.warmup_updates = warmup_updates
         self.optimizer.set_lr(self.lr)
 
     @classmethod
