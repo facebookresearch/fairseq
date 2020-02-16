@@ -15,26 +15,30 @@ class TriangularSchedule(FairseqLRScheduler):
     See https://arxiv.org/pdf/1506.01186.pdf for details.
     """
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
-        if len(args.lr) > 1:
+    def __init__(self, optimizer, lr, max_lr, lr_period_updates, lr_shrink, shrink_min):
+        super().__init__(optimizer)
+        if len(lr) > 1:
             raise ValueError(
                 'Cannot use a fixed learning rate schedule with triangular.'
                 ' Consider --lr-scheduler=fixed instead.'
             )
 
-        lr = args.lr[0]
+        lr = lr[0]
 
-        assert args.max_lr > lr, 'max_lr must be more than lr'
+        assert max_lr > lr, 'max_lr must be more than lr'
         self.min_lr = lr
-        self.max_lr = args.max_lr
-        self.stepsize = args.lr_period_updates // 2
-        self.lr_shrink = args.lr_shrink
-        self.shrink_min = args.shrink_min
+        self.max_lr = max_lr
+        self.stepsize = lr_period_updates // 2
+        self.lr_shrink = lr_shrink
+        self.shrink_min = shrink_min
 
         # initial learning rate
         self.lr = self.min_lr
         self.optimizer.set_lr(self.lr)
+
+    @classmethod
+    def from_args(cls, optimizer, args):
+        return cls(optimizer, args.lr, args.max_lr, args.lr_period_updates, args.lr_shrink, args.shrink_min)
 
     @staticmethod
     def add_args(parser):
