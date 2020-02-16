@@ -30,7 +30,7 @@ class FairseqCriterion(_Loss):
 
     @classmethod
     def build_criterion(cls, args, task):
-        return cls(args, task)
+        return cls.from_args(task, args)
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
