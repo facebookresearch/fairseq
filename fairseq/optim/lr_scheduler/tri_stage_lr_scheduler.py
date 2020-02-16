@@ -46,30 +46,35 @@ class TriStageLRSchedule(FairseqLRScheduler):
       lr = args.lr * args.final_lr_scale
     """
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
-        if len(args.lr) > 1:
+    def __init__(self, optimizer, lr, init_lr_scale, final_lr_scale, warmup_steps, hold_steps, decay_steps):
+        super().__init__(optimizer)
+        if len(lr) > 1:
             raise ValueError(
                 'Cannot use a fixed learning rate schedule with tri-stage lr.'
                 ' Consider --lr-scheduler=fixed instead.'
             )
 
         # calculate LR at each point
-        self.peak_lr = args.lr[0]
-        self.init_lr = args.init_lr_scale * args.lr[0]
-        self.final_lr = args.final_lr_scale * args.lr[0]
+        self.peak_lr = lr[0]
+        self.init_lr = init_lr_scale * lr[0]
+        self.final_lr = final_lr_scale * lr[0]
 
         # remember the steps at each stage
-        self.warmup_steps = args.warmup_steps
-        self.hold_steps = args.hold_steps
-        self.decay_steps = args.decay_steps
+        self.warmup_steps = warmup_steps
+        self.hold_steps = hold_steps
+        self.decay_steps = decay_steps
 
         self.warmup_rate = (self.peak_lr - self.init_lr) / self.warmup_steps
-        self.decay_factor = -math.log(args.final_lr_scale) / args.decay_steps
+        self.decay_factor = -math.log(final_lr_scale) / decay_steps
 
         # initial learning rate
         self.lr = self.init_lr
         self.optimizer.set_lr(self.lr)
+
+    @classmethod
+    def from_args(cls, optimizer, args):
+        return cls(optimizer, args.lr, args.init_lr_scale, args.final_lr_scale, args.warmup_steps,
+                   args.hold_steps, args.decay_steps)
 
     @staticmethod
     def add_args(parser):
