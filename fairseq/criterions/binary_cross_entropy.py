@@ -16,8 +16,12 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 @register_criterion('binary_cross_entropy')
 class BinaryCrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, task):
-        super().__init__(args, task)
+    def __init__(self, task):
+        super().__init__(task)
+
+    @classmethod
+    def from_args(cls, task, args):
+        return cls(task)
 
     def forward(self, model, sample, reduce=True, log_pred=False):
         """Compute the loss for the given sample.
