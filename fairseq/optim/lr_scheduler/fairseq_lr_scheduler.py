@@ -16,6 +16,10 @@ class FairseqLRScheduler(object):
         self.best = None
 
     @classmethod
+    def build_lr_scheduler(cls, args, optimizer):
+        return cls.from_args(optimizer, args)
+
+    @classmethod
     def from_args(cls, optimizer, args):
         raise NotImplementedError
 
