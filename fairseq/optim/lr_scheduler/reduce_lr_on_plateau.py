@@ -49,7 +49,9 @@ class ReduceLROnPlateau(FairseqLRScheduler):
 
     @classmethod
     def from_args(cls, optimizer, args):
-        return cls(optimizer, args.lr, args.lr_shrink, args.lr_threshold, args.warmup_init_lr,args. warmup_updates)
+
+        return cls(optimizer, args.lr, args.lr_shrink, args.lr_threshold,
+                   args.warmup_init_lr, getattr(args, 'warmup_updates', 0) or 0)
 
     @staticmethod
     def add_args(parser):
