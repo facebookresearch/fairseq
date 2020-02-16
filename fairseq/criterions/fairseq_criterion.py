@@ -12,9 +12,8 @@ from fairseq import metrics, utils
 
 class FairseqCriterion(_Loss):
 
-    def __init__(self, args, task):
+    def __init__(self, task):
         super().__init__()
-        self.args = args
         self.task = task
         self.padding_idx = task.target_dictionary.pad() if task.target_dictionary is not None else -100
 
@@ -22,6 +21,12 @@ class FairseqCriterion(_Loss):
     def add_args(parser):
         """Add criterion-specific arguments to the parser."""
         pass
+
+    @classmethod
+    def from_args(cls, task, args):
+        """Construct a criterion from command-line args
+        """
+        raise NotImplementedError
 
     @classmethod
     def build_criterion(cls, args, task):
