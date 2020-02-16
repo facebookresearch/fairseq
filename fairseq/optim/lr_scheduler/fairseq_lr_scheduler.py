@@ -8,13 +8,16 @@ from .. import FairseqOptimizer
 
 class FairseqLRScheduler(object):
 
-    def __init__(self, args, optimizer):
+    def __init__(self, optimizer):
         super().__init__()
         if not isinstance(optimizer, FairseqOptimizer):
             raise ValueError('optimizer must be an instance of FairseqOptimizer')
-        self.args = args
         self.optimizer = optimizer
         self.best = None
+
+    @classmethod
+    def from_args(cls, optimizer, args):
+        raise NotImplementedError
 
     @staticmethod
     def add_args(parser):
