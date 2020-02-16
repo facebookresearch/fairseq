@@ -10,14 +10,21 @@ from fairseq import utils
 
 class FairseqOptimizer(object):
 
-    def __init__(self, args):
+    def __init__(self):
         super().__init__()
-        self.args = args
 
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
         pass
+
+    @classmethod
+    def from_args(cls, params, args):
+        raise NotImplementedError
+
+    @classmethod
+    def build_optimizer(cls, args, param):
+        return cls.from_args(param, args)
 
     @property
     def optimizer(self):
