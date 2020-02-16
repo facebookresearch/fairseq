@@ -10,21 +10,24 @@ from . import FairseqLRScheduler, register_lr_scheduler
 class PolynomialDecaySchedule(FairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
+    def __init__(self, optimizer, lr, warmup_updates, end_learning_rate, total_num_update, power, force_anneal):
+        super().__init__(optimizer)
 
-        # set defaults
-        args.warmup_updates = getattr(args, 'warmup_updates', 0) or 0
-
-        self.lr = args.lr[0]
-        if args.warmup_updates > 0:
-            self.warmup_factor = 1. / args.warmup_updates
+        self.lr = lr[0]
+        if warmup_updates > 0:
+            self.warmup_factor = 1. / warmup_updates
         else:
             self.warmup_factor = 1
-        self.end_learning_rate = args.end_learning_rate
-        self.total_num_update = args.total_num_update
-        self.power = args.power
+        self.end_learning_rate = end_learning_rate
+        self.total_num_update = total_num_update
+        self.power = power
         self.optimizer.set_lr(self.warmup_factor * self.lr)
+        self.force_anneal = force_anneal
+
+    @classmethod
+    def from_args(cls, optimizer, args):
+        return cls(optimizer, args.lr, getattr(args, 'warmup_updates', 0) or 0, args.end_learning_rate,
+                   args.total_num_update, args.power, args.force_anneal)
 
     @staticmethod
     def add_args(parser):
@@ -38,8 +41,8 @@ class PolynomialDecaySchedule(FairseqLRScheduler):
         parser.add_argument('--total-num-update', default=1000000, type=int)
 
     def get_next_lr(self, epoch):
-        lrs = self.args.lr
-        if self.args.force_anneal is None or epoch < self.args.force_anneal:
+        lrs = self.lr
+        if self.force_anneal is None or epoch < self.force_anneal:
             # use fixed LR schedule
             next_lr = lrs[min(epoch, len(lrs) - 1)]
         else:
@@ -56,13 +59,13 @@ class PolynomialDecaySchedule(FairseqLRScheduler):
 
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
-        if self.args.warmup_updates > 0 and num_updates <= self.args.warmup_updates:
-            self.warmup_factor = num_updates / float(self.args.warmup_updates)
+        if self.warmup_updates > 0 and num_updates <= self.warmup_updates:
+            self.warmup_factor = num_updates / float(self.warmup_updates)
             lr = self.warmup_factor * self.lr
         elif num_updates >= self.total_num_update:
             lr = self.end_learning_rate
         else:
-            warmup = self.args.warmup_updates
+            warmup = self.warmup_updates
             lr_range = self.lr - self.end_learning_rate
             pct_remaining = 1 - (num_updates - warmup) / (self.total_num_update - warmup)
             lr = lr_range * pct_remaining ** (self.power) + self.end_learning_rate
