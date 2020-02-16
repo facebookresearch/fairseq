@@ -22,30 +22,34 @@ class ReduceLROnPlateau(FairseqLRScheduler):
       lr = lrs[update_num]
     """
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
-        if len(args.lr) > 1:
+    def __init__(self, optimizer, lr, lr_shrink, lr_threshold, warmup_init_lr, warmup_updates):
+        super().__init__(optimizer)
+        if len(lr) > 1:
             raise ValueError(
                 'Cannot use a fixed learning rate schedule with reduce_lr_on_plateau.'
                 ' Consider --lr-scheduler=fixed instead.'
             )
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer.optimizer, patience=0, factor=args.lr_shrink,
-            threshold=args.lr_threshold)
-        warmup_end_lr = args.lr[0]
+            self.optimizer.optimizer, patience=0, factor=lr_shrink,
+            threshold=lr_threshold)
+        warmup_end_lr = lr[0]
         """if no warm up, sets initial lr to be args.lr[0]"""
-        if args.warmup_init_lr < 0:
-            args.warmup_init_lr = 0 if args.warmup_updates > 0 else warmup_end_lr
+        if warmup_init_lr < 0:
+            warmup_init_lr = 0 if warmup_updates > 0 else warmup_end_lr
 
         """ linearly warmup for the first args.warmup_updates"""
-        if args.warmup_updates > 0:
-            self.lr_step = (warmup_end_lr - args.warmup_init_lr) / args.warmup_updates
+        if warmup_updates > 0:
+            self.lr_step = (warmup_end_lr - warmup_init_lr) / warmup_updates
         """ this flag is either set from arg when no warm up, or set by step_update() when warmup finishes"""
-        self.warmup_end = True if args.warmup_updates <= 0 else False
+        self.warmup_end = True if warmup_updates <= 0 else False
         """ initial learning rate"""
         """this self.lr is used only during init and/or warm up period"""
-        self.lr = args.warmup_init_lr
+        self.lr = warmup_init_lr
         self.optimizer.set_lr(self.lr)
+
+    @classmethod
+    def from_args(cls, optimizer, args):
+        return cls(optimizer, args.lr, args.lr_shrink, args.lr_threshold, args.warmup_init_lr,args. warmup_updates)
 
     @staticmethod
     def add_args(parser):
@@ -87,9 +91,9 @@ class ReduceLROnPlateau(FairseqLRScheduler):
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
         """ if there is warmup"""
-        if self.args.warmup_updates > 0:
-            if num_updates <= self.args.warmup_updates:
-                self.lr = self.args.warmup_init_lr + num_updates*self.lr_step
+        if self.warmup_updates > 0:
+            if num_updates <= self.warmup_updates:
+                self.lr = self.warmup_init_lr + num_updates*self.lr_step
                 self.optimizer.set_lr(self.lr)
             else:
                 if self.warmup_end is False:
