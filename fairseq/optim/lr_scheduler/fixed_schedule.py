@@ -14,6 +14,7 @@ class FixedSchedule(FairseqLRScheduler):
         super().__init__(optimizer)
 
         self.warmup_updates = warmup_updates
+        self.lrs = lr
         self.lr = lr[0]
 
         if warmup_updates > 0:
@@ -41,13 +42,12 @@ class FixedSchedule(FairseqLRScheduler):
         # fmt: on
 
     def get_next_lr(self, epoch):
-        lrs = self.lr
         if self.force_anneal is None or epoch < self.force_anneal:
             # use fixed LR schedule
-            next_lr = lrs[min(epoch, len(lrs) - 1)]
+            next_lr = self.lrs[min(epoch, len(self.lrs) - 1)]
         else:
             # annneal based on lr_shrink
-            next_lr = lrs[-1] * self.lr_shrink ** (epoch + 1 - self.force_anneal)
+            next_lr = self.lrs[-1] * self.lr_shrink ** (epoch + 1 - self.force_anneal)
         return next_lr
 
     def step(self, epoch, val_loss=None):
