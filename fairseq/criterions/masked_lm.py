@@ -18,6 +18,10 @@ class MaskedLmLoss(FairseqCriterion):
     Implementation for the loss used in masked language model (MLM) training.
     """
 
+    @classmethod
+    def from_args(cls, task, args):
+        return cls(task)
+
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
