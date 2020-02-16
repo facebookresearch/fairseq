@@ -32,42 +32,48 @@ class CosineSchedule(FairseqLRScheduler):
     after every iteration.
     """
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
-        if len(args.lr) > 1:
+    def __init__(self, optimizer, lr, warmup_init_lr, max_lr, t_mult, lr_period_updates, max_update,
+                 warmup_updates, lr_shrink):
+        super().__init__(optimizer)
+        if len(lr) > 1:
             raise ValueError(
                 'Cannot use a fixed learning rate schedule with cosine.'
                 ' Consider --lr-scheduler=fixed instead.'
             )
 
-        warmup_end_lr = args.max_lr
-        if args.warmup_init_lr < 0:
-            args.warmup_init_lr = args.lr[0]
+        warmup_end_lr = max_lr
+        if warmup_init_lr < 0:
+            warmup_init_lr = lr[0]
 
-        self.min_lr = args.lr[0]
-        self.max_lr = args.max_lr
+        self.min_lr = lr[0]
+        self.max_lr = max_lr
 
         assert self.max_lr > self.min_lr, 'max_lr must be more than lr'
 
-        self.t_mult = args.t_mult
-        self.period = args.lr_period_updates
+        self.t_mult = t_mult
+        self.period = lr_period_updates
 
         if self.period <= 0:
-            assert args.max_update >= 0, 'Either --max_update or --lr-period-updates must be set'
-            self.period = args.max_update - args.warmup_updates
+            assert max_update >= 0, 'Either --max_update or --lr-period-updates must be set'
+            self.period = max_update - warmup_updates
 
-        if args.warmup_updates > 0:
+        if warmup_updates > 0:
             # linearly warmup for the first args.warmup_updates
-            self.lr_step = (warmup_end_lr - args.warmup_init_lr) / args.warmup_updates
+            self.lr_step = (warmup_end_lr - warmup_init_lr) / warmup_updates
         else:
             self.lr_step = 1
 
-        self.warmup_updates = args.warmup_updates
-        self.lr_shrink = args.lr_shrink
+        self.warmup_updates = warmup_updates
+        self.lr_shrink = lr_shrink
 
         # initial learning rate
-        self.lr = args.warmup_init_lr
+        self.lr = warmup_init_lr
         self.optimizer.set_lr(self.lr)
+
+    @classmethod
+    def from_args(cls, optimizer, args):
+        return cls(optimizer, args.lr, args.warmup_init_lr, args.max_lr, args.t_mult, args.lr_period_updates,
+                   args.max_update, args.warmup_updates, args.lr_shrink)
 
     @staticmethod
     def add_args(parser):
@@ -95,10 +101,10 @@ class CosineSchedule(FairseqLRScheduler):
 
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
-        if num_updates < self.args.warmup_updates:
-            self.lr = self.args.warmup_init_lr + num_updates * self.lr_step
+        if num_updates < self.warmup_updates:
+            self.lr = self.warmup_init_lr + num_updates * self.lr_step
         else:
-            curr_updates = num_updates - self.args.warmup_updates
+            curr_updates = num_updates - self.warmup_updates
             if self.t_mult != 1:
                 i = math.floor(math.log(1 - curr_updates / self.period * (1 - self.t_mult), self.t_mult))
                 t_i = self.t_mult ** i * self.period
