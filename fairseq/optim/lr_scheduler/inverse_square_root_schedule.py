@@ -26,26 +26,30 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
       lr = decay_factor / sqrt(update_num)
     """
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
-        if len(args.lr) > 1:
+    def __init__(self, optimizer, lr, warmup_init_lr, warmup_updates):
+        super().__init__(optimizer)
+        if len(lr) > 1:
             raise ValueError(
                 'Cannot use a fixed learning rate schedule with inverse_sqrt.'
                 ' Consider --lr-scheduler=fixed instead.'
             )
-        warmup_end_lr = args.lr[0]
-        if args.warmup_init_lr < 0:
-            args.warmup_init_lr = 0 if args.warmup_updates > 0 else warmup_end_lr
+        warmup_end_lr = lr[0]
+        if warmup_init_lr < 0:
+            warmup_init_lr = 0 if warmup_updates > 0 else warmup_end_lr
 
         # linearly warmup for the first args.warmup_updates
-        self.lr_step = (warmup_end_lr - args.warmup_init_lr) / args.warmup_updates
+        self.lr_step = (warmup_end_lr - warmup_init_lr) / warmup_updates
 
         # then, decay prop. to the inverse square root of the update number
-        self.decay_factor = warmup_end_lr * args.warmup_updates**0.5
+        self.decay_factor = warmup_end_lr * warmup_updates**0.5
 
         # initial learning rate
-        self.lr = args.warmup_init_lr
+        self.lr = warmup_init_lr
         self.optimizer.set_lr(self.lr)
+
+    @classmethod
+    def from_args(cls, optimizer, args):
+        return cls(optimizer, args.lr, args.warmup_init_lr, args.warmup_updates)
 
     @staticmethod
     def add_args(parser):
@@ -65,8 +69,8 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
 
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
-        if num_updates < self.args.warmup_updates:
-            self.lr = self.args.warmup_init_lr + num_updates*self.lr_step
+        if num_updates < self.warmup_updates:
+            self.lr = self.warmup_init_lr + num_updates*self.lr_step
         else:
             self.lr = self.decay_factor * num_updates**-0.5
         self.optimizer.set_lr(self.lr)
