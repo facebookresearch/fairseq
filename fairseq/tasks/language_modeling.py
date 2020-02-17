@@ -91,8 +91,15 @@ class LanguageModelingTask(FairseqTask):
                             help='truncate sequences to --tokens-per-sample')
         # fmt: on
 
-    def __init__(self, args, dictionary, output_dictionary=None, targets=None):
-        super().__init__(args)
+    def __init__(self, dictionary, data, dataset_impl, sample_break_mode, tokens_per_sample,
+                 add_bos_token, truncate_sequence, output_dictionary=None, targets=None):
+        super().__init__()
+        self.data = data
+        self.dataset_impl = dataset_impl
+        self.sample_break_mode = sample_break_mode
+        self.tokens_per_sample = tokens_per_sample
+        self.add_bos_token = add_bos_token
+        self.truncate_sequence = truncate_sequence
         self.dictionary = dictionary
         self.output_dictionary = output_dictionary or dictionary
 
@@ -135,7 +142,8 @@ class LanguageModelingTask(FairseqTask):
             # standard language modeling
             targets = ["future"]
 
-        return cls(args, dictionary, output_dictionary, targets=targets)
+        return cls(dictionary, args.data, args.dataset_impl, args.sample_break_mode, args.tokens_per_sample,
+                 args.add_bos_token, args.truncate_sequence, output_dictionary=output_dictionary, targets=targets)
 
     def build_model(self, args):
         model = super().build_model(args)
@@ -154,36 +162,36 @@ class LanguageModelingTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
 
         data_path = paths[epoch % len(paths)]
         split_path = os.path.join(data_path, split)
 
         dataset = data_utils.load_indexed_dataset(
-            split_path, self.dictionary, self.args.dataset_impl, combine=combine
+            split_path, self.dictionary, self.dataset_impl, combine=combine
         )
         if dataset is None:
             raise FileNotFoundError(
                 "Dataset not found: {} ({})".format(split, split_path)
             )
 
-        if self.args.truncate_sequence:
-            dataset = TruncateDataset(dataset, self.args.tokens_per_sample)
+        if self.truncate_sequence:
+            dataset = TruncateDataset(dataset, self.tokens_per_sample)
 
         dataset = TokenBlockDataset(
             dataset,
             dataset.sizes,
-            self.args.tokens_per_sample,
+            self.tokens_per_sample,
             pad=self.dictionary.pad(),
             eos=self.dictionary.eos(),
-            break_mode=self.args.sample_break_mode,
+            break_mode=self.sample_break_mode,
             include_targets=True,
         )
 
         add_eos_for_other_targets = (
-            self.args.sample_break_mode is not None
-            and self.args.sample_break_mode != "none"
+            self.sample_break_mode is not None
+            and self.sample_break_mode != "none"
         )
 
         self.datasets[split] = MonolingualDataset(
@@ -194,7 +202,7 @@ class LanguageModelingTask(FairseqTask):
             add_eos_for_other_targets=add_eos_for_other_targets,
             shuffle=True,
             targets=self.targets,
-            add_bos_token=self.args.add_bos_token,
+            add_bos_token=self.add_bos_token,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):
