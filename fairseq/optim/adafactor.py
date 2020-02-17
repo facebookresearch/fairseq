@@ -16,7 +16,6 @@ class FairseqAdafactor(FairseqOptimizer):
     def __init__(self, params, lr, adafactor_eps, clip_threshold, beta1, decay_rate, scale_parameter,
                  weight_decay, relative_step, warmup_init):
         super().__init__()
-        self._optimizer = Adafactor(params, **self.optimizer_config)
         self.lr = lr
         self.adafactor_eps = adafactor_eps
         self.clip_threshold = clip_threshold
@@ -26,6 +25,7 @@ class FairseqAdafactor(FairseqOptimizer):
         self.weight_decay = weight_decay
         self.relative_step = relative_step
         self.warmup_init = warmup_init
+        self._optimizer = Adafactor(params, **self.optimizer_config)
 
     @classmethod
     def from_args(cls, params, args):
