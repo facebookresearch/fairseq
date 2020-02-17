@@ -19,16 +19,24 @@ class SubwordNMTBPE(object):
                             help='BPE separator')
         # fmt: on
 
-    def __init__(self, args):
-        if args.bpe_codes is None:
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.bpe_codes, args.bpe_separator)
+
+    @classmethod
+    def build_bpe(cls, args):
+        return cls.from_args(args)
+
+    def __init__(self, bpe_codes, bpe_separator):
+        if bpe_codes is None:
             raise ValueError('--bpe-codes is required for --bpe=subword_nmt')
-        codes = file_utils.cached_path(args.bpe_codes)
+        codes = file_utils.cached_path(bpe_codes)
         try:
             from subword_nmt import apply_bpe
             bpe_parser = apply_bpe.create_parser()
             bpe_args = bpe_parser.parse_args([
                 '--codes', codes,
-                '--separator', args.bpe_separator,
+                '--separator', bpe_separator,
             ])
             self.bpe = apply_bpe.BPE(
                 bpe_args.codes,

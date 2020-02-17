@@ -17,8 +17,16 @@ class SentencepieceBPE(object):
                             help='path to sentencepiece vocab')
         # fmt: on
 
-    def __init__(self, args):
-        vocab = file_utils.cached_path(args.sentencepiece_vocab)
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.sentencepiece_vocab)
+
+    @classmethod
+    def build_bpe(cls, args):
+        return cls.from_args(args)
+
+    def __init__(self, sentencepiece_vocab):
+        vocab = file_utils.cached_path(sentencepiece_vocab)
         try:
             import sentencepiece as spm
             self.sp = spm.SentencePieceProcessor()
