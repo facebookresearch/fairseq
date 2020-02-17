@@ -19,19 +19,25 @@ class FairseqBMUF(FairseqOptimizer):
     model-update filtering
     """
 
-    def __init__(self, args, optimizer):
+    def __init__(self, optimizer, global_sync_iter, block_momentum, block_lr, warmup_iterations, use_nbm, average_sync):
 
-        super().__init__(args)
+        super().__init__()
         self._optimizer = optimizer
         self._num_updates = 0
-        self.sync_iter = self.args.global_sync_iter
-        self.block_momentum = self.args.block_momentum
-        self.block_lr = self.args.block_lr
+        self.sync_iter = global_sync_iter
+        self.block_momentum = block_momentum
+        self.block_lr = block_lr
         self._reset_local_data()
-        self.warmup_iteration = self.args.warmup_iterations
-        self.use_nbm = self.args.use_nbm
+        self.warmup_iteration = warmup_iterations
+        self.use_nbm = use_nbm
         self.initial_state = self._optimizer.state_dict()
-        self.average_sync = self.args.average_sync
+        self.average_sync = average_sync
+
+    @classmethod
+    def from_args(cls, params, args):
+        # 'params' is actually an optimizer here... TODO: how do we clean this up?
+        return cls(params, args.global_sync_iter, args.block_momentum, args.block_lr, args.warmup_iterations,
+                   args.use_nbm, args.average_sync)
 
     @staticmethod
     def add_args(parser):
