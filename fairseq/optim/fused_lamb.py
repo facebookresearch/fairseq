@@ -10,13 +10,21 @@ from fairseq.optim import FairseqOptimizer, register_optimizer
 class FairseqLAMB(FairseqOptimizer):
     """LAMB optimizer."""
 
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr, lamb_betas, lamb_eps, weight_decay):
+        super().__init__()
         try:
             from apex.optimizers import FusedLAMB
+            self.lr = lr
+            self.lamb_betas = lamb_betas
+            self.lamb_eps = lamb_eps
+            self.weight_decay = weight_decay
             self._optimizer = FusedLAMB(params, **self.optimizer_config)
         except ImportError:
             raise ImportError('Please install apex to use LAMB optimizer')
+
+    @classmethod
+    def from_args(cls, params, args):
+        return cls(params, args.lr, eval(args.lamb_betas), args.lamb_eps, args.weight_decay)
 
     @staticmethod
     def add_args(parser):
@@ -39,10 +47,10 @@ class FairseqLAMB(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'betas': eval(self.args.lamb_betas),
-            'eps': self.args.lamb_eps,
-            'weight_decay': self.args.weight_decay,
+            'lr': self.lr[0],
+            'betas': self.lamb_betas,
+            'eps': self.lamb_eps,
+            'weight_decay': self.weight_decay,
         }
 
     @property
