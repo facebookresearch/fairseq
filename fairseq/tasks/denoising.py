@@ -15,6 +15,8 @@ from fairseq.data import (
     StripTokenDataset,
     TokenBlockDataset,
 )
+
+from fairseq.data import encoders
 from fairseq.data.encoders.utils import get_whole_word_mask
 from fairseq.tasks import FairseqTask, register_task
 from fairseq import utils
@@ -86,10 +88,29 @@ class DenoisingTask(FairseqTask):
             help='max number of tokens in the target sequence'
         )
 
-    def __init__(self, args, dictionary):
-        super().__init__(args)
+    def __init__(self, dictionary, data, dataset_impl, tokens_per_sample, sample_break_mode, mask, mask_random, insert,
+                 permute, rotate, poisson_lambda, permute_sentences, mask_length, replace_length, shuffle_instance,
+                 max_source_positions, max_target_positions, seed, bpe=None):
+        super().__init__()
         self.dictionary = dictionary
-        self.seed = args.seed
+        self.data = data
+        self.dataset_impl = dataset_impl
+        self.tokens_per_sample = tokens_per_sample
+        self.sample_break_mode = sample_break_mode
+        self.mask = mask
+        self.mask_random = mask_random
+        self.insert = insert
+        self.permute = permute
+        self.rotate = rotate
+        self.poisson_lambda = poisson_lambda
+        self.permute_sentence = permute_sentences
+        self.mask_length = mask_length
+        self.replace_length = replace_length
+        self.shuffle_instance = shuffle_instance
+        self.max_source_positions = max_source_positions
+        self.max_target_positions = max_target_positions
+        self.seed = seed
+        self.bpe = bpe
 
         # add mask token
         self.mask_idx = self.dictionary.add_symbol('<mask>')
@@ -102,7 +123,12 @@ class DenoisingTask(FairseqTask):
         logger.info('dictionary: {} types'.format(len(dictionary)))
         if not hasattr(args, 'shuffle_instance'):
             args.shuffle_instance = False
-        return cls(args, dictionary)
+
+        bpe = encoders.build_bpe(args)
+        return cls(dictionary, args.data, args.dataset_impl, args.tokens_per_sample, args.sample_break_mode, args.mask,
+                   args.mask_random, args.insert, args.permute, args.rotate, args.poisson_lambda, args.permute_sentences,
+                   args.mask_length, args.replace_length, args.shuffle_instance, args.max_source_positions,
+                   args.max_target_positions, args.seed, bpe)
 
     def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
@@ -111,7 +137,7 @@ class DenoisingTask(FairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
 
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
         split_path = os.path.join(data_path, split)
@@ -119,7 +145,7 @@ class DenoisingTask(FairseqTask):
         dataset = data_utils.load_indexed_dataset(
             split_path,
             self.dictionary,
-            self.args.dataset_impl,
+            self.dataset_impl,
             combine=combine,
         )
         if dataset is None:
@@ -131,10 +157,10 @@ class DenoisingTask(FairseqTask):
         dataset = TokenBlockDataset(
                 dataset,
                 dataset.sizes,
-                self.args.tokens_per_sample - 2,  # one less for <s> and one for </s>
+                self.tokens_per_sample - 2,  # one less for <s> and one for </s>
                 pad=self.dictionary.pad(),
                 eos=self.dictionary.eos(),
-                break_mode=self.args.sample_break_mode,
+                break_mode=self.sample_break_mode,
                 document_sep_len=0
         )
 
@@ -142,13 +168,21 @@ class DenoisingTask(FairseqTask):
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
         dataset = AppendTokenDataset(dataset, self.source_dictionary.eos())
 
-        mask_whole_words = get_whole_word_mask(self.args, self.source_dictionary) \
-            if self.args.mask_length != 'subword' else None
+        mask_whole_words = get_whole_word_mask(self.bpe, self.source_dictionary) \
+            if self.mask_length != 'subword' else None
 
         self.datasets[split] = DenoisingDataset(
             dataset, dataset.sizes, self.dictionary, self.mask_idx,
-            mask_whole_words, shuffle=self.args.shuffle_instance,
-            seed=self.seed, args=self.args
+            mask_whole_words, shuffle=self.shuffle_instance,
+            seed=self.seed, mask=self.mask, mask_random=self.mask_random,
+            insert=self.insert,
+            rotate=self.rotate,
+            permute_sentences=self.permute_sentence,
+            replace_length=self.replace_length,
+            mask_length=self.mask_length,
+            poisson_lambda=self.poisson_lambda,
+            # Ouch. This is messy.
+            full_stop_char='13' if isinstance(self.bpe, encoders.registry.REGISTRIES.get('gpt2')) else '.'
         )
         logger.info(
             "Split: {0}, Loaded {1} samples of denoising_dataset".format(
@@ -159,7 +193,7 @@ class DenoisingTask(FairseqTask):
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
-        return (self.args.max_source_positions, self.args.max_target_positions)
+        return (self.max_source_positions, self.max_target_positions)
 
     @property
     def source_dictionary(self):

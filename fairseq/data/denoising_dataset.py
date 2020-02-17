@@ -99,7 +99,15 @@ class DenoisingDataset(FairseqDataset):
         mask_whole_words,
         shuffle,
         seed,
-        args
+        mask,
+        mask_random,
+        insert,
+        rotate,
+        permute_sentences,
+        replace_length,
+        mask_length,
+        poisson_lambda,
+        full_stop_char
     ):
         self.dataset = dataset
 
@@ -110,29 +118,24 @@ class DenoisingDataset(FairseqDataset):
         self.seed = seed
         self.mask_idx = mask_idx
         self.mask_whole_word = mask_whole_words
-        self.mask_ratio = args.mask
-        self.random_ratio = args.mask_random
-        self.insert_ratio = args.insert
-        self.rotate_ratio = args.rotate
-        self.permute_sentence_ratio = args.permute_sentences
+        self.mask_ratio = mask
+        self.random_ratio = mask_random
+        self.insert_ratio = insert
+        self.rotate_ratio = rotate
+        self.permute_sentence_ratio = permute_sentences
+        self.full_stop_index = self.vocab.index(full_stop_char)
+        self.replace_length = replace_length
 
-        if args.bpe != 'gpt2':
-            self.full_stop_index = self.vocab.index(".")
-        else:
-            assert args.bpe == 'gpt2'
-            self.full_stop_index = self.vocab.index('13')
-
-        self.replace_length = args.replace_length
         if not self.replace_length in [-1, 0, 1]:
             raise (f'invalid arg: replace_length={self.replace_length}')
-        if not args.mask_length in ['subword', 'word', 'span-poisson']:
-            raise (f'invalid arg: mask-length={args.mask_length}')
-        if args.mask_length == 'subword' and not args.replace_length in [0, 1]:
+        if not mask_length in ['subword', 'word', 'span-poisson']:
+            raise (f'invalid arg: mask-length={mask_length}')
+        if mask_length == 'subword' and not replace_length in [0, 1]:
             raise (f'if using subwords, use replace-length=1 or 0')
 
         self.mask_span_distribution = None
-        if args.mask_length == 'span-poisson':
-            _lambda = args.poisson_lambda
+        if mask_length == 'span-poisson':
+            _lambda = poisson_lambda
 
             lambda_to_the_k = 1
             e_to_the_minus_lambda = math.exp(-_lambda)
