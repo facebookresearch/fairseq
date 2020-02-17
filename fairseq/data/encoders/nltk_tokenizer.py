@@ -16,6 +16,15 @@ class NLTKTokenizer(object):
         except ImportError:
             raise ImportError('Please install nltk with: pip install nltk')
 
+    @classmethod
+    def from_args(cls, args):
+        return cls()
+
+    @classmethod
+    def build_tokenizer(cls, args):
+        return cls.from_args(args)
+
+
     def encode(self, x: str) -> str:
         return ' '.join(self.word_tokenize(x))
 

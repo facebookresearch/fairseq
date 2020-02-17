@@ -22,27 +22,33 @@ class MosesTokenizer(object):
                             help='don\'t perform HTML escaping on apostrophy, quotes, etc.')
         # fmt: on
 
-    def __init__(self, args):
-        self.args = args
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.moses_source_lang or args.source_lang or "en",
+                   args.moses_target_lang or args.target_lang or "en",
+                   args.moses_no_dash_splits,
+                   args.moses_no_escape)
 
-        if getattr(args, 'moses_source_lang', None) is None:
-            args.moses_source_lang = getattr(args, 'source_lang', 'en')
-        if getattr(args, 'moses_target_lang', None) is None:
-            args.moses_target_lang = getattr(args, 'target_lang', 'en')
+    @classmethod
+    def build_tokenizer(cls, args):
+        return cls.from_args(args)
 
+    def __init__(self, moses_source_lang, moses_target_lang, moses_no_dash_splits, moses_no_escape):
         try:
             from sacremoses import MosesTokenizer, MosesDetokenizer
-            self.tok = MosesTokenizer(args.moses_source_lang)
-            self.detok = MosesDetokenizer(args.moses_target_lang)
+            self.tok = MosesTokenizer(moses_source_lang)
+            self.detok = MosesDetokenizer(moses_target_lang)
+            self.moses_no_dash_splits = moses_no_dash_splits
+            self.moses_no_escape = moses_no_escape
         except ImportError:
             raise ImportError('Please install Moses tokenizer with: pip install sacremoses')
 
     def encode(self, x: str) -> str:
         return self.tok.tokenize(
             x,
-            aggressive_dash_splits=(not self.args.moses_no_dash_splits),
+            aggressive_dash_splits=(not self.moses_no_dash_splits),
             return_str=True,
-            escape=(not self.args.moses_no_escape),
+            escape=(not self.moses_no_escape),
         )
 
     def decode(self, x: str) -> str:
