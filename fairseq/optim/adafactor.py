@@ -12,9 +12,25 @@ from . import FairseqOptimizer, register_optimizer
 
 @register_optimizer('adafactor')
 class FairseqAdafactor(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args)
+
+    def __init__(self, params, lr, adafactor_eps, clip_threshold, beta1, decay_rate, scale_parameter,
+                 weight_decay, relative_step, warmup_init):
+        super().__init__()
         self._optimizer = Adafactor(params, **self.optimizer_config)
+        self.lr = lr
+        self.adafactor_eps = adafactor_eps
+        self.clip_threshold = clip_threshold
+        self.beta1 = beta1
+        self.decay_rate = decay_rate
+        self.scale_parameter = scale_parameter
+        self.weight_decay = weight_decay
+        self.relative_step = relative_step
+        self.warmup_init = warmup_init
+
+    @classmethod
+    def from_args(cls, params, args):
+        return cls(params, args.lr, eval(args.adafactor_eps), args.clip_threshold, args.beta1, args.decay_rate,
+                   args.scale_parameter, args.weight_decay, args.relative_step, args.warmup_init)
 
     @staticmethod
     def add_args(parser):
@@ -50,15 +66,15 @@ class FairseqAdafactor(FairseqOptimizer):
                Might require search for appropriate configuration.
         """
         return {
-            'lr': self.args.lr[0],
-            'eps': eval(self.args.adafactor_eps),
-            'clip_threshold': self.args.clip_threshold,
-            'beta1': self.args.beta1,
-            'decay_rate': self.args.decay_rate,
-            'scale_parameter': self.args.scale_parameter,
-            'weight_decay': self.args.weight_decay,
-            'relative_step': self.args.relative_step,
-            'warmup_init': self.args.warmup_init,
+            'lr': self.lr[0],
+            'eps': self.adafactor_eps,
+            'clip_threshold': self.clip_threshold,
+            'beta1': self.beta1,
+            'decay_rate': self.decay_rate,
+            'scale_parameter': self.scale_parameter,
+            'weight_decay': self.weight_decay,
+            'relative_step': self.relative_step,
+            'warmup_init': self.warmup_init,
         }
 
 
