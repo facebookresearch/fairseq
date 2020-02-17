@@ -53,12 +53,17 @@ class CrossLingualLMTask(FairseqTask):
                             help='shuffle each monolingual dataset while'
                             ' training')
 
-    def __init__(self, args, dictionary):
-        super().__init__(args)
+    def __init__(self, dictionary, data, tokens_per_sample, monolingual_langs, seed, distributed_world_size,
+                 dataset_impl, shuffle=False):
+        super().__init__()
         self.dictionary = dictionary
-        self.seed = args.seed
-        self.distributed_world_size = args.distributed_world_size
-        self.langs2id = self._lang_to_id(args.monolingual_langs)
+        self.data = data
+        self.tokens_per_sample = tokens_per_sample
+        self.seed = seed
+        self.distributed_world_size = distributed_world_size
+        self.dataset_impl = dataset_impl
+        self.shuffle = shuffle
+        self.langs2id = self._lang_to_id(monolingual_langs)
 
     def _lang_to_id(
             self,
@@ -95,12 +100,13 @@ class CrossLingualLMTask(FairseqTask):
         """Setup the task."""
         dictionary = MaskedLMDictionary.load(os.path.join(args.data, 'dict.txt'))
         logger.info('dictionary: {} types'.format(len(dictionary)))
-        return cls(args, dictionary)
+        return cls(dictionary, args.data, args.tokens_per_sample, args.monolingual_langs, args.seed,
+                   args.distributed_world_size, args.dataset_impl, args.shuffle)
 
     def _load_single_lang_dataset(self, split, epoch):
         loaded_datasets = []
 
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
@@ -108,7 +114,7 @@ class CrossLingualLMTask(FairseqTask):
             split_k = split + (str(k) if k > 0 else '')
             path = os.path.join(data_path, split_k)
 
-            ds = data_utils.load_indexed_dataset(path, self.dictionary, self.args.dataset_impl)
+            ds = data_utils.load_indexed_dataset(path, self.dictionary, self.dataset_impl)
             if ds is None:
                 if k > 0:
                     break
@@ -120,7 +126,7 @@ class CrossLingualLMTask(FairseqTask):
             # tokens_per_sample-1
             loaded_datasets.append(
                 TokenBlockDataset(
-                    ds, ds.sizes, self.args.tokens_per_sample - 1,
+                    ds, ds.sizes, self.tokens_per_sample - 1,
                     pad=self.dictionary.pad(), eos=self.dictionary.eos(),
                 )
             )
@@ -157,7 +163,7 @@ class CrossLingualLMTask(FairseqTask):
                 mask_idx=self.dictionary.mask(),
                 classif_token_idx=self.dictionary.eos(),
                 sep_token_idx=self.dictionary.eos(),
-                shuffle=getattr(self.args, 'shuffle', False),
+                shuffle=self.shuffle,
                 has_pairs=False,
                 segment_id=self.langs2id[lang],
                 seed=self.seed,
@@ -165,5 +171,5 @@ class CrossLingualLMTask(FairseqTask):
 
         self.datasets[split] = MultiCorpusSampledDataset(dataset_map)
         logger.info('{} {} {} examples'.format(
-            utils.split_paths(self.args.data)[epoch], split, len(self.datasets[split]))
+            utils.split_paths(self.data)[epoch], split, len(self.datasets[split]))
         )
