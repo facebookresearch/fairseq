@@ -14,6 +14,14 @@ class SpaceTokenizer(object):
     def __init__(self, source_lang=None, target_lang=None):
         self.space_tok = re.compile(r"\s+")
 
+    @classmethod
+    def from_args(cls, args):
+        return cls()
+
+    @classmethod
+    def build_tokenizer(cls, args):
+        return cls.from_args(args)
+
     def encode(self, x: str) -> str:
         return self.space_tok.sub(' ', x)
 
