@@ -11,9 +11,18 @@ from . import FairseqOptimizer, register_optimizer
 
 @register_optimizer('adamax')
 class FairseqAdamax(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr, adamax_betas, adamax_eps, weight_decay, no_bias_correction=False):
+        super().__init__()
+        self.lr = lr
+        self.adamax_betas = adamax_betas
+        self.adamax_eps = adamax_eps
+        self.weight_decay = weight_decay
+        self.no_bias_correction = no_bias_correction
         self._optimizer = Adamax(params, **self.optimizer_config)
+
+    @classmethod
+    def from_args(cls, params, args):
+        return cls(params, args.lr, eval(args.adamax_betas), args.adamax_eps, args.weight_decay, args.no_bias_correction)
 
     @staticmethod
     def add_args(parser):
@@ -39,10 +48,10 @@ class FairseqAdamax(FairseqOptimizer):
         """
         return {
             'lr': self.args.lr[0],
-            'betas': eval(self.args.adamax_betas),
-            'eps': self.args.adamax_eps,
-            'weight_decay': self.args.weight_decay,
-            'bias_correction': not self.args.no_bias_correction,
+            'betas': self.adamax_betas,
+            'eps': self.adamax_eps,
+            'weight_decay': self.weight_decay,
+            'bias_correction': not self.no_bias_correction,
         }
 
 
