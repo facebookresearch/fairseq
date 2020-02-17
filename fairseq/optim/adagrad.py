@@ -10,9 +10,15 @@ from . import FairseqOptimizer, register_optimizer
 
 @register_optimizer('adagrad')
 class Adagrad(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr, weight_decay):
+        super().__init__()
+        self.lr = lr
+        self.weight_decay = weight_decay
         self._optimizer = torch.optim.Adagrad(params, **self.optimizer_config)
+
+    @classmethod
+    def from_args(cls, params, args):
+        return cls(params, args.lr, args.weight_decay)
 
     @staticmethod
     def add_args(parser):
@@ -31,8 +37,8 @@ class Adagrad(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'weight_decay': self.args.weight_decay,
+            'lr': self.lr[0],
+            'weight_decay': self.weight_decay,
         }
 
     @property
