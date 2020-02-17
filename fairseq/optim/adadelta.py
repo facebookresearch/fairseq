@@ -12,12 +12,12 @@ from . import FairseqOptimizer, register_optimizer
 class Adadelta(FairseqOptimizer):
     def __init__(self, params, lr, adadelta_rho, adadelta_eps, weight_decay, anneal_eps):
         super().__init__()
-        self._optimizer = torch.optim.Adadelta(params, **self.optimizer_config)
         self.lr = lr
         self.adadelta_rho = adadelta_rho
         self.adadelta_eps = adadelta_eps
         self.weight_decay = weight_decay
         self.anneal_eps = anneal_eps
+        self._optimizer = torch.optim.Adadelta(params, **self.optimizer_config)
 
     @classmethod
     def from_args(cls, params, args):
