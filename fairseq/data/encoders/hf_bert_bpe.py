@@ -19,7 +19,15 @@ class BertBPE(object):
                             help='bpe vocab file.')
         # fmt: on
 
-    def __init__(self, args):
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.bpe_vocab_file, args.bpe_cased)
+
+    @classmethod
+    def build_bpe(cls, args):
+        return cls.from_args(args)
+
+    def __init__(self, bpe_vocab_file, bpe_cased):
         try:
             from pytorch_transformers import BertTokenizer
             from pytorch_transformers.tokenization_utils import clean_up_tokenization
@@ -29,13 +37,13 @@ class BertBPE(object):
                 'with: pip install pytorch-transformers'
             )
 
-        if 'bpe_vocab_file' in args:
+        if bpe_vocab_file:
             self.bert_tokenizer = BertTokenizer(
-                args.bpe_vocab_file,
-                do_lower_case=not args.bpe_cased
+                bpe_vocab_file,
+                do_lower_case=not bpe_cased
             )
         else:
-            vocab_file_name = 'bert-base-cased' if args.bpe_cased else 'bert-base-uncased'
+            vocab_file_name = 'bert-base-cased' if bpe_cased else 'bert-base-uncased'
             self.bert_tokenizer = BertTokenizer.from_pretrained(vocab_file_name)
             self.clean_up_tokenization = clean_up_tokenization
 

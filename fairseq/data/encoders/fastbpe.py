@@ -17,10 +17,18 @@ class fastBPE(object):
                             help='path to fastBPE BPE')
         # fmt: on
 
-    def __init__(self, args):
-        if args.bpe_codes is None:
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.bpe_codes)
+
+    @classmethod
+    def build_bpe(cls, args):
+        return cls.from_args(args)
+
+    def __init__(self, bpe_codes):
+        if bpe_codes is None:
             raise ValueError('--bpe-codes is required for --bpe=subword_nmt')
-        codes = file_utils.cached_path(args.bpe_codes)
+        codes = file_utils.cached_path(bpe_codes)
         try:
             import fastBPE
             self.bpe = fastBPE.fastBPE(codes)

@@ -27,13 +27,18 @@ class GPT2BPE(object):
                             help='path to vocab.bpe')
         # fmt: on
 
-    def __init__(self, args):
-        encoder_json = file_utils.cached_path(
-            getattr(args, 'gpt2_encoder_json', DEFAULT_ENCODER_JSON)
-        )
-        vocab_bpe = file_utils.cached_path(
-            getattr(args, 'gpt2_vocab_bpe', DEFAULT_VOCAB_BPE)
-        )
+    @classmethod
+    def build_bpe(cls, args):
+        return cls.from_args(args)
+
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.gpt2_encoder_json, args.gpt2_vocab_bpe)
+
+    def __init__(self, gpt2_encoder_json, gpt2_vocab_bpe):
+        encoder_json = file_utils.cached_path(gpt2_encoder_json)
+        vocab_bpe = file_utils.cached_path(gpt2_vocab_bpe)
+
         self.bpe = get_encoder(encoder_json, vocab_bpe)
 
     def encode(self, x: str) -> str:
