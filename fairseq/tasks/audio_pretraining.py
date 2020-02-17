@@ -26,8 +26,12 @@ class AudioPretrainingTask(FairseqTask):
         parser.add_argument('--min-sample-size', default=None, type=int,
                             help='min sample size to crop to for batching. default = same as --max-sample-size')
 
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, data, sample_rate, min_sample_size, max_sample_size):
+        super().__init__()
+        self.data = data
+        self.sample_rate = sample_rate
+        self.min_sample_size = min_sample_size
+        self.max_sample_size = max_sample_size
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -36,7 +40,7 @@ class AudioPretrainingTask(FairseqTask):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
-        return cls(args)
+        return cls(args.data, args.sample_rate, args.min_sample_size, args.max_sample_size)
 
     def load_dataset(self, split, **kwargs):
         """Load a given dataset split.
@@ -45,11 +49,11 @@ class AudioPretrainingTask(FairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
 
-        manifest = os.path.join(self.args.data, '{}.tsv'.format(split))
+        manifest = os.path.join(self.data, '{}.tsv'.format(split))
         self.datasets[split] = FileAudioDataset(manifest,
-                                                 sample_rate=self.args.sample_rate,
-                                                 max_sample_size=self.args.max_sample_size,
-                                                 min_sample_size=self.args.min_sample_size)
+                                                 sample_rate=self.sample_rate,
+                                                 max_sample_size=self.max_sample_size,
+                                                 min_sample_size=self.min_sample_size)
 
     @property
     def target_dictionary(self):
