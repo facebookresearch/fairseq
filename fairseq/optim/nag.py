@@ -11,9 +11,16 @@ from . import FairseqOptimizer, register_optimizer
 
 @register_optimizer('nag')
 class FairseqNAG(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, params, lr, momentum, weight_decay):
+        super().__init__()
+        self.lr = lr
+        self.momentum = momentum
+        self.weight_decay = weight_decay
         self._optimizer = NAG(params, **self.optimizer_config)
+
+    @classmethod
+    def from_args(cls, params, args):
+        return cls(params, args.lr, args.momentum, args.weight_decay)
 
     @staticmethod
     def add_args(parser):
@@ -34,9 +41,9 @@ class FairseqNAG(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'momentum': self.args.momentum,
-            'weight_decay': self.args.weight_decay,
+            'lr': self.lr[0],
+            'momentum': self.momentum,
+            'weight_decay': self.weight_decay,
         }
 
 
