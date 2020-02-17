@@ -36,8 +36,7 @@ class FairseqTask(object):
         """
         return criterion.logging_outputs_can_be_summed()
 
-    def __init__(self, args):
-        self.args = args
+    def __init__(self):
         self.datasets = {}
         self.dataset_to_epoch_iter = {}
 
