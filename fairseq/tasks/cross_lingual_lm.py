@@ -22,7 +22,7 @@ from fairseq.data import (
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.multi_corpus_sampled_dataset import MultiCorpusSampledDataset
 from fairseq.tasks import FairseqTask, register_task
-
+from fairseq import utils
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class CrossLingualLMTask(FairseqTask):
     def _load_single_lang_dataset(self, split, epoch):
         loaded_datasets = []
 
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
@@ -165,5 +165,5 @@ class CrossLingualLMTask(FairseqTask):
 
         self.datasets[split] = MultiCorpusSampledDataset(dataset_map)
         logger.info('{} {} {} examples'.format(
-            self.args.data.split(os.pathsep)[epoch], split, len(self.datasets[split]))
+            utils.split_paths(self.args.data)[epoch], split, len(self.datasets[split]))
         )

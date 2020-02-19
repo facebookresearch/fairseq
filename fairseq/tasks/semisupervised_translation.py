@@ -23,7 +23,7 @@ from fairseq.sequence_generator import SequenceGenerator
 
 from .multilingual_translation import MultilingualTranslationTask
 from . import register_task
-
+from fairseq import utils
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
     def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
 
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 

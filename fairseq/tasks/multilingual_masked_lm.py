@@ -27,6 +27,7 @@ from fairseq.data import (
     TokenBlockDataset,
 )
 from fairseq.tasks import FairseqTask, register_task
+from fairseq import utils
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        paths = args.data.split(os.pathsep)
+        paths = utils.split_paths(args.data)
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
         logger.info('dictionary: {} types'.format(len(dictionary)))
@@ -121,7 +122,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
