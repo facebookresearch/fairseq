@@ -191,7 +191,7 @@ def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None):
 
     ensemble = []
     for filename in filenames:
-        if not os.path.exists(filename):
+        if not PathManager.exists(filename):
             raise IOError("Model file not found: {}".format(filename))
         state = load_checkpoint_to_cpu(filename, arg_overrides)
 
