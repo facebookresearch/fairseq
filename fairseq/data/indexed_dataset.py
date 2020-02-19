@@ -4,10 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 from functools import lru_cache
-import os
 import shutil
 import struct
-
+from fairseq.file_io import PathManager
 import numpy as np
 import torch
 
@@ -29,7 +28,7 @@ def infer_dataset_impl(path):
     if IndexedRawTextDataset.exists(path):
         return 'raw'
     elif IndexedDataset.exists(path):
-        with open(index_file_path(path), 'rb') as f:
+        with PathManager.open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
             if magic == IndexedDataset._HDR_MAGIC:
                 return 'cached'
@@ -119,7 +118,7 @@ class IndexedDataset(FairseqDataset):
         self.read_index(path)
 
     def read_index(self, path):
-        with open(index_file_path(path), 'rb') as f:
+        with PathManager.open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
             assert magic == self._HDR_MAGIC, (
                 'Index file doesn\'t match expected format. '
@@ -135,7 +134,7 @@ class IndexedDataset(FairseqDataset):
             self.sizes = read_longs(f, self.s)
 
     def read_data(self, path):
-        self.data_file = open(data_file_path(path), 'rb', buffering=0)
+        self.data_file = PathManager.open(data_file_path(path), 'rb', buffering=0)
 
     def check_index(self, i):
         if i < 0 or i >= self._len:
@@ -171,7 +170,7 @@ class IndexedDataset(FairseqDataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            PathManager.exists(index_file_path(path)) and PathManager.exists(data_file_path(path))
         )
 
     @property
@@ -241,7 +240,7 @@ class IndexedRawTextDataset(FairseqDataset):
         self.size = len(self.tokens_list)
 
     def read_data(self, path, dictionary):
-        with open(path, 'r', encoding='utf-8') as f:
+        with PathManager.open(path, 'r', encoding='utf-8') as f:
             for line in f:
                 self.lines.append(line.strip('\n'))
                 tokens = dictionary.encode_line(
@@ -279,7 +278,7 @@ class IndexedRawTextDataset(FairseqDataset):
 
     @staticmethod
     def exists(path):
-        return os.path.exists(path)
+        return PathManager.exists(path)
 
 
 class IndexedDatasetBuilder(object):
@@ -294,7 +293,7 @@ class IndexedDatasetBuilder(object):
     }
 
     def __init__(self, out_file, dtype=np.int32):
-        self.out_file = open(out_file, 'wb')
+        self.out_file = PathManager.open(out_file, 'wb')
         self.dtype = dtype
         self.data_offsets = [0]
         self.dim_offsets = [0]
@@ -321,7 +320,7 @@ class IndexedDatasetBuilder(object):
         for dim_offset in index.dim_offsets[1:]:
             self.dim_offsets.append(begin + dim_offset)
 
-        with open(data_file_path(another_file), 'rb') as f:
+        with PathManager.open(data_file_path(another_file), 'rb') as f:
             while True:
                 data = f.read(1024)
                 if data:
@@ -331,7 +330,7 @@ class IndexedDatasetBuilder(object):
 
     def finalize(self, index_file):
         self.out_file.close()
-        index = open(index_file, 'wb')
+        index = PathManager.open(index_file, 'wb')
         index.write(b'TNTIDX\x00\x00')
         index.write(struct.pack('<Q', 1))
         index.write(struct.pack('<QQ', code(self.dtype), self.element_size))
@@ -343,7 +342,7 @@ class IndexedDatasetBuilder(object):
 
 
 def _warmup_mmap_file(path):
-    with open(path, 'rb') as stream:
+    with PathManager.open(path, 'rb') as stream:
         while stream.read(100 * 1024 * 1024):
             pass
 
@@ -356,7 +355,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         def writer(cls, path, dtype):
             class _Writer(object):
                 def __enter__(self):
-                    self._file = open(path, 'wb')
+                    self._file = PathManager.open(path, 'wb')
 
                     self._file.write(cls._HDR_MAGIC)
                     self._file.write(struct.pack('<Q', 1))
@@ -395,7 +394,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
             return _Writer()
 
         def __init__(self, path):
-            with open(path, 'rb') as stream:
+            with PathManager.open(path, 'rb') as stream:
                 magic_test = stream.read(9)
                 assert self._HDR_MAGIC == magic_test, (
                     'Index file doesn\'t match expected format. '
@@ -489,13 +488,13 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            PathManager.exists(index_file_path(path)) and PathManager.exists(data_file_path(path))
         )
 
 
 class MMapIndexedDatasetBuilder(object):
     def __init__(self, out_file, dtype=np.int64):
-        self._data_file = open(out_file, 'wb')
+        self._data_file = PathManager.open(out_file, 'wb')
         self._dtype = dtype
         self._sizes = []
 
@@ -513,7 +512,7 @@ class MMapIndexedDatasetBuilder(object):
             self._sizes.append(size)
 
         # Concatenate data
-        with open(data_file_path(another_file), 'rb') as f:
+        with PathManager.open(data_file_path(another_file), 'rb') as f:
             shutil.copyfileobj(f, self._data_file)
 
     def finalize(self, index_file):
