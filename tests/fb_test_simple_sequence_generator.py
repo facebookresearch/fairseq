@@ -9,13 +9,14 @@ import unittest
 
 import tests.utils as test_utils
 import torch
+
 from fairseq.data.dictionary import Dictionary
-from fairseq.fb_simple_sequence_generator import SimpleSequenceGenerator
+from fairseq.fb_simple_sequence_generator import EnsembleModel, SimpleSequenceGenerator
 from fairseq.models.transformer import TransformerModel
 from fairseq.tasks.fairseq_task import FairseqTask
 
 
-DEFAULT_TEST_VOCAB_SIZE = 100
+DEFAULT_TEST_VOCAB_SIZE = 2
 
 
 class DummyTask(FairseqTask):
@@ -61,30 +62,63 @@ def get_dummy_task_and_parser():
     return task, parser
 
 
-class TestJitSimpleSequeneceGenerator(unittest.TestCase):
+class TestJitSequenceGeneratorBase(unittest.TestCase):
+    def assertOutputEqual(self, hypo, pos_probs):
+        pos_scores = torch.FloatTensor(pos_probs).log()
+        self.assertTensorSizeEqual(hypo["positional_scores"], pos_scores)
+        self.assertTensorSizeEqual(pos_scores.numel(), hypo["tokens"].numel())
+
+    def assertTensorSizeEqual(self, t1, t2):
+        self.assertEqual(t1.size(), t2.size(), "size mismatch")
+
     def _test_save_and_load(self, scripted_module):
         with tempfile.NamedTemporaryFile() as f:
             scripted_module.save(f.name)
             torch.jit.load(f.name)
 
+
+class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
+    def setUp(self):
+        self.tgt_dict, self.w1, self.w2, src_tokens, src_lengths, self.model = (
+            test_utils.sequence_generator_setup()
+        )
+        self.task, self.parser = get_dummy_task_and_parser()
+        d = self.task.dictionary
+        eos = d.eos()
+        w1 = 4
+        w2 = 5
+        src_tokens = torch.LongTensor([[w1, w2, eos], [w1, w2, eos]])
+        src_lengths = torch.LongTensor([2, 2])
+        self.encoder_input = {"src_tokens": src_tokens, "src_lengths": src_lengths}
+
+    @unittest.skipIf(
+        torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
+    )
     def test_export_transformer(self):
-        task, parser = get_dummy_task_and_parser()
-        TransformerModel.add_args(parser)
-        args = parser.parse_args([])
-        model = TransformerModel.build_model(args, task)
+        TransformerModel.add_args(self.parser)
+        args = self.parser.parse_args([])
+        model = TransformerModel.build_model(args, self.task)
         torch.jit.script(model)
 
     @unittest.skipIf(
         torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
     )
-    def test_simple_sequence_generator(self):
-        task, parser = get_dummy_task_and_parser()
-        TransformerModel.add_args(parser)
-        args = parser.parse_args([])
-        model = TransformerModel.build_model(args, task)
-        generator = SimpleSequenceGenerator(model, task.tgt_dict, beam_size=2)
-        scripted = torch.jit.script(generator)
-        self._test_save_and_load(scripted)
+    def test_ensemble_sequence_generator(self):
+        TransformerModel.add_args(self.parser)
+        args = self.parser.parse_args([])
+        model = TransformerModel.build_model(args, self.task)
+        generator = SimpleSequenceGenerator([model], self.task.tgt_dict, beam_size=2)
+        scripted_model = torch.jit.script(generator)
+        self._test_save_and_load(scripted_model)
+
+
+class TestJitEnsemble(TestJitSimpleSequeneceGenerator):
+    def test_export_ensemble_model(self):
+        TransformerModel.add_args(self.parser)
+        args = self.parser.parse_args([])
+        model = TransformerModel.build_model(args, self.task)
+        ensemble_models = EnsembleModel([model])
+        torch.jit.script(ensemble_models)
 
 
 class TestSequenceGeneratorBase(unittest.TestCase):
@@ -109,6 +143,9 @@ class TestSequenceGeneratorBase(unittest.TestCase):
         self.assertEqual(t1.ne(t2).long().sum(), 0)
 
 
+@unittest.skip(
+    "Sequence generator only supports Transformer model for now. This unit test is written based on TestIncrementalDecoder model"
+)
 class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
     def setUp(self):
         self.tgt_dict, self.w1, self.w2, src_tokens, src_lengths, self.model = (
@@ -117,8 +154,8 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         self.encoder_input = {"src_tokens": src_tokens, "src_lengths": src_lengths}
 
     def test_with_normalization(self):
-        generator = SimpleSequenceGenerator(self.model, self.tgt_dict, beam_size=2)
-        hypos = generator.generate(self.encoder_input)
+        generator = SimpleSequenceGenerator([self.model], self.tgt_dict, beam_size=2)
+        hypos = generator.forward(self.encoder_input)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -137,7 +174,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         # Sentence 1: unchanged from the normalized case
         # Sentence 2: beams swap order
         generator = SimpleSequenceGenerator(
-            self.model, self.tgt_dict, beam_size=2, normalize_scores=False
+            [self.model], self.tgt_dict, beam_size=2, normalize_scores=False
         )
         hypos = generator.forward(self.encoder_input)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
@@ -157,7 +194,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
     def test_with_lenpen_favoring_short_hypos(self):
         lenpen = 0.6
         generator = SimpleSequenceGenerator(
-            self.model, self.tgt_dict, beam_size=2, len_penalty=lenpen
+            [self.model], self.tgt_dict, beam_size=2, len_penalty=lenpen
         )
         hypos = generator.forward(self.encoder_input)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
@@ -177,7 +214,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
     def test_with_lenpen_favoring_long_hypos(self):
         lenpen = 5.0
         generator = SimpleSequenceGenerator(
-            self.model, self.tgt_dict, beam_size=2, len_penalty=lenpen
+            [self.model], self.tgt_dict, beam_size=2, len_penalty=lenpen
         )
         hypos = generator.forward(self.encoder_input)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2

@@ -4,22 +4,21 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from fairseq import search
-from fairseq import utils
+import torch.nn.functional as F
+from fairseq import search, utils
 from fairseq.models.fairseq_encoder import EncoderOut
+from fairseq.models.transformer import TransformerModel
 from torch import Tensor
 
 
 class SimpleSequenceGenerator(nn.Module):
-    incremental_states: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
-
     def __init__(
         self,
-        model,
+        models,
         tgt_dict,
         beam_size=1,
         normalize_scores=True,
@@ -29,6 +28,8 @@ class SimpleSequenceGenerator(nn.Module):
     ):
         """Generates translations of a given source sentence.
         Args:
+            models (List[~fairseq.models.FairseqModel]): ensemble of models,
+                currently support fairseq.models.TransformerModel for scripting
             beam_size (int, optional): beam width (default: 1)
             normalize_scores (bool, optional): normalize scores by the length
                 of the output (default: True)
@@ -38,7 +39,7 @@ class SimpleSequenceGenerator(nn.Module):
                 produces more unks, >0 produces fewer (default: 0.0)
         """
         super().__init__()
-        self.model = model
+        self.model = EnsembleModel(models)
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
         self.eos = tgt_dict.eos()
@@ -49,12 +50,10 @@ class SimpleSequenceGenerator(nn.Module):
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
         self.temperature = temperature
-        assert temperature > 0, '--temperature must be greater than 0'
+        assert temperature > 0, "--temperature must be greater than 0"
 
         self.search = search.BeamSearch(tgt_dict)
         self.model.eval()
-
-        self.incremental_states = {}
 
     def cuda(self):
         self.model.cuda()
@@ -114,14 +113,16 @@ class SimpleSequenceGenerator(nn.Module):
         beam_size = min(self.beam_size, self.vocab_size - 1)
 
         # compute the encoder output for each beam
-        encoder_out = self.model.encoder.forward(
+        encoder_outs = self.model.forward_encoder(
             src_tokens=encoder_input["src_tokens"],
             src_lengths=encoder_input["src_lengths"],
         )
+        # ensure encoder_outs is a List.
+        assert encoder_outs is not None
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
         new_order = new_order.to(src_tokens.device).long()
-        encoder_out = self.model.encoder.reorder_encoder_out(encoder_out, new_order)
+        encoder_outs = self.model.reorder_encoder_out(encoder_outs, new_order)
 
         # initialize buffers
         scores = torch.zeros(bsz * beam_size, self.maxlen + 1).to(
@@ -155,14 +156,14 @@ class SimpleSequenceGenerator(nn.Module):
         for step in range(self.maxlen + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
-                # self.model.decoder.reorder_incremental_state(
-                #     self.incremental_states, reorder_state
-                # )
-                encoder_out = self.model.encoder.reorder_encoder_out(
-                    encoder_out, reorder_state
+                # self.model.reorder_incremental_state(reorder_state)
+                encoder_outs = self.model.reorder_encoder_out(
+                    encoder_outs, reorder_state
                 )
 
-            lprobs = self._decode(tokens[:, : step + 1], encoder_out, self.temperature)
+            lprobs, avg_attn_scores = self.model.forward_decoder(
+                tokens[:, : step + 1], encoder_outs, self.temperature
+            )
 
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
@@ -224,10 +225,9 @@ class SimpleSequenceGenerator(nn.Module):
                 cand_bbsz_idx[:, :beam_size], mask=eos_mask[:, :beam_size]
             )
             if eos_bbsz_idx.numel() > 0:
-                torch.masked_select(
+                eos_scores = torch.masked_select(
                     cand_scores[:, :beam_size],
                     mask=eos_mask[:, :beam_size],
-                    out=eos_scores,
                 )
                 num_remaining_sent -= self.finalize_hypos(
                     step,
@@ -285,7 +285,9 @@ class SimpleSequenceGenerator(nn.Module):
             BCList = [BeamContainer(elem["score"], elem) for elem in finalized[sent]]
             BCList.sort()
             BCList.reverse()
-            finalized[sent] = torch.jit.annotate(List[Dict[str, Tensor]], [x.elem for x in BCList])
+            finalized[sent] = torch.jit.annotate(
+                List[Dict[str, Tensor]], [x.elem for x in BCList]
+            )
 
         return finalized
 
@@ -322,7 +324,6 @@ class SimpleSequenceGenerator(nn.Module):
         # normalize sentence-level scores
         if self.normalize_scores:
             eos_scores /= (step + 1) ** self.len_penalty
-
         # set() is not supported in script export
         sents_seen: Dict[int, Optional[Tensor]] = {}
         for i in range(bbsz_idx.size()[0]):
@@ -331,6 +332,7 @@ class SimpleSequenceGenerator(nn.Module):
             sent = idx // beam_size
             if sent not in sents_seen:
                 sents_seen[sent] = None
+            # sents_seen.add(sent)
 
             if len(finalized[sent]) < beam_size:
                 finalized[sent].append(
@@ -363,6 +365,185 @@ class SimpleSequenceGenerator(nn.Module):
         tep = (decoder_out[0][:, -1, :].div_(temperature), decoder_out[1])
         probs = self.model.get_normalized_probs(tep, log_probs=True)
         return probs
+
+
+class EnsembleModel(nn.Module):
+    """A wrapper around an ensemble of models."""
+
+    incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]]
+
+    def __init__(self, models):
+        super().__init__()
+        self.models_size = len(models)
+        # method '__len__' is not supported in ModuleList for torch script
+        self.single_model = models[0]
+        self.models = nn.ModuleList(models)
+        self.incremental_states = torch.jit.annotate(
+            List[Dict[str, Dict[str, Optional[Tensor]]]],
+            [
+                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                for i in range(len(self.models))
+            ],
+        )
+
+    def forward(self):
+        pass
+
+    def has_encoder(self):
+        return hasattr(self.single_model, "encoder")
+
+    def has_incremental_states(self):
+        return len(self.incremental_states[0]) != 0
+
+    def max_decoder_positions(self):
+        return min(m.max_decoder_positions() for m in self.models)
+
+    @torch.jit.export
+    def forward_encoder(self, src_tokens, src_lengths):
+        if not self.has_encoder():
+            return None
+        return [
+            model.encoder(src_tokens=src_tokens, src_lengths=src_lengths)
+            for model in self.models
+        ]
+
+    @torch.jit.export
+    def forward_decoder(
+        self, tokens, encoder_outs: List[EncoderOut], temperature: float = 1.0
+    ):
+
+        log_probs = []
+        avg_attn: Optional[Tensor] = None
+        for i, model in enumerate(self.models):
+            # model = self.models[i]
+            encoder_out = encoder_outs[i]
+            incremental_state = self.incremental_states[i]
+            probs, attn = self._decode_one(
+                tokens,
+                model,
+                encoder_out,
+                incremental_state,
+                log_probs=True,
+                temperature=temperature,
+            )
+            log_probs.append(probs)
+            if attn is not None:
+                if avg_attn is None:
+                    avg_attn = attn
+                else:
+                    avg_attn.add_(attn)
+        avg_probs = torch.logsumexp(torch.stack(log_probs, dim=0), dim=0) - math.log(
+            self.models_size
+        )
+        if avg_attn is not None:
+            avg_attn.div_(self.models_size)
+        return avg_probs, avg_attn
+
+    @torch.jit.export
+    def _decode_one(
+        self,
+        tokens,
+        model: TransformerModel,
+        encoder_out: EncoderOut,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        log_probs: bool,
+        temperature: float = 1.0,
+    ):
+        if self.has_incremental_states():
+            decoder_out = model.decoder.forward(
+                tokens, encoder_out=encoder_out, incremental_state=incremental_state
+            )
+        else:
+            decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+        # Attention is not used in this version of sequence generator. And
+        # variable type in the torchscript need to be static. So attention part
+        # is commented out. Currently only supporting Dict type output
+        attn = decoder_out[1]["attn"][0]
+        if attn is not None:
+            attn = attn[:, -1, :]
+        # if isinstance(attn_holder, dict):
+        #     attn = attn_holder.get('attn', None)
+        # if isinstance(attn, list):
+        #     attn = attn_holder[0]
+        # if attn is not None:
+        #     attn = attn[:, -1, :]
+
+        decoder_out_tuple = (decoder_out[0][:, -1, :].div_(temperature), decoder_out[1])
+        probs = self.get_normalized_probs(
+                model, decoder_out_tuple, log_probs=True, sample=None
+            )
+        return probs, attn
+
+    @torch.jit.export
+    def reorder_encoder_out(self, encoder_outs: List[EncoderOut], new_order):
+        """
+        Reorder encoder output according to *new_order*.
+
+        Args:
+            encoder_out: output from the ``forward()`` method
+            new_order (LongTensor): desired order
+
+        Returns:
+            *encoder_out* rearranged according to *new_order*
+        """
+        new_outs: List[EncoderOut] = []
+        if not self.has_encoder():
+            return new_outs
+        for i, model in enumerate(self.models):
+            new_outs.append(
+                model.encoder.reorder_encoder_out(encoder_outs[i], new_order)
+            )
+        return new_outs
+
+    def reorder_incremental_state(self, new_order):
+        if not self.has_incremental_states():
+            return
+        for i, model in enumerate(self.models):
+            model.decoder.reorder_incremental_state(
+                self.incremental_states[i], new_order
+            )
+
+    # Since get_normalized_probs is in the Fairseq Model which is not scriptable,
+    # I rewrite the get_normalized_probs to support TransformerModel
+    @torch.jit.export
+    def get_normalized_probs(
+        self,
+        model: TransformerModel,
+        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        log_probs: bool,
+        sample: Optional[Dict[str, Tensor]] = None,
+    ):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        if hasattr(model, "decoder"):
+            if (
+                hasattr(model.decoder, "adaptive_softmax")
+                and model.decoder.adaptive_softmax is not None
+            ):
+                if sample is not None:
+                    assert "target" in sample
+                    target = sample["target"]
+                else:
+                    target = None
+                out = model.decoder.adaptive_softmax.get_log_prob(
+                    net_output[0], target=target
+                )
+                return out.exp_() if not log_probs else out
+
+            logits = net_output[0]
+            if log_probs:
+                return utils.log_softmax(
+                    logits, dim=-1, onnx_trace=model.decoder.onnx_trace
+                )
+            else:
+                return utils.softmax(
+                    logits, dim=-1, onnx_trace=model.decoder.onnx_trace
+                )
+        elif torch.is_tensor(net_output):
+            logits = net_output.float()
+            if log_probs:
+                return F.log_softmax(logits, dim=-1)
+            else:
+                return F.softmax(logits, dim=-1)
 
 
 @torch.jit.script
