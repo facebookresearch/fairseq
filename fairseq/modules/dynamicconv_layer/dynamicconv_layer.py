@@ -29,7 +29,7 @@ class dynamicconvFunction(Function):
         outputs = dynamicconv_cuda.backward(
                 grad_output.contiguous(),
                 ctx.padding_l,
-                *ctx.saved_variables)
+                *ctx.saved_tensors)
         grad_input, grad_weights = outputs
         return grad_input, grad_weights, None
 
