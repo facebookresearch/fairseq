@@ -20,7 +20,7 @@ from fairseq.models import FairseqMultiModel
 from fairseq.tasks.translation import load_langpair_dataset
 
 from . import FairseqTask, register_task
-
+from fairseq import utils
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ class MultilingualTranslationTask(FairseqTask):
         # load dictionaries
         dicts = OrderedDict()
         for lang in sorted_langs:
-            paths = args.data.split(os.pathsep)
+            paths = utils.split_paths(args.data)
             assert len(paths) > 0
             dicts[lang] = Dictionary.load(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
             if len(dicts) > 0:
@@ -190,7 +190,7 @@ class MultilingualTranslationTask(FairseqTask):
     def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
 
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
