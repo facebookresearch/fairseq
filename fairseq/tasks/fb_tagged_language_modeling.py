@@ -21,6 +21,7 @@ from fairseq.data import (
 from fairseq.tasks import register_task
 
 from fairseq.tasks.language_modeling import LanguageModelingTask
+from fairseq import utils
 
 
 class ds_name_getter:
@@ -99,7 +100,7 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
 
         if self.args.multiple_datasets:

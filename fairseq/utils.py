@@ -26,6 +26,10 @@ from torch import Tensor
 logger = logging.getLogger(__name__)
 
 
+def split_paths(paths: str) -> List[str]:
+    return paths.split(os.pathsep) if "://" not in paths else paths.split("|")
+
+
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     from fairseq import checkpoint_utils
 
