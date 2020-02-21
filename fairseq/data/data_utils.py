@@ -191,7 +191,7 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
             'skip this example with --skip-invalid-size-inputs-valid-test'
         ).format(ignored[0], dataset.size(ignored[0]), max_positions))
     if len(ignored) > 0:
-        logger.warn((
+        logger.warning((
             '{} samples have invalid sizes and will be skipped, '
             'max_positions={}, first few sample ids={}'
         ).format(len(ignored), max_positions, ignored[:10]))

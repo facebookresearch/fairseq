@@ -135,6 +135,7 @@ class DiverseBeamSearch(Search):
         # initialize diversity penalty
         if self.diversity_buf is None:
             self.diversity_buf = lprobs.new()
+        self.diversity_buf.resize_(lprobs[:, 0, :].size())
         torch.zeros(lprobs[:, 0, :].size(), out=self.diversity_buf)
 
         scores_G, indices_G, beams_G = [], [], []
@@ -242,6 +243,7 @@ class Sampling(Search):
 
         # sample
         if step == 0:
+            self.indices_buf.resize_(bsz, beam_size)
             self.indices_buf = torch.multinomial(
                 probs.view(bsz, -1),
                 beam_size,
@@ -249,6 +251,7 @@ class Sampling(Search):
                 out=self.indices_buf,
             ).view(bsz, beam_size)
         else:
+            self.indices_buf.resize_(bsz, beam_size)
             self.indices_buf = torch.multinomial(
                 probs.view(bsz * beam_size, -1),
                 1,
@@ -280,6 +283,7 @@ class Sampling(Search):
         if step == 0:
             self.beams_buf = self.indices_buf.new_zeros(bsz, beam_size)
         else:
+            self.beams_buf.resize_(beam_size)
             self.beams_buf = torch.arange(0, beam_size, out=self.beams_buf).repeat(bsz, 1)
             # make scores cumulative
             self.scores_buf.add_(
