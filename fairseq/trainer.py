@@ -55,7 +55,7 @@ class Trainer(object):
         self._criterion = self._criterion.to(device=self.device)
         self._model = self._model.to(device=self.device)
 
-        self._dummy_batch = None
+        self._dummy_batch = "DUMMY"  # indicates we don't have a dummy batch at first
         self._lr_scheduler = None
         self._num_updates = 0
         self._optim_history = None
@@ -420,6 +420,9 @@ class Trainer(object):
     @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
+        if self._dummy_batch is None:
+            self._dummy_batch = sample
+
         with torch.no_grad():
             self.model.eval()
             self.criterion.eval()
@@ -542,6 +545,13 @@ class Trainer(object):
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
     def _prepare_sample(self, sample):
+        if sample == "DUMMY":
+            raise Exception(
+                "Trying to use an uninitialized 'dummy' batch. This usually indicates "
+                "that the total number of batches is smaller than the number of "
+                "participating GPUs. Try reducing the batch size or using fewer GPUs."
+            )
+
         if sample is None or len(sample) == 0:
             return None
 
