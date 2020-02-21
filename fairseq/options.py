@@ -113,6 +113,13 @@ def parse_args_and_arch(
 
     from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
 
+    # Before creating the true parser, we need to import optional user module
+    # in order to eagerly import custom tasks, optimizers, architectures, etc.
+    usr_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    usr_parser.add_argument("--user-dir", default=None)
+    usr_args, _ = usr_parser.parse_known_args(input_args)
+    utils.import_user_module(usr_args)
+
     if modify_parser is not None:
         modify_parser(parser)
 

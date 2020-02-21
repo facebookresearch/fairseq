@@ -5,9 +5,12 @@
 
 import torch
 
-from fairseq import metrics, modules, utils
+from fairseq import metrics, utils
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
+
+from .logsumexp_moe import LogSumExpMoE
+from .mean_pool_gating_network import MeanPoolGatingNetwork
 
 
 @register_task('translation_moe')
@@ -100,7 +103,7 @@ class TranslationMoETask(TranslationTask):
                 else:
                     raise ValueError('Must specify --mean-pool-gating-network-dropout')
 
-                model.gating_network = modules.MeanPoolGatingNetwork(
+                model.gating_network = MeanPoolGatingNetwork(
                     encoder_dim, args.num_experts, dropout,
                 )
             else:
@@ -171,7 +174,7 @@ class TranslationMoETask(TranslationTask):
             loss = -get_lprob_yz(winners)
         else:
             lprob_yz = get_lprob_yz()  # B x K
-            loss = -modules.LogSumExpMoE.apply(lprob_yz, prob_z_xy, 1)
+            loss = -LogSumExpMoE.apply(lprob_yz, prob_z_xy, 1)
 
         loss = loss.sum()
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
