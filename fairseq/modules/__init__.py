@@ -13,7 +13,6 @@ from .dynamic_convolution import DynamicConv, DynamicConv1dTBC
 from .dynamic_crf_layer import DynamicCRF
 from .gelu import gelu, gelu_accurate
 from .grad_multiply import GradMultiply
-from .highway import Highway
 from .layer_norm import LayerNorm
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .lightweight_convolution import LightweightConv, LightweightConv1dTBC
@@ -43,7 +42,6 @@ __all__ = [
     'gelu',
     'gelu_accurate',
     'GradMultiply',
-    'Highway',
     'LayerNorm',
     'LearnedPositionalEmbedding',
     'LightweightConv1dTBC',
