@@ -1,6 +1,7 @@
 import argparse
 import os.path as op
 import os
+import sys
 
 from typing import List
 import time
@@ -24,26 +25,29 @@ parser.add_argument('--port', type=int, default=DEFAULT_PORT,
 #                    help='root path to data')
 parser.add_argument('--src-file', type=str,
                     help='Source file')
-parser.add_argument('--ref-file', type=str,
+parser.add_argument('--tgt-file', type=str,
                     help='Target file')
 parser.add_argument('--debug', action='store_true', help='debug mode')
 
 parser.add_argument('--data-type', type=str, default="text", choices=["text", "speech"],
+                    help='Type of data to evaluate')
+parser.add_argument('--tokenizer', default="13a", choices=["none", "13a"],
                     help='Type of data to evaluate')
 args, _ = parser.parse_known_args()
 
 
 class SimulSTScorer(object):
     def __init__(self, args):
-        self.data_type=args.data_type
+        self.data_type = args.data_type
+        self.tokenizer = args.tokenizer
         if args.data_type == "text":
-            self.data = {"src" : args.src_file, "ref" : args.ref_file}
-            self.references = self._load_from_file(args.ref_file)
+            self.data = {"src" : args.src_file, "ref" : args.tgt_file}
+            self.references = self._load_from_file(args.tgt_file)
             self.data_loader = TextDataLoader
         elif args.data_type == "speech":
-            assert args.ref_file is not None
-            self.data = {"src" : args.ref_file, "ref" : args.ref_file}
-            self.references = self._load_from_json(args.ref_file)
+            assert args.tgt_file is not None
+            self.data = {"src" : args.tgt_file, "ref" : args.tgt_file}
+            self.references = self._load_from_json(args.tgt_file)
             self.data_loader = AudioDataLoader
         else:
             raise NotImplementedError
@@ -108,7 +112,7 @@ class SimulSTScorer(object):
 
         bleu_score = BLEUScorer(
             sent_level=False, corpus_level=True,
-            extra_args={'bleu_tokenizer': '13a'}
+            extra_args={'bleu_tokenizer': self.tokenizer}
         ).score(translations, [self.references])
         ter_score = TERScorer(sent_level=False, corpus_level=True).score(
             translations, [self.references]
@@ -168,7 +172,7 @@ def start_server(hostname=DEFAULT_HOSTNAME, port=DEFAULT_PORT, debug=False):
         (r'/send', SendHypothesisHandler),
     ], debug=debug)
     app.listen(port, max_buffer_size=1024 ** 3)
-    print("Evaluation Server Started")
+    sys.stdout.write(f"Evaluation Server Started. Listening to port {port}\n")
     ioloop.IOLoop.current().start()
 
 

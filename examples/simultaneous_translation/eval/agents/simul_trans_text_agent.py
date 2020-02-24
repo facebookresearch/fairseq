@@ -112,13 +112,13 @@ class SimulTransTextAgent(Agent):
     def policy(self, states):
         # Read and Write policy
 
-        if states["finished"]:
-            # Finish the hypo by sending eos to server
-            return self.finish_action()
         
         action = None
 
         while action is None:
+            if states["finished"]:
+                # Finish the hypo by sending eos to server
+                return self.finish_action()
             # Model make decision given current states
             decision = self.model.decision_from_states(states)
 
