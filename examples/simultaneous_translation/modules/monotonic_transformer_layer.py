@@ -16,7 +16,7 @@ class TransformerMonotonicEncoderLayer(TransformerEncoderLayer):
 
     def forward(self, x, encoder_padding_mask):
         seq_len, _, _ = x.size()
-        attn_mask = x.new_ones([seq_len, seq_len]).tril(-1)
+        attn_mask = x.new_ones([seq_len, seq_len]).triu(1)
         attn_mask = attn_mask.masked_fill(attn_mask.bool(), float('-inf'))
         return super().forward(x, encoder_padding_mask, attn_mask)
 
