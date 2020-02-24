@@ -48,6 +48,12 @@ DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 
+@register_model('transformer_unidirectional')
+class TransformerUnidirectionalModel(TransformerModel):
+    @classmethod
+    def build_encoder(cls, args, src_dict, embed_tokens):
+        return TransformerMonotonicEncoder(args, src_dict, embed_tokens)
+
 @register_model('transformer_monotonic')
 class TransformerMonotonicModel(TransformerModel):
 
@@ -259,7 +265,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
         for i, layer in enumerate(self.layers):
              
-            x, attn = layer(
+            x, attn, _ = layer(
                 x=x,
                 encoder_out=encoder_out,
                 encoder_padding_mask=encoder_padding_mask,
@@ -279,7 +285,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        return x, {'attn': attn_list, 'inner_states': inner_states, "attn_list": attn_list, "encoder_out": encoder_out}
+        return x, {"attn_list": attn_list, "encoder_out": encoder_out, "encoder_padding_mask": encoder_padding_mask}
 
     @staticmethod
     def increase_monotonic_step_buffer(encoder_out, num_layers, num_heads):
@@ -370,3 +376,11 @@ def transformer_monotonic_vaswani_wmt_en_de_big(args):
 def transformer_monotonic_vaswani_wmt_en_fr_big(args):
     args.dropout = getattr(args, 'dropout', 0.1)
     transformer_monotonic_vaswani_wmt_en_de_big(args)
+            
+@register_model_architecture(
+    'transformer_unidirectional',
+    'transformer_unidirectional_iwslt_de_en'
+)
+def transformer_unidirectional_iwslt_de_en(args):
+    transformer_iwslt_de_en(args)
+
