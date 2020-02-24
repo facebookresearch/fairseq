@@ -176,6 +176,9 @@ class DiverseBeamSearch(Search):
 
 
 class Sampling(Search):
+    sampling_topk: int
+    sampling_topp: float
+
     def __init__(self, tgt_dict, sampling_topk=-1, sampling_topp=-1.0):
         super().__init__(tgt_dict)
         self.sampling_topk = sampling_topk
@@ -226,8 +229,9 @@ class Sampling(Search):
         trimed_probs = truncated_probs.masked_fill_(trim_mask, 0)
         return trimed_probs, truncated_indices
 
-    def step(self, step, lprobs, scores):
-        super()._init_buffers(lprobs)
+    @torch.jit.export
+    def step(self, step: int, lprobs, scores):
+        self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
 
         if step == 0:
@@ -245,11 +249,13 @@ class Sampling(Search):
         else:
             probs = lprobs.exp_()
 
+            # dummy data to be consistent with true branch for type check
+            top_indices = torch.empty(0)
         # sample
         if step == 0:
             self.indices_buf.resize_(bsz, beam_size)
             self.indices_buf = torch.multinomial(
-                probs.view(bsz, -1), beam_size, replacement=True, out=self.indices_buf
+                probs.view(bsz, -1), beam_size, replacement=True,
             ).view(bsz, beam_size)
         else:
             self.indices_buf.resize_(bsz, beam_size)
@@ -265,8 +271,8 @@ class Sampling(Search):
             probs = probs.expand(bsz, beam_size, -1)
 
         # gather scores
-        torch.gather(
-            probs, dim=2, index=self.indices_buf.unsqueeze(-1), out=self.scores_buf
+        self.scores_buf = torch.gather(
+            probs, dim=2, index=self.indices_buf.unsqueeze(-1)
         )
         self.scores_buf = self.scores_buf.log_().view(bsz, -1)
 
@@ -282,7 +288,7 @@ class Sampling(Search):
             self.beams_buf = self.indices_buf.new_zeros(bsz, beam_size)
         else:
             self.beams_buf.resize_(beam_size)
-            self.beams_buf = torch.arange(0, beam_size, out=self.beams_buf).repeat(
+            self.beams_buf = torch.arange(0, beam_size).repeat(
                 bsz, 1
             )
             # make scores cumulative
