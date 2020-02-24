@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Optional
+from typing import Optional, List
 
 import torch
 import torch.nn as nn
@@ -319,8 +319,8 @@ class DiverseSiblingsSearch(Search):
         self.diversity_rate = diversity_rate
         self.beam = BeamSearch(tgt_dict)
 
-    def step(self, step, lprobs, scores):
-        super()._init_buffers(lprobs)
+    def step(self, step: int, lprobs, scores):
+        self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
         k = min(
             # Take the best 2 x beam_size predictions. We'll choose the first
@@ -328,9 +328,11 @@ class DiverseSiblingsSearch(Search):
             beam_size * 2,
             lprobs.view(bsz, -1).size(1) - 1,  # -1 so we never select pad
         )
-        s_list = [lprobs.new() for i in range(beam_size)]
+        s_list: List[Tensor]
+        i_list: List[Tensor]
+        s_list = [torch.empty(0).to(lprobs) for i in range(beam_size)]
         i_list = [torch.LongTensor().to(device=lprobs.device) for i in range(beam_size)]
-        sibling_score = lprobs.new(range(1, k + 1)) * self.diversity_rate
+        sibling_score = torch.arange(1, k + 1).to(lprobs) * self.diversity_rate
 
         if step == 0:
             return self.beam.step(step, lprobs, scores)
@@ -347,16 +349,15 @@ class DiverseSiblingsSearch(Search):
         # 4/ Choose top K hypotheses
         indices = torch.stack(i_list, dim=1).view(bsz, -1)
 
-        final_scores = lprobs.new()
+        final_scores = torch.empty(0).to(lprobs)
         final_indices = torch.LongTensor().to(device=lprobs.device)
         final_beams = torch.LongTensor().to(device=lprobs.device)
-        torch.topk(
+        (final_scores, final_indices) = torch.topk(
             torch.stack(s_list, dim=1).view(bsz, -1),
             k,
-            out=(final_scores, final_indices),
         )
 
-        torch.div(final_indices, k, out=final_beams)
+        final_beams = torch.div(final_indices, k)
 
         for i in range(bsz):
             final_indices[i] = indices[i][final_indices[i]]

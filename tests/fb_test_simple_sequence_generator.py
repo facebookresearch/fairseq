@@ -138,6 +138,11 @@ class TestExportSearch(unittest.TestCase):
         search_strategy = search.Sampling(self.tgt_dict, sampling_topp=low_sampling_topp)
         torch.jit.script(search_strategy)
 
+    def test_export_diverse_siblings_search(self):
+        search_strategy = search.DiverseSiblingsSearch(
+            self.tgt_dict, diversity_rate=0.5
+        )
+        torch.jit.script(search_strategy)
 
 class TestSequenceGeneratorBase(unittest.TestCase):
     def assertHypoTokens(self, hypo, tokens):
