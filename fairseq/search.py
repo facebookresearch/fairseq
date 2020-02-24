@@ -4,9 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from typing import Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 
 class Search(nn.Module):
@@ -60,7 +62,7 @@ class BeamSearch(Search):
         super().__init__(tgt_dict)
 
     @torch.jit.export
-    def step(self, step: int, lprobs, scores):
+    def step(self, step: int, lprobs, scores: Optional[Tensor]):
         self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
 
@@ -70,6 +72,7 @@ class BeamSearch(Search):
             lprobs = lprobs[:, ::beam_size, :].contiguous()
         else:
             # make probs contain cumulative scores for each hypothesis
+            assert scores is not None
             lprobs.add_(scores[:, :, step - 1].unsqueeze(-1))
 
         top_prediction = torch.topk(
@@ -97,7 +100,7 @@ class LengthConstrainedBeamSearch(Search):
         self.max_len_b = max_len_b
         self.beam = BeamSearch(tgt_dict)
 
-    def step(self, step, lprobs, scores):
+    def step(self, step: int, lprobs, scores):
         min_lens = self.min_len_a * self.src_lengths + self.min_len_b
         max_lens = self.max_len_a * self.src_lengths + self.max_len_b
         lprobs[step < min_lens, :, self.eos] = -math.inf
@@ -120,11 +123,12 @@ class DiverseBeamSearch(Search):
         super().__init__(tgt_dict)
         self.num_groups = num_groups
         self.diversity_strength = -diversity_strength
-        self.diversity_buf = None
+        self.diversity_buf = torch.empty(0)
         self.beam = BeamSearch(tgt_dict)
 
-    def step(self, step, lprobs, scores):
-        super()._init_buffers(lprobs)
+    @torch.jit.export
+    def step(self, step: int, lprobs, scores):
+        self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
         if beam_size % self.num_groups != 0:
             raise ValueError(
@@ -161,17 +165,13 @@ class DiverseBeamSearch(Search):
 
             # update diversity penalty
             self.diversity_buf.scatter_add_(
-                1, indices_buf, self.diversity_buf.new_ones(indices_buf.size())
+                1, indices_buf, torch.ones(indices_buf.size()).to(self.diversity_buf)
             )
 
         # interleave results from different groups
-        self.scores_buf = torch.stack(scores_G, dim=2, out=self.scores_buf).view(
-            bsz, -1
-        )
-        self.indices_buf = torch.stack(indices_G, dim=2, out=self.indices_buf).view(
-            bsz, -1
-        )
-        self.beams_buf = torch.stack(beams_G, dim=2, out=self.beams_buf).view(bsz, -1)
+        self.scores_buf = torch.stack(scores_G, dim=2).view(bsz, -1)
+        self.indices_buf = torch.stack(indices_G, dim=2).view(bsz, -1)
+        self.beams_buf = torch.stack(beams_G, dim=2).view(bsz, -1)
         return self.scores_buf, self.indices_buf, self.beams_buf
 
 

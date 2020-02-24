@@ -9,7 +9,7 @@ import unittest
 
 import tests.utils as test_utils
 import torch
-
+from fairseq import search
 from fairseq.data.dictionary import Dictionary
 from fairseq.fb_simple_sequence_generator import EnsembleModel, SimpleSequenceGenerator
 from fairseq.models.transformer import TransformerModel
@@ -119,6 +119,19 @@ class TestJitEnsemble(TestJitSimpleSequeneceGenerator):
         model = TransformerModel.build_model(args, self.task)
         ensemble_models = EnsembleModel([model])
         torch.jit.script(ensemble_models)
+
+
+class TestExportSearch(unittest.TestCase):
+    def setUp(self):
+        task, _ = get_dummy_task_and_parser()
+        self.tgt_dict = task.tgt_dict
+        self.min_top1_prob = 0.4
+
+    def test_export_diverse_bs(self):
+        search_strategy = search.DiverseBeamSearch(
+            self.tgt_dict, num_groups=2, diversity_strength=0.0
+        )
+        torch.jit.script(search_strategy)
 
 
 class TestSequenceGeneratorBase(unittest.TestCase):
