@@ -1,7 +1,7 @@
 # **Baseline Simultaneous Translation**
 ---
 
-This is an instruction of training and evaluating a *wait-k* simultanoes LSTM model on MUST-C English-Gernam Dataset.
+You can find here instructions for training and evaluating a *wait-k* simultaneous LSTM model on the MUST-C English-German dataset.
 
 [STACL: Simultaneous Translation with Implicit Anticipation and Controllable Latency using Prefix-to-Prefix Framework](https://https://www.aclweb.org/anthology/P19-1289/)
 
@@ -137,7 +137,7 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
 ## Evaluation
 ---
 ### Evaluation Server
-For text translation models, the server is set up as follow give input file and reference file. 
+For text translation models, the server needs an input file and reference file. 
 
 ``` shell
 python ./eval/server.py \
@@ -156,7 +156,7 @@ python ./eval/server.py \
 ```
 
 ### Decode and Evaluate with Client
-Once the server is set up, run client to evaluate translation quality and latency.
+Once the server is set up, run the client to evaluate translation quality and latency.
 ```shell
 # TEXT
 python $fairseq_dir/examples/simultaneous_translation/evaluate.py \
