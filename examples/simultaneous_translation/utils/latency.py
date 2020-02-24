@@ -1,4 +1,6 @@
 import torch
+
+
 class LatencyMetric(object):
     @staticmethod
     def length_from_padding_mask(padding_mask, batch_first: bool = False):
@@ -172,6 +174,62 @@ class DifferentiableAverageLagging(LatencyMetric):
         return DAL
 
 
+class LatencyMetricVariance(LatencyMetric):
+    def prepare_latency_metric(
+        self,
+        delays,
+        src_lens,
+        target_padding_mask=None,
+        batch_first: bool = True,
+        start_from_zero: bool = True
+    ):
+        assert batch_first
+        assert len(delays.size()) == 3
+        assert len(src_lens.size()) == 2
+
+        if start_from_zero:
+            delays = delays + 1
+
+        # convert to batch_last
+        bsz, num_heads_x_layers, tgt_len = delays.size()
+        bsz_1, _ = src_lens.size()
+        assert bsz == bsz_1
+
+        if target_padding_mask is not None:
+            bsz_2, tgt_len_1 = target_padding_mask.size()
+            assert tgt_len == tgt_len_1
+            assert bsz == bsz_2
+
+        if target_padding_mask is None:
+            tgt_lens = tgt_len * delays.new_ones([bsz, tgt_len]).float()
+        else:
+            # batch_size, 1
+            tgt_lens = self.length_from_padding_mask(target_padding_mask, True).float()
+            delays = delays.masked_fill(target_padding_mask.unsqueeze(1), 0)
+
+        return delays, src_lens, tgt_lens, target_padding_mask
+
+
+class VarianceDelay(LatencyMetricVariance):
+    @staticmethod
+    def cal_metric(delays, src_lens, tgt_lens, target_padding_mask):
+        """
+        delays : bsz, num_heads_x_layers, tgt_len
+        src_lens : bsz, 1
+        target_lens : bsz, 1
+        target_padding_mask: bsz, tgt_len or None
+        """
+        if delays.size(1) == 1:
+            return delays.new_zeros([1])
+
+        variance_delays = delays.var(dim=1)
+
+        if target_padding_mask is not None:
+            variance_delays.masked_fill_(target_padding_mask, 0)
+
+        return variance_delays.sum(dim=1, keepdim=True) / tgt_lens
+
+
 class LatencyInference(object):
     def __init__(self, start_from_zero=True):
         self.metric_calculator = {
@@ -215,6 +273,7 @@ class LatencyInference(object):
             ).t()
 
         return return_dict
+
 
 class LatencyTraining(object):
     def __init__(

@@ -54,9 +54,9 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
                             help="")
         parser.add_argument("--latency-weight-var", default=0., type=float, metavar='D',
                             help="")
-        parser.add_argument("--latency-weight-var-type", default="differentiable_average_lagging",
+        parser.add_argument("--latency-weight-avg-type", default="differentiable_average_lagging",
                             help="")
-        parser.add_argument("--latency-weight-avg-type", default="variance_delay",
+        parser.add_argument("--latency-weight-var-type", default="variance_delay",
                             help="")
         parser.add_argument("--latency-weight-non-trivial", default=0., type=float, metavar='D',
                             help="")
@@ -100,8 +100,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
                 .eq(self.padding_idx)
             )
             source_padding_mask = (
-                net_output[-1]["encoder_out"]
-                .get("encoder_padding_mask", None)
+                net_output[-1].get("encoder_padding_mask", None)
             )
 
             latency_loss = self.latency_train.loss(
