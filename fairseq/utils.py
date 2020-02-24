@@ -26,6 +26,10 @@ from torch import Tensor
 logger = logging.getLogger(__name__)
 
 
+def split_paths(paths: str) -> List[str]:
+    return paths.split(os.pathsep) if "://" not in paths else paths.split("|")
+
+
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
     from fairseq import checkpoint_utils
 
@@ -190,6 +194,7 @@ def buffered_arange(max):
     if not hasattr(buffered_arange, "buf"):
         buffered_arange.buf = torch.LongTensor()
     if max > buffered_arange.buf.numel():
+        buffered_arange.buf.resize_(max)
         torch.arange(max, out=buffered_arange.buf)
     return buffered_arange.buf[:max]
 
@@ -404,6 +409,17 @@ def set_torch_seed(seed):
     assert isinstance(seed, int)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
+
+
+@contextlib.contextmanager
+def with_torch_seed(seed):
+    assert isinstance(seed, int)
+    rng_state = torch.get_rng_state()
+    cuda_rng_state = torch.cuda.get_rng_state()
+    set_torch_seed(seed)
+    yield
+    torch.set_rng_state(rng_state)
+    torch.cuda.set_rng_state(cuda_rng_state)
 
 
 def parse_alignment(line):

@@ -375,6 +375,7 @@ class TestTranslation(unittest.TestCase):
                 preprocess_translation_data(data_dir)
                 train_translation_model(data_dir, 'transformer_iwslt_de_en', [
                     '--task', 'translation_moe',
+                    '--user-dir', 'examples/translation_moe/src',
                     '--method', 'hMoElp',
                     '--mean-pool-gating-network',
                     '--num-experts', '3',
@@ -385,6 +386,7 @@ class TestTranslation(unittest.TestCase):
                 ])
                 generate_main(data_dir, [
                     '--task', 'translation_moe',
+                    '--user-dir', 'examples/translation_moe/src',
                     '--method', 'hMoElp',
                     '--mean-pool-gating-network',
                     '--num-experts', '3',

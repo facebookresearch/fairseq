@@ -199,7 +199,7 @@ class TranslationTask(FairseqTask):
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
 
-        paths = args.data.split(os.pathsep)
+        paths = utils.split_paths(args.data)
         assert len(paths) > 0
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
@@ -224,7 +224,7 @@ class TranslationTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 

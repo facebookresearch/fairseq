@@ -13,16 +13,22 @@ import itertools as it
 import torch
 from fairseq import utils
 from examples.speech_recognition.data.replabels import unpack_replabels
-from wav2letter.common import create_word_dict, load_words
-from wav2letter.criterion import CpuViterbiPath, get_data_ptr_as_bytes
-from wav2letter.decoder import (
-    CriterionType,
-    DecoderOptions,
-    KenLM,
-    SmearingMode,
-    Trie,
-    WordLMDecoder,
-)
+
+try:
+    from wav2letter.common import create_word_dict, load_words
+    from wav2letter.criterion import CpuViterbiPath, get_data_ptr_as_bytes
+    from wav2letter.decoder import (
+        CriterionType,
+        DecoderOptions,
+        KenLM,
+        SmearingMode,
+        Trie,
+        WordLMDecoder,
+    )
+except ImportError:
+    # wav2letter is a required dependency for the speech_recognition
+    # example, but don't break on import
+    pass
 
 
 class W2lDecoder(object):

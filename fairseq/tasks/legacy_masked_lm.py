@@ -21,6 +21,7 @@ from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.legacy.masked_lm_dictionary import BertDictionary
 from fairseq.tasks import FairseqTask, register_task
+from fairseq import utils
 
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ class LegacyMaskedLMTask(FairseqTask):
     def setup_task(cls, args, **kwargs):
         """Setup the task.
         """
-        paths = args.data.split(os.pathsep)
+        paths = utils.split_paths(args.data)
         assert len(paths) > 0
         dictionary = BertDictionary.load(os.path.join(paths[0], 'dict.txt'))
         logger.info('dictionary: {} types'.format(len(dictionary)))
@@ -84,7 +85,7 @@ class LegacyMaskedLMTask(FairseqTask):
         """
         loaded_datasets = []
 
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
         logger.info("data_path", data_path)

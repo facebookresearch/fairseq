@@ -4,9 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from typing import Optional, List
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 
 class Search(nn.Module):
@@ -60,7 +62,7 @@ class BeamSearch(Search):
         super().__init__(tgt_dict)
 
     @torch.jit.export
-    def step(self, step: int, lprobs, scores):
+    def step(self, step: int, lprobs, scores: Optional[Tensor]):
         self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
 
@@ -70,6 +72,7 @@ class BeamSearch(Search):
             lprobs = lprobs[:, ::beam_size, :].contiguous()
         else:
             # make probs contain cumulative scores for each hypothesis
+            assert scores is not None
             lprobs.add_(scores[:, :, step - 1].unsqueeze(-1))
 
         top_prediction = torch.topk(
@@ -89,7 +92,6 @@ class BeamSearch(Search):
 
 
 class LengthConstrainedBeamSearch(Search):
-
     def __init__(self, tgt_dict, min_len_a, min_len_b, max_len_a, max_len_b):
         super().__init__(tgt_dict)
         self.min_len_a = min_len_a
@@ -98,7 +100,7 @@ class LengthConstrainedBeamSearch(Search):
         self.max_len_b = max_len_b
         self.beam = BeamSearch(tgt_dict)
 
-    def step(self, step, lprobs, scores):
+    def step(self, step: int, lprobs, scores):
         min_lens = self.min_len_a * self.src_lengths + self.min_len_b
         max_lens = self.max_len_a * self.src_lengths + self.max_len_b
         lprobs[step < min_lens, :, self.eos] = -math.inf
@@ -121,34 +123,40 @@ class DiverseBeamSearch(Search):
         super().__init__(tgt_dict)
         self.num_groups = num_groups
         self.diversity_strength = -diversity_strength
-        self.diversity_buf = None
+        self.diversity_buf = torch.empty(0)
         self.beam = BeamSearch(tgt_dict)
 
-    def step(self, step, lprobs, scores):
-        super()._init_buffers(lprobs)
+    @torch.jit.export
+    def step(self, step: int, lprobs, scores):
+        self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
         if beam_size % self.num_groups != 0:
             raise ValueError(
-                'DiverseBeamSearch requires --beam to be divisible by the number of groups'
+                "DiverseBeamSearch requires --beam to be divisible by the number of groups"
             )
 
         # initialize diversity penalty
         if self.diversity_buf is None:
             self.diversity_buf = lprobs.new()
+        self.diversity_buf.resize_(lprobs[:, 0, :].size())
         torch.zeros(lprobs[:, 0, :].size(), out=self.diversity_buf)
 
         scores_G, indices_G, beams_G = [], [], []
         for g in range(self.num_groups):
-            lprobs_g = lprobs[:, g::self.num_groups, :]
-            scores_g = scores[:, g::self.num_groups, :] if step > 0 else None
+            lprobs_g = lprobs[:, g :: self.num_groups, :]
+            scores_g = scores[:, g :: self.num_groups, :] if step > 0 else None
 
             # apply diversity penalty
             if g > 0:
-                lprobs_g = torch.add(lprobs_g, self.diversity_strength, self.diversity_buf.unsqueeze(1))
+                lprobs_g = torch.add(
+                    lprobs_g, self.diversity_strength, self.diversity_buf.unsqueeze(1)
+                )
             else:
                 lprobs_g = lprobs_g.contiguous()
 
-            scores_buf, indices_buf, beams_buf = self.beam.step(step, lprobs_g, scores_g)
+            scores_buf, indices_buf, beams_buf = self.beam.step(
+                step, lprobs_g, scores_g
+            )
             beams_buf.mul_(self.num_groups).add_(g)
 
             scores_G.append(scores_buf.clone())
@@ -157,19 +165,19 @@ class DiverseBeamSearch(Search):
 
             # update diversity penalty
             self.diversity_buf.scatter_add_(
-                1,
-                indices_buf,
-                self.diversity_buf.new_ones(indices_buf.size())
+                1, indices_buf, torch.ones(indices_buf.size()).to(self.diversity_buf)
             )
 
         # interleave results from different groups
-        self.scores_buf = torch.stack(scores_G, dim=2, out=self.scores_buf).view(bsz, -1)
-        self.indices_buf = torch.stack(indices_G, dim=2, out=self.indices_buf).view(bsz, -1)
-        self.beams_buf = torch.stack(beams_G, dim=2, out=self.beams_buf).view(bsz, -1)
+        self.scores_buf = torch.stack(scores_G, dim=2).view(bsz, -1)
+        self.indices_buf = torch.stack(indices_G, dim=2).view(bsz, -1)
+        self.beams_buf = torch.stack(beams_G, dim=2).view(bsz, -1)
         return self.scores_buf, self.indices_buf, self.beams_buf
 
 
 class Sampling(Search):
+    sampling_topk: int
+    sampling_topp: float
 
     def __init__(self, tgt_dict, sampling_topk=-1, sampling_topp=-1.0):
         super().__init__(tgt_dict)
@@ -211,18 +219,19 @@ class Sampling(Search):
 
         # truncate unnecessary dims.
         max_dim = last_included.max()
-        truncated_mask = mask[:, :, :max_dim + 1]
-        truncated_probs = sorted_probs[:, :, :max_dim + 1]
-        truncated_indices = sorted_indices[:, :, :max_dim + 1]
+        truncated_mask = mask[:, :, : max_dim + 1]
+        truncated_probs = sorted_probs[:, :, : max_dim + 1]
+        truncated_indices = sorted_indices[:, :, : max_dim + 1]
 
         # trim the words that are not in top-P by setting their probabilities
         # to 0, so that they would not be sampled later.
-        trim_mask = (~truncated_mask)
+        trim_mask = ~truncated_mask
         trimed_probs = truncated_probs.masked_fill_(trim_mask, 0)
         return trimed_probs, truncated_indices
 
-    def step(self, step, lprobs, scores):
-        super()._init_buffers(lprobs)
+    @torch.jit.export
+    def step(self, step: int, lprobs, scores):
+        self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
 
         if step == 0:
@@ -240,15 +249,16 @@ class Sampling(Search):
         else:
             probs = lprobs.exp_()
 
+            # dummy data to be consistent with true branch for type check
+            top_indices = torch.empty(0)
         # sample
         if step == 0:
+            self.indices_buf.resize_(bsz, beam_size)
             self.indices_buf = torch.multinomial(
-                probs.view(bsz, -1),
-                beam_size,
-                replacement=True,
-                out=self.indices_buf,
+                probs.view(bsz, -1), beam_size, replacement=True,
             ).view(bsz, beam_size)
         else:
+            self.indices_buf.resize_(bsz, beam_size)
             self.indices_buf = torch.multinomial(
                 probs.view(bsz * beam_size, -1),
                 1,
@@ -261,11 +271,8 @@ class Sampling(Search):
             probs = probs.expand(bsz, beam_size, -1)
 
         # gather scores
-        torch.gather(
-            probs,
-            dim=2,
-            index=self.indices_buf.unsqueeze(-1),
-            out=self.scores_buf,
+        self.scores_buf = torch.gather(
+            probs, dim=2, index=self.indices_buf.unsqueeze(-1)
         )
         self.scores_buf = self.scores_buf.log_().view(bsz, -1)
 
@@ -280,14 +287,13 @@ class Sampling(Search):
         if step == 0:
             self.beams_buf = self.indices_buf.new_zeros(bsz, beam_size)
         else:
-            self.beams_buf = torch.arange(0, beam_size, out=self.beams_buf).repeat(bsz, 1)
+            self.beams_buf.resize_(beam_size)
+            self.beams_buf = torch.arange(0, beam_size).repeat(
+                bsz, 1
+            )
             # make scores cumulative
             self.scores_buf.add_(
-                torch.gather(
-                    scores[:, :, step - 1],
-                    dim=1,
-                    index=self.beams_buf,
-                )
+                torch.gather(scores[:, :, step - 1], dim=1, index=self.beams_buf)
             )
 
         return self.scores_buf, self.indices_buf, self.beams_buf
@@ -313,8 +319,8 @@ class DiverseSiblingsSearch(Search):
         self.diversity_rate = diversity_rate
         self.beam = BeamSearch(tgt_dict)
 
-    def step(self, step, lprobs, scores):
-        super()._init_buffers(lprobs)
+    def step(self, step: int, lprobs, scores):
+        self._init_buffers(lprobs)
         bsz, beam_size, vocab_size = lprobs.size()
         k = min(
             # Take the best 2 x beam_size predictions. We'll choose the first
@@ -322,9 +328,11 @@ class DiverseSiblingsSearch(Search):
             beam_size * 2,
             lprobs.view(bsz, -1).size(1) - 1,  # -1 so we never select pad
         )
-        s_list = [lprobs.new() for i in range(beam_size)]
+        s_list: List[Tensor]
+        i_list: List[Tensor]
+        s_list = [torch.empty(0).to(lprobs) for i in range(beam_size)]
         i_list = [torch.LongTensor().to(device=lprobs.device) for i in range(beam_size)]
-        sibling_score = lprobs.new(range(1, k + 1)) * self.diversity_rate
+        sibling_score = torch.arange(1, k + 1).to(lprobs) * self.diversity_rate
 
         if step == 0:
             return self.beam.step(step, lprobs, scores)
@@ -341,16 +349,15 @@ class DiverseSiblingsSearch(Search):
         # 4/ Choose top K hypotheses
         indices = torch.stack(i_list, dim=1).view(bsz, -1)
 
-        final_scores = lprobs.new()
+        final_scores = torch.empty(0).to(lprobs)
         final_indices = torch.LongTensor().to(device=lprobs.device)
         final_beams = torch.LongTensor().to(device=lprobs.device)
-        torch.topk(
+        (final_scores, final_indices) = torch.topk(
             torch.stack(s_list, dim=1).view(bsz, -1),
             k,
-            out=(final_scores, final_indices),
         )
 
-        torch.div(final_indices, k, out=final_beams)
+        final_beams = torch.div(final_indices, k)
 
         for i in range(bsz):
             final_indices[i] = indices[i][final_indices[i]]
