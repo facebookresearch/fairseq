@@ -684,7 +684,7 @@ class Trainer(object):
             # convert logging_outputs to CPU to avoid unnecessary
             # device-to-host transfers in reduce_metrics
             logging_outputs = utils.apply_to_sample(
-                lambda t: t.to(device='cpu', non_blocking=True),
+                lambda t: t.to(device='cpu', non_blocking=True, dtype=torch.double),
                 logging_outputs
             )
 
