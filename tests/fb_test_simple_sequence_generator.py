@@ -133,6 +133,11 @@ class TestExportSearch(unittest.TestCase):
         )
         torch.jit.script(search_strategy)
 
+    def test_export_sampling(self):
+        low_sampling_topp = self.min_top1_prob/2.0
+        search_strategy = search.Sampling(self.tgt_dict, sampling_topp=low_sampling_topp)
+        torch.jit.script(search_strategy)
+
 
 class TestSequenceGeneratorBase(unittest.TestCase):
     def assertHypoTokens(self, hypo, tokens):
