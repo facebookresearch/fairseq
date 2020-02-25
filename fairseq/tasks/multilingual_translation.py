@@ -98,6 +98,8 @@ class MultilingualTranslationTask(FairseqTask):
         super().__init__()
         self.dicts = dicts
         self.data = data
+        self.source_lang = source_lang
+        self.target_lang = target_lang
         self.left_pad_source = left_pad_source
         self.left_pad_target = left_pad_target
         self.max_source_positions = max_source_positions
