@@ -4,13 +4,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
+import logging
 
 import torch
 
 from fairseq.utils import new_arange
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask, load_langpair_dataset
-from fairseq import utils
+from fairseq import utils, options
+
+logger = logging.getLogger(__name__)
 
 @register_task('translation_lev')
 class TranslationLevenshteinTask(TranslationTask):
@@ -18,6 +21,52 @@ class TranslationLevenshteinTask(TranslationTask):
     Translation (Sequence Generation) task for Levenshtein Transformer
     See `"Levenshtein Transformer" <https://arxiv.org/abs/1905.11006>`_.
     """
+
+    def __init__(self, data, source_lang, target_lang, load_alignments, left_pad_source, max_source_positions,
+                 max_target_positions, upsample_primary, truncate_source, eval_bleu, eval_bleu_detok,
+                 eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe, eval_bleu_args,
+                 eval_bleu_print_samples, dataset_impl, noise, src_dict, tgt_dict):
+        super().__init__(data, source_lang, target_lang, load_alignments, left_pad_source, max_source_positions,
+                 max_target_positions, upsample_primary, truncate_source, eval_bleu, eval_bleu_detok,
+                 eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe, eval_bleu_args,
+                 eval_bleu_print_samples, dataset_impl, src_dict, tgt_dict)
+
+        self.noise = noise
+
+    @classmethod
+    def setup_task(cls, args, **kwargs):
+        """Setup the task (e.g., load dictionaries).
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+        """
+        args.left_pad_source = options.eval_bool(args.left_pad_source)
+        args.left_pad_target = options.eval_bool(args.left_pad_target)
+
+        paths = utils.split_paths(args.data)
+        assert len(paths) > 0
+        # find language pair automatically
+        if args.source_lang is None or args.target_lang is None:
+            args.source_lang, args.target_lang = data_utils.infer_language_pair(paths[0])
+        if args.source_lang is None or args.target_lang is None:
+            raise Exception('Could not infer language pair, please provide it explicitly')
+
+        # load dictionaries
+        src_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.target_lang)))
+        assert src_dict.pad() == tgt_dict.pad()
+        assert src_dict.eos() == tgt_dict.eos()
+        assert src_dict.unk() == tgt_dict.unk()
+        logger.info('[{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
+        logger.info('[{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict)))
+
+        return cls(
+            args.data, args.source_lang, args.target_lang, args.load_alignments, args.left_pad_source,
+            args.max_source_positions, args.max_target_positions, args.upsample_primary, args.truncate_source,
+            args.eval_bleu, args.eval_bleu_detok, args.eval_bleu_detok_args, args.eval_tokenized_bleu,
+            args.eval_bleu_remove_bpe, args.eval_bleu_args, args.eval_bleu_print_samples, args.dataset_impl, args.noise,
+            src_dict, tgt_dict
+        )
 
     @staticmethod
     def add_args(parser):
@@ -35,21 +84,21 @@ class TranslationLevenshteinTask(TranslationTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
         # infer langcode
-        src, tgt = self.args.source_lang, self.args.target_lang
+        src, tgt = self.source_lang, self.target_lang
 
         self.datasets[split] = load_langpair_dataset(
             data_path, split, src, self.src_dict, tgt, self.tgt_dict,
-            combine=combine, dataset_impl=self.args.dataset_impl,
-            upsample_primary=self.args.upsample_primary,
-            left_pad_source=self.args.left_pad_source,
-            left_pad_target=self.args.left_pad_target,
-            max_source_positions=self.args.max_source_positions,
-            max_target_positions=self.args.max_target_positions,
+            combine=combine, dataset_impl=self.dataset_impl,
+            upsample_primary=self.upsample_primary,
+            left_pad_source=self.left_pad_source,
+            left_pad_target=self.left_pad_target,
+            max_source_positions=self.max_source_positions,
+            max_target_positions=self.max_target_positions,
             prepend_bos=True,
         )
 
@@ -115,13 +164,13 @@ class TranslationLevenshteinTask(TranslationTask):
                 eos) | target_tokens.eq(pad)
             return target_tokens.masked_fill(~target_mask, unk)
 
-        if self.args.noise == 'random_delete':
+        if self.noise == 'random_delete':
             return _random_delete(target_tokens)
-        elif self.args.noise == 'random_mask':
+        elif self.noise == 'random_mask':
             return _random_mask(target_tokens)
-        elif self.args.noise == 'full_mask':
+        elif self.noise == 'full_mask':
             return _full_mask(target_tokens)
-        elif self.args.noise == 'no_noise':
+        elif self.noise == 'no_noise':
             return target_tokens
         else:
             raise NotImplementedError
