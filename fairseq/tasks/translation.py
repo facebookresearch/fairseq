@@ -184,8 +184,28 @@ class TranslationTask(FairseqTask):
                             help='print sample generations during validation')
         # fmt: on
 
-    def __init__(self, args, src_dict, tgt_dict):
-        super().__init__(args)
+    def __init__(self, data, source_lang, target_lang, load_alignments, left_pad_source, max_source_positions,
+                 max_target_positions, upsample_primary, truncate_source, eval_bleu, eval_bleu_detok,
+                 eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe, eval_bleu_args,
+                 eval_bleu_print_samples, dataset_impl, src_dict, tgt_dict):
+        super().__init__()
+        self.data = data
+        self.source_lang = source_lang
+        self.target_lang = target_lang
+        self.load_alignments = load_alignments
+        self.left_pad_source = left_pad_source
+        self.max_source_positions = max_source_positions
+        self.max_target_positions = max_target_positions
+        self.upsample_primary = upsample_primary
+        self.truncate_source = truncate_source
+        self.eval_bleu = eval_bleu
+        self.eval_bleu_detok = eval_bleu_detok
+        self.eval_bleu_detok_args = eval_bleu_detok_args
+        self.eval_tokenized_bleu = eval_tokenized_bleu
+        self.eval_bleu_remove_bpe = eval_bleu_remove_bpe
+        self.eval_bleu_args = eval_bleu_args
+        self.eval_bleu_print_samples = eval_bleu_print_samples
+        self.dataset_impl = dataset_impl
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
 
@@ -216,7 +236,13 @@ class TranslationTask(FairseqTask):
         logger.info('[{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
         logger.info('[{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict)))
 
-        return cls(args, src_dict, tgt_dict)
+        return cls(
+            args.data, args.source_lang, args.target_lang, args.load_alignments, args.left_pad_source,
+            args.max_source_positions, args.max_target_positions, args.upsample_primary, args.truncate_source,
+            args.eval_bleu, args.eval_bleu_detok, args.eval_bleu_detok_args, args.eval_tokenized_bleu,
+            args.eval_bleu_remove_bpe, args.eval_bleu_args, args.eval_bleu_print_samples, args.dataset_impl, src_dict,
+            tgt_dict
+        )
 
     def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
@@ -224,23 +250,23 @@ class TranslationTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
         # infer langcode
-        src, tgt = self.args.source_lang, self.args.target_lang
+        src, tgt = self.source_lang, self.target_lang
 
         self.datasets[split] = load_langpair_dataset(
             data_path, split, src, self.src_dict, tgt, self.tgt_dict,
-            combine=combine, dataset_impl=self.args.dataset_impl,
-            upsample_primary=self.args.upsample_primary,
-            left_pad_source=self.args.left_pad_source,
-            left_pad_target=self.args.left_pad_target,
-            max_source_positions=self.args.max_source_positions,
-            max_target_positions=self.args.max_target_positions,
-            load_alignments=self.args.load_alignments,
-            truncate_source=self.args.truncate_source,
+            combine=combine, dataset_impl=self.dataset_impl,
+            upsample_primary=self.upsample_primary,
+            left_pad_source=self.left_pad_source,
+            left_pad_target=self.left_pad_target,
+            max_source_positions=self.max_source_positions,
+            max_target_positions=self.max_target_positions,
+            load_alignments=self.load_alignments,
+            truncate_source=self.truncate_source,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths):
@@ -265,7 +291,7 @@ class TranslationTask(FairseqTask):
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
-        if self.args.eval_bleu:
+        if self.eval_bleu:
             bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
             logging_output['_bleu_sys_len'] = bleu.sys_len
             logging_output['_bleu_ref_len'] = bleu.ref_len
@@ -279,7 +305,7 @@ class TranslationTask(FairseqTask):
 
     def reduce_metrics(self, logging_outputs, criterion):
         super().reduce_metrics(logging_outputs, criterion)
-        if self.args.eval_bleu:
+        if self.eval_bleu:
 
             def sum_logs(key):
                 return sum(log.get(key, 0) for log in logging_outputs)
@@ -317,7 +343,7 @@ class TranslationTask(FairseqTask):
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
-        return (self.args.max_source_positions, self.args.max_target_positions)
+        return (self.max_source_positions, self.max_target_positions)
 
     @property
     def source_dictionary(self):
@@ -335,7 +361,7 @@ class TranslationTask(FairseqTask):
         def decode(toks, escape_unk=False):
             s = self.tgt_dict.string(
                 toks.int().cpu(),
-                self.args.eval_bleu_remove_bpe,
+                self.eval_bleu_remove_bpe,
                 escape_unk=escape_unk,
             )
             if self.tokenizer:
@@ -350,8 +376,8 @@ class TranslationTask(FairseqTask):
                 utils.strip_pad(sample['target'][i], self.tgt_dict.pad()),
                 escape_unk=True,  # don't count <unk> as matches to the hypo
             ))
-        if self.args.eval_bleu_print_samples:
+        if self.eval_bleu_print_samples:
             logger.info('example hypothesis: ' + hyps[0])
             logger.info('example reference: ' + refs[0])
-        tokenize = sacrebleu.DEFAULT_TOKENIZER if not self.args.eval_tokenized_bleu else 'none'
+        tokenize = sacrebleu.DEFAULT_TOKENIZER if not self.eval_tokenized_bleu else 'none'
         return sacrebleu.corpus_bleu(hyps, [refs], tokenize=tokenize)
