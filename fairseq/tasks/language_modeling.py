@@ -227,7 +227,7 @@ class LanguageModelingTask(FairseqTask):
             ),
             token=(
                 self.source_dictionary.bos()
-                if getattr(self.args, "add_bos_token", False)
+                if self.add_bos_token
                 else self.source_dictionary.eos()
             ),
         )
@@ -246,7 +246,7 @@ class LanguageModelingTask(FairseqTask):
     def inference_step(self, generator, models, sample, prefix_tokens=None):
         with torch.no_grad():
             # Generation will always be conditioned on bos_token
-            if getattr(self.args, "add_bos_token", False):
+            if self.add_bos_token:
                 bos_token = self.source_dictionary.bos()
             else:
                 bos_token = self.source_dictionary.eos()
