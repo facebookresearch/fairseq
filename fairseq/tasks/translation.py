@@ -184,9 +184,9 @@ class TranslationTask(FairseqTask):
                             help='print sample generations during validation')
         # fmt: on
 
-    def __init__(self, data, source_lang, target_lang, load_alignments, left_pad_source, max_source_positions,
-                 max_target_positions, upsample_primary, truncate_source, eval_bleu, eval_bleu_detok,
-                 eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe, eval_bleu_args,
+    def __init__(self, data, source_lang, target_lang, load_alignments, left_pad_source, left_pad_target,
+                 max_source_positions, max_target_positions, upsample_primary, truncate_source, eval_bleu,
+                 eval_bleu_detok, eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe, eval_bleu_args,
                  eval_bleu_print_samples, dataset_impl, src_dict, tgt_dict):
         super().__init__()
         self.data = data
@@ -194,6 +194,7 @@ class TranslationTask(FairseqTask):
         self.target_lang = target_lang
         self.load_alignments = load_alignments
         self.left_pad_source = left_pad_source
+        self.left_pad_target = left_pad_target
         self.max_source_positions = max_source_positions
         self.max_target_positions = max_target_positions
         self.upsample_primary = upsample_primary
@@ -238,10 +239,10 @@ class TranslationTask(FairseqTask):
 
         return cls(
             args.data, args.source_lang, args.target_lang, args.load_alignments, args.left_pad_source,
-            args.max_source_positions, args.max_target_positions, args.upsample_primary, args.truncate_source,
-            args.eval_bleu, args.eval_bleu_detok, args.eval_bleu_detok_args, args.eval_tokenized_bleu,
-            args.eval_bleu_remove_bpe, args.eval_bleu_args, args.eval_bleu_print_samples, args.dataset_impl, src_dict,
-            tgt_dict
+            args.left_pad_target, args.max_source_positions, args.max_target_positions, args.upsample_primary,
+            args.truncate_source, args.eval_bleu, args.eval_bleu_detok, args.eval_bleu_detok_args,
+            args.eval_tokenized_bleu, args.eval_bleu_remove_bpe, args.eval_bleu_args, args.eval_bleu_print_samples,
+            args.dataset_impl, src_dict, tgt_dict
         )
 
     def load_dataset(self, split, epoch=0, combine=False, **kwargs):

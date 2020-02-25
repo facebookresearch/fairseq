@@ -130,15 +130,15 @@ class TestDataset(torch.utils.data.Dataset):
 
 class TestTranslationTask(FairseqTask):
 
-    def __init__(self, args, src_dict, tgt_dict, model):
-        super().__init__(args)
+    def __init__(self, src_dict, tgt_dict, model):
+        super().__init__()
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
         self.model = model
 
     @classmethod
     def setup_task(cls, args, src_dict=None, tgt_dict=None, model=None):
-        return cls(args, src_dict, tgt_dict, model)
+        return cls(src_dict, tgt_dict, model)
 
     def build_model(self, args):
         return TestModel.build_model(args, self)
