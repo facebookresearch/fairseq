@@ -46,10 +46,15 @@ class LegacyMaskedLMTask(FairseqTask):
         parser.add_argument('--break-mode', default="doc", type=str, help='mode for breaking sentence')
         parser.add_argument('--shuffle-dataset', action='store_true', default=False)
 
-    def __init__(self, args, dictionary):
-        super().__init__(args)
+    def __init__(self, data, tokens_per_sample, break_mode, shuffle_dataset, seed, dataset_impl, dictionary):
+        super().__init__()
         self.dictionary = dictionary
-        self.seed = args.seed
+        self.data = data
+        self.tokens_per_sample = tokens_per_sample
+        self.break_mode = break_mode
+        self.shuffle_dataset = shuffle_dataset
+        self.dataset_impl = dataset_impl
+        self.seed = seed
 
     @classmethod
     def load_dictionary(cls, filename):
@@ -76,7 +81,8 @@ class LegacyMaskedLMTask(FairseqTask):
         dictionary = BertDictionary.load(os.path.join(paths[0], 'dict.txt'))
         logger.info('dictionary: {} types'.format(len(dictionary)))
 
-        return cls(args, dictionary)
+        return cls(args.data, args.tokens_per_sample, args.break_mode, args.shuffle_dataset, args.seed,
+                   args.dataset_impl, dictionary)
 
     def load_dataset(self, split, epoch=0, combine=False):
         """Load a given dataset split.
@@ -85,7 +91,7 @@ class LegacyMaskedLMTask(FairseqTask):
         """
         loaded_datasets = []
 
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
         logger.info("data_path", data_path)
@@ -95,7 +101,7 @@ class LegacyMaskedLMTask(FairseqTask):
             path = os.path.join(data_path, split_k)
             ds = indexed_dataset.make_dataset(
                 path,
-                impl=self.args.dataset_impl,
+                impl=self.dataset_impl,
                 fix_lua_indexing=True,
                 dictionary=self.dictionary,
             )
@@ -112,8 +118,8 @@ class LegacyMaskedLMTask(FairseqTask):
                         ds,
                         self.dictionary,
                         ds.sizes,
-                        self.args.tokens_per_sample,
-                        break_mode=self.args.break_mode,
+                        self.tokens_per_sample,
+                        break_mode=self.break_mode,
                         doc_break_size=1,
                     )
                 )
@@ -138,6 +144,6 @@ class LegacyMaskedLMTask(FairseqTask):
             mask_idx=self.dictionary.mask(),
             classif_token_idx=self.dictionary.cls(),
             sep_token_idx=self.dictionary.sep(),
-            shuffle=self.args.shuffle_dataset,
+            shuffle=self.shuffle_dataset,
             seed=self.seed,
         )
