@@ -73,9 +73,10 @@ def load_langpair_dataset(
                 src_dict.eos(),
             )
         src_datasets.append(src_dataset)
-        tgt_datasets.append(
-            data_utils.load_indexed_dataset(prefix + tgt, tgt_dict, dataset_impl)
-        )
+
+        tgt_dataset = data_utils.load_indexed_dataset(prefix + tgt, tgt_dict, dataset_impl)
+        if tgt_dataset is not None:
+            tgt_datasets.append(tgt_dataset)
 
         logger.info('{} {} {}-{} {} examples'.format(
             data_path, split_k, src, tgt, len(src_datasets[-1])
@@ -84,20 +85,25 @@ def load_langpair_dataset(
         if not combine:
             break
 
-    assert len(src_datasets) == len(tgt_datasets)
+    assert len(src_datasets) == len(tgt_datasets) or len(tgt_datasets) == 0
 
     if len(src_datasets) == 1:
-        src_dataset, tgt_dataset = src_datasets[0], tgt_datasets[0]
+        src_dataset = src_datasets[0]
+        tgt_dataset = tgt_datasets[0] if len(tgt_datasets) > 0 else None
     else:
         sample_ratios = [1] * len(src_datasets)
         sample_ratios[0] = upsample_primary
         src_dataset = ConcatDataset(src_datasets, sample_ratios)
-        tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
+        if len(tgt_datasets) > 0:
+            tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
+        else:
+            tgt_dataset = None
 
     if prepend_bos:
         assert hasattr(src_dict, "bos_index") and hasattr(tgt_dict, "bos_index")
         src_dataset = PrependTokenDataset(src_dataset, src_dict.bos())
-        tgt_dataset = PrependTokenDataset(tgt_dataset, tgt_dict.bos())
+        if tgt_dataset is not None:
+            tgt_dataset = PrependTokenDataset(tgt_dataset, tgt_dict.bos())
 
     align_dataset = None
     if load_alignments:
@@ -105,9 +111,10 @@ def load_langpair_dataset(
         if indexed_dataset.dataset_exists(align_path, impl=dataset_impl):
             align_dataset = data_utils.load_indexed_dataset(align_path, None, dataset_impl)
 
+    tgt_dataset_sizes = tgt_dataset.sizes if tgt_dataset is not None else None
     return LanguagePairDataset(
         src_dataset, src_dataset.sizes, src_dict,
-        tgt_dataset, tgt_dataset.sizes, tgt_dict,
+        tgt_dataset, tgt_dataset_sizes, tgt_dict,
         left_pad_source=left_pad_source,
         left_pad_target=left_pad_target,
         max_source_positions=max_source_positions,
