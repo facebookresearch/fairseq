@@ -117,15 +117,27 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                             help='word blanking probability for denoising autoencoding data generation')
         # fmt: on
 
-    def __init__(self, args, dicts, training):
-        super().__init__(args, dicts, training)
-        self.lambda_parallel, self.lambda_parallel_steps = parse_lambda_config(args.lambda_parallel_config)
-        self.lambda_otf_bt, self.lambda_otf_bt_steps = parse_lambda_config(args.lambda_otf_bt_config)
-        self.lambda_denoising, self.lambda_denoising_steps = parse_lambda_config(args.lambda_denoising_config)
+    def __init__(self, data, lang_pairs, training, source_lang, target_lang, left_pad_source, left_pad_target,
+                 max_source_positions, max_target_positions, upsample_primary, encoder_langtok, decoder_langtok,
+                 dataset_impl, lambda_parallel_config, lambda_denoising_config, lambda_otf_bt_config, bt_max_len_a,
+                 bt_max_len_b, bt_beam_size, max_word_shuffle_distance, word_dropout_prob, word_blanking_prob, dicts):
+
+        super().__init__(data, lang_pairs, training, source_lang, target_lang, left_pad_source, left_pad_target,
+                 max_source_positions, max_target_positions, upsample_primary, encoder_langtok, decoder_langtok,
+                 dataset_impl, dicts)
+        self.bt_max_len_a = bt_max_len_a
+        self.bt_max_len_b = bt_max_len_b
+        self.bt_beam_size = bt_beam_size
+        self.max_word_shuffle_distance = max_word_shuffle_distance
+        self.word_dropout_prob = word_dropout_prob
+        self.word_blanking_prob = word_blanking_prob
+        self.lambda_parallel, self.lambda_parallel_steps = parse_lambda_config(lambda_parallel_config)
+        self.lambda_otf_bt, self.lambda_otf_bt_steps = parse_lambda_config(lambda_otf_bt_config)
+        self.lambda_denoising, self.lambda_denoising_steps = parse_lambda_config(lambda_denoising_config)
         if (self.lambda_denoising > 0.0 or self.lambda_denoising_steps is not None):
             denoising_lang_pairs = [
                 "%s-%s" % (tgt, tgt)
-                for tgt in {lang_pair.split('-')[1] for lang_pair in args.lang_pairs}
+                for tgt in {lang_pair.split('-')[1] for lang_pair in lang_pairs}
             ]
             self.model_lang_pairs = self.model_lang_pairs + denoising_lang_pairs
         self.backtranslate_datasets = {}
@@ -139,7 +151,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
     def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
 
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
@@ -148,10 +160,10 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
             else:
                 filename = os.path.join(data_path, '{}.{}-None.{}'.format(split, src, tgt))
-            return indexed_dataset.dataset_exists(filename, impl=self.args.dataset_impl)
+            return indexed_dataset.dataset_exists(filename, impl=self.dataset_impl)
 
         def load_indexed_dataset(path, dictionary):
-            return data_utils.load_indexed_dataset(path, dictionary, self.args.dataset_impl)
+            return data_utils.load_indexed_dataset(path, dictionary, self.dataset_impl)
 
         # load parallel datasets
         src_datasets, tgt_datasets = {}, {}
@@ -183,8 +195,8 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     dataset,
                     dataset.sizes,
                     self.dicts[tgt],
-                    left_pad_source=self.args.left_pad_source,
-                    left_pad_target=self.args.left_pad_target,
+                    left_pad_source=self.left_pad_source,
+                    left_pad_target=self.left_pad_target,
                 )
                 lang_pair_dataset = LanguagePairDataset(
                     dataset,
@@ -193,8 +205,8 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     tgt=dataset,
                     tgt_sizes=dataset.sizes,
                     tgt_dict=self.dicts[tgt],
-                    left_pad_source=self.args.left_pad_source,
-                    left_pad_target=self.args.left_pad_target,
+                    left_pad_source=self.left_pad_source,
+                    left_pad_target=self.left_pad_target,
                 )
                 backtranslate_datasets[lang_pair] = BacktranslationDataset(
                     tgt_dataset=self.alter_dataset_langtok(
@@ -232,9 +244,9 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     tgt_dataset1,
                     self.dicts[tgt],
                     seed=1,
-                    max_word_shuffle_distance=self.args.max_word_shuffle_distance,
-                    word_dropout_prob=self.args.word_dropout_prob,
-                    word_blanking_prob=self.args.word_blanking_prob,
+                    max_word_shuffle_distance=self.max_word_shuffle_distance,
+                    word_dropout_prob=self.word_dropout_prob,
+                    word_blanking_prob=self.word_blanking_prob,
                 )
                 noising_datasets[lang_pair] = self.alter_dataset_langtok(
                     LanguagePairDataset(
@@ -244,8 +256,8 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                         tgt_dataset2,
                         tgt_dataset2.sizes,
                         self.dicts[tgt],
-                        left_pad_source=self.args.left_pad_source,
-                        left_pad_target=self.args.left_pad_target,
+                        left_pad_source=self.left_pad_source,
+                        left_pad_target=self.left_pad_target,
                     ),
                     src_eos=self.dicts[tgt].eos(),
                     src_lang=tgt,
@@ -263,10 +275,10 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 LanguagePairDataset(
                     src_dataset, src_dataset.sizes, self.dicts[src],
                     tgt_dataset, tgt_dataset.sizes, self.dicts[tgt],
-                    left_pad_source=self.args.left_pad_source,
-                    left_pad_target=self.args.left_pad_target,
-                    max_source_positions=self.args.max_source_positions,
-                    max_target_positions=self.args.max_target_positions,
+                    left_pad_source=self.left_pad_source,
+                    left_pad_target=self.left_pad_target,
+                    max_source_positions=self.max_source_positions,
+                    max_target_positions=self.max_target_positions,
                 ),
                 self.dicts[src].eos(),
                 src,
@@ -285,7 +297,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 (_get_denoising_dataset_key(lang_pair), dataset)
                 for lang_pair, dataset in noising_datasets.items()
             ]),
-            eval_key=None if self.training else "%s-%s" % (self.args.source_lang, self.args.target_lang),
+            eval_key=None if self.training else "%s-%s" % (self.source_lang, self.target_lang),
         )
 
     def build_model(self, args):
