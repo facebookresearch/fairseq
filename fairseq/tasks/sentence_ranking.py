@@ -54,8 +54,18 @@ class SentenceRankingTask(FairseqTask):
         parser.add_argument('--max-option-length', type=int,
                             help='max length for each option')
 
-    def __init__(self, args, dictionary):
-        super().__init__(args)
+    def __init__(self, data, num_classes, init_token, separator_token, no_shuffle, truncate_sequence, max_option_length,
+                 dataset_impl, seed, dictionary):
+        super().__init__()
+        self.data = data
+        self.num_classes = num_classes
+        self.init_token = init_token
+        self.separator_token = separator_token
+        self.no_shuffle = no_shuffle
+        self.truncate_sequence = truncate_sequence
+        self.max_option_length = max_option_length
+        self.dataset_impl = dataset_impl
+        self.seed = seed
         self.dictionary = dictionary
 
     @classmethod
@@ -81,13 +91,16 @@ class SentenceRankingTask(FairseqTask):
             source=True,
         )
         logger.info('[input] dictionary: {} types'.format(len(data_dict)))
-        return SentenceRankingTask(args, data_dict)
+        return SentenceRankingTask(
+            args.data, args.num_classes, args.init_token, args.separator_token, args.no_shuffle, args.truncate_sequence,
+            args.max_option_length, args.dataset_impl, args.seed, data_dict
+        )
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split (e.g., train, valid, test)."""
 
         def get_path(type, split):
-            return os.path.join(self.args.data, type, split)
+            return os.path.join(self.data, type, split)
 
         def make_dataset(type, dictionary):
             split_path = get_path(type, split)
@@ -95,7 +108,7 @@ class SentenceRankingTask(FairseqTask):
             dataset = data_utils.load_indexed_dataset(
                 split_path,
                 self.source_dictionary,
-                self.args.dataset_impl,
+                self.dataset_impl,
                 combine=combine,
             )
             return dataset
@@ -106,24 +119,24 @@ class SentenceRankingTask(FairseqTask):
                 'input{idx}'.format(idx=idx + 1),
                 self.source_dictionary
             )
-            for idx in range(self.args.num_classes)
+            for idx in range(self.num_classes)
         ]
 
-        if self.args.separator_token is not None:
-            input0 = PrependTokenDataset(input0, self.args.separator_token)
+        if self.separator_token is not None:
+            input0 = PrependTokenDataset(input0, self.separator_token)
 
         src_tokens = []
         for input_option in input_options:
-            if self.args.init_token is not None:
-                input_option = PrependTokenDataset(input_option, self.args.init_token)
-            if self.args.max_option_length is not None:
-                input_option = TruncateDataset(input_option, self.args.max_option_length)
+            if self.init_token is not None:
+                input_option = PrependTokenDataset(input_option, self.init_token)
+            if self.max_option_length is not None:
+                input_option = TruncateDataset(input_option, self.max_option_length)
             src_token = ConcatSentencesDataset(input_option, input0)
-            if self.args.truncate_sequence:
-                src_token = TruncateDataset(src_token, self.args.max_positions)
+            if self.truncate_sequence:
+                src_token = TruncateDataset(src_token, self.max_positions)
             src_tokens.append(src_token)
 
-        with data_utils.numpy_seed(self.args.seed):
+        with data_utils.numpy_seed(self.seed):
             shuffle = np.random.permutation(len(src_tokens[0]))
 
         dataset = {
@@ -159,7 +172,7 @@ class SentenceRankingTask(FairseqTask):
             sizes=[np.maximum.reduce([src_token.sizes for src_token in src_tokens])],
         )
 
-        if self.args.no_shuffle:
+        if self.no_shuffle:
             dataset = nested_dataset
         else:
             dataset = SortDataset(
@@ -185,7 +198,7 @@ class SentenceRankingTask(FairseqTask):
         return model
 
     def max_positions(self):
-        return self.args.max_positions
+        return self.max_positions
 
     @property
     def source_dictionary(self):
