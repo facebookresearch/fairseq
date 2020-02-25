@@ -65,10 +65,25 @@ class MultiLingualMaskedLMTask(FairseqTask):
         parser.add_argument('--multilang-sampling-alpha', type=float, default=1.0,
                             help='smoothing alpha for sample rations across multiple datasets')
 
-    def __init__(self, args, dictionary):
-        super().__init__(args)
+    def __init__(self, data, sample_break_mode, tokens_per_sample, mask_prob, leave_unmasked_prob,
+                 random_token_prob, freq_weighted_replacement, mask_whole_words, multilang_sampling_alpha,
+                 seed, dataset_impl, train_subset, valid_subset, dictionary, bpe=None):
+        super().__init__()
         self.dictionary = dictionary
-        self.seed = args.seed
+        self.data = data
+        self.sample_break_mode = sample_break_mode
+        self.tokens_per_sample = tokens_per_sample
+        self.mask_prob = mask_prob
+        self.leave_unmasked_prob = leave_unmasked_prob
+        self.random_token_prob = random_token_prob
+        self.freq_weighted_replacement = freq_weighted_replacement
+        self.mask_whole_words = mask_whole_words
+        self.multilang_sampling_alpha = multilang_sampling_alpha
+        self.dataset_impl = dataset_impl
+        self.seed = seed
+        self.train_subset = train_subset
+        self.valid_subset = valid_subset
+        self.bpe = bpe
 
         # add mask token
         self.mask_idx = dictionary.add_symbol('<mask>')
@@ -78,13 +93,17 @@ class MultiLingualMaskedLMTask(FairseqTask):
         paths = utils.split_paths(args.data)
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
+        bpe = encoders.build_bpe(args)
         logger.info('dictionary: {} types'.format(len(dictionary)))
-        return cls(args, dictionary)
+        return cls(args.data, args.sample_break_mode, args.tokens_per_sample, args.mask_prob, args.leave_unmasked_prob,
+                   args.random_token_prob, args.freq_weighted_replacement, args.mask_whole_words,
+                   args.multilang_sampling_alpha, args.seed, args.dataset_impl, args.train_subset,
+                   args.valid_subset, dictionary, bpe)
 
     def _get_whole_word_mask(self):
         # create masked input and targets
-        if self.args.mask_whole_words:
-            bpe = encoders.build_bpe(self.args)
+        if self.mask_whole_words:
+            bpe = self.bpe
             if bpe is not None:
 
                 def is_beginning_of_word(i):
@@ -112,7 +131,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob ** self.args.multilang_sampling_alpha
+        smoothed_prob = prob ** self.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
@@ -122,7 +141,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
@@ -145,7 +164,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
             dataset = data_utils.load_indexed_dataset(
                 split_path,
                 self.source_dictionary,
-                self.args.dataset_impl,
+                self.dataset_impl,
                 combine=combine,
             )
             if dataset is None:
@@ -155,10 +174,10 @@ class MultiLingualMaskedLMTask(FairseqTask):
             dataset = TokenBlockDataset(
                 dataset,
                 dataset.sizes,
-                self.args.tokens_per_sample - 1,  # one less for <s>
+                self.tokens_per_sample - 1,  # one less for <s>
                 pad=self.source_dictionary.pad(),
                 eos=self.source_dictionary.eos(),
-                break_mode=self.args.sample_break_mode,
+                break_mode=self.sample_break_mode,
             )
             logger.info('loaded {} blocks from: {}'.format(len(dataset), split_path))
 
@@ -170,11 +189,11 @@ class MultiLingualMaskedLMTask(FairseqTask):
                 self.source_dictionary,
                 pad_idx=self.source_dictionary.pad(),
                 mask_idx=self.mask_idx,
-                seed=self.args.seed,
-                mask_prob=self.args.mask_prob,
-                leave_unmasked_prob=self.args.leave_unmasked_prob,
-                random_token_prob=self.args.random_token_prob,
-                freq_weighted_replacement=self.args.freq_weighted_replacement,
+                seed=self.seed,
+                mask_prob=self.mask_prob,
+                leave_unmasked_prob=self.leave_unmasked_prob,
+                random_token_prob=self.random_token_prob,
+                freq_weighted_replacement=self.freq_weighted_replacement,
                 mask_whole_words=mask_whole_words,
             )
 
@@ -211,7 +230,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
                 dataset_lengths.sum(),
             )
         )
-        if split == self.args.train_subset:
+        if split == self.train_subset:
             # For train subset, additionally up or down sample languages.
             sample_probs = self._get_sample_prob(dataset_lengths)
             logger.info("Sample probability by language: ", {
@@ -230,7 +249,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
                 ResamplingDataset(
                     lang_datasets[i],
                     size_ratio=size_ratio[i],
-                    seed=self.args.seed,
+                    seed=self.seed,
                     epoch=epoch,
                     replace=size_ratio[i] >= 1.0,
                 )
@@ -248,12 +267,12 @@ class MultiLingualMaskedLMTask(FairseqTask):
             # [TODO]: This is hacky for now to print validation ppl for each
             # language individually. Maybe need task API changes to allow it
             # in more generic ways.
-            if split in self.args.valid_subset:
-                self.args.valid_subset = self.args.valid_subset.replace(
+            if split in self.valid_subset:
+                self.valid_subset = self.valid_subset.replace(
                     split, ','.join(lang_splits)
                 )
 
-        with data_utils.numpy_seed(self.args.seed + epoch):
+        with data_utils.numpy_seed(self.seed + epoch):
             shuffle = np.random.permutation(len(dataset))
 
         self.datasets[split] = SortDataset(
@@ -269,7 +288,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
             TokenBlockDataset(
                 src_tokens,
                 src_lengths,
-                self.args.tokens_per_sample - 1,  # one less for <s>
+                self.tokens_per_sample - 1,  # one less for <s>
                 pad=self.source_dictionary.pad(),
                 eos=self.source_dictionary.eos(),
                 break_mode='eos',
