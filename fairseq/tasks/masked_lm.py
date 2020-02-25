@@ -21,6 +21,7 @@ from fairseq.data import (
     SortDataset,
     TokenBlockDataset,
 )
+from fairseq.data import encoders
 from fairseq.tasks import FairseqTask, register_task
 from fairseq.data.encoders.utils import get_whole_word_mask
 from fairseq import utils
@@ -59,10 +60,21 @@ class MaskedLMTask(FairseqTask):
         parser.add_argument('--mask-whole-words', default=False, action='store_true',
                             help='mask whole words; you may also want to set --bpe')
 
-    def __init__(self, args, dictionary):
-        super().__init__(args)
+    def __init__(self, data, sample_break_mode, tokens_per_sample, mask_prob, leave_unmasked_prob, random_token_prob,
+                 freq_weighted_replacement, mask_whole_words, seed, dataset_impl, dictionary, bpe=None):
+        super().__init__()
         self.dictionary = dictionary
-        self.seed = args.seed
+        self.data = data
+        self.sample_break_mode = sample_break_mode
+        self.tokens_per_sample = tokens_per_sample
+        self.mask_prob = mask_prob
+        self.leave_unmasked_prob = leave_unmasked_prob
+        self.random_token_prob = random_token_prob
+        self.freq_weighted_replacement = freq_weighted_replacement
+        self.mask_whole_words = mask_whole_words
+        self.dataset_impl = dataset_impl
+        self.seed = seed
+        self.bpe = bpe
 
         # add mask token
         self.mask_idx = dictionary.add_symbol('<mask>')
@@ -73,7 +85,12 @@ class MaskedLMTask(FairseqTask):
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
         logger.info('dictionary: {} types'.format(len(dictionary)))
-        return cls(args, dictionary)
+
+        bpe = encoders.build_bpe(args)
+
+        return cls(args.data, args.sample_break_mode, args.tokens_per_sample, args.mask_prob, args.leave_unmasked_prob,
+                   args.random_token_prob, args.freq_weighted_replacement, args.mask_whole_words,
+                   args.seed, args.dataset_impl, dictionary, bpe)
 
     def load_dataset(self, split, epoch=0, combine=False, **kwargs):
         """Load a given dataset split.
@@ -81,7 +98,7 @@ class MaskedLMTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
         split_path = os.path.join(data_path, split)
@@ -89,7 +106,7 @@ class MaskedLMTask(FairseqTask):
         dataset = data_utils.load_indexed_dataset(
             split_path,
             self.source_dictionary,
-            self.args.dataset_impl,
+            self.dataset_impl,
             combine=combine,
         )
         if dataset is None:
@@ -99,10 +116,10 @@ class MaskedLMTask(FairseqTask):
         dataset = TokenBlockDataset(
             dataset,
             dataset.sizes,
-            self.args.tokens_per_sample - 1,  # one less for <s>
+            self.tokens_per_sample - 1,  # one less for <s>
             pad=self.source_dictionary.pad(),
             eos=self.source_dictionary.eos(),
-            break_mode=self.args.sample_break_mode,
+            break_mode=self.sample_break_mode,
         )
         logger.info('loaded {} blocks from: {}'.format(len(dataset), split_path))
 
@@ -110,23 +127,23 @@ class MaskedLMTask(FairseqTask):
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
 
         # create masked input and targets
-        mask_whole_words = get_whole_word_mask(self.args, self.source_dictionary) \
-            if self.args.mask_whole_words else None
+        mask_whole_words = get_whole_word_mask(self.bpe, self.source_dictionary) \
+            if self.mask_whole_words else None
 
         src_dataset, tgt_dataset = MaskTokensDataset.apply_mask(
             dataset,
             self.source_dictionary,
             pad_idx=self.source_dictionary.pad(),
             mask_idx=self.mask_idx,
-            seed=self.args.seed,
-            mask_prob=self.args.mask_prob,
-            leave_unmasked_prob=self.args.leave_unmasked_prob,
-            random_token_prob=self.args.random_token_prob,
-            freq_weighted_replacement=self.args.freq_weighted_replacement,
+            seed=self.seed,
+            mask_prob=self.mask_prob,
+            leave_unmasked_prob=self.leave_unmasked_prob,
+            random_token_prob=self.random_token_prob,
+            freq_weighted_replacement=self.freq_weighted_replacement,
             mask_whole_words=mask_whole_words,
         )
 
-        with data_utils.numpy_seed(self.args.seed + epoch):
+        with data_utils.numpy_seed(self.seed + epoch):
             shuffle = np.random.permutation(len(src_dataset))
 
         self.datasets[split] = SortDataset(
@@ -162,7 +179,7 @@ class MaskedLMTask(FairseqTask):
             TokenBlockDataset(
                 src_tokens,
                 src_lengths,
-                self.args.tokens_per_sample - 1,  # one less for <s>
+                self.tokens_per_sample - 1,  # one less for <s>
                 pad=self.source_dictionary.pad(),
                 eos=self.source_dictionary.eos(),
                 break_mode='eos',
