@@ -67,7 +67,8 @@ class TranslationMoETask(TranslationTask):
                  max_source_positions, max_target_positions, upsample_primary, truncate_source, eval_bleu,
                  eval_bleu_detok, eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe, eval_bleu_args,
                  eval_bleu_print_samples, dataset_impl, method, num_experts, mean_pool_gating_network,
-                 mean_pool_gating_network_dropout, mean_pool_gating_network_encoder_dim, gen_expert, src_dict, tgt_dict):
+                 mean_pool_gating_network_dropout, mean_pool_gating_network_encoder_dim, gen_expert, sentence_avg,
+                 src_dict, tgt_dict):
         super().__init__(data, source_lang, target_lang, load_alignments, left_pad_source, left_pad_target,
                          max_source_positions, max_target_positions, upsample_primary, truncate_source,
                          eval_bleu, eval_bleu_detok, eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe,
@@ -79,6 +80,7 @@ class TranslationMoETask(TranslationTask):
         self.gen_expert = gen_expert
         self.method = method
         self.num_experts = num_experts
+        self.sentence_avg = sentence_avg
         if method == 'sMoElp':
             # soft MoE with learned prior
             self.uniform_prior = False
@@ -136,7 +138,7 @@ class TranslationMoETask(TranslationTask):
             args.eval_tokenized_bleu, args.eval_bleu_remove_bpe, args.eval_bleu_args, args.eval_bleu_print_samples,
             args.dataset_impl, args.method, args.num_experts, args.mean_pool_gating_network,
             args.mean_pool_gating_network_dropout, args.mean_pool_gating_network_encoder_dim, args.gen_expert,
-            src_dict, tgt_dict
+            getattr(args, 'sentence_avg', False), src_dict, tgt_dict
         )
 
 

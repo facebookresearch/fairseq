@@ -38,12 +38,17 @@ def get_dummy_dictionary(vocab_size=DEFAULT_TEST_VOCAB_SIZE):
 
 
 class DummyTask(FairseqTask):
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, ctc):
+        super().__init__()
+        self.ctc = ctc
         self.dictionary = get_dummy_dictionary()
-        if getattr(self.args, "ctc", False):
+        if self.ctc:
             self.dictionary.add_symbol("<ctc_blank>")
         self.tgt_dict = self.dictionary
+
+    @classmethod
+    def setup_task(cls, args, **kwargs):
+        return cls(getattr(args, "ctc", False))
 
     @property
     def target_dictionary(self):
