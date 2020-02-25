@@ -92,14 +92,25 @@ class MultilingualTranslationTask(FairseqTask):
                             help='replace beginning-of-sentence in target sentence with target language token')
         # fmt: on
 
-    def __init__(self, args, dicts, training):
-        super().__init__(args)
+    def __init__(self, data, lang_pairs, training, source_lang, target_lang, left_pad_source, left_pad_target,
+                 max_source_positions, max_target_positions, upsample_primary, encoder_langtok, decoder_langtok,
+                 dataset_impl, dicts):
+        super().__init__()
         self.dicts = dicts
+        self.data = data
+        self.left_pad_source = left_pad_source
+        self.left_pad_target = left_pad_target
+        self.max_source_positions = max_source_positions
+        self.max_target_positions = max_target_positions
+        self.upsample_primary = upsample_primary
+        self.encoder_langtok = encoder_langtok
+        self.decoder_langtok = decoder_langtok
+        self.dataset_impl = dataset_impl
         self.training = training
         if training:
-            self.lang_pairs = args.lang_pairs
+            self.lang_pairs = lang_pairs
         else:
-            self.lang_pairs = ['{}-{}'.format(args.source_lang, args.target_lang)]
+            self.lang_pairs = ['{}-{}'.format(source_lang, target_lang)]
         # eval_lang_pairs for multilingual translation is usually all of the
         # lang_pairs. However for other multitask settings or when we want to
         # optimize for certain languages we want to use a different subset. Thus
@@ -115,7 +126,9 @@ class MultilingualTranslationTask(FairseqTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         dicts, training = cls.prepare(args, **kwargs)
-        return cls(args, dicts, training)
+        return cls(args.data, args.lang_pairs, training, args.source_lang, args.target_lang, args.left_pad_source,
+                   args.left_pad_target, args.max_source_positions, args.max_target_positions, args.upsample_primary,
+                   args.encoder_langtok, args.decoder_langtok, args.dataset_impl, dicts)
 
     @classmethod
     def prepare(cls, args, **kargs):
@@ -149,32 +162,32 @@ class MultilingualTranslationTask(FairseqTask):
         return dicts, training
 
     def get_encoder_langtok(self, src_lang, tgt_lang):
-        if self.args.encoder_langtok is None:
+        if self.encoder_langtok is None:
             return self.dicts[src_lang].eos()
-        if self.args.encoder_langtok == 'src':
+        if self.encoder_langtok == 'src':
             return _lang_token_index(self.dicts[src_lang], src_lang)
         else:
             return _lang_token_index(self.dicts[src_lang], tgt_lang)
 
     def get_decoder_langtok(self, tgt_lang):
-        if not self.args.decoder_langtok:
+        if not self.decoder_langtok:
             return self.dicts[tgt_lang].eos()
         return _lang_token_index(self.dicts[tgt_lang], tgt_lang)
 
     def alter_dataset_langtok(self, lang_pair_dataset,
                               src_eos=None, src_lang=None, tgt_eos=None, tgt_lang=None):
-        if self.args.encoder_langtok is None and not self.args.decoder_langtok:
+        if self.encoder_langtok is None and not self.decoder_langtok:
             return lang_pair_dataset
 
         new_src_eos = None
-        if self.args.encoder_langtok is not None and src_eos is not None \
+        if self.encoder_langtok is not None and src_eos is not None \
            and src_lang is not None and tgt_lang is not None:
             new_src_eos = self.get_encoder_langtok(src_lang, tgt_lang)
         else:
             src_eos = None
 
         new_tgt_bos = None
-        if self.args.decoder_langtok and tgt_eos is not None and tgt_lang is not None:
+        if self.decoder_langtok and tgt_eos is not None and tgt_lang is not None:
             new_tgt_bos = self.get_decoder_langtok(tgt_lang)
         else:
             tgt_eos = None
@@ -190,7 +203,7 @@ class MultilingualTranslationTask(FairseqTask):
     def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
 
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
@@ -198,12 +211,12 @@ class MultilingualTranslationTask(FairseqTask):
             src, tgt = lang_pair.split('-')
             langpair_dataset = load_langpair_dataset(
                 data_path, split, src, self.dicts[src], tgt, self.dicts[tgt],
-                combine=True, dataset_impl=self.args.dataset_impl,
-                upsample_primary=self.args.upsample_primary,
-                left_pad_source=self.args.left_pad_source,
-                left_pad_target=self.args.left_pad_target,
-                max_source_positions=self.args.max_source_positions,
-                max_target_positions=self.args.max_target_positions,
+                combine=True, dataset_impl=self.dataset_impl,
+                upsample_primary=self.upsample_primary,
+                left_pad_source=self.left_pad_source,
+                left_pad_target=self.left_pad_target,
+                max_source_positions=self.max_source_positions,
+                max_target_positions=self.max_target_positions,
             )
             return self.alter_dataset_langtok(
                 langpair_dataset,
@@ -218,11 +231,11 @@ class MultilingualTranslationTask(FairseqTask):
                 (lang_pair, language_pair_dataset(lang_pair))
                 for lang_pair in self.lang_pairs
             ]),
-            eval_key=None if self.training else "%s-%s" % (self.args.source_lang, self.args.target_lang),
+            eval_key=None if self.training else "%s-%s" % (self.source_lang, self.target_lang),
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths):
-        lang_pair = "%s-%s" % (self.args.source_lang, self.args.target_lang)
+        lang_pair = "%s-%s" % (self.source_lang, self.target_lang)
         return RoundRobinZipDatasets(
             OrderedDict([(
                 lang_pair,
@@ -232,9 +245,9 @@ class MultilingualTranslationTask(FairseqTask):
                         self.source_dictionary
                     ),
                     src_eos=self.source_dictionary.eos(),
-                    src_lang=self.args.source_lang,
+                    src_lang=self.source_lang,
                     tgt_eos=self.target_dictionary.eos(),
-                    tgt_lang=self.args.target_lang,
+                    tgt_lang=self.target_lang,
                 ),
             )]),
             eval_key=lang_pair,
@@ -243,11 +256,11 @@ class MultilingualTranslationTask(FairseqTask):
     def build_model(self, args):
         def check_args():
             messages = []
-            if len(set(self.args.lang_pairs).symmetric_difference(args.lang_pairs)) != 0:
+            if len(set(self.lang_pairs).symmetric_difference(args.lang_pairs)) != 0:
                 messages.append('--lang-pairs should include all the language pairs {}.'.format(args.lang_pairs))
-            if self.args.encoder_langtok != args.encoder_langtok:
+            if self.encoder_langtok != args.encoder_langtok:
                 messages.append('--encoder-langtok should be {}.'.format(args.encoder_langtok))
-            if self.args.decoder_langtok != args.decoder_langtok:
+            if self.decoder_langtok != args.decoder_langtok:
                 messages.append('--decoder-langtok should {} be set.'.format("" if args.decoder_langtok else "not"))
 
             if len(messages) > 0:
@@ -304,8 +317,8 @@ class MultilingualTranslationTask(FairseqTask):
                     models,
                     sample,
                     prefix_tokens=prefix_tokens,
-                    bos_token=_lang_token_index(self.target_dictionary, self.args.target_lang)
-                    if self.args.decoder_langtok else self.target_dictionary.eos(),
+                    bos_token=_lang_token_index(self.target_dictionary, self.target_lang)
+                    if self.decoder_langtok else self.target_dictionary.eos(),
             )
 
     def reduce_metrics(self, logging_outputs, criterion):
@@ -320,22 +333,22 @@ class MultilingualTranslationTask(FairseqTask):
         if self.training:
             return next(iter(self.dicts.values()))
         else:
-            return self.dicts[self.args.source_lang]
+            return self.dicts[self.source_lang]
 
     @property
     def target_dictionary(self):
         if self.training:
             return next(iter(self.dicts.values()))
         else:
-            return self.dicts[self.args.target_lang]
+            return self.dicts[self.target_lang]
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
         if len(self.datasets.values()) == 0:
-            return {'%s-%s' % (self.args.source_lang, self.args.target_lang):
-                    (self.args.max_source_positions, self.args.max_target_positions)}
+            return {'%s-%s' % (self.source_lang, self.target_lang):
+                    (self.max_source_positions, self.max_target_positions)}
         return OrderedDict([
-            (key, (self.args.max_source_positions, self.args.max_target_positions))
+            (key, (self.max_source_positions, self.max_target_positions))
             for split in self.datasets.keys()
             for key in self.datasets[split].datasets.keys()
         ])
