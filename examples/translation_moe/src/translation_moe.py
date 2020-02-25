@@ -5,13 +5,17 @@
 
 import torch
 
-from fairseq import metrics, utils
+from fairseq import metrics, utils, options
+from fairseq.data import data_utils
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
 from .logsumexp_moe import LogSumExpMoE
 from .mean_pool_gating_network import MeanPoolGatingNetwork
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 @register_task('translation_moe')
 class TranslationMoETask(TranslationTask):
@@ -57,37 +61,88 @@ class TranslationMoETask(TranslationTask):
                             help='which expert to use for generation')
         # fmt: on
 
-    def __init__(self, args, src_dict, tgt_dict):
-        if args.method == 'sMoElp':
+    def __init__(self, data, source_lang, target_lang, load_alignments, left_pad_source, left_pad_target,
+                 max_source_positions, max_target_positions, upsample_primary, truncate_source, eval_bleu,
+                 eval_bleu_detok, eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe, eval_bleu_args,
+                 eval_bleu_print_samples, dataset_impl, method, num_experts, mean_pool_gating_network,
+                 mean_pool_gating_network_dropout, mean_pool_gating_network_encoder_dim, gen_expert, src_dict, tgt_dict):
+        super().__init__(data, source_lang, target_lang, load_alignments, left_pad_source, left_pad_target,
+                         max_source_positions, max_target_positions, upsample_primary, truncate_source,
+                         eval_bleu, eval_bleu_detok, eval_bleu_detok_args, eval_tokenized_bleu, eval_bleu_remove_bpe,
+                         eval_bleu_args, eval_bleu_print_samples, dataset_impl, src_dict, tgt_dict)
+
+        self.mean_pool_gating_network = mean_pool_gating_network
+        self.mean_pool_gating_network_dropout = mean_pool_gating_network_dropout
+        self.mean_pool_gating_network_encoder_dim = mean_pool_gating_network_encoder_dim
+        self.gen_expert = gen_expert
+        self.method = method
+        self.num_experts = num_experts
+        if method == 'sMoElp':
             # soft MoE with learned prior
             self.uniform_prior = False
             self.hard_selection = False
-        elif args.method == 'sMoEup':
+        elif method == 'sMoEup':
             # soft MoE with uniform prior
             self.uniform_prior = True
             self.hard_selection = False
-        elif args.method == 'hMoElp':
+        elif method == 'hMoElp':
             # hard MoE with learned prior
             self.uniform_prior = False
             self.hard_selection = True
-        elif args.method == 'hMoEup':
+        elif method == 'hMoEup':
             # hard MoE with uniform prior
             self.uniform_prior = True
             self.hard_selection = True
 
         # add indicator tokens for each expert
-        for i in range(args.num_experts):
+        for i in range(num_experts):
             # add to both dictionaries in case we're sharing embeddings
             src_dict.add_symbol('<expert_{}>'.format(i))
             tgt_dict.add_symbol('<expert_{}>'.format(i))
 
-        super().__init__(args, src_dict, tgt_dict)
+    @classmethod
+    def setup_task(cls, args, **kwargs):
+        """Setup the task (e.g., load dictionaries).
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+        """
+        args.left_pad_source = options.eval_bool(args.left_pad_source)
+        args.left_pad_target = options.eval_bool(args.left_pad_target)
+
+        paths = utils.split_paths(args.data)
+        assert len(paths) > 0
+        # find language pair automatically
+        if args.source_lang is None or args.target_lang is None:
+            args.source_lang, args.target_lang = data_utils.infer_language_pair(paths[0])
+        if args.source_lang is None or args.target_lang is None:
+            raise Exception('Could not infer language pair, please provide it explicitly')
+
+        # load dictionaries
+        src_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.target_lang)))
+        assert src_dict.pad() == tgt_dict.pad()
+        assert src_dict.eos() == tgt_dict.eos()
+        assert src_dict.unk() == tgt_dict.unk()
+        logger.info('[{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
+        logger.info('[{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict)))
+
+        return cls(
+            args.data, args.source_lang, args.target_lang, args.load_alignments, args.left_pad_source,
+            args.left_pad_target, args.max_source_positions, args.max_target_positions, args.upsample_primary,
+            args.truncate_source, args.eval_bleu, args.eval_bleu_detok, args.eval_bleu_detok_args,
+            args.eval_tokenized_bleu, args.eval_bleu_remove_bpe, args.eval_bleu_args, args.eval_bleu_print_samples,
+            args.dataset_impl, args.method, args.num_experts, args.mean_pool_gating_network,
+            args.mean_pool_gating_network_dropout, args.mean_pool_gating_network_encoder_dim, args.gen_expert,
+            src_dict, tgt_dict
+        )
+
 
     def build_model(self, args):
         from fairseq import models
         model = models.build_model(args, self)
         if not self.uniform_prior and not hasattr(model, 'gating_network'):
-            if self.args.mean_pool_gating_network:
+            if self.mean_pool_gating_network:
                 if getattr(args, 'mean_pool_gating_network_encoder_dim', None):
                     encoder_dim = args.mean_pool_gating_network_encoder_dim
                 elif getattr(args, 'encoder_embed_dim', None):
@@ -120,7 +175,7 @@ class TranslationMoETask(TranslationTask):
         assert hasattr(criterion, 'compute_loss'), \
             'translation_moe task requires the criterion to implement the compute_loss() method'
 
-        k = self.args.num_experts
+        k = self.num_experts
         bsz = sample['target'].size(0)
 
         def get_lprob_y(encoder_out, prev_output_tokens_k):
@@ -177,7 +232,7 @@ class TranslationMoETask(TranslationTask):
             loss = -LogSumExpMoE.apply(lprob_yz, prob_z_xy, 1)
 
         loss = loss.sum()
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        sample_size = sample['target'].size(0) if self.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': utils.item(loss.data),
             'ntokens': sample['ntokens'],
@@ -202,7 +257,7 @@ class TranslationMoETask(TranslationTask):
         return loss, sample_size, logging_output
 
     def inference_step(self, generator, models, sample, prefix_tokens=None, expert=None):
-        expert = expert or self.args.gen_expert
+        expert = expert or self.gen_expert
         with torch.no_grad():
             return generator.generate(
                 models,
