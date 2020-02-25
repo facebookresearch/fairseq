@@ -271,7 +271,7 @@ class Trainer(object):
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
-        if self._dummy_batch is None:
+        if self._dummy_batch == "DUMMY":
             self._dummy_batch = samples[0]
 
         self._set_seed()
@@ -420,7 +420,7 @@ class Trainer(object):
     @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
-        if self._dummy_batch is None:
+        if self._dummy_batch == "DUMMY":
             self._dummy_batch = sample
 
         with torch.no_grad():
