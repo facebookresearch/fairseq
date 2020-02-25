@@ -58,18 +58,28 @@ class SentencePredictionTask(FairseqTask):
         parser.add_argument('--add-prev-output-tokens', action='store_true', default=False,
                             help='add prev_output_tokens to sample, used for encoder-decoder arch')
 
-    def __init__(self, args, data_dictionary, label_dictionary):
-        super().__init__(args)
+    def __init__(self, data, num_classes, init_token, separator_token, regression_target, no_shuffle, truncate_sequence,
+                 add_prev_output_tokens, max_positions, max_source_positions, max_target_positions, dataset_impl,
+                 data_dictionary, label_dictionary):
+        super().__init__()
         self.dictionary = data_dictionary
         self._label_dictionary = label_dictionary
-        if not hasattr(args, 'max_positions'):
+        self.data = data
+        self.num_classes = num_classes
+        self.init_token = init_token
+        self.separator_token = separator_token
+        self.regression_target = regression_target
+        self.no_shuffle = no_shuffle
+        self.truncate_sequence = truncate_sequence
+        self.add_prev_output_tokens = add_prev_output_tokens
+        self.dataset_impl = dataset_impl
+        if not max_positions:
             self._max_positions = (
-                args.max_source_positions,
-                args.max_target_positions,
+                max_source_positions,
+                max_target_positions,
             )
         else:
-            self._max_positions = args.max_positions
-        args.tokens_per_sample = self._max_positions
+            self._max_positions = max_positions
 
     @classmethod
     def load_dictionary(cls, args, filename, source=True):
@@ -105,12 +115,16 @@ class SentencePredictionTask(FairseqTask):
             logger.info('[label] dictionary: {} types'.format(len(label_dict)))
         else:
             label_dict = data_dict
-        return SentencePredictionTask(args, data_dict, label_dict)
+        return SentencePredictionTask(
+            args.data, args.num_classes, args.init_token, args.separator_token, args.regression_target, args.no_shuffle,
+            args.truncate_sequence, args.add_prev_output_tokens, args.max_positions, args.max_source_positions,
+            args.max_target_positions, args.dataset_impl, data_dict, label_dict
+        )
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split (e.g., train, valid, test)."""
         def get_path(type, split):
-            return os.path.join(self.args.data, type, split)
+            return os.path.join(self.data, type, split)
 
         def make_dataset(type, dictionary):
             split_path = get_path(type, split)
@@ -118,7 +132,7 @@ class SentencePredictionTask(FairseqTask):
             dataset = data_utils.load_indexed_dataset(
                 split_path,
                 dictionary,
-                self.args.dataset_impl,
+                self.dataset_impl,
                 combine=combine,
             )
             return dataset
@@ -127,22 +141,22 @@ class SentencePredictionTask(FairseqTask):
         assert input0 is not None, 'could not find dataset: {}'.format(get_path(type, split))
         input1 = make_dataset('input1', self.source_dictionary)
 
-        if self.args.init_token is not None:
-            input0 = PrependTokenDataset(input0, self.args.init_token)
+        if self.init_token is not None:
+            input0 = PrependTokenDataset(input0, self.init_token)
 
         if input1 is None:
             src_tokens = input0
         else:
-            if self.args.separator_token is not None:
-                input1 = PrependTokenDataset(input1, self.args.separator_token)
+            if self.separator_token is not None:
+                input1 = PrependTokenDataset(input1, self.separator_token)
 
             src_tokens = ConcatSentencesDataset(input0, input1)
 
-        with data_utils.numpy_seed(self.args.seed):
+        with data_utils.numpy_seed(self.seed):
             shuffle = np.random.permutation(len(src_tokens))
 
-        if self.args.truncate_sequence:
-            src_tokens = TruncateDataset(src_tokens, self.args.max_positions)
+        if self.truncate_sequence:
+            src_tokens = TruncateDataset(src_tokens, self.max_positions)
 
         dataset = {
             'id': IdDataset(),
@@ -157,7 +171,7 @@ class SentencePredictionTask(FairseqTask):
             'ntokens': NumelDataset(src_tokens, reduce=True),
         }
 
-        if self.args.add_prev_output_tokens:
+        if self.add_prev_output_tokens:
             prev_tokens_dataset = RightPadDataset(
                 RollDataset(src_tokens, 1),
                 pad_idx=self.dictionary.pad(),
@@ -166,7 +180,7 @@ class SentencePredictionTask(FairseqTask):
                 prev_output_tokens=prev_tokens_dataset,
             )
 
-        if not self.args.regression_target:
+        if not self.regression_target:
             label_dataset = make_dataset('label', self.label_dictionary)
             if label_dataset is not None:
                 dataset.update(
@@ -192,7 +206,7 @@ class SentencePredictionTask(FairseqTask):
             sizes=[src_tokens.sizes],
         )
 
-        if self.args.no_shuffle:
+        if self.no_shuffle:
             dataset = nested_dataset
         else:
             dataset = SortDataset(
@@ -212,7 +226,7 @@ class SentencePredictionTask(FairseqTask):
 
         model.register_classification_head(
             getattr(args, 'classification_head_name', 'sentence_classification_head'),
-            num_classes=self.args.num_classes,
+            num_classes=self.num_classes,
         )
 
         return model
