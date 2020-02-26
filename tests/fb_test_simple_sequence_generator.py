@@ -83,13 +83,6 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
             test_utils.sequence_generator_setup()
         )
         self.task, self.parser = get_dummy_task_and_parser()
-        d = self.task.dictionary
-        eos = d.eos()
-        w1 = 4
-        w2 = 5
-        src_tokens = torch.LongTensor([[w1, w2, eos], [w1, w2, eos]])
-        src_lengths = torch.LongTensor([2, 2])
-        self.encoder_input = {"src_tokens": src_tokens, "src_lengths": src_lengths}
 
     @unittest.skipIf(
         torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
@@ -144,6 +137,7 @@ class TestExportSearch(unittest.TestCase):
         )
         torch.jit.script(search_strategy)
 
+
 class TestSequenceGeneratorBase(unittest.TestCase):
     def assertHypoTokens(self, hypo, tokens):
         self.assertTensorEqual(hypo["tokens"], torch.LongTensor(tokens))
@@ -166,19 +160,21 @@ class TestSequenceGeneratorBase(unittest.TestCase):
         self.assertEqual(t1.ne(t2).long().sum(), 0)
 
 
-@unittest.skip(
-    "Sequence generator only supports Transformer model for now. This unit test is written based on TestIncrementalDecoder model"
-)
 class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
     def setUp(self):
         self.tgt_dict, self.w1, self.w2, src_tokens, src_lengths, self.model = (
             test_utils.sequence_generator_setup()
         )
-        self.encoder_input = {"src_tokens": src_tokens, "src_lengths": src_lengths}
+        self.sample = {
+            'net_input': {
+                'src_tokens': src_tokens,
+                'src_lengths': src_lengths,
+            },
+        }
 
     def test_with_normalization(self):
         generator = SimpleSequenceGenerator([self.model], self.tgt_dict, beam_size=2)
-        hypos = generator.forward(self.encoder_input)
+        hypos = generator.generate(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -199,7 +195,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = SimpleSequenceGenerator(
             [self.model], self.tgt_dict, beam_size=2, normalize_scores=False
         )
-        hypos = generator.forward(self.encoder_input)
+        hypos = generator.generate(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -219,7 +215,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = SimpleSequenceGenerator(
             [self.model], self.tgt_dict, beam_size=2, len_penalty=lenpen
         )
-        hypos = generator.forward(self.encoder_input)
+        hypos = generator.generate(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -239,7 +235,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = SimpleSequenceGenerator(
             [self.model], self.tgt_dict, beam_size=2, len_penalty=lenpen
         )
-        hypos = generator.forward(self.encoder_input)
+        hypos = generator.generate(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w2, w1, w2, eos])

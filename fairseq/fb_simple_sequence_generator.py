@@ -21,22 +21,40 @@ class SimpleSequenceGenerator(nn.Module):
         models,
         tgt_dict,
         beam_size=1,
+        max_len_a=0,
+        max_len_b=200,
+        min_len=1,
         normalize_scores=True,
         len_penalty=1.0,
         unk_penalty=0.0,
+        retain_dropout=False,
         temperature=1.0,
+        match_source_len=False,
+        no_repeat_ngram_size=0,
+        search_strategy=None,
     ):
         """Generates translations of a given source sentence.
         Args:
             models (List[~fairseq.models.FairseqModel]): ensemble of models,
                 currently support fairseq.models.TransformerModel for scripting
             beam_size (int, optional): beam width (default: 1)
+            max_len_a/b (int, optional): generate sequences of maximum length
+                ax + b, where x is the source length
+            min_len (int, optional): the minimum length of the generated output
+                (not including end-of-sentence)
             normalize_scores (bool, optional): normalize scores by the length
                 of the output (default: True)
             len_penalty (float, optional): length penalty, where <1.0 favors
                 shorter, >1.0 favors longer sentences (default: 1.0)
             unk_penalty (float, optional): unknown word penalty, where <0
                 produces more unks, >0 produces fewer (default: 0.0)
+            retain_dropout (bool, optional): use dropout when generating
+                (default: False)
+            temperature (float, optional): temperature, where values
+                >1.0 produce more uniform samples and values <1.0 produce
+                sharper samples (default: 1.0)
+            match_source_len (bool, optional): outputs should match the source
+                length (default: False)
         """
         super().__init__()
         self.model = EnsembleModel(models)
@@ -45,23 +63,36 @@ class SimpleSequenceGenerator(nn.Module):
         self.eos = tgt_dict.eos()
         self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
+        # the max beam size is the dictionary size - 1, since we never select pad
+        self.max_len_a = max_len_a
+        self.max_len_b = max_len_b
+        self.min_len = min_len
+
         self.maxlen = self.model.max_decoder_positions() - 1
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
+        self.retain_dropout = retain_dropout
         self.temperature = temperature
+        self.match_source_len = match_source_len
+        self.no_repeat_ngram_size = no_repeat_ngram_size
         assert temperature > 0, "--temperature must be greater than 0"
 
-        self.search = search.BeamSearch(tgt_dict)
-        self.model.eval()
+        self.search = (
+            search.BeamSearch(tgt_dict) if search_strategy is None else search_strategy
+        )
+        if not self.retain_dropout:
+            self.model.eval()
+
 
     def cuda(self):
         self.model.cuda()
         return self
 
-    def forward(self, encoder_input: Dict[str, Tensor]):
+    @torch.no_grad()
+    def forward(self, sample: Dict[str, Dict[str, Tensor]]):
         """Generate translations."""
-        return self._generate(encoder_input)
+        return self._generate(sample)
 
     def generate_batched_itr(self, data_itr, beam_size=None, cuda=False, timer=None):
         """Iterate over a batched dataset and yield individual translations.
@@ -95,23 +126,38 @@ class SimpleSequenceGenerator(nn.Module):
                 )
                 yield id, src, ref, hypos[i]
 
-    def generate(self, encoder_input):
+    @torch.no_grad()
+    def generate(self, sample: Dict[str, Dict[str, Tensor]]):
         """Generate translations."""
-        with torch.no_grad():
-            return self._generate(encoder_input)
+        return self._generate(sample)
 
-    def _generate(self, encoder_input: Dict[str, Tensor]):
+    def _generate(self, sample: Dict[str, Dict[str, Tensor]]):
+
+        encoder_input: Dict[str, Tensor] = {}
+        for k, v in sample['net_input'].items():
+            if k != 'prev_output_tokens':
+                encoder_input[k] = v
+
         src_tokens = encoder_input["src_tokens"]
         # length of the source text being the character length except EndOfSentence and pad
         src_lengths = (
             (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
         )
         # bsz: total number of sentences in beam
-        bsz, srclen = src_tokens.size()
+        bsz, src_len = src_tokens.size()
 
         # the max beam size is the dictionary size - 1, since we never select pad
         beam_size = min(self.beam_size, self.vocab_size - 1)
 
+        if self.match_source_len:
+            max_len = src_lengths.max().item()
+        else:
+            max_len = min(
+                int(self.max_len_a * src_len + self.max_len_b),
+                # exclude the EOS marker
+                self.model.max_decoder_positions() - 1,
+            )
+        assert self.min_len <= max_len, 'min_len cannot be larger than max_len, please adjust these!'
         # compute the encoder output for each beam
         encoder_outs = self.model.forward_encoder(
             src_tokens=encoder_input["src_tokens"],
@@ -191,7 +237,6 @@ class SimpleSequenceGenerator(nn.Module):
                 eos_scores, eos_bbsz_idx = torch.sort(
                     lprobs[:, self.eos], descending=True
                 )
-
                 num_remaining_sent -= self.finalize_hypos(
                     step,
                     eos_bbsz_idx,
@@ -396,7 +441,7 @@ class EnsembleModel(nn.Module):
         return len(self.incremental_states[0]) != 0
 
     def max_decoder_positions(self):
-        return min(m.max_decoder_positions() for m in self.models)
+        return min([m.max_decoder_positions() for m in self.models])
 
     @torch.jit.export
     def forward_encoder(self, src_tokens, src_lengths):
@@ -415,7 +460,6 @@ class EnsembleModel(nn.Module):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         for i, model in enumerate(self.models):
-            # model = self.models[i]
             encoder_out = encoder_outs[i]
             incremental_state = self.incremental_states[i]
             probs, attn = self._decode_one(
@@ -469,8 +513,8 @@ class EnsembleModel(nn.Module):
         #     attn = attn[:, -1, :]
 
         decoder_out_tuple = (decoder_out[0][:, -1, :].div_(temperature), decoder_out[1])
-        probs = self.get_normalized_probs(
-                model, decoder_out_tuple, log_probs=True, sample=None
+        probs = model.get_normalized_probs(
+                decoder_out_tuple, log_probs=True, sample=None
             )
         return probs, attn
 
