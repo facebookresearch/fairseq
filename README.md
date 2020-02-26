@@ -16,6 +16,8 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/master/examples/backtranslation#training-your-own-model-wmt18-english-german)
+- December 2019: [fairseq 0.9.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.9.0)
 - November 2019: [VizSeq released (a visual analysis toolkit for evaluating fairseq models)](https://facebookresearch.github.io/vizseq/docs/getting_started/fairseq_example)
 - November 2019: [CamemBERT model and code released](examples/camembert/README.md)
 - November 2019: [BART model and code released](examples/bart/README.md)
