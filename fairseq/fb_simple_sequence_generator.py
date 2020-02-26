@@ -462,14 +462,31 @@ class EnsembleModel(nn.Module):
         for i, model in enumerate(self.models):
             encoder_out = encoder_outs[i]
             incremental_state = self.incremental_states[i]
-            probs, attn = self._decode_one(
-                tokens,
-                model,
-                encoder_out,
-                incremental_state,
-                log_probs=True,
-                temperature=temperature,
-            )
+            # decode each model
+            if self.has_incremental_states():
+                decoder_out = model.decoder.forward(
+                    tokens, encoder_out=encoder_out, incremental_state=incremental_state
+                )
+            else:
+                decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+            # Attention is not used in this version of sequence generator. And
+            # variable type in the torchscript need to be static. So attention part
+            # is commented out. Currently only supporting Dict type output
+            attn = decoder_out[1]["attn"][0]
+            if attn is not None:
+                attn = attn[:, -1, :]
+            # if isinstance(attn_holder, dict):
+            #     attn = attn_holder.get('attn', None)
+            # if isinstance(attn, list):
+            #     attn = attn_holder[0]
+            # if attn is not None:
+            #     attn = attn[:, -1, :]
+
+            decoder_out_tuple = (decoder_out[0][:, -1, :].div_(temperature), decoder_out[1])
+            probs = model.get_normalized_probs(
+                    decoder_out_tuple, log_probs=True, sample=None
+                )
+
             log_probs.append(probs)
             if attn is not None:
                 if avg_attn is None:
@@ -483,40 +500,6 @@ class EnsembleModel(nn.Module):
             avg_attn.div_(self.models_size)
         return avg_probs, avg_attn
 
-    @torch.jit.export
-    def _decode_one(
-        self,
-        tokens,
-        model: TransformerModel,
-        encoder_out: EncoderOut,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
-        log_probs: bool,
-        temperature: float = 1.0,
-    ):
-        if self.has_incremental_states():
-            decoder_out = model.decoder.forward(
-                tokens, encoder_out=encoder_out, incremental_state=incremental_state
-            )
-        else:
-            decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
-        # Attention is not used in this version of sequence generator. And
-        # variable type in the torchscript need to be static. So attention part
-        # is commented out. Currently only supporting Dict type output
-        attn = decoder_out[1]["attn"][0]
-        if attn is not None:
-            attn = attn[:, -1, :]
-        # if isinstance(attn_holder, dict):
-        #     attn = attn_holder.get('attn', None)
-        # if isinstance(attn, list):
-        #     attn = attn_holder[0]
-        # if attn is not None:
-        #     attn = attn[:, -1, :]
-
-        decoder_out_tuple = (decoder_out[0][:, -1, :].div_(temperature), decoder_out[1])
-        probs = model.get_normalized_probs(
-                decoder_out_tuple, log_probs=True, sample=None
-            )
-        return probs, attn
 
     @torch.jit.export
     def reorder_encoder_out(self, encoder_outs: List[EncoderOut], new_order):
