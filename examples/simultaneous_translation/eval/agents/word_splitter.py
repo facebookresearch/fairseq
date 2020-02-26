@@ -5,9 +5,12 @@ class SubwordSplitter(object):
     def split(self, string: str) -> list:
         raise NotImplementedError
 
-class NoneSubwordSplitter(object):
+class NoneWordSplitter(object):
     def __init__(self, model):
         pass
+
+    def split(self, string):
+        return [string]
     
     def process_line(self, string):
         return [string]
@@ -15,21 +18,40 @@ class NoneSubwordSplitter(object):
     def finished_word(self, string):
         return True
 
-    def merge_subwords(self, list_of_string):
+    def merge(self, list_of_string):
         return "".join(list_of_string)
 
     def last_full_word_step(self, tokens, step):
         return len(tokens)
 
-class BPESubwordSplitter(object):
-    def __init__(self, args):
+    def end_idx_last_full_word(self, tokens):
+        return len(tokens)
+
+class BPEWordSplitter(object):
+    def __init__(self, model_path):
         super().__init__()
         from subword_nmt.apply_bpe import BPE
-        with open(args.model) as f:
+        with open(model_path) as f:
             self.model = BPE(f)
     
-    def process_line(self, string):
+    def split(self, string: str) -> list:
         return self.model.process_line(string).split()
+    
+    def end_idx_last_full_word(self, tokens):
+        length = len(tokens)
+        # Begin of word indices
+        bow_indices = [0] + [i + 1 for i, t in enumerate(tokens[1:]) if t[-2:] != '@@'] 
+        #print(tokens)
+        #print(bow_indices)
+        #import pdb; pdb.set_trace()
+
+        if len(bow_indices) < 2:
+            return 0
+        else:
+            return bow_indices[-1]
+    
+    def merge(self, list_of_string):
+        return " ".join([item.replace("@@", "") for item in list_of_string])
 
 class SentencePieceModelWordSplitter(object):
     def __init__(self, model_path):

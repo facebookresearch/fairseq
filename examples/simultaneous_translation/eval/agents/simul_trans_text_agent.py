@@ -79,11 +79,10 @@ class SimulTransTextAgent(Agent):
             "words" : {"src": [], "tgt": []},
             "steps" : {"src": 0, "tgt": 0},
             "finished" : False,
+            "model_states": {}
         }
 
     def update_states(self, states, new_state):
-        if len(new_state) == 0:
-            return states
 
         new_word = new_state["segment"]
 
@@ -104,21 +103,19 @@ class SimulTransTextAgent(Agent):
 
         # Update states
         states["words"]["src"] += [new_word]
-        states["indices"]["src"] += indices
         states["tokens"]["src"] += tokens
+        self._append_indices(states, indices, "src")
 
         return states
 
     def policy(self, states):
         # Read and Write policy
-
-        if states["finished"]:
-            # Finish the hypo by sending eos to server
-            return self.finish_action()
-        
         action = None
 
         while action is None:
+            if states["finished"]:
+                # Finish the hypo by sending eos to server
+                return self.finish_action()
             # Model make decision given current states
             decision = self.model.decision_from_states(states)
 
@@ -140,15 +137,15 @@ class SimulTransTextAgent(Agent):
         if index == self.dict["tgt"].eos() or len(states["tokens"]["tgt"]) > self.max_len:
             # Finish this sentence is predict EOS
             states["finished"] = True
-            end_idx_last_full_word = len(states["tokens"]['tgt'])
+            end_idx_last_full_word = self._target_length(states)
 
         else:    
             states["tokens"]["tgt"] += [token]
-            states["indices"]["tgt"] += [index]
             end_idx_last_full_word = (
                 self.word_splitter["tgt"]
                 .end_idx_last_full_word(states["tokens"]["tgt"])
             ) 
+            self._append_indices(states, [index], "tgt")
 
         if end_idx_last_full_word > states["steps"]["tgt"]:
             # Only sent detokenized full words to the server
@@ -192,3 +189,10 @@ class SimulTransTextAgent(Agent):
         if len(new_state) == 0 and len(states["indices"]["src"]) == 0:
             return True
         return False
+
+    def _append_indices(self, states, new_indices, key):
+        states["indices"][key] += new_indices
+    
+    def _target_length(self, states):
+        return len(states["tokens"]['tgt'])
+        
