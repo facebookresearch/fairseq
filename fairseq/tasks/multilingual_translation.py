@@ -109,10 +109,7 @@ class MultilingualTranslationTask(FairseqTask):
         self.decoder_langtok = decoder_langtok
         self.dataset_impl = dataset_impl
         self.training = training
-        if training:
-            self.lang_pairs = lang_pairs
-        else:
-            self.lang_pairs = ['{}-{}'.format(source_lang, target_lang)]
+        self.lang_pairs = lang_pairs
         # eval_lang_pairs for multilingual translation is usually all of the
         # lang_pairs. However for other multitask settings or when we want to
         # optimize for certain languages we want to use a different subset. Thus
