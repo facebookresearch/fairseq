@@ -17,9 +17,9 @@ from typing import Any, Dict, List
 
 import torch
 
-from fairseq import checkpoint_utils, distributed_utils, metrics, models, optim, utils
+from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.file_io import PathManager
-from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
+from fairseq.logging import meters, metrics
 from fairseq.optim import lr_scheduler
 
 
@@ -226,7 +226,7 @@ class Trainer(object):
 
                 # reset TimeMeters, since their start times don't make sense anymore
                 for meter in metrics.get_meters("default"):
-                    if isinstance(meter, TimeMeter):
+                    if isinstance(meter, meters.TimeMeter):
                         meter.reset()
         else:
             logger.info("no existing checkpoint found {}".format(filename))

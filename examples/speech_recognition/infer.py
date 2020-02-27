@@ -14,8 +14,8 @@ import os
 
 import sentencepiece as spm
 import torch
-from fairseq import checkpoint_utils, options, progress_bar, utils, tasks
-from fairseq.meters import StopwatchMeter, TimeMeter
+from fairseq import checkpoint_utils, options, utils, tasks
+from fairseq.logging import meters, progress_bar
 from fairseq.utils import import_user_module
 
 
@@ -199,9 +199,15 @@ def main(args):
 
     # Load dataset (possibly sharded)
     itr = get_dataset_itr(args, task)
+    progress = progress_bar.progress_bar(
+        itr,
+        log_format=args.log_format,
+        log_interval=args.log_interval,
+        default_log_format=('tqdm' if not args.no_progress_bar else 'none'),
+    )
 
     # Initialize generator
-    gen_timer = StopwatchMeter()
+    gen_timer = meters.StopwatchMeter()
     generator = task.build_generator(args)
 
     num_sentences = 0
@@ -213,36 +219,35 @@ def main(args):
     sp.Load(os.path.join(args.data, "spm.model"))
 
     res_files = prepare_result_files(args)
-    with progress_bar.build_progress_bar(args, itr) as t:
-        wps_meter = TimeMeter()
-        for sample in t:
-            sample = utils.move_to_cuda(sample) if use_cuda else sample
-            if "net_input" not in sample:
-                continue
+    wps_meter = meters.TimeMeter()
+    for sample in progress:
+        sample = utils.move_to_cuda(sample) if use_cuda else sample
+        if "net_input" not in sample:
+            continue
 
-            prefix_tokens = None
-            if args.prefix_size > 0:
-                prefix_tokens = sample["target"][:, : args.prefix_size]
+        prefix_tokens = None
+        if args.prefix_size > 0:
+            prefix_tokens = sample["target"][:, : args.prefix_size]
 
-            gen_timer.start()
-            hypos = task.inference_step(generator, models, sample, prefix_tokens)
-            num_generated_tokens = sum(len(h[0]["tokens"]) for h in hypos)
-            gen_timer.stop(num_generated_tokens)
+        gen_timer.start()
+        hypos = task.inference_step(generator, models, sample, prefix_tokens)
+        num_generated_tokens = sum(len(h[0]["tokens"]) for h in hypos)
+        gen_timer.stop(num_generated_tokens)
 
-            for i, sample_id in enumerate(sample["id"].tolist()):
-                speaker = task.dataset(args.gen_subset).speakers[int(sample_id)]
-                id = task.dataset(args.gen_subset).ids[int(sample_id)]
-                target_tokens = (
-                    utils.strip_pad(sample["target"][i, :], tgt_dict.pad()).int().cpu()
-                )
-                # Process top predictions
-                process_predictions(
-                    args, hypos[i], sp, tgt_dict, target_tokens, res_files, speaker, id
-                )
+        for i, sample_id in enumerate(sample["id"].tolist()):
+            speaker = task.dataset(args.gen_subset).speakers[int(sample_id)]
+            id = task.dataset(args.gen_subset).ids[int(sample_id)]
+            target_tokens = (
+                utils.strip_pad(sample["target"][i, :], tgt_dict.pad()).int().cpu()
+            )
+            # Process top predictions
+            process_predictions(
+                args, hypos[i], sp, tgt_dict, target_tokens, res_files, speaker, id
+            )
 
-            wps_meter.update(num_generated_tokens)
-            t.log({"wps": round(wps_meter.avg)})
-            num_sentences += sample["nsentences"]
+        wps_meter.update(num_generated_tokens)
+        progress.log({"wps": round(wps_meter.avg)})
+        num_sentences += sample["nsentences"]
 
     logger.info(
         "| Processed {} sentences ({} tokens) in {:.1f}s ({:.2f}"
