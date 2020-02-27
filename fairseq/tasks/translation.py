@@ -39,7 +39,7 @@ def load_langpair_dataset(
     combine, dataset_impl, upsample_primary,
     left_pad_source, left_pad_target, max_source_positions,
     max_target_positions, prepend_bos=False, load_alignments=False,
-    truncate_source=False,
+    truncate_source=False, append_source_id=False
 ):
 
     def split_exists(split, src, tgt, lang, data_path):
@@ -105,6 +105,13 @@ def load_langpair_dataset(
         if tgt_dataset is not None:
             tgt_dataset = PrependTokenDataset(tgt_dataset, tgt_dict.bos())
 
+    eos = None
+    if append_source_id:
+        src_dataset = AppendTokenDataset(src_dataset, src_dict.index('[{}]'.format(src)))
+        if tgt_dataset is not None:
+            tgt_dataset = AppendTokenDataset(tgt_dataset, tgt_dict.index('[{}]'.format(tgt)))
+        eos = tgt_dict.index('[{}]'.format(tgt))
+
     align_dataset = None
     if load_alignments:
         align_path = os.path.join(data_path, '{}.align.{}-{}'.format(split, src, tgt))
@@ -119,7 +126,7 @@ def load_langpair_dataset(
         left_pad_target=left_pad_target,
         max_source_positions=max_source_positions,
         max_target_positions=max_target_positions,
-        align_dataset=align_dataset,
+        align_dataset=align_dataset, eos=eos
     )
 
 

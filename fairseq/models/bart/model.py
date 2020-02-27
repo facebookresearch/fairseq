@@ -249,3 +249,9 @@ def bart_large_architecture(args):
     args.activation_fn = getattr(args, 'activation_fn', 'gelu')
     args.pooler_activation_fn = getattr(args, 'pooler_activation_fn', 'tanh')
     args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
+
+
+@register_model_architecture('bart', 'mbart_large')
+def mbart_large_architecture(args):
+    args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
+    bart_large_architecture(args)
