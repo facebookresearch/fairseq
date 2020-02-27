@@ -6,18 +6,21 @@
 import torch
 
 
+try:
+    from apex.normalization import FusedLayerNorm as _FusedLayerNorm
+    has_fused_layernorm = True
+
+    class FusedLayerNorm(_FusedLayerNorm):
+
+        @torch.jit.unused
+        def forward(self, x):
+            return super().forward(x)
+
+except ImportError:
+    has_fused_layernorm = False
+
+
 def LayerNorm(normalized_shape, eps=1e-5, elementwise_affine=True, export=False):
-    if not export and torch.cuda.is_available():
-        try:
-            from apex.normalization import FusedLayerNorm
-
-            class _FusedLayerNorm(FusedLayerNorm):
-
-                @torch.jit.unused
-                def forward(self, x):
-                    return super().forward(x)
-
-            return _FusedLayerNorm(normalized_shape, eps, elementwise_affine)
-        except ImportError:
-            pass
+    if not export and torch.cuda.is_available() and has_fused_layernorm:
+        return FusedLayerNorm(normalized_shape, eps, elementwise_affine)
     return torch.nn.LayerNorm(normalized_shape, eps, elementwise_affine)
