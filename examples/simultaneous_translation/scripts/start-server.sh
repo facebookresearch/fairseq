@@ -3,7 +3,10 @@ set -e
 config=$1
 . $1
 
-#echo Config: $(realpath $config)
+config_name=$(basename -- "$config")
+config_name="${config%.*}"
+
+echo Config: $(realpath $config)
 echo Source: $src
 echo Target: $tgt
 echo Tokenizer: $tokenizer
@@ -20,11 +23,14 @@ else
 fi
 echo Port $port
 
+result_dir=./experiments/results/$config_name
+mkdir -p $result_dir
+
 python -u $user_dir/eval/server.py \
     --tokenizer $tokenizer \
     --src-file $src \
     --tgt-file $tgt \
-    --output ./output \
+    --output $result_dir/eval \
     --port $port
 exit
 

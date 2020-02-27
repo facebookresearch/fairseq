@@ -9,10 +9,14 @@ DEFAULT_EOS = '</s>'
 class SimulScorer(object):
     def __init__(self, args):
         self.tokenizer = args.tokenizer
-        self.output_files = {
-            "text": args.output + ".text",
-            "delay": args.output + ".delay"
-        }
+        if args.output is not None:
+            self.output_files = {
+                "text": args.output + ".text",
+                "delay": args.output + ".delay",
+                "scores": args.output + ".scores"
+            }
+        else:
+            self.output_files = None
         self.eos = DEFAULT_EOS
         self.data = {"tgt": []}
         self.reset()
@@ -48,25 +52,6 @@ class SimulScorer(object):
             translations += [" ".join(t[0] for t in self.translations[i][:-1])]
             delays += [[t[1] for t in self.translations[i][:-1]]]
 
-        src_lengths = [len(item) for item in self.data["src"]]
-        
-        if self.output_files["text"] is not None: 
-            with open(self.output_files["text"], "w") as f:
-                for line in translations:
-                    f.write(line + "\n")
-
-        if self.output_files["delay"] is not None: 
-            with open(self.output_files["delay"], "w") as f:
-                for i, delay in enumerate(delays):
-                    f.write(
-                        json.dumps(
-                            {
-                                "src_len": src_lengths[i],
-                                "delays" : delay
-                            }
-                        ) + "\n"
-                    )
-
         bleu_score = BLEUScorer(
             sent_level=False, corpus_level=True,
             extra_args={'bleu_tokenizer': self.tokenizer}
@@ -81,10 +66,10 @@ class SimulScorer(object):
 
 
         latency_score = LatencyScorer().score(
-            [{"src_len" : src_len, "delays" : delay} for src_len, delay in zip(src_lengths, delays)]
+            [{"src_len" : src_len, "delays" : delay} for src_len, delay in zip(self.src_lengths(), delays)]
         )
 
-        return {
+        scores = {
             'BLEU': bleu_score[0], 
             'TER': ter_score[0], 
             'METEOR': meteor_score[0],
@@ -92,6 +77,34 @@ class SimulScorer(object):
             'AL' : latency_score['average_lagging'],
             'AP' : latency_score['average_proportion'],
         }
+
+        if self.output_files is not None:
+            self.write_results_to_file(translations, delays, scores)
+        
+        return scores
+
+    def write_results_to_file(self, translations, delays, scores):
+        if self.output_files["text"] is not None: 
+            with open(self.output_files["text"], "w") as f:
+                for line in translations:
+                    f.write(line + "\n")
+
+        if self.output_files["delay"] is not None: 
+            with open(self.output_files["delay"], "w") as f:
+                for i, delay in enumerate(delays):
+                    f.write(
+                        json.dumps(
+                            {
+                                "src_len": self.src_lengths()[i],
+                                "delays" : delay
+                            }
+                        ) + "\n"
+                    )
+
+        with open(self.output_files["scores"], "w") as f:
+            for key, value in scores.items():
+                f.write(f"{key}, {value}\n")
+        
 
     @classmethod
     def _load_text_file(cls, file, split=False):
