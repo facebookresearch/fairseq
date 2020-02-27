@@ -92,7 +92,7 @@ class SimulTransAgent(Agent):
             # Model make decision given current states
             decision = self.model.decision_from_states(states)
 
-            if decision == 0 and DEFAULT_EOS not in states["tokens"]["src"]:
+            if decision == 0 and not self.finish_read(states):
                 # READ
                 action = self.read_action(states)
             else:
@@ -103,6 +103,9 @@ class SimulTransAgent(Agent):
             # This happened when read a bufffered token
             # Or predict a subword
         return action
+
+    def finish_read(self, states):
+        raise NotImplementedError
 
     def write_action(self, states):
         token, index = self.model.predict_from_states(states)

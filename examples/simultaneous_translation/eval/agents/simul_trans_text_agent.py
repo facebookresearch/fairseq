@@ -48,10 +48,6 @@ class SimulTransTextAgent(SimulTransAgent):
         return states
 
     def read_action(self, states):
-        # Ignore models decision on reading when EOS in src_tokens
-        if DEFAULT_EOS in states["tokens"]["src"]:
-            return None
-        
         # Increase source step by one
         states["steps"]["src"] += 1
 
@@ -64,3 +60,6 @@ class SimulTransTextAgent(SimulTransAgent):
             return {'key': GET, 'value': None}
 
         return None
+
+    def finish_read(self, states):
+        return self.eos in states["tokens"]["src"]
