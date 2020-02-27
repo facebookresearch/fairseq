@@ -51,7 +51,7 @@ class Agent(object):
             action = self.policy(states)
             # Check action for each item in buffer
             if action['key'] == GET:
-                new_states = session.get_src(sent_id)
+                new_states = session.get_src(sent_id, action["value"])
                 states = self.update_states(states, new_states)
 
             elif action['key'] == SEND:

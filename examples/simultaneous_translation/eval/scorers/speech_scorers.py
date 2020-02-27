@@ -18,37 +18,41 @@ class SimulSpeechScorer(SimulScorer):
             "src" : self._load_wav_info_from_json(args.tgt_file),
             "tgt" : self._load_text_from_json(args.tgt_file)
         }
-        self.block_size = args.block_size
+        self.segment_size = args.segment_size
         self.sample_rate = args.sample_rate
 
     @staticmethod
     def add_args(parser):
         parser.add_argument('--sample-rate', type=int, default=16000,
                             help='Sample rate for the audio (Hz)')
-        parser.add_argument('--block-size', type=int, default=10,
-                            help='Block size (ms)')
+        parser.add_argument('--segment-size', type=int, default=10,
+                            help='Segment size (ms)')
 
-    def send_src(self, sent_id, block_size=10):
-
-        assert block_size >= self.block_size # in ms
+    def send_src(self, sent_id, value):
+        client_segment_size = value.get("segment_size", None)
+        if client_segment_size is not None:
+            assert client_segment_size >= self.segment_size # in ms
+        else:
+            client_segment_size = self.segment_size
 
         if (
             self.steps[sent_id] == 0 
-            and "wav" not in self.data["src"][sent_id]
+            and "segments" not in self.data["src"][sent_id]
         ):
             # Load audio file
-            self.data["src"][sent_id]["wav"] = self._load_audio_from_path(
+            self.data["src"][sent_id]["segments"] = self._load_audio_from_path(
                 self.data["src"][sent_id]["path"]
             ) 
         
-        num_block = block_size // self.block_size
+        num_segments = client_segment_size // self.segment_size
 
         if self.steps[sent_id] < self.data["src"][sent_id]["length"]:
 
             segment = []
-            start_block_idx = self.steps[sent_id] // self.block_size 
-            for i in range(num_block):
-                segment += self.data["src"][sent_id]["wav"][start_block_idx + i]
+            start_idx = self.steps[sent_id] // self.segment_size 
+            for i in range(num_segments):
+                if start_idx + i < len(self.data["src"][sent_id]["segments"]):
+                    segment += self.data["src"][sent_id]["segments"][start_idx + i]
 
             dict_to_return = {
                 "sent_id" : sent_id,
@@ -59,7 +63,7 @@ class SimulSpeechScorer(SimulScorer):
             self.steps[sent_id] = min(
                 [
                     self.data["src"][sent_id]["length"],
-                    self.steps[sent_id] + self.block_size * num_block
+                    self.steps[sent_id] + self.segment_size * num_segments
                 ]
             )
 
@@ -71,7 +75,8 @@ class SimulSpeechScorer(SimulScorer):
                 "segment_id": self.steps[sent_id],
                 "segment": self.eos
             }
-            del self.data["src"][sent_id]["wav"]
+            if "segments" in self.data["src"][sent_id]:
+                del self.data["src"][sent_id]["segments"]
 
         return dict_to_return
 
@@ -80,6 +85,6 @@ class SimulSpeechScorer(SimulScorer):
     
     def _load_audio_from_path(self, wav_path):
         assert os.path.isfile(wav_path) and wav_path.endswith('.wav')
-        frames_10ms = self.sample_rate // 1000 * self.block_size
+        frames_10ms = self.sample_rate // 1000 * self.segment_size
         wav_blocks = [b.tolist() for b in sf.blocks(wav_path, blocksize=frames_10ms)]
         return wav_blocks

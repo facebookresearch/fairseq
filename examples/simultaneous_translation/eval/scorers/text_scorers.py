@@ -10,7 +10,7 @@ class SimulTextScorer(SimulScorer):
             "tgt" : self._load_text_file(args.tgt_file, split=False)
         }
 
-    def send_src(self, sent_id):
+    def send_src(self, sent_id, *args):
         if self.steps[sent_id] == len(self.data["src"][sent_id]):
             dict_to_return = {
                 "sent_id" : sent_id,

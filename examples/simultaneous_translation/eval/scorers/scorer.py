@@ -24,7 +24,7 @@ class SimulScorer(object):
     def get_info(self):
         return {"num_sentences": len(self)}
         
-    def send_src(self, sent_id):
+    def send_src(self, sent_id, *args):
         raise NotImplementedError
 
     def recv_hyp(self, hypo):

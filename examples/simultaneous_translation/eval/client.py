@@ -46,12 +46,12 @@ class SimulSTEvaluationService(object):
             print(f'Failed to end an evaluation session: {e}')
         
         
-
-    def get_src(self, segment_id=None) -> str:
-        if segment_id is None:
-            segment_id = "info"
-        segment_id = str(segment_id)
-        url = f'{self.base_url}/get?ids={urllib.parse.quote(segment_id)}'
+    def get_src(self, sent_id=None, value=None) -> str:
+        info = {
+            "sent_id": sent_id,
+            "value": value
+        }
+        url = f'{self.base_url}/get?info={urllib.parse.quote(json.dumps(info))}'
         try:
             out = urllib.request.urlopen(url)
         except Exception as e:

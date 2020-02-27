@@ -32,12 +32,16 @@ class EndSessionHandler(ScorerHandler):
 
 class GetSourceHandler(ScorerHandler):
     def get(self):
-        args = self.get_argument('ids') 
-        if args == "info":
+        info = json.loads(self.get_argument('info'))
+        if info.get("sent_id", None) is None:
             r = json.dumps(self.scorer.get_info())
         else:
-            idx = int(args)
-            r = json.dumps(self.scorer.send_src(idx))
+            r = json.dumps(
+                self.scorer.send_src(
+                    int(info["sent_id"]),
+                    info.get("value", None)
+                )
+            )
         self.write(r)
 
 
