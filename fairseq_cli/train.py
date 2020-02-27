@@ -16,12 +16,10 @@ import sys
 import numpy as np
 import torch
 
-from fairseq import (
-    checkpoint_utils, distributed_utils, metrics, options, progress_bar, tasks, utils
-)
+from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import iterators
+from fairseq.logging import meters, metrics, progress_bar
 from fairseq.trainer import Trainer
-from fairseq.meters import StopwatchMeter
 
 
 logging.basicConfig(
@@ -86,7 +84,7 @@ def main(args, init_distributed=False):
     max_epoch = args.max_epoch or math.inf
     max_update = args.max_update or math.inf
     lr = trainer.get_lr()
-    train_meter = StopwatchMeter()
+    train_meter = meters.StopwatchMeter()
     train_meter.start()
     valid_subsets = args.valid_subset.split(',')
     while (
@@ -158,8 +156,15 @@ def train(args, trainer, task, epoch_itr):
         else args.update_freq[-1]
     )
     itr = iterators.GroupedIterator(itr, update_freq)
-    progress = progress_bar.build_progress_bar(
-        args, itr, epoch_itr.epoch, no_progress_bar='simple',
+    progress = progress_bar.progress_bar(
+        itr,
+        log_format=args.log_format,
+        log_interval=args.log_interval,
+        epoch=epoch_itr.epoch,
+        tensorboard_logdir=(
+            args.tensorboard_logdir if distributed_utils.is_master(args) else None
+        ),
+        default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
     )
 
     # task specific setup per epoch
@@ -229,10 +234,16 @@ def validate(args, trainer, task, epoch_itr, subsets):
             shard_id=args.distributed_rank,
             num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
-        progress = progress_bar.build_progress_bar(
-            args, itr, epoch_itr.epoch,
-            prefix='valid on \'{}\' subset'.format(subset),
-            no_progress_bar='simple'
+        progress = progress_bar.progress_bar(
+            itr,
+            log_format=args.log_format,
+            log_interval=args.log_interval,
+            epoch=epoch_itr.epoch,
+            prefix=f"valid on '{subset}' subset",
+            tensorboard_logdir=(
+                args.tensorboard_logdir if distributed_utils.is_master(args) else None
+            ),
+            default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
         )
 
         # create a new root metrics aggregator so validation metrics

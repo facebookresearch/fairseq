@@ -1,10 +1,14 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 """
 Wrapper around tbwriter api for for writing to manifold-tensorboard.
 FB Internal (not to be open-sourced)
 """
 
-from fairseq.meters import AverageMeter
-from fairseq import progress_bar
+from .meters import AverageMeter
+from .progress_bar import BaseProgressBar
 
 try:
     from palaas import tbwriter, register_manifold
@@ -27,7 +31,7 @@ class LogCounter:
         return self.log_counter % self.log_interval == 0
 
 
-class fb_tbmf_wrapper(progress_bar.progress_bar):
+class FbTbmfWrapper(BaseProgressBar):
     """Log to tensorboard."""
 
     # manifold sub folder to used by all instances.
@@ -54,20 +58,19 @@ class fb_tbmf_wrapper(progress_bar.progress_bar):
                         time.minute)
             return time_str
 
-    def __init__(self, wrapped_bar, args, log_interval):
+    def __init__(self, wrapped_bar, log_interval):
         self.wrapped_bar = wrapped_bar
-        if fb_tbmf_wrapper.manifold_job_path == "":
-            fb_tbmf_wrapper.manifold_job_path = self._get_job_path()
+        if FbTbmfWrapper.manifold_job_path == "":
+            FbTbmfWrapper.manifold_job_path = self._get_job_path()
         self.log_interval = log_interval
         # We need a log counter for every variable.
         self.counters = {}
         self.counter_disabled_list = []
 
         self.log_counter = 1
-        self.args = args
         self._tbwriter = None
         try:
-            self._tbwriter = tbwriter.get_tbwriter(fb_tbmf_wrapper.manifold_job_path)
+            self._tbwriter = tbwriter.get_tbwriter(FbTbmfWrapper.manifold_job_path)
             register_manifold()
         except Exception:
             pass
