@@ -17,7 +17,12 @@ echo Chunk Size: $chunk_size
 
 user_dir=$(dirname "$0")/..
 
-port=$3
+if [ -z "$3" ]
+  then
+    port=12321
+else
+    port=$3
+fi
 
 echo Server Port $port
 

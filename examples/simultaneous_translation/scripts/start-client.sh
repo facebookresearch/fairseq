@@ -15,7 +15,14 @@ echo Agent: $agent_type
 
 user_dir=$(dirname "$0")/..
 
-port=$3
+if [ -z "$3" ]
+  then
+    port=12321
+else
+    port=$3
+fi
+
+echo Port $port
 
 echo Server Port $port
 
