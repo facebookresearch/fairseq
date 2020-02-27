@@ -64,7 +64,6 @@ class SimulScorer(object):
             translations, [self.data["tgt"]]
         )
 
-
         latency_score = LatencyScorer().score(
             [{"src_len" : src_len, "delays" : delay} for src_len, delay in zip(self.src_lengths(), delays)]
         )

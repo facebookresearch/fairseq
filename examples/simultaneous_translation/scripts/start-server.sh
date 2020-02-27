@@ -30,6 +30,7 @@ python -u $user_dir/eval/server.py \
     --tokenizer $tokenizer \
     --src-file $src \
     --tgt-file $tgt \
+    --scorer-type $scorer_type \
     --output $result_dir/eval \
     --port $port
 exit

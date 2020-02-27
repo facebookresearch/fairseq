@@ -8,9 +8,10 @@ model=$2
 num_test=$(wc -l $src | cut -d " " -f1)
 echo Config: $(realpath $config)
 echo Model: $(realpath $model)
-echo Source: $test_src
-echo Target: $test_tgt
+echo Source: $src
+echo Target: $tgt
 echo Tokenizer: $tokenizer
+echo Agent: $agent_type
 
 user_dir=$(dirname "$0")/..
 
@@ -21,7 +22,7 @@ echo Server Port $port
 echo Evaluatation starts at $(date +%Y/%m/%d-%H:%M:%S) &&
 python $user_dir/eval/evaluate.py \
     --port $port \
-    --agent-type simul_trans_text \
+    --agent-type $agent_type \
     --data-bin $data_bin \
     --src-splitter-type $src_splitter_type \
     --src-splitter-path $src_splitter_path \
@@ -29,6 +30,7 @@ python $user_dir/eval/evaluate.py \
     --tgt-splitter-path $tgt_splitter_path \
     --model-path $model $extra_args \
     --reset-server \
+    --num-threads 1 \
     --scores
 echo Evaluation ends at $(date +%Y/%m/%d-%H:%M:%S)
 

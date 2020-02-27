@@ -51,6 +51,12 @@ class SimulTransTextAgent(Agent):
                                 'that were used during model training')
         return parser
     
+
+    def load_dictionary(self, task):
+        self.dict = {}
+        self.dict["tgt"] = task.target_dictionary
+        self.dict["src"] = task.source_dictionary
+
     def load_model(self, args):
         args.user_dir = os.path.join(os.path.dirname(__file__), '..', '..')
         utils.import_user_module(args)
@@ -67,16 +73,15 @@ class SimulTransTextAgent(Agent):
         # build model for ensemble
         self.model = task.build_model(args)
         self.model.load_state_dict(state["model"], strict=True)
+
         # Set dictionary
-        self.dict = {}
-        self.dict["tgt"] = task.target_dictionary
-        self.dict["src"] = task.source_dictionary
+        self.load_dictionary(task)
 
     def init_states(self):
         return {
             "indices": {"src": [], "tgt": []},
             "tokens" : {"src": [], "tgt": []},
-            "words" : {"src": [], "tgt": []},
+            "segments" : {"src": [], "tgt": []},
             "steps" : {"src": 0, "tgt": 0},
             "finished" : False,
             "model_states": {}
@@ -102,7 +107,7 @@ class SimulTransTextAgent(Agent):
             indices = [self.dict["src"].eos()]
 
         # Update states
-        states["words"]["src"] += [new_word]
+        states["segments"]["src"] += [new_word]
         states["tokens"]["src"] += tokens
         self._append_indices(states, indices, "src")
 
@@ -155,7 +160,7 @@ class SimulTransTextAgent(Agent):
                 ]
             )
             states["steps"]["tgt"] = end_idx_last_full_word
-            states["words"]["tgt"] += [word] 
+            states["segments"]["tgt"] += [word] 
 
             return {'key': SEND, 'value': word}
         else:

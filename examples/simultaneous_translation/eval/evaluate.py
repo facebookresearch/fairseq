@@ -25,6 +25,8 @@ def get_args():
                         help='Request scores from server')
     parser.add_argument('--reset-server', action="store_true",
                         help='Reset the server')
+    parser.add_argument('--num-threads', type=int, default=10,
+                        help='Number of threads used by agent')
 
     args, _ = parser.parse_known_args()
     for registry_name, REGISTRY in REGISTRIES.items():
@@ -46,7 +48,7 @@ if __name__ == "__main__":
 
     if args.agent_type is not None:
         agent = build_agent(args)
-        agent.decode(session, args.start_idx, args.end_idx)
+        agent.decode(session, args.start_idx, args.end_idx, args.num_threads)
 
     if args.scores:
         session.get_scores()
