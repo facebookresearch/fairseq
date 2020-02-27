@@ -12,9 +12,9 @@ from fairseq import utils
 class SequenceScorer(object):
     """Scores the target for a given source sentence."""
 
-    def __init__(self, tgt_dict, softmax_batch=None, compute_alignment=False):
+    def __init__(self, tgt_dict, softmax_batch=None, compute_alignment=False, eos=None):
         self.pad = tgt_dict.pad()
-        self.eos = tgt_dict.eos()
+        self.eos = tgt_dict.eos() if eos is None else eos
         self.softmax_batch = softmax_batch or sys.maxsize
         assert self.softmax_batch > 0
         self.compute_alignment = compute_alignment

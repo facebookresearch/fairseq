@@ -99,7 +99,8 @@ class DenoisingDataset(FairseqDataset):
         mask_whole_words,
         shuffle,
         seed,
-        args
+        args,
+        eos=None
     ):
         self.dataset = dataset
 
@@ -115,6 +116,7 @@ class DenoisingDataset(FairseqDataset):
         self.insert_ratio = args.insert
         self.rotate_ratio = args.rotate
         self.permute_sentence_ratio = args.permute_sentences
+        self.eos = (eos if eos is not None else vocab.eos())
 
         if args.bpe != 'gpt2':
             self.full_stop_index = self.vocab.index(".")
@@ -155,7 +157,7 @@ class DenoisingDataset(FairseqDataset):
     def __getitem__(self, index):
         with data_utils.numpy_seed(self.seed, self.epoch, index):
             tokens = self.dataset[index]
-            assert tokens[-1] == self.vocab.eos()
+            assert tokens[-1] == self.eos
             source, target = tokens, tokens.clone()
 
             if self.permute_sentence_ratio > 0.0:
@@ -174,7 +176,7 @@ class DenoisingDataset(FairseqDataset):
         assert (source[1:-1] >= 1).all()
         assert (source <= len(self.vocab)).all()
         assert source[0] == self.vocab.bos()
-        assert source[-1] == self.vocab.eos()
+        assert source[-1] == self.eos
         return {
             'id': index,
             'source': source,
