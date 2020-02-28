@@ -10,16 +10,15 @@ Train a network across multiple GPUs.
 import contextlib
 from itertools import chain
 import logging
-import math
-import os
 import sys
 from typing import Any, Dict, List
 
 import torch
 
-from fairseq import checkpoint_utils, distributed_utils, metrics, models, optim, utils
+from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.file_io import PathManager
-from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
+from fairseq.logging import meters, metrics
+from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 
 
@@ -226,7 +225,7 @@ class Trainer(object):
 
                 # reset TimeMeters, since their start times don't make sense anymore
                 for meter in metrics.get_meters("default"):
-                    if isinstance(meter, TimeMeter):
+                    if isinstance(meter, meters.TimeMeter):
                         meter.reset()
         else:
             logger.info("no existing checkpoint found {}".format(filename))
@@ -271,7 +270,7 @@ class Trainer(object):
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
-        if self._dummy_batch is None:
+        if self._dummy_batch == "DUMMY":
             self._dummy_batch = samples[0]
 
         self._set_seed()
@@ -400,6 +399,14 @@ class Trainer(object):
                 and not self.args.cpu
             ):
                 torch.cuda.empty_cache()
+        except FloatingPointError:
+            # re-run the forward and backward pass with hooks attached to print out where it fails
+            with NanDetector(self.model):
+                self.task.train_step(
+                    sample, self.model, self.criterion, self.optimizer,
+                    ignore_grad=False
+                )
+            raise
         except OverflowError as e:
             logger.info("NOTE: overflow detected, " + str(e))
             self.zero_grad()
@@ -420,7 +427,7 @@ class Trainer(object):
     @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
-        if self._dummy_batch is None:
+        if self._dummy_batch == "DUMMY":
             self._dummy_batch = sample
 
         with torch.no_grad():

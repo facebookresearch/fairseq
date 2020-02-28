@@ -4,13 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import options, utils
-from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -18,6 +17,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.modules import (
     AdaptiveSoftmax,
     LayerNorm,
@@ -271,6 +271,19 @@ class TransformerModel(FairseqEncoderDecoderModel):
             return_all_hiddens=return_all_hiddens,
         )
         return decoder_out
+
+    # Since get_normalized_probs is in the Fairseq Model which is not scriptable,
+    # I rewrite the get_normalized_probs from Base Class to call the
+    # helper function in the Base Class.
+    @torch.jit.export
+    def get_normalized_probs(
+        self,
+        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        log_probs: bool,
+        sample: Optional[Dict[str, Tensor]] = None,
+    ):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
 
 @register_model("transformer_align")

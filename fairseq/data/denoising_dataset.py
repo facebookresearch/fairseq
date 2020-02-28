@@ -107,7 +107,8 @@ class DenoisingDataset(FairseqDataset):
         replace_length,
         mask_length,
         poisson_lambda,
-        full_stop_char
+        full_stop_char,
+        eos=None
     ):
         self.dataset = dataset
 
@@ -125,6 +126,7 @@ class DenoisingDataset(FairseqDataset):
         self.permute_sentence_ratio = permute_sentences
         self.full_stop_index = self.vocab.index(full_stop_char)
         self.replace_length = replace_length
+        self.eos = (eos if eos is not None else vocab.eos())
 
         if not self.replace_length in [-1, 0, 1]:
             raise (f'invalid arg: replace_length={self.replace_length}')
@@ -158,7 +160,7 @@ class DenoisingDataset(FairseqDataset):
     def __getitem__(self, index):
         with data_utils.numpy_seed(self.seed, self.epoch, index):
             tokens = self.dataset[index]
-            assert tokens[-1] == self.vocab.eos()
+            assert tokens[-1] == self.eos
             source, target = tokens, tokens.clone()
 
             if self.permute_sentence_ratio > 0.0:
@@ -177,7 +179,7 @@ class DenoisingDataset(FairseqDataset):
         assert (source[1:-1] >= 1).all()
         assert (source <= len(self.vocab)).all()
         assert source[0] == self.vocab.bos()
-        assert source[-1] == self.vocab.eos()
+        assert source[-1] == self.eos
         return {
             'id': index,
             'source': source,
