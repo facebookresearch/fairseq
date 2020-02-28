@@ -72,11 +72,52 @@ class BerardSimulASTModel(BerardASTModel):
         lprobs.batch_first = True
         return lprobs
 
-    def get_action(self, states):
-        if states["src_indices"] is None:
-            return 0
-        return self.decoder.attention.action_from_state_dict(
-            states, self.encoder.subsampling_ratio)
+    def subsampling_factor(self):
+        subsampling_factor = 1
+        for layer in self.encoder.conv_layers:
+            subsampling_factor *= layer.stride[0]
+        return subsampling_factor
+
+    def decision_from_states(self, states):
+
+        return self.decoder.attention.decision_from_states(
+            states,
+            states.get("frame_length", 1),
+            self.subsampling_factor()
+        )
+
+    def predict_from_states(self, states):
+        self.eval()
+
+        # bsz, src_len, feat_dim
+        src_indices = states["indices"]["src"].unsqueeze(0)
+
+        tgt_indices = torch.LongTensor(
+            [
+                [self.decoder.dictionary.eos()]
+                + states["indices"]["tgt"]
+            ]
+        )
+        src_lengths = torch.LongTensor(
+            [src_indices.size(1)]
+        )
+
+        # Update encoder state
+        encoder_outs = self.encoder(src_indices, src_lengths)
+
+        # Generate decoder state
+        decoder_states, _ = self.decoder(tgt_indices, encoder_outs, states)
+
+        lprobs = self.get_normalized_probs(
+            [decoder_states[:, -1:]],
+            log_probs=True
+        )
+
+        index = lprobs.argmax(dim=-1)
+
+        token = self.decoder.dictionary.string(index)
+
+        return token, index.item()
 
 
 @register_model("berard_simul_text")
@@ -101,10 +142,6 @@ class BerardSimulTextModel(BerardSimulASTModel):
             pretrained_embed=None,
         )
         return encoder
-
-    def decision_from_states(self, states):
-        return self.decoder.attention.decision_from_states(states)
-    
 
     def predict_from_states(self, states):
         self.eval()
