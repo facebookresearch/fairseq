@@ -4,13 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 from fairseq import utils
-
-from . import FairseqCriterion, register_criterion
+from fairseq.criterions import FairseqCriterion, register_criterion
 
 
 @register_criterion('binary_cross_entropy')
@@ -29,7 +29,7 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         logits = model.get_logits(net_output).float()
-        target = model.get_targets(sample, net_output, expand_steps=False).float()
+        target = model.get_targets(sample, net_output).float()
 
         if hasattr(model, 'get_target_weights'):
             weights = model.get_target_weights(target, net_output)
@@ -47,7 +47,7 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
 
         sample_size = target.numel()
         logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
+            'loss': loss.data,
             'ntokens': sample_size,
             'nsentences': logits.size(0),
             'sample_size': sample_size,
@@ -60,10 +60,10 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
+        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
+        ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
+        nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
+        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
         agg_output = {
             'loss': loss_sum / sample_size / math.log(2),
             'ntokens': ntokens,
@@ -72,12 +72,4 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         }
         if sample_size != ntokens:
             agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
-        for key in ["logits", "target"]:
-            if key in logging_outputs[0]:
-                if len(logging_outputs) == 1:
-                    agg_output[key] = logging_outputs[0][key]  # avoid copying
-                else:
-                    agg_output[key] = np.concatenate(
-                        [log[key] for log in logging_outputs]
-                    )
         return agg_output

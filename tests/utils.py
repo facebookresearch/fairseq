@@ -220,7 +220,7 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
         attn = torch.rand(bbsz, tgt_len, src_len)
 
         dev = prev_output_tokens.device
-        return probs.to(dev), attn.to(dev)
+        return probs.to(dev), {"attn": [attn.to(dev)]}
 
     def get_normalized_probs(self, net_output, log_probs, _):
         # the decoder returns probabilities directly

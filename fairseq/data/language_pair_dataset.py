@@ -3,10 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+
 import numpy as np
 import torch
 
 from . import data_utils, FairseqDataset
+
+
+logger = logging.getLogger(__name__)
 
 
 def collate(
@@ -26,7 +31,7 @@ def collate(
         if alignment is None or len(alignment) == 0:
             return False
         if alignment[:, 0].max().item() >= src_len - 1 or alignment[:, 1].max().item() >= tgt_len - 1:
-            print("| alignment size mismatch found, skipping alignment!")
+            logger.warning("alignment size mismatch found, skipping alignment!")
             return False
         return True
 
@@ -154,7 +159,7 @@ class LanguagePairDataset(FairseqDataset):
         shuffle=True, input_feeding=True,
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
-        append_bos=False
+        append_bos=False, eos=None
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -178,6 +183,7 @@ class LanguagePairDataset(FairseqDataset):
         if self.align_dataset is not None:
             assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
         self.append_bos = append_bos
+        self.eos = (eos if eos is not None else src_dict.eos())
 
     def __getitem__(self, index):
         tgt_item = self.tgt[index] if self.tgt is not None else None
@@ -247,7 +253,7 @@ class LanguagePairDataset(FairseqDataset):
                   on the left if *left_pad_target* is ``True``.
         """
         return collate(
-            samples, pad_idx=self.src_dict.pad(), eos_idx=self.src_dict.eos(),
+            samples, pad_idx=self.src_dict.pad(), eos_idx=self.eos,
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
             input_feeding=self.input_feeding,
         )

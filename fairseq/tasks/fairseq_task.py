@@ -3,10 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import numpy as np
+import warnings
+
 import torch
 
-from fairseq import tokenizer
+from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import (
     data_utils,
     FairseqDataset,
@@ -25,6 +26,15 @@ class FairseqTask(object):
     def add_args(parser):
         """Add task-specific arguments to the parser."""
         pass
+
+    @staticmethod
+    def logging_outputs_can_be_summed(criterion) -> bool:
+        """
+        Whether the logging outputs returned by `train_step` and `valid_step` can
+        be summed across workers prior to calling `aggregate_logging_outputs`.
+        Setting this to True will improves distributed training speed.
+        """
+        return criterion.logging_outputs_can_be_summed()
 
     def __init__(self, args):
         self.args = args
@@ -201,31 +211,73 @@ class FairseqTask(object):
     def build_generator(self, args):
         if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
-            return SequenceScorer(self.target_dictionary)
-        else:
-            from fairseq.sequence_generator import SequenceGenerator, SequenceGeneratorWithAlignment
-            if getattr(args, 'print_alignment', False):
-                seq_gen_cls = SequenceGeneratorWithAlignment
-            else:
-                seq_gen_cls = SequenceGenerator
-            return seq_gen_cls(
+            return SequenceScorer(
                 self.target_dictionary,
-                beam_size=getattr(args, 'beam', 5),
-                max_len_a=getattr(args, 'max_len_a', 0),
-                max_len_b=getattr(args, 'max_len_b', 200),
-                min_len=getattr(args, 'min_len', 1),
-                normalize_scores=(not getattr(args, 'unnormalized', False)),
-                len_penalty=getattr(args, 'lenpen', 1),
-                unk_penalty=getattr(args, 'unkpen', 0),
-                sampling=getattr(args, 'sampling', False),
-                sampling_topk=getattr(args, 'sampling_topk', -1),
-                sampling_topp=getattr(args, 'sampling_topp', -1.0),
-                temperature=getattr(args, 'temperature', 1.),
-                diverse_beam_groups=getattr(args, 'diverse_beam_groups', -1),
-                diverse_beam_strength=getattr(args, 'diverse_beam_strength', 0.5),
-                match_source_len=getattr(args, 'match_source_len', False),
-                no_repeat_ngram_size=getattr(args, 'no_repeat_ngram_size', 0),
+                compute_alignment=getattr(args, 'print_alignment', False),
             )
+
+        from fairseq.sequence_generator import SequenceGenerator, SequenceGeneratorWithAlignment
+
+        # Choose search strategy. Defaults to Beam Search.
+        sampling = getattr(args, 'sampling', False)
+        sampling_topk = getattr(args, 'sampling_topk', -1)
+        sampling_topp = getattr(args, 'sampling_topp', -1.0)
+        diverse_beam_groups = getattr(args, 'diverse_beam_groups', -1)
+        diverse_beam_strength = getattr(args, 'diverse_beam_strength', 0.5),
+        match_source_len = getattr(args, 'match_source_len', False)
+        diversity_rate = getattr(args, 'diversity_rate', -1)
+        if (
+            sum(
+                int(cond)
+                for cond in [
+                    sampling,
+                    diverse_beam_groups > 0,
+                    match_source_len,
+                    diversity_rate > 0,
+                ]
+            )
+            > 1
+        ):
+            raise ValueError('Provided Search parameters are mutually exclusive.')
+        assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
+        assert sampling_topp < 0 or sampling, '--sampling-topp requires --sampling'
+
+        if sampling:
+            search_strategy = search.Sampling(self.target_dictionary, sampling_topk, sampling_topp)
+        elif diverse_beam_groups > 0:
+            search_strategy = search.DiverseBeamSearch(
+                self.target_dictionary, diverse_beam_groups, diverse_beam_strength)
+        elif match_source_len:
+            # this is useful for tagging applications where the output
+            # length should match the input length, so we hardcode the
+            # length constraints for simplicity
+            search_strategy = search.LengthConstrainedBeamSearch(
+                self.target_dictionary, min_len_a=1, min_len_b=0, max_len_a=1, max_len_b=0,
+            )
+        elif diversity_rate > -1:
+            search_strategy = search.DiverseSiblingsSearch(self.target_dictionary, diversity_rate)
+        else:
+            search_strategy = search.BeamSearch(self.target_dictionary)
+
+        if getattr(args, 'print_alignment', False):
+            seq_gen_cls = SequenceGeneratorWithAlignment
+        else:
+            seq_gen_cls = SequenceGenerator
+
+        return seq_gen_cls(
+            self.target_dictionary,
+            beam_size=getattr(args, 'beam', 5),
+            max_len_a=getattr(args, 'max_len_a', 0),
+            max_len_b=getattr(args, 'max_len_b', 200),
+            min_len=getattr(args, 'min_len', 1),
+            normalize_scores=(not getattr(args, 'unnormalized', False)),
+            len_penalty=getattr(args, 'lenpen', 1),
+            unk_penalty=getattr(args, 'unkpen', 0),
+            temperature=getattr(args, 'temperature', 1.),
+            match_source_len=getattr(args, 'match_source_len', False),
+            no_repeat_ngram_size=getattr(args, 'no_repeat_ngram_size', 0),
+            search_strategy=search_strategy,
+        )
 
     def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
         """
@@ -264,16 +316,57 @@ class FairseqTask(object):
         with torch.no_grad():
             return generator.generate(models, sample, prefix_tokens=prefix_tokens)
 
-    def update_step(self, num_updates):
-        """Task level update when number of update increases. This is called after optimization step and
-           learning rate update of each step"""
+    def begin_epoch(self, epoch, model):
+        """Hook function called before the start of each epoch."""
         pass
 
-    def grad_denom(self, sample_sizes, criterion):
-        return criterion.__class__.grad_denom(sample_sizes)
+    def update_step(self, num_updates):
+        """Task level update when number of updates increases.
+
+        This is called after the optimization step and learning rate
+        update at each iteration.
+        """
+        pass
 
     def aggregate_logging_outputs(self, logging_outputs, criterion):
-        return criterion.__class__.aggregate_logging_outputs(logging_outputs)
+        """[deprecated] Aggregate logging outputs from data parallel training."""
+        utils.deprecation_warning(
+            'The aggregate_logging_outputs API is deprecated. '
+            'Please use the reduce_metrics API instead.'
+        )
+        with metrics.aggregate() as agg:
+            self.reduce_metrics(logging_outputs, criterion)
+            return agg.get_smoothed_values()
+
+    def reduce_metrics(self, logging_outputs, criterion):
+        """Aggregate logging outputs from data parallel training."""
+        # backward compatibility for tasks that override aggregate_logging_outputs
+        base_func = FairseqTask.aggregate_logging_outputs
+        self_func = getattr(self, 'aggregate_logging_outputs').__func__
+        if self_func is not base_func:
+            utils.deprecation_warning(
+                'Tasks should implement the reduce_metrics API. '
+                'Falling back to deprecated aggregate_logging_outputs API.'
+            )
+            agg_logging_outputs = self.aggregate_logging_outputs(logging_outputs, criterion)
+            for k, v in agg_logging_outputs.items():
+                metrics.log_scalar(k, v)
+            return
+
+        if not any('ntokens' in log for log in logging_outputs):
+            warnings.warn('ntokens not found in Criterion logging outputs, cannot log wpb or wps')
+        else:
+            ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
+            metrics.log_scalar('wpb', ntokens, priority=180, round=1)
+            metrics.log_speed('wps', ntokens, ignore_first=10, priority=90, round=1)
+
+        if not any('nsentences' in log for log in logging_outputs):
+            warnings.warn('nsentences not found in Criterion logging outputs, cannot log bsz')
+        else:
+            nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
+            metrics.log_scalar('bsz', nsentences, priority=190, round=1)
+
+        criterion.__class__.reduce_metrics(logging_outputs)
 
     def max_positions(self):
         """Return the max input length allowed by the task."""

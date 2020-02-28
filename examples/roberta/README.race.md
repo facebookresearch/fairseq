@@ -49,3 +49,20 @@ a) As contexts in RACE are relatively long, we are using smaller batch size per 
 b) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb` of memory for each task. Depending on the GPU memory resources available to you, you can use increase `--update-freq` and reduce `--max-sentences`.
 
 c) The setting in above command is based on our hyperparam search within a fixed search space (for careful comparison across models). You might be able to find better metrics with wider hyperparam search.  
+
+### 4) Evaluation:
+
+```
+DATA_DIR=/path/to/race-output-dir       # data directory used during training
+MODEL_PATH=/path/to/checkpoint_best.pt  # path to the finetuned model checkpoint
+PREDS_OUT=preds.tsv                     # output file path to save prediction
+TEST_SPLIT=test                         # can be test (Middle) or test1 (High)
+fairseq-validate \
+    $DATA_DIR \
+    --valid-subset $TEST_SPLIT \
+    --path $MODEL_PATH \
+    --max-sentences 1 \
+    --task sentence_ranking \
+    --criterion sentence_ranking \
+    --save-predictions $PREDS_OUT
+```

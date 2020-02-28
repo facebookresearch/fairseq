@@ -24,14 +24,11 @@ class SequenceGenerator(object):
         len_penalty=1.,
         unk_penalty=0.,
         retain_dropout=False,
-        sampling=False,
-        sampling_topk=-1,
-        sampling_topp=-1.0,
         temperature=1.,
-        diverse_beam_groups=-1,
-        diverse_beam_strength=0.5,
         match_source_len=False,
         no_repeat_ngram_size=0,
+        search_strategy=None,
+        eos=None
     ):
         """Generates translations of a given source sentence.
 
@@ -50,24 +47,15 @@ class SequenceGenerator(object):
                 produces more unks, >0 produces fewer (default: 0.0)
             retain_dropout (bool, optional): use dropout when generating
                 (default: False)
-            sampling (bool, optional): sample outputs instead of beam search
-                (default: False)
-            sampling_topk (int, optional): only sample among the top-k choices
-                at each step (default: -1)
-            sampling_topp (float, optional): only sample among the smallest set
-                of words whose cumulative probability mass exceeds p
-                at each step (default: -1.0)
             temperature (float, optional): temperature, where values
                 >1.0 produce more uniform samples and values <1.0 produce
                 sharper samples (default: 1.0)
-            diverse_beam_groups/strength (float, optional): parameters for
-                Diverse Beam Search sampling
             match_source_len (bool, optional): outputs should match the source
                 length (default: False)
         """
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
-        self.eos = tgt_dict.eos()
+        self.eos = tgt_dict.eos() if eos is None else eos
         self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
@@ -82,20 +70,12 @@ class SequenceGenerator(object):
         self.temperature = temperature
         self.match_source_len = match_source_len
         self.no_repeat_ngram_size = no_repeat_ngram_size
-        assert sampling_topk < 0 or sampling, '--sampling-topk requires --sampling'
-        assert sampling_topp < 0 or sampling, '--sampling-topp requires --sampling'
         assert temperature > 0, '--temperature must be greater than 0'
 
-        if sampling:
-            self.search = search.Sampling(tgt_dict, sampling_topk, sampling_topp)
-        elif diverse_beam_groups > 0:
-            self.search = search.DiverseBeamSearch(tgt_dict, diverse_beam_groups, diverse_beam_strength)
-        elif match_source_len:
-            self.search = search.LengthConstrainedBeamSearch(
-                tgt_dict, min_len_a=1, min_len_b=0, max_len_a=1, max_len_b=0,
-            )
-        else:
-            self.search = search.BeamSearch(tgt_dict)
+        self.search = (
+            search.BeamSearch(tgt_dict) if search_strategy is None else search_strategy
+        )
+
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):
@@ -295,6 +275,7 @@ class SequenceGenerator(object):
             lprobs, avg_attn_scores = model.forward_decoder(
                 tokens[:, :step + 1], encoder_outs, temperature=self.temperature,
             )
+            lprobs[lprobs != lprobs] = -math.inf
 
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
@@ -346,6 +327,8 @@ class SequenceGenerator(object):
                                 gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
 
             # Record attention scores
+            if type(avg_attn_scores) is list:
+                avg_attn_scores = avg_attn_scores[0]
             if avg_attn_scores is not None:
                 if attn is None:
                     attn = scores.new(bsz * beam_size, src_tokens.size(1), max_len + 2)
@@ -527,7 +510,7 @@ class EnsembleModel(torch.nn.Module):
         super().__init__()
         self.models = torch.nn.ModuleList(models)
         self.incremental_states = None
-        if all(isinstance(m.decoder, FairseqIncrementalDecoder) for m in models):
+        if all(hasattr(m, 'decoder') and isinstance(m.decoder, FairseqIncrementalDecoder) for m in models):
             self.incremental_states = {m: {} for m in models}
 
     def has_encoder(self):
@@ -592,6 +575,8 @@ class EnsembleModel(torch.nn.Module):
         attn = decoder_out[1]
         if type(attn) is dict:
             attn = attn.get('attn', None)
+        if type(attn) is list:
+            attn = attn[0]
         if attn is not None:
             attn = attn[:, -1, :]
         probs = model.get_normalized_probs(decoder_out, log_probs=log_probs)
@@ -707,6 +692,8 @@ class EnsembleModelWithAlignment(EnsembleModel):
         attn = decoder_out[1]
         if type(attn) is dict:
             attn = attn.get('attn', None)
+        if type(attn) is list:
+            attn = attn[0]
         if attn is not None:
             attn = attn[:, -1, :]
         probs = model.get_normalized_probs(decoder_out, log_probs=log_probs)

@@ -8,6 +8,7 @@ import unittest
 
 import torch
 
+from fairseq import search
 from fairseq.sequence_generator import SequenceGenerator
 
 import tests.utils as test_utils
@@ -197,8 +198,9 @@ class TestDiverseBeamSearch(TestSequenceGeneratorBase):
         self.tgt_dict = task.target_dictionary
 
     def test_diverse_beam_search(self):
+        search_strategy = search.DiverseBeamSearch(self.tgt_dict, num_groups=2, diversity_strength=0.)
         generator = SequenceGenerator(
-            self.tgt_dict, beam_size=2, diverse_beam_groups=2, diverse_beam_strength=0.,
+            self.tgt_dict, beam_size=2, search_strategy=search_strategy,
         )
         sample = {'net_input': {'src_tokens': self.src_tokens, 'src_lengths': self.src_lengths}}
         hypos = generator.generate([self.model], sample)
@@ -215,6 +217,48 @@ class TestDiverseBeamSearch(TestSequenceGeneratorBase):
         # sentence 2, beam 2
         self.assertHypoTokens(hypos[1][1], [w1, w2, eos])
         self.assertHypoScore(hypos[1][1], [0.7, 0.4, 0.9])
+
+
+class TestDiverseSiblingsSearch(TestDiverseBeamSearch):
+    def assertHypoScore(
+        self, hypo, pos_probs, sibling_rank, diversity_rate, normalized=True, lenpen=1.0
+    ):
+        pos_scores = torch.FloatTensor(pos_probs).log()
+        pos_scores.sub_(torch.Tensor(sibling_rank) * diversity_rate)
+        self.assertAlmostEqual(hypo["positional_scores"], pos_scores)
+        self.assertEqual(pos_scores.numel(), hypo["tokens"].numel())
+        score = pos_scores.sum()
+        if normalized:
+            score /= pos_scores.numel() ** lenpen
+        self.assertLess(abs(score - hypo["score"]), 1e-6)
+
+    def test_diverse_beam_search(self):
+        search_strategy = search.DiverseSiblingsSearch(
+            self.tgt_dict, diversity_rate=0.5
+        )
+        generator = SequenceGenerator(
+            self.tgt_dict, beam_size=2, search_strategy=search_strategy
+        )
+        sample = {
+            "net_input": {
+                "src_tokens": self.src_tokens,
+                "src_lengths": self.src_lengths,
+            }
+        }
+        hypos = generator.generate([self.model], sample)
+        eos, w1, w2 = self.eos, self.w1, self.w2
+        # sentence 1, beam 1
+        self.assertHypoTokens(hypos[0][0], [w1, w1, eos])
+        self.assertHypoScore(hypos[0][0], [0.9, 0.6, 1.0], [0, 1, 1], 0.5)
+        # sentence 1, beam 2
+        self.assertHypoTokens(hypos[0][1], [w1, w2, eos])
+        self.assertHypoScore(hypos[0][1], [0.9, 0.4, 1.0], [0, 2, 1], 0.5)
+        # sentence 2, beam 1
+        self.assertHypoTokens(hypos[1][0], [w1, w2, eos])
+        self.assertHypoScore(hypos[1][0], [0.7, 0.4, 0.9], [0, 1, 1], 0.5)
+        # sentence 2, beam 2
+        self.assertHypoTokens(hypos[1][1], [w1, w1, eos])
+        self.assertHypoScore(hypos[1][1], [0.7, 0.35, 0.9], [0, 2, 1], 0.5)
 
 
 class TestTopPSamplingSearch(TestSequenceGeneratorBase):
@@ -282,10 +326,9 @@ class TestTopPSamplingSearch(TestSequenceGeneratorBase):
         # Given a prob low enough to top-P sampling, we expect only the top
         # 1 token to be sampled, which always results in the same output.
         low_sampling_topp = self.min_top1_prob/2.0
+        search_strategy = search.Sampling(self.tgt_dict, sampling_topp=low_sampling_topp)
         generator = SequenceGenerator(
-            self.tgt_dict, beam_size=2, sampling=True,
-            sampling_topp=low_sampling_topp
-        )
+            self.tgt_dict, beam_size=2, search_strategy=search_strategy)
         sample = {
             'net_input': {
                 'src_tokens': self.src_tokens,
@@ -311,10 +354,9 @@ class TestTopPSamplingSearch(TestSequenceGeneratorBase):
         # Given a prob high enough to top-P sampling, any of the top 2
         # tokens could be sampled. This can cause different outputs.
         high_sampling_topp = (self.min_top1_prob+self.min_top2_prob)/2.0
+        search_strategy = search.Sampling(self.tgt_dict, sampling_topp=high_sampling_topp)
         generator = SequenceGenerator(
-            self.tgt_dict, beam_size=2, sampling=True,
-            sampling_topp=high_sampling_topp
-        )
+            self.tgt_dict, beam_size=2, search_strategy=search_strategy)
         sample = {
             'net_input': {
                 'src_tokens': self.src_tokens,

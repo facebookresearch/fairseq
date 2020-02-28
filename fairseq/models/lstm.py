@@ -17,6 +17,8 @@ from fairseq.models import (
 )
 from fairseq.modules import AdaptiveSoftmax
 
+DEFAULT_MAX_SOURCE_POSITIONS = 1e5
+DEFAULT_MAX_TARGET_POSITIONS = 1e5
 
 @register_model('lstm')
 class LSTMModel(FairseqEncoderDecoderModel):
@@ -85,6 +87,9 @@ class LSTMModel(FairseqEncoderDecoderModel):
         if args.encoder_layers != args.decoder_layers:
             raise ValueError('--encoder-layers must match --decoder-layers')
 
+        max_source_positions = getattr(args, 'max_source_positions', DEFAULT_MAX_SOURCE_POSITIONS)
+        max_target_positions = getattr(args, 'max_target_positions', DEFAULT_MAX_TARGET_POSITIONS)
+
         def load_pretrained_embedding_from_file(embed_path, dictionary, embed_dim):
             num_embeddings = len(dictionary)
             padding_idx = dictionary.pad()
@@ -149,6 +154,7 @@ class LSTMModel(FairseqEncoderDecoderModel):
             dropout_out=args.encoder_dropout_out,
             bidirectional=args.encoder_bidirectional,
             pretrained_embed=pretrained_encoder_embed,
+            max_source_positions=max_source_positions
         )
         decoder = LSTMDecoder(
             dictionary=task.target_dictionary,
@@ -166,6 +172,7 @@ class LSTMModel(FairseqEncoderDecoderModel):
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int)
                 if args.criterion == 'adaptive_loss' else None
             ),
+            max_target_positions=max_target_positions
         )
         return cls(encoder, decoder)
 
@@ -176,6 +183,7 @@ class LSTMEncoder(FairseqEncoder):
         self, dictionary, embed_dim=512, hidden_size=512, num_layers=1,
         dropout_in=0.1, dropout_out=0.1, bidirectional=False,
         left_pad=True, pretrained_embed=None, padding_value=0.,
+        max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS
     ):
         super().__init__(dictionary)
         self.num_layers = num_layers
@@ -183,6 +191,7 @@ class LSTMEncoder(FairseqEncoder):
         self.dropout_out = dropout_out
         self.bidirectional = bidirectional
         self.hidden_size = hidden_size
+        self.max_source_positions = max_source_positions
 
         num_embeddings = len(dictionary)
         self.padding_idx = dictionary.pad()
@@ -269,7 +278,7 @@ class LSTMEncoder(FairseqEncoder):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        return int(1e5)  # an arbitrary large number
+        return self.max_source_positions
 
 
 class AttentionLayer(nn.Module):
@@ -312,6 +321,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         num_layers=1, dropout_in=0.1, dropout_out=0.1, attention=True,
         encoder_output_units=512, pretrained_embed=None,
         share_input_output_embed=False, adaptive_softmax_cutoff=None,
+        max_target_positions=DEFAULT_MAX_TARGET_POSITIONS
     ):
         super().__init__(dictionary)
         self.dropout_in = dropout_in
@@ -319,6 +329,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         self.hidden_size = hidden_size
         self.share_input_output_embed = share_input_output_embed
         self.need_attn = True
+        self.max_target_positions = max_target_positions
 
         self.adaptive_softmax = None
         num_embeddings = len(dictionary)
@@ -329,14 +340,18 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             self.embed_tokens = pretrained_embed
 
         self.encoder_output_units = encoder_output_units
-        if encoder_output_units != hidden_size:
+        if encoder_output_units != hidden_size and encoder_output_units != 0:
             self.encoder_hidden_proj = Linear(encoder_output_units, hidden_size)
             self.encoder_cell_proj = Linear(encoder_output_units, hidden_size)
         else:
             self.encoder_hidden_proj = self.encoder_cell_proj = None
+
+        # disable input feeding if there is no encoder
+        # input feeding is described in arxiv.org/abs/1508.04025
+        input_feed_size = 0 if encoder_output_units == 0 else hidden_size
         self.layers = nn.ModuleList([
             LSTMCell(
-                input_size=hidden_size + embed_dim if layer == 0 else hidden_size,
+                input_size=input_feed_size + embed_dim if layer == 0 else hidden_size,
                 hidden_size=hidden_size,
             )
             for layer in range(num_layers)
@@ -355,7 +370,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         elif not self.share_input_output_embed:
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
-    def forward(self, prev_output_tokens, encoder_out, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs):
         x, attn_scores = self.extract_features(
             prev_output_tokens, encoder_out, incremental_state
         )
@@ -367,16 +382,23 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         """
         Similar to *forward* but only return features.
         """
-        encoder_padding_mask = encoder_out['encoder_padding_mask']
-        encoder_out = encoder_out['encoder_out']
+        if encoder_out is not None:
+            encoder_padding_mask = encoder_out['encoder_padding_mask']
+            encoder_out = encoder_out['encoder_out']
+        else:
+            encoder_padding_mask = None
+            encoder_out = None
 
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]
         bsz, seqlen = prev_output_tokens.size()
 
         # get outputs from encoder
-        encoder_outs, encoder_hiddens, encoder_cells = encoder_out[:3]
-        srclen = encoder_outs.size(0)
+        if encoder_out is not None:
+            encoder_outs, encoder_hiddens, encoder_cells = encoder_out[:3]
+            srclen = encoder_outs.size(0)
+        else:
+            srclen = None
 
         # embed tokens
         x = self.embed_tokens(prev_output_tokens)
@@ -389,7 +411,8 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         cached_state = utils.get_incremental_state(self, incremental_state, 'cached_state')
         if cached_state is not None:
             prev_hiddens, prev_cells, input_feed = cached_state
-        else:
+        elif encoder_out is not None:
+            # setup recurrent cells
             num_layers = len(self.layers)
             prev_hiddens = [encoder_hiddens[i] for i in range(num_layers)]
             prev_cells = [encoder_cells[i] for i in range(num_layers)]
@@ -397,12 +420,24 @@ class LSTMDecoder(FairseqIncrementalDecoder):
                 prev_hiddens = [self.encoder_hidden_proj(x) for x in prev_hiddens]
                 prev_cells = [self.encoder_cell_proj(x) for x in prev_cells]
             input_feed = x.new_zeros(bsz, self.hidden_size)
+        else:
+            # setup zero cells, since there is no encoder
+            num_layers = len(self.layers)
+            zero_state = x.new_zeros(bsz, self.hidden_size)
+            prev_hiddens = [zero_state for i in range(num_layers)]
+            prev_cells = [zero_state for i in range(num_layers)]
+            input_feed = None
 
-        attn_scores = x.new_zeros(srclen, seqlen, bsz)
+        assert srclen is not None or self.attention is None, \
+            "attention is not supported if there are no encoder outputs"
+        attn_scores = x.new_zeros(srclen, seqlen, bsz) if self.attention is not None else None
         outs = []
         for j in range(seqlen):
             # input feeding: concatenate context vector from previous time step
-            input = torch.cat((x[j, :, :], input_feed), dim=1)
+            if input_feed is not None:
+                input = torch.cat((x[j, :, :], input_feed), dim=1)
+            else:
+                input = x[j]
 
             for i, rnn in enumerate(self.layers):
                 # recurrent cell
@@ -423,7 +458,8 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             out = F.dropout(out, p=self.dropout_out, training=self.training)
 
             # input feeding
-            input_feed = out
+            if input_feed is not None:
+                input_feed = out
 
             # save final output
             outs.append(out)
@@ -445,7 +481,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             x = F.dropout(x, p=self.dropout_out, training=self.training)
 
         # srclen x tgtlen x bsz -> bsz x tgtlen x srclen
-        if not self.training and self.need_attn:
+        if not self.training and self.need_attn and self.attention is not None:
             attn_scores = attn_scores.transpose(0, 2)
         else:
             attn_scores = None
@@ -469,14 +505,17 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         def reorder_state(state):
             if isinstance(state, list):
                 return [reorder_state(state_i) for state_i in state]
-            return state.index_select(0, new_order)
+            elif state is not None:
+                return state.index_select(0, new_order)
+            else:
+                return None
 
         new_state = tuple(map(reorder_state, cached_state))
         utils.set_incremental_state(self, incremental_state, 'cached_state', new_state)
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
-        return int(1e5)  # an arbitrary large number
+        return self.max_target_positions
 
     def make_generation_fast_(self, need_attn=False, **kwargs):
         self.need_attn = need_attn

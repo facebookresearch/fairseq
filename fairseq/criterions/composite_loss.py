@@ -6,7 +6,7 @@
 from torch import nn
 
 from fairseq import utils
-from . import FairseqCriterion, register_criterion
+from fairseq.criterions import FairseqCriterion, register_criterion
 
 
 @register_criterion('composite_loss')
@@ -87,5 +87,9 @@ class CompositeLoss(FairseqCriterion):
             @staticmethod
             def aggregate_logging_outputs(logging_outputs):
                 return underlying_criterion.__class__.aggregate_logging_outputs(logging_outputs)
+
+            @staticmethod
+            def reduce_metrics(logging_outputs) -> None:
+                underlying_criterion.__class__.reduce_metrics(logging_outputs)
 
         return _CompositeLoss(args, task, underlying_criterion)

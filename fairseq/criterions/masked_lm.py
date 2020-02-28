@@ -8,9 +8,8 @@ import math
 import torch
 import torch.nn.functional as F
 
-from fairseq import utils
-
-from . import FairseqCriterion, register_criterion
+from fairseq import metrics, utils
+from fairseq.criterions import FairseqCriterion, register_criterion
 
 
 @register_criterion('masked_lm')
@@ -19,11 +18,9 @@ class MaskedLmLoss(FairseqCriterion):
     Implementation for the loss used in masked language model (MLM) training.
     """
 
-    def __init__(self, args, task):
-        super().__init__(args, task)
-
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
+
         Returns a tuple with three elements:
         1) the loss
         2) the sample size, which is used as the denominator for the gradient
@@ -55,8 +52,7 @@ class MaskedLmLoss(FairseqCriterion):
             ignore_index=self.padding_idx,
         )
         logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
-            'nll_loss': utils.item(loss.data) if reduce else loss.data,
+            'loss': loss.data,
             'ntokens': sample['ntokens'],
             'nsentences': sample['nsentences'],
             'sample_size': sample_size,
@@ -64,18 +60,19 @@ class MaskedLmLoss(FairseqCriterion):
         return loss, sample_size, logging_output
 
     @staticmethod
-    def aggregate_logging_outputs(logging_outputs):
+    def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss = sum(log.get('loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
+        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
+        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
 
-        agg_output = {
-            'loss': loss / sample_size / math.log(2),
-            'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / sample_size / math.log(2) if ntokens > 0 else 0.,
-            'ntokens': ntokens,
-            'nsentences': nsentences,
-            'sample_size': sample_size,
-        }
-        return agg_output
+        metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['loss'].avg))
+
+    @staticmethod
+    def logging_outputs_can_be_summed() -> bool:
+        """
+        Whether the logging outputs returned by `forward` can be summed
+        across workers prior to calling `reduce_metrics`. Setting this
+        to True will improves distributed training speed.
+        """
+        return True

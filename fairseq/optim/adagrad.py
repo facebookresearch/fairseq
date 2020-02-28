@@ -34,3 +34,7 @@ class Adagrad(FairseqOptimizer):
             'lr': self.args.lr[0],
             'weight_decay': self.args.weight_decay,
         }
+
+    @property
+    def supports_flat_params(self):
+        return True

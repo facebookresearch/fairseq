@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import math
 import os
 
@@ -26,6 +27,9 @@ from fairseq.modules import (
     LearnedPositionalEmbedding,
     LinearizedConvolution,
 )
+from fairseq.incremental_decoding_utils import with_incremental_state
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('fconv_self_att')
@@ -108,7 +112,7 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
         trained_encoder, trained_decoder = None, None
         pretrained = eval(args.pretrained)
         if pretrained:
-            print("| loading pretrained model")
+            logger.info('loading pretrained model')
             if not os.path.exists(args.pretrained_checkpoint):
                 new_pretrained_checkpoint = os.path.join(args.data, args.pretrained_checkpoint)
                 if os.path.exists(new_pretrained_checkpoint):
@@ -284,9 +288,10 @@ class FConvEncoder(FairseqEncoder):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
 
+@with_incremental_state
 class FConvDecoder(FairseqDecoder):
     """Convolutional decoder"""
     def __init__(
@@ -467,7 +472,7 @@ class FConvDecoder(FairseqDecoder):
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
     def make_generation_fast_(self, need_attn=False, **kwargs):
         self.need_attn = need_attn

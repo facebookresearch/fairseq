@@ -24,6 +24,10 @@ class LearnedPositionalEmbedding(nn.Embedding):
     ):
         super().__init__(num_embeddings, embedding_dim, padding_idx)
         self.onnx_trace = False
+        if self.padding_idx is not None:
+            self.max_positions = self.num_embeddings - self.padding_idx - 1
+        else:
+            self.max_positions = self.num_embeddings
 
     def forward(self, input, incremental_state=None, positions=None):
         """Input is expected to be of size [bsz x seqlen]."""
@@ -41,10 +45,3 @@ class LearnedPositionalEmbedding(nn.Embedding):
                     input, self.padding_idx, onnx_trace=self.onnx_trace,
                 )
         return super().forward(positions)
-
-    def max_positions(self):
-        """Maximum number of supported positions."""
-        if self.padding_idx is not None:
-            return self.num_embeddings - self.padding_idx - 1
-        else:
-            return self.num_embeddings
