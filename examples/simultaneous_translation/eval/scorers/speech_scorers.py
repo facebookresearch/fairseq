@@ -20,6 +20,7 @@ class SimulSpeechScorer(SimulScorer):
         }
         self.segment_size = args.segment_size
         self.sample_rate = args.sample_rate
+        self.wav_data_type = args.wav_data_type
 
     @staticmethod
     def add_args(parser):
@@ -27,6 +28,8 @@ class SimulSpeechScorer(SimulScorer):
                             help='Sample rate for the audio (Hz)')
         parser.add_argument('--segment-size', type=int, default=10,
                             help='Segment size (ms)')
+        parser.add_argument('--wav-data-type', type=str, default="int16",
+                            help='The data type of the wav that would be transfer to client')
 
     def send_src(self, sent_id, value):
         client_segment_size = value.get("segment_size", None)
@@ -86,5 +89,12 @@ class SimulSpeechScorer(SimulScorer):
     def _load_audio_from_path(self, wav_path):
         assert os.path.isfile(wav_path) and wav_path.endswith('.wav')
         frames_10ms = self.sample_rate // 1000 * self.segment_size
-        wav_blocks = [b.tolist() for b in sf.blocks(wav_path, blocksize=frames_10ms)]
+        wav_blocks = [
+            b.tolist() 
+            for b in sf.blocks(
+                wav_path,
+                blocksize=frames_10ms,
+                dtype=self.wav_data_type
+                )
+        ]
         return wav_blocks
