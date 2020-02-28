@@ -163,11 +163,13 @@ class _FP16OptimizerMixin(object):
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
+        prev_scale = self.scaler.loss_scale
         self.scaler.update_scale(overflow)
         if overflow:
             if self.scaler.loss_scale <= self.min_loss_scale:
                 # Use FloatingPointError as an uncommon error that parent
                 # functions can safely catch to stop training.
+                self.scaler.loss_scale = prev_scale
                 raise FloatingPointError((
                     'Minimum loss scale reached ({}). Your loss is probably exploding. '
                     'Try lowering the learning rate, using gradient clipping or '
@@ -354,11 +356,13 @@ class _MemoryEfficientFP16OptimizerMixin(object):
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
+        prev_scale = self.scaler.loss_scale
         self.scaler.update_scale(overflow)
         if overflow:
             if self.scaler.loss_scale <= self.min_loss_scale:
                 # Use FloatingPointError as an uncommon error that parent
                 # functions can safely catch to stop training.
+                self.scaler.loss_scale = prev_scale
                 raise FloatingPointError((
                     'Minimum loss scale reached ({}). Your loss is probably exploding. '
                     'Try lowering the learning rate, using gradient clipping or '
