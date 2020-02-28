@@ -10,8 +10,6 @@ Train a network across multiple GPUs.
 import contextlib
 from itertools import chain
 import logging
-import math
-import os
 import sys
 from typing import Any, Dict, List
 
@@ -20,6 +18,7 @@ import torch
 from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics
+from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 
 
@@ -400,6 +399,14 @@ class Trainer(object):
                 and not self.args.cpu
             ):
                 torch.cuda.empty_cache()
+        except FloatingPointError:
+            # re-run the forward and backward pass with hooks attached to print out where it fails
+            with NanDetector(self.model):
+                self.task.train_step(
+                    sample, self.model, self.criterion, self.optimizer,
+                    ignore_grad=False
+                )
+            raise
         except OverflowError as e:
             logger.info("NOTE: overflow detected, " + str(e))
             self.zero_grad()
