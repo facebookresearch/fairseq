@@ -5,7 +5,16 @@ config=$1
 
 model=$2
 
-num_test=$(wc -l $src | cut -d " " -f1)
+if [ $scorer_type = "text" ]
+then
+    num_test=$(wc -l $src | cut -d " " -f1)
+else
+    num_test=$(grep length_ms $tgt | wc -l)
+fi
+echo $num_test
+
+chunk_size=300
+num_chunk=$((num_test / chunk_size))
 echo Config: $(realpath $config)
 echo Model: $(realpath $model)
 echo Source: $src
@@ -22,8 +31,6 @@ else
     port=$3
 fi
 
-echo Port $port
-
 echo Server Port $port
 
 echo Evaluatation starts at $(date +%Y/%m/%d-%H:%M:%S) &&
@@ -35,9 +42,9 @@ python $user_dir/eval/evaluate.py \
     --src-splitter-path $src_splitter_path \
     --tgt-splitter-type $tgt_splitter_type \
     --tgt-splitter-path $tgt_splitter_path \
-    --model-path $model $extra_args \
+    --model-path $model \
     --reset-server \
-    --num-threads 1 \
+    --num-threads 4 \
     --scores
 echo Evaluation ends at $(date +%Y/%m/%d-%H:%M:%S)
 
