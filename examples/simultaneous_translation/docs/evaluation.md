@@ -1,13 +1,13 @@
-# Introduction to evaluation interface
-The simultaneous translation models from sharedtask participents are evaluated under a server-client protocol. The participents are requisted to plug in their own model API in the protocol, and submit a docker file.
+# Introduction to the evaluation interface
+The simultaneous translation models from the shared task participants are evaluated under a server-client protocol. The participants are required to plug in their own model API in the protocol, and submit a Docker image.
 
 ## Server-Client Protocol
-An server-client protocol that will be used in evaluation. For example, when a *wait-k* model (k=3) translate the English sentence "Alice and Bob are good friends" to Genman sentence "Alice und Bob sind gute Freunde." , the evaluation process is shown as following figure. 
+A server-client protocol will be used in evaluation. For example, when a *wait-k* model (k=3) translate the English sentence "Alice and Bob are good friends" to the German sentence "Alice und Bob sind gute Freunde." , the evaluation process is shown in the following figure. 
 
-While every time client needs to read a new state (word or speech utterence), a "GET" request is supposed to sent over to server. Whenever a new token is generated, a "SEND" request with the word predicted (untokenized word) will be sent to server immediately. The server can hence calculate both latency and BLEU score of the sentence.
+Every time the client needs to read a new state (word or speech chunk), a "GET" request needs to be sent to the server. Whenever a new token is generated, a "SEND" request with the predicted word (untokenized word) will be sent to the server immediately. The server can hence calculate both the latency and BLEU score of the sentence.
 
 ### Server
-The server code is provided and can be set up directly locally for development purpose. For example, to evaluate a text simultaneous test set,
+The server code is provided and can be set up locally for development purposes. For example, to evaluate a text simultaneous test set,
 
 ```shell
 
@@ -37,7 +37,7 @@ The client will handle the evaluation process mentioned above. It should be out-
 
 
 
-The core of the client module is the agent, which needs to be modified to different models accordingly. The abstract class of agent is as follow, the evaluation process happens in the `decode()` function. 
+The core of the client module is the agent, which needs to be modified for different models accordingly. The abstract class of agent is as follow, the evaluation process happens in the `decode()` function. 
 ```python
 class Agent(object):
     "an agent needs to follow this pattern"
@@ -74,7 +74,7 @@ class Agent(object):
         states = self.init_states()
         self.reset()      
 
-        # Evaluataion protocol happens here
+        # Evaluation protocol happens here
         while True:
             # Get action from the current states according to self.policy()
             action = self.policy(states)
@@ -101,15 +101,14 @@ class Agent(object):
 
  
 ```
-Here an implementation of agent of text [*wait-k* model](somelink). Notice that the tokenization is not considered.
+Here an implementation of agent of text [*wait-k* model](../eval/agent.py). Notice that the tokenization is not considered.
 
 ## Quality
-The quality is measured by detokenized BLEU. So make sure that the predicted words sent to server are detokenized. An implementation is can be find [here](some link)
+The quality is measured by detokenized BLEU. So make sure that the predicted words sent to server are detokenized. An implementation is can be find [here](../eval/agent.py)
 
 ## Latency
 The latency metrics are 
 * Average Proportion
 * Average Lagging
 * Differentiable Average Lagging
-Again Thery will also be evaluated on detokenized text.
-
+Again, they will also be evaluated on detokenized text.
