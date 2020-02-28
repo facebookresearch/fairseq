@@ -44,8 +44,6 @@ class Agent(object):
         action = {}
         self.reset()
         states = self.init_states()
-        new_states = session.get_src(sent_id)
-        states = self.update_states(states, new_states)
         while action.get('value', None) != DEFAULT_EOS:
             # take an action
             action = self.policy(states)
