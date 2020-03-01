@@ -1,7 +1,7 @@
 # **Baseline Simultaneous Translation**
 ---
 
-You can find here instructions for training and evaluating a *wait-k* simultaneous LSTM model on the MUST-C English-German dataset.
+Here are the instructions for training and evaluating a *wait-k* simultaneous LSTM model on the MUST-C English-German dataset.
 
 [STACL: Simultaneous Translation with Implicit Anticipation and Controllable Latency using Prefix-to-Prefix Framework](https://https://www.aclweb.org/anthology/P19-1289/)
 
@@ -14,7 +14,7 @@ cd fairseq
 pip install -e .
 ```
 
-Assuming that fairseq is installed in a directory called `FAIRSEQ`.
+Assuming that fairseq is installed in a directory called `FAIRSEQ`. We will use `$FAIRSEQ/example/simultaneous_translation` as the work directory
 
 Install SentencePiece. One easy way is to use anaconda:
 
@@ -23,7 +23,7 @@ conda install -c powerai sentencepiece
 ```
 
 Download the MuST-C data for English-German available at https://ict.fbk.eu/must-c/.
-We will assume that the data is downloaded in a directory called `DATA_ROOT`.
+In this example we will assume that the data is downloaded in a directory called ./experiments/data/must_c_1_0/en-de.
 
 
 ## **Text-to-text Model**
@@ -31,6 +31,8 @@ We will assume that the data is downloaded in a directory called `DATA_ROOT`.
 ### Data Preparation
 Train a SentencePiece model:
 ```shell
+cd $FAIRSEQ/example/simultaneous_translation
+DATA_ROOT=./experiments/data/must_c_1_0/en-de
 for lang in en de; do
     python $FAIRSEQ/examples/simultaneous_translation/data/train_spm.py \
         --data-path $DATA_ROOT/data \
@@ -38,19 +40,18 @@ for lang in en de; do
         --max-frame 3000 \
         --model-type unigram \
         --lang $lang \
-        --out-path .
+        --out-path $DATA_ROOT
 ```
 
 Process the data with the SentencePiece model:
 ```shell
-proc_dir=proc
-mkdir -p $proc_dir
+mkdir -p $DATA_ROOT/bi-text
 for split in train dev tst-COMMON tst-HE; do
     for lang in en de; do
         spm_encode \
-            --model unigram-$lang-10000-3000/spm.model \
+            --model $DATA_ROOT/unigram-$lang-10000-3000/spm.model \
             < $DATA_ROOT/data/$split/txt/$split.$lang \
-            > $proc_dir/$split.spm.$lang
+            > $DATA_ROOT/bi-text/$split.spm.$lang
     done
 done
 ```
@@ -58,7 +59,7 @@ done
 Binarize the data:
 
 ```shell
-proc_dir=proc
+proc_dir=$DATA_ROOT/bi-text
 fairseq-preprocess \
     --source-lang en --target-lang de \
     --trainpref $proc_dir/train.spm \
@@ -67,16 +68,16 @@ fairseq-preprocess \
     --thresholdtgt 0 \
     --thresholdsrc 0 \
     --workers 20 \
-    --destdir ./data-bin/mustc_en_de \
+    --destdir $DATA_ROOT/data-bin/mustc_en_de \
 ```
 
 ### Training
 
 
 ```shell
-mkdir -p checkpoints
+mkdir -p ./experiments/checkpoints
 CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
-    --save-dir checkpoints \
+    --save-dir ./experiments/checkpoints \
     --arch berard_simul_text_iwslt \
     --simul-type waitk \
     --waitk-lagging 2 \
@@ -96,8 +97,10 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
 ### Data Preparation
 First, segment wav files.
 ```shell 
+cd $FAIRSEQ/example/simultaneous_translation
+DATA_ROOT=./experiments/data/must_c_1_0/en-de
 python $FAIRSEQ/examples/simultaneous_translation/data/segment_wav.py \
-    --datapath $DATA_ROOT
+    --datapath $DATA_ROOT/data
 ```
 Similar to text-to-text model, train a Sentencepiecemodel, but only train on German
 ```Shell
@@ -107,11 +110,11 @@ python $FAIRSEQ/examples/simultaneous_translation/data/train_spm.py \
     --max-frame 3000 \
     --model-type unigram \
     --lang $lang \
-    --out-path .
+    --out-path $DATA_ROOT
 ```
 ## Training
 ```shell
-mkdir -p checkpoints
+mkdir -p ./experiments/checkpoints
 CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
     --save-dir checkpoints \
     --arch berard_simul_text_iwslt \
@@ -137,42 +140,35 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
 ## Evaluation
 ---
 ### Evaluation Server
-For text translation models, the server needs an input file and reference file. 
+The server can evaluate different type data given different configuration files
+To evaluate text translation models on dev set. 
 
 ``` shell
-python ./eval/server.py \
-    --hostname localhost \
-    --port 12321 \
-    --src-file $DATA_ROOT/data/dev/txt/dev.en \
-    --ref-file $DATA_ROOT/data/dev/txt/dev.de
+./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-dev.sh
 ```
-For speech translation models, the input is the data direcrory.
+To evaluate speech translation models on dev set.
 ``` shell
-python ./eval/server.py \
-    --hostname localhost \
-    --port 12321 \
-    --ref-file $DATA_ROOT \
-    --data-type speech
+./scripts/start-server.sh ./scripts/configs/must-c-en_de-text-dev.sh
 ```
 
 ### Decode and Evaluate with Client
-Once the server is set up, run the client to evaluate translation quality and latency.
+Same as the server, one can use different configuration file to start different agent.
+To evaluate text translation models on dev set. 
 ```shell
-# TEXT
-python $fairseq_dir/examples/simultaneous_translation/evaluate.py \
-    data-bin/mustc_en_de \
-    --user-dir $FAIRSEQ/examples/simultaneous_translation \
-    --src-spm unigram-en-10000-3000/spm.model\
-    --tgt-spm unigram-de-10000-3000/spm.model\
-    -s en -t de \
-    --path checkpoints/checkpoint_best.pt
+./script/start-client.py \
+    ./scripts/configs/must-c-en_de-speech-dev.sh \
+    ./experiments/checkpoints/checkpoint_best.pt
+```
+To evaluate speech translation models on dev set. 
+```shell
+./script/start-client.py \
+    ./scripts/configs/must-c-en_de-speech-dev.sh \
+    ./experiments/checkpoints/checkpoint_best.pt
+```
 
-# SPEECH
-python $fairseq_dir/examples/simultaneous_translation/evaluate.py \
-    data-bin/mustc_en_de \
-    --user-dir $FAIRSEQ/examples/simultaneous_translation \
-    --data-type speech \
-    --tgt-spm unigram-de-10000-3000/spm.model\
-    -s en -t de \
-    --path checkpoints/checkpoint_best.pt
+We also provide a faster evaluation script that splits the dataset and launchs multiple clients. For example for speech translation,
+```shell
+./script/start-multi-client.py \
+    ./scripts/configs/must-c-en_de-speech-dev.sh \
+    ./experiments/checkpoints/checkpoint_best.pt
 ```
