@@ -74,6 +74,7 @@ class SimulTransAgent(Agent):
             "segments" : {"src": [], "tgt": []},
             "steps" : {"src": 0, "tgt": 0},
             "finished" : False,
+            "finish_read" : False,
             "model_states": {}
         }
 

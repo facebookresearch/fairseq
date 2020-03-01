@@ -11,12 +11,14 @@ class SimulTextScorer(SimulScorer):
         }
 
     def send_src(self, sent_id, *args):
-        if self.steps[sent_id] == len(self.data["src"][sent_id]):
+        if self.steps[sent_id] >= len(self.data["src"][sent_id]):
             dict_to_return = {
                 "sent_id" : sent_id,
                 "segment_id": self.steps[sent_id],
                 "segment": self.eos
             }
+            # Consider EOS
+            self.steps[sent_id] = len(self.data["src"][sent_id]) + 1 
         else:
             dict_to_return = {
                 "sent_id" : sent_id,
@@ -29,4 +31,5 @@ class SimulTextScorer(SimulScorer):
         return dict_to_return
 
     def src_lengths(self):
-        return [len(sent) for sent in self.data["src"]]
+        # +1 for eos
+        return [len(sent) + 1 for sent in self.data["src"]]
