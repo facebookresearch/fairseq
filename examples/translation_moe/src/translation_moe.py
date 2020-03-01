@@ -187,7 +187,7 @@ class TranslationMoETask(TranslationTask):
         }
         return loss, sample_size, logging_output
 
-    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
+    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
         loss, sample_size, logging_output = self._get_loss(sample, model, criterion)
         if ignore_grad:

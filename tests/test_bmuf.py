@@ -43,7 +43,7 @@ def setup_model_loss_criterion(args, rank, is_cuda):
     return model, loss_fn, optimizer
 
 
-def train_step(input, target, model, loss_fn, optimizer):
+def train_step(input, target, model, loss_fn, optimizer, **unused):
     """Do forward, backward and parameter update."""
     model.train()
     output = model(input)

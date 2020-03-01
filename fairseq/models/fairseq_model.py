@@ -119,6 +119,15 @@ class BaseFairseqModel(nn.Module):
 
         do_upgrade(self, name)
 
+    def set_num_updates(self, num_updates):
+        """ State from trainer to pass along to model at every update """
+
+        def _apply(m):
+            if hasattr(m, 'set_num_updates') and m != self:
+                m.set_num_updates(num_updates)
+        self.apply(_apply)
+
+
     def make_generation_fast_(self, **kwargs):
         """Optimize model for faster generation."""
         if self._is_generation_fast:
