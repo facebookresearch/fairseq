@@ -315,6 +315,7 @@ class Trainer(object):
                         model=self.model,
                         criterion=self.criterion,
                         optimizer=self.optimizer,
+                        update_num=self.get_num_updates(),
                         ignore_grad=is_dummy_batch,
                     )
                     del loss
@@ -373,9 +374,6 @@ class Trainer(object):
             # take an optimization step
             self.optimizer.step()
             self.set_num_updates(self.get_num_updates() + 1)
-
-            # task specific update per step
-            self.task.update_step(self.get_num_updates())
 
             # log stats
             logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)

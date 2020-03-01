@@ -322,8 +322,12 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
 
         return model
 
-    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
+    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
+
+        if update_num > 0:
+            self.update_step(update_num)
+
         agg_loss, agg_sample_size, agg_logging_output = 0., 0., {}
 
         def forward_backward(model, samples, logging_output_key, weight):

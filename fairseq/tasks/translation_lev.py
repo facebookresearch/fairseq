@@ -143,6 +143,7 @@ class TranslationLevenshteinTask(TranslationTask):
                    model,
                    criterion,
                    optimizer,
+                   update_num,
                    ignore_grad=False):
         model.train()
         sample['prev_target'] = self.inject_noise(sample['target'])
