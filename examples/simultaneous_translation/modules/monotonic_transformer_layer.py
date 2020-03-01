@@ -35,7 +35,23 @@ class TransformerMonotonicDecoderLayer(TransformerDecoderLayer):
             self.embed_dim,
             export=getattr(args, 'char_inputs', False)
         )
-    
-    
-    
 
+    def prune_incremental_state(self, incremental_state):
+        def prune(module):
+            input_buffer = module._get_input_buffer(incremental_state)
+            for key in ["prev_key", "prev_value"]:
+                if input_buffer[key].size(2) > 1:
+                    input_buffer[key] = input_buffer[key][:, :, :-1, :]
+                else:
+                    input_buffer = {}
+                    break
+            module._set_input_buffer(incremental_state, input_buffer)
+        prune(self.self_attn)
+
+    def get_steps(self, incremental_state):
+        return (
+            self.encoder_attn
+            ._get_monotonic_buffer(
+                incremental_state
+            ).get("step", 0)
+        )
