@@ -50,7 +50,7 @@ class SimulScorer(object):
         delays = []
         for i in range(1 + max(self.translations.keys())):
             translations += [" ".join(t[0] for t in self.translations[i][:-1])]
-            delays += [[t[1] for t in self.translations[i][:-1]]]
+            delays += [[t[1] for t in self.translations[i]]]
 
         bleu_score = BLEUScorer(
             sent_level=False, corpus_level=True,
