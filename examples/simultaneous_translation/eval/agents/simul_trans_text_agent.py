@@ -39,6 +39,7 @@ class SimulTransTextAgent(SimulTransAgent):
         else:
             tokens = [new_word]
             indices = [self.dict["src"].eos()]
+            states["finish_read"] = True
 
         # Update states
         states["segments"]["src"] += [new_word]
@@ -62,4 +63,9 @@ class SimulTransTextAgent(SimulTransAgent):
         return None
 
     def finish_read(self, states):
-        return self.eos in states["tokens"]["src"]
+        # The first means all segments (full words) has been read from server
+        # The second means all tokens (subwords) has been read locally
+        return (
++            states["finish_read"]
++            and len(states["tokens"]["src"]) == states["steps"]["src"]
++        )

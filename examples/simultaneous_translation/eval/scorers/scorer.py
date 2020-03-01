@@ -103,7 +103,6 @@ class SimulScorer(object):
         with open(self.output_files["scores"], "w") as f:
             for key, value in scores.items():
                 f.write(f"{key}, {value}\n")
-        
 
     @classmethod
     def _load_text_file(cls, file, split=False):

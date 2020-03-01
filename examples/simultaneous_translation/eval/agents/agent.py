@@ -47,7 +47,7 @@ class Agent(object):
         while action.get('value', None) != DEFAULT_EOS:
             # take an action
             action = self.policy(states)
-            # Check action for each item in buffer
+
             if action['key'] == GET:
                 new_states = session.get_src(sent_id, action["value"])
                 states = self.update_states(states, new_states)
