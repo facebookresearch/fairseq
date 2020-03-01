@@ -65,7 +65,11 @@ class SimulScorer(object):
         )
 
         latency_score = LatencyScorer().score(
-            [{"src_len" : src_len, "delays" : delay} for src_len, delay in zip(self.src_lengths(), delays)]
+            [
+                {"src_len" : src_len, "delays" : delay} 
+                for src_len, delay in zip(self.src_lengths(), delays)
+            ],
+            start_from_zero=False
         )
 
         scores = {
