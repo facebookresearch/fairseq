@@ -120,3 +120,4 @@ class FbTbmfWrapper(BaseProgressBar):
                 writer.add_scalar(tag, key, stats[key].val, step)
             elif isinstance(stats[key], Number):
                 writer.add_scalar(tag, key, stats[key], step)
+        writer.flush()

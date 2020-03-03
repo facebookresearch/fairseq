@@ -7,6 +7,7 @@
 Wrapper around various loggers and progress bars (e.g., tqdm).
 """
 
+import atexit
 import json
 import logging
 import os
@@ -294,6 +295,14 @@ except ImportError:
     SummaryWriter = None
 
 
+def _close_writers():
+    for w in _tensorboard_writers.values():
+        w.close()
+
+
+atexit.register(_close_writers)
+
+
 class TensorboardProgressBarWrapper(BaseProgressBar):
     """Log to tensorboard."""
 
@@ -340,3 +349,4 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
                 writer.add_scalar(key, stats[key].val, step)
             elif isinstance(stats[key], Number):
                 writer.add_scalar(key, stats[key], step)
+        writer.flush()
