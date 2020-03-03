@@ -173,14 +173,20 @@ def train(args, trainer, task, epoch_itr):
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
     for samples in progress:
-        log_output = trainer.train_step(samples)
-        num_updates = trainer.get_num_updates()
-        if log_output is None:
-            continue
+        with metrics.aggregate('train_inner'):
+            log_output = trainer.train_step(samples)
+            if log_output is None:  # OOM, overflow, ...
+                continue
 
         # log mid-epoch stats
-        stats = get_training_stats(metrics.get_smoothed_values('train'))
-        progress.log(stats, tag='train', step=num_updates)
+        stats = get_training_stats(metrics.get_smoothed_values('train_inner'))
+        num_updates = trainer.get_num_updates()
+        progress.log(stats, tag='train_inner', step=num_updates)
+
+        # reset mid-epoch stats after each log interval
+        # the end-of-epoch stats will still be preserved
+        if num_updates % args.log_interval == 0:
+            metrics.reset_meters('train_inner')
 
         if (
             not args.disable_validation
