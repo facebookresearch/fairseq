@@ -13,10 +13,11 @@ from fairseq import search
 from fairseq.data.dictionary import Dictionary
 from fairseq.fb_simple_sequence_generator import EnsembleModel, SimpleSequenceGenerator
 from fairseq.models.transformer import TransformerModel
+from fairseq.sequence_generator import SequenceGenerator
 from fairseq.tasks.fairseq_task import FairseqTask
 
 
-DEFAULT_TEST_VOCAB_SIZE = 2
+DEFAULT_TEST_VOCAB_SIZE = 100
 
 
 class DummyTask(FairseqTask):
@@ -63,6 +64,24 @@ def get_dummy_task_and_parser():
 
 
 class TestJitSequenceGeneratorBase(unittest.TestCase):
+    def setUp(self):
+        self.task, self.parser = get_dummy_task_and_parser()
+        eos = self.task.tgt_dict.eos()
+        src_tokens = torch.randint(3, 50, (2, 10)).long()
+        src_tokens = torch.cat((src_tokens, torch.LongTensor([[eos], [eos]])), -1)
+        src_lengths = torch.LongTensor([2, 10])
+        self.sample = {
+            'net_input': {
+                'src_tokens': src_tokens,
+                'src_lengths': src_lengths,
+            },
+        }
+        TransformerModel.add_args(self.parser)
+        args = self.parser.parse_args([])
+        args.encoder_layers = 2
+        args.decoder_layers = 1
+        self.transformer_model = TransformerModel.build_model(args, self.task)
+
     def assertOutputEqual(self, hypo, pos_probs):
         pos_scores = torch.FloatTensor(pos_probs).log()
         self.assertTensorSizeEqual(hypo["positional_scores"], pos_scores)
@@ -71,6 +90,19 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
     def assertTensorSizeEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")
 
+    def assertAlmostEqual(self, t1, t2):
+        self.assertEqual(t1.size(), t2.size(), "size mismatch")
+        self.assertLess((t1 - t2).abs().max(), 1e-4)
+
+    def assertTensorEqual(self, t1, t2):
+        self.assertEqual(t1.size(), t2.size(), "size mismatch")
+        self.assertEqual(t1.ne(t2).long().sum(), 0)
+
+    def assertHypoEqual(self, h1, h2):
+        "Check two hypos are equal"
+        self.assertTensorEqual(h1["tokens"], h2["tokens"])
+        self.assertAlmostEqual(h1["positional_scores"], h2["positional_scores"])
+
     def _test_save_and_load(self, scripted_module):
         with tempfile.NamedTemporaryFile() as f:
             scripted_module.save(f.name)
@@ -78,38 +110,44 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
 
 
 class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
-    def setUp(self):
-        self.tgt_dict, self.w1, self.w2, src_tokens, src_lengths, self.model = (
-            test_utils.sequence_generator_setup()
-        )
-        self.task, self.parser = get_dummy_task_and_parser()
 
     @unittest.skipIf(
         torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
     )
     def test_export_transformer(self):
-        TransformerModel.add_args(self.parser)
-        args = self.parser.parse_args([])
-        model = TransformerModel.build_model(args, self.task)
+        model = self.transformer_model
         torch.jit.script(model)
 
     @unittest.skipIf(
         torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
     )
     def test_ensemble_sequence_generator(self):
-        TransformerModel.add_args(self.parser)
-        args = self.parser.parse_args([])
-        model = TransformerModel.build_model(args, self.task)
+        model = self.transformer_model
         generator = SimpleSequenceGenerator([model], self.task.tgt_dict, beam_size=2)
         scripted_model = torch.jit.script(generator)
         self._test_save_and_load(scripted_model)
 
+    def test_generate_with_transformer_model(self):
+        model = self.transformer_model
+        simple_generator = SimpleSequenceGenerator(
+            [model], self.task.tgt_dict, beam_size=2
+        )
+        generator = SequenceGenerator(self.task.tgt_dict, beam_size=2)
+        hypos = generator.generate([model], self.sample)
+        simple_hypos = simple_generator.generate(self.sample)
+        # sentence 1, beam 1
+        self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
+        # sentence 1, beam 2
+        self.assertHypoEqual(hypos[0][1], simple_hypos[0][1])
+        # sentence 2, beam 1
+        self.assertHypoEqual(hypos[1][0], simple_hypos[1][0])
+        # sentence 2, beam 2
+        self.assertHypoEqual(hypos[1][1], simple_hypos[1][1])
 
-class TestJitEnsemble(TestJitSimpleSequeneceGenerator):
+
+class TestJitEnsemble(TestJitSequenceGeneratorBase):
     def test_export_ensemble_model(self):
-        TransformerModel.add_args(self.parser)
-        args = self.parser.parse_args([])
-        model = TransformerModel.build_model(args, self.task)
+        model = self.transformer_model
         ensemble_models = EnsembleModel([model])
         torch.jit.script(ensemble_models)
 
@@ -127,8 +165,10 @@ class TestExportSearch(unittest.TestCase):
         torch.jit.script(search_strategy)
 
     def test_export_sampling(self):
-        low_sampling_topp = self.min_top1_prob/2.0
-        search_strategy = search.Sampling(self.tgt_dict, sampling_topp=low_sampling_topp)
+        low_sampling_topp = self.min_top1_prob / 2.0
+        search_strategy = search.Sampling(
+            self.tgt_dict, sampling_topp=low_sampling_topp
+        )
         torch.jit.script(search_strategy)
 
     def test_export_diverse_siblings_search(self):

@@ -68,7 +68,6 @@ class SimpleSequenceGenerator(nn.Module):
         self.max_len_b = max_len_b
         self.min_len = min_len
 
-        self.maxlen = self.model.max_decoder_positions() - 1
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
@@ -83,7 +82,6 @@ class SimpleSequenceGenerator(nn.Module):
         )
         if not self.retain_dropout:
             self.model.eval()
-
 
     def cuda(self):
         self.model.cuda()
@@ -134,8 +132,8 @@ class SimpleSequenceGenerator(nn.Module):
     def _generate(self, sample: Dict[str, Dict[str, Tensor]]):
 
         encoder_input: Dict[str, Tensor] = {}
-        for k, v in sample['net_input'].items():
-            if k != 'prev_output_tokens':
+        for k, v in sample["net_input"].items():
+            if k != "prev_output_tokens":
                 encoder_input[k] = v
 
         src_tokens = encoder_input["src_tokens"]
@@ -148,7 +146,7 @@ class SimpleSequenceGenerator(nn.Module):
 
         # the max beam size is the dictionary size - 1, since we never select pad
         beam_size = min(self.beam_size, self.vocab_size - 1)
-
+        max_len: int = -1
         if self.match_source_len:
             max_len = src_lengths.max().item()
         else:
@@ -171,11 +169,11 @@ class SimpleSequenceGenerator(nn.Module):
         encoder_outs = self.model.reorder_encoder_out(encoder_outs, new_order)
 
         # initialize buffers
-        scores = torch.zeros(bsz * beam_size, self.maxlen + 1).to(
-            src_tokens.data
+        scores = (
+            torch.zeros(bsz * beam_size, max_len + 1).to(src_tokens.data)
         )  # +1 for eos; pad is never choosed for scoring
         tokens = (
-            torch.zeros(bsz * beam_size, self.maxlen + 2)
+            torch.zeros(bsz * beam_size, max_len + 2)
             .fill_(self.pad)
             .to(src_tokens.data)
         )  # +2 for eos and pad
@@ -199,7 +197,7 @@ class SimpleSequenceGenerator(nn.Module):
         cand_offsets = torch.arange(0, cand_size).type_as(tokens)
 
         reorder_state: Optional[Tensor] = None
-        for step in range(self.maxlen + 1):  # one extra step for EOS marker
+        for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
                 # self.model.reorder_incremental_state(reorder_state)
@@ -221,7 +219,7 @@ class SimpleSequenceGenerator(nn.Module):
             eos_scores = torch.empty(0).to(
                 scores
             )  # scores of hypothesis ending with eos (finished sentences)
-            if step < self.maxlen:
+            if step < max_len:
                 self.search.set_src_lengths(src_lengths)
                 cand_scores, cand_indices, cand_beams = self.search.step(
                     step,
@@ -263,7 +261,7 @@ class SimpleSequenceGenerator(nn.Module):
             )
 
             # finalize hypotheses that end in eos
-            eos_mask = cand_indices.eq(self.eos)
+            eos_mask = cand_indices.eq(self.eos) & cand_scores.ne(-math.inf)
 
             # only consider eos when it's among the top beam_size indices
             eos_bbsz_idx = torch.masked_select(
@@ -271,8 +269,7 @@ class SimpleSequenceGenerator(nn.Module):
             )
             if eos_bbsz_idx.numel() > 0:
                 eos_scores = torch.masked_select(
-                    cand_scores[:, :beam_size],
-                    mask=eos_mask[:, :beam_size],
+                    cand_scores[:, :beam_size], mask=eos_mask[:, :beam_size]
                 )
                 num_remaining_sent -= self.finalize_hypos(
                     step,
@@ -482,10 +479,13 @@ class EnsembleModel(nn.Module):
             # if attn is not None:
             #     attn = attn[:, -1, :]
 
-            decoder_out_tuple = (decoder_out[0][:, -1, :].div_(temperature), decoder_out[1])
+            decoder_out_tuple = (
+                decoder_out[0][:, -1, :].div_(temperature),
+                decoder_out[1],
+            )
             probs = model.get_normalized_probs(
-                    decoder_out_tuple, log_probs=True, sample=None
-                )
+                decoder_out_tuple, log_probs=True, sample=None
+            )
 
             log_probs.append(probs)
             if attn is not None:
@@ -499,7 +499,6 @@ class EnsembleModel(nn.Module):
         if avg_attn is not None:
             avg_attn.div_(self.models_size)
         return avg_probs, avg_attn
-
 
     @torch.jit.export
     def reorder_encoder_out(self, encoder_outs: List[EncoderOut], new_order):
