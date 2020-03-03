@@ -200,7 +200,7 @@ files2rouge test.hypo.tokenized test.hypo.target
 ## Finetuning
 
 - [Finetuning on GLUE](README.glue.md)
-- [Finetuning on CNN-DM](README.cnn.md)
+- [Finetuning on CNN-DM](README.summarization.md)
 
 ## Citation
 
