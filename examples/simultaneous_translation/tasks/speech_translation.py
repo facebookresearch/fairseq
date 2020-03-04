@@ -79,7 +79,7 @@ class SpeechTranslationTask(FairseqTask):
     def __init__(self, args, tgt_dict):
         super().__init__(args)
         self.tgt_dict = tgt_dict
-        self.num_mel_bins = getattr(args, "input_feat_per_channel", 40)
+        self.num_mel_bins = getattr(args, "input_feat_per_channel", 80)
     
     def set_num_mel_bins(self, input_feat_per_channel):
         self.num_mel_bins = input_feat_per_channel
