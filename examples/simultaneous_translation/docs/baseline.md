@@ -152,7 +152,7 @@ To evaluate speech translation models on dev set.
 ```
 
 ### Decode and Evaluate with Client
-Same as the server, one can use different configuration file to start different agent.
+Same as the server, one can use different configuration files to start different agent.
 To evaluate text translation models on dev set. 
 ```shell
 ./script/start-client.py \
