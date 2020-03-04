@@ -3,7 +3,7 @@ The simultaneous translation models from the shared task participants are evalua
 
 ## Server-Client Protocol
 <<<<<<< HEAD
-An server-client protocol that will be used in evaluation. For example, when a *wait-k* model (k=3) translate the English sentence "Alice and Bob are good friends" to Genman sentence "Alice und Bob sind gute Freunde." , the evaluation process is shown as following figure. 
+An server-client protocol that will be used in evaluation. For example, when a *wait-k* model (k=3) translate the English sentence "Alice and Bob are good friends" to Genman sentence "Alice und Bob sind gute Freunde." , the evaluation process is shown in the following figure. 
 
 .
 
