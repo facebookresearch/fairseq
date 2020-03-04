@@ -28,6 +28,7 @@ class SequenceGenerator(object):
         match_source_len=False,
         no_repeat_ngram_size=0,
         search_strategy=None,
+        eos=None
     ):
         """Generates translations of a given source sentence.
 
@@ -54,7 +55,7 @@ class SequenceGenerator(object):
         """
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
-        self.eos = tgt_dict.eos()
+        self.eos = tgt_dict.eos() if eos is None else eos
         self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad

@@ -50,6 +50,19 @@ class BaseFairseqModel(nn.Module):
         sample: Optional[Dict[str, Tensor]] = None,
     ):
         """Get normalized probabilities (or log probs) from a net's output."""
+        return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
+
+    # TorchScript doesn't support super() method so that the scriptable Subclass
+    # can't access the base class model in Torchscript.
+    # Current workaround is to add a helper function with different name and
+    # call the helper function from scriptable Subclass.
+    def get_normalized_probs_scriptable(
+        self,
+        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        log_probs: bool,
+        sample: Optional[Dict[str, Tensor]] = None,
+    ):
+        """Scriptable helper function for get_normalized_probs in ~BaseFairseqModel"""
         if hasattr(self, "decoder"):
             return self.decoder.get_normalized_probs(net_output, log_probs, sample)
         elif torch.is_tensor(net_output):
@@ -105,6 +118,15 @@ class BaseFairseqModel(nn.Module):
                 do_upgrade(c, name)
 
         do_upgrade(self, name)
+
+    def set_num_updates(self, num_updates):
+        """ State from trainer to pass along to model at every update """
+
+        def _apply(m):
+            if hasattr(m, 'set_num_updates') and m != self:
+                m.set_num_updates(num_updates)
+        self.apply(_apply)
+
 
     def make_generation_fast_(self, **kwargs):
         """Optimize model for faster generation."""

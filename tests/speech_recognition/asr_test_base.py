@@ -485,6 +485,11 @@ class DummyEncoderModel(FairseqEncoderModel):
             torch.div(net_output["encoder_out"], 1 - net_output["encoder_out"])
         )
 
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
+        lprobs = super().get_normalized_probs(net_output, log_probs, sample=sample)
+        lprobs.batch_first = True
+        return lprobs
+
 
 class DummyEncoder(FairseqEncoder):
     def __init__(self):

@@ -10,7 +10,8 @@ import sys
 
 import torch
 
-from fairseq import checkpoint_utils, metrics, options, progress_bar, utils
+from fairseq import checkpoint_utils, options, utils
+from fairseq.logging import metrics, progress_bar
 
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -80,10 +81,12 @@ def main(args, override_args=None):
             seed=args.seed,
             num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
-        progress = progress_bar.build_progress_bar(
-            args, itr,
-            prefix='valid on \'{}\' subset'.format(subset),
-            no_progress_bar='simple'
+        progress = progress_bar.progress_bar(
+            itr,
+            log_format=args.log_format,
+            log_interval=args.log_interval,
+            prefix=f"valid on '{subset}' subset",
+            default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
         )
 
         log_outputs = []

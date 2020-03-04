@@ -8,7 +8,7 @@ RoBERTa iterates on BERT's pretraining procedure, including training the model l
 
 ### What's New:
 
-- January 2020: Italian model (UmBERTo) is available from [Musixmatch Research](https://github.com/musixmatchresearch): [UmBERTo](https://github.com/musixmatchresearch/umberto).
+- January 2020: Italian model (UmBERTo) is available from Musixmatch Research: [UmBERTo](https://github.com/musixmatchresearch/umberto).
 - November 2019: French model (CamemBERT) is available: [CamemBERT](https://github.com/pytorch/fairseq/tree/master/examples/camembert).
 - November 2019: Multilingual encoder (XLM-RoBERTa) is available: [XLM-R](https://github.com/pytorch/fairseq/tree/master/examples/xlmr).
 - September 2019: TensorFlow and TPU support via the [transformers library](https://github.com/huggingface/transformers).

@@ -14,8 +14,9 @@ import sys
 
 import torch
 
-from fairseq import bleu, checkpoint_utils, options, progress_bar, tasks, utils
-from fairseq.meters import StopwatchMeter, TimeMeter
+from fairseq import bleu, checkpoint_utils, options, tasks, utils
+from fairseq.logging import progress_bar
+from fairseq.logging.meters import StopwatchMeter, TimeMeter
 
 
 def main(args):
@@ -100,6 +101,12 @@ def _main(args, output_file):
         shard_id=args.shard_id,
         num_workers=args.num_workers,
     ).next_epoch_itr(shuffle=False)
+    progress = progress_bar.progress_bar(
+        itr,
+        log_format=args.log_format,
+        log_interval=args.log_interval,
+        default_log_format=('tqdm' if not args.no_progress_bar else 'none'),
+    )
 
     # Initialize generator
     gen_timer = StopwatchMeter()
@@ -112,106 +119,105 @@ def _main(args, output_file):
         scorer = bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
     num_sentences = 0
     has_target = True
-    with progress_bar.build_progress_bar(args, itr) as t:
-        wps_meter = TimeMeter()
-        for sample in t:
-            sample = utils.move_to_cuda(sample) if use_cuda else sample
-            if 'net_input' not in sample:
-                continue
+    wps_meter = TimeMeter()
+    for sample in progress:
+        sample = utils.move_to_cuda(sample) if use_cuda else sample
+        if 'net_input' not in sample:
+            continue
 
-            prefix_tokens = None
-            if args.prefix_size > 0:
-                prefix_tokens = sample['target'][:, :args.prefix_size]
+        prefix_tokens = None
+        if args.prefix_size > 0:
+            prefix_tokens = sample['target'][:, :args.prefix_size]
 
-            gen_timer.start()
-            hypos = task.inference_step(generator, models, sample, prefix_tokens)
-            num_generated_tokens = sum(len(h[0]['tokens']) for h in hypos)
-            gen_timer.stop(num_generated_tokens)
+        gen_timer.start()
+        hypos = task.inference_step(generator, models, sample, prefix_tokens)
+        num_generated_tokens = sum(len(h[0]['tokens']) for h in hypos)
+        gen_timer.stop(num_generated_tokens)
 
-            for i, sample_id in enumerate(sample['id'].tolist()):
-                has_target = sample['target'] is not None
+        for i, sample_id in enumerate(sample['id'].tolist()):
+            has_target = sample['target'] is not None
 
-                # Remove padding
-                src_tokens = utils.strip_pad(sample['net_input']['src_tokens'][i, :], tgt_dict.pad())
-                target_tokens = None
-                if has_target:
-                    target_tokens = utils.strip_pad(sample['target'][i, :], tgt_dict.pad()).int().cpu()
+            # Remove padding
+            src_tokens = utils.strip_pad(sample['net_input']['src_tokens'][i, :], tgt_dict.pad())
+            target_tokens = None
+            if has_target:
+                target_tokens = utils.strip_pad(sample['target'][i, :], tgt_dict.pad()).int().cpu()
 
-                # Either retrieve the original sentences or regenerate them from tokens.
-                if align_dict is not None:
-                    src_str = task.dataset(args.gen_subset).src.get_original_text(sample_id)
-                    target_str = task.dataset(args.gen_subset).tgt.get_original_text(sample_id)
+            # Either retrieve the original sentences or regenerate them from tokens.
+            if align_dict is not None:
+                src_str = task.dataset(args.gen_subset).src.get_original_text(sample_id)
+                target_str = task.dataset(args.gen_subset).tgt.get_original_text(sample_id)
+            else:
+                if src_dict is not None:
+                    src_str = src_dict.string(src_tokens, args.remove_bpe)
                 else:
-                    if src_dict is not None:
-                        src_str = src_dict.string(src_tokens, args.remove_bpe)
-                    else:
-                        src_str = ""
-                    if has_target:
-                        target_str = tgt_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+                    src_str = ""
+                if has_target:
+                    target_str = tgt_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+
+            if not args.quiet:
+                if src_dict is not None:
+                    print('S-{}\t{}'.format(sample_id, src_str), file=output_file)
+                if has_target:
+                    print('T-{}\t{}'.format(sample_id, target_str), file=output_file)
+
+            # Process top predictions
+            for j, hypo in enumerate(hypos[i][:args.nbest]):
+                hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                    hypo_tokens=hypo['tokens'].int().cpu(),
+                    src_str=src_str,
+                    alignment=hypo['alignment'],
+                    align_dict=align_dict,
+                    tgt_dict=tgt_dict,
+                    remove_bpe=args.remove_bpe,
+                )
 
                 if not args.quiet:
-                    if src_dict is not None:
-                        print('S-{}\t{}'.format(sample_id, src_str), file=output_file)
-                    if has_target:
-                        print('T-{}\t{}'.format(sample_id, target_str), file=output_file)
+                    score = hypo['score'] / math.log(2)  # convert to base 2
+                    print('H-{}\t{}\t{}'.format(sample_id, score, hypo_str), file=output_file)
+                    print('P-{}\t{}'.format(
+                        sample_id,
+                        ' '.join(map(
+                            lambda x: '{:.4f}'.format(x),
+                            # convert from base e to base 2
+                            hypo['positional_scores'].div_(math.log(2)).tolist(),
+                        ))
+                    ), file=output_file)
 
-                # Process top predictions
-                for j, hypo in enumerate(hypos[i][:args.nbest]):
-                    hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
-                        hypo_tokens=hypo['tokens'].int().cpu(),
-                        src_str=src_str,
-                        alignment=hypo['alignment'],
-                        align_dict=align_dict,
-                        tgt_dict=tgt_dict,
-                        remove_bpe=args.remove_bpe,
-                    )
-
-                    if not args.quiet:
-                        score = hypo['score'] / math.log(2)  # convert to base 2
-                        print('H-{}\t{}\t{}'.format(sample_id, score, hypo_str), file=output_file)
-                        print('P-{}\t{}'.format(
+                    if args.print_alignment:
+                        print('A-{}\t{}'.format(
                             sample_id,
-                            ' '.join(map(
-                                lambda x: '{:.4f}'.format(x),
-                                # convert from base e to base 2
-                                hypo['positional_scores'].div_(math.log(2)).tolist(),
-                            ))
+                            ' '.join(['{}-{}'.format(src_idx, tgt_idx) for src_idx, tgt_idx in alignment])
                         ), file=output_file)
 
-                        if args.print_alignment:
-                            print('A-{}\t{}'.format(
-                                sample_id,
-                                ' '.join(['{}-{}'.format(src_idx, tgt_idx) for src_idx, tgt_idx in alignment])
-                            ), file=output_file)
+                    if args.print_step:
+                        print('I-{}\t{}'.format(sample_id, hypo['steps']), file=output_file)
 
-                        if args.print_step:
-                            print('I-{}\t{}'.format(sample_id, hypo['steps']), file=output_file)
+                    if getattr(args, 'retain_iter_history', False):
+                        for step, h in enumerate(hypo['history']):
+                            _, h_str, _ = utils.post_process_prediction(
+                                hypo_tokens=h['tokens'].int().cpu(),
+                                src_str=src_str,
+                                alignment=None,
+                                align_dict=None,
+                                tgt_dict=tgt_dict,
+                                remove_bpe=None,
+                            )
+                            print('E-{}_{}\t{}'.format(sample_id, step, h_str), file=output_file)
 
-                        if getattr(args, 'retain_iter_history', False):
-                            for step, h in enumerate(hypo['history']):
-                                _, h_str, _ = utils.post_process_prediction(
-                                    hypo_tokens=h['tokens'].int().cpu(),
-                                    src_str=src_str,
-                                    alignment=None,
-                                    align_dict=None,
-                                    tgt_dict=tgt_dict,
-                                    remove_bpe=None,
-                                )
-                                print('E-{}_{}\t{}'.format(sample_id, step, h_str), file=output_file)
+                # Score only the top hypothesis
+                if has_target and j == 0:
+                    if align_dict is not None or args.remove_bpe is not None:
+                        # Convert back to tokens for evaluation with unk replacement and/or without BPE
+                        target_tokens = tgt_dict.encode_line(target_str, add_if_not_exist=True)
+                    if hasattr(scorer, 'add_string'):
+                        scorer.add_string(target_str, hypo_str)
+                    else:
+                        scorer.add(target_tokens, hypo_tokens)
 
-                    # Score only the top hypothesis
-                    if has_target and j == 0:
-                        if align_dict is not None or args.remove_bpe is not None:
-                            # Convert back to tokens for evaluation with unk replacement and/or without BPE
-                            target_tokens = tgt_dict.encode_line(target_str, add_if_not_exist=True)
-                        if hasattr(scorer, 'add_string'):
-                            scorer.add_string(target_str, hypo_str)
-                        else:
-                            scorer.add(target_tokens, hypo_tokens)
-
-            wps_meter.update(num_generated_tokens)
-            t.log({'wps': round(wps_meter.avg)})
-            num_sentences += sample['nsentences']
+        wps_meter.update(num_generated_tokens)
+        progress.log({'wps': round(wps_meter.avg)})
+        num_sentences += sample['nsentences']
 
     logger.info('NOTE: hypothesis and token scores are output in base 2')
     logger.info('Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(

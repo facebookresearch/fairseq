@@ -4,12 +4,16 @@
 
 Follow the instructions [here](https://github.com/abisee/cnn-dailymail) to download the original CNN and Daily Mail datasets. To preprocess the data, refer to the pointers in [this issue](https://github.com/pytorch/fairseq/issues/1391) or check out the code [here](https://github.com/artmatsak/cnn-dailymail).
 
+Follow the instructions [here](https://github.com/EdinburghNLP/XSum) to download the original Extreme Summarization datasets, or check out the code [here](https://github.com/EdinburghNLP/XSum/tree/master/XSum-Dataset), Please keep the raw dataset and make sure no tokenization nor BPE on the dataset.
+
 ### 2) BPE preprocess:
+
 ```bash
 wget -N 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json'
 wget -N 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/vocab.bpe'
 wget -N 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/dict.txt'
 
+TASK=cnn_dm
 for SPLIT in train val
 do
   for LANG in source target
@@ -17,8 +21,8 @@ do
     python -m examples.roberta.multiprocessing_bpe_encoder \
     --encoder-json encoder.json \
     --vocab-bpe vocab.bpe \
-    --inputs "cnn_dm/$SPLIT.$LANG" \
-    --outputs "cnn_dm/$SPLIT.bpe.$LANG" \
+    --inputs "$TASK/$SPLIT.$LANG" \
+    --outputs "$TASK/$SPLIT.bpe.$LANG" \
     --workers 60 \
     --keep-empty;
   done
@@ -30,16 +34,16 @@ done
 fairseq-preprocess \
   --source-lang "source" \
   --target-lang "target" \
-  --trainpref "cnn_dm/train.bpe" \
-  --validpref "cnn_dm/val.bpe" \
-  --destdir "cnn_dm-bin/" \
+  --trainpref "${TASK}/train.bpe" \
+  --validpref "${TASK}/val.bpe" \
+  --destdir "${TASK}-bin/" \
   --workers 60 \
   --srcdict dict.txt \
   --tgtdict dict.txt;
 ```
 
 ### 4) Fine-tuning on CNN-DM summarization task:
-Example fine-tuning cmd
+Example fine-tuning CNN-DM
 ```bash
 TOTAL_NUM_UPDATES=20000  
 WARMUP_UPDATES=500      
@@ -72,6 +76,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train.py cnn_dm-bin \
 ```
 Above is expected to run on `1` node with `8 32gb-V100`.
 Expected training time is about `5 hours`. Training time can be reduced with distributed training on `4` nodes and `--update-freq 1`.
+
+Use TOTAL_NUM_UPDATES=15000 UPDATE_FREQ=2 for Xsum task
 
 ### Inference for CNN-DM test data using above trained checkpoint.
 After training the model as mentioned in previous step, you can perform inference with checkpoints in `checkpoints/` directory using following python code snippet:
@@ -112,3 +118,4 @@ with open('cnn_dm/test.source') as source, open('cnn_dm/test.hypo', 'w') as fout
             fout.write(hypothesis + '\n')
             fout.flush()
 ```
+Use beam=6, lenpen=1.0, max_len_b=60, min_len=10 for Xsum Generation

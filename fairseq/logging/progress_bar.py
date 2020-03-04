@@ -7,51 +7,85 @@
 Wrapper around various loggers and progress bars (e.g., tqdm).
 """
 
-from collections import OrderedDict
-from contextlib import contextmanager
+import atexit
 import json
 import logging
-from numbers import Number
 import os
 import sys
+from collections import OrderedDict
+from contextlib import contextmanager
+from numbers import Number
+from typing import Optional
 
 import torch
 
-from fairseq import distributed_utils
-from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
+from .meters import AverageMeter, StopwatchMeter, TimeMeter
 
 
 logger = logging.getLogger(__name__)
 
 
-def build_progress_bar(args, iterator, epoch=None, prefix=None, default='tqdm', no_progress_bar='none'):
-    if args.log_format is None:
-        args.log_format = no_progress_bar if args.no_progress_bar else default
+def progress_bar(
+    iterator,
+    log_format: Optional[str] = None,
+    log_interval: int = 100,
+    epoch: Optional[int] = None,
+    prefix: Optional[str] = None,
+    tensorboard_logdir: Optional[str] = None,
+    default_log_format: str = 'tqdm',
+):
+    if log_format is None:
+        log_format = default_log_format
+    if log_format == 'tqdm' and not sys.stderr.isatty():
+        log_format = 'simple'
 
-    if args.log_format == 'tqdm' and not sys.stderr.isatty():
-        args.log_format = 'simple'
-
-    if args.log_format == 'json':
-        bar = json_progress_bar(iterator, epoch, prefix, args.log_interval)
-    elif args.log_format == 'none':
-        bar = noop_progress_bar(iterator, epoch, prefix)
-    elif args.log_format == 'simple':
-        bar = simple_progress_bar(iterator, epoch, prefix, args.log_interval)
-    elif args.log_format == 'tqdm':
-        bar = tqdm_progress_bar(iterator, epoch, prefix)
+    if log_format == 'json':
+        bar = JsonProgressBar(iterator, epoch, prefix, log_interval)
+    elif log_format == 'none':
+        bar = NoopProgressBar(iterator, epoch, prefix)
+    elif log_format == 'simple':
+        bar = SimpleProgressBar(iterator, epoch, prefix, log_interval)
+    elif log_format == 'tqdm':
+        bar = TqdmProgressBar(iterator, epoch, prefix)
     else:
-        raise ValueError('Unknown log format: {}'.format(args.log_format))
+        raise ValueError('Unknown log format: {}'.format(log_format))
 
-    if args.tensorboard_logdir and distributed_utils.is_master(args):
+    if tensorboard_logdir:
         try:
             # [FB only] custom wrapper for TensorBoard
             import palaas  # noqa
-            from fairseq.fb_tbmf_wrapper import fb_tbmf_wrapper
-            bar = fb_tbmf_wrapper(bar, args, args.log_interval)
+            from .fb_tbmf_wrapper import FbTbmfWrapper
+            bar = FbTbmfWrapper(bar, log_interval)
         except ImportError:
-            bar = tensorboard_log_wrapper(bar, args.tensorboard_logdir, args)
+            bar = TensorboardProgressBarWrapper(bar, tensorboard_logdir)
 
     return bar
+
+
+def build_progress_bar(
+    args,
+    iterator,
+    epoch: Optional[int] = None,
+    prefix: Optional[str] = None,
+    default: str = 'tqdm',
+    no_progress_bar: str = 'none',
+):
+    """Legacy wrapper that takes an argparse.Namespace."""
+    if getattr(args, 'no_progress_bar', False):
+        default = no_progress_bar
+    if getattr(args, 'distributed_rank', 0) == 0:
+        tensorboard_logdir = getattr(args, 'tensorboard_logdir', None)
+    else:
+        tensorboard_logdir = None
+    return progress_bar(
+        iterator,
+        log_format=args.log_format,
+        log_interval=args.log_interval,
+        epoch=epoch,
+        prefix=prefix,
+        tensorboard_logdir=tensorboard_logdir,
+        default_log_format=default,
+    )
 
 
 def format_stat(stat):
@@ -68,7 +102,7 @@ def format_stat(stat):
     return stat
 
 
-class progress_bar(object):
+class BaseProgressBar(object):
     """Abstract class for progress bars."""
     def __init__(self, iterable, epoch=None, prefix=None):
         self.iterable = iterable
@@ -125,7 +159,7 @@ def rename_logger(logger, new_name):
     logger.name = old_name
 
 
-class json_progress_bar(progress_bar):
+class JsonProgressBar(BaseProgressBar):
     """Log output in JSON format."""
 
     def __init__(self, iterable, epoch=None, prefix=None, log_interval=1000):
@@ -179,7 +213,7 @@ class json_progress_bar(progress_bar):
         return postfix
 
 
-class noop_progress_bar(progress_bar):
+class NoopProgressBar(BaseProgressBar):
     """No logging."""
 
     def __init__(self, iterable, epoch=None, prefix=None):
@@ -198,7 +232,7 @@ class noop_progress_bar(progress_bar):
         pass
 
 
-class simple_progress_bar(progress_bar):
+class SimpleProgressBar(BaseProgressBar):
     """A minimal logger for non-TTY environments."""
 
     def __init__(self, iterable, epoch=None, prefix=None, log_interval=1000):
@@ -233,7 +267,7 @@ class simple_progress_bar(progress_bar):
             logger.info('{} | {}'.format(self.prefix, postfix))
 
 
-class tqdm_progress_bar(progress_bar):
+class TqdmProgressBar(BaseProgressBar):
     """Log to tqdm."""
 
     def __init__(self, iterable, epoch=None, prefix=None):
@@ -254,35 +288,42 @@ class tqdm_progress_bar(progress_bar):
         self.tqdm.write('{} | {}'.format(self.tqdm.desc, postfix))
 
 
-class tensorboard_log_wrapper(progress_bar):
+try:
+    from tensorboardX import SummaryWriter
+    _tensorboard_writers = {}
+except ImportError:
+    SummaryWriter = None
+
+
+def _close_writers():
+    for w in _tensorboard_writers.values():
+        w.close()
+
+
+atexit.register(_close_writers)
+
+
+class TensorboardProgressBarWrapper(BaseProgressBar):
     """Log to tensorboard."""
 
-    def __init__(self, wrapped_bar, tensorboard_logdir, args):
+    def __init__(self, wrapped_bar, tensorboard_logdir):
         self.wrapped_bar = wrapped_bar
         self.tensorboard_logdir = tensorboard_logdir
-        self.args = args
 
-        try:
-            from tensorboardX import SummaryWriter
-            self.SummaryWriter = SummaryWriter
-            self._writers = {}
-        except ImportError:
+        if SummaryWriter is None:
             logger.warning(
-                "tensorboard or required dependencies not found, "
-                "please see README for using tensorboard. (e.g. pip install tensorboardX)"
+                "tensorboard or required dependencies not found, please see README "
+                "for using tensorboard. (e.g. pip install tensorboardX)"
             )
-            self.SummaryWriter = None
 
     def _writer(self, key):
-        if self.SummaryWriter is None:
+        if SummaryWriter is None:
             return None
-        if key not in self._writers:
-            self._writers[key] = self.SummaryWriter(
-                os.path.join(self.tensorboard_logdir, key),
-            )
-            self._writers[key].add_text('args', str(vars(self.args)))
-            self._writers[key].add_text('sys.argv', " ".join(sys.argv))
-        return self._writers[key]
+        _writers = _tensorboard_writers
+        if key not in _writers:
+            _writers[key] = SummaryWriter(os.path.join(self.tensorboard_logdir, key))
+            _writers[key].add_text('sys.argv', " ".join(sys.argv))
+        return _writers[key]
 
     def __iter__(self):
         return iter(self.wrapped_bar)
@@ -297,11 +338,6 @@ class tensorboard_log_wrapper(progress_bar):
         self._log_to_tensorboard(stats, tag, step)
         self.wrapped_bar.print(stats, tag=tag, step=step)
 
-    def __exit__(self, *exc):
-        for writer in getattr(self, '_writers', {}).values():
-            writer.close()
-        return False
-
     def _log_to_tensorboard(self, stats, tag=None, step=None):
         writer = self._writer(tag or '')
         if writer is None:
@@ -313,3 +349,4 @@ class tensorboard_log_wrapper(progress_bar):
                 writer.add_scalar(key, stats[key].val, step)
             elif isinstance(stats[key], Number):
                 writer.add_scalar(key, stats[key], step)
+        writer.flush()

@@ -10,16 +10,15 @@ Train a network across multiple GPUs.
 import contextlib
 from itertools import chain
 import logging
-import math
-import os
 import sys
 from typing import Any, Dict, List
 
 import torch
 
-from fairseq import checkpoint_utils, distributed_utils, metrics, models, optim, utils
+from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.file_io import PathManager
-from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
+from fairseq.logging import meters, metrics
+from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 
 
@@ -55,7 +54,7 @@ class Trainer(object):
         self._criterion = self._criterion.to(device=self.device)
         self._model = self._model.to(device=self.device)
 
-        self._dummy_batch = None
+        self._dummy_batch = "DUMMY"  # indicates we don't have a dummy batch at first
         self._lr_scheduler = None
         self._num_updates = 0
         self._optim_history = None
@@ -226,7 +225,7 @@ class Trainer(object):
 
                 # reset TimeMeters, since their start times don't make sense anymore
                 for meter in metrics.get_meters("default"):
-                    if isinstance(meter, TimeMeter):
+                    if isinstance(meter, meters.TimeMeter):
                         meter.reset()
         else:
             logger.info("no existing checkpoint found {}".format(filename))
@@ -271,7 +270,7 @@ class Trainer(object):
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
-        if self._dummy_batch is None:
+        if self._dummy_batch == "DUMMY":
             self._dummy_batch = samples[0]
 
         self._set_seed()
@@ -316,6 +315,7 @@ class Trainer(object):
                         model=self.model,
                         criterion=self.criterion,
                         optimizer=self.optimizer,
+                        update_num=self.get_num_updates(),
                         ignore_grad=is_dummy_batch,
                     )
                     del loss
@@ -375,9 +375,6 @@ class Trainer(object):
             self.optimizer.step()
             self.set_num_updates(self.get_num_updates() + 1)
 
-            # task specific update per step
-            self.task.update_step(self.get_num_updates())
-
             # log stats
             logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
             metrics.log_speed("ups", 1., ignore_first=10, priority=100, round=2)
@@ -400,6 +397,14 @@ class Trainer(object):
                 and not self.args.cpu
             ):
                 torch.cuda.empty_cache()
+        except FloatingPointError:
+            # re-run the forward and backward pass with hooks attached to print out where it fails
+            with NanDetector(self.model):
+                self.task.train_step(
+                    sample, self.model, self.criterion, self.optimizer,
+                    ignore_grad=False
+                )
+            raise
         except OverflowError as e:
             logger.info("NOTE: overflow detected, " + str(e))
             self.zero_grad()
@@ -420,6 +425,9 @@ class Trainer(object):
     @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
+        if self._dummy_batch == "DUMMY":
+            self._dummy_batch = sample
+
         with torch.no_grad():
             self.model.eval()
             self.criterion.eval()
@@ -542,6 +550,13 @@ class Trainer(object):
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
     def _prepare_sample(self, sample):
+        if sample == "DUMMY":
+            raise Exception(
+                "Trying to use an uninitialized 'dummy' batch. This usually indicates "
+                "that the total number of batches is smaller than the number of "
+                "participating GPUs. Try reducing the batch size or using fewer GPUs."
+            )
+
         if sample is None or len(sample) == 0:
             return None
 
@@ -684,7 +699,7 @@ class Trainer(object):
             # convert logging_outputs to CPU to avoid unnecessary
             # device-to-host transfers in reduce_metrics
             logging_outputs = utils.apply_to_sample(
-                lambda t: t.to(device='cpu', non_blocking=True),
+                lambda t: t.to(device='cpu', non_blocking=True, dtype=torch.double),
                 logging_outputs
             )
 
