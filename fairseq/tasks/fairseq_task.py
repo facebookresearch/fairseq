@@ -244,7 +244,7 @@ class FairseqTask(object):
         sampling_topk = getattr(args, "sampling_topk", -1)
         sampling_topp = getattr(args, "sampling_topp", -1.0)
         diverse_beam_groups = getattr(args, "diverse_beam_groups", -1)
-        diverse_beam_strength = (getattr(args, "diverse_beam_strength", 0.5),)
+        diverse_beam_strength = getattr(args, "diverse_beam_strength", 0.5)
         match_source_len = getattr(args, "match_source_len", False)
         diversity_rate = getattr(args, "diversity_rate", -1)
         if (
