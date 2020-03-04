@@ -29,7 +29,7 @@ The state that server sent to client is has the following format
   'segment': String or speech utterance
 }
 ```
-For text the segment is a detokenized word, while for speech is a list of numbers.
+For text, the segment is a detokenized word, while for speech, it is a list of numbers.
 
 ### Client
 The client will handle the evaluation process mentioned above. It should be out-of-box as well. The client's protocol is as following table.  The segment_size the length of segment in milisecond.
