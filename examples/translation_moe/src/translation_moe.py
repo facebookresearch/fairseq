@@ -5,9 +5,12 @@
 
 import torch
 
-from fairseq import modules, utils
+from fairseq import metrics, utils
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
+
+from .logsumexp_moe import LogSumExpMoE
+from .mean_pool_gating_network import MeanPoolGatingNetwork
 
 
 @register_task('translation_moe')
@@ -100,7 +103,7 @@ class TranslationMoETask(TranslationTask):
                 else:
                     raise ValueError('Must specify --mean-pool-gating-network-dropout')
 
-                model.gating_network = modules.MeanPoolGatingNetwork(
+                model.gating_network = MeanPoolGatingNetwork(
                     encoder_dim, args.num_experts, dropout,
                 )
             else:
@@ -171,19 +174,20 @@ class TranslationMoETask(TranslationTask):
             loss = -get_lprob_yz(winners)
         else:
             lprob_yz = get_lprob_yz()  # B x K
-            loss = -modules.LogSumExpMoE.apply(lprob_yz, prob_z_xy, 1)
+            loss = -LogSumExpMoE.apply(lprob_yz, prob_z_xy, 1)
 
         loss = loss.sum()
         sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': utils.item(loss.data),
             'ntokens': sample['ntokens'],
+            'nsentences': bsz,
             'sample_size': sample_size,
             'posterior': prob_z_xy.float().sum(dim=0).cpu(),
         }
         return loss, sample_size, logging_output
 
-    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
+    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
         loss, sample_size, logging_output = self._get_loss(sample, model, criterion)
         if ignore_grad:
@@ -207,9 +211,9 @@ class TranslationMoETask(TranslationTask):
                 bos_token=self.expert_index(expert),
             )
 
-    def aggregate_logging_outputs(self, logging_outputs, criterion):
-        agg_logging_outputs = criterion.__class__.aggregate_logging_outputs(logging_outputs)
-        agg_logging_outputs['posterior'] = sum(
-            log['posterior'] for log in logging_outputs if 'posterior' in log
+    def reduce_metrics(self, logging_outputs, criterion):
+        super().reduce_metrics(logging_outputs, criterion)
+        metrics.log_scalar(
+            'posterior',
+            sum(log['posterior'] for log in logging_outputs if 'posterior' in log)
         )
-        return agg_logging_outputs

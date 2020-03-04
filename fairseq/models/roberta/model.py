@@ -6,6 +6,8 @@
 RoBERTa: A Robustly Optimized BERT Pretraining Approach.
 """
 
+import logging
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,6 +26,9 @@ from fairseq.modules import (
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 from .hub_interface import RobertaHubInterface
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('roberta')
@@ -113,8 +118,8 @@ class RobertaModel(FairseqLanguageModel):
             prev_num_classes = self.classification_heads[name].out_proj.out_features
             prev_inner_dim = self.classification_heads[name].dense.out_features
             if num_classes != prev_num_classes or inner_dim != prev_inner_dim:
-                print(
-                    'WARNING: re-registering head "{}" with num_classes {} (prev: {}) '
+                logger.warning(
+                    're-registering head "{}" with num_classes {} (prev: {}) '
                     'and inner_dim {} (prev: {})'.format(
                         name, num_classes, prev_num_classes, inner_dim, prev_inner_dim
                     )
@@ -167,8 +172,8 @@ class RobertaModel(FairseqLanguageModel):
                     self.register_classification_head(head_name, num_classes, inner_dim)
             else:
                 if head_name not in current_head_names:
-                    print(
-                        'WARNING: deleting classification head ({}) from checkpoint '
+                    logger.warning(
+                        'deleting classification head ({}) from checkpoint '
                         'not present in current model: {}'.format(head_name, k)
                     )
                     keys_to_delete.append(k)
@@ -176,8 +181,8 @@ class RobertaModel(FairseqLanguageModel):
                     num_classes != self.classification_heads[head_name].out_proj.out_features
                     or inner_dim != self.classification_heads[head_name].dense.out_features
                 ):
-                    print(
-                        'WARNING: deleting classification head ({}) from checkpoint '
+                    logger.warning(
+                        'deleting classification head ({}) from checkpoint '
                         'with different dimensions than current model: {}'.format(head_name, k)
                     )
                     keys_to_delete.append(k)
@@ -190,55 +195,8 @@ class RobertaModel(FairseqLanguageModel):
             cur_state = self.classification_heads.state_dict()
             for k, v in cur_state.items():
                 if prefix + 'classification_heads.' + k not in state_dict:
-                    print('Overwriting', prefix + 'classification_heads.' + k)
+                    logger.info('Overwriting ' + prefix + 'classification_heads.' + k)
                     state_dict[prefix + 'classification_heads.' + k] = v
-
-
-@register_model('xlmr')
-class XLMRModel(RobertaModel):
-    @classmethod
-    def hub_models(cls):
-        return {
-            'xlmr.base': 'http://dl.fbaipublicfiles.com/fairseq/models/xlmr.base.tar.gz',
-            'xlmr.large': 'http://dl.fbaipublicfiles.com/fairseq/models/xlmr.large.tar.gz',
-        }
-
-    @classmethod
-    def from_pretrained(cls, model_name_or_path, checkpoint_file='model.pt', data_name_or_path='.', bpe='sentencepiece', **kwargs):
-        from fairseq import hub_utils
-        x = hub_utils.from_pretrained(
-            model_name_or_path,
-            checkpoint_file,
-            data_name_or_path,
-            archive_map=cls.hub_models(),
-            bpe=bpe,
-            load_checkpoint_heads=True,
-            **kwargs,
-        )
-        return RobertaHubInterface(x['args'], x['task'], x['models'][0])
-
-
-@register_model('camembert')
-class CamembertModel(RobertaModel):
-    @classmethod
-    def hub_models(cls):
-        return {
-            'camembert.v0': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert.v0.tar.gz',
-        }
-
-    @classmethod
-    def from_pretrained(cls, model_name_or_path, checkpoint_file='model.pt', data_name_or_path='.', bpe='sentencepiece', **kwargs):
-        from fairseq import hub_utils
-        x = hub_utils.from_pretrained(
-            model_name_or_path,
-            checkpoint_file,
-            data_name_or_path,
-            archive_map=cls.hub_models(),
-            bpe=bpe,
-            load_checkpoint_heads=True,
-            **kwargs,
-        )
-        return RobertaHubInterface(x['args'], x['task'], x['models'][0])
 
 
 class RobertaLMHead(nn.Module):
@@ -408,5 +366,4 @@ def xlm_architecture(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1280)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 1280*4)
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
-
     base_architecture(args)

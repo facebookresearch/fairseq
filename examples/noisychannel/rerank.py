@@ -1,14 +1,23 @@
-import rerank_utils
-import rerank_generate
-import rerank_score_bw
-import rerank_score_lm
-from fairseq import bleu, options
-from fairseq.data import dictionary
-from examples.noisychannel import rerank_options
-from multiprocessing import Pool
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import math
+from multiprocessing import Pool
+
 import numpy as np
+
+from fairseq import bleu, options
+from fairseq.data import dictionary
+
+from . import (
+    rerank_generate,
+    rerank_score_bw,
+    rerank_score_lm,
+    rerank_options,
+    rerank_utils,
+)
 
 
 def score_target_hypo(args, a, b, c, lenpen, target_outfile, hypo_outfile, write_hypos, normalize):

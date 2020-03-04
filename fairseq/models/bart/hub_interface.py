@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import copy
+import logging
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -13,6 +15,9 @@ from typing import List
 
 from fairseq import utils
 from fairseq.data import encoders
+
+
+logger = logging.getLogger(__name__)
 
 
 class BARTHubInterface(nn.Module):
@@ -120,7 +125,7 @@ class BARTHubInterface(nn.Module):
 
         if verbose:
             src_str_with_unk = self.string(tokens)
-            print('S\t{}'.format(src_str_with_unk))
+            logger.info('S\t{}'.format(src_str_with_unk))
 
         def getarg(name, default):
             return getattr(gen_args, name, getattr(self.args, name, default))

@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 import numpy as np
@@ -22,6 +23,10 @@ from fairseq.data import (
 )
 from fairseq.tasks import FairseqTask, register_task
 from fairseq.data.encoders.utils import get_whole_word_mask
+from fairseq import utils
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('masked_lm')
@@ -64,10 +69,10 @@ class MaskedLMTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        paths = args.data.split(os.pathsep)
+        paths = utils.split_paths(args.data)
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
-        print('| dictionary: {} types'.format(len(dictionary)))
+        logger.info('dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
     def load_dataset(self, split, epoch=0, combine=False, **kwargs):
@@ -76,7 +81,7 @@ class MaskedLMTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(os.pathsep)
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
         split_path = os.path.join(data_path, split)
@@ -99,7 +104,7 @@ class MaskedLMTask(FairseqTask):
             eos=self.source_dictionary.eos(),
             break_mode=self.args.sample_break_mode,
         )
-        print('| loaded {} blocks from: {}'.format(len(dataset), split_path))
+        logger.info('loaded {} blocks from: {}'.format(len(dataset), split_path))
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())

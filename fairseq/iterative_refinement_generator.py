@@ -223,7 +223,7 @@ class IterativeRefinementGenerator(object):
             finalized_tokens = decoder_out.output_tokens[terminated]
             finalized_scores = decoder_out.output_scores[terminated]
             finalized_attn = (
-                None if decoder_out.attn is None else decoder_out.attn[terminated]
+                None if (decoder_out.attn is None or decoder_out.attn.size(0) == 0) else decoder_out.attn[terminated]
             )
 
             if self.retain_history:
@@ -259,8 +259,12 @@ class IterativeRefinementGenerator(object):
             prev_decoder_out = decoder_out._replace(
                 output_tokens=decoder_out.output_tokens[not_terminated],
                 output_scores=decoder_out.output_scores[not_terminated],
-                attn=decoder_out.attn[not_terminated] if decoder_out.attn is not None else None,
-                history=[h[not_terminated] for h in decoder_out.history] if decoder_out.history is not None else None
+                attn=decoder_out.attn[not_terminated]
+                if (decoder_out.attn is not None and decoder_out.attn.size(0) > 0)
+                else None,
+                history=[h[not_terminated] for h in decoder_out.history]
+                if decoder_out.history is not None
+                else None,
             )
             encoder_out = model.encoder.reorder_encoder_out(encoder_out, not_terminated.nonzero().squeeze())
             sent_idxs = sent_idxs[not_terminated]

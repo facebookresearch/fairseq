@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import dynamicconv_cuda
 from fairseq import utils
 from fairseq.modules.unfold import unfold1d
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 
 class dynamicconvFunction(Function):
@@ -28,11 +29,12 @@ class dynamicconvFunction(Function):
         outputs = dynamicconv_cuda.backward(
                 grad_output.contiguous(),
                 ctx.padding_l,
-                *ctx.saved_variables)
+                *ctx.saved_tensors)
         grad_input, grad_weights = outputs
         return grad_input, grad_weights, None
 
 
+@with_incremental_state
 class DynamicconvLayer(nn.Module):
     def __init__(
             self,

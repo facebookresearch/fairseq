@@ -41,3 +41,7 @@ class Adadelta(FairseqOptimizer):
             'eps': self.args.adadelta_eps,
             'weight_decay': self.args.weight_decay,
         }
+
+    @property
+    def supports_flat_params(self):
+        return True

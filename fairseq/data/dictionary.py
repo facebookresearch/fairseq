@@ -148,23 +148,22 @@ class Dictionary(object):
             else:
                 break
 
-        threshold_nwords = len(new_symbols)
-        if padding_factor > 1:
-            i = 0
-            while threshold_nwords % padding_factor != 0:
-                symbol = "madeupword{:04d}".format(i)
-                new_indices[symbol] = len(new_symbols)
-                new_symbols.append(symbol)
-                new_count.append(0)
-                i += 1
-                threshold_nwords += 1
-
-        assert len(new_symbols) % padding_factor == 0
         assert len(new_symbols) == len(new_indices)
 
         self.count = list(new_count)
         self.symbols = list(new_symbols)
         self.indices = new_indices
+
+        self.pad_to_multiple_(padding_factor)
+
+    def pad_to_multiple_(self, padding_factor):
+        """Pad Dictionary size to be a multiple of *padding_factor*."""
+        if padding_factor > 1:
+            i = 0
+            while len(self) % padding_factor != 0:
+                symbol = "madeupword{:04d}".format(i)
+                self.add_symbol(symbol, n=0)
+                i += 1
 
     def bos(self):
         """Helper to get index of beginning-of-sentence symbol"""

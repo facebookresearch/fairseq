@@ -39,10 +39,12 @@ class AdaptiveInput(nn.Module):
             size = self.cutoff[i] - prev
             dim = int(initial_dim // (factor ** i))
             seq = nn.Sequential(
-                nn.Embedding(size, dim, padding_idx),
+                nn.Embedding(size, dim, self.padding_idx),
                 nn.Linear(dim, output_dim, bias=False)
             )
             self.embeddings.append(seq)
+            self.padding_idx = None
+        self.padding_idx = padding_idx
 
         def init_weights(m):
             if isinstance(m, nn.Embedding):
