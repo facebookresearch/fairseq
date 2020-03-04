@@ -148,7 +148,7 @@ To evaluate text translation models on dev set.
 ```
 To evaluate speech translation models on dev set.
 ``` shell
-./scripts/start-server.sh ./scripts/configs/must-c-en_de-text-dev.sh
+./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-dev.sh
 ```
 
 ### Decode and Evaluate with Client
