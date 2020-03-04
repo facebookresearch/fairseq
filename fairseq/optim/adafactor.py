@@ -28,15 +28,15 @@ class FairseqAdafactor(FairseqOptimizer):
                             help='decay rate of the second moment estimator')
         parser.add_argument('--beta1', type=float, default=None, metavar="B",
                             help='beta for first moment estimator. Optional')
-        parser.add_argument('--scale-parameter', action='store_true',
-                            help='scale learning rate by root mean square of parameter.')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
+        parser.add_argument('--scale-parameter', action='store_true',
+                            help='scale learning rate by root mean square of parameter')
+        parser.add_argument('--relative-step', action='store_true',
+                            help='set learning rate to inverse square root of timestep,'
+                                 'otherwise use external learning rate')
         parser.add_argument('--warmup-init', action='store_true',
                             help='use relative step for warm-up learning rate schedule')
-        parser.add_argument('--relative-step', action='store_true',
-                            help='set learning rate to inverse square root of timestep.'
-                                 'If false, external learning rate applied')
         # fmt: on
 
     @property
@@ -53,11 +53,11 @@ class FairseqAdafactor(FairseqOptimizer):
             'lr': self.args.lr[0],
             'eps': eval(self.args.adafactor_eps),
             'clip_threshold': self.args.clip_threshold,
-            'beta1': self.args.beta1,
             'decay_rate': self.args.decay_rate,
-            'scale_parameter': self.args.scale_parameter,
+            'beta1': self.args.beta1,
             'weight_decay': self.args.weight_decay,
-            'relative_step': self.args.relative_step,
+            'scale_parameter': self.args.scale_parameter,  # defaults to False
+            'relative_step': self.args.relative_step,  # defaults to False
             'warmup_init': self.args.warmup_init,
         }
 
@@ -68,6 +68,12 @@ class Adafactor(torch.optim.Optimizer):
     This implementation is based on:
     `Adafactor: Adaptive Learning Rates with Sublinear Memory Cost`
     (see https://arxiv.org/abs/1804.04235)
+
+    Note that this optimizer internally adjusts the learning rate
+    depending on the *scale_parameter*, *relative_step* and
+    *warmup_init* options. To use a manual (external) learning rate
+    schedule you should set `scale_parameter=False` and
+    `relative_step=False`.
 
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
@@ -82,9 +88,9 @@ class Adafactor(torch.optim.Optimizer):
         beta1 (float): coefficient used for computing running averages of gradient
             (default: None)
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
-        scale_parameter (bool): if true, learning rate is scaled by root mean square of
+        scale_parameter (bool): if True, learning rate is scaled by root mean square of
             parameter (default: True)
-        relative_step (bool): if true, time-dependent learning rate is computed
+        relative_step (bool): if True, time-dependent learning rate is computed
             instead of external learning rate (default: True)
         warmup_init (bool): time-dependent learning rate computation depends on
             whether warm-up initialization is being used (default: False)
@@ -93,6 +99,11 @@ class Adafactor(torch.optim.Optimizer):
     def __init__(self, params, lr=None, eps=(1e-30, 1e-3), clip_threshold=1.0,
                  decay_rate=-0.8, beta1=None, weight_decay=0.0, scale_parameter=True,
                  relative_step=True, warmup_init=False):
+        if lr is not None and relative_step:
+            raise ValueError('Cannot combine manual lr and relative_step options')
+        if warmup_init and not relative_step:
+            raise ValueError('warmup_init requires relative_step=True')
+
         defaults = dict(lr=lr, eps=eps, clip_threshold=clip_threshold, decay_rate=decay_rate,
                         beta1=beta1, weight_decay=weight_decay, scale_parameter=scale_parameter,
                         relative_step=relative_step, warmup_init=warmup_init)
