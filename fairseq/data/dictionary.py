@@ -223,9 +223,7 @@ class Dictionary(object):
                 )
             word = line[:idx]
             count = int(line[idx + 1 :])
-            self.indices[word] = len(self.symbols)
-            self.symbols.append(word)
-            self.count.append(count)
+            self.add_symbol(word, n=count)
 
     def _save(self, f, kv_iterator):
         if isinstance(f, str):
