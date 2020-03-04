@@ -18,7 +18,6 @@ try:
         def forward(self, x):
             return super().forward(x)
 
-
 except ImportError:
     has_fused_layernorm = False
 

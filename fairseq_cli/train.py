@@ -312,8 +312,6 @@ def cli_main(modify_parser=None):
         port = random.randint(10000, 20000)
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
         args.distributed_rank = None  # set based on device id
-        if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
-            logger.info('NOTE: you may get faster training with: --ddp-backend=no_c10d')
         torch.multiprocessing.spawn(
             fn=distributed_main,
             args=(args, ),

@@ -8,13 +8,12 @@ def get_grid(args):
     return [
         hyperparam('--fp16', save_dir_key=lambda val: 'fp16'),
         hyperparam('--max-update', 50000),
-        #hyperparam('--ddp-backend', 'no_c10d'),
 
         hyperparam('--task', 'language_modeling'),
 
-        hyperparam('--arch', 'transformer_lm', save_dir_key=lambda val: val),
-        hyperparam('--share-decoder-input-output-embed', save_dir_key=lambda val: 'shareemb'),
-
+        hyperparam('--arch', 'hf_gpt2', save_dir_key=lambda val: val),
+        #hyperparam('--arch', 'transformer_lm_gpt', save_dir_key=lambda val: val),
+        #hyperparam('--share-decoder-input-output-embed', save_dir_key=lambda val: 'shareemb'),
         hyperparam('--dropout', 0.1, save_dir_key=lambda val: f'drop{val}'),
 
         hyperparam('--optimizer', 'adam', save_dir_key=lambda val: val),
