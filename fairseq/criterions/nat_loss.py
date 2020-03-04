@@ -6,12 +6,11 @@
 import math
 
 import torch.nn.functional as F
+from fairseq import utils
 import torch
 from torch import Tensor
 
-from fairseq import metrics, utils
-from fairseq.criterions import FairseqCriterion, register_criterion
-
+from . import FairseqCriterion, register_criterion
 
 @register_criterion("nat_loss")
 class LabelSmoothedDualImitationCriterion(FairseqCriterion):
@@ -122,8 +121,8 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         # here sample_size is just used for logging
         sample_size = 1
         logging_output = {
-            "loss": loss.data,
-            "nll_loss": nll_loss.data,
+            "loss": utils.item(loss.data) if reduce else loss.data,
+            "nll_loss": utils.item(nll_loss.data) if reduce else nll_loss.data,
             "ntokens": ntokens,
             "nsentences": nsentences,
             "sample_size": sample_size,
@@ -139,31 +138,32 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         return loss, sample_size, logging_output
 
     @staticmethod
-    def reduce_metrics(logging_outputs) -> None:
+    def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
-        sample_size = utils.item(sum(log.get("sample_size", 0) for log in logging_outputs))
-        loss = utils.item(sum(log.get("loss", 0) for log in logging_outputs))
-        nll_loss = utils.item(sum(log.get("nll_loss", 0) for log in logging_outputs))
+        ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
+        nsentences = sum(log.get("nsentences", 0) for log in logging_outputs)
+        sample_size = sum(log.get("sample_size", 0) for log in logging_outputs)
+        loss = sum(log.get("loss", 0) for log in logging_outputs)
+        nll_loss = sum(log.get("nll_loss", 0) for log in logging_outputs)
 
-        metrics.log_scalar('loss', loss / sample_size / math.log(2), sample_size, round=3)
-        metrics.log_scalar('nll_loss', nll_loss / sample_size / math.log(2), sample_size, round=3)
-        metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['loss'].avg))
+        results = {
+            "loss": loss / sample_size / math.log(2) if sample_size > 0 else 0.0,
+            "nll_loss": nll_loss / sample_size / math.log(2)
+            if sample_size > 0
+            else 0.0,
+            "ntokens": ntokens,
+            "nsentences": nsentences,
+            "sample_size": sample_size,
+        }
 
         for key in logging_outputs[0]:
             if key[-5:] == "-loss":
-                val = sum(log.get(key, 0) for log in logging_outputs)
-                metrics.log_scalar(
-                    key[:-5],
-                    val / sample_size / math.log(2) if sample_size > 0 else 0.0,
-                    sample_size,
-                    round=3,
+                results[key[:-5]] = (
+                    sum(log.get(key, 0) for log in logging_outputs)
+                    / sample_size
+                    / math.log(2)
+                    if sample_size > 0
+                    else 0.0
                 )
 
-    @staticmethod
-    def logging_outputs_can_be_summed() -> bool:
-        """
-        Whether the logging outputs returned by `forward` can be summed
-        across workers prior to calling `reduce_metrics`. Setting this
-        to True will improves distributed training speed.
-        """
-        return True
+        return results

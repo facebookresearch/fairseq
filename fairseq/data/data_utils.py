@@ -9,15 +9,11 @@ except ImportError:
     from collections import Iterable
 import contextlib
 import itertools
-import logging
 import os
 import sys
 import types
 
 import numpy as np
-
-
-logger = logging.getLogger(__name__)
 
 
 def infer_language_pair(path):
@@ -82,7 +78,7 @@ def load_indexed_dataset(path, dictionary, dataset_impl=None, combine=False, def
         )
         if dataset is None:
             break
-        logger.info('loaded {} examples from: {}'.format(len(dataset), path_k))
+        print('| loaded {} examples from: {}'.format(len(dataset), path_k))
         datasets.append(dataset)
         if not combine:
             break
@@ -191,8 +187,8 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
             'skip this example with --skip-invalid-size-inputs-valid-test'
         ).format(ignored[0], dataset.size(ignored[0]), max_positions))
     if len(ignored) > 0:
-        logger.warning((
-            '{} samples have invalid sizes and will be skipped, '
+        print((
+            '| WARNING: {} samples have invalid sizes and will be skipped, '
             'max_positions={}, first few sample ids={}'
         ).format(len(ignored), max_positions, ignored[:10]))
     return indices

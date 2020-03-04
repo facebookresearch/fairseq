@@ -47,6 +47,7 @@ class TestBacktranslationDataset(unittest.TestCase):
             max_len_b=200,
             beam_size=2,
             unk_penalty=0,
+            sampling=False,
         )
 
         backtranslation_dataset = BacktranslationDataset(

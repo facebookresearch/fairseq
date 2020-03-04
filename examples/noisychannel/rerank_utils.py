@@ -1,16 +1,11 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
-from contextlib import redirect_stdout
-import math
+import subprocess
 import os
 import re
-import subprocess
-
 from fairseq import options
-from fairseq_cli import eval_lm, preprocess
+import eval_lm
+import preprocess
+from contextlib import redirect_stdout
+import math
 
 
 def reprocess(fle):

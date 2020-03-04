@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import logging
 import os
 
 import numpy as np
@@ -25,10 +24,8 @@ from fairseq.data import (
     StripTokenDataset,
     TruncateDataset,
 )
-from fairseq.tasks import FairseqTask, register_task
 
-
-logger = logging.getLogger(__name__)
+from . import FairseqTask, register_task
 
 
 @register_task('sentence_prediction')
@@ -92,7 +89,7 @@ class SentencePredictionTask(FairseqTask):
             os.path.join(args.data, 'input0', 'dict.txt'),
             source=True,
         )
-        logger.info('[input] dictionary: {} types'.format(len(data_dict)))
+        print('| [input] dictionary: {} types'.format(len(data_dict)))
 
         label_dict = None
         if not args.regression_target:
@@ -102,7 +99,7 @@ class SentencePredictionTask(FairseqTask):
                 os.path.join(args.data, 'label', 'dict.txt'),
                 source=False,
             )
-            logger.info('[label] dictionary: {} types'.format(len(label_dict)))
+            print('| [label] dictionary: {} types'.format(len(label_dict)))
         else:
             label_dict = data_dict
         return SentencePredictionTask(args, data_dict, label_dict)
@@ -117,7 +114,7 @@ class SentencePredictionTask(FairseqTask):
 
             dataset = data_utils.load_indexed_dataset(
                 split_path,
-                dictionary,
+                self.source_dictionary,
                 self.args.dataset_impl,
                 combine=combine,
             )
@@ -167,15 +164,15 @@ class SentencePredictionTask(FairseqTask):
             )
 
         if not self.args.regression_target:
-            label_dataset = make_dataset('label', self.label_dictionary)
+            label_dataset = make_dataset('label', self.target_dictionary)
             if label_dataset is not None:
                 dataset.update(
                     target=OffsetTokensDataset(
                         StripTokenDataset(
                             label_dataset,
-                            id_to_strip=self.label_dictionary.eos(),
+                            id_to_strip=self.target_dictionary.eos(),
                         ),
-                        offset=-self.label_dictionary.nspecial,
+                        offset=-self.target_dictionary.nspecial,
                     )
                 )
         else:
@@ -201,7 +198,7 @@ class SentencePredictionTask(FairseqTask):
                 sort_order=[shuffle],
             )
 
-        logger.info("Loaded {0} with #samples: {1}".format(split, len(dataset)))
+        print("| Loaded {0} with #samples: {1}".format(split, len(dataset)))
 
         self.datasets[split] = dataset
         return self.datasets[split]

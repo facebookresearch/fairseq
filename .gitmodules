@@ -1,3 +1,0 @@
-[submodule "fairseq/models/huggingface/transformers"]
-    path = fairseq/models/huggingface/transformers
-    url = https://github.com/huggingface/transformers.git

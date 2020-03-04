@@ -17,9 +17,6 @@ from fairseq.models import FairseqDecoder, FairseqEncoder
 from torch.serialization import default_restore_location
 
 
-logger = logging.getLogger(__name__)
-
-
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
     from fairseq import distributed_utils, meters
 
@@ -56,12 +53,6 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         not hasattr(save_checkpoint, "best")
         or is_better(val_loss, save_checkpoint.best)
     )
-    if val_loss is not None and args.keep_best_checkpoints > 0:
-        checkpoint_conds["checkpoint.best_{}_{:.2f}.pt".format(
-            args.best_checkpoint_metric, val_loss)] = (
-            not hasattr(save_checkpoint, "best")
-            or is_better(val_loss, save_checkpoint.best)
-        )
     checkpoint_conds["checkpoint_last.pt"] = not args.no_last_checkpoints
 
     extra_state = {"train_iterator": epoch_itr.state_dict(), "val_loss": val_loss}
@@ -77,9 +68,9 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
             PathManager.copy(checkpoints[0], cp, overwrite=True)
 
         write_timer.stop()
-        logger.info(
-            "saved checkpoint {} (epoch {} @ {} updates, score {}) (writing took {} seconds)".format(
-                checkpoints[0], epoch, updates, val_loss, write_timer.sum
+        print(
+            "| saved checkpoint {} (epoch {} @ {} updates) (writing took {} seconds)".format(
+                checkpoints[0], epoch, updates, write_timer.sum
             )
         )
 
@@ -99,15 +90,6 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
 
-    if args.keep_best_checkpoints > 0:
-        # only keep the best N checkpoints according to validation metric
-        checkpoints = checkpoint_paths(
-            args.save_dir, pattern=r"checkpoint\.best_{}_(\d+\.?\d*)\.pt".format(args.best_checkpoint_metric))
-        if not args.maximize_best_checkpoint_metric:
-            checkpoints = checkpoints[::-1]
-        for old_chk in checkpoints[args.keep_best_checkpoints:]:
-            if os.path.lexists(old_chk):
-                os.remove(old_chk)
 
 def load_checkpoint(args, trainer, **passthrough_args):
     """
@@ -191,7 +173,7 @@ def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None):
 
     ensemble = []
     for filename in filenames:
-        if not PathManager.exists(filename):
+        if not os.path.exists(filename):
             raise IOError("Model file not found: {}".format(filename))
         state = load_checkpoint_to_cpu(filename, arg_overrides)
 
@@ -220,7 +202,7 @@ def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
     for i, f in enumerate(files):
         m = pt_regexp.fullmatch(f)
         if m is not None:
-            idx = float(m.group(1)) if len(m.groups()) > 0 else i
+            idx = int(m.group(1)) if len(m.groups()) > 0 else i
             entries.append((idx, m.group(0)))
     return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
 
@@ -231,7 +213,7 @@ def torch_persistent_save(*args, **kwargs):
             return torch.save(*args, **kwargs)
         except Exception:
             if i == 2:
-                logger.error(traceback.format_exc())
+                logging.error(traceback.format_exc())
 
 
 def convert_state_dict_type(state_dict, ttype=torch.FloatTensor):
@@ -388,8 +370,8 @@ def prune_state_dict(state_dict, args):
         return state_dict
 
     # apply pruning
-    logger.info(
-        "Pruning model to specified layer configuration - this works best if the model was trained with LayerDrop"
+    print(
+        "| Pruning model to specified layer configuration - this works best if the model was trained with LayerDrop"
     )
 
     def create_pruning_pass(layers_to_keep, layer_name):
@@ -455,7 +437,7 @@ def load_pretrained_component_from_model(
     mismatch in the architecture of the corresponding `component` found in the
     `checkpoint` file.
     """
-    if not PathManager.exists(checkpoint):
+    if not os.path.exists(checkpoint):
         raise IOError("Model file not found: {}".format(checkpoint))
     state = load_checkpoint_to_cpu(checkpoint)
     if isinstance(component, FairseqEncoder):
@@ -485,7 +467,7 @@ def verify_checkpoint_directory(save_dir: str) -> None:
         with open(temp_file_path, "w"):
             pass
     except OSError as e:
-        logger.warning("Unable to access checkpoint save directory: {}".format(save_dir))
+        print("| Unable to access checkpoint save directory: {}".format(save_dir))
         raise e
     else:
         os.remove(temp_file_path)

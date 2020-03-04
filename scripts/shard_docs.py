@@ -29,7 +29,6 @@ def main():
 
             doc = []
             first_doc = [True]*args.num_shards
-
             def output_doc(i):
                 if not first_doc[i]:
                     outputs[i].write("\n")

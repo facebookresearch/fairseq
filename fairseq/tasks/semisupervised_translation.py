@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import OrderedDict
-import logging
 import os
 
 from fairseq.data import (
@@ -21,11 +20,9 @@ from fairseq.data import (
 from fairseq.models import FairseqMultiModel
 from fairseq.sequence_generator import SequenceGenerator
 
+
 from .multilingual_translation import MultilingualTranslationTask
 from . import register_task
-from fairseq import utils
-
-logger = logging.getLogger(__name__)
 
 
 def _get_bt_dataset_key(lang_pair):
@@ -50,7 +47,7 @@ def parse_lambda_config(x):
     if len(split) == 1:
         return float(x), None
     else:
-        split = [s.split(os.pathsep) for s in split]
+        split = [s.split(':') for s in split]
         assert all(len(s) == 2 for s in split)
         assert all(k.isdigit() for k, _ in split)
         assert all(int(split[i][0]) < int(split[i + 1][0]) for i in range(len(split) - 1))
@@ -139,7 +136,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
     def load_dataset(self, split, epoch=0, **kwargs):
         """Load a dataset split."""
 
-        paths = utils.split_paths(self.args.data)
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
 
@@ -166,7 +163,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     continue
                 src_datasets[lang_pair] = load_indexed_dataset(prefix + src, self.dicts[src])
                 tgt_datasets[lang_pair] = load_indexed_dataset(prefix + tgt, self.dicts[tgt])
-                logger.info('parallel-{} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
+                print('| parallel-{} {} {} examples'.format(data_path, split, len(src_datasets[lang_pair])))
             if len(src_datasets) == 0:
                 raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
 
@@ -213,7 +210,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                         tgt_lang=tgt,
                     ).collater,
                 )
-                logger.info('backtranslate-{}: {} {} {} examples'.format(
+                print('| backtranslate-{}: {} {} {} examples'.format(
                     tgt, data_path, split, len(backtranslate_datasets[lang_pair]),
                 ))
                 self.backtranslate_datasets[lang_pair] = backtranslate_datasets[lang_pair]
@@ -252,7 +249,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     tgt_eos=self.dicts[tgt].eos(),
                     tgt_lang=tgt,
                 )
-                logger.info('denoising-{}: {} {} {} examples'.format(
+                print('| denoising-{}: {} {} {} examples'.format(
                     tgt, data_path, split, len(noising_datasets[lang_pair]),
                 ))
 
@@ -322,12 +319,8 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
 
         return model
 
-    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
+    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
         model.train()
-
-        if update_num > 0:
-            self.update_step(update_num)
-
         agg_loss, agg_sample_size, agg_logging_output = 0., 0., {}
 
         def forward_backward(model, samples, logging_output_key, weight):

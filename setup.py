@@ -112,7 +112,17 @@ if 'clean' in sys.argv[1:]:
     # Source: https://bit.ly/2NLVsgE
     print("deleting Cython files...")
     import subprocess
-    subprocess.run(['rm -f fairseq/*.so fairseq/**/*.so fairseq/*.pyd fairseq/**/*.pyd'], shell=True)
+    subprocess.run(['rm -f fairseq/*.so fairseq/**/*.so'], shell=True)
+
+
+if 'test' in sys.argv[1:]:
+    try:
+        import fairseq.data.token_block_utils_fast
+    except (ImportError, ModuleNotFoundError):
+        raise Exception(
+            'Please install Cython components with `python setup.py build_ext --inplace`'
+            'before running unit tests.'
+        )
 
 
 setup(
@@ -152,7 +162,7 @@ setup(
             'fairseq-generate = fairseq_cli.generate:cli_main',
             'fairseq-interactive = fairseq_cli.interactive:cli_main',
             'fairseq-preprocess = fairseq_cli.preprocess:cli_main',
-            'fairseq-score = fairseq_cli.score:cli_main',
+            'fairseq-score = fairseq_cli.score:main',
             'fairseq-train = fairseq_cli.train:cli_main',
             'fairseq-validate = fairseq_cli.validate:cli_main',
         ],

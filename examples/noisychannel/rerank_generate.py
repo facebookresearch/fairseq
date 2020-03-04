@@ -12,10 +12,11 @@ from contextlib import redirect_stdout
 import os
 import subprocess
 
+import rerank_utils
+from examples.noisychannel import rerank_options
 from fairseq import options
-from fairseq_cli import generate, preprocess
-
-from . import rerank_options, rerank_utils
+import generate
+import preprocess
 
 
 def gen_and_reprocess_nbest(args):

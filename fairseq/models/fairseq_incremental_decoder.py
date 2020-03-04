@@ -4,10 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 from fairseq.models import FairseqDecoder
-from fairseq.incremental_decoding_utils import with_incremental_state
 
 
-@with_incremental_state
 class FairseqIncrementalDecoder(FairseqDecoder):
     """Base class for incremental decoders.
 
@@ -67,16 +65,14 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         order changes between time steps based on the selection of beams.
         """
         seen = set()
-        for module in self.modules():
-            if (
-                module != self
-                and hasattr(module, 'reorder_incremental_state')
-                and module not in seen
-            ):
+
+        def apply_reorder_incremental_state(module):
+            if module != self and hasattr(module, 'reorder_incremental_state') \
+                    and module not in seen:
                 seen.add(module)
-                result = module.reorder_incremental_state(incremental_state, new_order)
-                if result is not None:
-                    incremental_state = result
+                module.reorder_incremental_state(incremental_state, new_order)
+
+        self.apply(apply_reorder_incremental_state)
 
     def set_beam_size(self, beam_size):
         """Sets the beam size in the decoder and all children."""

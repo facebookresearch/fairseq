@@ -1,13 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
+import rerank_utils
 import os
-
 from fairseq import options
-
-from . import rerank_options, rerank_utils
+from examples.noisychannel import rerank_options
 
 
 def score_lm(args):

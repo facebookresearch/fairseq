@@ -30,7 +30,7 @@ fairseq implements the following high-level training flow::
 
 where the default implementation for ``task.train_step`` is roughly::
 
-  def train_step(self, batch, model, criterion, optimizer, **unused):
+  def train_step(self, batch, model, criterion, optimizer):
       loss = criterion(model, batch)
       optimizer.backward(loss)
       return loss

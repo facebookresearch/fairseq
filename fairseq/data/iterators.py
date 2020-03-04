@@ -18,22 +18,16 @@ class CountingIterator(object):
 
     Args:
         iterable (iterable): iterable to wrap
-        start (int): starting iteration count
-        override_len (int): override the iterator length
-            returned by ``__len__``
 
     Attributes:
         count (int): number of elements consumed from this iterator
     """
 
-    def __init__(self, iterable, start=0, override_len=None):
+    def __init__(self, iterable, start=0):
         self.iterable = iterable
         self.count = start
         self.itr = iter(self)
-        if override_len is None:
-            self.len = start + len(iterable)
-        else:
-            self.len = override_len
+        self.len = start + len(iterable)
 
     def __len__(self):
         return self.len
@@ -248,6 +242,8 @@ class EpochBatchIterator(EpochBatchIterating):
     def _get_iterator_for_epoch(self, epoch, shuffle, fix_batches_to_gpus=False, offset=0):
 
         def shuffle_batches(batches, seed):
+            # set seed based on the seed and epoch number so that we get
+            # reproducible results when resuming from checkpoints
             with data_utils.numpy_seed(seed):
                 np.random.shuffle(batches)
             return batches

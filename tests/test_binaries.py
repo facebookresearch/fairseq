@@ -5,7 +5,6 @@
 
 import contextlib
 from io import StringIO
-import logging
 import os
 import random
 import sys
@@ -15,21 +14,16 @@ import unittest
 import torch
 
 from fairseq import options
-from fairseq_cli import preprocess
-from fairseq_cli import train
-from fairseq_cli import generate
-from fairseq_cli import interactive
-from fairseq_cli import eval_lm
-from fairseq_cli import validate
+
+import preprocess
+import train
+import generate
+import interactive
+import eval_lm
+import validate
 
 
 class TestTranslation(unittest.TestCase):
-
-    def setUp(self):
-        logging.disable(logging.CRITICAL)
-
-    def tearDown(self):
-        logging.disable(logging.NOTSET)
 
     def test_fconv(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -117,29 +111,7 @@ class TestTranslation(unittest.TestCase):
                     '--beam', '2',
                     '--nbest', '2',
                 ])
-                generate_main(data_dir, [
-                    '--diversity-rate', '0.5',
-                    '--beam', '6',
-                ])
-                with self.assertRaises(ValueError):
-                    generate_main(data_dir, [
-                        '--diverse-beam-groups', '4',
-                        '--match-source-len',
-                    ])
                 generate_main(data_dir, ['--prefix-size', '2'])
-
-    def test_eval_bleu(self):
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory('test_eval_bleu') as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_translation_data(data_dir)
-                train_translation_model(data_dir, 'fconv_iwslt_de_en', [
-                    '--eval-bleu',
-                    '--eval-bleu-print-samples',
-                    '--eval-bleu-remove-bpe',
-                    '--eval-bleu-detok', 'space',
-                    '--eval-bleu-args', '{"beam": 4, "min_len": 10}',
-                ])
 
     def test_lstm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -375,7 +347,6 @@ class TestTranslation(unittest.TestCase):
                 preprocess_translation_data(data_dir)
                 train_translation_model(data_dir, 'transformer_iwslt_de_en', [
                     '--task', 'translation_moe',
-                    '--user-dir', 'examples/translation_moe/src',
                     '--method', 'hMoElp',
                     '--mean-pool-gating-network',
                     '--num-experts', '3',
@@ -386,7 +357,6 @@ class TestTranslation(unittest.TestCase):
                 ])
                 generate_main(data_dir, [
                     '--task', 'translation_moe',
-                    '--user-dir', 'examples/translation_moe/src',
                     '--method', 'hMoElp',
                     '--mean-pool-gating-network',
                     '--num-experts', '3',
@@ -416,12 +386,6 @@ class TestTranslation(unittest.TestCase):
 
 
 class TestStories(unittest.TestCase):
-
-    def setUp(self):
-        logging.disable(logging.CRITICAL)
-
-    def tearDown(self):
-        logging.disable(logging.NOTSET)
 
     def test_fconv_self_att_wp(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -455,12 +419,6 @@ class TestStories(unittest.TestCase):
 
 
 class TestLanguageModeling(unittest.TestCase):
-
-    def setUp(self):
-        logging.disable(logging.CRITICAL)
-
-    def tearDown(self):
-        logging.disable(logging.NOTSET)
 
     def test_fconv_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -505,29 +463,8 @@ class TestLanguageModeling(unittest.TestCase):
                     '--tokens-per-sample', '500',
                 ])
 
-    def test_lstm_lm(self):
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory('test_lstm_lm') as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_lm_data(data_dir)
-                train_language_model(
-                    data_dir, 'lstm_lm', ['--add-bos-token'], run_validation=True,
-                )
-                eval_lm_main(data_dir)
-                generate_main(data_dir, [
-                    '--task', 'language_modeling',
-                    '--sample-break-mode', 'eos',
-                    '--tokens-per-sample', '500',
-                ])
-
 
 class TestMaskedLanguageModel(unittest.TestCase):
-
-    def setUp(self):
-        logging.disable(logging.CRITICAL)
-
-    def tearDown(self):
-        logging.disable(logging.NOTSET)
 
     def test_legacy_masked_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -662,13 +599,7 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
     train.main(train_args)
 
 
-class TestOptimizers(unittest.TestCase):
-
-    def setUp(self):
-        logging.disable(logging.CRITICAL)
-
-    def tearDown(self):
-        logging.disable(logging.NOTSET)
+class TestCommonOptions(unittest.TestCase):
 
     def test_optimizers(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -689,35 +620,6 @@ class TestOptimizers(unittest.TestCase):
                         '--optimizer', optimizer,
                     ])
                     generate_main(data_dir)
-
-    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
-    def test_flat_grads(self):
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory('test_flat_grads') as data_dir:
-                # Use just a bit of data and tiny model to keep this test runtime reasonable
-                create_dummy_data(data_dir, num_examples=10, maxlen=5)
-                preprocess_translation_data(data_dir)
-                with self.assertRaises(RuntimeError):
-                    # adafactor isn't compatible with flat grads, which
-                    # are used by default with --fp16
-                    train_translation_model(data_dir, 'lstm', [
-                        '--required-batch-size-multiple', '1',
-                        '--encoder-layers', '1',
-                        '--encoder-hidden-size', '32',
-                        '--decoder-layers', '1',
-                        '--optimizer', 'adafactor',
-                        '--fp16',
-                    ])
-                # but it should pass once we set --fp16-no-flatten-grads
-                train_translation_model(data_dir, 'lstm', [
-                    '--required-batch-size-multiple', '1',
-                    '--encoder-layers', '1',
-                    '--encoder-hidden-size', '32',
-                    '--decoder-layers', '1',
-                    '--optimizer', 'adafactor',
-                    '--fp16',
-                    '--fp16-no-flatten-grads',
-                ])
 
 
 def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
@@ -912,69 +814,6 @@ def eval_lm_main(data_dir):
         ],
     )
     eval_lm.main(eval_lm_args)
-
-
-def train_masked_language_model(data_dir, arch, extra_args=()):
-    train_parser = options.get_training_parser()
-    # TODO: langs should be in and out right?
-    train_args = options.parse_args_and_arch(
-        train_parser,
-        [
-            "--task",
-            "cross_lingual_lm",
-            data_dir,
-            "--arch",
-            arch,
-            # Optimizer args
-            "--optimizer",
-            "adam",
-            "--lr-scheduler",
-            "reduce_lr_on_plateau",
-            "--lr-shrink",
-            "0.5",
-            "--lr",
-            "0.0001",
-            "--min-lr",
-            "1e-09",
-            # dropout, attention args
-            "--dropout",
-            "0.1",
-            "--attention-dropout",
-            "0.1",
-            # MLM args
-            "--criterion",
-            "masked_lm_loss",
-            "--masked-lm-only",
-            "--monolingual-langs",
-            "in,out",
-            "--num-segment",
-            "5",
-            # Transformer args: use a small transformer model for fast training
-            "--encoder-layers",
-            "1",
-            "--encoder-embed-dim",
-            "32",
-            "--encoder-attention-heads",
-            "1",
-            "--encoder-ffn-embed-dim",
-            "32",
-            # Other training args
-            "--max-tokens",
-            "500",
-            "--tokens-per-sample",
-            "500",
-            "--save-dir",
-            data_dir,
-            "--max-epoch",
-            "1",
-            "--no-progress-bar",
-            "--distributed-world-size",
-            "1",
-            "--dataset-impl",
-            "raw",
-        ] + list(extra_args),
-    )
-    train.main(train_args)
 
 
 if __name__ == '__main__':

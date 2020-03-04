@@ -32,7 +32,7 @@ def DistributedFairseqModel(args, model):
             module=model,
             device_ids=[args.device_id],
             output_device=args.device_id,
-            broadcast_buffers=args.broadcast_buffers,
+            broadcast_buffers=False,
             bucket_cap_mb=args.bucket_cap_mb,
         )
         # Maintain backward compatibility

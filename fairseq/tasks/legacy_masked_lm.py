@@ -4,10 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import itertools
-import logging
-import os
-
 import numpy as np
+import os
 
 from fairseq import tokenizer
 from fairseq.data import (
@@ -20,11 +18,8 @@ from fairseq.data import Dictionary
 from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.legacy.masked_lm_dictionary import BertDictionary
-from fairseq.tasks import FairseqTask, register_task
-from fairseq import utils
 
-
-logger = logging.getLogger(__name__)
+from . import FairseqTask, register_task
 
 
 @register_task('legacy_masked_lm')
@@ -71,10 +66,10 @@ class LegacyMaskedLMTask(FairseqTask):
     def setup_task(cls, args, **kwargs):
         """Setup the task.
         """
-        paths = utils.split_paths(args.data)
+        paths = args.data.split(os.pathsep)
         assert len(paths) > 0
         dictionary = BertDictionary.load(os.path.join(paths[0], 'dict.txt'))
-        logger.info('dictionary: {} types'.format(len(dictionary)))
+        print('| dictionary: {} types'.format(len(dictionary)))
 
         return cls(args, dictionary)
 
@@ -85,10 +80,10 @@ class LegacyMaskedLMTask(FairseqTask):
         """
         loaded_datasets = []
 
-        paths = utils.split_paths(self.args.data)
+        paths = self.args.data.split(os.pathsep)
         assert len(paths) > 0
         data_path = paths[epoch % len(paths)]
-        logger.info("data_path", data_path)
+        print("| data_path", data_path)
 
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
@@ -118,7 +113,7 @@ class LegacyMaskedLMTask(FairseqTask):
                     )
                 )
 
-            logger.info('{} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
+            print('| {} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
 
             if not combine:
                 break

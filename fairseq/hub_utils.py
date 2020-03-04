@@ -6,7 +6,6 @@
 
 import argparse
 import copy
-import logging
 import os
 from typing import List, Dict, Iterator, Tuple, Any
 
@@ -15,9 +14,6 @@ from torch import nn
 
 from fairseq import utils
 from fairseq.data import encoders
-
-
-logger = logging.getLogger(__name__)
 
 
 def from_pretrained(
@@ -69,7 +65,7 @@ def from_pretrained(
         utils.import_user_module(argparse.Namespace(user_dir=kwargs['user_dir']))
 
     models, args, task = checkpoint_utils.load_model_ensemble_and_task(
-        [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)],
+        [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(':')],
         arg_overrides=kwargs,
     )
 
@@ -176,15 +172,15 @@ class GeneratorHubInterface(nn.Module):
 
             for source_tokens, target_hypotheses in zip(tokenized_sentences, outputs):
                 src_str_with_unk = self.string(source_tokens)
-                logger.info('S\t{}'.format(src_str_with_unk))
+                print('S\t{}'.format(src_str_with_unk))
                 for hypo in target_hypotheses:
                     hypo_str = self.decode(hypo['tokens'])
-                    logger.info('H\t{}\t{}'.format(hypo['score'], hypo_str))
-                    logger.info('P\t{}'.format(
+                    print('H\t{}\t{}'.format(hypo['score'], hypo_str))
+                    print('P\t{}'.format(
                         ' '.join(map(lambda x: '{:.4f}'.format(x), hypo['positional_scores'].tolist()))
                     ))
                     if hypo['alignment'] is not None and getarg('print_alignment', False):
-                        logger.info('A\t{}'.format(
+                        print('A\t{}'.format(
                             ' '.join(map(lambda x: str(utils.item(x)), hypo['alignment'].int().cpu()))
                         ))
         return outputs

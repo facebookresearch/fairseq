@@ -1,15 +1,9 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
+import rerank
 import argparse
-import random
 import numpy as np
-
+import random
+from examples.noisychannel import rerank_options
 from fairseq import options
-
-from . import rerank, rerank_options
 
 
 def random_search(args):

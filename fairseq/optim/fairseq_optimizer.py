@@ -3,9 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
+import math
 
-from fairseq import utils
+import torch
 
 
 class FairseqOptimizer(object):
@@ -88,7 +88,10 @@ class FairseqOptimizer(object):
 
     def clip_grad_norm(self, max_norm):
         """Clips gradient norm."""
-        return utils.clip_grad_norm_(self.params, max_norm)
+        if max_norm > 0:
+            return torch.nn.utils.clip_grad_norm_(self.params, max_norm)
+        else:
+            return math.sqrt(sum(p.grad.data.norm()**2 for p in self.params if p.grad is not None))
 
     def step(self, closure=None):
         """Performs a single optimization step."""
@@ -104,16 +107,6 @@ class FairseqOptimizer(object):
     def supports_memory_efficient_fp16(self):
         if hasattr(self.optimizer, 'supports_memory_efficient_fp16'):
             return self.optimizer.supports_memory_efficient_fp16
-        return False
-
-    @property
-    def supports_flat_params(self):
-        """
-        Whether the optimizer supports collapsing of the model
-        parameters/gradients into a single contiguous Tensor.
-        """
-        if hasattr(self.optimizer, 'supports_flat_params'):
-            return self.optimizer.supports_flat_params
         return False
 
     def average_params(self):

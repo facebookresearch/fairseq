@@ -3,8 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import logging
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -22,9 +20,6 @@ from fairseq.modules import (
     TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-
-
-logger = logging.getLogger(__name__)
 
 
 @register_model('masked_lm')
@@ -113,13 +108,14 @@ class MaskedLMModel(BaseFairseqModel):
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
+
         # make sure all arguments are present in older models
         base_architecture(args)
 
         if not hasattr(args, 'max_positions'):
             args.max_positions = args.tokens_per_sample
 
-        logger.info(args)
+        print("Model args: ", args)
 
         encoder = MaskedLMEncoder(args, task.dictionary)
         return cls(args, encoder)
