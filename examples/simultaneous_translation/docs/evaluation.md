@@ -19,7 +19,7 @@ python $user_dir/eval/server.py \
     --output $result_dir/eval \
     --port 12321
 ```
-The `--score-type` can be either `text` or `speech` to evaluation different task.
+The `--score-type` can be either `text` or `speech` to evaluation different tasks.
 
 The state that server sent to client is has the following format
 ```json
