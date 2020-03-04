@@ -110,13 +110,19 @@ class WaitKAttentionLayer(nn.Module):
     def get_target_step(self):
         return self.target_step
     
-    def decision_from_states(self, states_dict, subsampling_ratio=1):
+    def decision_from_states(self, states, frame_shift=1, subsampling_factor=1):
+        if len(states["indices"]["src"]) == 0:
+            # This mean that the utterence is too small
+            return READ
+
         lagging = (
-            (states_dict["steps"]["tgt"] + self.waitk) 
-            * self.stride 
-            * subsampling_ratio
+            (states["steps"]["tgt"] + self.waitk) 
+            * self.segment_size(frame_shift, subsampling_factor)
         )
-        if lagging - states_dict["steps"]["src"] > 0:
+        if lagging - states["steps"]["src"] > 0:
             return READ
         else:
             return WRITE
+    
+    def segment_size(self, frame_shift=1, subsampling_factor=1):
+        return self.stride * subsampling_factor * frame_shift

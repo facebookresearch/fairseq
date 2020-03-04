@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from .ast_dataset import AstDataset
-from .data_loader import TextDataLoader, AudioDataLoader
 
 __all__ = [
     'AstDataset',
