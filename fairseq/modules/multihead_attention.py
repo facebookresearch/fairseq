@@ -396,8 +396,9 @@ class MultiheadAttention(nn.Module):
             new_key_padding_mask = prev_key_padding_mask
         return new_key_padding_mask
 
+    @torch.jit.export
     def reorder_incremental_state(
-        self, incremental_state: Dict[str, Dict[str, Optional[Tensor]]], new_order
+        self, incremental_state: Dict[str, Dict[str, Optional[Tensor]]], new_order: Tensor
     ):
         """Reorder buffered internal state (for incremental generation)."""
         input_buffer = self._get_input_buffer(incremental_state)
