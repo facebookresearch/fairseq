@@ -572,7 +572,7 @@ class EnsembleModel(torch.nn.Module):
         decoder_out[0] = decoder_out[0][:, -1:, :]
         if temperature != 1.:
             decoder_out[0].div_(temperature)
-        attn = decoder_out[1]
+        attn = decoder_out[1] if len(decoder_out) > 1 else None
         if type(attn) is dict:
             attn = attn.get('attn', None)
         if type(attn) is list:
@@ -689,7 +689,7 @@ class EnsembleModelWithAlignment(EnsembleModel):
         decoder_out[0] = decoder_out[0][:, -1:, :]
         if temperature != 1.:
             decoder_out[0].div_(temperature)
-        attn = decoder_out[1]
+        attn = decoder_out[1] if len(decoder_out) > 1 else None
         if type(attn) is dict:
             attn = attn.get('attn', None)
         if type(attn) is list:
