@@ -166,7 +166,7 @@ To evaluate speech translation models on dev set.
     ./experiments/checkpoints/checkpoint_best.pt
 ```
 
-We also provide a faster evaluation script that splits the dataset and launchs multiple clients. For example for speech translation,
+We also provide a faster evaluation script that splits the dataset and launches multiple clients. For example for speech translation,
 ```shell
 ./script/start-multi-client.py \
     ./scripts/configs/must-c-en_de-speech-dev.sh \
