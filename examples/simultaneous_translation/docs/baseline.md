@@ -140,7 +140,7 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
 ## Evaluation
 ---
 ### Evaluation Server
-The server can evaluate different type data given different configuration files
+The server can evaluate different types of data given different configuration files
 To evaluate text translation models on dev set. 
 
 ``` shell
