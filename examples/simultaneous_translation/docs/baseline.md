@@ -140,23 +140,23 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
 ## Evaluation
 ---
 ### Evaluation Server
-The server can evaluate different type data given different configuration files
+The server can evaluate different types of data given different configuration files
 To evaluate text translation models on dev set. 
 
-``` shell
-./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-dev.sh
-```
-To evaluate speech translation models on dev set.
 ``` shell
 ./scripts/start-server.sh ./scripts/configs/must-c-en_de-text-dev.sh
 ```
+To evaluate speech translation models on dev set.
+``` shell
+./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-dev.sh
+```
 
 ### Decode and Evaluate with Client
-Same as the server, one can use different configuration file to start different agent.
+Same as the server, one can use different configuration files to start different agent.
 To evaluate text translation models on dev set. 
 ```shell
 ./script/start-client.py \
-    ./scripts/configs/must-c-en_de-speech-dev.sh \
+    ./scripts/configs/must-c-en_de-speech-text.sh \
     ./experiments/checkpoints/checkpoint_best.pt
 ```
 To evaluate speech translation models on dev set. 
@@ -166,7 +166,7 @@ To evaluate speech translation models on dev set.
     ./experiments/checkpoints/checkpoint_best.pt
 ```
 
-We also provide a faster evaluation script that splits the dataset and launchs multiple clients. For example for speech translation,
+We also provide a faster evaluation script that splits the dataset and launches multiple clients. For example for speech translation,
 ```shell
 ./script/start-multi-client.py \
     ./scripts/configs/must-c-en_de-speech-dev.sh \

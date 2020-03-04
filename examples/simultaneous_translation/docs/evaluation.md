@@ -3,7 +3,7 @@ The simultaneous translation models from the shared task participants are evalua
 
 ## Server-Client Protocol
 <<<<<<< HEAD
-An server-client protocol that will be used in evaluation. For example, when a *wait-k* model (k=3) translate the English sentence "Alice and Bob are good friends" to Genman sentence "Alice und Bob sind gute Freunde." , the evaluation process is shown as following figure. 
+An server-client protocol that will be used in evaluation. For example, when a *wait-k* model (k=3) translate the English sentence "Alice and Bob are good friends" to Genman sentence "Alice und Bob sind gute Freunde." , the evaluation process is shown in the following figure. 
 
 .
 
@@ -19,7 +19,7 @@ python $user_dir/eval/server.py \
     --output $result_dir/eval \
     --port 12321
 ```
-The `--score-type` can be either `text` or `speech` to evaluation different task.
+The `--score-type` can be either `text` or `speech` to evaluation different tasks.
 
 The state that server sent to client is has the following format
 ```json
@@ -29,7 +29,7 @@ The state that server sent to client is has the following format
   'segment': String or speech utterance
 }
 ```
-For text the segment is a detokenized word, while for speech is a list of numbers.
+For text, the segment is a detokenized word, while for speech, it is a list of numbers.
 
 ### Client
 The client will handle the evaluation process mentioned above. It should be out-of-box as well. The client's protocol is as following table.  The segment_size the length of segment in milisecond.
