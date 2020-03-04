@@ -144,7 +144,7 @@ The server can evaluate different types of data given different configuration fi
 To evaluate text translation models on dev set. 
 
 ``` shell
-./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-dev.sh
+./scripts/start-server.sh ./scripts/configs/must-c-en_de-text-dev.sh
 ```
 To evaluate speech translation models on dev set.
 ``` shell
