@@ -125,3 +125,21 @@ class FairseqOptimizer(object):
 
     def average_params(self):
         pass
+
+
+class LegacyFairseqOptimizer(FairseqOptimizer):
+
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+
+        utils.deprecation_warning(
+            'Optimizers should take explicit arguments instead of an '
+            'argparse.Namespace object, please update your criterion by '
+            'extending FairseqOptimizer instead of LegacyFairseqOptimizer.'
+        )
+
+    @classmethod
+    def build_optimizer(cls, args, param):
+        """Construct a criterion from command-line args."""
+        return cls(args)
