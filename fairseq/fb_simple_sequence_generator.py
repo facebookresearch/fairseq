@@ -162,12 +162,13 @@ class SimpleSequenceGenerator(nn.Module):
             src_tokens=encoder_input["src_tokens"],
             src_lengths=encoder_input["src_lengths"],
         )
-        # ensure encoder_outs is a List.
-        assert encoder_outs is not None
+
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
         new_order = new_order.to(src_tokens.device).long()
         encoder_outs = self.model.reorder_encoder_out(encoder_outs, new_order)
+        # ensure encoder_outs is a List.
+        assert encoder_outs is not None
 
         # initialize buffers
         scores = (
@@ -461,8 +462,10 @@ class EnsembleModel(nn.Module):
 
         log_probs = []
         avg_attn: Optional[Tensor] = None
+        encoder_out: Optional[EncoderOut] = None
         for i, model in enumerate(self.models):
-            encoder_out = encoder_outs[i]
+            if self.has_encoder():
+                encoder_out = encoder_outs[i]
             # decode each model
             if self.has_incremental_states():
                 decoder_out = model.decoder.forward(
@@ -491,6 +494,9 @@ class EnsembleModel(nn.Module):
                 decoder_out_tuple, log_probs=True, sample=None
             )
 
+            if self.models_size == 1:
+                return probs, attn
+
             log_probs.append(probs)
             if attn is not None:
                 if avg_attn is None:
@@ -505,7 +511,7 @@ class EnsembleModel(nn.Module):
         return avg_probs, avg_attn
 
     @torch.jit.export
-    def reorder_encoder_out(self, encoder_outs: List[EncoderOut], new_order):
+    def reorder_encoder_out(self, encoder_outs: Optional[List[EncoderOut]], new_order):
         """
         Reorder encoder output according to *new_order*.
 
@@ -520,6 +526,7 @@ class EnsembleModel(nn.Module):
         if not self.has_encoder():
             return new_outs
         for i, model in enumerate(self.models):
+            assert encoder_outs is not None
             new_outs.append(
                 model.encoder.reorder_encoder_out(encoder_outs[i], new_order)
             )
