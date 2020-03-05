@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from fairseq import search, utils
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerModel
+from fairseq.models import FairseqIncrementalDecoder
 from torch import Tensor
 
 
@@ -200,7 +201,7 @@ class SimpleSequenceGenerator(nn.Module):
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             if reorder_state is not None:
-                # self.model.reorder_incremental_state(reorder_state)
+                self.model.reorder_incremental_state(reorder_state)
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
@@ -420,13 +421,17 @@ class EnsembleModel(nn.Module):
         # method '__len__' is not supported in ModuleList for torch script
         self.single_model = models[0]
         self.models = nn.ModuleList(models)
+
         self.incremental_states = torch.jit.annotate(
             List[Dict[str, Dict[str, Optional[Tensor]]]],
             [
-                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                torch.jit.annotate(Optional[Dict[str, Dict[str, Optional[Tensor]]]], {})
                 for i in range(len(self.models))
             ],
         )
+        self.has_incremental: bool = False
+        if all(hasattr(m, 'decoder') and isinstance(m.decoder, FairseqIncrementalDecoder) for m in models):
+            self.has_incremental = True
 
     def forward(self):
         pass
@@ -435,7 +440,7 @@ class EnsembleModel(nn.Module):
         return hasattr(self.single_model, "encoder")
 
     def has_incremental_states(self):
-        return len(self.incremental_states[0]) != 0
+        return self.has_incremental
 
     def max_decoder_positions(self):
         return min([m.max_decoder_positions() for m in self.models])
@@ -458,11 +463,10 @@ class EnsembleModel(nn.Module):
         avg_attn: Optional[Tensor] = None
         for i, model in enumerate(self.models):
             encoder_out = encoder_outs[i]
-            incremental_state = self.incremental_states[i]
             # decode each model
             if self.has_incremental_states():
                 decoder_out = model.decoder.forward(
-                    tokens, encoder_out=encoder_out, incremental_state=incremental_state
+                    tokens, encoder_out=encoder_out, incremental_state=self.incremental_states[i]
                 )
             else:
                 decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
@@ -521,6 +525,7 @@ class EnsembleModel(nn.Module):
             )
         return new_outs
 
+    @torch.jit.export
     def reorder_incremental_state(self, new_order):
         if not self.has_incremental_states():
             return
