@@ -3,18 +3,21 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import numpy as np
+import itertools
 import os
+import random
+
+import numpy as np
 import torch
 
 from fairseq.data import (
+    BaseWrapperDataset,
     ColorizeDataset,
     ConcatDataset,
     data_utils,
     MonolingualDataset,
     PrependDataset,
     ReplaceDataset,
-    ShardedDataset,
     SubsampleDataset,
     TokenBlockDataset,
 )
@@ -94,7 +97,7 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
             else set(args.subsample_splits.split(":"))
         )
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -112,7 +115,7 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
                     self.args.dataset_impl,
                     path,
                     split,
-                    epoch,
+                    epoch - 1,
                     combine=combine,
                 )
                 for path in paths
@@ -131,7 +134,7 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
 
             dataset = ConcatDataset(datasets)
         else:
-            data_path = paths[epoch % len(paths)]
+            data_path = paths[(epoch - 1) % len(paths)]
             split_path = os.path.join(data_path, split)
 
             dataset = data_utils.load_indexed_dataset(
@@ -227,3 +230,51 @@ class TaggedLanguageModelingTask(LanguageModelingTask):
             return generator.generate(
                 models, sample, prefix_tokens=prefix_tokens, bos_token=tag
             )
+
+
+class ShardedDataset(BaseWrapperDataset):
+    """Loads a dataset which has been sharded into multiple files.
+
+    Each shard is only loaded for each specific epoch.
+    """
+
+    def __init__(
+        self,
+        dictionary,
+        dataset_impl: str,
+        path: str,
+        split: str,
+        epoch: int,
+        name: str = None,
+        combine: bool = False,
+        seed: int = 0,
+    ):
+        self._name = name if name is not None else os.path.basename(path)
+        num_shards = 0
+        for i in itertools.count():
+            if not os.path.exists(os.path.join(path, "shard" + str(i))):
+                break
+            num_shards += 1
+
+        if num_shards > 0 and split == "train":
+            random.seed(seed ^ epoch)
+            shard = random.randint(0, num_shards - 1)
+            split_path = os.path.join(path, "shard" + str(shard), split)
+        else:
+            split_path = os.path.join(path, split)
+            if os.path.isdir(split_path):
+                split_path = os.path.join(split_path, split)
+
+        dataset = data_utils.load_indexed_dataset(
+            split_path, dictionary, dataset_impl, combine=combine
+        )
+        if dataset is None:
+            raise FileNotFoundError(
+                "Dataset not found: {} ({})".format(split, split_path)
+            )
+
+        super().__init__(dataset)
+
+    @property
+    def name(self):
+        return self._name

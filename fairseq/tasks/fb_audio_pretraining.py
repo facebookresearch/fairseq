@@ -64,13 +64,12 @@ class SpeechPretrainingTask(FairseqTask):
             min_length=16000,
         )
 
-    def load_dataset(self, split, epoch=0, **kwargs):
+    def load_dataset(self, split, epoch=1, **kwargs):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-
         manifest = os.path.join(self.args.data, "{}.tsv".format(split))
         if os.path.isfile(manifest):
             self.datasets[split] = self.create_dataset(manifest)
@@ -84,7 +83,7 @@ class SpeechPretrainingTask(FairseqTask):
                     self.dataset_parts.append(manifest)
                 if len(self.dataset_parts) == 0:
                     raise FileNotFoundError(manifest)
-            part_idx = epoch % len(self.dataset_parts)
+            part_idx = (epoch - 1) % len(self.dataset_parts)
             self.datasets[split] = self.create_dataset(self.dataset_parts[part_idx])
 
     @property

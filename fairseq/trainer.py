@@ -477,7 +477,7 @@ class Trainer(object):
         self.optimizer.zero_grad()
 
     def lr_step(self, epoch, val_loss=None):
-        """Adjust the learning rate based on the validation loss."""
+        """Adjust the learning rate at the end of the epoch."""
         self.lr_scheduler.step(epoch, val_loss)
         # prefer updating the LR based on the number of steps
         return self.lr_step_update()

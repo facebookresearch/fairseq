@@ -66,7 +66,7 @@ class CommonsenseQATask(FairseqTask):
 
         return cls(args, vocab)
 
-    def load_dataset(self, split, epoch=0, combine=False, data_path=None, return_only=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, data_path=None, return_only=False, **kwargs):
         """Load a given dataset split.
 
         Args:

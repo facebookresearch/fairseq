@@ -61,7 +61,7 @@ def main(args, override_args=None):
 
     for subset in args.valid_subset.split(','):
         try:
-            task.load_dataset(subset, combine=False, epoch=0)
+            task.load_dataset(subset, combine=False, epoch=1)
             dataset = task.dataset(subset)
         except KeyError:
             raise Exception('Cannot find dataset: ' + subset)

@@ -56,7 +56,7 @@ def main(args, init_distributed=False):
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     for valid_sub_split in args.valid_subset.split(','):
-        task.load_dataset(valid_sub_split, combine=False, epoch=0)
+        task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # Build model and criterion
     model = task.build_model(args)
@@ -90,7 +90,7 @@ def main(args, init_distributed=False):
     while (
         lr > args.min_lr
         and (
-            epoch_itr.epoch < max_epoch
+            epoch_itr.epoch <= max_epoch
             # allow resuming training from the final checkpoint
             or epoch_itr._next_epoch_itr is not None
         )
@@ -148,7 +148,7 @@ def train(args, trainer, task, epoch_itr):
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
-        shuffle=(epoch_itr.epoch >= args.curriculum),
+        shuffle=(epoch_itr.epoch > args.curriculum),
     )
     update_freq = (
         args.update_freq[epoch_itr.epoch - 1]
