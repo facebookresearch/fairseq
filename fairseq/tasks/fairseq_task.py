@@ -116,7 +116,7 @@ class FairseqTask(object):
         num_shards=1,
         shard_id=0,
         num_workers=0,
-        epoch=0,
+        epoch=1,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -143,7 +143,7 @@ class FairseqTask(object):
                 loading. 0 means the data will be loaded in the main process
                 (default: 0).
             epoch (int, optional): the epoch to start the iterator from
-                (default: 0).
+                (default: 1).
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split

@@ -53,7 +53,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
                 d.add_symbol('[{}]'.format(l))
             d.add_symbol('<mask>')
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -61,7 +61,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         """
         paths = self.args.data.split(':')
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         # infer langcode
         src, tgt = self.args.source_lang, self.args.target_lang

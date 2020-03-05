@@ -116,7 +116,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -124,7 +124,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
         """
         paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         languages = sorted(
             name for name in os.listdir(data_path)
@@ -295,7 +295,7 @@ class MultiLingualMaskedLMTask(FairseqTask):
     def get_batch_iterator(
         self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
         ignore_invalid_inputs=False, required_batch_size_multiple=1,
-        seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=0,
+        seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
     ):
         # Recreate epoch iterator every epoch cause the underlying
         # datasets are dynamic due to sampling.

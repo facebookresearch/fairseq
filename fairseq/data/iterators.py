@@ -100,17 +100,18 @@ class EpochBatchIterating(object):
 
 class StreamingEpochBatchIterator(EpochBatchIterating):
     def __init__(
-        self, dataset, epoch=0, num_shards=1, shard_id=0,
+        self, dataset, epoch=1, num_shards=1, shard_id=0,
     ):
         assert isinstance(dataset, torch.utils.data.IterableDataset)
         self.dataset = dataset
-        self.epoch = epoch
+        self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self._current_epoch_iterator = None
         self.num_shards = num_shards
         self.shard_id = shard_id
 
     def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
-        self.epoch += 1
+        if self._current_epoch_iterator is not None and self.end_of_epoch():
+            self.epoch += 1
         self.dataset.set_epoch(self.epoch)
         self._current_epoch_iterator = CountingIterator(
             iterable=ShardedIterator(
@@ -165,12 +166,12 @@ class EpochBatchIterator(EpochBatchIterating):
             loading. 0 means the data will be loaded in the main process
             (default: 0).
         epoch (int, optional): the epoch to start the iterator from
-            (default: 0).
+            (default: 1).
     """
 
     def __init__(
         self, dataset, collate_fn, batch_sampler, seed=1, num_shards=1, shard_id=0,
-        num_workers=0, epoch=0,
+        num_workers=0, epoch=1,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -181,7 +182,7 @@ class EpochBatchIterator(EpochBatchIterating):
         self.shard_id = shard_id
         self.num_workers = num_workers
 
-        self.epoch = epoch
+        self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = True
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
@@ -204,7 +205,8 @@ class EpochBatchIterator(EpochBatchIterating):
             self._cur_epoch_itr = self._next_epoch_itr
             self._next_epoch_itr = None
         else:
-            self.epoch += 1
+            if self._cur_epoch_itr is not None and self.end_of_epoch():
+                self.epoch += 1
             self._cur_epoch_itr = self._get_iterator_for_epoch(
                 self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus,
             )
@@ -244,6 +246,9 @@ class EpochBatchIterator(EpochBatchIterating):
                 shuffle=state_dict.get('shuffle', True),
                 offset=itr_pos,
             )
+            if self._next_epoch_itr is None:
+                # we finished the epoch, increment epoch counter
+                self.epoch += 1
 
     def _get_iterator_for_epoch(self, epoch, shuffle, fix_batches_to_gpus=False, offset=0):
 

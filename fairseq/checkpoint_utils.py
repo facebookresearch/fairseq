@@ -109,6 +109,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
 
+
 def load_checkpoint(args, trainer, **passthrough_args):
     """
     Load a checkpoint and restore the training iterator.
@@ -150,7 +151,7 @@ def load_checkpoint(args, trainer, **passthrough_args):
         epoch_itr.load_state_dict(itr_state)
     else:
         epoch_itr = trainer.get_train_iterator(
-            epoch=0, load_dataset=True, **passthrough_args
+            epoch=1, load_dataset=True, **passthrough_args
         )
 
     trainer.lr_step(epoch_itr.epoch)
@@ -349,6 +350,11 @@ def _upgrade_state_dict(state):
         state["args"].dataset_impl = "raw"
     elif getattr(state["args"], "lazy_load", False):
         state["args"].dataset_impl = "lazy"
+    # epochs start at 1
+    state["extra_state"]["train_iterator"]["epoch"] = max(
+        getattr(state["extra_state"]["train_iterator"], "epoch", 1),
+        1,
+    )
 
     # set any missing default values in the task, model or other registries
     registry.set_defaults(state["args"], tasks.TASK_REGISTRY[state["args"].task])

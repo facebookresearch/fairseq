@@ -87,15 +87,15 @@ class MultilingualDenoisingTask(DenoisingTask):
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
+
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-
         paths = self.args.data.split(':')
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
         split_path = os.path.join(data_path, split)
 
         if self.langs is None:
