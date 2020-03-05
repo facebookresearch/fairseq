@@ -1,3 +1,7 @@
+# Weights and Biases logs
+
+wandb/
+
 # JetBrains PyCharm IDE
 .idea/
 
