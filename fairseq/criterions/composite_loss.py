@@ -14,6 +14,10 @@ class CompositeLoss(FairseqCriterion):
     """This is a composite loss that, given a list of model outputs and a list of targets,
     computes an average of losses for each output-target pair"""
 
+    def __init__(self, task, underlying_criterion):
+        super().__init__(task)
+        self.underlying_criterion = underlying_criterion
+
     @staticmethod
     def add_args(parser):
         """Add criterion-specific arguments to the parser."""
@@ -58,8 +62,8 @@ class CompositeLoss(FairseqCriterion):
 
         class _CompositeLoss(FairseqCriterion):
 
-            def __init__(self, args, task, underlying_criterion):
-                super().__init__(args, task)
+            def __init__(self, task, underlying_criterion):
+                super().__init__(task)
                 self.underlying_criterion = underlying_criterion
 
             def forward(self, model, sample, reduce=True):
@@ -92,4 +96,4 @@ class CompositeLoss(FairseqCriterion):
             def reduce_metrics(logging_outputs) -> None:
                 underlying_criterion.__class__.reduce_metrics(logging_outputs)
 
-        return _CompositeLoss(args, task, underlying_criterion)
+        return _CompositeLoss(task, underlying_criterion)

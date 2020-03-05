@@ -15,11 +15,11 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 @register_criterion('binary_cross_entropy')
 class BinaryCrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, task):
-        super().__init__(args, task)
-        self.infonce = getattr(args, "infonce", False)
-        self.loss_weights = None if getattr(args, 'loss_weights', None) is None else eval(args.loss_weights)
-        self.log_keys = [] if getattr(args, 'log_keys', None) is None else eval(args.log_keys)
+    def __init__(self, task, infonce=False, loss_weights=None, log_keys=None):
+        super().__init__(task)
+        self.infonce = infonce
+        self.loss_weights = None if loss_weights is None else eval(loss_weights)
+        self.log_keys = [] if log_keys is None else eval(log_keys)
 
     @staticmethod
     def add_args(parser):

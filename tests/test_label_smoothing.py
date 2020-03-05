@@ -49,8 +49,8 @@ class TestLabelSmoothing(unittest.TestCase):
 
     def test_nll_loss(self):
         self.args.label_smoothing = 0.1
-        nll_crit = CrossEntropyCriterion(self.args, self.task)
-        smooth_crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
+        nll_crit = CrossEntropyCriterion.build_criterion(self.args, self.task)
+        smooth_crit = LabelSmoothedCrossEntropyCriterion.build_criterion(self.args, self.task)
         nll_loss, nll_sample_size, nll_logging_output = nll_crit(self.model, self.sample)
         smooth_loss, smooth_sample_size, smooth_logging_output = smooth_crit(self.model, self.sample)
         self.assertLess(abs(nll_loss - nll_logging_output['loss']), 1e-6)
@@ -58,7 +58,7 @@ class TestLabelSmoothing(unittest.TestCase):
 
     def test_padding(self):
         self.args.label_smoothing = 0.1
-        crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
+        crit = LabelSmoothedCrossEntropyCriterion.build_criterion(self.args, self.task)
         loss, _, logging_output = crit(self.model, self.sample)
 
         def get_one_no_padding(idx):
@@ -77,15 +77,15 @@ class TestLabelSmoothing(unittest.TestCase):
 
     def test_reduction(self):
         self.args.label_smoothing = 0.1
-        crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
+        crit = LabelSmoothedCrossEntropyCriterion.build_criterion(self.args, self.task)
         loss, _, logging_output = crit(self.model, self.sample, reduce=True)
         unreduced_loss, _, _ = crit(self.model, self.sample, reduce=False)
         self.assertAlmostEqual(loss, unreduced_loss.sum())
 
     def test_zero_eps(self):
         self.args.label_smoothing = 0.0
-        nll_crit = CrossEntropyCriterion(self.args, self.task)
-        smooth_crit = LabelSmoothedCrossEntropyCriterion(self.args, self.task)
+        nll_crit = CrossEntropyCriterion.build_criterion(self.args, self.task)
+        smooth_crit = LabelSmoothedCrossEntropyCriterion.build_criterion(self.args, self.task)
         nll_loss, nll_sample_size, nll_logging_output = nll_crit(self.model, self.sample)
         smooth_loss, smooth_sample_size, smooth_logging_output = smooth_crit(self.model, self.sample)
         self.assertAlmostEqual(nll_loss, smooth_loss)

@@ -516,7 +516,7 @@ class CrossEntropyCriterionTestBase(unittest.TestCase):
     def setUp(self):
         args = self.setUpArgs()
         self.model = DummyEncoderModel(encoder=DummyEncoder())
-        self.criterion = self.criterion_cls(args=args, task=DummyTask(args))
+        self.criterion = self.criterion_cls.build_criterion(args=args, task=DummyTask(args))
 
     def get_src_tokens(self, correct_prediction, aggregate):
         """
