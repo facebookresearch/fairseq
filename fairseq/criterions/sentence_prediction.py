@@ -15,6 +15,10 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 @register_criterion('sentence_prediction')
 class SentencePredictionCriterion(FairseqCriterion):
 
+    def __init__(self, task, classification_head_name):
+        super().__init__(task)
+        self.classification_head_name = classification_head_name
+
     @staticmethod
     def add_args(parser):
         # fmt: off
