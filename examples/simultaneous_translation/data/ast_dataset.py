@@ -55,6 +55,7 @@ class AstDataset(FairseqDataset):
         self.num_mel_bins = num_mel_bins
         self.frame_length = frame_length
         self.frame_shift = frame_shift
+        self.mv_norm = mv_norm
 
     def __getitem__(self, index):
         import torchaudio
@@ -77,6 +78,12 @@ class AstDataset(FairseqDataset):
             eos_index=self.tgt_dict.eos(), move_eos_to_beginning=True
         )
 
+
+        if self.mv_norm:
+            output_cmvn = data_utils.apply_mv_norm(output)
+        else:
+            output_cmvn = output
+        
         return {"id": index, "data": [output_cmvn.detach(), tgt_item]}
 
     def __len__(self):

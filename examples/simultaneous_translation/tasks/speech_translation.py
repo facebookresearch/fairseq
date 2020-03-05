@@ -75,6 +75,8 @@ class SpeechTranslationTask(FairseqTask):
         parser.add_argument(
             "--silence-#token", default="\u2581", help="token for silence (used by w2l)"
         )
+        parser.add_argument("--no-mv-norm", action="store_true",
+                help="Don't normalize the feature along time dimension")
 
     def __init__(self, args, tgt_dict):
         super().__init__(args)
