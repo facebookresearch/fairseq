@@ -12,8 +12,8 @@ from pathlib import Path
 import torch.fb.rendezvous.zeus  # noqa: F401
 from fairseq import options
 from fairseq.file_io import PathManager
-from fvcore.fb.manifold import ManifoldPathHandler
 from fairseq_cli.train import distributed_main, main
+from fvcore.fb.manifold import ManifoldPathHandler
 
 
 def get_fb_training_parser():
@@ -22,6 +22,17 @@ def get_fb_training_parser():
         "--tensorboard-manifold",
         action="store_true",
         help="[FB only] send tensorboard plots to manifold",
+    )
+    parser.add_argument(
+        "--manifold-ttl",
+        type=int,
+        help="[FB only] Set object ttl for manifold storage",
+    )
+    parser.add_argument(
+        "--manifold-has-user-data",
+        type=bool,
+        default=False,
+        help="[FB only] Set has-user-data-flag for manifold storage",
     )
     return parser
 
@@ -36,17 +47,26 @@ def fb_main(device_id, args, start_rank, log_path=None):
             logger = logging.getLogger(root)
             logger.propagate = False  # don't propagate to parent loggers
             handler.setLevel(logging.INFO)
-            handler.setFormatter(logging.Formatter(
-                fmt='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S',
-            ))
+            handler.setFormatter(
+                logging.Formatter(
+                    fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
+            )
             logger.addHandler(handler)
 
     # write fairseq logs to stdout
     add_handler(logging.StreamHandler(sys.stdout))
 
     # support Manifold for checkpoints
-    PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
+    PathManager.register_handler(
+        ManifoldPathHandler(
+            max_parallel=16,
+            timeout_sec=1800,
+            ttl=args.manifold_ttl,
+            has_user_data=args.manifold_has_user_data,
+        )
+    )
 
     def train_main():
         if args.distributed_world_size > 1:
