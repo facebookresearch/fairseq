@@ -295,16 +295,15 @@ class TqdmProgressBar(BaseProgressBar):
 try:
     from tensorboardX import SummaryWriter
     _tensorboard_writers = {}
+
+    def _close_writers():
+        for w in _tensorboard_writers.values():
+            w.close()
+
+    atexit.register(_close_writers)
+
 except ImportError:
     SummaryWriter = None
-
-
-def _close_writers():
-    for w in _tensorboard_writers.values():
-        w.close()
-
-
-atexit.register(_close_writers)
 
 
 class TensorboardProgressBarWrapper(BaseProgressBar):
