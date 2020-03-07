@@ -352,7 +352,7 @@ def _upgrade_state_dict(state):
         state["args"].dataset_impl = "lazy"
     # epochs start at 1
     state["extra_state"]["train_iterator"]["epoch"] = max(
-        getattr(state["extra_state"]["train_iterator"], "epoch", 1),
+        state["extra_state"]["train_iterator"].get("epoch", 1),
         1,
     )
 
