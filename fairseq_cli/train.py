@@ -148,7 +148,7 @@ def train(args, trainer, task, epoch_itr):
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
-        shuffle=(epoch_itr.epoch > args.curriculum),
+        shuffle=(epoch_itr.epoch >= args.curriculum),
     )
     update_freq = (
         args.update_freq[epoch_itr.epoch - 1]
