@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import io
 import tempfile
 import unittest
 
@@ -64,6 +65,51 @@ class TestDictionary(unittest.TestCase):
             reload_ids = get_ids(d)
             assertMatch(reload_ids, ref_ids2)
             assertMatch(finalized_ids, reload_ids)
+
+    def test_overwrite(self):
+        # for example, Camembert overwrites <unk>, <s> and </s>
+        dict_file = io.StringIO(
+            "<unk> 999 #fairseq:overwrite\n"
+            "<s> 999 #fairseq:overwrite\n"
+            "</s> 999 #fairseq:overwrite\n"
+            ", 999\n"
+            "▁de 999\n"
+        )
+        d = Dictionary()
+        d.add_from_file(dict_file)
+        self.assertEqual(d.index('<pad>'), 1)
+        self.assertEqual(d.index('foo'), 3)
+        self.assertEqual(d.index('<unk>'), 4)
+        self.assertEqual(d.index('<s>'), 5)
+        self.assertEqual(d.index('</s>'), 6)
+        self.assertEqual(d.index(','), 7)
+        self.assertEqual(d.index('▁de'), 8)
+
+    def test_no_overwrite(self):
+        # for example, Camembert overwrites <unk>, <s> and </s>
+        dict_file = io.StringIO(
+            "<unk> 999\n"
+            "<s> 999\n"
+            "</s> 999\n"
+            ", 999\n"
+            "▁de 999\n"
+        )
+        d = Dictionary()
+        with self.assertRaisesRegex(RuntimeError, 'Duplicate'):
+            d.add_from_file(dict_file)
+
+    def test_space(self):
+        # for example, character models treat space as a symbol
+        dict_file = io.StringIO(
+            "  999\n"
+            "a 999\n"
+            "b 999\n"
+        )
+        d = Dictionary()
+        d.add_from_file(dict_file)
+        self.assertEqual(d.index(' '), 4)
+        self.assertEqual(d.index('a'), 5)
+        self.assertEqual(d.index('b'), 6)
 
 
 if __name__ == '__main__':
