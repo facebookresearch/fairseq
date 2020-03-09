@@ -66,6 +66,6 @@ class SimulTransTextAgent(SimulTransAgent):
         # The first means all segments (full words) has been read from server
         # The second means all tokens (subwords) has been read locally
         return (
-+            states["finish_read"]
-+            and len(states["tokens"]["src"]) == states["steps"]["src"]
-+        )
+            states["finish_read"]
+            and len(states["tokens"]["src"]) == states["steps"]["src"]
+        )
