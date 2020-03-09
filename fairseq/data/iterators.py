@@ -109,9 +109,16 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         self.num_shards = num_shards
         self.shard_id = shard_id
 
-    def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
+    @property
+    def next_epoch_idx(self):
+        """Return the epoch index after *next_epoch_itr* is called."""
         if self._current_epoch_iterator is not None and self.end_of_epoch():
-            self.epoch += 1
+            return self.epoch + 1
+        else:
+            return self.epoch
+
+    def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
+        self.epoch = self.next_epoch_idx
         self.dataset.set_epoch(self.epoch)
         self._current_epoch_iterator = CountingIterator(
             iterable=ShardedIterator(
@@ -191,6 +198,16 @@ class EpochBatchIterator(EpochBatchIterating):
     def __len__(self):
         return len(self.frozen_batches)
 
+    @property
+    def next_epoch_idx(self):
+        """Return the epoch index after *next_epoch_itr* is called."""
+        if self._next_epoch_itr is not None:
+            return self.epoch
+        elif self._cur_epoch_itr is not None and self.end_of_epoch():
+            return self.epoch + 1
+        else:
+            return self.epoch
+
     def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
         """Return a new iterator over the dataset.
 
@@ -201,12 +218,11 @@ class EpochBatchIterator(EpochBatchIterating):
                 allocated to the same shards across epochs. Requires
                 that :attr:`dataset` supports prefetching (default: False).
         """
+        self.epoch = self.next_epoch_idx
         if self._next_epoch_itr is not None:
             self._cur_epoch_itr = self._next_epoch_itr
             self._next_epoch_itr = None
         else:
-            if self._cur_epoch_itr is not None and self.end_of_epoch():
-                self.epoch += 1
             self._cur_epoch_itr = self._get_iterator_for_epoch(
                 self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus,
             )
