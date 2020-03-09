@@ -122,6 +122,9 @@ def main(args, init_distributed=False):
 
 
 def should_stop_early(args, valid_loss):
+    # skip check if no validation was done in the current epoch
+    if valid_loss is None:
+        return False
     if args.patience <= 0:
         return False
 
