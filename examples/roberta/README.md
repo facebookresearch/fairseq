@@ -8,6 +8,7 @@ RoBERTa iterates on BERT's pretraining procedure, including training the model l
 
 ### What's New:
 
+- March 2020: RoBERTa-based language models (PhoBERT) pre-trained for Vietnamese are available from VinAI Research: [PhoBERT](https://github.com/VinAIResearch/PhoBERT).
 - January 2020: Italian model (UmBERTo) is available from Musixmatch Research: [UmBERTo](https://github.com/musixmatchresearch/umberto).
 - November 2019: French model (CamemBERT) is available: [CamemBERT](https://github.com/pytorch/fairseq/tree/master/examples/camembert).
 - November 2019: Multilingual encoder (XLM-RoBERTa) is available: [XLM-R](https://github.com/pytorch/fairseq/tree/master/examples/xlmr).
