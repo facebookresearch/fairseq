@@ -155,13 +155,13 @@ To evaluate speech translation models on dev set.
 Same as the server, one can use different configuration files to start different agent.
 To evaluate text translation models on dev set. 
 ```shell
-./script/start-client.py \
+./script/start-client.sh \
     ./scripts/configs/must-c-en_de-speech-text.sh \
     ./experiments/checkpoints/checkpoint_best.pt
 ```
 To evaluate speech translation models on dev set. 
 ```shell
-./script/start-client.py \
+./script/start-client.sh \
     ./scripts/configs/must-c-en_de-speech-dev.sh \
     ./experiments/checkpoints/checkpoint_best.pt
 ```
