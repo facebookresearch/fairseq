@@ -223,6 +223,8 @@ class Adafactor(torch.optim.Optimizer):
 
                 p_data_fp32.add_(-update)
 
-                p.data.copy_(p_data_fp32)
+                # TODO: remove check once pyTorch avoids a copy for this case
+                if p.data_ptr() != p_data_fp32.data_ptr():
+                    p.data.copy_(p_data_fp32)
 
         return loss
