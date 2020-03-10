@@ -182,7 +182,7 @@ class LSTMEncoder(FairseqEncoder):
     def __init__(
         self, dictionary, embed_dim=512, hidden_size=512, num_layers=1,
         dropout_in=0.1, dropout_out=0.1, bidirectional=False,
-        left_pad=True, pretrained_embed=None, padding_value=0.,
+        left_pad=True, pretrained_embed=None, padding_idx=None,
         max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS
     ):
         super().__init__(dictionary)
@@ -194,7 +194,7 @@ class LSTMEncoder(FairseqEncoder):
         self.max_source_positions = max_source_positions
 
         num_embeddings = len(dictionary)
-        self.padding_idx = dictionary.pad()
+        self.padding_idx = padding_idx if padding_idx is not None else dictionary.pad()
         if pretrained_embed is None:
             self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
         else:
@@ -208,7 +208,6 @@ class LSTMEncoder(FairseqEncoder):
             bidirectional=bidirectional,
         )
         self.left_pad = left_pad
-        self.padding_value = padding_value
 
         self.output_units = hidden_size
         if bidirectional:
@@ -246,7 +245,7 @@ class LSTMEncoder(FairseqEncoder):
         packed_outs, (final_hiddens, final_cells) = self.lstm(packed_x, (h0, c0))
 
         # unpack outputs and apply dropout
-        x, _ = nn.utils.rnn.pad_packed_sequence(packed_outs, padding_value=self.padding_value)
+        x, _ = nn.utils.rnn.pad_packed_sequence(packed_outs, padding_value=self.padding_idx)
         x = F.dropout(x, p=self.dropout_out, training=self.training)
         assert list(x.size()) == [seqlen, bsz, self.output_units]
 
