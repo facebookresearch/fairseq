@@ -178,13 +178,13 @@ def train(args, trainer, task, epoch_itr):
                 continue
 
         # log mid-epoch stats
-        stats = get_training_stats(metrics.get_smoothed_values('train_inner'))
         num_updates = trainer.get_num_updates()
-        progress.log(stats, tag='train_inner', step=num_updates)
-
-        # reset mid-epoch stats after each log interval
-        # the end-of-epoch stats will still be preserved
         if num_updates % args.log_interval == 0:
+            stats = get_training_stats(metrics.get_smoothed_values('train_inner'))
+            progress.log(stats, tag='train_inner', step=num_updates)
+
+            # reset mid-epoch stats after each log interval
+            # the end-of-epoch stats will still be preserved
             metrics.reset_meters('train_inner')
 
         if (

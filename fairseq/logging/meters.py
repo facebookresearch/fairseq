@@ -89,10 +89,8 @@ class TimeMeter(Meter):
         self,
         init: int = 0,
         n: int = 0,
-        ignore_first: int = 0,
         round: Optional[int] = None,
     ):
-        self.ignore_first = ignore_first
         self.round = round
         self.reset(init, n)
 
@@ -103,11 +101,8 @@ class TimeMeter(Meter):
         self.i = 0
 
     def update(self, val=1):
+        self.n += val
         self.i += 1
-        if self.i > self.ignore_first:
-            self.n += val
-        else:
-            self.start = time.perf_counter()
 
     def state_dict(self):
         return {
