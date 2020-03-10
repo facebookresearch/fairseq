@@ -127,3 +127,8 @@ class CrossEntropyWithAccCriterion(FairseqCriterion):
         # loss: per output token loss
         # nll_loss: per sentence loss
         return agg_output
+
+
+@register_criterion("latency_augmented_cross_entropy_acc")
+class LatencyAugmentedCrossEntropyWithAccCriterion(FairseqCriterion):
+    pass
