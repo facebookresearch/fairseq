@@ -74,8 +74,9 @@ class BerardSimulASTModel(BerardASTModel):
 
     def subsampling_factor(self):
         subsampling_factor = 1
-        for layer in self.encoder.conv_layers:
-            subsampling_factor *= layer.stride[0]
+        if getattr(self.encoder, "conv_layers", None) is not None:
+            for layer in self.encoder.conv_layers:
+                subsampling_factor *= layer.stride[0]
         return subsampling_factor
 
     def decision_from_states(self, states):
