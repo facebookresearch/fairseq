@@ -38,7 +38,7 @@ class Agent(object):
             for sent_id in range(low, high + 1):
                 self._decode_one(session, sent_id)
 
-        print(f'Finsh {low} to {high} in {time.time() - t0}s')
+        print(f'Finished {low} to {high} in {time.time() - t0}s')
 
     def _decode_one(self, session, sent_id):
         action = {}
