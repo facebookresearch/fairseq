@@ -89,9 +89,23 @@ class SimpleSequenceGenerator(nn.Module):
         return self
 
     @torch.no_grad()
-    def forward(self, sample: Dict[str, Dict[str, Tensor]]):
-        """Generate translations."""
-        return self._generate(sample)
+    def forward(
+        self,
+        sample: Dict[str, Dict[str, Tensor]],
+        prefix_tokens: Optional[Tensor] = None,
+        bos_token: Optional[int] = None,
+    ):
+        """Generate a batch of translations.
+
+        Args:
+            models (List[~fairseq.models.FairseqModel]): ensemble of models
+            sample (dict): batch
+            prefix_tokens (torch.LongTensor, optional): force decoder to begin
+                with these tokens
+            bos_token (int, optional): beginning of sentence token
+                (default: self.eos)
+        """
+        return self._generate(sample, prefix_tokens, bos_token)
 
     def generate_batched_itr(self, data_itr, beam_size=None, cuda=False, timer=None):
         """Iterate over a batched dataset and yield individual translations.
@@ -126,11 +140,16 @@ class SimpleSequenceGenerator(nn.Module):
                 yield id, src, ref, hypos[i]
 
     @torch.no_grad()
-    def generate(self, sample: Dict[str, Dict[str, Tensor]]):
+    def generate(self, sample: Dict[str, Dict[str, Tensor]], **kwargs):
         """Generate translations."""
-        return self._generate(sample)
+        return self._generate(sample, **kwargs)
 
-    def _generate(self, sample: Dict[str, Dict[str, Tensor]]):
+    def _generate(
+        self,
+        sample: Dict[str, Dict[str, Tensor]],
+        prefix_tokens: Optional[Tensor] = None,
+        bos_token: Optional[int] = None,
+    ):
 
         encoder_input: Dict[str, Tensor] = {}
         for k, v in sample["net_input"].items():
@@ -181,7 +200,7 @@ class SimpleSequenceGenerator(nn.Module):
             .fill_(self.pad)
             .to(src_tokens.data)
         )  # +2 for eos and pad
-        tokens[:, 0] = self.eos
+        tokens[:, 0] = self.eos if bos_token is None else bos_token
         attn: Optional[Tensor] = None
 
         # The blacklist indicates candidates that should be ignored.
@@ -243,6 +262,56 @@ class SimpleSequenceGenerator(nn.Module):
                 scores
             )  # scores of hypothesis ending with eos (finished sentences)
             if step < max_len:
+                # handle prefix tokens (possibly with different lengths)
+                if (
+                    prefix_tokens is not None
+                    and step < prefix_tokens.size(1)
+                ):
+                    prefix_toks = (
+                        prefix_tokens[:, step]
+                        .unsqueeze(-1)
+                        .repeat(1, beam_size)
+                        .view(-1)
+                    )
+                    prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
+                    prefix_mask = prefix_toks.ne(self.pad)
+                    lprobs[prefix_mask] = torch.tensor(-math.inf).to(lprobs)
+                    lprobs[prefix_mask] = lprobs[prefix_mask].scatter_(
+                        -1,
+                        prefix_toks[prefix_mask].unsqueeze(-1),
+                        prefix_lprobs[prefix_mask],
+                    )
+                    # if prefix includes eos, then we should make sure tokens and
+                    # scores are the same across all beams
+                    eos_mask = prefix_toks.eq(self.eos)
+                    if eos_mask.any():
+                        # validate that the first beam matches the prefix
+                        first_beam = tokens[eos_mask].view(
+                            -1, beam_size, tokens.size(-1)
+                        )[:, 0, 1:step + 1]
+                        eos_mask_batch_dim = eos_mask.view(-1, beam_size)[:, 0]
+                        target_prefix = prefix_tokens[eos_mask_batch_dim][:, :step]
+                        assert (first_beam == target_prefix).all()
+
+                        # copy tokens, scores and lprobs from the first beam to all beams
+                        tokens = tokens.view(-1, beam_size, tokens.size(-1))
+                        tokens[eos_mask_batch_dim] = tokens[eos_mask_batch_dim][
+                            :, :1, :
+                        ]
+                        tokens = tokens.view(-1, tokens.size(-1))
+
+                        scores = scores.view(-1, beam_size, scores.size(-1))
+                        scores[eos_mask_batch_dim] = scores[eos_mask_batch_dim][
+                            :, :1, :
+                        ]
+                        scores = scores.view(-1, scores.size(-1))
+
+                        lprobs = lprobs.view(-1, beam_size, lprobs.size(-1))
+                        lprobs[eos_mask_batch_dim] = lprobs[eos_mask_batch_dim][
+                            :, :1, :
+                        ]
+                        lprobs = lprobs.view(-1, lprobs.size(-1))
+
                 self.search.set_src_lengths(src_lengths)
                 cand_scores, cand_indices, cand_beams = self.search.step(
                     step,
@@ -335,8 +404,8 @@ class SimpleSequenceGenerator(nn.Module):
                 cand_indices = cand_indices[batch_idxs]
 
                 # Will suuport prefix_token and blacklist later.
-                # if prefix_tokens is not None:
-                #     prefix_tokens = prefix_tokens[batch_idxs]
+                if prefix_tokens is not None:
+                    prefix_tokens = prefix_tokens[batch_idxs]
                 src_lengths = src_lengths[batch_idxs]
                 blacklist = blacklist[batch_idxs]
 
@@ -430,12 +499,12 @@ class SimpleSequenceGenerator(nn.Module):
 
         # clone relevant token and attention tensors
         tokens_clone = tokens.index_select(0, bbsz_idx)[
-            :, 1:step + 2
+            :, 1 : step + 2
         ]  # skip the first index, which is EOS
         assert not tokens_clone.eq(self.eos).any()
         tokens_clone[:, step] = self.eos
         attn_clone = (
-            attn.index_select(0, bbsz_idx)[:, :, 1:step + 2]
+            attn.index_select(0, bbsz_idx)[:, :, 1 : step + 2]
             if attn is not None
             else None
         )

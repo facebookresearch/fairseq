@@ -144,6 +144,29 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
         # sentence 2, beam 2
         self.assertHypoEqual(hypos[1][1], simple_hypos[1][1])
 
+    def test_prefix_tokens(self):
+        model = self.transformer_model
+        simple_generator = SimpleSequenceGenerator(
+            [model], self.task.tgt_dict, beam_size=2
+        )
+        generator = SequenceGenerator(self.task.tgt_dict, beam_size=2)
+        # Generation will always be conditioned on bos_token
+        bos_token = self.task.tgt_dict.bos()
+
+        prefix_tokens = self.sample["net_input"]["src_tokens"]
+        if prefix_tokens[:, 0].eq(bos_token).all():
+            prefix_tokens = prefix_tokens[:, 1:]
+        hypos = generator.generate([model], self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token)
+        simple_hypos = simple_generator.generate(self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token)
+        # sentence 1, beam 1
+        self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
+        # sentence 1, beam 2
+        self.assertHypoEqual(hypos[0][1], simple_hypos[0][1])
+        # sentence 2, beam 1
+        self.assertHypoEqual(hypos[1][0], simple_hypos[1][0])
+        # sentence 2, beam 2
+        self.assertHypoEqual(hypos[1][1], simple_hypos[1][1])
+
 
 class TestJitEnsemble(TestJitSequenceGeneratorBase):
     def test_export_ensemble_model(self):
