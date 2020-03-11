@@ -5,7 +5,6 @@
 
 import math
 from typing import Dict, List, Optional, Tuple
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -105,6 +104,7 @@ class SimpleSequenceGenerator(nn.Module):
             bos_token (int, optional): beginning of sentence token
                 (default: self.eos)
         """
+        self.model.reset_incremental_state()
         return self._generate(sample, prefix_tokens, bos_token)
 
     def generate_batched_itr(self, data_itr, beam_size=None, cuda=False, timer=None):
@@ -142,6 +142,7 @@ class SimpleSequenceGenerator(nn.Module):
     @torch.no_grad()
     def generate(self, sample: Dict[str, Dict[str, Tensor]], **kwargs):
         """Generate translations."""
+        self.model.reset_incremental_state()
         return self._generate(sample, **kwargs)
 
     def _generate(
@@ -467,7 +468,7 @@ class SimpleSequenceGenerator(nn.Module):
         # sort by score descending
         for sent in range(len(finalized)):
             # make into beam container
-            BCList = [BeamContainer(elem["score"], elem) for elem in finalized[sent]]
+            BCList = [BeamContainer(elem["score"].item(), elem) for elem in finalized[sent]]
             BCList.sort()
             BCList.reverse()
             finalized[sent] = torch.jit.annotate(
@@ -618,8 +619,8 @@ class EnsembleModel(nn.Module):
         self.incremental_states = torch.jit.annotate(
             List[Dict[str, Dict[str, Optional[Tensor]]]],
             [
-                torch.jit.annotate(Optional[Dict[str, Dict[str, Optional[Tensor]]]], {})
-                for i in range(len(self.models))
+                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                for i in range(self.models_size)
             ],
         )
         self.has_incremental: bool = False
@@ -631,6 +632,17 @@ class EnsembleModel(nn.Module):
 
     def forward(self):
         pass
+
+    def reset_incremental_state(self):
+        if self.has_incremental_states():
+            self.incremental_states = torch.jit.annotate(
+                List[Dict[str, Dict[str, Optional[Tensor]]]],
+                [
+                    torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                    for i in range(self.models_size)
+                ],
+            )
+        return
 
     def has_encoder(self):
         return hasattr(self.single_model, "encoder")
