@@ -5,6 +5,7 @@
 
 from .. import FairseqOptimizer
 
+from fairseq import utils
 
 class FairseqLRScheduler(object):
 
@@ -47,3 +48,21 @@ class FairseqLRScheduler(object):
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
         return self.optimizer.get_lr()
+
+
+class LegacyFairseqLRScheduler(FairseqLRScheduler):
+    
+    def __init__(self, args, optimizer):
+        super().__init__(optimizer)
+        self.args = args
+
+        utils.deprecation_warning(
+            'LR schedulers should take explicit arguments instead of an '
+            'argparse.Namespace object, please update your criterion by '
+            'extending FairseqLRScheduler instead of LegacyFairseqLRScheduler.'
+        )
+
+    @classmethod
+    def build_lr_scheduler(cls, args, optimizer):
+        """Construct an LR scheduler from command-line args."""
+        return cls(args, optimizer) 
