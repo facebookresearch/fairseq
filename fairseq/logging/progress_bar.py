@@ -34,6 +34,7 @@ def progress_bar(
     tensorboard_logdir: Optional[str] = None,
     default_log_format: str = 'tqdm',
     wandb_project: Optional[str] = None,
+    args: Optional = None,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -61,7 +62,7 @@ def progress_bar(
             bar = TensorboardProgressBarWrapper(bar, tensorboard_logdir)
 
     if wandb_project:
-        bar = WandBProgressBarWrapper(bar, wandb_project)
+        bar = WandBProgressBarWrapper(bar, wandb_project, args)
 
     return bar
 
@@ -89,6 +90,7 @@ def build_progress_bar(
         prefix=prefix,
         tensorboard_logdir=tensorboard_logdir,
         default_log_format=default,
+        args=args,
     )
 
 
@@ -373,7 +375,12 @@ class WandBProgressBarWrapper(BaseProgressBar):
         # reinit=False to ensure if wandb.init() is called multiple times
         # within one process it still references the same run
         wandb.init(project=wandb_project, reinit=False)
-        if args: wandb.config.update(args)
+        if args is None:
+            return
+
+        wandb.config.update(args)
+        if args.user_dir:
+            wandb.save(os.path.join(args.user_dir, '*.py'))
 
     def __iter__(self):
         return iter(self.wrapped_bar)
