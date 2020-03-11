@@ -321,8 +321,7 @@ class Trainer(object):
                     del loss
 
                 logging_outputs.append(logging_output)
-                if not is_dummy_batch:
-                    sample_size += sample_size_i
+                sample_size += sample_size_i
 
                 # emptying the CUDA cache after the first step can
                 # reduce the chance of OOM
@@ -341,28 +340,30 @@ class Trainer(object):
                 else:
                     raise e
 
+        if is_dummy_batch:
+            sample_size *= 0.  # multiply by 0 to preserve device
+        if torch.is_tensor(sample_size):
+            sample_size = sample_size.float()
+        else:
+            sample_size = float(sample_size)
+
         # gather logging outputs from all replicas
         if self._sync_stats():
             logging_outputs, (sample_size, ooms) = self._aggregate_logging_outputs(
                 logging_outputs, sample_size, ooms, ignore=is_dummy_batch,
             )
 
-        metrics.log_scalar("oom", ooms, len(samples), priority=600, round=3)
-        if ooms == self.args.distributed_world_size * len(samples):
-            logger.warning("OOM in all workers, skipping update")
-            self.zero_grad()
-            return None
-
         try:
-            # normalize grads by sample size
-            if sample_size > 0:
-                if self._sync_stats():
-                    # multiply gradients by (# GPUs / sample_size) since DDP
-                    # already normalizes by the number of GPUs. Thus we get
-                    # (sum_of_gradients / sample_size).
-                    self.optimizer.multiply_grads(self.args.distributed_world_size / sample_size)
-                else:
-                    self.optimizer.multiply_grads(1 / sample_size)
+            # multiply gradients by (# GPUs / sample_size) since DDP
+            # already normalizes by the number of GPUs. Thus we get
+            # (sum_of_gradients / sample_size).
+            if not self.args.use_bmuf:
+                self.optimizer.multiply_grads(
+                    self.args.distributed_world_size / sample_size
+                )
+            elif sample_size > 0:  # BMUF needs to check sample size
+                num = self.args.distributed_world_size if self._sync_stats() else 1
+                self.optimizer.multiply_grads(num / sample_size)
 
             # clip grads
             grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
@@ -376,14 +377,8 @@ class Trainer(object):
             self.set_num_updates(self.get_num_updates() + 1)
 
             # log stats
-            logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
-            metrics.log_speed("ups", 1., priority=100, round=2)
-            metrics.log_scalar("gnorm", utils.item(grad_norm), priority=400, round=3)
-            metrics.log_scalar(
-                "clip",
-                100 if grad_norm > self.args.clip_norm > 0 else 0,
-                priority=500,
-                round=1,
+            logging_output = self._reduce_and_log_stats(
+                logging_outputs, sample_size, grad_norm,
             )
 
             # clear CUDA cache to reduce memory fragmentation
@@ -460,7 +455,7 @@ class Trainer(object):
 
             logging_outputs = [logging_output]
             if is_dummy_batch:
-                sample_size = 0
+                sample_size *= 0  # multiply by 0 to preserve device
 
         # gather logging outputs from all replicas
         if self.args.distributed_world_size > 1:
@@ -535,6 +530,8 @@ class Trainer(object):
             k = name[len("valid_"):]
             m = metrics.get_meter("valid", k)
             return m or meters.AverageMeter()
+        elif name == "oom":
+            return meters.AverageMeter()
         elif name in train_meters:
             return train_meters[name]
         return None
@@ -692,18 +689,25 @@ class Trainer(object):
                     "Try --ddp-backend=no_c10d."
                 )
 
-    def _reduce_and_log_stats(self, logging_outputs, sample_size):
-        if logging_outputs is None or len(logging_outputs) == 0:
-            return {"sample_size": sample_size}
-        with metrics.aggregate() as agg:
-            # convert logging_outputs to CPU to avoid unnecessary
-            # device-to-host transfers in reduce_metrics
-            logging_outputs = utils.apply_to_sample(
-                lambda t: t.to(device='cpu', non_blocking=True, dtype=torch.double),
-                logging_outputs
-            )
+    def _reduce_and_log_stats(self, logging_outputs, sample_size, grad_norm=None):
+        if grad_norm is not None:
+            metrics.log_speed("ups", 1., priority=100, round=2)
+            metrics.log_scalar("gnorm", grad_norm, priority=400, round=3)
+            if self.args.clip_norm > 0:
+                metrics.log_scalar(
+                    "clip",
+                    torch.where(
+                        grad_norm > self.args.clip_norm,
+                        grad_norm.new_tensor(100),
+                        grad_norm.new_tensor(0),
+                    ),
+                    priority=500,
+                    round=1,
+                )
 
-            self.task.reduce_metrics(logging_outputs, self.get_criterion())
+        with metrics.aggregate() as agg:
+            if logging_outputs is not None:
+                self.task.reduce_metrics(logging_outputs, self.get_criterion())
 
             # support legacy interface
             logging_output = agg.get_smoothed_values()
