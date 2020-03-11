@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
+from fairseq.logging.meters import safe_round
 from fairseq.modules import gelu, gelu_accurate
 from fairseq.modules.multihead_attention import MultiheadAttention
 from torch import Tensor
@@ -231,21 +232,19 @@ def item(tensor):
     return tensor
 
 
-def clip_grad_norm_(params, max_norm):
-    params = list(params)
-    if len(params) == 1:
-        p = params[0]
-        grad_norm = torch.norm(p)
-        if grad_norm > max_norm > 0:
-            clip_coef = max_norm / (grad_norm + 1e-6)
-            p.mul_(clip_coef)
-        return grad_norm
-    elif max_norm > 0:
-        return torch.nn.utils.clip_grad_norm_(params, max_norm)
-    else:
-        return torch.sqrt(
-            sum(p.grad.data.norm() ** 2 for p in params if p.grad is not None)
-        )
+def clip_grad_norm_(params, max_norm) -> torch.Tensor:
+    if isinstance(params, torch.Tensor):
+        params = [params]
+    grads = [p.grad.detach() for p in filter(lambda p: p.grad is not None, params)]
+    if len(grads) == 0:
+        return params[0].new_tensor(0.)
+    total_norm = torch.norm(torch.stack([torch.norm(g) for g in grads]))
+    if max_norm > 0:
+        max_norm = float(max_norm)
+        clip_coef = (max_norm / (total_norm + 1e-6)).clamp_(max=1)
+        for g in grads:
+            g.mul_(clip_coef)
+    return total_norm
 
 
 def fill_with_neg_inf(t):
@@ -347,7 +346,7 @@ def log_softmax(x, dim: int, onnx_trace: bool = False):
 def get_perplexity(loss, round=2, base=2):
     if loss is None:
         return 0.
-    return np.round(np.power(base, loss), round)
+    return safe_round(base**loss, round)
 
 
 def deprecation_warning(message, stacklevel=3):
