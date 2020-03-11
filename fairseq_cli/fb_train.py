@@ -24,9 +24,7 @@ def get_fb_training_parser():
         help="[FB only] send tensorboard plots to manifold",
     )
     parser.add_argument(
-        "--manifold-ttl",
-        type=int,
-        help="[FB only] Set object ttl for manifold storage",
+        "--manifold-ttl", type=int, help="[FB only] Set object ttl for manifold storage"
     )
     parser.add_argument(
         "--manifold-has-user-data",
@@ -59,14 +57,10 @@ def fb_main(device_id, args, start_rank, log_path=None):
     add_handler(logging.StreamHandler(sys.stdout))
 
     # support Manifold for checkpoints
-    PathManager.register_handler(
-        ManifoldPathHandler(
-            max_parallel=16,
-            timeout_sec=1800,
-            ttl=args.manifold_ttl,
-            has_user_data=args.manifold_has_user_data,
-        )
-    )
+    # For latte_training use case, we have separate NMTManifoldPathHandler registered in
+    # https://fburl.com/wurd7t70. So if parameters need to be updated the right place
+    # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
+    PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
 
     def train_main():
         if args.distributed_world_size > 1:
