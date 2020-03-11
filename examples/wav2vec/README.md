@@ -59,9 +59,9 @@ Example to train a vq-wav2vec model as described in [vq-wav2vec: Self-Supervised
 
 Description | Parameters | Dataset | Model
 ---|---:|---|---
-vq-wav2vec Gumbel <br> ([(Baevski et al., 2019)](https://arxiv.org/abs/1910.05453)) | 315M | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/vq-wav2vec.pt)
-vq-wav2vec K-means <br> ([(Baevski et al., 2019)](https://arxiv.org/abs/1910.05453)) | 321M | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/vq-wav2vec_kmeans.pt)
-Roberta on K-means codes <br> ([(Baevski et al., 2019)](https://arxiv.org/abs/1910.05453)) | 1006M | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/bert_kmeans.tar)
+vq-wav2vec Gumbel <br> ([(Baevski et al., 2019)](https://arxiv.org/abs/1910.05453)) | 34.1M | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/vq-wav2vec.pt)
+vq-wav2vec K-means <br> ([(Baevski et al., 2019)](https://arxiv.org/abs/1910.05453)) | 33.0M | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/vq-wav2vec_kmeans.pt)
+Roberta on K-means codes <br> ([(Baevski et al., 2019)](https://arxiv.org/abs/1910.05453)) | 123.6M | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/bert_kmeans.tar)
 
 #### Example usage:
 ```python
