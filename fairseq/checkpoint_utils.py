@@ -174,7 +174,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
     return state
 
 
-def load_model_ensemble(filenames, arg_overrides=None, task=None):
+def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True):
     """Loads an ensemble of models.
 
     Args:
@@ -183,11 +183,13 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None):
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
-    ensemble, args, _task = load_model_ensemble_and_task(filenames, arg_overrides, task)
+    ensemble, args, _task = load_model_ensemble_and_task(
+        filenames, arg_overrides, task, strict
+    )
     return ensemble, args
 
 
-def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None):
+def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None, strict=True):
     from fairseq import tasks
 
     ensemble = []
@@ -202,7 +204,7 @@ def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None):
 
         # build model for ensemble
         model = task.build_model(args)
-        model.load_state_dict(state["model"], strict=True, args=args)
+        model.load_state_dict(state["model"], strict=strict, args=args)
         ensemble.append(model)
     return ensemble, args, task
 
@@ -351,10 +353,11 @@ def _upgrade_state_dict(state):
     elif getattr(state["args"], "lazy_load", False):
         state["args"].dataset_impl = "lazy"
     # epochs start at 1
-    state["extra_state"]["train_iterator"]["epoch"] = max(
-        state["extra_state"]["train_iterator"].get("epoch", 1),
-        1,
-    )
+    if state["extra_state"]["train_iterator"] is not None:
+        state["extra_state"]["train_iterator"]["epoch"] = max(
+            state["extra_state"]["train_iterator"].get("epoch", 1),
+            1,
+        )
 
     # set any missing default values in the task, model or other registries
     registry.set_defaults(state["args"], tasks.TASK_REGISTRY[state["args"].task])
