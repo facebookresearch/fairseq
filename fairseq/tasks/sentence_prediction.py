@@ -46,7 +46,7 @@ class SentencePredictionTask(FairseqTask):
         parser.add_argument('data', metavar='FILE',
                             help='file prefix for data')
         parser.add_argument('--num-classes', type=int, default=-1,
-                            help='number of classes')
+                            help='number of classes or regression targets')
         parser.add_argument('--init-token', type=int, default=None,
                             help='add token at the beginning of each batch item')
         parser.add_argument('--separator-token', type=int, default=None,
