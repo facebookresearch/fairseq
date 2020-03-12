@@ -346,7 +346,10 @@ def log_softmax(x, dim: int, onnx_trace: bool = False):
 def get_perplexity(loss, round=2, base=2):
     if loss is None:
         return 0.
-    return safe_round(base**loss, round)
+    try:
+        return safe_round(base ** loss, round)
+    except OverflowError:
+        return float('inf')
 
 
 def deprecation_warning(message, stacklevel=3):
