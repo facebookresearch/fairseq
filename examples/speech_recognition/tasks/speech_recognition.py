@@ -12,6 +12,7 @@ from fairseq.data import Dictionary
 from fairseq.tasks import FairseqTask, register_task
 from examples.speech_recognition.data import AsrDataset
 from examples.speech_recognition.data.replabels import replabel_symbol
+from examples.speech_recognition.modules.specaugment import SpecAugment
 
 
 def get_asr_dataset_from_json(data_json_path, tgt_dict):
@@ -77,10 +78,31 @@ class SpeechRecognitionTask(FairseqTask):
         parser.add_argument(
             "--silence-token", default="\u2581", help="token for silence (used by w2l)"
         )
+        parser.add_argument('--specaugment', action='store_true', default=False)
+        parser.add_argument('--frequency-masking-pars', type=int, default=13,
+                            help="Maximum number of frequencies that can be masked")
+        parser.add_argument('--time-masking-pars', type=int, default=13,
+                            help="Maximum number of time steps that can be masked")
+        parser.add_argument('--frequency-masking-num', type=int, default=2,
+                            help="Number of masks to apply along the frequency dimension")
+        parser.add_argument('--time-masking-num', type=int, default=2,
+                            help="Number of masks to apply along the time dimension")
+        parser.add_argument('--specaugment-rate', type=float, default=1.0,
+                            help="Probability to apply specaugment to a spectrogram")
 
     def __init__(self, args, tgt_dict):
         super().__init__(args)
         self.tgt_dict = tgt_dict
+
+        specaugment = getattr(args, 'specaugment', False)
+        if specaugment:
+            self.specaugment = SpecAugment(frequency_masking_pars=args.frequency_masking_pars,
+                                           time_masking_pars=args.time_masking_pars,
+                                           frequency_masking_num=args.frequency_masking_num,
+                                           time_masking_num=args.time_masking_num,
+                                           rate=args.specaugment_rate)
+        else:
+            self.specaugment = None
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -132,3 +154,32 @@ class SpeechRecognitionTask(FairseqTask):
         """Return the source :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
         return None
+
+    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
+        """
+        Do forward and backward, and return the loss as computed by *criterion*
+        for the given *model* and *sample*.
+
+        Args:
+            sample (dict): the mini-batch. The format is defined by the
+                :class:`~fairseq.data.FairseqDataset`.
+            model (~fairseq.models.BaseFairseqModel): the model
+            criterion (~fairseq.criterions.FairseqCriterion): the criterion
+            optimizer (~fairseq.optim.FairseqOptimizer): the optimizer
+            ignore_grad (bool): multiply loss by 0 if this is set to True
+
+        Returns:
+            tuple:
+                - the loss
+                - the sample size, which is used as the denominator for the
+                  gradient
+                - logging outputs to display while training
+        """
+        model.train()
+        if self.specaugment is not None:
+            sample = self.specaugment(sample)
+        loss, sample_size, logging_output = criterion(model, sample)
+        if ignore_grad:
+            loss *= 0
+        optimizer.backward(loss)
+        return loss, sample_size, logging_output
