@@ -90,7 +90,6 @@ def build_progress_bar(
         prefix=prefix,
         tensorboard_logdir=tensorboard_logdir,
         default_log_format=default,
-        args=args,
     )
 
 

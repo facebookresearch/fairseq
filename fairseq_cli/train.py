@@ -165,7 +165,8 @@ def train(args, trainer, task, epoch_itr):
             args.tensorboard_logdir if distributed_utils.is_master(args) else None
         ),
         default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
-        wandb_project=args.wandb_project
+        wandb_project=args.wandb_project,
+        args=args
     )
 
     # task specific setup per epoch
