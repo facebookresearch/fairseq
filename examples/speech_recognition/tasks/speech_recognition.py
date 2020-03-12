@@ -12,6 +12,7 @@ from fairseq.data import Dictionary
 from fairseq.tasks import FairseqTask, register_task
 from examples.speech_recognition.data import AsrDataset
 from examples.speech_recognition.data.replabels import replabel_symbol
+from examples.speech_recognition.modules.time_stretch import TimeStretch
 
 
 def get_asr_dataset_from_json(data_json_path, tgt_dict):
@@ -77,10 +78,21 @@ class SpeechRecognitionTask(FairseqTask):
         parser.add_argument(
             "--silence-token", default="\u2581", help="token for silence (used by w2l)"
         )
+        parser.add_argument('--time-stretch', action='store_true',
+                            help="If set, activates time stretch on spectrograms")
+        parser.add_argument('--time-stretch-w', type=int, default=1, help='Window size for time stretch')
+        parser.add_argument('--time-stretch-low', type=float, default=0.8, help='Low side of the stretch range')
+        parser.add_argument('--time-stretch-high', type=float, default=1.25, help='High side of the stretch range')
 
     def __init__(self, args, tgt_dict):
         super().__init__(args)
         self.tgt_dict = tgt_dict
+
+        time_stretch = getattr(args, 'time_stretch', False)
+        if time_stretch:
+            self.time_stretch = TimeStretch(args.time_stretch_w, args.time_stretch_low, args.time_stretch_high)
+        else:
+            self.time_stretch = None
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -132,3 +144,32 @@ class SpeechRecognitionTask(FairseqTask):
         """Return the source :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
         return None
+
+    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
+        """
+        Do forward and backward, and return the loss as computed by *criterion*
+        for the given *model* and *sample*.
+
+        Args:
+            sample (dict): the mini-batch. The format is defined by the
+                :class:`~fairseq.data.FairseqDataset`.
+            model (~fairseq.models.BaseFairseqModel): the model
+            criterion (~fairseq.criterions.FairseqCriterion): the criterion
+            optimizer (~fairseq.optim.FairseqOptimizer): the optimizer
+            ignore_grad (bool): multiply loss by 0 if this is set to True
+
+        Returns:
+            tuple:
+                - the loss
+                - the sample size, which is used as the denominator for the
+                  gradient
+                - logging outputs to display while training
+        """
+        model.train()
+        if self.time_stretch is not None:
+            sample = self.time_stretch(sample)
+        loss, sample_size, logging_output = criterion(model, sample)
+        if ignore_grad:
+            loss *= 0
+        optimizer.backward(loss)
+        return loss, sample_size, logging_output
