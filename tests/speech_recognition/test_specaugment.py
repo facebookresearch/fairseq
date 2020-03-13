@@ -22,7 +22,7 @@ class SpecaugmentTest(unittest.TestCase):
                     self.assertEqual(a, b)
 
         for k in batch['net_input']:
-            #Verify that not spectrogram values are not changed
+            # Verify that not spectrogram values are not changed
             if k != 'src_tokens':
                 for a, b in zip(batch['net_input'][k].view(-1), new_batch['net_input'][k].view(-1)):
                     self.assertEqual(a, b)
