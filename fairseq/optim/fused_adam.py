@@ -176,20 +176,21 @@ class FusedAdamV1(torch.optim.Optimizer):
                 state['step'] += 1
 
                 out_p = p.data
-                fused_adam_cuda.adam(p_data_fp32,
-                                     out_p,
-                                     exp_avg,
-                                     exp_avg_sq,
-                                     grad,
-                                     group['lr'],
-                                     beta1,
-                                     beta2,
-                                     group['eps'],
-                                     combined_scale,
-                                     state['step'],
-                                     self.eps_mode,
-                                     bias_correction,
-                                     group['weight_decay'])
+                with torch.cuda.device(p.device):
+                    fused_adam_cuda.adam(p_data_fp32,
+                                         out_p,
+                                         exp_avg,
+                                         exp_avg_sq,
+                                         grad,
+                                         group['lr'],
+                                         beta1,
+                                         beta2,
+                                         group['eps'],
+                                         combined_scale,
+                                         state['step'],
+                                         self.eps_mode,
+                                         bias_correction,
+                                         group['weight_decay'])
 
         return loss
 
@@ -269,32 +270,33 @@ try:
                     else:
                         raise RuntimeError('FusedAdam only support fp16 and fp32.')
 
-                if(len(g_16) > 0):
-                    multi_tensor_applier(self.multi_tensor_adam,
-                                         self._dummy_overflow_buf,
-                                         [g_16, p_16, m_16, v_16],
-                                         group['lr'],
-                                         beta1,
-                                         beta2,
-                                         group['eps'],
-                                         group['step'],
-                                         self.adam_w_mode,
-                                         bias_correction,
-                                         group['weight_decay'])
-                    for orig_p, p in zip(orig_p_16, p_16):
-                        orig_p.copy_(p.data)
-                if(len(g_32) > 0):
-                    multi_tensor_applier(self.multi_tensor_adam,
-                                         self._dummy_overflow_buf,
-                                         [g_32, p_32, m_32, v_32],
-                                         group['lr'],
-                                         beta1,
-                                         beta2,
-                                         group['eps'],
-                                         group['step'],
-                                         self.adam_w_mode,
-                                         bias_correction,
-                                         group['weight_decay'])
+                with torch.cuda.device(p.device):
+                    if(len(g_16) > 0):
+                        multi_tensor_applier(self.multi_tensor_adam,
+                                             self._dummy_overflow_buf,
+                                             [g_16, p_16, m_16, v_16],
+                                             group['lr'],
+                                             beta1,
+                                             beta2,
+                                             group['eps'],
+                                             group['step'],
+                                             self.adam_w_mode,
+                                             bias_correction,
+                                             group['weight_decay'])
+                        for orig_p, p in zip(orig_p_16, p_16):
+                            orig_p.copy_(p.data)
+                    if(len(g_32) > 0):
+                        multi_tensor_applier(self.multi_tensor_adam,
+                                             self._dummy_overflow_buf,
+                                             [g_32, p_32, m_32, v_32],
+                                             group['lr'],
+                                             beta1,
+                                             beta2,
+                                             group['eps'],
+                                             group['step'],
+                                             self.adam_w_mode,
+                                             bias_correction,
+                                             group['weight_decay'])
 
             return loss
 except ImportError:
