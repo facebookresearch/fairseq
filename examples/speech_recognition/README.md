@@ -104,3 +104,10 @@ Inference command:
 ```
 python examples/speech_recognition/infer.py $DIR_FOR_PREPROCESSED_DATA --task speech_recognition --seed 1 --nbest 1 --path $MODEL_PATH/checkpoint_last.pt --gen-subset $SET --results-path $RES_DIR --w2l-decoder viterbi --criterion asg_loss --max-replabel 2 --user-dir examples/speech_recognition
 ```
+
+## Spectrogram Augmentation
+If using spectrograms in input, [SpecAugment](https://arxiv.org/abs/1904.08779) can be enabled with the following additional parameters:
+```
+--specaugment --frequency-masking-pars $FREQ_PARS --time-masking-pars $TIME_PARS --frequency-masking-num $FREQ_MASKS_NUM --time-masking-num $TIME_MASKS_NUM --specaugment-rate $SPECAUGMENT_PROB
+```
+The `pars` and `num` parameters are coherent with the documentation in the paper, while `--specaugment-rate` enables SpecAugment-p, as described [here](https://arxiv.org/abs/2002.12231).
