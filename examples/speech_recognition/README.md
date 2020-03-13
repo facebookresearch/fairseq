@@ -104,3 +104,9 @@ Inference command:
 ```
 python examples/speech_recognition/infer.py $DIR_FOR_PREPROCESSED_DATA --task speech_recognition --seed 1 --nbest 1 --path $MODEL_PATH/checkpoint_last.pt --gen-subset $SET --results-path $RES_DIR --w2l-decoder viterbi --criterion asg_loss --max-replabel 2 --user-dir examples/speech_recognition
 ```
+
+## Spectrogram Augmentation
+If using spectrograms in input, [time stretch](https://arxiv.org/abs/1910.13296) can be enabled with the following additional parameters:
+```
+--time-stretch --time-stretch-w $WINDOW_LENGTH --time-stretch-low $MINIMUM_STRETCH --time-stretch-high $MAXIMUM_STRETCH
+```
