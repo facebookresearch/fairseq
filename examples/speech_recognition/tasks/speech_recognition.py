@@ -78,7 +78,8 @@ class SpeechRecognitionTask(FairseqTask):
         parser.add_argument(
             "--silence-token", default="\u2581", help="token for silence (used by w2l)"
         )
-        parser.add_argument('--specaugment', action='store_true', default=False)
+        parser.add_argument('--specaugment', action='store_true', default=False,
+                            help="If set, SpecAugment is used")
         parser.add_argument('--frequency-masking-pars', type=int, default=13,
                             help="Maximum number of frequencies that can be masked")
         parser.add_argument('--time-masking-pars', type=int, default=13,

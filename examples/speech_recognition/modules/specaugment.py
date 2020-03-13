@@ -7,8 +7,10 @@ import torch.nn as nn
 import numpy as np
 import random
 
-
 class SpecAugment(nn.Module):
+    """
+    Class that handles 'SpecAugment'. It stores the parameters and calls the function according to the probabilistic rate.
+    """
 
     def __init__(self, frequency_masking_pars, time_masking_pars,
                  frequency_masking_num, time_masking_num, rate=1.0):
@@ -20,6 +22,11 @@ class SpecAugment(nn.Module):
         self.rate = rate
 
     def forward(self, batch):
+        """
+        Performs 'SpecAugment' on a batch
+        :param batch: A batch as returned by the 'collater' method
+        :return: The same batch with the masking applied by 'SpecAugment'
+        """
         new_spectrograms = []
         x = batch['net_input']['src_tokens']
         for spectrogram in x:
@@ -38,27 +45,16 @@ class SpecAugment(nn.Module):
 
 def specaugment(mel_spectrogram, frequency_masking_para=27,
                  time_masking_para=100, frequency_masking_num=1, time_masking_num=1):
-    """Spec augmentation Calculation Function.
-
-    'SpecAugment' have 3 steps for audio data augmentation.
-    first step is time warping using Tensorflow's image_sparse_warp function.
-    Second step is frequency masking, last step is time masking.
-
-    # Arguments:
-      mel_spectrogram(numpy array): audio file path of you want to warping and masking.
-      time_warping_para(float): Augmentation parameter, "time warp parameter W".
-        If none, default = 80 for LibriSpeech.
-      frequency_masking_para(float): Augmentation parameter, "frequency mask parameter F"
-        If none, default = 100 for LibriSpeech.
-      time_masking_para(float): Augmentation parameter, "time mask parameter T"
-        If none, default = 27 for LibriSpeech.
-      frequency_mask_num(float): number of frequency masking lines, "m_F".
-        If none, default = 1 for LibriSpeech.
-      time_mask_num(float): number of time masking lines, "m_T".
-        If none, default = 1 for LibriSpeech.
-
-    # Returns
-      mel_spectrogram(numpy array): warped and masked mel spectrogram.
+    """
+    Spec augmentation Calculation Function.
+    'SpecAugment' has 3 steps for audio data augmentation, but only 2 are implemented in this version.
+    First step is frequency masking, second step is time masking.
+    :param mel_spectrogram: 2-dimensional Tensor representing a spectrogram
+    :param frequency_masking_para: Maximum masking width over frequencies
+    :param time_masking_para: Maximum masking width over time
+    :param frequency_masking_num: Number of masks on frequencies
+    :param time_masking_num: Number of masks on time
+    :return: The masked spectrogram
     """
     tau, v = mel_spectrogram.size()
 
