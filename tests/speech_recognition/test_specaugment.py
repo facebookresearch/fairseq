@@ -15,14 +15,14 @@ class SpecaugmentTest(unittest.TestCase):
         new_batch = batch.copy()
         sa = SpecAugment(13, 13, 2, 2, 1.0)
         new_batch = sa(new_batch)
-        #Verify that not spectrogram values are not changed
+        # Verify that not spectrogram values are not changed
         for k in batch:
             if k != "net_input":
                 for a, b in zip(batch[k], new_batch[k]):
                     self.assertEqual(a, b)
 
         for k in batch['net_input']:
-            #Verify that not spectrogram values are not changed
+            # Verify that not spectrogram values are not changed
             if k != 'src_tokens':
                 for a, b in zip(batch['net_input'][k].view(-1), new_batch['net_input'][k].view(-1)):
                     self.assertEqual(a, b)

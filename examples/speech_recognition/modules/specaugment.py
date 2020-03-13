@@ -24,8 +24,12 @@ class SpecAugment(nn.Module):
     def forward(self, batch):
         """
         Performs 'SpecAugment' on a batch
-        :param batch: A batch as returned by the 'collater' method
-        :return: The same batch with the masking applied by 'SpecAugment'
+
+        Args:
+            batch (dict): A batch as returned by the 'collater' method
+
+        Returns:
+            dict: The same batch with the masking applied by 'SpecAugment'
         """
         new_spectrograms = []
         x = batch['net_input']['src_tokens']
@@ -49,12 +53,16 @@ def specaugment(mel_spectrogram, frequency_masking_para=27,
     Spec augmentation Calculation Function.
     'SpecAugment' has 3 steps for audio data augmentation, but only 2 are implemented in this version.
     First step is frequency masking, second step is time masking.
-    :param mel_spectrogram: 2-dimensional Tensor representing a spectrogram
-    :param frequency_masking_para: Maximum masking width over frequencies
-    :param time_masking_para: Maximum masking width over time
-    :param frequency_masking_num: Number of masks on frequencies
-    :param time_masking_num: Number of masks on time
-    :return: The masked spectrogram
+
+    Args:
+        mel_spectrogram (FloatTensor): 2-dimensional Tensor representing a spectrogram
+        frequency_masking_para (int): Maximum masking width over frequencies
+        time_masking_para (int): Maximum masking width over time
+        frequency_masking_num (int): Number of masks on frequencies
+        time_masking_num (int): Number of masks on time
+
+    Returns:
+        FloatTensor: The masked spectrogram
     """
     tau, v = mel_spectrogram.size()
 
