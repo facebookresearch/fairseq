@@ -68,6 +68,10 @@ class EpochBatchIterating(object):
     def __len__(self) -> int:
         raise NotImplementedError
 
+    @property
+    def next_epoch_idx(self):
+        raise NotImplementedError
+
     def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
         """Return a new iterator over the dataset.
 
