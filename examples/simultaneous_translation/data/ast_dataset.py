@@ -79,7 +79,6 @@ class AstDataset(AsrDataset):
         else:
             energy = None
 
-        import pdb; pdb.set_trace()
         if self.mv_norm:
             output_cmvn = data_utils.apply_mv_norm(output)
         else:
