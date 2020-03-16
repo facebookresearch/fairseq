@@ -134,7 +134,8 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
     --log-format json \
     --log-interval 10 \
     --criterion cross_entropy_acc \
-    --user-dir $FAIRSEQ/examples/simultaneous_translation
+    --user-dir $FAIRSEQ/examples/simultaneous_translation \
+    --online-features
 ```
 
 ## Evaluation

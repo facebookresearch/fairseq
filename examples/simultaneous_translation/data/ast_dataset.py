@@ -69,7 +69,7 @@ class AstDataset(AsrDataset):
         else:
             feature_path = f'{path}.{self.num_mel_bins}-{self.frame_length}-{self.frame_shift}{"-use_energy"*self.use_energy}.fbank'
             if not os.path.exists(feature_path):
-                raise FileNotFoundError(f"Can't find the file {feature_path}. \nHave you exatracted the offline features? Or do you want to use --online-feature-extraction?")
+                raise FileNotFoundError(f"Can't find the file {feature_path}. \nHave you exatracted the offline features? Or do you want to use --online-features?")
             output = torch.load(
                 f'{path}.{self.num_mel_bins}-{self.frame_length}-{self.frame_shift}{"-use_energy"*self.use_energy}.fbank'
             )
