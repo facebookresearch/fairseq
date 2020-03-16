@@ -180,8 +180,8 @@ We also provide a faster evaluation script that splits the dataset and launches 
 You can use the client scripts with pre-trained models:
 * [text model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk3.pt). You should obtain the following score: `Scores: {"BLEU": 13.291, "TER": 0.957, "METEOR": 0.31, "DAL": 4.372044027815046, "AL": 2.5295724889866804, "AP": 0.6400225334686246}`
 
-| k  | Checkpoint | BLEU | TER | METEOR | DAL | AL | AP |
+| k  | BLEU | TER | METEOR | DAL | AL | AP |
 | -- | ---------- | ---- | --- | ------ | --- | -- | -- |
-| 1  | https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk1.pt | 7.326 | 1.058 | 0.19 | 2.168934043745549 | -0.991472002729109 | 0.4658645800748763 |
+| 1  | 7.326 | 1.058 | 0.19 | 2.168934043745549 | -0.991472002729109 | 0.4658645800748763 |
 
 * [speech model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_speech_waitk_lag5_stride10.pt). You should obtain the following scores: `{"BLEU": 10.785, "TER": 0.913, "METEOR": 0.247, "DAL": 2817.45349595572, "AL": 2331.9959397710254, "AP": 0.8462297623865175}`
