@@ -12,6 +12,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 build_eval_scorer, register_eval_scorer, EVAL_SCORER_REGISTRY = registry.setup_registry(
     '--eval-scorer',
     default=None,
@@ -43,17 +44,21 @@ class GenerationScorer:
 
     @abstractmethod
     def score(self, references, hypos) -> Dict[str, Any]:
-        """ score references and hypos and output something that fits in logging_outputs"""
+        """
+        Score references and hypos and output a dictionary that can be included in logging_outputs.
+        """
         pass
 
     @abstractmethod
-    def reduce_metrics(self, logging_outputs, criterion):
-        """reduce multiple score dicts into a single metric"""
+    def reduce_metrics(self, logging_outputs, criterion) -> None:
+        """ Reduce added fields in logging_outputs into a single metric and log it to metrics. """
         pass
 
 
 @register_eval_scorer("eval-bleu")
 class BleuGenerationScorer(GenerationScorer):
+    """ Most of it moved from Translation. """
+
     @staticmethod
     def add_args(parser):
         # options for reporting BLEU during validation
@@ -135,20 +140,35 @@ class BleuGenerationScorer(GenerationScorer):
 
 @register_eval_scorer("eval-precision-recall")
 class PrecisionRecallGenerationScorer(GenerationScorer):
-
     @staticmethod
     def add_args(parser):
         pass
 
-    def __init__(self, args):
-        super().__init__(args)
+    @staticmethod
+    def precision(tp: int, fp: int) -> float:
+        return tp / (tp + fp) if (tp + fp) > 0 else 0.
 
     @staticmethod
-    def sentence_precision(
-            reference: Iterable[Any], hypothesis: Iterable[Any]
-    ) -> Tuple[int, int, int, int]:
+    def recall(tp: int, fn: int) -> float:
+        if (tp + fn) == 0:
+            return 0.
+        return float(tp) / (tp + fn)
 
-        tp, fp, tn, fn = 0, 0, 0, 0
+    @staticmethod
+    def f_measure(tp: int, fp: int, fn: int, beta=1) -> float:
+        f_precision = PrecisionRecallGenerationScorer.precision(tp, fp)
+        f_recall = PrecisionRecallGenerationScorer.recall(tp, fn)
+        if f_precision == 0 or f_recall == 0:
+            return 0.
+        else:
+            return (1 + beta ** 2) * (f_precision * f_recall) / ((beta ** 2 * f_precision) + f_recall)
+
+    @staticmethod
+    def sentence_score(
+            reference: Iterable[Any], hypothesis: Iterable[Any]
+    ) -> Tuple[int, int, int]:
+
+        tp, fp, fn = 0, 0, 0
 
         reference_set = set(reference)
         hypothesis_set = set(hypothesis)
@@ -163,35 +183,33 @@ class PrecisionRecallGenerationScorer(GenerationScorer):
             if token not in hypothesis_set:
                 fn += 1
 
-        return tp, fp, tn, fn
+        return tp, fp, fn
 
     @staticmethod
-    def corpus_macro_precision(
+    def corpus_macro_score(
             refs: Iterable[Iterable[Any]], hypos: Iterable[Iterable[Any]]
-    ) -> Tuple[int, int, int, int]:
-        tp, fp, tn, fn = 0, 0, 0, 0
+    ) -> Tuple[int, int, int]:
+        tp, fp, fn = 0, 0, 0
         for ref, hypo in zip(refs, hypos):
-            sample_tp, sample_fp, sample_tn, sample_fn = PrecisionRecallGenerationScorer.sentence_precision(ref, hypo)
+            sample_tp, sample_fp, sample_fn = PrecisionRecallGenerationScorer.sentence_score(ref, hypo)
             tp += sample_tp
             fp += sample_fp
-            tn += sample_tn
             fn += sample_fn
-        return tp, fp, tn, fn
+        return tp, fp, fn
 
+    # implement scorer interface below
     def score(self, refs, hypos) -> Dict:
-
         assert len(refs) == len(hypos)
+
         total = len(refs)
-        # tokenize words FIXME maybe use some tokenizer
-        refs = (ref.split() for ref in refs)
+        refs = (ref.split() for ref in refs)  # tokenize words FIXME maybe use a tokenizer
         hypos = (hypo.split() for hypo in hypos)
 
-        tp, fp, tn, fn = self.corpus_macro_precision(refs, hypos)
+        tp, fp, fn = self.corpus_macro_score(refs, hypos)
 
         precision_logging_output = {
             '_pr_tp': tp,
             '_pr_fp': fp,
-            '_pr_tn': tn,
             '_pr_fn': fn,
             '_pr_total': total
         }
@@ -209,21 +227,21 @@ class PrecisionRecallGenerationScorer(GenerationScorer):
             metrics.log_scalar('_pr_fn', sum_logs('_pr_fn'))
 
             def compute_precision(meters):
-                _precision = precision(
+                _precision = self.precision(
                     tp=meters['_pr_tp'].sum,
                     fp=meters['_pr_fp'].sum,
                 )
                 return round(item(_precision * 100), 2)
 
             def compute_recall(meters):
-                _recall = recall(
+                _recall = self.recall(
                     tp=meters['_pr_tp'].sum,
                     fn=meters['_pr_fn'].sum,
                 )
                 return round(item(_recall * 100), 2)
 
             def compute_f_measure(meters):
-                _f_measure = f_measure(
+                _f_measure = self.f_measure(
                     tp=meters['_pr_tp'].sum,
                     fp=meters['_pr_fp'].sum,
                     fn=meters['_pr_fn'].sum,
@@ -234,22 +252,3 @@ class PrecisionRecallGenerationScorer(GenerationScorer):
             metrics.log_derived('recall', compute_recall)
             metrics.log_derived('precision', compute_precision)
             metrics.log_derived('f-1', compute_f_measure)
-
-
-def precision(tp: int, fp: int) -> float:
-    return tp / (tp + fp) if (tp + fp) > 0 else 0.
-
-
-def recall(tp: int, fn: int) -> float:
-    if (tp + fn) == 0:
-        return 0
-    return float(tp) / (tp + fn)
-
-
-def f_measure(tp: int, fp: int, fn: int, beta=1) -> float:
-    f_precision = precision(tp, fp)
-    f_recall = recall(tp, fn)
-    if f_precision == 0 or recall == 0:
-        return 0
-    else:
-        return (1 + beta ** 2) * (f_precision * f_recall) / ((beta ** 2 * f_precision) + f_recall)

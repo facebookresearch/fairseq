@@ -9,9 +9,7 @@ import itertools
 import logging
 import os
 
-import numpy as np
-
-from fairseq import metrics, options, utils
+from fairseq import options, utils
 from fairseq.data import (
     AppendTokenDataset,
     ConcatDataset,
@@ -25,9 +23,7 @@ from fairseq.data import (
 )
 
 from fairseq.tasks import FairseqTask, register_task
-
-EVAL_BLEU_ORDER = 4
-
+from fairseq.eval_scorer import build_eval_scorer, add_eval_scoring_args
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +173,12 @@ class TranslationTask(FairseqTask):
         parser.add_argument('--truncate-source', action='store_true', default=False,
                             help='truncate source to max-source-positions')
 
+        # options for reporting inference scores during validation
+        add_eval_scoring_args(parser)  # FIXME this should probably be somewhere else
+
+        # FIXME not sure if this should be kept, or removed.
+        # FIXME Inference related args have been added and renamed in `add_eval_scoring_args`
+        # FIXME BLEU related args have been moved to BleuGenerationScorer.add_args()
         # options for reporting BLEU during validation
         parser.add_argument('--eval-bleu', action='store_true',
                             help='evaluation with BLEU scores')
@@ -202,6 +204,7 @@ class TranslationTask(FairseqTask):
         super().__init__(args)
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
+        self.eval_scorer = None  # initialized in build_model
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -261,73 +264,43 @@ class TranslationTask(FairseqTask):
         return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
 
     def build_model(self, args):
-        if getattr(args, 'eval_bleu', False):
-            assert getattr(args, 'eval_bleu_detok', None) is not None, (
-                '--eval-bleu-detok is required if using --eval-bleu; '
-                'try --eval-bleu-detok=moses (or --eval-bleu-detok=space '
+        self.eval_scorer = build_eval_scorer(args)
+        if self.eval_scorer is not None:
+            assert getattr(args, 'eval_scorer_detok', None) is not None, (
+                '--eval-scorer-detok is required if using --eval-scorer; '
+                'try --eval-scorer-detok=moses (or --eval-scorer-detok=space '
                 'to disable detokenization, e.g., when using sentencepiece)'
             )
-            detok_args = json.loads(getattr(args, 'eval_bleu_detok_args', '{}') or '{}')
+            detok_args = json.loads(getattr(args, 'eval_scorer_detok_args', '{}') or '{}')
             self.tokenizer = encoders.build_tokenizer(Namespace(
-                tokenizer=getattr(args, 'eval_bleu_detok', None),
+                tokenizer=getattr(args, 'eval_scorer_detok', None),
                 **detok_args
             ))
 
-            gen_args = json.loads(getattr(args, 'eval_bleu_args', '{}') or '{}')
+            gen_args = json.loads(getattr(args, 'eval_scorer_args', '{}') or '{}')
             self.sequence_generator = self.build_generator(Namespace(**gen_args))
         return super().build_model(args)
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
-        if self.args.eval_bleu:
-            bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
-            logging_output['_bleu_sys_len'] = bleu.sys_len
-            logging_output['_bleu_ref_len'] = bleu.ref_len
-            # we split counts into separate entries so that they can be
-            # summed efficiently across workers using fast-stat-sync
-            assert len(bleu.counts) == EVAL_BLEU_ORDER
-            for i in range(EVAL_BLEU_ORDER):
-                logging_output['_bleu_counts_' + str(i)] = bleu.counts[i]
-                logging_output['_bleu_totals_' + str(i)] = bleu.totals[i]
+
+        if self.eval_scorer is not None:
+            hyps, refs = self._inference(self.sequence_generator, sample, model)
+
+            if self.args.eval_scorer_print_samples:
+                logger.info('example hypothesis: ' + hyps[0])
+                logger.info('example reference: ' + refs[0])
+
+            scorer_logging_outputs = self.eval_scorer.score(hyps, refs)
+            logging_output = {**logging_output, **scorer_logging_outputs}
+
         return loss, sample_size, logging_output
 
     def reduce_metrics(self, logging_outputs, criterion):
         super().reduce_metrics(logging_outputs, criterion)
-        if self.args.eval_bleu:
 
-            def sum_logs(key):
-                return sum(log.get(key, 0) for log in logging_outputs)
-
-            counts, totals = [], []
-            for i in range(EVAL_BLEU_ORDER):
-                counts.append(sum_logs('_bleu_counts_' + str(i)))
-                totals.append(sum_logs('_bleu_totals_' + str(i)))
-
-            if max(totals) > 0:
-                # log counts as numpy arrays -- log_scalar will sum them correctly
-                metrics.log_scalar('_bleu_counts', np.array(counts))
-                metrics.log_scalar('_bleu_totals', np.array(totals))
-                metrics.log_scalar('_bleu_sys_len', sum_logs('_bleu_sys_len'))
-                metrics.log_scalar('_bleu_ref_len', sum_logs('_bleu_ref_len'))
-
-                def compute_bleu(meters):
-                    import inspect
-                    import sacrebleu
-                    fn_sig = inspect.getfullargspec(sacrebleu.compute_bleu)[0]
-                    if 'smooth_method' in fn_sig:
-                        smooth = {'smooth_method': 'exp'}
-                    else:
-                        smooth = {'smooth': 'exp'}
-                    bleu = sacrebleu.compute_bleu(
-                        correct=meters['_bleu_counts'].sum,
-                        total=meters['_bleu_totals'].sum,
-                        sys_len=meters['_bleu_sys_len'].sum,
-                        ref_len=meters['_bleu_ref_len'].sum,
-                        **smooth
-                    )
-                    return round(bleu.score, 2)
-
-                metrics.log_derived('bleu', compute_bleu)
+        if self.eval_scorer is not None:
+            self.eval_scorer.reduce_metrics(logging_outputs, criterion)
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
@@ -343,13 +316,14 @@ class TranslationTask(FairseqTask):
         """Return the target :class:`~fairseq.data.Dictionary`."""
         return self.tgt_dict
 
-    def _inference_with_bleu(self, generator, sample, model):
-        import sacrebleu
-
+    def _inference(self, generator, sample, model):
+        """
+        return references and hypos instead of immediate scoring
+        """
         def decode(toks, escape_unk=False):
             s = self.tgt_dict.string(
                 toks.int().cpu(),
-                self.args.eval_bleu_remove_bpe,
+                self.args.eval_scorer_remove_bpe,
                 escape_unk=escape_unk,
             )
             if self.tokenizer:
@@ -359,13 +333,15 @@ class TranslationTask(FairseqTask):
         gen_out = self.inference_step(generator, [model], sample, None)
         hyps, refs = [], []
         for i in range(len(gen_out)):
-            hyps.append(decode(gen_out[i][0]['tokens']))
-            refs.append(decode(
+            hypo = decode(gen_out[i][0]['tokens'])
+            ref = decode(
                 utils.strip_pad(sample['target'][i], self.tgt_dict.pad()),
                 escape_unk=True,  # don't count <unk> as matches to the hypo
-            ))
-        if self.args.eval_bleu_print_samples:
-            logger.info('example hypothesis: ' + hyps[0])
-            logger.info('example reference: ' + refs[0])
-        tokenize = sacrebleu.DEFAULT_TOKENIZER if not self.args.eval_tokenized_bleu else 'none'
-        return sacrebleu.corpus_bleu(hyps, [refs], tokenize=tokenize)
+            )
+            if self.args.eval_scorer_lowercase:
+                hypo = hypo.lower()
+                ref = ref.lower()
+
+            refs.append(ref)
+            hyps.append(hypo)
+        return hyps, refs
