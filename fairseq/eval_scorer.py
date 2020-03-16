@@ -20,7 +20,7 @@ build_eval_scorer, register_eval_scorer, EVAL_SCORER_REGISTRY = registry.setup_r
 
 
 def add_eval_scoring_args(parser):
-    parser.add_argument('--eval-scorer-generation-args', type=str, metavar='JSON',
+    parser.add_argument('--eval-scorer-args', type=str, metavar='JSON',
                         help='generation args for validation inference, '
                              'e.g., \'{"beam": 4, "lenpen": 0.6}\'')
     parser.add_argument('--eval-scorer-detok', type=str, default="space",
