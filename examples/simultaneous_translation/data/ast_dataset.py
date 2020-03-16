@@ -9,9 +9,11 @@ from fairseq.data import FairseqDataset
 
 from . import data_utils
 from .collaters import Seq2SeqCollater
+from examples.speech_recognition.data import AsrDataset
+import torch
 
 
-class AstDataset(FairseqDataset):
+class AstDataset(AsrDataset):
     """
     A dataset representing speech and corresponding transcription.
 
@@ -32,29 +34,19 @@ class AstDataset(FairseqDataset):
     def __init__(
         self, aud_paths, aud_durations_ms, tgt,
         tgt_dict, ids, speakers,
-        num_mel_bins=80, frame_length=25.0, frame_shift=10.0
+        num_mel_bins=80, frame_length=25.0, frame_shift=10.0, 
+        online_features=True, use_energy=False, segmenter=None,
+        mv_norm=False,
     ):
-        assert frame_length > 0
-        assert frame_shift > 0
-        assert all(x > frame_length for x in aud_durations_ms)
-        self.frame_sizes = [
-            int(1 + (d - frame_length) / frame_shift)
-            for d in aud_durations_ms
-        ]
-
-        assert len(aud_paths) > 0
-        assert len(aud_paths) == len(aud_durations_ms)
-        assert len(aud_paths) == len(tgt)
-        assert len(aud_paths) == len(ids)
-        assert len(aud_paths) == len(speakers)
-        self.aud_paths = aud_paths
-        self.tgt_dict = tgt_dict
-        self.tgt = tgt
-        self.ids = ids
-        self.speakers = speakers
-        self.num_mel_bins = num_mel_bins
-        self.frame_length = frame_length
-        self.frame_shift = frame_shift
+        super().__init__(
+            aud_paths, aud_durations_ms, tgt,
+            tgt_dict, ids, speakers,
+            num_mel_bins, frame_length, frame_shift
+        )
+        self.online_features = online_features
+        self.use_energy = use_energy
+        self.segmenter = segmenter
+        self.mv_norm = mv_norm
 
     def __getitem__(self, index):
         import torchaudio
@@ -64,47 +56,32 @@ class AstDataset(FairseqDataset):
         path = self.aud_paths[index]
         if not os.path.exists(path):
             raise FileNotFoundError("Audio file not found: {}".format(path))
-        sound, sample_rate = torchaudio.load_wav(path)
-        output = kaldi.fbank(
-            sound,
-            num_mel_bins=self.num_mel_bins,
-            frame_length=self.frame_length,
-            frame_shift=self.frame_shift
-        )
-        output_cmvn = data_utils.apply_mv_norm(output)
-        self.s2s_collater = Seq2SeqCollater(
-            0, 1, pad_index=self.tgt_dict.pad(),
-            eos_index=self.tgt_dict.eos(), move_eos_to_beginning=True
-        )
 
+        if self.online_features:
+            sound, sample_rate = torchaudio.load_wav(path)
+            output = kaldi.fbank(
+                sound,
+                num_mel_bins=self.num_mel_bins,
+                frame_length=self.frame_length,
+                frame_shift=self.frame_shift,
+                use_energy=self.use_energy,
+            )
+        else:
+            feature_path = f'{path}.{self.num_mel_bins}-{self.frame_length}-{self.frame_shift}{"-use_energy"*self.use_energy}.fbank'
+            if not os.path.exists(feature_path):
+                raise FileNotFoundError(f"Can't find the file {feature_path}. \nHave you exatracted the offline features? Or do you want to use --online-features?")
+            output = torch.load(
+                f'{path}.{self.num_mel_bins}-{self.frame_length}-{self.frame_shift}{"-use_energy"*self.use_energy}.fbank'
+            )
+            
+        if self.use_energy:
+            energy, output = output[:, 0], output[:, 1:]
+        else:
+            energy = None
+
+        if self.mv_norm:
+            output_cmvn = data_utils.apply_mv_norm(output)
+        else:
+            output_cmvn = output
+        
         return {"id": index, "data": [output_cmvn.detach(), tgt_item]}
-
-    def __len__(self):
-        return len(self.aud_paths)
-
-    def collater(self, samples):
-        """Merge a list of samples to form a mini-batch.
-
-        Args:
-            samples (List[int]): sample indices to collate
-
-        Returns:
-            dict: a mini-batch suitable for forwarding with a Model
-        """
-        return self.s2s_collater.collate(samples)
-
-    def num_tokens(self, index):
-        return self.frame_sizes[index]
-
-    def size(self, index):
-        """Return an example's size as a float or tuple. This value is used when
-        filtering a dataset with ``--max-positions``."""
-        return (
-            self.frame_sizes[index],
-            len(self.tgt[index]) if self.tgt is not None else 0,
-        )
-
-    def ordered_indices(self):
-        """Return an ordered list of indices. Batches will be constructed based
-        on this order."""
-        return np.arange(len(self))
