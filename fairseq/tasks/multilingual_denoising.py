@@ -53,7 +53,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 if os.path.isdir(os.path.join(data_path, name))
             ])
         else:
-            languages = sorted(args.langs.split(','))
+            languages = args.langs.split(',')
             for name in languages:
                 assert os.path.exists(os.path.join(data_path, name)), \
                     "{} does not exist".format(os.path.join(data_path, name))
@@ -104,7 +104,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 if os.path.isdir(os.path.join(data_path, name))
             ])
         else:
-            languages = sorted(self.langs.split(','))
+            languages = self.langs.split(',')
             for name in languages:
                 assert os.path.exists(os.path.join(data_path, name)), "all the languages must exist"
 
