@@ -252,7 +252,30 @@ def bart_large_architecture(args):
     args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
 
 
+@register_model_architecture('bart', 'bart_base')
+def bart_base_architecture(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 768)
+    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4*768)
+    args.encoder_layers = getattr(args, 'encoder_layers', 6)
+    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 12)
+    args.decoder_layers = getattr(args, 'decoder_layers', 6)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 12)
+    bart_large_architecture(args)
+
+
 @register_model_architecture('bart', 'mbart_large')
 def mbart_large_architecture(args):
     args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
     bart_large_architecture(args)
+
+
+@register_model_architecture('bart', 'mbart_base')
+def mbart_base_architecture(args):
+    args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
+    bart_base_architecture(args)
+
+
+@register_model_architecture('bart', 'mbart_base_wmt20')
+def mbart_base_wmt20_architecture(args):
+    args.layernorm_embedding = getattr(args, 'layernorm_embedding', False)
+    mbart_base_architecture(args)

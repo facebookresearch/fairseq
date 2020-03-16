@@ -47,7 +47,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
 
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args, src_dict, tgt_dict)
-        self.langs = sorted(args.langs.split(','))
+        self.langs = args.langs.split(',')
         for d in [src_dict, tgt_dict]:
             for l in self.langs:
                 d.add_symbol('[{}]'.format(l))
