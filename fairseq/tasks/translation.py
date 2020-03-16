@@ -176,7 +176,7 @@ class TranslationTask(FairseqTask):
         # options for reporting inference scores during validation
         add_eval_scoring_args(parser)  # FIXME this should probably be somewhere else
 
-        # FIXME not sure if this should be kept, or removed.
+        # FIXME not sure if the arguments should be kept or removed.
         # FIXME Inference related args have been added and renamed in `add_eval_scoring_args`
         # FIXME BLEU related args have been moved to BleuGenerationScorer.add_args()
         # options for reporting BLEU during validation
