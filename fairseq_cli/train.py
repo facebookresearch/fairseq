@@ -138,7 +138,7 @@ def should_stop_early(args, valid_loss):
         return False
     else:
         should_stop_early.num_runs += 1
-        return should_stop_early.num_runs > args.patience
+        return should_stop_early.num_runs >= args.patience
 
 
 @metrics.aggregate('train')
