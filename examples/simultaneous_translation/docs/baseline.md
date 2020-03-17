@@ -199,3 +199,17 @@ You can use the client scripts with pre-trained models:
 
 
 * [speech model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_speech_waitk_lag5_stride10.pt). You should obtain the following scores: `{"BLEU": 10.785, "TER": 0.913, "METEOR": 0.247, "DAL": 2817.45349595572, "AL": 2331.9959397710254, "AP": 0.8462297623865175}`
+
+### Final Evaluation with Docker
+Our final evaluation will be run inside Docker. When submitting your final models, you need to provide the checkpoint
+files and define its runtime environment in a Dockerfile. We provide an [example Dockerfile](../Dockerfile) for the
+pretrained models above.
+
+To run evaluation with Docker, first build a Docker image from the Dockerfile
+```bash
+docker build -t iwslt2020_simulast:latest .
+```
+and then run the Docker image
+```bash
+docker run --env CHKPT_FILENAME=checkpoint_text_waitk3.pt -v "$(pwd)"/experiments:/fairseq/experiments -it iwslt2020_simulast
+```
