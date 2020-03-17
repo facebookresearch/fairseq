@@ -56,12 +56,14 @@ class SimulTransAgent(Agent):
 
         state = checkpoint_utils.load_checkpoint_to_cpu(filename, eval(args.model_overrides))
 
-        args = state["args"]
+        import pdb;pdb.set_trace()
+        saved_args = state["args"]
+        saved_args.data = args.data_bin
 
-        task = tasks.setup_task(args)
+        task = tasks.setup_task(saved_args)
 
         # build model for ensemble
-        self.model = task.build_model(args)
+        self.model = task.build_model(saved_args)
         self.model.load_state_dict(state["model"], strict=True)
 
         # Set dictionary
