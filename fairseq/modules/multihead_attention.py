@@ -400,7 +400,6 @@ class MultiheadAttention(nn.Module):
     def reorder_incremental_state(
         self, incremental_state: Dict[str, Dict[str, Optional[Tensor]]], new_order: Tensor
     ):
-
         """Reorder buffered internal state (for incremental generation)."""
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
