@@ -74,6 +74,23 @@ class TestUtils(unittest.TestCase):
             utils.make_positions(right_pad_input, pad),
         )
 
+    def test_clip_grad_norm_(self):
+        params = torch.nn.Parameter(torch.zeros(5)).requires_grad_(False)
+        grad_norm = utils.clip_grad_norm_(params, 1.0)
+        self.assertTrue(torch.is_tensor(grad_norm))
+        self.assertEqual(grad_norm, 0.0)
+
+        params = [torch.nn.Parameter(torch.zeros(5)) for i in range(3)]
+        for p in params:
+            p.grad = torch.full((5,), fill_value=2)
+        grad_norm = utils.clip_grad_norm_(params, 1.0)
+        exp_grad_norm = torch.full((15,), fill_value=2).norm()
+        self.assertTrue(torch.is_tensor(grad_norm))
+        self.assertEqual(grad_norm, exp_grad_norm)
+
+        grad_norm = utils.clip_grad_norm_(params, 1.0)
+        self.assertAlmostEqual(grad_norm, torch.tensor(1.0))
+
     def assertAlmostEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")
         self.assertLess(utils.item((t1 - t2).abs().max()), 1e-4)

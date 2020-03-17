@@ -8,6 +8,16 @@ from collections import OrderedDict
 import time
 from typing import Dict, Optional
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
 
 class Meter(object):
     """Base class for Meters."""
@@ -33,6 +43,10 @@ class Meter(object):
 def safe_round(number, ndigits):
     if hasattr(number, '__round__'):
         return round(number, ndigits)
+    elif torch is not None and torch.is_tensor(number) and number.numel() == 1:
+        return safe_round(number.item(), ndigits)
+    elif np is not None and np.ndim(number) == 0 and hasattr(number, 'item'):
+        return safe_round(number.item(), ndigits)
     else:
         return number
 
@@ -89,10 +103,8 @@ class TimeMeter(Meter):
         self,
         init: int = 0,
         n: int = 0,
-        ignore_first: int = 0,
         round: Optional[int] = None,
     ):
-        self.ignore_first = ignore_first
         self.round = round
         self.reset(init, n)
 
@@ -103,11 +115,8 @@ class TimeMeter(Meter):
         self.i = 0
 
     def update(self, val=1):
+        self.n += val
         self.i += 1
-        if self.i > self.ignore_first:
-            self.n += val
-        else:
-            self.start = time.perf_counter()
 
     def state_dict(self):
         return {

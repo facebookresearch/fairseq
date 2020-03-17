@@ -51,7 +51,7 @@ Fairseq provides reference implementations of various sequence-to-sequence model
   - [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
   - [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
   - [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
-  - [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)] (examples/mbart/README.md)
+  - [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
 - **Non-autoregressive Transformers**
   - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -84,7 +84,7 @@ and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more example
 
 # Requirements and Installation
 
-* [PyTorch](http://pytorch.org/) version >= 1.2.0
+* [PyTorch](http://pytorch.org/) version >= 1.4.0
 * Python version >= 3.6
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 * **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library with the `--cuda_ext` and `--deprecated_fused_adam` options

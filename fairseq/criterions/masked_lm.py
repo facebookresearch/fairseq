@@ -28,18 +28,16 @@ class MaskedLmLoss(FairseqCriterion):
         """
         # compute MLM loss
         masked_tokens = sample['target'].ne(self.padding_idx)
-        sample_size = masked_tokens.int().sum().item()
-
-        # (Rare case) When all tokens are masked, the model results in empty
-        # tensor and gives CUDA error.
-        if sample_size == 0:
-            masked_tokens = None
+        masked_tokens = torch.where(
+            # (rare case) when all tokens are masked, project all tokens
+            masked_tokens.any(),
+            masked_tokens,
+            masked_tokens.new([True]),
+        )
 
         logits = model(**sample['net_input'], masked_tokens=masked_tokens)[0]
         targets = model.get_targets(sample, [logits])
-
-        if sample_size != 0:
-            targets = targets[masked_tokens]
+        targets = targets[masked_tokens]
 
         loss = F.nll_loss(
             F.log_softmax(
@@ -51,6 +49,8 @@ class MaskedLmLoss(FairseqCriterion):
             reduction='sum',
             ignore_index=self.padding_idx,
         )
+
+        sample_size = masked_tokens.int().sum()
         logging_output = {
             'loss': loss.data,
             'ntokens': sample['ntokens'],
@@ -62,8 +62,8 @@ class MaskedLmLoss(FairseqCriterion):
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
-        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
+        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
+        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
 
         metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
         metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['loss'].avg))

@@ -138,6 +138,16 @@ class TestSequenceGenerator(TestSequenceGeneratorBase):
         self.assertHypoTokens(hypos[1][1], [w2, w2, eos])
         self.assertHypoScore(hypos[1][1], [0.3, 0.9, 0.01])
 
+    def test_encoder_with_different_output_len(self):
+        generator = SequenceGenerator(self.tgt_dict, beam_size=2, max_len_b=2)
+        args = self.model.encoder.args
+        task = test_utils.TestTranslationTask.setup_task(args, self.tgt_dict, self.tgt_dict)
+        reshaping_model = test_utils.TestReshapingModel.build_model(args, task)
+        hypos = generator.generate([reshaping_model], self.sample)
+        for sent in [0, 1]:
+            for beam in [0, 1]:
+                assert hypos[sent][beam]['attention'] is not None
+
 
 class TestDiverseBeamSearch(TestSequenceGeneratorBase):
 

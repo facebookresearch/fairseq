@@ -36,8 +36,8 @@ class DummyModel(FairseqLanguageModel):
         )
         return cls(args, encoder)
 
-    def forward(self, src_tokens, **kwargs):
-        return self.decoder(src_tokens)
+    def forward(self, src_tokens, masked_tokens=None, **kwargs):
+        return self.decoder(src_tokens, masked_tokens=masked_tokens)
 
 
 class DummyEncoder(FairseqDecoder):
@@ -69,12 +69,14 @@ class DummyEncoder(FairseqDecoder):
         ])
         self.out_proj = nn.Linear(embed_dim, num_embed)
 
-    def forward(self, tokens):
+    def forward(self, tokens, masked_tokens=None):
         x = self.embed(tokens)
         for layer_a, layer_b in zip(self.layers_a, self.layers_b):
             x = x + layer_a(x)
             x = x + layer_b(x)
         x = self.out_proj(x)
+        if masked_tokens is not None:
+            x = x[masked_tokens]
         return (x,)
 
     def max_positions(self):

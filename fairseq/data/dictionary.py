@@ -91,9 +91,9 @@ class Dictionary(object):
         else:
             return self.unk_word
 
-    def add_symbol(self, word, n=1):
+    def add_symbol(self, word, n=1, overwrite=False):
         """Adds a word to the dictionary"""
-        if word in self.indices:
+        if word in self.indices and not overwrite:
             idx = self.indices[word]
             self.count[idx] = self.count[idx] + n
             return idx
@@ -215,15 +215,31 @@ class Dictionary(object):
 
         lines = f.readlines()
         indices_start_line = self._load_meta(lines)
+
         for line in lines[indices_start_line:]:
-            idx = line.rfind(" ")
-            if idx == -1:
+            try:
+                line, field = line.rstrip().rsplit(" ", 1)
+                if field == "#fairseq:overwrite":
+                    overwrite = True
+                    line, field = line.rsplit(" ", 1)
+                else:
+                    overwrite = False
+                count = int(field)
+                word = line
+                if word in self and not overwrite:
+                    raise RuntimeError(
+                        "Duplicate word found when loading Dictionary: '{}'. "
+                        "Duplicate words can overwrite earlier ones by adding the "
+                        "#fairseq:overwrite flag at the end of the corresponding row "
+                        "in the dictionary file. If using the Camembert model, please "
+                        "download an updated copy of the model file."
+                        .format(word)
+                    )
+                self.add_symbol(word, n=count, overwrite=overwrite)
+            except ValueError:
                 raise ValueError(
-                    "Incorrect dictionary format, expected '<token> <cnt>'"
+                    "Incorrect dictionary format, expected '<token> <cnt> [flags]'"
                 )
-            word = line[:idx]
-            count = int(line[idx + 1 :])
-            self.add_symbol(word, n=count)
 
     def _save(self, f, kv_iterator):
         if isinstance(f, str):
