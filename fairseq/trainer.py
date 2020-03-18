@@ -242,7 +242,7 @@ class Trainer(object):
     ):
         """Return an EpochBatchIterator over the training set for a given epoch."""
         if load_dataset:
-            logger.info("loading train data for epoch {}".format(epoch))
+            logger.info("loading train data for epoch {}".format(epoch + 1))
             self.task.load_dataset(
                 self.args.train_subset,
                 epoch=epoch,
