@@ -10,7 +10,7 @@ and `huggingface <https://github.com/huggingface>`_.
 """
 
 import fnmatch
-from functools import wraps
+from functools import wraps, partial
 from hashlib import sha256
 from io import open
 import json
@@ -213,10 +213,22 @@ def s3_get(url, temp_file):
     s3_resource.Bucket(bucket_name).download_fileobj(s3_path, temp_file)
 
 
+def request_wrap_timeout(func, url):
+    import requests
+    timeout = 10
+    while True:
+        try:
+            return func(timeout=timeout)
+        except requests.exceptions.Timeout as e:
+            timeout *= 2
+            logger.warning("Request for %s timed-out. Retrying with a timeout of %d secs", url, timeout, exc_info=e)
+            continue
+
 def http_get(url, temp_file):
     import requests
     from tqdm import tqdm
-    req = requests.get(url, stream=True)
+
+    req = request_wrap_timeout(partial(requests.get, url, stream=True), url)
     content_length = req.headers.get('Content-Length')
     total = int(content_length) if content_length is not None else None
     progress = tqdm(unit="B", total=total)
@@ -246,7 +258,7 @@ def get_from_cache(url, cache_dir=None):
     else:
         try:
             import requests
-            response = requests.head(url, allow_redirects=True)
+            response = request_wrap_timeout(partial(requests.head, url, allow_redirects=True), url)
             if response.status_code != 200:
                 etag = None
             else:
