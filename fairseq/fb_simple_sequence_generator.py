@@ -5,6 +5,7 @@
 
 import math
 from typing import Dict, List, Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -193,13 +194,14 @@ class SimpleSequenceGenerator(nn.Module):
         assert encoder_outs is not None
 
         # initialize buffers
-        scores = torch.zeros(bsz * beam_size, max_len + 1).to(
-            src_tokens.data
+        scores = (
+            torch.zeros(bsz * beam_size, max_len + 1).to(src_tokens).float()
         )  # +1 for eos; pad is never choosed for scoring
         tokens = (
             torch.zeros(bsz * beam_size, max_len + 2)
+            .to(src_tokens)
+            .long()
             .fill_(self.pad)
-            .to(src_tokens.data)
         )  # +2 for eos and pad
         tokens[:, 0] = self.eos if bos_token is None else bos_token
         attn: Optional[Tensor] = None
@@ -251,9 +253,36 @@ class SimpleSequenceGenerator(nn.Module):
             lprobs, avg_attn_scores = self.model.forward_decoder(
                 tokens[:, : step + 1], encoder_outs, self.temperature
             )
+            lprobs[lprobs != lprobs] = torch.tensor(-math.inf).to(lprobs)
 
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
+
+            # handle max length constraint
+            if step >= max_len:
+                lprobs[:, : self.eos] = -math.inf
+                lprobs[:, self.eos + 1 :] = -math.inf
+
+            # handle prefix tokens (possibly with different lengths)
+            if (
+                prefix_tokens is not None
+                and step < prefix_tokens.size(1)
+                and step < max_len
+            ):
+                lprobs, tokens, scores = self._prefix_tokens(
+                    step, lprobs, scores, tokens, prefix_tokens, beam_size
+                )
+            elif step < self.min_len:
+                # minimum length constraint (does not apply if using prefix_tokens)
+                lprobs[:, self.eos] = -math.inf
+
+            # Record attention scores, only support avg_attn_scores is a Tensor
+            if avg_attn_scores is not None:
+                if attn is None:
+                    attn = torch.empty(
+                        bsz * beam_size, src_tokens.size(1), max_len + 2
+                    ).to(scores)
+                attn[:, :, step + 1].copy_(avg_attn_scores)
 
             scores = scores.type_as(lprobs)
             eos_bbsz_idx = torch.empty(0).to(
@@ -262,93 +291,14 @@ class SimpleSequenceGenerator(nn.Module):
             eos_scores = torch.empty(0).to(
                 scores
             )  # scores of hypothesis ending with eos (finished sentences)
-            if step < max_len:
-                # handle prefix tokens (possibly with different lengths)
-                if (
-                    prefix_tokens is not None
-                    and step < prefix_tokens.size(1)
-                ):
-                    prefix_toks = (
-                        prefix_tokens[:, step]
-                        .unsqueeze(-1)
-                        .repeat(1, beam_size)
-                        .view(-1)
-                    )
-                    prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
-                    prefix_mask = prefix_toks.ne(self.pad)
-                    lprobs[prefix_mask] = torch.tensor(-math.inf).to(lprobs)
-                    lprobs[prefix_mask] = lprobs[prefix_mask].scatter_(
-                        -1,
-                        prefix_toks[prefix_mask].unsqueeze(-1),
-                        prefix_lprobs[prefix_mask],
-                    )
-                    # if prefix includes eos, then we should make sure tokens and
-                    # scores are the same across all beams
-                    eos_mask = prefix_toks.eq(self.eos)
-                    if eos_mask.any():
-                        # validate that the first beam matches the prefix
-                        first_beam = tokens[eos_mask].view(
-                            -1, beam_size, tokens.size(-1)
-                        )[:, 0, 1:step + 1]
-                        eos_mask_batch_dim = eos_mask.view(-1, beam_size)[:, 0]
-                        target_prefix = prefix_tokens[eos_mask_batch_dim][:, :step]
-                        assert (first_beam == target_prefix).all()
 
-                        # copy tokens, scores and lprobs from the first beam to all beams
-                        tokens = tokens.view(-1, beam_size, tokens.size(-1))
-                        tokens[eos_mask_batch_dim] = tokens[eos_mask_batch_dim][
-                            :, :1, :
-                        ]
-                        tokens = tokens.view(-1, tokens.size(-1))
+            self.search.set_src_lengths(src_lengths)
 
-                        scores = scores.view(-1, beam_size, scores.size(-1))
-                        scores[eos_mask_batch_dim] = scores[eos_mask_batch_dim][
-                            :, :1, :
-                        ]
-                        scores = scores.view(-1, scores.size(-1))
-
-                        lprobs = lprobs.view(-1, beam_size, lprobs.size(-1))
-                        lprobs[eos_mask_batch_dim] = lprobs[eos_mask_batch_dim][
-                            :, :1, :
-                        ]
-                        lprobs = lprobs.view(-1, lprobs.size(-1))
-
-                self.search.set_src_lengths(src_lengths)
-                cand_scores, cand_indices, cand_beams = self.search.step(
-                    step,
-                    lprobs.view(bsz, -1, self.vocab_size),
-                    scores.view(bsz, beam_size, -1)[:, :, :step],
-                )
-            else:
-                # make probs contain cumulative scores for each hypothesis
-                lprobs.add_(scores[:, step - 1].unsqueeze(-1))
-
-                # finalize all active hypotheses once we hit maxlen
-                # pick the hypothesis with the highest prob of EOS right now
-                eos_scores, eos_bbsz_idx = torch.sort(
-                    lprobs[:, self.eos], descending=True
-                )
-                finalized_sents = self.finalize_hypos(
-                    step,
-                    eos_bbsz_idx,
-                    eos_scores,
-                    tokens,
-                    scores,
-                    finalized,
-                    finished,
-                    beam_size,
-                    attn,
-                    src_lengths,
-                    max_len,
-                )
-                num_remaining_sent -= len(finalized_sents)
-
-                # dummy data to be consistent with true branch for type check
-                cand_beams = torch.empty(0)
-                cand_indices = torch.empty(0)
-                cand_scores = torch.empty(0)
-                assert num_remaining_sent == 0
-                break
+            cand_scores, cand_indices, cand_beams = self.search.step(
+                step,
+                lprobs.view(bsz, -1, self.vocab_size),
+                scores.view(bsz, beam_size, -1)[:, :, :step],
+            )
 
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
@@ -384,8 +334,10 @@ class SimpleSequenceGenerator(nn.Module):
                 )
                 num_remaining_sent -= len(finalized_sents)
 
+            assert num_remaining_sent >= 0
             if num_remaining_sent == 0:
                 break
+            assert step < max_len
 
             if len(finalized_sents) > 0:
                 new_bsz = bsz - len(finalized_sents)
@@ -404,7 +356,6 @@ class SimpleSequenceGenerator(nn.Module):
                 cand_scores = cand_scores[batch_idxs]
                 cand_indices = cand_indices[batch_idxs]
 
-                # Will suuport prefix_token and blacklist later.
                 if prefix_tokens is not None:
                     prefix_tokens = prefix_tokens[batch_idxs]
                 src_lengths = src_lengths[batch_idxs]
@@ -454,13 +405,19 @@ class SimpleSequenceGenerator(nn.Module):
             tokens.view(bsz, beam_size, -1)[:, :, step + 1] = torch.gather(
                 cand_indices, dim=1, index=active_hypos
             )
-
-            scores[:, :step] = torch.index_select(
-                scores[:, :step], dim=0, index=active_bbsz_idx
-            )
+            if step > 0:
+                scores[:, :step] = torch.index_select(
+                    scores[:, :step], dim=0, index=active_bbsz_idx
+                )
             scores.view(bsz, beam_size, -1)[:, :, step] = torch.gather(
                 cand_scores, dim=1, index=active_hypos
             )
+
+            # copy attention for active hypotheses
+            if attn is not None:
+                attn[:, :, : step + 2] = torch.index_select(
+                    attn[:, :, : step + 2], dim=0, index=active_bbsz_idx
+                )
 
             # reorder incremental state in decoder
             reorder_state = active_bbsz_idx
@@ -468,7 +425,9 @@ class SimpleSequenceGenerator(nn.Module):
         # sort by score descending
         for sent in range(len(finalized)):
             # make into beam container
-            BCList = [BeamContainer(elem["score"].item(), elem) for elem in finalized[sent]]
+            BCList = [
+                BeamContainer(elem["score"].item(), elem) for elem in finalized[sent]
+            ]
             BCList.sort()
             BCList.reverse()
             finalized[sent] = torch.jit.annotate(
@@ -476,6 +435,40 @@ class SimpleSequenceGenerator(nn.Module):
             )
 
         return finalized
+
+    def _prefix_tokens(
+        self, step: int, lprobs, scores, tokens, prefix_tokens, beam_size: int
+    ):
+        """Handle prefix tokens"""
+        prefix_toks = prefix_tokens[:, step].unsqueeze(-1).repeat(1, beam_size).view(-1)
+        prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
+        prefix_mask = prefix_toks.ne(self.pad)
+        lprobs[prefix_mask] = torch.tensor(-math.inf).to(lprobs)
+        lprobs[prefix_mask] = lprobs[prefix_mask].scatter_(
+            -1, prefix_toks[prefix_mask].unsqueeze(-1), prefix_lprobs[prefix_mask]
+        )
+        # if prefix includes eos, then we should make sure tokens and
+        # scores are the same across all beams
+        eos_mask = prefix_toks.eq(self.eos)
+        if eos_mask.any():
+            # validate that the first beam matches the prefix
+            first_beam = tokens[eos_mask].view(-1, beam_size, tokens.size(-1))[
+                :, 0, 1 : step + 1
+            ]
+            eos_mask_batch_dim = eos_mask.view(-1, beam_size)[:, 0]
+            target_prefix = prefix_tokens[eos_mask_batch_dim][:, :step]
+            assert (first_beam == target_prefix).all()
+
+            # copy tokens, scores and lprobs from the first beam to all beams
+            tokens = self.replicate_first_beam(tokens, eos_mask_batch_dim, beam_size)
+            scores = self.replicate_first_beam(scores, eos_mask_batch_dim, beam_size)
+            lprobs = self.replicate_first_beam(lprobs, eos_mask_batch_dim, beam_size)
+        return lprobs, tokens, scores
+
+    def replicate_first_beam(self, tensor, mask, beam_size: int):
+        tensor = tensor.view(-1, beam_size, tensor.size(-1))
+        tensor[mask] = tensor[mask][:, :1, :]
+        return tensor.view(-1, tensor.size(-1))
 
     def finalize_hypos(
         self,
@@ -502,7 +495,7 @@ class SimpleSequenceGenerator(nn.Module):
         tokens_clone = tokens.index_select(0, bbsz_idx)[
             :, 1 : step + 2
         ]  # skip the first index, which is EOS
-        assert not tokens_clone.eq(self.eos).any()
+
         tokens_clone[:, step] = self.eos
         attn_clone = (
             attn.index_select(0, bbsz_idx)[:, :, 1 : step + 2]
@@ -537,12 +530,12 @@ class SimpleSequenceGenerator(nn.Module):
             sent = unfin_idx + cum_unfin[unfin_idx]
             # Cannot create dict for key type '(int, int)' in torchscript.
             # The workaround is to cast int to string
-            seen = str(sent.item()) + '_' + str(unfin_idx.item())
+            seen = str(sent.item()) + "_" + str(unfin_idx.item())
             if seen not in sents_seen:
                 sents_seen[seen] = None
 
             if self.match_source_len and step > src_lengths[unfin_idx]:
-                score = torch.tensor(-math.inf).long()
+                score = torch.tensor(-math.inf).to(score)
 
             if len(finalized[sent]) < beam_size:
                 if attn_clone is not None:
@@ -563,8 +556,8 @@ class SimpleSequenceGenerator(nn.Module):
         newly_finished: List[int] = []
         for seen in sents_seen.keys():
             # check termination conditions for this sentence
-            sent: int = int(float(seen.split('_')[0]))
-            unfin_idx: int = int(float(seen.split('_')[1]))
+            sent: int = int(float(seen.split("_")[0]))
+            unfin_idx: int = int(float(seen.split("_")[1]))
             if not finished[sent] and self.is_finished(
                 step, unfin_idx, max_len, len(finalized[sent]), beam_size
             ):
@@ -676,7 +669,9 @@ class EnsembleModel(nn.Module):
             # decode each model
             if self.has_incremental_states():
                 decoder_out = model.decoder.forward(
-                    tokens, encoder_out=encoder_out, incremental_state=self.incremental_states[i]
+                    tokens,
+                    encoder_out=encoder_out,
+                    incremental_state=self.incremental_states[i],
                 )
             else:
                 decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
@@ -801,4 +796,5 @@ class BeamContainer(object):
         # type: (BeamContainer) -> bool
         # Due to https://github.com/pytorch/pytorch/issues/20388,
         # this has to use old style type annotations
-        return self.score < other.score
+        # Match original behavior of sorted function when two scores are equal.
+        return self.score <= other.score

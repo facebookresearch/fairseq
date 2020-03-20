@@ -102,6 +102,8 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
         "Check two hypos are equal"
         self.assertTensorEqual(h1["tokens"], h2["tokens"])
         self.assertAlmostEqual(h1["positional_scores"], h2["positional_scores"])
+        self.assertLess(abs(h1["score"] - h2["score"]), 1e-6)
+        self.assertAlmostEqual(h1["attention"], h2["attention"])
 
     def _test_save_and_load(self, scripted_module):
         with tempfile.NamedTemporaryFile() as f:
