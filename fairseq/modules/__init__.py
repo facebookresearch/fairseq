@@ -21,7 +21,6 @@ from .learned_positional_embedding import LearnedPositionalEmbedding
 from .lightweight_convolution import LightweightConv, LightweightConv1dTBC
 from .linearized_convolution import LinearizedConvolution
 from .multihead_attention import MultiheadAttention
-from .model_parallel.multihead_attention import ModelParallelMultiheadAttention as ModelParallelMultiheadAttention
 from .positional_embedding import PositionalEmbedding
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
@@ -53,7 +52,6 @@ __all__ = [
     'LightweightConv1dTBC',
     'LightweightConv',
     'LinearizedConvolution',
-    'ModelParallelMultiheadAttention',
     'MultiheadAttention',
     'PositionalEmbedding',
     'ScalarBias',
