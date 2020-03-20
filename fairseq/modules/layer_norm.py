@@ -16,7 +16,8 @@ try:
     class FusedLayerNorm(_FusedLayerNorm):
         @torch.jit.unused
         def forward(self, x):
-            return super().forward(x)
+            with torch.cuda.device(x.device):
+                return super().forward(x)
 
 except ImportError:
     has_fused_layernorm = False
