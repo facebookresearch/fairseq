@@ -28,12 +28,20 @@ class MaskedLmLoss(FairseqCriterion):
         """
         # compute MLM loss
         masked_tokens = sample['target'].ne(self.padding_idx)
-        masked_tokens = torch.where(
-            # (rare case) when all tokens are masked, project all tokens
-            masked_tokens.any(),
-            masked_tokens,
-            masked_tokens.new([True]),
-        )
+
+        # Rare: when all tokens are masked, project all tokens.
+        # We use torch.where to avoid device-to-host transfers,
+        # except on CPU where torch.where is not well supported
+        # (see github.com/pytorch/pytorch/issues/26247).
+        if masked_tokens.device == torch.device('cpu'):
+            if not masked_tokens.any():
+                masked_tokens.fill_(True)
+        else:
+            masked_tokens = torch.where(
+                masked_tokens.any(),
+                masked_tokens,
+                masked_tokens.new([True]),
+            )
 
         logits = model(**sample['net_input'], masked_tokens=masked_tokens)[0]
         targets = model.get_targets(sample, [logits])

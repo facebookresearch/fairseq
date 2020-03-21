@@ -56,7 +56,7 @@ class SentencePredictionCriterion(FairseqCriterion):
                 reduction='sum',
             )
         else:
-            logits = logits.squeeze().float()
+            logits = logits.view(-1).float()
             targets = targets.float()
             loss = F.mse_loss(
                 logits,
