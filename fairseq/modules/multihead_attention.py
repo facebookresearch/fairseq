@@ -378,17 +378,18 @@ class MultiheadAttention(nn.Module):
         # leaves the frame, there will be a time when prev or current
         # is None
         elif prev_key_padding_mask is not None:
-
-            filler = torch.zeros(batch_size, src_len - prev_key_padding_mask.size(1))
-            if prev_key_padding_mask.is_cuda:
-                filler = filler.cuda()
+            filler = torch.zeros(
+                (batch_size, src_len - prev_key_padding_mask.size(1)),
+                device=prev_key_padding_mask.device,
+            )
             new_key_padding_mask = torch.cat(
                 [prev_key_padding_mask.float(), filler.float()], dim=1
             )
         elif key_padding_mask is not None:
-            filler = torch.zeros(batch_size, src_len - key_padding_mask.size(1))
-            if key_padding_mask.is_cuda:
-                filler = filler.cuda()
+            filler = torch.zeros(
+                (batch_size, src_len - key_padding_mask.size(1)),
+                device=key_padding_mask.device,
+            )
             new_key_padding_mask = torch.cat(
                 [filler.float(), key_padding_mask.float()], dim=1
             )
