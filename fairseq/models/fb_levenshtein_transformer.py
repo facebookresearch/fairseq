@@ -733,7 +733,7 @@ def base_architecture(args):
     args.share_decoder_input_output_embed = getattr(
         args, "share_decoder_input_output_embed", False
     )
-    args.share_all_embeddings = getattr(args, "share_all_embeddings", True)
+    args.share_all_embeddings = getattr(args, "share_all_embeddings", False)
     args.no_token_positional_embeddings = getattr(
         args, "no_token_positional_embeddings", False
     )
