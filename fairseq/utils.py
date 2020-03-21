@@ -67,6 +67,13 @@ def move_to_cuda(sample):
     return apply_to_sample(_move_to_cuda, sample)
 
 
+def move_to_cpu(sample):
+    def _move_to_cpu(tensor):
+        return tensor.cpu()
+
+    return apply_to_sample(_move_to_cpu, sample)
+
+
 def get_incremental_state(
     module: MultiheadAttention,
     incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
