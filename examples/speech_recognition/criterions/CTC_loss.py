@@ -12,7 +12,7 @@ from itertools import groupby
 import torch
 import torch.nn.functional as F
 from fairseq import utils
-from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.criterions import LegacyFairseqCriterion, register_criterion
 from examples.speech_recognition.data.data_utils import encoder_padding_mask_to_lengths
 from examples.speech_recognition.utils.wer_utils import Code, EditDistance, Token
 
@@ -75,7 +75,7 @@ def compute_ctc_uer(logprobs, targets, input_lengths, target_lengths, blank_idx)
 
 
 @register_criterion("ctc_loss")
-class CTCCriterion(FairseqCriterion):
+class CTCCriterion(LegacyFairseqCriterion):
     def __init__(self, args, task):
         super().__init__(args, task)
         self.blank_idx = task.target_dictionary.index("<ctc_blank>")
