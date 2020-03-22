@@ -294,6 +294,9 @@ class SimpleSequenceGenerator(nn.Module):
 
             self.search.set_src_lengths(src_lengths)
 
+            if self.no_repeat_ngram_size > 0:
+                lprobs = self._no_repeat_ngram(tokens, lprobs, bsz, beam_size, step)
+
             cand_scores, cand_indices, cand_beams = self.search.step(
                 step,
                 lprobs.view(bsz, -1, self.vocab_size),
@@ -582,6 +585,31 @@ class SimpleSequenceGenerator(nn.Module):
         if finalized_sent_len == beam_size or step == max_len:
             return True
         return False
+
+    @torch.jit.unused
+    def _no_repeat_ngram(self, tokens, lprobs, bsz: int, beam_size: int, step: int):
+        # for each beam and batch sentence, generate a list of previous ngrams
+        gen_ngrams = [{} for bbsz_idx in range(bsz * beam_size)]
+        for bbsz_idx in range(bsz * beam_size):
+            gen_tokens = tokens[bbsz_idx].tolist()
+            for ngram in zip(*[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]):
+                gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = \
+                        gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
+
+        def calculate_banned_tokens(bbsz_idx):
+            # before decoding the next token, prevent decoding of ngrams that have already appeared
+            ngram_index = tuple(tokens[bbsz_idx, step + 2 - self.no_repeat_ngram_size:step + 1].tolist())
+            return gen_ngrams[bbsz_idx].get(ngram_index, [])
+
+        if step + 2 - self.no_repeat_ngram_size >= 0:
+            # no banned tokens if we haven't generated no_repeat_ngram_size tokens yet
+            banned_tokens = [calculate_banned_tokens(bbsz_idx) for bbsz_idx in range(bsz * beam_size)]
+        else:
+            banned_tokens = [[] for bbsz_idx in range(bsz * beam_size)]
+
+        for bbsz_idx in range(bsz * beam_size):
+            lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = -math.inf
+        return lprobs
 
     def _decode(self, tokens, encoder_out: EncoderOut, temperature: float = 1.0):
         if self.incremental_states is not None:

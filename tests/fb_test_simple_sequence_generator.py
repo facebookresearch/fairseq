@@ -71,10 +71,7 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
         src_tokens = torch.cat((src_tokens, torch.LongTensor([[eos], [eos]])), -1)
         src_lengths = torch.LongTensor([2, 10])
         self.sample = {
-            'net_input': {
-                'src_tokens': src_tokens,
-                'src_lengths': src_lengths,
-            },
+            "net_input": {"src_tokens": src_tokens, "src_lengths": src_lengths}
         }
         TransformerModel.add_args(self.parser)
         args = self.parser.parse_args([])
@@ -112,7 +109,6 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
 
 
 class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
-
     @unittest.skipIf(
         torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
     )
@@ -158,8 +154,32 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
         prefix_tokens = self.sample["net_input"]["src_tokens"]
         if prefix_tokens[:, 0].eq(bos_token).all():
             prefix_tokens = prefix_tokens[:, 1:]
-        hypos = generator.generate([model], self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token)
-        simple_hypos = simple_generator.generate(self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token)
+        hypos = generator.generate(
+            [model], self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token
+        )
+        simple_hypos = simple_generator.generate(
+            self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token
+        )
+        # sentence 1, beam 1
+        self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
+        # sentence 1, beam 2
+        self.assertHypoEqual(hypos[0][1], simple_hypos[0][1])
+        # sentence 2, beam 1
+        self.assertHypoEqual(hypos[1][0], simple_hypos[1][0])
+        # sentence 2, beam 2
+        self.assertHypoEqual(hypos[1][1], simple_hypos[1][1])
+
+    def test_no_repeat_ngram(self):
+        model = self.transformer_model
+        simple_generator = SimpleSequenceGenerator(
+            [model], self.task.tgt_dict, beam_size=2, no_repeat_ngram_size=3
+        )
+        generator = SequenceGenerator(
+            self.task.tgt_dict, beam_size=2, no_repeat_ngram_size=3
+        )
+
+        hypos = generator.generate([model], self.sample)
+        simple_hypos = simple_generator.generate(self.sample)
         # sentence 1, beam 1
         self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
         # sentence 1, beam 2
@@ -231,10 +251,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
             test_utils.sequence_generator_setup()
         )
         self.sample = {
-            'net_input': {
-                'src_tokens': src_tokens,
-                'src_lengths': src_lengths,
-            },
+            "net_input": {"src_tokens": src_tokens, "src_lengths": src_lengths}
         }
 
     def test_with_normalization(self):
