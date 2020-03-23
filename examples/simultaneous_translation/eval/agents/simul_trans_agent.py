@@ -56,7 +56,6 @@ class SimulTransAgent(Agent):
 
         state = checkpoint_utils.load_checkpoint_to_cpu(filename, eval(args.model_overrides))
 
-        import pdb;pdb.set_trace()
         saved_args = state["args"]
         saved_args.data = args.data_bin
 
