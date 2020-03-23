@@ -22,6 +22,7 @@ from .lightweight_convolution import LightweightConv, LightweightConv1dTBC
 from .linearized_convolution import LinearizedConvolution
 from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
+from .quant_noise import StructuredDropout, StructuredDropLinear
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 from .transformer_sentence_encoder_layer import TransformerSentenceEncoderLayer
@@ -54,6 +55,7 @@ __all__ = [
     'LinearizedConvolution',
     'MultiheadAttention',
     'PositionalEmbedding',
+    'QuantNoise',
     'ScalarBias',
     'SinusoidalPositionalEmbedding',
     'TransformerSentenceEncoderLayer',

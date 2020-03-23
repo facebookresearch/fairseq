@@ -24,6 +24,7 @@ from fairseq.modules import (
     TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from fairseq.modules.quant_noise import StructuredDropLinear
 
 from .hub_interface import RobertaHubInterface
 
@@ -88,6 +89,10 @@ class RobertaModel(FairseqLanguageModel):
                             help='LayerDrop probability for encoder')
         parser.add_argument('--encoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
+        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
+        parser.add_argument('--quant-noise', type=float, metavar='D', default=0, help='quantization noise at training time')
+        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8, help='block size of quantization noise at training time')
+        parser.add_argument('--untie-weights-roberta', action='store_true', help='Untie weights between embeddings and classifiers in RoBERTa')
 
     @classmethod
     def build_model(cls, args, task):
@@ -130,6 +135,8 @@ class RobertaModel(FairseqLanguageModel):
             num_classes,
             self.args.pooler_activation_fn,
             self.args.pooler_dropout,
+            args.quant_noise,
+            args.quant_noise_block_size
         )
 
     @property
@@ -230,12 +237,12 @@ class RobertaLMHead(nn.Module):
 class RobertaClassificationHead(nn.Module):
     """Head for sentence-level classification tasks."""
 
-    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout):
+    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout, q_noise, qn_block_size):
         super().__init__()
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout = nn.Dropout(p=pooler_dropout)
-        self.out_proj = nn.Linear(inner_dim, num_classes)
+        self.out_proj = StructuredDropLinear(inner_dim, num_classes, p=q_noise, block_size=qn_block_size)
 
     def forward(self, features, **kwargs):
         x = features[:, 0, :]  # take <s> token (equiv. to [CLS])
@@ -282,12 +289,16 @@ class RobertaEncoder(FairseqDecoder):
             encoder_normalize_before=True,
             apply_bert_init=True,
             activation_fn=args.activation_fn,
+            q_noise=args.quant_noise,
+            qn_block_size=args.quant_noise_block_size
         )
+        args.untie_weights_bert = args.untie_weights_bert if 'untie_weights_bert' in args else False
+
         self.lm_head = RobertaLMHead(
             embed_dim=args.encoder_embed_dim,
             output_dim=len(dictionary),
             activation_fn=args.activation_fn,
-            weight=self.sentence_encoder.embed_tokens.weight,
+            weight=self.sentence_encoder.embed_tokens.weight if not args.untie_weights_bert else None,
         )
 
     def forward(self, src_tokens, features_only=False, return_all_hiddens=False, masked_tokens=None, **unused):

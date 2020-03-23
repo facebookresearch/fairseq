@@ -8,33 +8,47 @@ import functools
 
 import torch
 import torch.nn.functional as F
+from fairseq.modules.quant_noise import StructuredDropLinear
 from torch import nn
 
 
 class TiedLinear(nn.Module):
-    def __init__(self, weight, transpose):
+    def __init__(self, weight, transpose, p, block_size):
         super().__init__()
         self.weight = weight
         self.transpose = transpose
+        self.p = p
+        self.block_size = block_size
 
     def forward(self, input):
+        if self.training and self.p > 0:
+            weight = self.weight
+            in_features = weight.size(0)
+            out_features = weight.size(1)
+
+            mask = torch.zeros(in_features // self.block_size * out_features, device=weight.device)
+            mask.bernoulli_(self.p)
+            mask = mask.repeat_interleave(self.block_size, -1).view(-1, in_features).bool()
+            s = 1 / (1 - self.p)
+
+            self.weight.data =  s * weight.masked_fill(mask.t(), 0)
         return F.linear(input, self.weight.t() if self.transpose else self.weight)
 
 
 class TiedHeadModule(nn.Module):
-    def __init__(self, weights, input_dim, num_classes):
+    def __init__(self, weights, input_dim, num_classes, p, block_size):
         super().__init__()
         tied_emb, _ = weights
         self.num_words, emb_dim = tied_emb.size()
 
-        self.word_proj = TiedLinear(tied_emb, transpose=False)
+        self.word_proj = TiedLinear(tied_emb, transpose=False, p=p, block_size=block_size)
         if input_dim != emb_dim:
             self.word_proj = nn.Sequential(
-                nn.Linear(input_dim, emb_dim, bias=False),
+                StructuredDropLinear(input_dim, emb_dim, bias=False, p=p, block_size=block_size),
                 self.word_proj,
             )
 
-        self.class_proj = nn.Linear(input_dim, num_classes, bias=False)
+        self.class_proj = StructuredDropLinear(input_dim, num_classes, bias=False, p=p, block_size=block_size)
         self.out_dim = self.num_words + num_classes
 
         self.register_buffer('_float_tensor', torch.FloatTensor(1))
@@ -54,7 +68,7 @@ class AdaptiveSoftmax(nn.Module):
     approximation for GPUs" (http://arxiv.org/abs/1609.04309).
     """
 
-    def __init__(self, vocab_size, input_dim, cutoff, dropout, factor=4., adaptive_inputs=None, tie_proj=False):
+    def __init__(self, vocab_size, input_dim, cutoff, dropout, factor=4., adaptive_inputs=None, tie_proj=False, q_noise=0, qn_block_size=8):
         super().__init__()
 
         if vocab_size > cutoff[-1]:
@@ -70,13 +84,15 @@ class AdaptiveSoftmax(nn.Module):
         self.dropout = dropout
         self.input_dim = input_dim
         self.factor = factor
+        self.quant_noise = q_noise
+        self.quant_noise_block_size = qn_block_size
 
         self.lsm = nn.LogSoftmax(dim=1)
 
         if adaptive_inputs is not None:
-            self.head = TiedHeadModule(adaptive_inputs.weights_for_band(0), input_dim, len(cutoff) - 1)
+            self.head = TiedHeadModule(adaptive_inputs.weights_for_band(0), input_dim, len(cutoff) - 1, p=self.quant_noise, block_size=self.quant_noise_block_size)
         else:
-            self.head = nn.Linear(input_dim, output_dim, bias=False)
+            self.head = StructuredDropLinear(input_dim, output_dim, bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size)
 
         self._make_tail(adaptive_inputs, tie_proj)
 
@@ -98,18 +114,18 @@ class AdaptiveSoftmax(nn.Module):
 
             if tied_proj is not None:
                 if tie_proj:
-                    proj = TiedLinear(tied_proj, transpose=True)
+                    proj = TiedLinear(tied_proj, transpose=True, p=self.quant_noise, block_size=self.quant_noise_block_size)
                 else:
-                    proj = nn.Linear(tied_proj.size(0), tied_proj.size(1), bias=False)
+                    proj = StructuredDropLinear(tied_proj.size(0), tied_proj.size(1), bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size)
             else:
-                proj = nn.Linear(self.input_dim, dim, bias=False)
+                proj = StructuredDropLinear(self.input_dim, dim, bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size)
 
             m = nn.Sequential(
                 proj,
                 nn.Dropout(self.dropout),
-                nn.Linear(
-                    dim, self.cutoff[i + 1] - self.cutoff[i], bias=False,
-                ) if tied_emb is None else TiedLinear(tied_emb, transpose=False),
+                StructuredDropLinear(
+                    dim, self.cutoff[i + 1] - self.cutoff[i], bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size
+                ) if tied_emb is None else TiedLinear(tied_emb, transpose=False, p=self.quant_noise, block_size=self.quant_noise_block_size),
             )
 
             self.tail.append(m)

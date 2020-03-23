@@ -6,6 +6,7 @@
 
 import torch
 from torch import nn
+from fairseq.modules.quant_noise import StructuredDropLinear
 
 from typing import List
 
@@ -20,6 +21,8 @@ class AdaptiveInput(nn.Module):
         factor: float,
         output_dim: int,
         cutoff: List[int],
+        q_noise: float,
+        qn_block_size: int,
     ):
         super().__init__()
 
@@ -40,7 +43,7 @@ class AdaptiveInput(nn.Module):
             dim = int(initial_dim // (factor ** i))
             seq = nn.Sequential(
                 nn.Embedding(size, dim, self.padding_idx),
-                nn.Linear(dim, output_dim, bias=False)
+                StructuredDropLinear(dim, output_dim, bias=False, p=q_noise, block_size=qn_block_size)
             )
             self.embeddings.append(seq)
             self.padding_idx = None

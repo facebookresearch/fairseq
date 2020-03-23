@@ -142,6 +142,10 @@ class TransformerModel(FairseqEncoderDecoderModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        parser.add_argument('--layernorm-embedding', action='store_true',
+                            help='add layernorm to embedding')
+        parser.add_argument('--no-scale-embedding', action='store_true',
+                            help='if True, dont scale embeddings')
         # args for "Cross+Self-Attention for Transformer Models" (Peitz et al., 2019)
         parser.add_argument('--no-cross-attention', default=False, action='store_true',
                             help='do not perform cross-attention')
@@ -158,10 +162,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='which layers to *keep* when pruning as a comma-separated list')
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
-        parser.add_argument('--layernorm-embedding', action='store_true',
-                            help='add layernorm to embedding')
-        parser.add_argument('--no-scale-embedding', action='store_true',
-                            help='if True, dont scale embeddings')
+        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
+        parser.add_argument('--quant-noise', type=float, metavar='D', default=0, help='quantization noise at training time')
+        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8, help='block size of quantization noise at training time')
         # fmt: on
 
     @classmethod
@@ -373,6 +376,7 @@ class TransformerEncoder(FairseqEncoder):
         self.register_buffer("version", torch.Tensor([3]))
 
         self.dropout = args.dropout
+        self.quant_noise = args.quant_noise
         self.encoder_layerdrop = args.encoder_layerdrop
 
         embed_dim = embed_tokens.embedding_dim
@@ -393,6 +397,9 @@ class TransformerEncoder(FairseqEncoder):
             if not args.no_token_positional_embeddings
             else None
         )
+
+        if not args.adaptive_input and self.quant_noise > 0:
+            self.embed_dropout = StructuredDropLinear(embed_dim, embed_dim, bias=False, p=args.q_noise, block_size=args.qn_block_size)
 
         self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
@@ -422,6 +429,8 @@ class TransformerEncoder(FairseqEncoder):
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
+        if self.quant_noise > 0:
+            x = self.embed_dropout(x)
         return x, embed
 
     def forward(
@@ -595,6 +604,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self._future_mask = torch.empty(0)
 
         self.dropout = args.dropout
+        self.quant_noise = args.quant_noise
         self.decoder_layerdrop = args.decoder_layerdrop
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
@@ -609,6 +619,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.embed_tokens = embed_tokens
 
         self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
+
+        if args.adaptive_input:
+            self.adaptive_input = True
+        else:
+            self.adaptive_input = None
+
+        if not args.adaptive_input and self.quant_noise > 0:
+            self.embed_dropout = StructuredDropLinear(embed_dim, embed_dim, bias=False, p=args.q_noise, block_size=args.qn_block_size)
 
         self.project_in_dim = (
             Linear(input_embed_dim, embed_dim, bias=False)
@@ -762,6 +780,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
+
+        if not self.adaptive_input and self.quant_noise > 0:
+            x = self.embed_dropout(x)
 
         if self.project_in_dim is not None:
             x = self.project_in_dim(x)
