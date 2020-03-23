@@ -340,12 +340,13 @@ class Trainer(object):
                 else:
                     raise e
 
-        if is_dummy_batch:
-            sample_size *= 0.  # multiply by 0 to preserve device
         if torch.is_tensor(sample_size):
             sample_size = sample_size.float()
         else:
             sample_size = float(sample_size)
+
+        if is_dummy_batch:
+            sample_size *= 0.  # multiply by 0 to preserve device
 
         # gather logging outputs from all replicas
         if self._sync_stats():
