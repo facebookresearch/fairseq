@@ -15,6 +15,7 @@ from fairseq.models import (
     FairseqEncoderDecoderModel,
     FairseqIncrementalDecoder,
 )
+from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.tasks import FairseqTask
 
 
@@ -170,10 +171,20 @@ class TestEncoder(FairseqEncoder):
         self.args = args
 
     def forward(self, src_tokens, src_lengths=None, **kwargs):
-        return src_tokens
+        return EncoderOut(
+            encoder_out=src_tokens,
+            encoder_padding_mask=None,
+            encoder_embedding=None,
+            encoder_states=None,
+        )
 
     def reorder_encoder_out(self, encoder_out, new_order):
-        return encoder_out.index_select(0, new_order)
+        return EncoderOut(
+            encoder_out=encoder_out.encoder_out.index_select(0, new_order),
+            encoder_padding_mask=None,
+            encoder_embedding=None,
+            encoder_states=None,
+        )
 
 
 class TestIncrementalDecoder(FairseqIncrementalDecoder):
@@ -188,7 +199,7 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
             prev_output_tokens = prev_output_tokens[:, -1:]
         bbsz = prev_output_tokens.size(0)
         vocab = len(self.dictionary)
-        src_len = encoder_out.size(1)
+        src_len = encoder_out.encoder_out.size(1)
         tgt_len = prev_output_tokens.size(1)
 
         # determine number of steps
@@ -247,10 +258,21 @@ class TestReshapingEncoder(FairseqEncoder):
         if padding_needed > 0:
             padding_needed = 2 - padding_needed
             x = F.pad(x, (0, padding_needed))
-        return x.view(b_sz, -1, 2)
+
+        return EncoderOut(
+            encoder_out=x.view(b_sz, -1, 2),
+            encoder_padding_mask=None,
+            encoder_embedding=None,
+            encoder_states=None,
+        )
 
     def reorder_encoder_out(self, encoder_out, new_order):
-        return encoder_out.index_select(0, new_order)
+        return EncoderOut(
+            encoder_out=encoder_out.encoder_out.index_select(0, new_order),
+            encoder_padding_mask=None,
+            encoder_embedding=None,
+            encoder_states=None,
+        )
 
 
 class TestReshapingModel(FairseqEncoderDecoderModel):
