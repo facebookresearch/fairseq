@@ -41,9 +41,6 @@ class BPEWordSplitter(object):
         length = len(tokens)
         # Begin of word indices
         bow_indices = [0] + [i + 1 for i, t in enumerate(tokens[1:]) if t[-2:] != '@@'] 
-        #print(tokens)
-        #print(bow_indices)
-        #import pdb; pdb.set_trace()
 
         if len(bow_indices) < 2:
             return 0

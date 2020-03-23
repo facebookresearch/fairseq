@@ -22,16 +22,22 @@ Install SentencePiece. One easy way is to use anaconda:
 conda install -c powerai sentencepiece
 ```
 
+Other requirements:
+* yaml: `pip install pyyaml`
+* tornado: `pip install tornado`
+* vizseq: `pip install vizseq`
+* soundfile: `pip install soundfile`
+* torchaudio: `pip install torchaudio`
+
 Download the MuST-C data for English-German available at https://ict.fbk.eu/must-c/.
 In this example we will assume that the data is downloaded in a directory called ./experiments/data/must_c_1_0/en-de.
-
 
 ## **Text-to-text Model**
 ---
 ### Data Preparation
 Train a SentencePiece model:
 ```shell
-cd $FAIRSEQ/example/simultaneous_translation
+cd $FAIRSEQ/examples/simultaneous_translation
 DATA_ROOT=./experiments/data/must_c_1_0/en-de
 for lang in en de; do
     python $FAIRSEQ/examples/simultaneous_translation/data/train_spm.py \
@@ -41,6 +47,7 @@ for lang in en de; do
         --model-type unigram \
         --lang $lang \
         --out-path $DATA_ROOT
+done
 ```
 
 Process the data with the SentencePiece model:
@@ -68,7 +75,7 @@ fairseq-preprocess \
     --thresholdtgt 0 \
     --thresholdsrc 0 \
     --workers 20 \
-    --destdir $DATA_ROOT/data-bin/mustc_en_de \
+    --destdir $DATA_ROOT/data-bin/mustc_en_de
 ```
 
 ### Training
@@ -102,7 +109,7 @@ First, segment wav files.
 cd $FAIRSEQ/example/simultaneous_translation
 DATA_ROOT=./experiments/data/must_c_1_0/en-de
 python $FAIRSEQ/examples/simultaneous_translation/data/segment_wav.py \
-    --datapath $DATA_ROOT/data
+    --data-path $DATA_ROOT/data
 ```
 Similar to text-to-text model, train a Sentencepiecemodel, but only train on German
 ```Shell
@@ -111,7 +118,7 @@ python $FAIRSEQ/examples/simultaneous_translation/data/train_spm.py \
     --vocab-size 10000 \
     --max-frame 3000 \
     --model-type unigram \
-    --lang $lang \
+    --lang de \
     --out-path $DATA_ROOT
 ```
 ## Training
