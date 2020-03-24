@@ -182,9 +182,12 @@ def main(args):
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
                 )
-                hypo_str = decode_fn(hypo_str)
+                detok_hypo_str = decode_fn(hypo_str)
                 score = hypo['score'] / math.log(2)  # convert to base 2
+                # original hypothesis (after tokenization and BPE)
                 print('H-{}\t{}\t{}'.format(id, score, hypo_str))
+                # detokenized hypothesis
+                print('D-{}\t{}\t{}'.format(id, score, detok_hypo_str))
                 print('P-{}\t{}'.format(
                     id,
                     ' '.join(map(
