@@ -17,6 +17,7 @@ import torch
 from fairseq import bleu, checkpoint_utils, options, tasks, utils
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
+from fairseq.data import encoders
 
 
 def main(args):
@@ -112,6 +113,17 @@ def _main(args, output_file):
     gen_timer = StopwatchMeter()
     generator = task.build_generator(args)
 
+    # Handle tokenization and BPE
+    tokenizer = encoders.build_tokenizer(args)
+    bpe = encoders.build_bpe(args)
+
+    def decode_fn(x):
+        if bpe is not None:
+            x = bpe.decode(x)
+        if tokenizer is not None:
+            x = tokenizer.decode(x)
+        return x
+
     # Generate and compute BLEU score
     if args.sacrebleu:
         scorer = bleu.SacrebleuScorer()
@@ -162,6 +174,10 @@ def _main(args, output_file):
                         }
                     )
 
+            src_str = decode_fn(src_str)
+            if has_target:
+                target_str = decode_fn(target_str)
+
             if not args.quiet:
                 if src_dict is not None:
                     print('S-{}\t{}'.format(sample_id, src_str), file=output_file)
@@ -181,10 +197,13 @@ def _main(args, output_file):
                         generator.eos,
                     }
                 )
-
+                detok_hypo_str = decode_fn(hypo_str)
                 if not args.quiet:
                     score = hypo['score'] / math.log(2)  # convert to base 2
+                    # original hypothesis (after tokenization and BPE)
                     print('H-{}\t{}\t{}'.format(sample_id, score, hypo_str), file=output_file)
+                    # detokenized hypothesis
+                    print('D-{}\t{}\t{}'.format(sample_id, score, detok_hypo_str), file=output_file)
                     print('P-{}\t{}'.format(
                         sample_id,
                         ' '.join(map(
