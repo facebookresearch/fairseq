@@ -678,31 +678,40 @@ class EnsembleModel(nn.Module):
     def forward_encoder(self, src_tokens, src_lengths):
         if not self.has_encoder():
             return None
-        return [
-            model.encoder(src_tokens=src_tokens, src_lengths=src_lengths)
-            for model in self.models
-        ]
+
+        futures = [torch.jit._fork(model.encoder, src_tokens, src_lengths) for model in self.models]
+        return [EncoderOut(*torch.jit._wait(fut)) for fut in futures]
+
 
     @torch.jit.export
     def forward_decoder(
         self, tokens, encoder_outs: List[EncoderOut], temperature: float = 1.0
     ):
+        if not self.has_encoder():
+            if self.has_incremental_states():
+                futures = [
+                    torch.jit._fork(model.decoder, tokens, None, self.incremental_states[i])
+                    for i, model in enumerate(self.models)
+                ]
+            else:
+                futures = [torch.jit._fork(model.decoder, tokens, None) for model in self.models]
+        else:
+            if self.has_incremental_states():
+                futures = [
+                    torch.jit._fork(model.decoder, tokens, encoder_outs[i], self.incremental_states[i])
+                    for i, model in enumerate(self.models)
+                ]
+            else:
+                futures = [
+                    torch.jit._fork(model.decoder, tokens, encoder_outs[i])
+                    for i, model in enumerate(self.models)
+                ]
 
         log_probs = []
         avg_attn: Optional[Tensor] = None
-        encoder_out: Optional[EncoderOut] = None
         for i, model in enumerate(self.models):
-            if self.has_encoder():
-                encoder_out = encoder_outs[i]
-            # decode each model
-            if self.has_incremental_states():
-                decoder_out = model.decoder.forward(
-                    tokens,
-                    encoder_out=encoder_out,
-                    incremental_state=self.incremental_states[i],
-                )
-            else:
-                decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+            decoder_out = torch.jit._wait(futures[i])
+
             # Attention is not used in this version of sequence generator. And
             # variable type in the torchscript need to be static. So attention part
             # is commented out. Currently only supporting Dict type output
