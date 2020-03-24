@@ -187,7 +187,7 @@ We also provide a faster evaluation script that splits the dataset and launches 
 ### Pretrained models
 
 You can use the client scripts with pre-trained models:
-* [text model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk3.pt). You should obtain the following score: `Scores: {"BLEU": 13.291, "TER": 0.957, "METEOR": 0.31, "DAL": 4.372044027815046, "AL": 2.5295724889866804, "AP": 0.6400225334686246}`. This corresponds to `k = 3` in the wait-k model. You can see in the table below the quality and latency metrics for various values of k. The corresponding checkpoints to download can be found at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk$k.pt (replace `$k` with the corresponding value).
+* [text model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk3.pt). You should obtain the following score: `Scores: {"BLEU": 13.291, "TER": 0.957, "METEOR": 0.31, "DAL": 4.372044027815046, "AL": 2.5295724889866804, "AP": 0.6400225334686246}`. This corresponds to `k = 3` in the wait-k model. You can see in the table and figure below the quality and latency metrics for various values of k. The corresponding checkpoints to download can be found at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk$k.pt (replace `$k` with the corresponding value).
 
 | k  | BLEU | TER | METEOR | DAL | AL | AP |
 | -- | ---- | --- | ------ | --- | -- | -- |
@@ -204,6 +204,7 @@ You can use the client scripts with pre-trained models:
 | 20 | 19.53 | 0.84 | 0.39 | 13.55 | 12.37 | 0.94 |
 | 1000 | 23.04 | 0.73 | 0.44 | 19.85 | 19.85 | 1.0 |
 
+![Quality-Latency Curve for the text-to-text baseline](waitk_txt_bleu_vs_al.png)
 
 * [speech model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_speech_waitk_lag5_stride10.pt). You should obtain the following scores: `{"BLEU": 10.785, "TER": 0.913, "METEOR": 0.247, "DAL": 2817.45349595572, "AL": 2331.9959397710254, "AP": 0.8462297623865175}`
 
