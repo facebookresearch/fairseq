@@ -242,9 +242,13 @@ def item(tensor):
 def clip_grad_norm_(params, max_norm) -> torch.Tensor:
     if isinstance(params, torch.Tensor):
         params = [params]
+    params = list(params)
     grads = [p.grad.detach() for p in filter(lambda p: p.grad is not None, params)]
     if len(grads) == 0:
-        return params[0].new_tensor(0.)
+        if len(params) > 0:
+            return params[0].new_tensor(0.)
+        else:
+            return torch.tensor(0.)
     total_norm = torch.norm(torch.stack([torch.norm(g) for g in grads]))
     if max_norm > 0:
         max_norm = float(max_norm)
