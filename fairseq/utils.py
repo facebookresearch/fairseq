@@ -44,7 +44,7 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
 
 
 def apply_to_sample(f, sample):
-    if len(sample) == 0:
+    if hasattr(sample, '__len__') and len(sample) == 0:
         return {}
 
     def _apply(x):
