@@ -153,7 +153,14 @@ def _main(args, output_file):
                 else:
                     src_str = ""
                 if has_target:
-                    target_str = tgt_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+                    target_str = tgt_dict.string(
+                        target_tokens,
+                        args.remove_bpe,
+                        escape_unk=True,
+                        extra_symbols_to_ignore={
+                            generator.eos,
+                        }
+                    )
 
             if not args.quiet:
                 if src_dict is not None:
@@ -170,6 +177,9 @@ def _main(args, output_file):
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
+                    extra_symbols_to_ignore={
+                        generator.eos,
+                    }
                 )
 
                 if not args.quiet:
