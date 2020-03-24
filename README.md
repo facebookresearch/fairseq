@@ -16,6 +16,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
 - February 2020: [mBART model and code released](examples/mbart/README.md)
 - February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/master/examples/backtranslation#training-your-own-model-wmt18-english-german)
 - December 2019: [fairseq 0.9.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.9.0)
@@ -52,6 +53,7 @@ Fairseq provides reference implementations of various sequence-to-sequence model
   - [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
   - [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
   - [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
+  - [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
 - **Non-autoregressive Transformers**
   - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -127,6 +129,7 @@ as well as example training and evaluation commands.
 - [wav2vec](examples/wav2vec/README.md): wav2vec large model is available
 
 We also have more detailed READMEs to reproduce results from specific papers:
+- [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
 - [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
 - [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
 - [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
