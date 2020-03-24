@@ -29,8 +29,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
         activation_fn: str = 'relu',
-        add_bias_kv: bool = False,
-        add_zero_attn: bool = False,
         export: bool = False,
     ) -> None:
 
@@ -46,8 +44,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
             self.embedding_dim,
             num_attention_heads,
             dropout=attention_dropout,
-            add_bias_kv=add_bias_kv,
-            add_zero_attn=add_zero_attn,
+            add_bias_kv=False,
+            add_zero_attn=False,
             self_attention=True
         )
 

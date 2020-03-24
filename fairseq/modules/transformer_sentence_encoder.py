@@ -89,8 +89,6 @@ class TransformerSentenceEncoder(nn.Module):
         apply_bert_init: bool = False,
         activation_fn: str = "relu",
         learned_pos_embedding: bool = True,
-        add_bias_kv: bool = False,
-        add_zero_attn: bool = False,
         embed_scale: float = None,
         freeze_embeddings: bool = False,
         n_trans_layers_to_freeze: int = 0,
@@ -143,8 +141,6 @@ class TransformerSentenceEncoder(nn.Module):
                     attention_dropout=attention_dropout,
                     activation_dropout=activation_dropout,
                     activation_fn=activation_fn,
-                    add_bias_kv=add_bias_kv,
-                    add_zero_attn=add_zero_attn,
                     export=export,
                 )
                 for _ in range(num_encoder_layers)
