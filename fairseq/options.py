@@ -230,6 +230,10 @@ def get_parser(desc, default_task="translation"):
     parser.add_argument('--all-gather-list-size', default=16384, type=int,
                         help='number of bytes reserved for gathering stats from workers')
 
+    parser.add_argument('--model-parallel-size', type=int, metavar='N',
+                        default=1,
+                        help='total number of GPUs to parallelize model over')
+
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():
         parser.add_argument(

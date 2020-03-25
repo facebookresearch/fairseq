@@ -107,6 +107,21 @@ def distributed_init(args):
             logging.getLogger().setLevel(logging.WARNING)
 
     args.distributed_rank = torch.distributed.get_rank()
+
+    if args.model_parallel_size > 1:
+        try:
+            from fairseq.model_parallel.megatron.mpu import (
+                initialize_model_parallel,
+                model_parallel_cuda_manual_seed,
+            )
+        except ImportError:
+            raise ImportError(
+                '\n\nPlease install the megatron submodule:'
+                '\n\n  git submodule update --init '
+                'fairseq/model_parallel/megatron'
+            )
+        initialize_model_parallel(args.model_parallel_size)
+        model_parallel_cuda_manual_seed(args.seed)
     return args.distributed_rank
 
 

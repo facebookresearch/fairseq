@@ -239,7 +239,7 @@ def item(tensor):
     return tensor
 
 
-def clip_grad_norm_(params, max_norm) -> torch.Tensor:
+def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
     if isinstance(params, torch.Tensor):
         params = [params]
     params = list(params)
@@ -250,6 +250,10 @@ def clip_grad_norm_(params, max_norm) -> torch.Tensor:
         else:
             return torch.tensor(0.)
     total_norm = torch.norm(torch.stack([torch.norm(g) for g in grads]))
+
+    if aggregate_norm_fn is not None:
+        total_norm = aggregate_norm_fn(total_norm)
+
     if max_norm > 0:
         max_norm = float(max_norm)
         clip_coef = (max_norm / (total_norm + 1e-6)).clamp_(max=1)
