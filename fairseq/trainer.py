@@ -63,23 +63,40 @@ class Trainer(object):
         self._wrapped_criterion = None
         self._wrapped_model = None
 
-        if self.cuda and args.distributed_world_size > 1:
-            self._grad_norm_buf = torch.cuda.DoubleTensor(args.distributed_world_size)
+        if self.cuda and self.data_parallel_world_size > 1:
+            self._grad_norm_buf = torch.cuda.DoubleTensor(self.data_parallel_world_size)
         else:
             self._grad_norm_buf = None
 
         metrics.log_start_time("wall", priority=790, round=0)
 
     @property
+    def data_parallel_world_size(self):
+        return self.args.distributed_world_size
+
+    @property
+    def data_parallel_process_group(self):
+        return None
+
+    @property
+    def data_parallel_rank(self):
+        return self.args.distributed_rank
+
+    @property
+    def is_data_parallel_master(self):
+        return distributed_utils.is_master(self.args)
+
+    @property
     def criterion(self):
         if self._wrapped_criterion is None:
             if (
                 utils.has_parameters(self._criterion)
-                and self.args.distributed_world_size > 1
+                and self.data_parallel_world_size > 1
                 and not self.args.use_bmuf
             ):
                 self._wrapped_criterion = models.DistributedFairseqModel(
-                    self.args, self._criterion
+                    self.args, self._criterion,
+                    process_group=self.data_parallel_process_group
                 )
             else:
                 self._wrapped_criterion = self._criterion
@@ -88,9 +105,10 @@ class Trainer(object):
     @property
     def model(self):
         if self._wrapped_model is None:
-            if self.args.distributed_world_size > 1 and not self.args.use_bmuf:
+            if self.data_parallel_world_size > 1 and not self.args.use_bmuf:
                 self._wrapped_model = models.DistributedFairseqModel(
-                    self.args, self._model
+                    self.args, self._model,
+                    process_group=self.data_parallel_process_group
                 )
             else:
                 self._wrapped_model = self._model
@@ -143,7 +161,7 @@ class Trainer(object):
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
-        if distributed_utils.is_master(self.args):  # only save one checkpoint
+        if self.is_data_parallel_master:  # only save one checkpoint
             extra_state["metrics"] = metrics.state_dict()
             checkpoint_utils.save_state(
                 filename,
@@ -261,10 +279,31 @@ class Trainer(object):
             ignore_invalid_inputs=True,
             required_batch_size_multiple=self.args.required_batch_size_multiple,
             seed=self.args.seed,
-            num_shards=self.args.distributed_world_size if shard_batch_itr else 1,
-            shard_id=self.args.distributed_rank if shard_batch_itr else 0,
+            num_shards=self.data_parallel_world_size if shard_batch_itr else 1,
+            shard_id=self.data_parallel_rank if shard_batch_itr else 0,
             num_workers=self.args.num_workers,
             epoch=epoch,
+        )
+
+    def get_valid_iterator(
+        self,
+        subset,
+    ):
+        """Return an EpochBatchIterator over given validation subset for a given epoch."""
+        return self.task.get_batch_iterator(
+            dataset=self.task.dataset(subset),
+            max_tokens=self.args.max_tokens_valid,
+            max_sentences=self.args.max_sentences_valid,
+            max_positions=utils.resolve_max_positions(
+                self.task.max_positions(),
+                self.model.max_positions(),
+            ),
+            ignore_invalid_inputs=self.args.skip_invalid_size_inputs_valid_test,
+            required_batch_size_multiple=self.args.required_batch_size_multiple,
+            seed=self.args.seed,
+            num_shards=self.data_parallel_world_size,
+            shard_id=self.data_parallel_rank,
+            num_workers=self.args.num_workers,
         )
 
     @metrics.aggregate("train")
@@ -299,7 +338,7 @@ class Trainer(object):
                 all-reduce in the last backwards pass.
                 """
                 if (
-                    self.args.distributed_world_size > 1
+                    self.data_parallel_world_size > 1
                     and hasattr(self.model, "no_sync")
                     and i < len(samples) - 1
                 ):
@@ -359,15 +398,16 @@ class Trainer(object):
             # already normalizes by the number of GPUs. Thus we get
             # (sum_of_gradients / sample_size).
             if not self.args.use_bmuf:
+                multiplier = self.data_parallel_world_size
                 self.optimizer.multiply_grads(
-                    self.args.distributed_world_size / sample_size
+                    multiplier / sample_size
                 )
             elif sample_size > 0:  # BMUF needs to check sample size
-                num = self.args.distributed_world_size if self._sync_stats() else 1
+                num = self.data_parallel_world_size if self._sync_stats() else 1
                 self.optimizer.multiply_grads(num / sample_size)
 
             # clip grads
-            grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
+            grad_norm = self.clip_grad_norm(self.args.clip_norm)
 
             # check that grad norms are consistent across workers
             if not self.args.use_bmuf:
@@ -459,7 +499,7 @@ class Trainer(object):
                 sample_size *= 0  # multiply by 0 to preserve device
 
         # gather logging outputs from all replicas
-        if self.args.distributed_world_size > 1:
+        if self.data_parallel_world_size > 1:
             logging_outputs, (sample_size, ) = self._aggregate_logging_outputs(
                 logging_outputs, sample_size, ignore=is_dummy_batch,
             )
@@ -547,6 +587,9 @@ class Trainer(object):
         self.lr_step_update()
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
+    def clip_grad_norm(self, clip_norm):
+        return self.optimizer.clip_grad_norm(clip_norm, aggregate_norm_fn=None)
+
     def _prepare_sample(self, sample):
         if sample == "DUMMY":
             raise Exception(
@@ -582,7 +625,7 @@ class Trainer(object):
     def _sync_stats(self):
         # Return True if it's using multiple GPUs and DDP or multiple GPUs with
         # BMUF and it's a bmuf sync with warmup iterations completed before.
-        return self.args.distributed_world_size > 1 and (
+        return self.data_parallel_world_size > 1 and (
             (not self.args.use_bmuf)
             or (
                 self.args.use_bmuf
@@ -630,6 +673,7 @@ class Trainer(object):
             *distributed_utils.all_gather_list(
                 [logging_outputs] + list(extra_stats_to_sum),
                 max_size=getattr(self.args, 'all_gather_list_size', 16384),
+                group=self.data_parallel_process_group,
             )
         ))
         logging_outputs, extra_stats_to_sum = results[0], results[1:]
@@ -667,6 +711,7 @@ class Trainer(object):
         data = distributed_utils.all_reduce_dict(
             data,
             device=self.device,
+            group=self.data_parallel_process_group
         )
 
         extra_stats_to_sum = [
@@ -682,8 +727,8 @@ class Trainer(object):
         """Check that grad norms are consistent across workers."""
         if self._grad_norm_buf is not None:
             self._grad_norm_buf.zero_()
-            self._grad_norm_buf[self.args.distributed_rank] = grad_norm
-            distributed_utils.all_reduce(self._grad_norm_buf)
+            self._grad_norm_buf[self.data_parallel_rank] = grad_norm
+            distributed_utils.all_reduce(self._grad_norm_buf, group=self.data_parallel_process_group)
             if not (self._grad_norm_buf == self._grad_norm_buf[0]).all():
                 raise RuntimeError(
                     "Fatal error: gradients are inconsistent between workers. "

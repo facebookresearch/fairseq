@@ -11,7 +11,7 @@ from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParall
 from fairseq.models import BaseFairseqModel
 
 
-def DistributedFairseqModel(args, model):
+def DistributedFairseqModel(args, model, process_group=None):
     """
     Wrap a *model* to support distributed data parallel training.
 
@@ -34,6 +34,7 @@ def DistributedFairseqModel(args, model):
             output_device=args.device_id,
             broadcast_buffers=args.broadcast_buffers,
             bucket_cap_mb=args.bucket_cap_mb,
+            process_group=process_group,
         )
         # Maintain backward compatibility
         if 'check_reduction' in inspect.getargspec(ddp_class)[0]:
@@ -46,6 +47,7 @@ def DistributedFairseqModel(args, model):
             module=model,
             world_size=args.distributed_world_size,
             buffer_size=2**28,
+            process_group=process_group,
         )
     else:
         raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)
