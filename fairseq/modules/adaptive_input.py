@@ -21,8 +21,8 @@ class AdaptiveInput(nn.Module):
         factor: float,
         output_dim: int,
         cutoff: List[int],
-        q_noise: float,
-        qn_block_size: int,
+        q_noise: float = 0,
+        qn_block_size: int = 8,
     ):
         super().__init__()
 
@@ -41,10 +41,16 @@ class AdaptiveInput(nn.Module):
             prev = self.cutoff[i - 1] if i > 0 else 0
             size = self.cutoff[i] - prev
             dim = int(initial_dim // (factor ** i))
-            seq = nn.Sequential(
-                nn.Embedding(size, dim, self.padding_idx),
-                StructuredDropLinear(dim, output_dim, bias=False, p=q_noise, block_size=qn_block_size)
-            )
+            if q_noise > 0:
+                seq = nn.Sequential(
+                    nn.Embedding(size, dim, self.padding_idx),
+                    StructuredDropLinear(dim, output_dim, bias=False, p=q_noise, block_size=qn_block_size)
+                )
+            else:
+                seq = nn.Sequential(
+                    nn.Embedding(size, dim, self.padding_idx),
+                    nn.Linear(dim, output_dim, bias=False)
+                )
             self.embeddings.append(seq)
             self.padding_idx = None
         self.padding_idx = padding_idx

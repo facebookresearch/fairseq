@@ -116,8 +116,10 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
         # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise', type=float, metavar='D', default=0, help='quantization noise at training time')
-        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8, help='block size of quantization noise at training time')
+        parser.add_argument('--quant-noise', type=float, metavar='D', default=0,
+                            help='quantization noise at training time')
+        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
+                            help='block size of quantization noise at training time')
         # fmt: on
 
     @classmethod

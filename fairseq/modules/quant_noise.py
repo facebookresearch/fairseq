@@ -72,7 +72,9 @@ class StructuredDropLinear(nn.Module):
         if self.training and self.p > 0:
             mask = torch.zeros(int(self.in_features // self.block_size * self.out_features), device=self.weight.device)
             mask.bernoulli_(self.p)
-            mask = mask.repeat_interleave(self.block_size, -1).view(-1, self.in_features).bool()
+            mask = mask.repeat_interleave(self.block_size, -1).view(-1, self.in_features)
+            # workaround: x.bool() is not currently supported in TorchScript
+            mask = mask.to(torch.bool)
             s = 1 / (1 - self.p)
             weight =  s * self.weight.masked_fill(mask, 0)
             return F.linear(input, weight, self.bias)

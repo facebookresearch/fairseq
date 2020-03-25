@@ -23,6 +23,7 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
+    StructuredDropLinear,
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )

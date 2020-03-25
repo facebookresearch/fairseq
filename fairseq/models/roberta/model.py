@@ -90,9 +90,12 @@ class RobertaModel(FairseqLanguageModel):
         parser.add_argument('--encoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
         # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise', type=float, metavar='D', default=0, help='quantization noise at training time')
-        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8, help='block size of quantization noise at training time')
-        parser.add_argument('--untie-weights-roberta', action='store_true', help='Untie weights between embeddings and classifiers in RoBERTa')
+        parser.add_argument('--quant-noise', type=float, metavar='D', default=0,
+                            help='quantization noise at training time')
+        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
+                            help='block size of quantization noise at training time')
+        parser.add_argument('--untie-weights-roberta', action='store_true',
+                            help='Untie weights between embeddings and classifiers in RoBERTa')
 
     @classmethod
     def build_model(cls, args, task):
@@ -135,8 +138,8 @@ class RobertaModel(FairseqLanguageModel):
             num_classes,
             self.args.pooler_activation_fn,
             self.args.pooler_dropout,
-            args.quant_noise,
-            args.quant_noise_block_size
+            self.args.quant_noise,
+            self.args.quant_noise_block_size
         )
 
     @property
@@ -237,7 +240,7 @@ class RobertaLMHead(nn.Module):
 class RobertaClassificationHead(nn.Module):
     """Head for sentence-level classification tasks."""
 
-    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout, q_noise, qn_block_size):
+    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout, q_noise=0, qn_block_size=8):
         super().__init__()
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
@@ -292,13 +295,13 @@ class RobertaEncoder(FairseqDecoder):
             q_noise=args.quant_noise,
             qn_block_size=args.quant_noise_block_size
         )
-        args.untie_weights_bert = args.untie_weights_bert if 'untie_weights_bert' in args else False
+        args.untie_weights_roberta = getattr(args, 'untie_weights_roberta', False)
 
         self.lm_head = RobertaLMHead(
             embed_dim=args.encoder_embed_dim,
             output_dim=len(dictionary),
             activation_fn=args.activation_fn,
-            weight=self.sentence_encoder.embed_tokens.weight if not args.untie_weights_bert else None,
+            weight=self.sentence_encoder.embed_tokens.weight if not args.untie_weights_roberta else None,
         )
 
     def forward(self, src_tokens, features_only=False, return_all_hiddens=False, masked_tokens=None, **unused):
