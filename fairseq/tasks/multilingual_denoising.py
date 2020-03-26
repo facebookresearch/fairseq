@@ -54,9 +54,6 @@ class MultilingualDenoisingTask(DenoisingTask):
             ])
         else:
             languages = args.langs.split(',')
-            for name in languages:
-                assert os.path.exists(os.path.join(data_path, name)), \
-                    "{} does not exist".format(os.path.join(data_path, name))
 
         if args.add_lang_token:
             for lang in languages:
