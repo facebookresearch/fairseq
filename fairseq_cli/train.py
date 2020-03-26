@@ -37,6 +37,7 @@ def main(args, init_distributed=False):
 
     assert args.max_tokens is not None or args.max_sentences is not None, \
         'Must specify batch size either with --max-tokens or --max-sentences'
+    metrics.reset()
 
     # Initialize CUDA and distributed training
     if torch.cuda.is_available() and not args.cpu:

@@ -67,8 +67,8 @@ class AverageMeter(Meter):
         if val is not None:
             self.val = val
             if n > 0:
-                self.sum += val * n
-                self.count += n
+                self.sum = self.sum + (val * n)
+                self.count = self.count + n
 
     def state_dict(self):
         return {
@@ -115,7 +115,7 @@ class TimeMeter(Meter):
         self.i = 0
 
     def update(self, val=1):
-        self.n += val
+        self.n = self.n + val
         self.i += 1
 
     def state_dict(self):
@@ -164,8 +164,8 @@ class StopwatchMeter(Meter):
     def stop(self, n=1):
         if self.start_time is not None:
             delta = time.perf_counter() - self.start_time
-            self.sum += delta
-            self.n += n
+            self.sum = self.sum + delta
+            self.n = self.n + n
 
     def reset(self):
         self.sum = 0  # cumulative time during which stopwatch was active
