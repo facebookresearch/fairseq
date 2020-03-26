@@ -6,7 +6,7 @@
 
 import torch
 from torch import nn
-from fairseq.modules.quant_noise import StructuredDropLinear
+from fairseq.modules.quant_noise import structured_dropout
 
 from typing import List
 
@@ -44,7 +44,7 @@ class AdaptiveInput(nn.Module):
             if q_noise > 0:
                 seq = nn.Sequential(
                     nn.Embedding(size, dim, self.padding_idx),
-                    StructuredDropLinear(dim, output_dim, bias=False, p=q_noise, block_size=qn_block_size)
+                    structured_dropout(nn.Linear(dim, output_dim, bias=False), p=q_noise, block_size=qn_block_size)
                 )
             else:
                 seq = nn.Sequential(

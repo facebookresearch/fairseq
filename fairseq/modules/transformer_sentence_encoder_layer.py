@@ -11,9 +11,8 @@ from fairseq import utils
 from fairseq.modules import (
     LayerNorm,
     MultiheadAttention,
-    StructuredDropLinear,
 )
-
+from fairseq.modules.quant_noise import structured_dropout
 
 class TransformerSentenceEncoderLayer(nn.Module):
     """
@@ -58,8 +57,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
         # layer norm associated with the self attention layer
         self.self_attn_layer_norm = LayerNorm(self.embedding_dim, export=export)
-        self.fc1 = StructuredDropLinear(self.embedding_dim, ffn_embedding_dim, p=q_noise, block_size=qn_block_size)
-        self.fc2 = StructuredDropLinear(ffn_embedding_dim, self.embedding_dim, p=q_noise, block_size=qn_block_size)
+        self.fc1 = structured_dropout(nn.Linear(self.embedding_dim, ffn_embedding_dim), p=q_noise, block_size=qn_block_size)
+        self.fc2 = structured_dropout(nn.Linear(ffn_embedding_dim, self.embedding_dim), p=q_noise, block_size=qn_block_size)
 
         # layer norm associated with the position wise feed-forward NN
         self.final_layer_norm = LayerNorm(self.embedding_dim, export=export)

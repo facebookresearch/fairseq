@@ -13,8 +13,8 @@ from fairseq.modules import (
     MultiheadAttention,
     PositionalEmbedding,
     TransformerSentenceEncoderLayer,
-    StructuredDropLinear,
 )
+from fairseq.modules.quant_noise import structured_dropout
 import random
 
 
@@ -33,10 +33,6 @@ def init_bert_params(module):
     """
 
     if isinstance(module, nn.Linear):
-        module.weight.data.normal_(mean=0.0, std=0.02)
-        if module.bias is not None:
-            module.bias.data.zero_()
-    if isinstance(module, StructuredDropLinear):
         module.weight.data.normal_(mean=0.0, std=0.02)
         if module.bias is not None:
             module.bias.data.zero_()
@@ -123,7 +119,7 @@ class TransformerSentenceEncoder(nn.Module):
         )
         self.embed_scale = embed_scale
 
-        self.embed_dropout = StructuredDropLinear(self.embedding_dim, self.embedding_dim, bias=False, p=q_noise, block_size=qn_block_size)
+        self.embed_dropout = structured_dropout(nn.Linear(self.embedding_dim, self.embedding_dim, bias=False), p=q_noise, block_size=qn_block_size)
 
         self.segment_embeddings = (
             nn.Embedding(self.num_segments, self.embedding_dim, padding_idx=None)

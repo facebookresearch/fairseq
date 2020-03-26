@@ -12,7 +12,7 @@ from fairseq import utils
 from torch import Tensor, nn
 from torch.nn import Parameter
 from fairseq.incremental_decoding_utils import with_incremental_state
-from fairseq.modules.quant_noise import StructuredDropLinear
+from fairseq.modules.quant_noise import structured_dropout
 
 
 @with_incremental_state
@@ -62,11 +62,11 @@ class MultiheadAttention(nn.Module):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = StructuredDropLinear(self.kdim, embed_dim, bias=bias, p=q_noise, block_size=qn_block_size)
-        self.v_proj = StructuredDropLinear(self.vdim, embed_dim, bias=bias, p=q_noise, block_size=qn_block_size)
-        self.q_proj = StructuredDropLinear(embed_dim, embed_dim, bias=bias, p=q_noise, block_size=qn_block_size)
+        self.k_proj = structured_dropout(nn.Linear(self.kdim, embed_dim, bias=bias), p=q_noise, block_size=qn_block_size)
+        self.v_proj = structured_dropout(nn.Linear(self.vdim, embed_dim, bias=bias), p=q_noise, block_size=qn_block_size)
+        self.q_proj = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=bias), p=q_noise, block_size=qn_block_size)
 
-        self.out_proj = StructuredDropLinear(embed_dim, embed_dim, bias=bias, p=q_noise, block_size=qn_block_size)
+        self.out_proj = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=bias), p=q_noise, block_size=qn_block_size)
 
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))

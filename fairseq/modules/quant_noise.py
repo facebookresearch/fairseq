@@ -1,8 +1,32 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from torch.nn import Parameter
 
+
+def structured_dropout(module, p, block_size):
+    def _forward_pre_hook(mod, input):
+        if mod.training and p > 0:
+            weight = mod.weight
+            in_features = weight.size(0)
+            out_features = weight.size(1)
+
+            mask = torch.zeros(in_features // block_size * out_features, device=weight.device)
+            mask.bernoulli_(p)
+            mask = mask.repeat_interleave(block_size, -1).view(-1, in_features)
+            # workaround: x.bool() is not currently supported in TorchScript
+            mask = mask.to(torch.bool)
+            s = 1 / (1 - p)
+
+            mod.weight.data =  s * weight.masked_fill(mask.t(), 0)
+
+    module.register_forward_pre_hook(_forward_pre_hook)
+    return module
 
 class StructuredDropout(nn.Module):
     """
@@ -37,52 +61,3 @@ class StructuredDropout(nn.Module):
         # eval mode no dropout
         else:
             return x
-
-
-class StructuredDropLinear(nn.Module):
-    """
-    Applies a linear transformation to the incoming data: :math:`y = xA^T + b`
-    with possible block dropout inside the matrix
-    """
-
-    def __init__(self, in_features, out_features, bias=True, p=0, block_size=8):
-        super(StructuredDropLinear, self).__init__()
-        self.in_features = int(in_features)
-        self.out_features = int(out_features)
-        self.weight = Parameter(torch.Tensor(out_features, in_features))
-        self.chosen_bias = bias
-        if self.chosen_bias:
-            self.bias = Parameter(torch.Tensor(out_features))
-        else:
-            self.register_parameter('bias', None)
-        self.p = p
-        self.block_size = int(block_size)
-        if p > 0:
-            assert in_features % block_size == 0, "in_features must be a multiple of block size"
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        nn.init.xavier_uniform_(self.weight)
-        if self.chosen_bias:
-            nn.init.constant_(self.bias, 0.)
-        return
-
-    def forward(self, input):
-        # dropout on the blocks of the weight matrix
-        if self.training and self.p > 0:
-            mask = torch.zeros(int(self.in_features // self.block_size * self.out_features), device=self.weight.device)
-            mask.bernoulli_(self.p)
-            mask = mask.repeat_interleave(self.block_size, -1).view(-1, self.in_features)
-            # workaround: x.bool() is not currently supported in TorchScript
-            mask = mask.to(torch.bool)
-            s = 1 / (1 - self.p)
-            weight =  s * self.weight.masked_fill(mask, 0)
-            return F.linear(input, weight, self.bias)
-        # eval mode no dropout
-        else:
-            return F.linear(input, self.weight, self.bias)
-
-    def extra_repr(self):
-        return 'in_features={}, out_features={}, bias={}, dropout={}, block_size={}'.format(
-            self.in_features, self.out_features, self.bias is not None, self.p, self.block_size
-        )

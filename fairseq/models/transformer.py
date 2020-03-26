@@ -23,10 +23,10 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    StructuredDropLinear,
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
+from fairseq.modules.quant_noise import structured_dropout
 from torch import Tensor
 
 
@@ -164,8 +164,10 @@ class TransformerModel(FairseqEncoderDecoderModel):
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
         # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise', type=float, metavar='D', default=0, help='quantization noise at training time')
-        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8, help='block size of quantization noise at training time')
+        parser.add_argument('--quant-noise', type=float, metavar='D', default=0,
+                            help='quantization noise at training time')
+        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
+                            help='block size of quantization noise at training time')
         # fmt: on
 
     @classmethod
@@ -400,7 +402,7 @@ class TransformerEncoder(FairseqEncoder):
         )
 
         if not args.adaptive_input and self.quant_noise > 0:
-            self.embed_dropout = StructuredDropLinear(embed_dim, embed_dim, bias=False, p=args.q_noise, block_size=args.qn_block_size)
+            self.embed_dropout = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=False), p=args.q_noise, block_size=args.qn_block_size)
 
         self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
@@ -621,13 +623,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
 
-        if args.adaptive_input:
-            self.adaptive_input = True
-        else:
-            self.adaptive_input = None
+        if not args.adaptive_input and self.quant_noise > 0:
+            self.embed_dropout = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=False), p=args.q_noise, block_size=args.qn_block_size)
 
         if not args.adaptive_input and self.quant_noise > 0:
-            self.embed_dropout = StructuredDropLinear(embed_dim, embed_dim, bias=False, p=args.q_noise, block_size=args.qn_block_size)
+            self.embed_dropout = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=False), p=args.q_noise, block_size=args.qn_block_size)
+        else:
+            self.embed_dropout = None
 
         self.project_in_dim = (
             Linear(input_embed_dim, embed_dim, bias=False)
@@ -782,7 +784,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 
-        if not self.adaptive_input and self.quant_noise > 0:
+        if self.embed_dropout:
             x = self.embed_dropout(x)
 
         if self.project_in_dim is not None:

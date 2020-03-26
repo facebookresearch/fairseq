@@ -9,7 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
-from fairseq.modules import LayerNorm, MultiheadAttention, StructuredDropLinear, StructuredDropout
+from fairseq.modules import LayerNorm, MultiheadAttention, StructuredDropout
+from fairseq.modules.quant_noise import structured_dropout
 from torch import Tensor
 
 
@@ -54,10 +55,10 @@ class TransformerEncoderLayer(nn.Module):
         self.final_layer_norm = LayerNorm(self.embed_dim)
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return StructuredDropLinear(input_dim, output_dim, p=q_noise, block_size=qn_block_size)
+        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return StructuredDropLinear(input_dim, output_dim, p=q_noise, block_size=qn_block_size)
+        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
 
     def build_self_attention(self, embed_dim, args):
         return MultiheadAttention(
@@ -211,10 +212,10 @@ class TransformerDecoderLayer(nn.Module):
         self.onnx_trace = False
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return StructuredDropLinear(input_dim, output_dim, p=q_noise, block_size=qn_block_size)
+        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return StructuredDropLinear(input_dim, output_dim, p=q_noise, block_size=qn_block_size)
+        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
 
     def build_self_attention(self, embed_dim, args, add_bias_kv=False, add_zero_attn=False):
         return MultiheadAttention(

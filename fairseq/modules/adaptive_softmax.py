@@ -8,47 +8,34 @@ import functools
 
 import torch
 import torch.nn.functional as F
-from fairseq.modules.quant_noise import StructuredDropLinear
+from fairseq.modules.quant_noise import structured_dropout
 from torch import nn
 
 
 class TiedLinear(nn.Module):
-    def __init__(self, weight, transpose, p, block_size):
+    def __init__(self, weight, transpose):
         super().__init__()
         self.weight = weight
         self.transpose = transpose
-        self.p = p
-        self.block_size = block_size
 
     def forward(self, input):
-        if self.training and self.p > 0:
-            weight = self.weight
-            in_features = weight.size(0)
-            out_features = weight.size(1)
-
-            mask = torch.zeros(in_features // self.block_size * out_features, device=weight.device)
-            mask.bernoulli_(self.p)
-            mask = mask.repeat_interleave(self.block_size, -1).view(-1, in_features).bool()
-            s = 1 / (1 - self.p)
-
-            self.weight.data =  s * weight.masked_fill(mask.t(), 0)
         return F.linear(input, self.weight.t() if self.transpose else self.weight)
 
 
 class TiedHeadModule(nn.Module):
-    def __init__(self, weights, input_dim, num_classes, p, block_size):
+    def __init__(self, weights, input_dim, num_classes, q_noise, qn_block_size):
         super().__init__()
         tied_emb, _ = weights
         self.num_words, emb_dim = tied_emb.size()
 
-        self.word_proj = TiedLinear(tied_emb, transpose=False, p=p, block_size=block_size)
+        self.word_proj = structured_dropout(TiedLinear(tied_emb, transpose=False), p=q_noise, block_size=qn_block_size)
         if input_dim != emb_dim:
             self.word_proj = nn.Sequential(
-                StructuredDropLinear(input_dim, emb_dim, bias=False, p=p, block_size=block_size),
+                structured_dropout(nn.Linear(input_dim, emb_dim, bias=False), p=q_noise, block_size=qn_block_size),
                 self.word_proj,
             )
 
-        self.class_proj = StructuredDropLinear(input_dim, num_classes, bias=False, p=p, block_size=block_size)
+        self.class_proj = structured_dropout(nn.Linear(input_dim, num_classes, bias=False), p=q_noise, block_size=qn_block_size)
         self.out_dim = self.num_words + num_classes
 
         self.register_buffer('_float_tensor', torch.FloatTensor(1))
@@ -90,9 +77,9 @@ class AdaptiveSoftmax(nn.Module):
         self.lsm = nn.LogSoftmax(dim=1)
 
         if adaptive_inputs is not None:
-            self.head = TiedHeadModule(adaptive_inputs.weights_for_band(0), input_dim, len(cutoff) - 1, p=self.quant_noise, block_size=self.quant_noise_block_size)
+            self.head = TiedHeadModule(adaptive_inputs.weights_for_band(0), input_dim, len(cutoff) - 1, q_noise=self.quant_noise, qn_block_size=self.quant_noise_block_size)
         else:
-            self.head = StructuredDropLinear(input_dim, output_dim, bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size)
+            self.head = structured_dropout(nn.Linear(input_dim, output_dim, bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
 
         self._make_tail(adaptive_inputs, tie_proj)
 
@@ -114,18 +101,17 @@ class AdaptiveSoftmax(nn.Module):
 
             if tied_proj is not None:
                 if tie_proj:
-                    proj = TiedLinear(tied_proj, transpose=True, p=self.quant_noise, block_size=self.quant_noise_block_size)
+                    proj = structured_dropout(TiedLinear(tied_proj, transpose=True), p=self.quant_noise, block_size=self.quant_noise_block_size)
                 else:
-                    proj = StructuredDropLinear(tied_proj.size(0), tied_proj.size(1), bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size)
+                    proj = structured_dropout(nn.Linear(tied_proj.size(0), tied_proj.size(1), bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
             else:
-                proj = StructuredDropLinear(self.input_dim, dim, bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size)
+                proj = structured_dropout(nn.Linear(self.input_dim, dim, bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
 
             m = nn.Sequential(
                 proj,
                 nn.Dropout(self.dropout),
-                StructuredDropLinear(
-                    dim, self.cutoff[i + 1] - self.cutoff[i], bias=False, p=self.quant_noise, block_size=self.quant_noise_block_size
-                ) if tied_emb is None else TiedLinear(tied_emb, transpose=False, p=self.quant_noise, block_size=self.quant_noise_block_size),
+                structured_dropout(nn.Linear(dim, self.cutoff[i + 1] - self.cutoff[i], bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
+                if tied_emb is None else structured_dropout(TiedLinear(tied_emb, transpose=False), p=self.quant_noise, block_size=self.quant_noise_block_size),
             )
 
             self.tail.append(m)
