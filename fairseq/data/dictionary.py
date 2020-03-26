@@ -79,12 +79,8 @@ class Dictionary(object):
 
         if hasattr(self, "bos_index"):
             extra_symbols_to_ignore.add(self.bos())
-            sent = " ".join(
-                token_string(i)
-                for i in tensor if i.item() not in extra_symbols_to_ignore
-            )
-        else:
-            sent = " ".join(token_string(i) for i in tensor if i.item() not in extra_symbols_to_ignore)
+
+        sent = " ".join(token_string(i) for i in tensor if i.item() not in extra_symbols_to_ignore)
 
         return data_utils.process_bpe_symbol(sent, bpe_symbol)
 
