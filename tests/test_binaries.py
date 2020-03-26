@@ -282,6 +282,7 @@ class TestTranslation(unittest.TestCase):
                     '--print-step',
                 ])
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_levenshtein_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_levenshtein_transformer') as data_dir:

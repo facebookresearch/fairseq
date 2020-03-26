@@ -64,11 +64,8 @@ class SentenceRankingCriterion(FairseqCriterion):
 
         if 'target' in sample:
             targets = model.get_targets(sample, [logits]).view(-1)
-            loss = F.nll_loss(
-                F.log_softmax(logits, dim=-1, dtype=torch.float32),
-                targets,
-                reduction='sum',
-            )
+            lprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
+            loss = F.nll_loss(lprobs, targets, reduction='sum')
         else:
             targets = None
             loss = torch.tensor(0.0, requires_grad=True)
@@ -96,10 +93,10 @@ class SentenceRankingCriterion(FairseqCriterion):
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
-        ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
-        nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
-        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
+        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
+        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
+        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
+        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
 
         metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
         if sample_size != ntokens:
