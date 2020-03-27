@@ -88,7 +88,6 @@ def main(args, init_distributed=False):
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
-    max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
@@ -96,33 +95,23 @@ def main(args, init_distributed=False):
     while (
         lr > args.min_lr
         and epoch_itr.next_epoch_idx <= max_epoch
-        and trainer.get_num_updates() < max_update
     ):
         # train for one epoch
-        train(args, trainer, task, epoch_itr)
+        should_end_training = train(args, trainer, task, epoch_itr)
 
-        if not args.disable_validation and epoch_itr.epoch % args.validate_interval == 0:
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-        else:
-            valid_losses = [None]
+        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets)
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
-
-        # save checkpoint
-        if epoch_itr.epoch % args.save_interval == 0:
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
-
-        # early stop
-        if should_stop_early(args, valid_losses[0]):
-            logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
-            break
 
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
             load_dataset=(os.pathsep in getattr(args, 'data', '')),
         )
+
+        if should_end_training:
+            break
     train_meter.stop()
     logger.info('done training in {:.1f} seconds'.format(train_meter.sum))
 
@@ -144,7 +133,11 @@ def should_stop_early(args, valid_loss):
         return False
     else:
         should_stop_early.num_runs += 1
-        return should_stop_early.num_runs >= args.patience
+        if should_stop_early.num_runs >= args.patience:
+            logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
+            return True
+        else:
+            return False
 
 
 @metrics.aggregate('train')
@@ -177,6 +170,7 @@ def train(args, trainer, task, epoch_itr):
 
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
+    should_end_training = False
     for samples in progress:
         with metrics.aggregate('train_inner'):
             log_output = trainer.train_step(samples)
@@ -193,16 +187,9 @@ def train(args, trainer, task, epoch_itr):
             # the end-of-epoch stats will still be preserved
             metrics.reset_meters('train_inner')
 
-        if (
-            not args.disable_validation
-            and args.save_interval_updates > 0
-            and num_updates % args.save_interval_updates == 0
-            and num_updates > 0
-        ):
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
-
-        if num_updates >= max_update:
+        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets)
+        if should_stop_early(args, valid_losses[0]) or num_updates >= max_update:
+            should_end_training = True
             break
 
     # log end-of-epoch stats
@@ -211,6 +198,41 @@ def train(args, trainer, task, epoch_itr):
 
     # reset epoch-level meters
     metrics.reset_meters('train')
+    return should_end_training
+
+
+def validate_and_save(args, trainer, task, epoch_itr, valid_subsets):
+    num_updates = trainer.get_num_updates()
+    do_save = (
+        (
+            args.save_interval_updates > 0
+            and num_updates > 0
+            and num_updates % args.save_interval_updates == 0
+        )
+        or (
+            epoch_itr.end_of_epoch()
+            and epoch_itr.epoch % args.save_interval == 0
+        )
+    )
+    do_validate = (
+        (
+            do_save  # saving requires validation
+            or (
+                epoch_itr.end_of_epoch()
+                and epoch_itr.epoch % args.validate_interval == 0
+            )
+        )
+        and not args.disable_validation
+    )
+
+    # Validate
+    valid_losses = [None]
+    if do_validate:
+        valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+    # Save
+    if do_save:
+        checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+    return valid_losses
 
 
 def get_training_stats(stats):
