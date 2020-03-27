@@ -10,8 +10,9 @@ import sys
 
 import torch
 
-from fairseq import checkpoint_utils, options, utils
+from fairseq import checkpoint_utils, distributed_utils, options, utils
 from fairseq.logging import metrics, progress_bar
+from fairseq.options import add_distributed_training_args
 
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -104,13 +105,15 @@ def main(args, override_args=None):
 
 def cli_main():
     parser = options.get_validation_parser()
+    add_distributed_training_args(parser)
     args = options.parse_args_and_arch(parser)
 
     # only override args that are explicitly given on the command line
     override_parser = options.get_validation_parser()
+    add_distributed_training_args(override_parser)
     override_args = options.parse_args_and_arch(override_parser, suppress_defaults=True)
 
-    main(args, override_args)
+    distributed_utils.call_main(args, main, override_args=override_args)
 
 
 if __name__ == '__main__':

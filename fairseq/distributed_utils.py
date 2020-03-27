@@ -6,6 +6,7 @@
 import logging
 import os
 import pickle
+import random
 import socket
 import struct
 import subprocess
@@ -123,6 +124,50 @@ def distributed_init(args):
         initialize_model_parallel(args.model_parallel_size)
         model_parallel_cuda_manual_seed(args.seed)
     return args.distributed_rank
+
+
+def _distributed_main(i, main, args, kwargs):
+    args.device_id = i
+    if torch.cuda.is_available() and not args.cpu:
+        torch.cuda.set_device(args.device_id)
+    if args.distributed_rank is None:  # torch.multiprocessing.spawn
+        args.distributed_rank = kwargs.get('start_rank', 0) + i
+
+    args.distributed_rank = distributed_init(args)
+    main(args, **kwargs)
+
+
+def call_main(args, main, **kwargs):
+    if args.distributed_init_method is None:
+        infer_init_method(args)
+
+    if args.distributed_init_method is not None:
+        # distributed main
+        if torch.cuda.device_count() > 1 and not args.distributed_no_spawn:
+            start_rank = args.distributed_rank
+            args.distributed_rank = None  # assign automatically
+            kwargs['start_rank'] = start_rank
+            torch.multiprocessing.spawn(
+                fn=_distributed_main,
+                args=(main, args, kwargs),
+                nprocs=torch.cuda.device_count(),
+            )
+        else:
+            _distributed_main(args.device_id, main, args, kwargs)
+    elif args.distributed_world_size > 1:
+        # fallback for single node with multiple GPUs
+        assert args.distributed_world_size <= torch.cuda.device_count()
+        port = random.randint(10000, 20000)
+        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
+        args.distributed_rank = None  # set based on device id
+        torch.multiprocessing.spawn(
+            fn=_distributed_main,
+            args=(main, args, kwargs),
+            nprocs=args.distributed_world_size,
+        )
+    else:
+        # single GPU main
+        main(args, kwargs)
 
 
 def get_rank():
