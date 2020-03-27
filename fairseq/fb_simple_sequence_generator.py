@@ -16,7 +16,7 @@ from fairseq.models.transformer import TransformerModel
 from torch import Tensor
 
 
-class SimpleSequenceGenerator(nn.Module):
+class ScriptSequenceGenerator(nn.Module):
     def __init__(
         self,
         models,
@@ -33,8 +33,11 @@ class SimpleSequenceGenerator(nn.Module):
         match_source_len=False,
         no_repeat_ngram_size=0,
         search_strategy=None,
+        eos=None,
     ):
-        """Generates translations of a given source sentence.
+        """Generates translations of a given source sentence. The module is
+        scripted and supports TorchScript with scripted input models.
+
         Args:
             models (List[~fairseq.models.FairseqModel]): ensemble of models,
                 currently support fairseq.models.TransformerModel for scripting
@@ -61,7 +64,7 @@ class SimpleSequenceGenerator(nn.Module):
         self.model = EnsembleModel(models)
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
-        self.eos = tgt_dict.eos()
+        self.eos = tgt_dict.eos() if eos is None else eos
         self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
@@ -280,7 +283,7 @@ class SimpleSequenceGenerator(nn.Module):
             if avg_attn_scores is not None:
                 if attn is None:
                     attn = torch.empty(
-                        bsz * beam_size, src_tokens.size(1), max_len + 2
+                        bsz * beam_size, avg_attn_scores.size(1), max_len + 2
                     ).to(scores)
                 attn[:, :, step + 1].copy_(avg_attn_scores)
 
