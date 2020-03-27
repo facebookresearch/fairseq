@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
 
 import os
 import random
+import logging
 from collections import Counter
 
 import torch
@@ -84,7 +81,7 @@ class EM:
         obj = (self.centroids[self.assignments].t() - self.W).norm(p=2).item()
         self.objective.append(obj)
         if self.verbose:
-            print(
+            logging.info(
                 f"Iteration: {i},\t"
                 f"objective: {obj:.6f},\t"
                 f"resolved empty clusters: {n_empty_clusters}"
@@ -122,6 +119,9 @@ class EM:
 
             # increment tentatives
             if tentatives == self.max_tentatives:
+                logging.info(
+                    f"Could not resolve all empty clusters, {len(empty_clusters)} remaining"
+                )
                 raise EmptyClusterResolveError
             tentatives += 1
 
@@ -142,10 +142,21 @@ class EM:
               the tensors fit into the memory of the GPU
         """
 
-        W_sqr = (self.W ** 2).sum(0)
-        centroids_sqr = (self.centroids ** 2).sum(1)
-        corr = self.centroids.mm(self.W)
-        return torch.sqrt(centroids_sqr[:, None] + W_sqr[None, :] - 2 * corr)
+        nb_centroids_chunks = 1
+
+        while True:
+            try:
+                return torch.cat(
+                    [
+                        (self.W[None, :, :] - centroids_c[:, :, None]).norm(p=2, dim=1)
+                        for centroids_c in self.centroids.chunk(
+                            nb_centroids_chunks, dim=0
+                        )
+                    ],
+                    dim=0,
+                )
+            except RuntimeError:
+                nb_centroids_chunks *= 2
 
     def assign(self):
         """

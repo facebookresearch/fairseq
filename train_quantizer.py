@@ -4,42 +4,32 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 """
-Quantize a model on one or across multiple GPUs.
+Train a new model on one or across multiple GPUs.
 """
 
-import os
-import time
+import logging
 import math
+import os
 import random
-import collections
-from operator import attrgetter
+import sys
 
 import numpy as np
-
 import torch
-import torch.distributed as dist
 
-from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
+from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import iterators
+from fairseq.logging import meters, metrics, progress_bar
 from fairseq.trainer import Trainer
-from fairseq.meters import AverageMeter, StopwatchMeter
-from fairseq.modules.quantization.pq import PQ
-from fairseq.modules.quantization.utils import SizeTracker, quantize_model_
+from fairseq.modules.quantization.pq import quantize_model_, SizeTracker
 
-n_centroids_config = {
-  'Conv2d': ('kernel_size', {'*':256}),
-  'Linear': ('in_features', {'*':256})
-}
 
-block_sizes_config = {
-  'Conv2d': ('kernel_size', {'(3, 3)':9, '(1, 1)':4}),
-  'Linear': ('in_features', {'*':8})
-}
-
-block_sizes_config =  block_sizes_config  # TODO get from config
-n_centroids_config =  n_centroids_config  # TODO get from config
-order = ['ffn', 'attn', 'emb'] # TODO get from config
-layers_to_quantize = ["ffn*", "emb*", "attn"] # TODO get from config
+logging.basicConfig(
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+    stream=sys.stdout,
+)
+logger = logging.getLogger('fairseq_cli.train') 
 
 
 def main(args, init_distributed=False):
@@ -59,48 +49,70 @@ def main(args, init_distributed=False):
     if distributed_utils.is_master(args):
         checkpoint_utils.verify_checkpoint_directory(args.save_dir)
 
-    if args.distributed_world_size > 1:
-        dist.barrier()
+    # Print args
+    logger.info(args)
 
     # Setup task, e.g., translation, language modeling, etc.
     task = tasks.setup_task(args)
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     for valid_sub_split in args.valid_subset.split(','):
-        task.load_dataset(valid_sub_split, combine=False, epoch=0)
+        task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # Build model and criterion
     model = task.build_model(args)
     criterion = task.build_criterion(args)
-    print(model)
-    print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
-    print('| num. model params: {} (num. trained: {})'.format(
+    logger.info(model)
+    logger.info('model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
+    logger.info('num. model params: {} (num. trained: {})'.format(
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
     # Build trainer
     trainer = Trainer(args, task, model, criterion)
-    print('| training on {} GPUs'.format(args.distributed_world_size))
-    print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
+    logger.info('training on {} GPUs'.format(args.distributed_world_size))
+    logger.info('max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
         args.max_sentences,
     ))
 
-    # Load the latest non-compressde checkpoint if one is available and restore the corresponding train iterator
+    # Load the latest checkpoint if one is available and restore the
+    # corresponding train iterator
     extra_state, epoch_itr = checkpoint_utils.load_checkpoint(args, trainer)
+    
+    # Prepare quantization 
+    # TODO: get those three from config and remove them from here
+    
+    # doc: here 256 centroids for everyone
+    n_centroids_config = {
+      'Linear': ('in_features', {'*': 256}),
+      'Embedding': ('embedding_dim', {'*': 256})
+    }
 
-    # Define new save dir for not erasing checkpoints and possibly load partially quantized model
-    args.save_dir = os.path.join(args.save)
-    extra_state, epoch_itr = checkpoint_utils.load_checkpoint(args, trainer)
+    # doc: here block sizes 8 for FFN, 4 for ATTN, 4 for embedding projections, 8 for embeddings
+    block_sizes_config = {
+      'Linear': ('fuzzy_name', {'fc': 8, 'attn': 4, 'emb': 4}),
+      'Embedding': ('fuzzy_name', {'emb': 8})
+    }
 
-    # parameters for finetuning of centroids that will be passed to centroid_nag optimizer
-    opt_params_compressed = {}
-
-    print('Quantizing Network')
+    layers_to_quantize = ["decoder\\.layers\\.\d+\\.fc[12]", 
+                          "decoder\\.embed_tokens\\.embeddings\\.[012]\\.[01]", 
+                          "decoder\\.layers\\.\d+\\.(k_proj|v_proj|q_proj|out_proj)"]
+    layers_to_quantize = ["decoder\\.layers\\.[0]\\.fc[1]",
+                          "decoder\\.embed_tokens\\.embeddings\\.[0]\\.[01]", 
+                          "decoder\\.layers\\.[1]\\.(k_proj|v_proj|q_proj|out_proj)"]
+    
+    n_centroids_config = n_centroids_config # TODO: get from config
+    block_sizes_config = block_sizes_config # TODO: get from config
+    layers_to_quantize = layers_to_quantize # TODO: get from config
+    
     size_tracker = SizeTracker(model)
+    
+    # Quantize model by stages 
     for step in range(len(layers_to_quantize)):
-        # quantize the layers inplace
+        
+        trainer.set_num_updates(0) 
         quantized_layers = quantize_model_(
                         model,
                         size_tracker,
@@ -109,117 +121,118 @@ def main(args, init_distributed=False):
                         n_centroids_config,
                         step=step,
                     )
-        print(f"Finetuning stage {step}, quantized layers: {quantized_layers}")
-        print(f"{size_tracker}")
+        logger.info(f"Finetuning stage {step}, quantized layers: {quantized_layers}")
+        logger.info(f"{size_tracker}")
+        
+        # Re-create trainer since model parameters have changed
+#         trainer = Trainer(args, task, model, criterion)
+#         trainer._build_optimizer()
 
-        # weights are optimized differently whether they are laready quantized or not
-        print('Finetuning centroids {}'.format(order[step]))
-        opt_params = {p:{} for (n, p) in model.named_parameters() if p.requires_grad}
-        opt_params.update(opt_params_compressed)
-
-        # funetuning loop
-        torch.cuda.empty_cache()
-        trainer = Trainer(args, task, model, criterion)
+        # Train until the learning rate gets too small
         max_epoch = args.max_epoch or math.inf
         max_update = args.max_update or math.inf
         lr = trainer.get_lr()
-        train_meter = StopwatchMeter()
-        valid_subsets = args.valid_subset.split(',')
+        train_meter = meters.StopwatchMeter()
         train_meter.start()
-
-        while lr > args.min_lr and epoch_itr.epoch < max_epoch and trainer.get_num_updates() < max_update:
+        valid_subsets = args.valid_subset.split(',')
+        
+        # finetune centroids 
+        while trainer.get_num_updates() < max_update:
             # train for one epoch
-            train(args, trainer, task, epoch_itr, opt_params)
+            train(args, trainer, task, epoch_itr)
 
             if not args.disable_validation and epoch_itr.epoch % args.validate_interval == 0:
                 valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+            else:
+                valid_losses = [None]
+
             # only use first validation loss to update the learning rate
             lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
 
-            reload_dataset = ':' in getattr(args, 'data', '')
-            # sharded data: get train iterator for next epoch
-            epoch_itr = trainer.get_train_iterator(epoch_itr.epoch, load_dataset=reload_dataset)
+            # save checkpoint
+            if epoch_itr.epoch % args.save_interval == 0:
+                checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+
+            # early stop
+            if should_stop_early(args, valid_losses[0]):
+                logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
+                break
+
+            epoch_itr = trainer.get_train_iterator(
+                epoch_itr.next_epoch_idx,
+                # sharded data: get train iterator for next epoch
+                load_dataset=(os.pathsep in getattr(args, 'data', '')),
+            )
         train_meter.stop()
-        print('| done finetuning in {:.1f} seconds'.format(train_meter.sum))
+        logger.info('done training in {:.1f} seconds'.format(train_meter.sum))
 
-    # save model
-    checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, None)
 
-    # this sanity check is important. It vefiries that the accuracy of the model when
-    # reloading it with centroids and assignments is unchanged, i.e. that
-    # the optimizer has correctly finetuned the centroids
-    # TODO @Pierre: do you still want to leave these in?
-    layers = get_layers(model, args)
-    if args.distributed_rank == 0:
-        for step in range(len(layers_to_quantize)):
-            for layer in layers[step]:
-                M_hat = attrgetter(layer + '.data')(model).detach()
-                out_features, in_features = M_hat.size() if not transpose else M_hat.t().size()
-                block_size, n_centroids, n_blocks, conv, stride, k, padding, groups = get_quantization_specs(in_features, layer, args)
-                Quantizer = PQEmbeddings if not args.activations or 'embeddings' in layer else PQ
-                quantizer = Quantizer(None, M, n_activations=args.n_activations,
-                                      n_samples=args.n_samples, eps=args.eps, n_centroids=n_centroids,
-                                      n_iter=args.n_iter, n_blocks=n_blocks, k=k, stride=stride,
-                                      padding=padding, groups=groups, normalize=False, transpose=transpose)
-                quantizer.load(args.save_dir, layer)
-                assignments = quantizer.assignments
-                centroids = centroids_from_weights(M_hat, assignments, n_centroids, n_blocks, transpose=transpose)
-                weights = weight_from_centroids(centroids, assignments, n_blocks, k, False, transpose=transpose)
-                attrgetter(layer)(model).data = weights
-                quantizer.centroids = centroids
-                quantizer.save(args.save_dir, layer)
+def should_stop_early(args, valid_loss):
+    # skip check if no validation was done in the current epoch
+    if valid_loss is None:
+        return False
+    if args.patience <= 0:
+        return False
 
-    # broadcast
-    if args.distributed_world_size > 1:
-        dist.barrier()
-        for step in range(len(layers_to_quantize)):
-            for layer in layers[step]:
-                dist.broadcast(attrgetter(layer + '.data')(model), 0)
+    def is_better(a, b):
+        return a > b if args.maximize_best_checkpoint_metric else a < b
 
-    # evaluation
-    valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+    prev_best = getattr(should_stop_early, 'best', None)
+    if prev_best is None or is_better(valid_loss, prev_best):
+        should_stop_early.best = valid_loss
+        should_stop_early.num_runs = 0
+        return False
+    else:
+        should_stop_early.num_runs += 1
+        return should_stop_early.num_runs >= args.patience
 
-def train(args, trainer, task, epoch_itr, opt_params):
+
+@metrics.aggregate('train')
+def train(args, trainer, task, epoch_itr):
     """Train the model for one epoch."""
-    # Update parameters every N batches
-    update_freq = args.update_freq[epoch_itr.epoch - 1] \
-        if epoch_itr.epoch <= len(args.update_freq) else args.update_freq[-1]
-
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
-        shuffle=(epoch_itr.epoch >= args.curriculum),
+        shuffle=(epoch_itr.next_epoch_idx > args.curriculum),
+    )
+    update_freq = (
+        args.update_freq[epoch_itr.epoch - 1]
+        if epoch_itr.epoch <= len(args.update_freq)
+        else args.update_freq[-1]
     )
     itr = iterators.GroupedIterator(itr, update_freq)
-    progress = progress_bar.build_progress_bar(
-        args, itr, epoch_itr.epoch, no_progress_bar='simple',
+    progress = progress_bar.progress_bar(
+        itr,
+        log_format=args.log_format,
+        log_interval=args.log_interval,
+        epoch=epoch_itr.epoch,
+        tensorboard_logdir=(
+            args.tensorboard_logdir if distributed_utils.is_master(args) else None
+        ),
+        default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
     )
 
-    extra_meters = collections.defaultdict(lambda: AverageMeter())
+    # task specific setup per epoch
+    task.begin_epoch(epoch_itr.epoch, trainer.get_model())
+
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
-    for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
-        log_output = trainer.train_step(samples, opt_params)
-        if log_output is None:
-            continue
+    for samples in progress:
+        with metrics.aggregate('train_inner'):
+            log_output = trainer.train_step(samples)
+            if log_output is None:  # OOM, overflow, ...
+                continue
 
         # log mid-epoch stats
-        stats = get_training_stats(trainer)
-        for k, v in log_output.items():
-            if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
-                continue  # these are already logged above
-            if 'loss' in k or k == 'accuracy':
-                extra_meters[k].update(v, log_output['sample_size'])
-            else:
-                extra_meters[k].update(v)
-            stats[k] = extra_meters[k].avg
-        progress.log(stats, tag='train', step=stats['num_updates'])
-
-        # ignore the first mini-batch in words-per-second calculation
-        if i == 0:
-            trainer.get_meter('wps').reset()
-
         num_updates = trainer.get_num_updates()
+        if num_updates % args.log_interval == 0:
+            stats = get_training_stats(metrics.get_smoothed_values('train_inner'))
+            progress.log(stats, tag='train_inner', step=num_updates)
+
+            # reset mid-epoch stats after each log interval
+            # the end-of-epoch stats will still be preserved
+            metrics.reset_meters('train_inner')
+
         if (
             not args.disable_validation
             and args.save_interval_updates > 0
@@ -227,48 +240,23 @@ def train(args, trainer, task, epoch_itr, opt_params):
             and num_updates > 0
         ):
             valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, None)
+            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
         if num_updates >= max_update:
             break
 
     # log end-of-epoch stats
-    stats = get_training_stats(trainer)
-    for k, meter in extra_meters.items():
-        stats[k] = meter.avg
-    progress.print(stats, tag='train', step=stats['num_updates'])
+    stats = get_training_stats(metrics.get_smoothed_values('train'))
+    progress.print(stats, tag='train', step=num_updates)
 
-    # reset training meters
-    for k in [
-        'train_loss', 'train_nll_loss', 'wps', 'ups', 'wpb', 'bsz', 'gnorm', 'clip',
-    ]:
-        meter = trainer.get_meter(k)
-        if meter is not None:
-            meter.reset()
+    # reset epoch-level meters
+    metrics.reset_meters('train')
 
 
-def get_training_stats(trainer):
-    stats = collections.OrderedDict()
-    stats['loss'] = trainer.get_meter('train_loss')
-    if trainer.get_meter('train_nll_loss').count > 0:
-        nll_loss = trainer.get_meter('train_nll_loss')
-        stats['nll_loss'] = nll_loss
-    else:
-        nll_loss = trainer.get_meter('train_loss')
-    stats['ppl'] = utils.get_perplexity(nll_loss.avg)
-    stats['wps'] = trainer.get_meter('wps')
-    stats['ups'] = trainer.get_meter('ups')
-    stats['wpb'] = trainer.get_meter('wpb')
-    stats['bsz'] = trainer.get_meter('bsz')
-    stats['num_updates'] = trainer.get_num_updates()
-    stats['lr'] = trainer.get_lr()
-    stats['gnorm'] = trainer.get_meter('gnorm')
-    stats['clip'] = trainer.get_meter('clip')
-    stats['oom'] = trainer.get_meter('oom')
-    if trainer.get_meter('loss_scale') is not None:
-        stats['loss_scale'] = trainer.get_meter('loss_scale')
-    stats['wall'] = round(trainer.get_meter('wall').elapsed_time)
-    stats['train_wall'] = trainer.get_meter('train_wall')
+def get_training_stats(stats):
+    if 'nll_loss' in stats and 'ppl' not in stats:
+        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
+    stats['wall'] = round(metrics.get_meter('default', 'wall').elapsed_time, 0)
     return stats
 
 
@@ -297,68 +285,42 @@ def validate(args, trainer, task, epoch_itr, subsets):
             shard_id=args.distributed_rank,
             num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
-        progress = progress_bar.build_progress_bar(
-            args, itr, epoch_itr.epoch,
-            prefix='valid on \'{}\' subset'.format(subset),
-            no_progress_bar='simple'
+        progress = progress_bar.progress_bar(
+            itr,
+            log_format=args.log_format,
+            log_interval=args.log_interval,
+            epoch=epoch_itr.epoch,
+            prefix=f"valid on '{subset}' subset",
+            tensorboard_logdir=(
+                args.tensorboard_logdir if distributed_utils.is_master(args) else None
+            ),
+            default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
         )
 
-        # reset validation loss meters
-        for k in ['valid_loss', 'valid_nll_loss']:
-            meter = trainer.get_meter(k)
-            if meter is not None:
-                meter.reset()
-        extra_meters = collections.defaultdict(lambda: AverageMeter())
-
-        for sample in progress:
-            log_output = trainer.valid_step(sample)
-
-            for k, v in log_output.items():
-                if k in ['loss', 'nll_loss', 'ntokens', 'nsentences', 'sample_size']:
-                    continue
-                extra_meters[k].update(v)
+        # create a new root metrics aggregator so validation metrics
+        # don't pollute other aggregators (e.g., train meters)
+        with metrics.aggregate(new_root=True) as agg:
+            for sample in progress:
+                trainer.valid_step(sample)
 
         # log validation stats
-        stats = get_valid_stats(trainer, args, extra_meters)
-        for k, meter in extra_meters.items():
-            stats[k] = meter.avg
+        stats = get_valid_stats(args, trainer, agg.get_smoothed_values())
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
-        valid_losses.append(
-            stats[args.best_checkpoint_metric].avg
-            if args.best_checkpoint_metric == 'loss'
-            else stats[args.best_checkpoint_metric]
-        )
+        valid_losses.append(stats[args.best_checkpoint_metric])
     return valid_losses
 
 
-def get_valid_stats(trainer, args, extra_meters=None):
-    stats = collections.OrderedDict()
-    stats['loss'] = trainer.get_meter('valid_loss')
-    if trainer.get_meter('valid_nll_loss').count > 0:
-        nll_loss = trainer.get_meter('valid_nll_loss')
-        stats['nll_loss'] = nll_loss
-    else:
-        nll_loss = stats['loss']
-    stats['ppl'] = utils.get_perplexity(nll_loss.avg)
+def get_valid_stats(args, trainer, stats):
+    if 'nll_loss' in stats and 'ppl' not in stats:
+        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
     stats['num_updates'] = trainer.get_num_updates()
     if hasattr(checkpoint_utils.save_checkpoint, 'best'):
         key = 'best_{0}'.format(args.best_checkpoint_metric)
         best_function = max if args.maximize_best_checkpoint_metric else min
-
-        current_metric = None
-        if args.best_checkpoint_metric == 'loss':
-            current_metric = stats['loss'].avg
-        elif args.best_checkpoint_metric in extra_meters:
-            current_metric = extra_meters[args.best_checkpoint_metric].avg
-        elif args.best_checkpoint_metric in stats:
-            current_metric = stats[args.best_checkpoint_metric]
-        else:
-            raise ValueError("best_checkpoint_metric not found in logs")
-
         stats[key] = best_function(
             checkpoint_utils.save_checkpoint.best,
-            current_metric,
+            stats[args.best_checkpoint_metric],
         )
     return stats
 
@@ -370,9 +332,9 @@ def distributed_main(i, args, start_rank=0):
     main(args, init_distributed=True)
 
 
-def cli_main():
-    parser = options.get_quantization_parser()
-    args = options.parse_args_and_arch(parser)
+def cli_main(modify_parser=None):
+    parser = options.get_training_parser()
+    args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
 
     if args.distributed_init_method is None:
         distributed_utils.infer_init_method(args)
@@ -395,8 +357,6 @@ def cli_main():
         port = random.randint(10000, 20000)
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
         args.distributed_rank = None  # set based on device id
-        if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
-            print('| NOTE: you may get better performance with: --ddp-backend=no_c10d')
         torch.multiprocessing.spawn(
             fn=distributed_main,
             args=(args, ),

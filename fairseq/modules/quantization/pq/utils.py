@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
 
+import logging
 import re
 from operator import attrgetter, itemgetter
 
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.distributed as dist
 
-from .modules import QuantizedLinear
+from .modules import PQConv2d, PQLinear, PQEmbedding
 from .pq import PQ
 
 
@@ -22,9 +20,9 @@ def quantize_model_(
     block_sizes_config,
     n_centroids_config,
     step=0,
-    n_iter=20,
+    n_iter=1,
     eps=1e-6,
-    max_tentatives=30,
+    max_tentatives=100,
     verbose=True,
 ):
     """
@@ -42,16 +40,16 @@ def quantize_model_(
           to their name (as in model.named_parameters())
         - block_sizes_config: dict like
           {
-              'Conv2d': ('kernel_size', {'(3, 3)':9, '(1, 1)':4}),
-              'Linear': ('in_features', {'*':8})
+              'Conv2d': ('kernel_size', {'(3, 3)': 9, '(1, 1)': 4}),
+              'Linear': ('in_features', {'*': 8})
           }
           For instance, all conv2d layers with kernel size 3x3 have
           a block size of 9 and all Linear layers are quantized with
           a block size of 8, irrespective of their size.
         - n_centroids_config: dict like
           {
-              'Conv2d': ('kernel_size', {'*':256}),
-              'Linear': ('in_features', {'*':256})
+              'Conv2d': ('kernel_size', {'*': 256}),
+              'Linear': ('in_features', {'*': 256})
           }
           For instance, all conv2d layers are quantized with 256 centroids
         - step: the layers to quantize inplace corresponding
@@ -63,23 +61,19 @@ def quantize_model_(
     for layer in quantized_layers:
 
         # book-keeping
-        if verbose:
-            print(f"Quantizing layer {layer}")
+        is_master_process = (not dist.is_initialized()) or (dist.is_initialized() and dist.get_rank() == 0)
+        verbose = verbose and is_master_process
 
         # get block size and centroids
         module = attrgetter(layer)(model)
-        block_size = get_param(module, block_sizes_config)
-        n_centroids = get_param(module, n_centroids_config)
-
-        # remove spectral norm if any
-        try:
-            torch.nn.utils.remove_spectral_norm(module)
-        except ValueError:
-            pass
+        block_size = get_param(module, layer, block_sizes_config)
+        n_centroids = get_param(module, layer, n_centroids_config)
+        if verbose:
+            logging.info(f"Quantizing layer {layer} with block size {block_size} and {n_centroids} centroids")
 
         # quantize layer
-        weight = module.weight.clone().detach()
-        bias = module.bias.clone().detach() if module.bias is not None else None
+        weight = module.weight.data.clone()
+        bias = module.bias.data.clone() if ('bias' in module.__dict__ and module.bias is not None) else None
         quantizer = PQ(
             weight,
             block_size,
@@ -87,18 +81,33 @@ def quantize_model_(
             n_iter=n_iter,
             eps=eps,
             max_tentatives=max_tentatives,
-            verbose=True,
+            verbose=verbose,
         )
+
+        # quantization performed on all GPUs with same seed 
         quantizer.encode()
-        centroids, assignments = quantizer.centroids, quantizer.assignments
+        centroids = quantizer.centroids.contiguous()
+        assignments = quantizer.assignments.contiguous()
+        
+        # broadcast results to make sure weights are up-to-date 
+        if dist.is_initialized():
+            dist.broadcast(centroids, 0)
+            dist.broadcast(assignments, 0)
 
         # instantiate the quantized counterpart
         if isinstance(module, nn.Linear):
             out_features, in_features = map(
                 lambda k: module.__dict__[k], ["out_features", "in_features"]
             )
-            quantized_layer = QuantizedLinear(
+            quantized_layer = PQLinear(
                 centroids, assignments, bias, in_features, out_features
+            )
+        elif isinstance(module, nn.Embedding):
+            num_embeddings, embedding_dim = map(
+                lambda k: module.__dict__[k], ["num_embeddings", "embedding_dim"]
+            )
+            quantized_layer = PQEmbedding(
+                centroids, assignments, num_embeddings, embedding_dim
             )
         elif isinstance(module, nn.Conv2d):
             out_channels, in_channels, kernel_size = map(
@@ -109,12 +118,8 @@ def quantize_model_(
                 lambda k: module.__dict__[k],
                 ["stride", "padding", "dilation", "groups", "padding_mode"],
             )
-            # account for static padding in EfficientNet
-            if groups > 1:
-                padding = module.static_padding.padding
-                padding = (padding[0], padding[1])
 
-            quantized_layer = QuantizedConv2d(
+            quantized_layer = PQConv2d(
                 centroids,
                 assignments,
                 bias,
@@ -178,36 +183,63 @@ def get_layers(model, filter_regexp):
     return list(filter(r.match, all_layers))
 
 
-def get_param(module, param_config):
+def get_param(module, layer_name, param_config):
     """
     Given a quantization configuration, get the right parameter
     for the module to be quantized.
 
     Args:
         - module: a nn.Module
+        - layer_name: the name of the layer
         - param_config: a dict like
           {
-              'Conv2d': ('kernel_size', {'(3, 3)':9, '(1, 1)':4}),
-              'Linear': ('in_features', {'*':8})
+              'Conv2d': ('kernel_size', {'(3, 3)': 9, '(1, 1)': 4}),
+              'Linear': ('in_features', {'*': 8})
           }
           For instance, all conv2d layers with kernel size 3x3 have
           a block size of 9 and all Linear layers are quantized with
           a block size of 8, irrespective of their size.
+          
+    Remarks:
+        - if 'fuzzy_name' is passed as a parameter, layers whose layer_name
+          include 'fuzzy_name' will be assigned the given parameter. 
+          In the following example, conv.expand layers will have a block
+          size of 9 while conv.reduce will have a block size of 4 and all 
+          other layers will have a block size of 2.
+          {
+              'Conv2d': ('fuzzy_name', {'expand': 9, 'reduce': 4, '*': 2}),
+              'Linear': ('fuzzy_name', {'classifier': 8, 'projection': 4})
+          }          
+          
     """
 
     layer_type = module.__class__.__name__
+
     if layer_type not in param_config:
         raise KeyError(f"Layer type {layer_type} not in config for layer {module}")
 
     feature, params = param_config[module.__class__.__name__]
-    feature_value = str(getattr(module, feature))
-    if feature_value not in params:
-        if "*" in params:
-            feature_value = "*"
+    
+    if feature != "fuzzy_name":
+        feature_value = str(getattr(module, feature))
+        if feature_value not in params:
+            if "*" in params:
+                feature_value = "*"
+            else:
+                raise KeyError(
+                    f"{feature}={feature_value} not in config for layer {module}"
+                )
+    else:
+        feature_values = [name for name in params if name in layer_name]
+        if len(feature_values) == 0:
+            if "*" in params:
+                feature_value = "*"
+            else:
+                raise KeyError(
+                    f"name={layer_name} not in config for {module}"
+                )
         else:
-            raise KeyError(
-                f"{feature}={feature_value} not in config for layer {module}"
-            )
+            feature_value = feature_values[0]
 
     return params[feature_value]
 
