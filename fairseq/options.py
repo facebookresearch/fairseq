@@ -610,43 +610,8 @@ def add_model_args(parser):
 
 
 def add_quantization_args(parser):
-    # TODO: need to change!
     group = parser.add_argument_group('Quantization')
     add_common_eval_args(group)
     # fmt: off
-    group.add_argument('--block', default='all', type=str,
-                       help='Block to quantize (if all, quantizes whole network)')
-    group.add_argument('--n-iter', default=30, type=int,
-                       help='Number of EM iterations for quantization')
-    group.add_argument('--eps', default=1e-8, type=float,
-                       help='For empty cluster resolution')
-    group.add_argument('--activations', action='store_true',
-                       help='Data-aware quantization')
-    group.add_argument('--n-activations', default=1024, type=int,
-                       help='Size of the batch of activations to sample from')
-    group.add_argument('--n-samples', default=1000, type=int,
-                       help='Number of samples (activations only)')
-    group.add_argument('--block-size-emb', default=4, type=int,
-                       help='Block size for quantization')
-    group.add_argument('--block-size-emb-proj', default=4, type=int,
-                       help='Block size for quantization')
-    group.add_argument('--block-size-attn', default=4, type=int,
-                       help='Block size for quantization')
-    group.add_argument('--block-size-ffn', default=4, type=int,
-                       help='Block size for quantization')
-    group.add_argument('--n-centroids-emb', default=256, type=int,
-                       help='Number of centroids')
-    group.add_argument('--n-centroids-emb-proj', default=256, type=int,
-                       help='Number of centroids')
-    group.add_argument('--n-centroids-attn', default=256, type=int,
-                       help='Number of centroids')
-    group.add_argument('--n-centroids-ffn', default=256, type=int,
-                       help='Number of centroids')
-    parser.add_argument('--distillation', action='store_true',
-                       help='Distillation using teacher network')
-    parser.add_argument('--transpose', action='store_true',
-                       help='If true, quantize the rows instead of the columns')
-    parser.add_argument("--order", type=str, default='fc,emb,att',
-                        help="Quantization order")
-    parser.add_argument("--save", type=str, default='.',
-                        help="Dummy save path")
+    group.add_argument('--quantization-config-path', default=None,
+                       help='Path to Quantization Config File')
