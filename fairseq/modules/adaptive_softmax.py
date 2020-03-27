@@ -8,7 +8,7 @@ import functools
 
 import torch
 import torch.nn.functional as F
-from fairseq.modules.quant_noise import structured_dropout
+from fairseq.modules.quant_noise import quant_noise
 from torch import nn
 
 
@@ -28,14 +28,14 @@ class TiedHeadModule(nn.Module):
         tied_emb, _ = weights
         self.num_words, emb_dim = tied_emb.size()
 
-        self.word_proj = structured_dropout(TiedLinear(tied_emb, transpose=False), p=q_noise, block_size=qn_block_size)
+        self.word_proj = quant_noise(TiedLinear(tied_emb, transpose=False), q_noise, qn_block_size)
         if input_dim != emb_dim:
             self.word_proj = nn.Sequential(
-                structured_dropout(nn.Linear(input_dim, emb_dim, bias=False), p=q_noise, block_size=qn_block_size),
+                quant_noise(nn.Linear(input_dim, emb_dim, bias=False), q_noise, qn_block_size),
                 self.word_proj,
             )
 
-        self.class_proj = structured_dropout(nn.Linear(input_dim, num_classes, bias=False), p=q_noise, block_size=qn_block_size)
+        self.class_proj = quant_noise(nn.Linear(input_dim, num_classes, bias=False), q_noise, qn_block_size)
         self.out_dim = self.num_words + num_classes
 
         self.register_buffer('_float_tensor', torch.FloatTensor(1))
@@ -77,9 +77,9 @@ class AdaptiveSoftmax(nn.Module):
         self.lsm = nn.LogSoftmax(dim=1)
 
         if adaptive_inputs is not None:
-            self.head = TiedHeadModule(adaptive_inputs.weights_for_band(0), input_dim, len(cutoff) - 1, q_noise=self.quant_noise, qn_block_size=self.quant_noise_block_size)
+            self.head = TiedHeadModule(adaptive_inputs.weights_for_band(0), input_dim, len(cutoff) - 1, self.quant_noise, self.quant_noise_block_size)
         else:
-            self.head = structured_dropout(nn.Linear(input_dim, output_dim, bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
+            self.head = quant_noise(nn.Linear(input_dim, output_dim, bias=False), self.quant_noise, self.quant_noise_block_size)
 
         self._make_tail(adaptive_inputs, tie_proj)
 
@@ -101,17 +101,17 @@ class AdaptiveSoftmax(nn.Module):
 
             if tied_proj is not None:
                 if tie_proj:
-                    proj = structured_dropout(TiedLinear(tied_proj, transpose=True), p=self.quant_noise, block_size=self.quant_noise_block_size)
+                    proj = quant_noise(TiedLinear(tied_proj, transpose=True), self.quant_noise, self.quant_noise_block_size)
                 else:
-                    proj = structured_dropout(nn.Linear(tied_proj.size(0), tied_proj.size(1), bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
+                    proj = quant_noise(nn.Linear(tied_proj.size(0), tied_proj.size(1), bias=False), self.quant_noise, self.quant_noise_block_size)
             else:
-                proj = structured_dropout(nn.Linear(self.input_dim, dim, bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
+                proj = quant_noise(nn.Linear(self.input_dim, dim, bias=False), self.quant_noise, self.quant_noise_block_size)
 
             m = nn.Sequential(
                 proj,
                 nn.Dropout(self.dropout),
-                structured_dropout(nn.Linear(dim, self.cutoff[i + 1] - self.cutoff[i], bias=False), p=self.quant_noise, block_size=self.quant_noise_block_size)
-                if tied_emb is None else structured_dropout(TiedLinear(tied_emb, transpose=False), p=self.quant_noise, block_size=self.quant_noise_block_size),
+                quant_noise(nn.Linear(dim, self.cutoff[i + 1] - self.cutoff[i], bias=False), self.quant_noise, self.quant_noise_block_size)
+                if tied_emb is None else quant_noise(TiedLinear(tied_emb, transpose=False), self.quant_noise, self.quant_noise_block_size),
             )
 
             self.tail.append(m)

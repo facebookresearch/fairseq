@@ -9,13 +9,22 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 
 
-def structured_dropout(module, p, block_size):
+def quant_noise(module, p, block_size):
+    """
+    Wraps modules and applies quantization noise to the weights
+    as described in 'Training with Quantization Noise for Extreme Model Compression'
+    """
+    # if no quantization noise, don't register hook
+    if p <= 0:
+        return module
+
     def _forward_pre_hook(mod, input):
-        if mod.training and p > 0:
+        if mod.training:
             weight = mod.weight
             in_features = weight.size(0)
             out_features = weight.size(1)
 
+            # split weight matrix into blocks and randomly drop selected blocks
             mask = torch.zeros(in_features // block_size * out_features, device=weight.device)
             mask.bernoulli_(p)
             mask = mask.repeat_interleave(block_size, -1).view(-1, in_features)
@@ -27,37 +36,3 @@ def structured_dropout(module, p, block_size):
 
     module.register_forward_pre_hook(_forward_pre_hook)
     return module
-
-class StructuredDropout(nn.Module):
-    """
-    Randomly drops blocks of columns in the input.
-    Args:
-        - p: dropout probability
-        - block_size: size of the block of columns
-    Remarks:
-        - As in the standard dropout implementation, the input is scaled by
-          a factor 1 / (1 - p) during training and left unchanged during evaluation.
-    """
-
-    def __init__(self, p, block_size):
-        super().__init__()
-        if p < 0 or p > 1:
-            raise ValueError("dropout probability has to be between 0 and 1, but got {}".format(p))
-        self.p = p
-        self.block_size = int(block_size)
-
-    def forward(self, x):
-        # training
-        if self.training and self.p > 0:
-            # generate mask
-            # x is T x B x C
-            bptt, bs, d = x.size()
-            mask = torch.zeros(bs, 1, d // self.block_size, device=x.device)
-            mask.bernoulli_(self.p)
-            mask = mask.repeat_interleave(self.block_size, -1).bool()
-            # scaling
-            s = 1 / (1 - self.p)
-            return s * x.masked_fill(mask, 0)
-        # eval mode no dropout
-        else:
-            return x

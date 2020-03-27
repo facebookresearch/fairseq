@@ -26,7 +26,7 @@ from fairseq.modules import (
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
-from fairseq.modules.quant_noise import structured_dropout
+from fairseq.modules.quant_noise import quant_noise
 from torch import Tensor
 
 
@@ -402,7 +402,7 @@ class TransformerEncoder(FairseqEncoder):
         )
 
         if not args.adaptive_input and self.quant_noise > 0:
-            self.embed_dropout = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=False), p=args.q_noise, block_size=args.qn_block_size)
+            self.embed_dropout = quant_noise(nn.Linear(embed_dim, embed_dim, bias=False), args.q_noise, args.qn_block_size)
 
         self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
@@ -624,10 +624,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
 
         if not args.adaptive_input and self.quant_noise > 0:
-            self.embed_dropout = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=False), p=args.q_noise, block_size=args.qn_block_size)
-
-        if not args.adaptive_input and self.quant_noise > 0:
-            self.embed_dropout = structured_dropout(nn.Linear(embed_dim, embed_dim, bias=False), p=args.q_noise, block_size=args.qn_block_size)
+            self.embed_dropout = quant_noise(nn.Linear(embed_dim, embed_dim, bias=False), args.q_noise, args.qn_block_size)
         else:
             self.embed_dropout = None
 

@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
-from fairseq.modules import LayerNorm, MultiheadAttention, StructuredDropout
-from fairseq.modules.quant_noise import structured_dropout
+from fairseq.modules import LayerNorm, MultiheadAttention
+from fairseq.modules.quant_noise import quant_noise
 from torch import Tensor
 
 
@@ -48,27 +48,24 @@ class TransformerEncoderLayer(nn.Module):
         self.fc1 = self.build_fc1(self.embed_dim, args.encoder_ffn_embed_dim, self.quant_noise, self.quant_noise_block_size)
         self.fc2 = self.build_fc2(args.encoder_ffn_embed_dim, self.embed_dim, self.quant_noise, self.quant_noise_block_size)
 
-        if self.quant_noise > 0:
-            self.struct_drop_ffn = StructuredDropout(args.quant_noise, args.quant_noise_block_size)
-            self.struct_drop_attn = StructuredDropout(args.quant_noise, args.quant_noise_block_size)
-
         self.final_layer_norm = LayerNorm(self.embed_dim)
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        return quant_noise(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        return quant_noise(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
 
     def build_self_attention(self, embed_dim, args):
-        return MultiheadAttention(
+        attention = MultiheadAttention(
             embed_dim,
             args.encoder_attention_heads,
             dropout=args.attention_dropout,
             self_attention=True,
-            q_noise=getattr(args, 'quant_noise', 0),
-            qn_block_size=getattr(args, 'quant_noise_block_size', 8),
+            q_noise=self.quant_noise,
+            qn_block_size=self.quant_noise_block_size,
         )
+        return quant_noise(attention, self.quant_noise, self.quant_noise_block_size)
 
     def upgrade_state_dict_named(self, state_dict, name):
         """
@@ -112,8 +109,6 @@ class TransformerEncoderLayer(nn.Module):
         # will become -inf, which results in NaN in model parameters
         # TODO: to formally solve this problem, we need to change fairseq's
         # MultiheadAttention. We will do this later on.
-        if self.quant_noise > 0:
-            x = self.struct_drop_attn(x)
 
         x, _ = self.self_attn(
             query=x,
@@ -130,9 +125,6 @@ class TransformerEncoderLayer(nn.Module):
         residual = x
         if self.normalize_before:
             x = self.final_layer_norm(x)
-
-        if self.quant_noise > 0:
-            x = self.struct_drop_ffn(x)
 
         x = self.activation_fn(self.fc1(x))
         x = F.dropout(x, p=float(self.activation_dropout), training=self.training)
@@ -166,6 +158,10 @@ class TransformerDecoderLayer(nn.Module):
     ):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
+        self.dropout = args.dropout
+        self.quant_noise = getattr(args, "quant_noise", 0)
+        self.quant_noise_block_size = getattr(args, "quant_noise_block_size", 8)
+
         self.cross_self_attention = getattr(args, "cross_self_attention", False)
 
         self.self_attn = self.build_self_attention(
@@ -174,9 +170,6 @@ class TransformerDecoderLayer(nn.Module):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
         )
-        self.dropout = args.dropout
-        self.quant_noise = getattr(args, "quant_noise", 0)
-        self.quant_noise_block_size = getattr(args, "quant_noise_block_size", 8)
         self.activation_fn = utils.get_activation_fn(
             activation=getattr(args, "activation_fn", "relu")
         )
@@ -202,44 +195,42 @@ class TransformerDecoderLayer(nn.Module):
         self.fc1 = self.build_fc1(self.embed_dim, args.decoder_ffn_embed_dim, self.quant_noise, self.quant_noise_block_size)
         self.fc2 = self.build_fc2(args.decoder_ffn_embed_dim, self.embed_dim, self.quant_noise, self.quant_noise_block_size)
 
-        if self.quant_noise > 0:
-            self.struct_drop_ffn = StructuredDropout(args.quant_noise, args.quant_noise_block_size)
-            self.struct_drop_attn = StructuredDropout(args.quant_noise, args.quant_noise_block_size)
-
         self.final_layer_norm = LayerNorm(self.embed_dim, export=export)
         self.need_attn = True
 
         self.onnx_trace = False
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return structured_dropout(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
 
     def build_self_attention(self, embed_dim, args, add_bias_kv=False, add_zero_attn=False):
-        return MultiheadAttention(
+        attention = MultiheadAttention(
             embed_dim,
             args.decoder_attention_heads,
             dropout=args.attention_dropout,
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
             self_attention=not getattr(args, "cross_self_attention", False),
-            q_noise=getattr(args, 'quant_noise', 0),
-            qn_block_size=getattr(args, 'quant_noise_block_size', 8),
+            q_noise=self.quant_noise,
+            qn_block_size=self.quant_noise_block_size,
         )
+        return quant_noise(attention, self.quant_noise, self.quant_noise_block_size)
 
     def build_encoder_attention(self, embed_dim, args):
-        return MultiheadAttention(
+        attention = MultiheadAttention(
             embed_dim,
             args.decoder_attention_heads,
             kdim=getattr(args, "encoder_embed_dim", None),
             vdim=getattr(args, "encoder_embed_dim", None),
             dropout=args.attention_dropout,
             encoder_decoder_attention=True,
-            q_noise=getattr(args, 'quant_noise', 0),
-            qn_block_size=getattr(args, 'quant_noise_block_size', 8),
+            q_noise=self.quant_noise,
+            qn_block_size=self.quant_noise_block_size,
         )
+        return quant_noise(attention, self.quant_noise, self.quant_noise_block_size)
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -311,9 +302,6 @@ class TransformerDecoderLayer(nn.Module):
         else:
             y = x
 
-        if self.quant_noise > 0:
-            x = self.struct_drop_attn(x)
-
         x, attn = self.self_attn(
             query=x,
             key=y,
@@ -343,9 +331,6 @@ class TransformerDecoderLayer(nn.Module):
                 assert incremental_state is not None
                 self.encoder_attn._set_input_buffer(incremental_state, saved_state)
 
-            if self.quant_noise > 0:
-                x = self.struct_drop_attn(x)
-
             x, attn = self.encoder_attn(
                 query=x,
                 key=encoder_out,
@@ -364,8 +349,7 @@ class TransformerDecoderLayer(nn.Module):
         residual = x
         if self.normalize_before:
             x = self.final_layer_norm(x)
-        if self.quant_noise > 0:
-            x = self.struct_drop_ffn(x)
+
         x = self.activation_fn(self.fc1(x))
         x = F.dropout(x, p=float(self.activation_dropout), training=self.training)
         x = self.fc2(x)

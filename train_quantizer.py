@@ -29,7 +29,7 @@ logging.basicConfig(
     level=logging.INFO,
     stream=sys.stdout,
 )
-logger = logging.getLogger('fairseq_cli.train') 
+logger = logging.getLogger('fairseq_cli.train')
 
 
 def main(args, init_distributed=False):
@@ -80,10 +80,10 @@ def main(args, init_distributed=False):
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
     extra_state, epoch_itr = checkpoint_utils.load_checkpoint(args, trainer)
-    
-    # Prepare quantization 
+
+    # Prepare quantization
     # TODO: get those three from config and remove them from here
-    
+
     # doc: here 256 centroids for everyone
     n_centroids_config = {
       'Linear': ('in_features', {'*': 256}),
@@ -96,23 +96,23 @@ def main(args, init_distributed=False):
       'Embedding': ('fuzzy_name', {'emb': 8})
     }
 
-    layers_to_quantize = ["decoder\\.layers\\.\d+\\.fc[12]", 
-                          "decoder\\.embed_tokens\\.embeddings\\.[012]\\.[01]", 
+    layers_to_quantize = ["decoder\\.layers\\.\d+\\.fc[12]",
+                          "decoder\\.embed_tokens\\.embeddings\\.[012]\\.[01]",
                           "decoder\\.layers\\.\d+\\.(k_proj|v_proj|q_proj|out_proj)"]
     layers_to_quantize = ["decoder\\.layers\\.[0]\\.fc[1]",
-                          "decoder\\.embed_tokens\\.embeddings\\.[0]\\.[01]", 
+                          "decoder\\.embed_tokens\\.embeddings\\.[0]\\.[01]",
                           "decoder\\.layers\\.[1]\\.(k_proj|v_proj|q_proj|out_proj)"]
-    
+
     n_centroids_config = n_centroids_config # TODO: get from config
     block_sizes_config = block_sizes_config # TODO: get from config
     layers_to_quantize = layers_to_quantize # TODO: get from config
-    
+
     size_tracker = SizeTracker(model)
-    
-    # Quantize model by stages 
+
+    # Quantize model by stages
     for step in range(len(layers_to_quantize)):
-        
-        trainer.set_num_updates(0) 
+
+        trainer.set_num_updates(0)
         quantized_layers = quantize_model_(
                         model,
                         size_tracker,
@@ -123,7 +123,7 @@ def main(args, init_distributed=False):
                     )
         logger.info(f"Finetuning stage {step}, quantized layers: {quantized_layers}")
         logger.info(f"{size_tracker}")
-        
+
         # Re-create trainer since model parameters have changed
 #         trainer = Trainer(args, task, model, criterion)
 #         trainer._build_optimizer()
@@ -135,8 +135,8 @@ def main(args, init_distributed=False):
         train_meter = meters.StopwatchMeter()
         train_meter.start()
         valid_subsets = args.valid_subset.split(',')
-        
-        # finetune centroids 
+
+        # finetune centroids
         while trainer.get_num_updates() < max_update:
             # train for one epoch
             train(args, trainer, task, epoch_itr)

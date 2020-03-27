@@ -24,7 +24,7 @@ from fairseq.modules import (
     TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from fairseq.modules.quant_noise import structured_dropout
+from fairseq.modules.quant_noise import quant_noise
 
 from .hub_interface import RobertaHubInterface
 
@@ -245,7 +245,7 @@ class RobertaClassificationHead(nn.Module):
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout = nn.Dropout(p=pooler_dropout)
-        self.out_proj = structured_dropout(nn.Linear(inner_dim, num_classes), p=q_noise, block_size=qn_block_size)
+        self.out_proj = quant_noise(nn.Linear(inner_dim, num_classes), q_noise, qn_block_size)
 
     def forward(self, features, **kwargs):
         x = features[:, 0, :]  # take <s> token (equiv. to [CLS])

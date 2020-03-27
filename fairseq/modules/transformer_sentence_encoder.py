@@ -14,7 +14,7 @@ from fairseq.modules import (
     PositionalEmbedding,
     TransformerSentenceEncoderLayer,
 )
-from fairseq.modules.quant_noise import structured_dropout
+from fairseq.modules.quant_noise import quant_noise
 import random
 
 
@@ -119,7 +119,7 @@ class TransformerSentenceEncoder(nn.Module):
         )
         self.embed_scale = embed_scale
 
-        self.embed_dropout = structured_dropout(nn.Linear(self.embedding_dim, self.embedding_dim, bias=False), p=q_noise, block_size=qn_block_size)
+        self.embed_dropout = quant_noise(nn.Linear(self.embedding_dim, self.embedding_dim, bias=False), q_noise, qn_block_size)
 
         self.segment_embeddings = (
             nn.Embedding(self.num_segments, self.embedding_dim, padding_idx=None)
