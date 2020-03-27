@@ -485,6 +485,8 @@ class TransformerEncoder(FairseqEncoder):
             encoder_padding_mask=encoder_padding_mask,  # B x T
             encoder_embedding=encoder_embedding,  # B x T x C
             encoder_states=encoder_states,  # List[T x B x C]
+            src_tokens=None,
+            src_lengths=None,
         )
 
     @torch.jit.export
@@ -516,6 +518,13 @@ class TransformerEncoder(FairseqEncoder):
             if encoder_out.encoder_embedding is None
             else encoder_out.encoder_embedding.index_select(0, new_order)
         )
+        src_tokens = encoder_out.src_tokens
+        if src_tokens is not None:
+            src_tokens = src_tokens.index_select(0, new_order)
+
+        src_lengths = encoder_out.src_lengths
+        if src_lengths is not None:
+            src_lengths = src_lengths.index_select(0, new_order)
 
         encoder_states = encoder_out.encoder_states
         if encoder_states is not None:
@@ -527,6 +536,8 @@ class TransformerEncoder(FairseqEncoder):
             encoder_padding_mask=new_encoder_out["encoder_padding_mask"],  # B x T
             encoder_embedding=new_encoder_out["encoder_embedding"],  # B x T x C
             encoder_states=encoder_states,  # List[T x B x C]
+            src_tokens=src_tokens,  # B x T
+            src_lengths=src_lengths,  # B x 1
         )
 
     def max_positions(self):

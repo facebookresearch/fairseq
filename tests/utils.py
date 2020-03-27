@@ -176,6 +176,8 @@ class TestEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            src_tokens=None,
+            src_lengths=None,
         )
 
     def reorder_encoder_out(self, encoder_out, new_order):
@@ -184,6 +186,8 @@ class TestEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            src_tokens=None,
+            src_lengths=None,
         )
 
 
@@ -264,6 +268,8 @@ class TestReshapingEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            src_tokens=None,
+            src_lengths=None,
         )
 
     def reorder_encoder_out(self, encoder_out, new_order):
@@ -272,6 +278,8 @@ class TestReshapingEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            src_tokens=None,
+            src_lengths=None,
         )
 
 
