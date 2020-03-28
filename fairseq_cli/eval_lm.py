@@ -77,6 +77,7 @@ def main(parsed_args, **unused_kwargs):
         parsed_args.path.split(os.pathsep),
         arg_overrides=eval(parsed_args.model_overrides),
         task=task,
+        suffix=getattr(parsed_args, "checkpoint_suffix", ""),
     )
 
     for arg in vars(parsed_args).keys():

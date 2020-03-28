@@ -28,7 +28,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         best_function = max if args.maximize_best_checkpoint_metric else min
         save_checkpoint.best = best_function(val_loss, prev_best)
 
-    if args.no_save or not distributed_utils.is_master(args):
+    if args.no_save or not trainer.is_data_parallel_master:
         return
 
     def is_better(a, b):
@@ -41,18 +41,19 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     end_of_epoch = epoch_itr.end_of_epoch()
     updates = trainer.get_num_updates()
 
+    suffix = getattr(args, "checkpoint_suffix", "")
     checkpoint_conds = collections.OrderedDict()
-    checkpoint_conds["checkpoint{}.pt".format(epoch)] = (
+    checkpoint_conds["checkpoint{}{}.pt".format(epoch, suffix)] = (
         end_of_epoch
         and not args.no_epoch_checkpoints
         and epoch % args.save_interval == 0
     )
-    checkpoint_conds["checkpoint_{}_{}.pt".format(epoch, updates)] = (
+    checkpoint_conds["checkpoint_{}_{}{}.pt".format(epoch, updates, suffix)] = (
         not end_of_epoch
         and args.save_interval_updates > 0
         and updates % args.save_interval_updates == 0
     )
-    checkpoint_conds["checkpoint_best.pt"] = val_loss is not None and (
+    checkpoint_conds["checkpoint_best{}.pt".format(suffix)] = val_loss is not None and (
         not hasattr(save_checkpoint, "best")
         or is_better(val_loss, save_checkpoint.best)
     )
@@ -62,7 +63,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
             not hasattr(save_checkpoint, "best")
             or is_better(val_loss, save_checkpoint.best)
         )
-    checkpoint_conds["checkpoint_last.pt"] = not args.no_last_checkpoints
+    checkpoint_conds["checkpoint_last{}.pt".format(suffix)] = not args.no_last_checkpoints
 
     extra_state = {"train_iterator": epoch_itr.state_dict(), "val_loss": val_loss}
     if hasattr(save_checkpoint, "best"):
@@ -121,8 +122,9 @@ def load_checkpoint(args, trainer, **passthrough_args):
     if args.distributed_rank == 0:
         os.makedirs(args.save_dir, exist_ok=True)
 
+    suffix = getattr(args, "checkpoint_suffix", "")
     if args.restore_file == "checkpoint_last.pt":
-        checkpoint_path = os.path.join(args.save_dir, "checkpoint_last.pt")
+        checkpoint_path = os.path.join(args.save_dir, "checkpoint_last{}.pt".format(suffix))
     else:
         checkpoint_path = args.restore_file
 
@@ -174,7 +176,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
     return state
 
 
-def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True):
+def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True, suffix=''):
     """Loads an ensemble of models.
 
     Args:
@@ -184,16 +186,17 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True):
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
     ensemble, args, _task = load_model_ensemble_and_task(
-        filenames, arg_overrides, task, strict
+        filenames, arg_overrides, task, strict, suffix,
     )
     return ensemble, args
 
 
-def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None, strict=True):
+def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None, strict=True, suffix=''):
     from fairseq import tasks
 
     ensemble = []
     for filename in filenames:
+        filename = filename.replace(".pt", suffix + ".pt")
         if not PathManager.exists(filename):
             raise IOError("Model file not found: {}".format(filename))
         state = load_checkpoint_to_cpu(filename, arg_overrides)
@@ -270,7 +273,7 @@ def save_state(
         extra_state = {}
     state_dict = {
         "args": args,
-        "model": model_state_dict if model_state_dict else {},
+        "model": convert_state_dict_type(model_state_dict) if model_state_dict else {},
         "optimizer_history": optim_history
         + [
             {
