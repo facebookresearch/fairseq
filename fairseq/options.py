@@ -233,6 +233,8 @@ def get_parser(desc, default_task="translation"):
     parser.add_argument('--model-parallel-size', type=int, metavar='N',
                         default=1,
                         help='total number of GPUs to parallelize model over')
+    parser.add_argument('--checkpoint-suffix', default='',
+                        help='Suffix to add to the checkpoint file name')
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():

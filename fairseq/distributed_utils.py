@@ -112,6 +112,7 @@ def distributed_init(args):
     if args.model_parallel_size > 1:
         try:
             from fairseq.model_parallel.megatron.mpu import (
+                get_model_parallel_rank,
                 initialize_model_parallel,
                 model_parallel_cuda_manual_seed,
             )
@@ -123,6 +124,8 @@ def distributed_init(args):
             )
         initialize_model_parallel(args.model_parallel_size)
         model_parallel_cuda_manual_seed(args.seed)
+        model_part_number = get_model_parallel_rank()
+        args.checkpoint_suffix += '-model_part-{0}'.format(model_part_number)
     return args.distributed_rank
 
 

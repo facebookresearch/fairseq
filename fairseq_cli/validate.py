@@ -43,6 +43,7 @@ def main(args, override_args=None):
     models, model_args, task = checkpoint_utils.load_model_ensemble_and_task(
         [args.path],
         arg_overrides=overrides,
+        suffix=getattr(args, "checkpoint_suffix", ""),
     )
     model = models[0]
 
