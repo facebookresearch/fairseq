@@ -99,7 +99,7 @@ def main(args, init_distributed=False):
         # train for one epoch
         should_end_training = train(args, trainer, task, epoch_itr)
 
-        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets)
+        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets, is_within_epoch=False)
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
@@ -187,7 +187,7 @@ def train(args, trainer, task, epoch_itr):
             # the end-of-epoch stats will still be preserved
             metrics.reset_meters('train_inner')
 
-        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets)
+        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets, is_within_epoch=True)
         if should_stop_early(args, valid_losses[0]) or num_updates >= max_update:
             should_end_training = True
             break
@@ -201,7 +201,7 @@ def train(args, trainer, task, epoch_itr):
     return should_end_training
 
 
-def validate_and_save(args, trainer, task, epoch_itr, valid_subsets):
+def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, is_within_epoch):
     num_updates = trainer.get_num_updates()
     do_save = (
         (
@@ -212,6 +212,7 @@ def validate_and_save(args, trainer, task, epoch_itr, valid_subsets):
         or (
             epoch_itr.end_of_epoch()
             and epoch_itr.epoch % args.save_interval == 0
+            and not is_within_epoch
         )
     )
     do_validate = (
@@ -220,6 +221,7 @@ def validate_and_save(args, trainer, task, epoch_itr, valid_subsets):
             or (
                 epoch_itr.end_of_epoch()
                 and epoch_itr.epoch % args.validate_interval == 0
+                and not is_within_epoch
             )
         )
         and not args.disable_validation
