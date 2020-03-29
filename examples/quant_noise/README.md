@@ -19,7 +19,7 @@ To train a model with Quant-Noise, add the following flags:
 ```
 --quant-noise 0.1 --quant-noise-block-size 8
 ```
-We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`! Large block sizes result in higher compression ratio but may induce a loss in accuracy.
+We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`. Large block sizes result in higher compression ratio but may induce a loss in accuracy.
 
 Quant-Noise can also be combined with **LayerDrop** (see [here](https://github.com/pytorch/fairseq/tree/master/examples/layerdrop)) to add its pruning effect to the quantized model and make the model even smaller. We recommend training with LayerDrop 0.1 or 0.2.
 
@@ -48,7 +48,7 @@ For the particular case of PQ, quantization is made sequentially. We recommend f
 **Integration with your own code**. Looking to quantize your own models?
 - First wrap your modules with the `quant_noise` function [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py), which is module-agnostic and train your favorite model.
 - Then, quantize your trained model using the code [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/pq). This can be done *without any changes to your training loop* thanks to our API. Below is an example code for integration.
-Note that we tried our approach only on Transformers and various Convolutional Models such as EfficientNets. 
+Note that we tried our approach only on Transformers and various Convolutional Models such as EfficientNets.
 
 ```python
 from fairseq.modules.quantization.pq import quantize_model_, SizeTracker
@@ -193,7 +193,7 @@ and change the `--gen-subset` to `test` if you would like to evaluate on the tes
 TODO
 ```
 
-2. To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours. 
+2. To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
 ```bash
 python train_quantizer.py --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \

@@ -111,7 +111,7 @@ class IntConv2d(_ConvNd):
         mask = torch.zeros_like(self.weight)
         mask.bernoulli_(1 - p)
         noise = (weight_quantized - self.weight).masked_fill(mask.bool(), 0)
-        print(noise)
+
         # using straight-through estimator (STE)
         weight = self.weight + noise.detach()
 
