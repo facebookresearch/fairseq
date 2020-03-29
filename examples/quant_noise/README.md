@@ -23,7 +23,7 @@ We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in 
 
 Quant-Noise can also be combined with **LayerDrop** (see [here](https://github.com/pytorch/fairseq/tree/master/examples/layerdrop)) to add its pruning effect to the quantized model and make the model even smaller. We recommend training with LayerDrop 0.1 or 0.2.
 
-To quantize a model, use `train_quantizer.py`.
+To quantize a model, use `quantize_pq.py` for Product Quantization and `quantize_scalar.py` for scalar quantization.
 
 ### Detailed Description
 
@@ -195,7 +195,7 @@ TODO
 
 2. To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
 ```bash
-python train_quantizer.py --task language_modeling /path/to/wikitext-103/data \
+python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \
     --adaptive-input --adaptive-input-cutoff 20000,60000 --adaptive-input-factor 4 \
     --adaptive-softmax-cutoff 20000,60000 --adaptive-softmax-dropout 0.2 --adaptive-softmax-factor 4.0 \

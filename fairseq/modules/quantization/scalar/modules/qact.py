@@ -30,6 +30,10 @@ class ActivationQuantizer:
     def register_hook(self):
         # forward hook
         def quantize_hook(module, x, y):
+            # train with QuantNoise and evaluate the fully quantized network
+            p = self.p if self.training else 1
+            
+            # quantize activations 
             y_q, self.scale, self.zero_point = emulate_int(
                 y.detach(),
                 bits=self.bits,
@@ -40,7 +44,7 @@ class ActivationQuantizer:
             
             # mask to apply noise
             mask = torch.zeros_like(y)
-            mask.bernoulli_(1 - self.p)
+            mask.bernoulli_(1 - p)
             noise = (y_q - y).masked_fill(mask.bool(), 0)
 
             # using straight-through estimator (STE)
