@@ -92,13 +92,13 @@ def main(args, init_distributed=False):
     n_centroids_config = config["n_centroids"]
     block_sizes_config = config["block_sizes"]
     layers_to_quantize = config["layers_to_quantize"]
-
+    
     size_tracker = SizeTracker(model)
 
     # Quantize model by stages
     for step in range(len(layers_to_quantize)):
 
-        trainer.set_num_updates(0)
+        # quantize model inplace
         quantized_layers = quantize_model_(
                         model,
                         size_tracker,
@@ -111,8 +111,7 @@ def main(args, init_distributed=False):
         logger.info(f"{size_tracker}")
 
         # Re-create trainer since model parameters have changed
-#         trainer = Trainer(args, task, model, criterion)
-#         trainer._build_optimizer()
+        trainer = Trainer(args, task, model, criterion)
 
         # Train until the learning rate gets too small
         max_epoch = args.max_epoch or math.inf
@@ -363,18 +362,18 @@ def parse_config_yaml(yaml_data):
     # Initialize to default options.
     quantization_options = {
         "n_centroids": {
-            "Linear": ("in_features", { "*", 256 }),
-            "Embedding": ("embedding_dim", { "*": 256 }),
+            "Linear": ["in_features", {"*": 256}],
+            "Embedding": ["embedding_dim", {"*": 256}],
         },
         "block_sizes": {
-            "Linear": ("fuzzy_name", { "fc": 8, "attn": 4, "emb": 4 }),
-            "Embedding": ("fuzzy_name", { "emb": 8 }),
+            "Linear": ["fuzzy_name", {"fc": 8, "attn": 4, "emb": 4}],
+            "Embedding": ["fuzzy_name", {"emb": 8}],
         },
-        "layers_to_quantize": {
+        "layers_to_quantize": [
             "decoder\\.layers\\.\d+\\.fc[12]",
             "decoder\\.embed_tokens\\.embeddings\\.[012]\\.[01]",
-            "decoder\\.layers\\.\d+\\.(k_proj|v_proj|q_proj|out_proj)",
-        },
+            "decoder\\.layers\\.\d+\\.self_attn\\.(k_proj|v_proj|q_proj|out_proj)",
+        ],
     }
 
     if "n_centroids" in yaml_data:

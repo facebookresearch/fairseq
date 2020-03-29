@@ -20,7 +20,7 @@ def quantize_model_(
     block_sizes_config,
     n_centroids_config,
     step=0,
-    n_iter=1,
+    n_iter=15,
     eps=1e-6,
     max_tentatives=100,
     verbose=True,
@@ -240,7 +240,7 @@ def get_param(module, layer_name, param_config):
                 )
         else:
             feature_value = feature_values[0]
-
+            
     return params[feature_value]
 
 

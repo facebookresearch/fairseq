@@ -1,17 +1,17 @@
 # Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2019)
-This page contains information for how to train models with Quantization Noise.
+This page contains information for how to train and quantize models with Quantization Noise.
 
 Check out our blog post [here](link_to_blog_post) and read the paper [here](link_to_paper).
 
 Looking for pretrained models? They will be added shortly.
 Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back.
 
-## Citation:
+## Citation
 To be added shortly
 
 ## Description and Example Usage
 
-Training a model with Quant-Noise improves the performance in subsequent inference-time quantization by training models to be robust. This technique is useful for both scalar and vector quantization methods, as well as multiple domains.
+Training a model with Quant-Noise improves the performance in subsequent inference-time quantization by training models to be robust to quantization. This technique is useful for both scalar and vector quantization methods, as well as multiple domains.
 
 ### QuickStart
 
@@ -19,15 +19,15 @@ To train a model with Quant-Noise, add the following flags:
 ```
 --quant-noise 0.1 --quant-noise-block-size 8
 ```
-We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size 8.
+We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`! Large block sizes result in higher compression ratio but may induce a loss in accuracy.
 
-Quant-Noise can also be combined with LayerDrop (see [here](https://github.com/pytorch/fairseq/tree/master/examples/layerdrop)) to add its pruning effect to the quantized model and make the model even smaller. We recommend training with LayerDrop 0.1 or 0.2.
+Quant-Noise can also be combined with **LayerDrop** (see [here](https://github.com/pytorch/fairseq/tree/master/examples/layerdrop)) to add its pruning effect to the quantized model and make the model even smaller. We recommend training with LayerDrop 0.1 or 0.2.
 
 To quantize a model, use `train_quantizer.py`.
 
 ### Detailed Description
 
-Quantization with Quant-Noise proceeds in two steps. First, a model must be trained with quant-noise. Second, the model must be quantized.
+Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
 
 **Step 1**: Training a model with quant-noise.
 
@@ -39,11 +39,55 @@ In the Transformer architectures, quant-noise is applied to the input and output
 
 **Step 2**: Quantizing a model.
 
-We currently support two kinds of quantization: scalar quantization such as int4 and int8, and vector quantization in the form of product quantization. We implement an improved version of product quantization from Stock et al described [here](https://arxiv.org/abs/1907.05686).
+We currently support two kinds of quantization: scalar quantization such as int4 and int8 in the form of Fake Quantization, and vector quantization in the form of Product Quantization. We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code [here](https://github.com/facebookresearch/kill-the-bits).
 
-[add more details to this section!]
+For the particular case of PQ, quantization is made sequentially. We recommend first quantizing the FFNs, then the EMBs, and finally the ATTNs. Quantization is done in two sub-steps:
+- First, perform `n` steps of Product Quantization (generally `n=20` is enough).
+- Then, finetune the obtained centroids.
+
+**Integration with your own code**. Looking to quantize your own models?
+- First wrap your modules with the `quant_noise` function [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py), which is module-agnostic and train your favorite model.
+- Then, quantize your trained model using the code [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/pq). This can be done *without any changes to your training loop* thanks to our API. Below is an example code for integration.
+Note that we tried our approach only on Transformers and various Convolutional Models such as EfficientNets. 
+
+```python
+from fairseq.modules.quantization.pq import quantize_model_, SizeTracker
+
+
+# get configuration parameters
+n_centroids_config = config["n_centroids"]
+block_sizes_config = config["block_sizes"]
+layers_to_quantize = config["layers_to_quantize"]
+
+# size tracker for keeping track of assignments, centroids and non-compressed sizes
+size_tracker = SizeTracker(model)
+
+# Quantize model by stages
+for step in range(len(layers_to_quantize)):
+
+    # quantize model in-place
+    quantized_layers = quantize_model_(
+                    model,
+                    size_tracker,
+                    layers_to_quantize,
+                    block_sizes_config,
+                    n_centroids_config,
+                    step=step,
+                )
+    logger.info(f"Finetuning stage {step}, quantized layers: {quantized_layers}")
+    logger.info(f"{size_tracker}")
+
+    # Don't forget to re-create/update trainer/optimizer since model parameters have changed!
+    trainer = Trainer(args, task, model, criterion)
+
+    # Finetune the centroids, we recommend doing the equivalent of a few training epochs
+    trainer.train_epoch()
+```
+
 
 ### Looking to reproduce the NLP results in the paper?
+
+#### Training
 
 1. To train RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
 
@@ -77,11 +121,11 @@ python train.py $DATA_DIR \
 To finetune RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md). The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
 
 ```bash
-TOTAL_NUM_UPDATES=2036  
-WARMUP_UPDATES=122      
-LR=2e-05               
+TOTAL_NUM_UPDATES=2036
+WARMUP_UPDATES=122
+LR=2e-05
 NUM_CLASSES=2
-MAX_SENTENCES=16        
+MAX_SENTENCES=16
 ROBERTA_PATH=/path/to/roberta_quantnoise/model.pt
 
 python train.py /path/to/rte/data/ \
@@ -140,6 +184,37 @@ python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
     --gen-subset valid
 ```
 and change the `--gen-subset` to `test` if you would like to evaluate on the test set instead.
+
+#### Quantization
+
+
+1. To quantize the finetuned RoBERTa model, we use this command on xx GPUs. This should take xx hours.
+```bash
+TODO
+```
+
+2. To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours. 
+```bash
+python train_quantizer.py --task language_modeling /path/to/wikitext-103/data \
+    --save-dir checkpoints/transformer_wikitext-103 \
+    --adaptive-input --adaptive-input-cutoff 20000,60000 --adaptive-input-factor 4 \
+    --adaptive-softmax-cutoff 20000,60000 --adaptive-softmax-dropout 0.2 --adaptive-softmax-factor 4.0 \
+    --arch transformer_lm_gbw \
+    --attention-dropout 0.1 --dropout 0.2 --relu-dropout 0.1  \
+    --bucket-cap-mb 25 --char-embedder-highway-layers 2 --character-embedding-dim 4 \
+    --clip-norm 0.1 --criterion adaptive_loss \
+    --ddp-backend=no_c10d \
+    --decoder-attention-heads 8 --decoder-embed-dim 1024 --decoder-ffn-embed-dim 4096 --decoder-input-dim 1024 --decoder-layers 16 --decoder-normalize-before --decoder-output-dim 1024 \
+    --fp16 --keep-last-epochs -1 \
+    --lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --max-lr 0.05 --min-lr 1e-09 \
+    --max-tokens 2816  --tokens-per-sample 2816\
+    --momentum 0.99 --no-epoch-checkpoints --no-progress-bar --optimizer nag --required-batch-size-multiple 8 \
+    --sample-break-mode none --t-mult 2.0 --skip-invalid-size-inputs-valid-test \
+    --tie-adaptive-proj --tie-adaptive-weights --update-freq 3 --weight-decay 0 --seed 1  \
+    --log-interval 100 --no-progress-bar --skip-invalid-size-inputs-valid-test \
+    --restore-file path/to/trained/lm/with/quant/noise \
+    --max-update 4500
+```
 
 
 ### Looking to reproduce the Vision results in the paper?
