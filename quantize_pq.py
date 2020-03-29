@@ -69,6 +69,8 @@ def main(args, init_distributed=False):
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
+    
+    # quantize model 
 
     # Build trainer
     trainer = Trainer(args, task, model, criterion)

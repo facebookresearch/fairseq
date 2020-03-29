@@ -81,7 +81,7 @@ class IntEmbedding(nn.Module):
         # train with QuantNoise and evaluate the fully quantized network
         p = self.p if self.training else 1
 
-        # update parameters every 100 iterations
+        # update parameters every 1000 iterations
         if self.counter % self.update_step == 0:
             self.scale = None
             self.zero_point = None
