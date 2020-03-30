@@ -122,7 +122,7 @@ class IntConv2d(_ConvNd):
     def extra_repr(self):
         return (
             "in_channels={}, out_channels={}, kernel_size={}, stride={}, "
-            "padding={}, dilation={}, groups={}, bias={}, dropout={}, "
+            "padding={}, dilation={}, groups={}, bias={}, quant_noise={}, "
             "bits={}, method={}".format(
                 self.in_channels,
                 self.out_channels,

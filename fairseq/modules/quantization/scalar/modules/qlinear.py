@@ -93,7 +93,7 @@ class IntLinear(nn.Module):
         return output
 
     def extra_repr(self):
-        return "in_features={}, out_features={}, bias={}, dropout={}, bits={}, method={}".format(
+        return "in_features={}, out_features={}, bias={}, quant_noise={}, bits={}, method={}".format(
             self.in_features,
             self.out_features,
             self.bias is not None,

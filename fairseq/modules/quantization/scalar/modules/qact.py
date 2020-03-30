@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import torch
+
+from ..ops import emulate_int
+
 
 class ActivationQuantizer:
     """
@@ -17,11 +21,14 @@ class ActivationQuantizer:
         - To remove the hook from the module, simply call self.handle.remove()
         - At test time, the activations are fully quantized
     """
-    def __init__(self, module, p=1, bits=8, method="tensor"):
+    def __init__(self, module, p=1, update_step=1000, bits=8, method="histogram"):
         self.module = module
         self.p = p
+        self.update_step = update_step
+        self.counter = 0
         self.bits = bits
         self.method = method
+        self
         self.scale = None
         self.zero_point = None
         self.handle = None
@@ -30,8 +37,15 @@ class ActivationQuantizer:
     def register_hook(self):
         # forward hook
         def quantize_hook(module, x, y):
+                    
+            # update parameters every 1000 iterations
+            if self.counter % self.update_step == 0:
+                self.scale = None
+                self.zero_point = None
+            self.counter += 1
+        
             # train with QuantNoise and evaluate the fully quantized network
-            p = self.p if self.training else 1
+            p = self.p if self.module.training else 1
             
             # quantize activations 
             y_q, self.scale, self.zero_point = emulate_int(

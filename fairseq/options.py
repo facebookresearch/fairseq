@@ -613,5 +613,7 @@ def add_quantization_args(parser):
     group = parser.add_argument_group('Quantization')
     add_common_eval_args(group)
     # fmt: off
+    group.add_argument('--quant-noise-scalar', default=0, type=float,
+                       help='Quant noise for scalar quantization')
     group.add_argument('--quantization-config-path', default=None,
                        help='Path to Quantization Config File')

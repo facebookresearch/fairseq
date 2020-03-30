@@ -62,7 +62,6 @@ def main(args, init_distributed=False):
     # Build model and criterion
     model = task.build_model(args)
     criterion = task.build_criterion(args)
-    logger.info(model)
     logger.info('model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
     logger.info('num. model params: {} (num. trained: {})'.format(
         sum(p.numel() for p in model.parameters()),
@@ -70,7 +69,8 @@ def main(args, init_distributed=False):
     ))
     
     # prepare model for Fake Quantization (weights and activations)
-    quantize_model_(model)
+    quantize_model_(model, p=args.quant_noise_scalar, bits=8, update_step=1000)
+    logger.info(model)
 
     # Build trainer
     trainer = Trainer(args, task, model, criterion)
@@ -291,7 +291,7 @@ def distributed_main(i, args, start_rank=0):
 
 
 def cli_main(modify_parser=None):
-    parser = options.get_training_parser()
+    parser = options.get_quantization_parser()
     args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
 
     if args.distributed_init_method is None:

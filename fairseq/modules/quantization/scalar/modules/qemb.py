@@ -29,12 +29,12 @@ class IntEmbedding(nn.Module):
         self,
         num_embeddings, 
         embedding_dim,
-        adding_idx=None, 
+        padding_idx=None, 
         max_norm=None, 
         norm_type=2.,              
         scale_grad_by_freq=False, 
         sparse=False, 
-        _weight=None
+        _weight=None,
         p=0,
         update_step=1000,
         bits=8,
@@ -54,7 +54,7 @@ class IntEmbedding(nn.Module):
         self.norm_type = norm_type
         self.scale_grad_by_freq = scale_grad_by_freq
         if _weight is None:
-            self.weight = Parameter(torch.Tensor(num_embeddings, embedding_dim))
+            self.weight = nn.Parameter(torch.Tensor(num_embeddings, embedding_dim))
             self.reset_parameters()
         else:
             assert list(_weight.shape) == [num_embeddings, embedding_dim], \
@@ -72,7 +72,7 @@ class IntEmbedding(nn.Module):
         self.zero_point_activations = None
 
     def reset_parameters(self):
-        init.normal_(self.weight)
+        nn.init.normal_(self.weight)
         if self.padding_idx is not None:
             with torch.no_grad():
                 self.weight[self.padding_idx].fill_(0)
@@ -122,5 +122,5 @@ class IntEmbedding(nn.Module):
             s += ', scale_grad_by_freq={scale_grad_by_freq}'
         if self.sparse is not False:
             s += ', sparse=True'
-        s+= 'dropout={p}, bits={bits}, method={method}'
+        s+= 'quant_noise={p}, bits={bits}, method={method}'
         return s.format(**self.__dict__)
