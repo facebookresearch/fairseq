@@ -107,7 +107,7 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
             quantized_layer.bias.data = bias        
             
         # activation quantization 
-        a_q = ActivationQuantizer(quantized_layer, p=p, bits=bits, method="histogram")
+        a_q = ActivationQuantizer(quantized_layer, p=0, bits=bits, method="histogram")
                 
         # replace layer by its quantized counterpart
         attrsetter(layer)(model, quantized_layer)
