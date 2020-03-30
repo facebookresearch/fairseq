@@ -202,7 +202,7 @@ You should obtain the following scores on test set:
 
 ```{"BLEU": 10.785, "TER": 0.913, "METEOR": 0.247, "DAL": 2817.45349595572, "AL": 2331.9959397710254, "AP": 0.8462297623865175}``` 
 
-This is the model of wait-k where `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide the full curve for the speech translation model, shown as follow. The detailed numbers can be found [here](speech_curve/speech_curve.csv).
+This is the model of wait-k where `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide the full curve for the speech translation model, shown as follow. The detailed numbers can be found [here](speech_curve.csv).
 ![Quality-Latency Curve for the speech-to-text baseline](speech_curve.png)
 
 ### Final Evaluation with Docker
