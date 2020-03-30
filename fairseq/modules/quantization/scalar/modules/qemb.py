@@ -86,6 +86,7 @@ class IntEmbedding(nn.Module):
             self.scale = None
             self.zero_point = None
         self.counter += 1
+        print(self.counter, p)
 
         # quantize weight
         weight_quantized, self.scale, self.zero_point = emulate_int(
