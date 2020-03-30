@@ -25,9 +25,15 @@ Quant-Noise can also be combined with **LayerDrop** (see [here](https://github.c
 
 To quantize a model, use `quantize_pq.py` for Product Quantization and `quantize_scalar.py` for scalar quantization.
 
-### Detailed Description
 
-Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
+### Scalar Quantization
+
+Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing the weights and activations.
+
+
+### Product Quantization
+
+Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
 
 **Step 1**: Training a model with quant-noise.
 
@@ -39,7 +45,7 @@ In the Transformer architectures, quant-noise is applied to the input and output
 
 **Step 2**: Quantizing a model.
 
-We currently support two kinds of quantization: scalar quantization such as int4 and int8 in the form of Fake Quantization, and vector quantization in the form of Product Quantization. We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code [here](https://github.com/facebookresearch/kill-the-bits).
+We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code [here](https://github.com/facebookresearch/kill-the-bits).
 
 For the particular case of PQ, quantization is made sequentially. We recommend first quantizing the FFNs, then the EMBs, and finally the ATTNs. Quantization is done in two sub-steps:
 - First, perform `n` steps of Product Quantization (generally `n=20` is enough).
@@ -52,7 +58,6 @@ Note that we tried our approach only on Transformers and various Convolutional M
 
 ```python
 from fairseq.modules.quantization.pq import quantize_model_, SizeTracker
-
 
 # get configuration parameters
 n_centroids_config = config["n_centroids"]
@@ -89,7 +94,7 @@ for step in range(len(layers_to_quantize)):
 
 #### Training
 
-1. To train RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
+1. To **train** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
 
 ```bash
 TOTAL_UPDATES=125000
@@ -118,7 +123,7 @@ python train.py $DATA_DIR \
     --quant-noise 0.2 --quant-noise-block-size 8 --untie-weights-roberta
 ```
 
-To finetune RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md). The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
+To **finetune** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md). The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
 
 ```bash
 TOTAL_NUM_UPDATES=2036
@@ -147,11 +152,12 @@ python train.py /path/to/rte/data/ \
     --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric
+    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
+    --ddp-backend no_c10d \
     --quant-noise 0.2 --quant-noise-block-size 8;
 ```
 
-2. To train Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
+2. To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
 
 ```bash
 python train.py --task language_modeling /path/to/wikitext-103/data \
@@ -185,12 +191,31 @@ python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
 ```
 and change the `--gen-subset` to `test` if you would like to evaluate on the test set instead.
 
-#### Quantization
+#### Product Quantization
 
-
-1. To quantize the finetuned RoBERTa model, we use this command on xx GPUs. This should take xx hours.
+1. To quantize the finetuned RoBERTa model, we use this command on 1 GPU. This should run in a day.
 ```bash
-TODO
+TOTAL_NUM_UPDATES=2036
+WARMUP_UPDATES=122
+LR=2e-05
+NUM_CLASSES=2
+MAX_SENTENCES=16
+python quantize_pq.py --task sentence_prediction /path/to/data/ \
+    --restore-file $ROBERTA_PATH \
+    --save-dir checkpoints/roberta_finetuned \
+    --max-positions 512 \
+    --max-sentences $MAX_SENTENCES \
+    --max-tokens 4400 \
+    --init-token 0 --separator-token 2 \
+    --arch roberta_large \
+    --criterion sentence_prediction \
+    --num-classes $NUM_CLASSES \
+    --dropout 0.1 --attention-dropout 0.1 \
+    --weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
+    --clip-norm 0.0 --lr-scheduler polynomial_decay \
+    --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
+    --no-progress-bar --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+    --quantization-config-path /path/to/config/yaml
 ```
 
 2. To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
@@ -203,7 +228,7 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --attention-dropout 0.1 --dropout 0.2 --relu-dropout 0.1  \
     --bucket-cap-mb 25 --char-embedder-highway-layers 2 --character-embedding-dim 4 \
     --clip-norm 0.1 --criterion adaptive_loss \
-    --ddp-backend=no_c10d \
+    --ddp-backend no_c10d \
     --decoder-attention-heads 8 --decoder-embed-dim 1024 --decoder-ffn-embed-dim 4096 --decoder-input-dim 1024 --decoder-layers 16 --decoder-normalize-before --decoder-output-dim 1024 \
     --fp16 --keep-last-epochs -1 \
     --lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --max-lr 0.05 --min-lr 1e-09 \
@@ -213,7 +238,7 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --tie-adaptive-proj --tie-adaptive-weights --update-freq 3 --weight-decay 0 --seed 1  \
     --log-interval 100 --no-progress-bar --skip-invalid-size-inputs-valid-test \
     --restore-file path/to/trained/lm/with/quant/noise \
-    --max-update 4500
+    --max-update 4500 --quantization-config-path /path/to/config/yaml
 ```
 
 

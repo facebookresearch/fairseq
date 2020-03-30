@@ -6,17 +6,14 @@
 # This file defines example configuration arguments for quantizing
 # a transformer model with product quantization
 
-# Number of Centroids for Product Quantization, by default 256 (byte-aligned)
 n_centroids:
     Linear:
         key: in_features
-        value: {"*": 256}
+        value: {"*": 8}
     Embedding:
         key: embedding_dim
-        value: {"*": 256}
+        value: {"*": 8}
 
-# Block Sizes for Product Quantization
-# We suggest: 8 for FFN, 4 for ATTN, 4 for embedding projections, 8 for embeddings
 block_sizes:
   Linear:
       key: fuzzy_name
@@ -25,8 +22,6 @@ block_sizes:
       key: fuzzy_name
       value: {emb: 8}
 
-# Layers to Quantize Sequentially
-# We suggest: first FFN, then EMB, then ATTN
 layers_to_quantize:
     - decoder\\.layers\\.\d+\\.fc[12]
     - decoder\\.embed_tokens\\.embeddings\\.[012]\\.[01]

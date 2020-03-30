@@ -32,11 +32,11 @@ class TransformerEncoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.embed_dim = args.encoder_embed_dim
+        self.quant_noise = getattr(args, "quant_noise", 0)
+        self.quant_noise_block_size = getattr(args, "quant_noise_block_size", 8)
         self.self_attn = self.build_self_attention(self.embed_dim, args)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
         self.dropout = args.dropout
-        self.quant_noise = getattr(args, "quant_noise", 0)
-        self.quant_noise_block_size = getattr(args, "quant_noise_block_size", 8)
         self.activation_fn = utils.get_activation_fn(
             activation=getattr(args, "activation_fn", "relu")
         )
@@ -65,7 +65,7 @@ class TransformerEncoderLayer(nn.Module):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
-        return quant_noise(attention, self.quant_noise, self.quant_noise_block_size)
+        return attention
 
     def upgrade_state_dict_named(self, state_dict, name):
         """
@@ -217,7 +217,7 @@ class TransformerDecoderLayer(nn.Module):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
-        return quant_noise(attention, self.quant_noise, self.quant_noise_block_size)
+        return attention
 
     def build_encoder_attention(self, embed_dim, args):
         attention = MultiheadAttention(
@@ -230,7 +230,7 @@ class TransformerDecoderLayer(nn.Module):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
-        return quant_noise(attention, self.quant_noise, self.quant_noise_block_size)
+        return attention
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True

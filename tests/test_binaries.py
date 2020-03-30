@@ -21,6 +21,7 @@ from fairseq_cli import generate
 from fairseq_cli import interactive
 from fairseq_cli import eval_lm
 from fairseq_cli import validate
+from fairseq_cli import quantize_pq
 
 
 class TestTranslation(unittest.TestCase):
@@ -694,6 +695,21 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
     train.main(train_args)
 
 
+class TestQuantization(unittest.TestCase):
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
+    def test_pq(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_pq') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                quantize_language_model(data_dir, 'transformer_lm')
+
+
 class TestOptimizers(unittest.TestCase):
 
     def setUp(self):
@@ -1092,6 +1108,53 @@ def train_masked_language_model(data_dir, arch, extra_args=()):
     )
     train.main(train_args)
 
+
+def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=False):
+    train_parser = options.get_training_parser()
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            '--task', 'language_modeling',
+            data_dir,
+            '--arch', arch,
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'adaptive_loss',
+            '--adaptive-softmax-cutoff', '5,10,15',
+            '--max-tokens', '500',
+            '--tokens-per-sample', '500',
+            '--save-dir', data_dir,
+            '--max-epoch', '1',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+        ] + (extra_flags or []),
+    )
+    train.main(train_args)
+
+    quantize_parser = options.get_quantization_parser()
+    quantize_args = options.parse_args_and_arch(
+        quantize_parser,
+        [
+            '--task', 'language_modeling',
+            data_dir,
+            '--arch', arch,
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'adaptive_loss',
+            '--adaptive-softmax-cutoff', '5,10,15',
+            '--max-tokens', '500',
+            '--tokens-per-sample', '500',
+            '--max-update', '1',
+            '--max-epoch', '1',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+            '--restore-file', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--quantization-config-path', os.path.join(os.path.dirname(__file__), 'transformer_quantization_config.yaml'),
+        ] + (extra_flags or []),
+    )
+    quantize_pq.main(quantize_args)
 
 if __name__ == '__main__':
     unittest.main()
