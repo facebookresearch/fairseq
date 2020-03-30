@@ -150,62 +150,60 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
 ## Evaluation
 ---
 ### Evaluation Server
-The server can evaluate different types of data given different configuration files
-To evaluate text translation models on dev set. 
+The server can evaluate different types of data given different configuration files.
+We provide the configuration files for dev and test split (`SPLIT in [dev, test]`).
+To evaluate text translation models on a given split set. 
 
 ``` shell
-./scripts/start-server.sh ./scripts/configs/must-c-en_de-text-dev.sh
+./scripts/start-server.sh ./scripts/configs/must-c-en_de-text-${SPLIT}.sh
 ```
-To evaluate speech translation models on dev set.
+To evaluate speech translation models on a given split set.
 ``` shell
-./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-dev.sh
+./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-${SPLIT}.sh
 ```
 
 ### Decode and Evaluate with Client
 Same as the server, one can use different configuration files to start different agent.
-To evaluate text translation models on dev set. 
+To evaluate text translation models on a given split set. 
 ```shell
 ./scripts/start-client.sh \
-    ./scripts/configs/must-c-en_de-speech-text.sh \
+    ./scripts/configs/must-c-en_de-speech-${SPLIT}.sh \
     ./experiments/checkpoints/checkpoint_best.pt
 ```
-To evaluate speech translation models on dev set. 
+To evaluate speech translation models on a given split set. 
 ```shell
 ./scripts/start-client.sh \
-    ./scripts/configs/must-c-en_de-speech-dev.sh \
+    ./scripts/configs/must-c-en_de-speech-${SPLIT}.sh \
     ./experiments/checkpoints/checkpoint_best.pt
 ```
 
 We also provide a faster evaluation script that splits the dataset and launches multiple clients. For example for speech translation,
 ```shell
 ./scripts/start-multi-client.sh \
-    ./scripts/configs/must-c-en_de-speech-dev.sh \
+    ./scripts/configs/must-c-en_de-speech-${SPLIT}.sh \
     ./experiments/checkpoints/checkpoint_best.pt
 ```
 
 ### Pretrained models
 
 You can use the client scripts with pre-trained models:
-* [text model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk3.pt). You should obtain the following score: `Scores: {"BLEU": 13.291, "TER": 0.957, "METEOR": 0.31, "DAL": 4.372044027815046, "AL": 2.5295724889866804, "AP": 0.6400225334686246}`. This corresponds to `k = 3` in the wait-k model. You can see in the table and figure below the quality and latency metrics for various values of k. The corresponding checkpoints to download can be found at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk$k.pt (replace `$k` with the corresponding value).
+#### [Text model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk3.pt). 
+You should obtain the following score on test set: 
 
-| k  | BLEU | TER | METEOR | DAL | AL | AP |
-| -- | ---- | --- | ------ | --- | -- | -- |
-| 1  | 7.33 | 1.06 | 0.19 | 2.17 | -0.99 | 0.47 |
-| 2  | 12.15 | 0.97 | 0.28 | 3.25 | 1.13 | 0.57 |
-| 3  | 13.29 | 0.96 | 0.31 | 4.37 | 2.53 | 0.64 |
-| 4  | 14.17 | 0.99 | 0.32 | 4.86 | 2.91 | 0.67 |
-| 5  | 15.15 | 0.82 | 0.33 | 5.30 | 3.12 | 0.68 |
-| 6  | 14.80 | 0.96 | 0.33 | 6.19 | 4.21 | 0.73 |
-| 7  | 15.99 | 0.96 | 0.34 | 7.04 | 5.30 | 0.77 |
-| 8  | 17.28 | 0.87 | 0.35 | 7.52 | 5.88 | 0.79 |
-| 9  | 17.03 | 0.92 | 0.36 | 8.17 | 6.53 | 0.81 |
-| 10 | 17.64 | 0.95 | 0.36 | 8.77 | 7.16 | 0.83 |
-| 20 | 19.53 | 0.84 | 0.39 | 13.55 | 12.37 | 0.94 |
-| 1000 | 23.04 | 0.73 | 0.44 | 19.85 | 19.85 | 1.0 |
+```Scores: {"BLEU": 13.291, "TER": 0.957, "METEOR": 0.31, "DAL": 4.372044027815046, "AL": 2.5295724889866804, "AP": 0.6400225334686246}```
 
-![Quality-Latency Curve for the text-to-text baseline](waitk_txt_bleu_vs_al.png)
+This corresponds to `k = 3` in the wait-k model. You can see in the figure below the quality and latency metrics for various values of k. The detailed numbers can be found [here](text_curve.csv) The corresponding checkpoints to download can be found at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk$k.pt (replace `$k` with the corresponding value).
 
-* [speech model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_speech_waitk_lag5_stride10.pt). You should obtain the following scores: `{"BLEU": 10.785, "TER": 0.913, "METEOR": 0.247, "DAL": 2817.45349595572, "AL": 2331.9959397710254, "AP": 0.8462297623865175}`
+![Quality-Latency Curve for the text-to-text baseline](text_curve.png)
+
+#### [Speech model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_speech_waitk_lag5_stride10.pt). 
+
+You should obtain the following scores on test set: 
+
+```{"BLEU": 10.785, "TER": 0.913, "METEOR": 0.247, "DAL": 2817.45349595572, "AL": 2331.9959397710254, "AP": 0.8462297623865175}``` 
+
+This is the model of wait-k where `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide the full curve for the speech translation model, shown as follow. The detailed numbers can be found [here](speech_curve/speech_curve.htm)
+![Quality-Latency Curve for the speech-to-text baseline](speech_curve.png)
 
 ### Final Evaluation with Docker
 Our final evaluation will be run inside Docker. When submitting your final models, you need to provide the checkpoint
