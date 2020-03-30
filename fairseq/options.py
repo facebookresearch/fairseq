@@ -617,3 +617,5 @@ def add_quantization_args(parser):
                        help='Quant noise for scalar quantization')
     group.add_argument('--quantization-config-path', default=None,
                        help='Path to Quantization Config File')
+        group.add_argument('--save', default='',
+                       help='DUMMY-TO_REMOVE')

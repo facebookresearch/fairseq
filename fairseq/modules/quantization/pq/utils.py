@@ -74,7 +74,6 @@ def quantize_model_(
         # quantize layer
         weight = module.weight.data.clone()
         is_bias = 'bias' in [x[0] for x in module.named_parameters()]
-        print(layer, is_bias)
         bias = module.bias.data.clone() if is_bias else None
         quantizer = PQ(
             weight,

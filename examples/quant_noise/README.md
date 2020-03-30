@@ -25,9 +25,15 @@ Quant-Noise can also be combined with **LayerDrop** (see [here](https://github.c
 
 To quantize a model, use `quantize_pq.py` for Product Quantization and `quantize_scalar.py` for scalar quantization.
 
-### Detailed Description
 
-Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
+### Scalar Quantization 
+
+Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing the weights and activations. 
+
+
+### Product Quantization 
+
+Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
 
 **Step 1**: Training a model with quant-noise.
 
@@ -39,7 +45,7 @@ In the Transformer architectures, quant-noise is applied to the input and output
 
 **Step 2**: Quantizing a model.
 
-We currently support two kinds of quantization: scalar quantization such as int4 and int8 in the form of Fake Quantization, and vector quantization in the form of Product Quantization. We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code [here](https://github.com/facebookresearch/kill-the-bits).
+We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code [here](https://github.com/facebookresearch/kill-the-bits).
 
 For the particular case of PQ, quantization is made sequentially. We recommend first quantizing the FFNs, then the EMBs, and finally the ATTNs. Quantization is done in two sub-steps:
 - First, perform `n` steps of Product Quantization (generally `n=20` is enough).
@@ -185,7 +191,7 @@ python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
 ```
 and change the `--gen-subset` to `test` if you would like to evaluate on the test set instead.
 
-#### Quantization
+#### Product Quantization
 
 
 1. To quantize the finetuned RoBERTa model, we use this command on xx GPUs. This should take xx hours.
