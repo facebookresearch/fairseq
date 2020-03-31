@@ -65,6 +65,13 @@ zh2en.translate('你好 世界')
 # 'Hello World'
 ```
 
+If you are using a `transformer.wmt19` model, you will need to set the `bpe` argument to `'fastbpe'`:
+```python
+en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de', checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
+                       tokenizer='moses', bpe='fastbpe')
+en2de.eval()  # disable dropout
+```
+
 ## Example usage (CLI tools)
 
 Generation with the binarized test sets can be run in batch mode as follows, e.g. for WMT 2014 English-French on a GTX-1080ti:
