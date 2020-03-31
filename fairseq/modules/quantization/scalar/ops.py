@@ -10,8 +10,7 @@ def emulate_int(w, bits, method, scale=None, zero_point=None):
 
 def quantize(w, scale, zero_point):
     return (torch.clamp(torch.round(w / scale + zero_point), 0, 255) - zero_point) * scale
-  
-
+ 
 
 def emulate_int8_histogram(w, scale=None, zero_point=None):
     if scale is None:

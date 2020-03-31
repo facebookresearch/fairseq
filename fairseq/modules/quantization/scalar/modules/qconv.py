@@ -67,8 +67,6 @@ class IntConv2d(_ConvNd):
         self.method = method
         self.update_step = update_step
         self.counter = 0
-        self.scale_activations = None
-        self.zero_point_activations = None
 
     def _conv_forward(self, input, weight):
         if self.padding_mode != "zeros":

@@ -55,8 +55,6 @@ class IntLinear(nn.Module):
         self.method = method
         self.update_step = update_step
         self.counter = 0
-        self.scale_activations = None
-        self.zero_point_activations = None
 
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.weight)

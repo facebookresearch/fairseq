@@ -20,7 +20,7 @@ def quantize_model_(
     block_sizes_config,
     n_centroids_config,
     step=0,
-    n_iter=15,
+    n_iter=1,
     eps=1e-6,
     max_tentatives=100,
     verbose=True,
@@ -246,6 +246,22 @@ def get_param(module, layer_name, param_config):
 
 
 class SizeTracker(object):
+    """
+    Class to keep track of the compressed network size with iPQ.
+    
+    Args:
+        - model: a nn.Module 
+        
+    Remarks:
+        - The compressed size is the sum of three components 
+          for each layer in the network:
+              (1) Storing the centroids given by iPQ in fp16 
+              (2) Storing the assignments of the blocks in int8 
+              (3) Storing all non-compressed elements such as biases  
+        - This cost in only valid if we use 256 centroids (then
+          indexing can indeed by done with int8). 
+    """
+    
     def __init__(self, model):
         self.model = model
         self.size_non_compressed_model = self.compute_size()

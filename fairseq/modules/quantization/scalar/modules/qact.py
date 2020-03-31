@@ -37,8 +37,6 @@ class ActivationQuantizer:
         self.bits = bits
         self.method = method
         self.clamp_threshold = clamp_threshold
-        self.scale = None
-        self.zero_point = None
         self.handle = None
         self.register_hook()
 

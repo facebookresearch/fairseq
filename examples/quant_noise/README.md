@@ -1,57 +1,93 @@
-# Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2019)
-This page contains information for how to train and quantize models with Quantization Noise.
-
+# Training with Quantization Noise for Extreme Model Compression ({Fan\*, Stock\*} *et al.*, 2019)
+This page contains information for how to train and quantize models with Quantization Noise, for both scalar quantization like `int8` and Iterative Product Quantization.
 Check out our blog post [here](link_to_blog_post) and read the paper [here](link_to_paper).
 
 Looking for pretrained models? They will be added shortly.
-Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back.
+Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back, but note that both the Scalar and Iterative Product Quantization counterparts of the `nn.Conv2d` module are already included in this release!
 
-## Citation
-To be added shortly
+TODO: add summary with section links maybe @Angela to make structure apppear more clearly?
 
-## Description and Example Usage
+## 1. Citation
+TODO @angela
 
-Training a model with Quant-Noise improves the performance in subsequent inference-time quantization by training models to be robust to quantization. This technique is useful for both scalar and vector quantization methods, as well as multiple domains.
+## 2. Walking through the code
 
-### QuickStart
+Training a model with Quant-Noise improves the performance in subsequent inference-time quantization by training models to be robust to quantization. This technique is useful for both scalar and product quantization methods, as well as multiple domains. We detail below our approach to train, quantize models and integrate our code to quantize your favorite models.
 
-To train a model with Quant-Noise, add the following flags:
+### 2.1. Scalar Quantization
+
+Unlike the section [Iterative Product Quantization](#iterative-product-quantization) which gives state-of-the-art compression, this section showcases the usefulness of our approach for popular scalar quantization baselines such as int8. Indeed, we perform on-GPU Fake Quantization, we do not quantize the biases and we do not fuse the modules with ReLus and Layer Norms during training.
+
+#### Training
+
+Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of both weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing both the weights and the activations. We rely on PyTorch's [quantization primitives](https://github.com/pytorch/pytorch/tree/master/torch/quantization).
+
+TODO: correct task description and flags correction. To train a model with Quant-Noise, add the following flag:
 ```
---quant-noise 0.1 --quant-noise-block-size 8
+--quant-noise-scalar 0.5
 ```
-We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`. Large block sizes result in higher compression ratio but may induce a loss in accuracy.
+Large values of noise make the network easier to quantize but may result in higher non-quantized test and validation perplexities.
+
+#### Quantization
+
+When evaluating a network, all quantized modules and activation hooks automatically switch to `p=1` so the validation accuracy reported by Fairseq is actually the quantized one, nothing more to do!
+
+#### Integration with your own code
+
+Looking to quantize your own models with Quant-Noise + iPQ?
+- Use the function `quantize_model_` implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar/utils) to (1) replace all your modules by their quantized counterparts and (2) add hooks to those modules to quantize the activations.
+- Then, perform your training as usual! Note that in `eval()` mode, the network is always fully quantized (weights and activations) by default (`p=1`).
+
+```python
+from fairseq.modules.quantization.scalar import quantize_model_
+
+
+# get configuration parameters
+p = config["quant_noise_scalar"]
+
+# convert your model in-place
+quantize_model_(p=p, bits=8, update_step=1000)
+
+# then use your usual training loop!
+for epoch in range(...):
+    # usual training code
+```
+
+### 2.2. Iterative Product Quantization
+
+
+Iterative Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained uncompressed with Quant-Noise. Second, the model must be quantized with iPQ. Note that we implement here the simplest form of noise as stated [in the paper](), which consists in randomly dropping a proportion `p` of blocks, and that worked as well as assigning those blocks to their current centroid. TODO paper link.
+
+#### Training
+
+TODO: correct task description and flags correction. To train a model with Quant-Noise, add the following flags:
+```
+--quant-noise-pq 0.1 --quant-noise-pq-block-size 8
+```
+`quant-noise` controls how much dropout is applied to the blocks of the weight matrix. `quant-noise-block-size` controls the size of the weight matrix blocks.
+We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`, see the size checks [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py). Large block sizes result in higher compression ratio but may induce a loss in accuracy.
+
+We currently support training Transformer based models, such as sequence-to-sequence, language models, and BERT architectures. The `quant_noise` function [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py) wraps a module. It splits a weight matrix into blocks and applies random dropout to these blocks.
+In the Transformer architectures, quant-noise is applied to the input and output embeddings, the attention, and the FFN.
 
 Quant-Noise can also be combined with **LayerDrop** (see [here](https://github.com/pytorch/fairseq/tree/master/examples/layerdrop)) to add its pruning effect to the quantized model and make the model even smaller. We recommend training with LayerDrop 0.1 or 0.2.
 
-To quantize a model, use `quantize_pq.py` for Product Quantization and `quantize_scalar.py` for scalar quantization.
+#### Quantization
 
+We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code with old API [here](https://github.com/facebookresearch/kill-the-bits). Note that we improved the iPQ API in terms of both compute speed and usability as described below.
 
-### Scalar Quantization 
-
-Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing the weights and activations. 
-
-
-### Product Quantization 
-
-Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
-
-**Step 1**: Training a model with quant-noise.
-
-We currently support training Transformer based models, such as sequence-to-sequence, language models, and BERT architectures. The `quant_noise` function [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py) wraps a module. It splits a weight matrix into blocks and applies random dropout to these blocks.
-
-There are two parameters: `--quant-noise` and `--quant-noise-block-size`. `quant-noise` controls how much dropout is applied to the blocks of the weight matrix. `quant-noise-block-size` controls the size of the weight matrix blocks.
-
-In the Transformer architectures, quant-noise is applied to the input and output embeddings, the attention, and the FFN.
-
-**Step 2**: Quantizing a model.
-
-We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code [here](https://github.com/facebookresearch/kill-the-bits).
+TODO flags/task to iPQ + finetune
+```
+flag/task TODO
+```
 
 For the particular case of PQ, quantization is made sequentially. We recommend first quantizing the FFNs, then the EMBs, and finally the ATTNs. Quantization is done in two sub-steps:
 - First, perform `n` steps of Product Quantization (generally `n=20` is enough).
 - Then, finetune the obtained centroids.
 
-**Integration with your own code**. Looking to quantize your own models?
+#### Integration with your own code
+
+Looking to quantize your own models with Quant-Noise + iPQ?
 - First wrap your modules with the `quant_noise` function [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py), which is module-agnostic and train your favorite model.
 - Then, quantize your trained model using the code [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/pq). This can be done *without any changes to your training loop* thanks to our API. Below is an example code for integration.
 Note that we tried our approach only on Transformers and various Convolutional Models such as EfficientNets.
@@ -84,18 +120,21 @@ for step in range(len(layers_to_quantize)):
     logger.info(f"{size_tracker}")
 
     # Don't forget to re-create/update trainer/optimizer since model parameters have changed!
-    trainer = Trainer(args, task, model, criterion)
+    optimizer = ...
 
-    # Finetune the centroids, we recommend doing the equivalent of a few training epochs
+    # Finetune the centroids with your usual training loop for a few epochs
     trainer.train_epoch()
 ```
 
 
-### Looking to reproduce the NLP results in the paper?
+## 3. Looking to reproduce the NLP results in the paper?
 
-#### Training
+We detail below how to reproduce the state-of-the-art results in reported in the paper for Quant-Noise + Iterative Product Quantization.
 
-1. To train RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
+### Training with Quant-Noise
+
+#### RoBERTa
+To train RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
 
 ```bash
 TOTAL_UPDATES=125000
@@ -157,7 +196,8 @@ python train.py /path/to/rte/data/ \
     --quant-noise 0.2 --quant-noise-block-size 8;
 ```
 
-2. To train Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
+#### Language Modeling
+To train Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
 
 ```bash
 python train.py --task language_modeling /path/to/wikitext-103/data \
@@ -191,15 +231,17 @@ python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
 ```
 and change the `--gen-subset` to `test` if you would like to evaluate on the test set instead.
 
-#### Product Quantization
+### Iterative Product Quantization
 
 
-1. To quantize the finetuned RoBERTa model, we use this command on xx GPUs. This should take xx hours.
+#### RoBERTa.
+To quantize the finetuned RoBERTa model, we use this command on xx GPUs. This should take xx hours on xx GPUs TODO.
 ```bash
-TODO
+TODO @angela
 ```
 
-2. To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
+#### Language Modeling
+To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
 ```bash
 python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \
@@ -213,7 +255,7 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --decoder-attention-heads 8 --decoder-embed-dim 1024 --decoder-ffn-embed-dim 4096 --decoder-input-dim 1024 --decoder-layers 16 --decoder-normalize-before --decoder-output-dim 1024 \
     --fp16 --keep-last-epochs -1 \
     --lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --max-lr 0.05 --min-lr 1e-09 \
-    --max-tokens 2816  --tokens-per-sample 2816\
+    --max-tokens 2944  --tokens-per-sample 2944\
     --momentum 0.99 --no-epoch-checkpoints --no-progress-bar --optimizer nag --required-batch-size-multiple 8 \
     --sample-break-mode none --t-mult 2.0 --skip-invalid-size-inputs-valid-test \
     --tie-adaptive-proj --tie-adaptive-weights --update-freq 3 --weight-decay 0 --seed 1  \
@@ -221,13 +263,13 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --restore-file path/to/trained/lm/with/quant/noise \
     --max-update 4500
 ```
+If you have less capacity or if your distributed training freezes, try reducing  `--max-tokens` and  `--tokens-per-sample` (this will likely reduce the quantized accuracy a bit).
 
-
-### Looking to reproduce the Vision results in the paper?
+## 4. Looking to reproduce the Vision results in the paper?
 
 We are working on open sourcing our code as part of ClassyVision. Please check back.
 
 
-## Having an issue or have a question?
+## 5. Having an issue or have a question?
 
 Please open an issue in this repository with the details of your question. Thanks!
