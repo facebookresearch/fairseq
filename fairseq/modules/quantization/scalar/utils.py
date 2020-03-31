@@ -42,7 +42,7 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
             logging.info(f"Quantizing layer {layer} with bits={bits} and QuantNoise={p}")
 
         # quantization params 
-        q_params = {"p": p, "update_step": update_step, "bits": bits, "method": "histogram"}
+        q_params = {"p": p, "update_step": update_step, "bits": bits, "method": "histogram", "counter": 0}
         
         # instantiate the quantized counterpart
         if isinstance(module, tuple(MAPPING.keys())):
