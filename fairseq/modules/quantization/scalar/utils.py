@@ -55,7 +55,7 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
                 p=p,
                 update_step=update_step,
                 bits=bits,
-                method="channel",
+                method="histogram",
             )
             
         elif isinstance(module, nn.Embedding):
@@ -68,7 +68,7 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
                 p=p,
                 update_step=update_step,
                 bits=bits,
-                method="channel",
+                method="histogram",
             )
         elif isinstance(module, nn.Conv2d):
             out_channels, in_channels, kernel_size = map(
