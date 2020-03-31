@@ -11,9 +11,9 @@ import tests.utils as test_utils
 import torch
 from fairseq import search
 from fairseq.data.dictionary import Dictionary
-from fairseq.fb_simple_sequence_generator import EnsembleModel, ScriptSequenceGenerator
+from fairseq.fb_simple_sequence_generator import EnsembleModel, ScriptSequenceGenerator, ScriptSequenceGeneratorWithAlignment
 from fairseq.models.transformer import TransformerModel
-from fairseq.sequence_generator import SequenceGenerator
+from fairseq.sequence_generator import SequenceGenerator, SequenceGeneratorWithAlignment
 from fairseq.tasks.fairseq_task import FairseqTask
 
 
@@ -176,6 +176,26 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
         )
         generator = SequenceGenerator(
             self.task.tgt_dict, beam_size=2, no_repeat_ngram_size=3
+        )
+
+        hypos = generator.generate([model], self.sample)
+        simple_hypos = simple_generator.generate(self.sample)
+        # sentence 1, beam 1
+        self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
+        # sentence 1, beam 2
+        self.assertHypoEqual(hypos[0][1], simple_hypos[0][1])
+        # sentence 2, beam 1
+        self.assertHypoEqual(hypos[1][0], simple_hypos[1][0])
+        # sentence 2, beam 2
+        self.assertHypoEqual(hypos[1][1], simple_hypos[1][1])
+
+    def test_with_alignment(self):
+        model = self.transformer_model
+        simple_generator = ScriptSequenceGeneratorWithAlignment(
+            [model], self.task.tgt_dict, beam_size=2
+        )
+        generator = SequenceGeneratorWithAlignment(
+            self.task.tgt_dict, beam_size=2
         )
 
         hypos = generator.generate([model], self.sample)
