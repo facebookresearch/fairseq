@@ -55,7 +55,7 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
                 p=p,
                 update_step=update_step,
                 bits=bits,
-                method="tensor",
+                method="channel",
             )
             
         elif isinstance(module, nn.Embedding):
@@ -68,7 +68,7 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
                 p=p,
                 update_step=update_step,
                 bits=bits,
-                method="tensor",
+                method="channel",
             )
         elif isinstance(module, nn.Conv2d):
             out_channels, in_channels, kernel_size = map(
@@ -104,7 +104,7 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
         # copy layer weights 
         quantized_layer.weight.data = weight 
         if is_bias:
-            quantized_layer.bias.data = bias        
+                quantized_layer.bias.data = bias        
             
         # activation quantization 
         a_q = ActivationQuantizer(quantized_layer, p=p, bits=bits, method="histogram")

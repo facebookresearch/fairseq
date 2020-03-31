@@ -11,24 +11,29 @@ class ActivationQuantizer:
     Args:
         - module. a nn.Module for which we quantize the *post-activations*
         - p: proportion of activations to quantize, set by default to 1
+        - update_step: to recompute quantization parameters 
         - bits: number of bits for quantization
         - method: choose among {"tensor", "histogram", "channel"}
+        - clamp_threshold: to prevent gradients overflow 
 
     Remarks:
-        - Parameters scale and zero_point are calculated only once,
-          during the first call of the hook
-        - Different quantization methods and number of bits, see ops.py
+        - Parameters scale and zero_point are recomputed every update_step 
+          forward pass to reduce the overhead  
+        - For the list of quantization methods and number of bits, see ops.py
         - To remove the hook from the module, simply call self.handle.remove()
         - At test time, the activations are fully quantized
+        - The activations are hard-clamped in [-clamp_threshold, clamp_threshold] 
+          to prevent overflow during the backward pass
     """
-    def __init__(self, module, p=1, update_step=1000, bits=8, method="histogram"):
+    def __init__(self, module, p=1, update_step=1000, bits=8, 
+                 method="histogram", clamp_threshold=5):
         self.module = module
         self.p = p
         self.update_step = update_step
         self.counter = 0
         self.bits = bits
         self.method = method
-        self
+        self.clamp_threshold = clamp_threshold
         self.scale = None
         self.zero_point = None
         self.handle = None
@@ -62,7 +67,7 @@ class ActivationQuantizer:
             noise = (y_q - y).masked_fill(mask.bool(), 0)
 
             # using straight-through estimator (STE)
-            return torch.clamp(y, -5, 5) + noise.detach()
+            return torch.clamp(y, -self.clamp_threshold, self.clamp_threshold) + noise.detach()
 
         # register hook
         self.handle = self.module.register_forward_hook(quantize_hook)
