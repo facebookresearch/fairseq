@@ -17,12 +17,15 @@ class IntLinear(nn.Module):
         - p: amount of noise to inject (0 = no quantization, 1 = quantize all the weights)
         - bits: number of bits
         - method: choose among {"tensor", "histogram", "channel"}
-        - update_step: recompute scale and zero_point every update_steps iteartions
+        - update_step: recompute scale and zero_point every update_steps iterations
 
     Remarks: 
         - We use the straight-through estimator so that the gradients
           back-propagate nicely in the network, this is implemented with
           the detach() trick.
+        - Parameters scale and zero_point are recomputed every update_step 
+          forward pass to reduce the overhead
+        - At test time, the weights are fully quantized
     """
 
     def __init__(

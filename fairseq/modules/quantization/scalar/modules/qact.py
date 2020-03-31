@@ -18,10 +18,13 @@ class ActivationQuantizer:
 
     Remarks:
         - Parameters scale and zero_point are recomputed every update_step 
-          forward pass to reduce the overhead  
+          forward pass to reduce the overhead
         - For the list of quantization methods and number of bits, see ops.py
         - To remove the hook from the module, simply call self.handle.remove()
         - At test time, the activations are fully quantized
+        - We use the straight-through estimator so that the gradients
+          back-propagate nicely in the network, this is implemented with
+          the detach() trick
         - The activations are hard-clamped in [-clamp_threshold, clamp_threshold] 
           to prevent overflow during the backward pass
     """

@@ -8,19 +8,9 @@ def emulate_int(w, bits, method, scale=None, zero_point=None):
     return q(w, scale=scale, zero_point=zero_point)
 
 
-def quantize(w, scale, zero_point, factor=1):
-    return (
-        (
-            torch.clamp(
-                torch.round(w / (factor * scale) + zero_point / factor),
-                0,
-                256 // factor - 1,
-            )
-            - zero_point / factor
-        )
-        * factor
-        * scale
-    )
+def quantize(w, scale, zero_point):
+    return (torch.clamp(torch.round(w / scale + zero_point), 0, 255) - zero_point) * scale
+  
 
 
 def emulate_int8_histogram(w, scale=None, zero_point=None):
@@ -30,7 +20,7 @@ def emulate_int8_histogram(w, scale=None, zero_point=None):
         scale, zero_point = obs.calculate_qparams()
         scale = scale.cuda().type_as(w)
         zero_point = zero_point.cuda().type_as(w)
-    return quantize(w, scale, zero_point, factor=1), scale, zero_point
+    return quantize(w, scale, zero_point), scale, zero_point
 
 
 def emulate_int8_channel(w, scale=None, zero_point=None):
@@ -42,7 +32,7 @@ def emulate_int8_channel(w, scale=None, zero_point=None):
         scale, zero_point, ch_axis = obs.get_qparams()
         scale = scale.cuda().type_as(w)
         zero_point = zero_point.cuda().type_as(w)
-    return quantize(w, scale, zero_point, factor=1), scale, zero_point
+    return quantize(w, scale, zero_point), scale, zero_point
 
 
 def emulate_int8_tensor(w, scale=None, zero_point=None):
@@ -52,4 +42,4 @@ def emulate_int8_tensor(w, scale=None, zero_point=None):
         scale, zero_point = obs.calculate_qparams()
         scale = scale.cuda().type_as(w)
         zero_point = zero_point.cuda().type_as(w)
-    return quantize(w, scale, zero_point, factor=1), scale, zero_point
+    return quantize(w, scale, zero_point), scale, zero_point

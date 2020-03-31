@@ -13,6 +13,9 @@ from ..pq.utils import get_layers, attrsetter
 from .modules import IntConv2d, IntLinear, IntEmbedding, ActivationQuantizer
 
 
+MAPPING = {nn.Linear: IntLinear, nn.Embedding: IntEmbedding, nn.Conv2d: IntConv2d}
+
+
 def quantize_model_(model, p=0.2, bits=8, update_step=1000):
     """
     Replaces all modules with their scalar quantized counterpart and 
@@ -33,84 +36,32 @@ def quantize_model_(model, p=0.2, bits=8, update_step=1000):
         # book-keeping
         is_master_process = (not dist.is_initialized()) or (dist.is_initialized() and dist.get_rank() == 0)
 
-        # get block size and centroids
+        # recover module 
         module = attrgetter(layer)(model)
         if is_master_process:
             logging.info(f"Quantizing layer {layer} with bits={bits} and QuantNoise={p}")
 
-        # copy layer weights
-        weight = module.weight.data.clone()
-        is_bias = 'bias' in [x[0] for x in module.named_parameters()]
-        bias = module.bias.data.clone() if is_bias else None
-
+        # quantization params 
+        q_params = {"p": p, "update_step": update_step, "bits": bits, "method": "histogram"}
+        
         # instantiate the quantized counterpart
-        if isinstance(module, nn.Linear):
-            out_features, in_features = map(
-                lambda k: module.__dict__[k], ["out_features", "in_features"]
-            )
-            quantized_layer = IntLinear(
-                in_features,
-                out_features,
-                bias=is_bias,
-                p=p,
-                update_step=update_step,
-                bits=bits,
-                method="histogram",
-            )
+        if isinstance(module, MAPPING.keys()):
+            QuantizedModule = MAPPING[module]
+            quantized_module = QuantizedModule.__new__(QuantizedModule)
+            params = module.__dict__
+            params.update(q_params)
+            quantized_module.__dict__.update(params)
             
-        elif isinstance(module, nn.Embedding):
-            num_embeddings, embedding_dim = map(
-                lambda k: module.__dict__[k], ["num_embeddings", "embedding_dim"]
-            )
-            quantized_layer = IntEmbedding(
-                num_embeddings, 
-                embedding_dim,
-                p=p,
-                update_step=update_step,
-                bits=bits,
-                method="histogram",
-            )
-        elif isinstance(module, nn.Conv2d):
-            out_channels, in_channels, kernel_size = map(
-                lambda k: module.__dict__[k],
-                ["out_channels", "in_channels", "kernel_size"],
-            )
-            stride, padding, dilation, groups, padding_mode = map(
-                lambda k: module.__dict__[k],
-                ["stride", "padding", "dilation", "groups", "padding_mode"],
-            )
-
-            quantized_layer = IntConv2d(
-                in_channels,
-                out_channels,
-                kernel_size,
-                bias=is_bias,
-                stride=stride,
-                padding=padding,
-                dilation=dilation,
-                groups=groups,
-                padding_mode=padding_mode,
-                p=p,
-                update_step=update_step,
-                bits=bits,
-                method="tensor"
-            )
-
         else:
             if is_master_process:
                 logging.info(f"Module {module} not yet supported for quantization")
             continue
 
-        # copy layer weights 
-        quantized_layer.weight.data = weight 
-        if is_bias:
-                quantized_layer.bias.data = bias        
-            
         # activation quantization 
-        a_q = ActivationQuantizer(quantized_layer, p=p, bits=bits, method="histogram")
+        a_q = ActivationQuantizer(quantized_module, p=p, bits=bits, method="histogram")
                 
         # replace layer by its quantized counterpart
-        attrsetter(layer)(model, quantized_layer)
+        attrsetter(layer)(model, quantized_module)
 
     # return name of quantized layers
     return quantized_layers

@@ -100,14 +100,14 @@ def quantize_model_(
             out_features, in_features = map(
                 lambda k: module.__dict__[k], ["out_features", "in_features"]
             )
-            quantized_layer = PQLinear(
+            quantized_module = PQLinear(
                 centroids, assignments, bias, in_features, out_features
             )
         elif isinstance(module, nn.Embedding):
             num_embeddings, embedding_dim = map(
                 lambda k: module.__dict__[k], ["num_embeddings", "embedding_dim"]
             )
-            quantized_layer = PQEmbedding(
+            quantized_module = PQEmbedding(
                 centroids, assignments, num_embeddings, embedding_dim
             )
         elif isinstance(module, nn.Conv2d):
@@ -120,7 +120,7 @@ def quantize_model_(
                 ["stride", "padding", "dilation", "groups", "padding_mode"],
             )
 
-            quantized_layer = PQConv2d(
+            quantized_module = PQConv2d(
                 centroids,
                 assignments,
                 bias,
@@ -137,7 +137,7 @@ def quantize_model_(
             raise ValueError(f"Module {module} not yet supported for quantization")
 
         # replace layer by its quantized counterpart
-        attrsetter(layer)(model, quantized_layer)
+        attrsetter(layer)(model, quantized_module)
 
         # update statistics
         size_tracker.update(weight, block_size, n_centroids)
