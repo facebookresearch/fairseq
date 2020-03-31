@@ -89,7 +89,12 @@ and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more example
 * [PyTorch](http://pytorch.org/) version >= 1.4.0
 * Python version >= 3.6
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
-* **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library with the `--cuda_ext` and `--deprecated_fused_adam` options
+* **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library:
+```bash
+git clone https://github.com/NVIDIA/apex
+cd apex
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" --global-option="--xentropy" --global-option="--fast_multihead_attn" ./
+```
 
 To install fairseq:
 ```bash
