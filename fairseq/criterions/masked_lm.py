@@ -8,7 +8,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from fairseq import metrics, utils
+from fairseq import metrics, modules, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
 
@@ -47,12 +47,8 @@ class MaskedLmLoss(FairseqCriterion):
         targets = model.get_targets(sample, [logits])
         targets = targets[masked_tokens]
 
-        loss = F.nll_loss(
-            F.log_softmax(
-                logits.view(-1, logits.size(-1)),
-                dim=-1,
-                dtype=torch.float32,
-            ),
+        loss = modules.cross_entropy(
+            logits.view(-1, logits.size(-1)),
             targets.view(-1),
             reduction='sum',
             ignore_index=self.padding_idx,
