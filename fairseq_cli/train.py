@@ -88,6 +88,7 @@ def main(args, init_distributed=False):
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
+    max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
@@ -96,7 +97,6 @@ def main(args, init_distributed=False):
         and epoch_itr.next_epoch_idx <= max_epoch
     ):
         # train for one epoch
-        max_update = args.max_update or math.inf
         valid_losses = train(args, trainer, task, epoch_itr, max_update)
         if should_stop_early(args, valid_losses[0]) or trainer.get_num_updates() >= max_update:
             break
@@ -139,7 +139,7 @@ def should_stop_early(args, valid_loss):
 
 @metrics.aggregate('train')
 def train(args, trainer, task, epoch_itr, max_update=math.inf):
-    """Train the model for one epoch."""
+    """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
