@@ -69,6 +69,10 @@ def move_to_cuda(sample):
 
 def move_to_cpu(sample):
     def _move_to_cpu(tensor):
+        # PyTorch has poor support for half tensors (float16) on CPU.
+        # Move any such tensors to float32.
+        if tensor.dtype == torch.float16:
+            tensor = tensor.to(dtype=torch.float32)
         return tensor.cpu()
 
     return apply_to_sample(_move_to_cpu, sample)
