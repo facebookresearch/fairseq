@@ -489,6 +489,9 @@ class TransformerEncoder(FairseqEncoder):
             src_lengths=None,
         )
 
+    def _reorder_encoder_out(self, encoder_out: EncoderOut, new_order):
+        return encoder_out
+
     @torch.jit.export
     def reorder_encoder_out(self, encoder_out: EncoderOut, new_order):
         """
