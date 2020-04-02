@@ -596,18 +596,27 @@ class ScriptSequenceGenerator(nn.Module):
         gen_ngrams = [{} for bbsz_idx in range(bsz * beam_size)]
         for bbsz_idx in range(bsz * beam_size):
             gen_tokens = tokens[bbsz_idx].tolist()
-            for ngram in zip(*[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]):
-                gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = \
-                        gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
+            for ngram in zip(
+                *[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]
+            ):
+                gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = gen_ngrams[bbsz_idx].get(
+                    tuple(ngram[:-1]), []
+                ) + [ngram[-1]]
 
         def calculate_banned_tokens(bbsz_idx):
             # before decoding the next token, prevent decoding of ngrams that have already appeared
-            ngram_index = tuple(tokens[bbsz_idx, step + 2 - self.no_repeat_ngram_size:step + 1].tolist())
+            ngram_index = tuple(
+                tokens[
+                    bbsz_idx, step + 2 - self.no_repeat_ngram_size : step + 1
+                ].tolist()
+            )
             return gen_ngrams[bbsz_idx].get(ngram_index, [])
 
         if step + 2 - self.no_repeat_ngram_size >= 0:
             # no banned tokens if we haven't generated no_repeat_ngram_size tokens yet
-            banned_tokens = [calculate_banned_tokens(bbsz_idx) for bbsz_idx in range(bsz * beam_size)]
+            banned_tokens = [
+                calculate_banned_tokens(bbsz_idx) for bbsz_idx in range(bsz * beam_size)
+            ]
         else:
             banned_tokens = [[] for bbsz_idx in range(bsz * beam_size)]
 
@@ -683,9 +692,11 @@ class EnsembleModel(nn.Module):
         if not self.has_encoder():
             return None
 
-        futures = [torch.jit._fork(model.encoder, src_tokens, src_lengths) for model in self.models]
+        futures = [
+            torch.jit._fork(model.encoder, src_tokens, src_lengths)
+            for model in self.models
+        ]
         return [EncoderOut(*torch.jit._wait(fut)) for fut in futures]
-
 
     @torch.jit.export
     def forward_decoder(
@@ -694,15 +705,25 @@ class EnsembleModel(nn.Module):
         if not self.has_encoder():
             if self.has_incremental_states():
                 futures = [
-                    torch.jit._fork(model.decoder, tokens, None, self.incremental_states[i])
+                    torch.jit._fork(
+                        model.decoder, tokens, None, self.incremental_states[i]
+                    )
                     for i, model in enumerate(self.models)
                 ]
             else:
-                futures = [torch.jit._fork(model.decoder, tokens, None) for model in self.models]
+                futures = [
+                    torch.jit._fork(model.decoder, tokens, None)
+                    for model in self.models
+                ]
         else:
             if self.has_incremental_states():
                 futures = [
-                    torch.jit._fork(model.decoder, tokens, encoder_outs[i], self.incremental_states[i])
+                    torch.jit._fork(
+                        model.decoder,
+                        tokens,
+                        encoder_outs[i],
+                        self.incremental_states[i],
+                    )
                     for i, model in enumerate(self.models)
                 ]
             else:
@@ -827,7 +848,6 @@ class EnsembleModel(nn.Module):
 
 
 class ScriptSequenceGeneratorWithAlignment(ScriptSequenceGenerator):
-
     def __init__(self, models, tgt_dict, left_pad_target=False, **kwargs):
         """Generates translations of a given source sentence.
 
@@ -847,38 +867,57 @@ class ScriptSequenceGeneratorWithAlignment(ScriptSequenceGenerator):
     def generate(self, sample, **kwargs):
         finalized = super()._generate(sample, **kwargs)
 
-        src_tokens = sample['net_input']['src_tokens']
+        src_tokens = sample["net_input"]["src_tokens"]
         bsz = src_tokens.shape[0]
         beam_size = self.beam_size
-        src_tokens, src_lengths, prev_output_tokens, tgt_tokens = \
-            self._prepare_batch_for_alignment(sample, finalized)
-        if any(getattr(m, 'full_context_alignment', False) for m in self.model.models):
+        src_tokens, src_lengths, prev_output_tokens, tgt_tokens = self._prepare_batch_for_alignment(
+            sample, finalized
+        )
+        if any(getattr(m, "full_context_alignment", False) for m in self.model.models):
             attn = self.model.forward_align(src_tokens, src_lengths, prev_output_tokens)
         else:
             attn = [
-                finalized[i // beam_size][i % beam_size]['attention'].transpose(1, 0)
+                finalized[i // beam_size][i % beam_size]["attention"].transpose(1, 0)
                 for i in range(bsz * beam_size)
             ]
 
         # Process the attn matrix to extract hard alignments.
         for i in range(bsz * beam_size):
-            alignment = utils.extract_hard_alignment(attn[i], src_tokens[i], tgt_tokens[i], self.pad, self.eos)
-            finalized[i // beam_size][i % beam_size]['alignment'] = alignment
+            alignment = utils.extract_hard_alignment(
+                attn[i], src_tokens[i], tgt_tokens[i], self.pad, self.eos
+            )
+            finalized[i // beam_size][i % beam_size]["alignment"] = alignment
         return finalized
 
     def _prepare_batch_for_alignment(self, sample, hypothesis):
-        src_tokens = sample['net_input']['src_tokens']
+        src_tokens = sample["net_input"]["src_tokens"]
         bsz = src_tokens.shape[0]
-        src_tokens = src_tokens[:, None, :].expand(-1, self.beam_size, -1).contiguous().view(bsz * self.beam_size, -1)
-        src_lengths = sample['net_input']['src_lengths']
-        src_lengths = src_lengths[:, None].expand(-1, self.beam_size).contiguous().view(bsz * self.beam_size)
+        src_tokens = (
+            src_tokens[:, None, :]
+            .expand(-1, self.beam_size, -1)
+            .contiguous()
+            .view(bsz * self.beam_size, -1)
+        )
+        src_lengths = sample["net_input"]["src_lengths"]
+        src_lengths = (
+            src_lengths[:, None]
+            .expand(-1, self.beam_size)
+            .contiguous()
+            .view(bsz * self.beam_size)
+        )
         prev_output_tokens = data_utils.collate_tokens(
-            [beam['tokens'] for example in hypothesis for beam in example],
-            self.pad, self.eos, self.left_pad_target, move_eos_to_beginning=True,
+            [beam["tokens"] for example in hypothesis for beam in example],
+            self.pad,
+            self.eos,
+            self.left_pad_target,
+            move_eos_to_beginning=True,
         )
         tgt_tokens = data_utils.collate_tokens(
-            [beam['tokens'] for example in hypothesis for beam in example],
-            self.pad, self.eos, self.left_pad_target, move_eos_to_beginning=False,
+            [beam["tokens"] for example in hypothesis for beam in example],
+            self.pad,
+            self.eos,
+            self.left_pad_target,
+            move_eos_to_beginning=False,
         )
         return src_tokens, src_lengths, prev_output_tokens, tgt_tokens
 
@@ -893,7 +932,7 @@ class EnsembleModelWithAlignment(EnsembleModel):
         avg_attn = None
         for model in self.models:
             decoder_out = model(src_tokens, src_lengths, prev_output_tokens)
-            attn = decoder_out[1]['attn']
+            attn = decoder_out[1]["attn"]
             if avg_attn is None:
                 avg_attn = attn
             else:
