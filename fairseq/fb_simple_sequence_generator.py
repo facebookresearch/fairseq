@@ -786,7 +786,6 @@ class EnsembleModel(nn.Module):
 
     # Since get_normalized_probs is in the Fairseq Model which is not scriptable,
     # I rewrite the get_normalized_probs to support TransformerModel
-    @torch.jit.export
     def get_normalized_probs(
         self,
         model: TransformerModel,
