@@ -94,6 +94,8 @@ class RobertaModel(FairseqLanguageModel):
                             help='quantization noise at training time')
         parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
                             help='block size of quantization noise at training time')
+        parser.add_argument('--scalar-quantization', default=False, action='store_true',
+                            help='train with scalar quantization')
         parser.add_argument('--untie-weights-roberta', action='store_true',
                             help='Untie weights between embeddings and classifiers in RoBERTa')
 

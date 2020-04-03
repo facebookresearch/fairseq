@@ -5,9 +5,11 @@ Check out our blog post [here](link_to_blog_post) and read the paper [here](link
 Looking for pretrained models? They will be added shortly.
 Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back, but note that both the Scalar and Iterative Product Quantization counterparts of the `nn.Conv2d` module are already included in this release.
 
-Contents:
+**Contents**:
 [Walk through of code](#walk-through-the-code)
+
 [Reproduce NLP Results](#looking-to-reproduce-the-nlp-results-in-the-paper)
+
 [Reproduce Vision Results](#looking-to-reproduce-the-vision-results-in-the-paper)
 
 
@@ -28,7 +30,7 @@ Scalar quantization with Quant-Noise consists in randomly quantizing a proportio
 
 To train a model with Quant-Noise, add the following flag:
 ```
---quant-noise-scalar 0.5
+--quant-noise 0.5 --scalar-quantization
 ```
 Large values of noise make the network easier to quantize but may result in higher non-quantized test and validation perplexities.
 
@@ -39,9 +41,9 @@ When evaluating a network, all quantized modules and activation hooks automatica
 
 #### Integration with your own code
 
-Looking to quantize your own models with Quant-Noise + iPQ?
+Looking to quantize your own models with Quant-Noise + Scalar Quantization?
 - Use the function `quantize_model_` implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar/utils) to (1) replace all your modules by their quantized counterparts and (2) add hooks to those modules to quantize the activations.
-- Then, perform your training as usual! Note that in `eval()` mode, the network is always fully quantized (weights and activations) by default (`p=1`).
+- Then, perform your training as usual. Note that in `eval()` mode, the network is always fully quantized (weights and activations) by default (`p=1`).
 
 
 
@@ -54,7 +56,7 @@ Iterative Product Quantization with Quant-Noise proceeds in two steps. First, a 
 
 To train a model with Quant-Noise, add the following flags:
 ```
---quant-noise-pq 0.1 --quant-noise-pq-block-size 8
+--quant-noise 0.1 --quant-noise-block-size 8
 ```
 `quant-noise` controls how much dropout is applied to the blocks of the weight matrix. `quant-noise-block-size` controls the size of the weight matrix blocks.
 We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`, see the size checks [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py). Large block sizes result in higher compression ratio but may induce a loss in accuracy.
@@ -105,7 +107,7 @@ for step in range(len(layers_to_quantize)):
     logger.info(f"Finetuning stage {step}, quantized layers: {quantized_layers}")
     logger.info(f"{size_tracker}")
 
-    # Don't forget to re-create/update trainer/optimizer since model parameters have changed!
+    # Don't forget to re-create/update trainer/optimizer since model parameters have changed
     optimizer = ...
 
     # Finetune the centroids with your usual training loop for a few epochs

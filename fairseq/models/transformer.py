@@ -168,6 +168,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='quantization noise at training time')
         parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
                             help='block size of quantization noise at training time')
+        parser.add_argument('--scalar-quantization', default=False, action='store_true',
+                            help='train with scalar quantization')
         # fmt: on
 
     @classmethod

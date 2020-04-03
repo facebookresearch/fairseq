@@ -16,6 +16,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
 - February 2020: [mBART model and code released](examples/mbart/README.md)
 - February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/master/examples/backtranslation#training-your-own-model-wmt18-english-german)
 - December 2019: [fairseq 0.9.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.9.0)

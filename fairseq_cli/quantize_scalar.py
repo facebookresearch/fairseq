@@ -67,7 +67,7 @@ def main(args, init_distributed=False):
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
-    
+
     # prepare model for Fake Quantization (weights and activations)
     quantize_model_(model, p=args.quant_noise_scalar, bits=8, update_step=1000)
     logger.info(model)

@@ -41,16 +41,11 @@ class AdaptiveInput(nn.Module):
             prev = self.cutoff[i - 1] if i > 0 else 0
             size = self.cutoff[i] - prev
             dim = int(initial_dim // (factor ** i))
-            if q_noise > 0:
-                seq = nn.Sequential(
-                    nn.Embedding(size, dim, self.padding_idx),
-                    quant_noise(nn.Linear(dim, output_dim, bias=False), q_noise, qn_block_size)
-                )
-            else:
-                seq = nn.Sequential(
-                    nn.Embedding(size, dim, self.padding_idx),
-                    nn.Linear(dim, output_dim, bias=False)
-                )
+            seq = nn.Sequential(
+                nn.Embedding(size, dim, self.padding_idx),
+                quant_noise(nn.Linear(dim, output_dim, bias=False), q_noise, qn_block_size)
+            )
+
             self.embeddings.append(seq)
             self.padding_idx = None
         self.padding_idx = padding_idx

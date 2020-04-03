@@ -139,7 +139,6 @@ class LanguageModelingTask(FairseqTask):
 
     def build_model(self, args):
         model = super().build_model(args)
-
         for target in self.targets:
             if target not in model.supported_targets:
                 raise ValueError(

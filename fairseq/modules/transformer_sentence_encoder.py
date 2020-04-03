@@ -105,6 +105,7 @@ class TransformerSentenceEncoder(nn.Module):
         self.padding_idx = padding_idx
         self.vocab_size = vocab_size
         self.dropout = dropout
+        self.q_noise = q_noise
         self.layerdrop = layerdrop
         self.max_seq_len = max_seq_len
         self.embedding_dim = embedding_dim

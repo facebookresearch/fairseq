@@ -1155,6 +1155,7 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
         ] + (extra_flags or []),
     )
     quantize_pq.main(quantize_args)
+    quantize_scalar.main(quantize_args)
 
 if __name__ == '__main__':
     unittest.main()
