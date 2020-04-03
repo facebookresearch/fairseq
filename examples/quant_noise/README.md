@@ -33,13 +33,24 @@ Large values of noise make the network easier to quantize but may result in high
 
 #### Quantization
 
-When evaluating a network, all quantized modules and activation hooks automatically switch to `p=1` so the validation accuracy reported by Fairseq is actually the quantized one, nothing more to do!
+When evaluating a network, all quantized modules and activation hooks automatically switch to `p=1` so the validation accuracy reported by Fairseq is actually the quantized one, nothing more to do.
+
 
 #### Integration with your own code
 
 Looking to quantize your own models with Quant-Noise + iPQ?
 - Use the function `quantize_model_` implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar/utils) to (1) replace all your modules by their quantized counterparts and (2) add hooks to those modules to quantize the activations.
 - Then, perform your training as usual! Note that in `eval()` mode, the network is always fully quantized (weights and activations) by default (`p=1`).
+
+
+### Scalar Quantization
+
+Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing the weights and activations.
+
+
+### Product Quantization
+
+Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
 
 ```python
 from fairseq.modules.quantization.scalar import quantize_model_
@@ -79,11 +90,6 @@ Quant-Noise can also be combined with **LayerDrop** (see [here](https://github.c
 
 We implement an improved version of product quantization from Stock et al, **iPQ**, described [here](https://arxiv.org/abs/1907.05686), see code with old API [here](https://github.com/facebookresearch/kill-the-bits). Note that we improved the iPQ API in terms of both compute speed and usability as described below.
 
-TODO flags/task to iPQ + finetune
-```
-flag/task TODO
-```
-
 For the particular case of PQ, quantization is made sequentially. We recommend first quantizing the FFNs, then the EMBs, and finally the ATTNs. Quantization is done in two sub-steps:
 - First, perform `n` steps of Product Quantization (generally `n=20` is enough).
 - Then, finetune the obtained centroids.
@@ -92,12 +98,11 @@ For the particular case of PQ, quantization is made sequentially. We recommend f
 
 Looking to quantize your own models with Quant-Noise + iPQ?
 - First wrap your modules with the `quant_noise` function [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py), which is module-agnostic and train your favorite model.
-- Then, quantize your trained model using the code [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/pq). This can be done *without any changes to your training loop* thanks to our API. Below is an example code for integration.
+- Then, quantize your trained model using the code [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/pq). This can be done *without any changes to your training loop*. Below is an example code for integration.
 Note that we tried our approach only on Transformers and various Convolutional Models such as EfficientNets.
 
 ```python
 from fairseq.modules.quantization.pq import quantize_model_, SizeTracker
-
 
 # get configuration parameters
 n_centroids_config = config["n_centroids"]
@@ -136,8 +141,7 @@ We detail below how to reproduce the state-of-the-art results in reported in the
 
 ### Training with Quant-Noise
 
-#### RoBERTa
-To train RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
+1. To **train** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
 
 ```bash
 TOTAL_UPDATES=125000
@@ -166,7 +170,7 @@ python train.py $DATA_DIR \
     --quant-noise 0.2 --quant-noise-block-size 8 --untie-weights-roberta
 ```
 
-To finetune RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md). The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
+To **finetune** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md). The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
 
 ```bash
 TOTAL_NUM_UPDATES=2036
@@ -195,12 +199,12 @@ python train.py /path/to/rte/data/ \
     --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric
+    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
+    --ddp-backend no_c10d \
     --quant-noise 0.2 --quant-noise-block-size 8;
 ```
 
-#### Language Modeling
-To train Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
+2. To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
 
 ```bash
 python train.py --task language_modeling /path/to/wikitext-103/data \
@@ -234,12 +238,10 @@ python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
 ```
 and change the `--gen-subset` to `test` if you would like to evaluate on the test set instead.
 
-### Iterative Product Quantization
 
+#### Product Quantization
 
-#### RoBERTa.
-
-To quantize the finetuned RoBERTa model, we use this command on 1 GPU. This should run in a day.
+1. To quantize the finetuned RoBERTa model, we use this command on 1 GPU. This should run in a day.
 ```bash
 TOTAL_NUM_UPDATES=2036
 WARMUP_UPDATES=122
@@ -247,25 +249,24 @@ LR=2e-05
 NUM_CLASSES=2
 MAX_SENTENCES=16
 python quantize_pq.py --task sentence_prediction /path/to/data/ \
---restore-file $ROBERTA_PATH \
---save-dir checkpoints/roberta_finetuned \
---max-positions 512 \
---max-sentences $MAX_SENTENCES \
---max-tokens 4400 \
---init-token 0 --separator-token 2 \
---arch roberta_large \
---criterion sentence_prediction \
---num-classes $NUM_CLASSES \
---dropout 0.1 --attention-dropout 0.1 \
---weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
---clip-norm 0.0 --lr-scheduler polynomial_decay \
---fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
---no-progress-bar --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
---quantization-config-path /path/to/config/yaml
+    --restore-file $ROBERTA_PATH \
+    --save-dir checkpoints/roberta_finetuned \
+    --max-positions 512 \
+    --max-sentences $MAX_SENTENCES \
+    --max-tokens 4400 \
+    --init-token 0 --separator-token 2 \
+    --arch roberta_large \
+    --criterion sentence_prediction \
+    --num-classes $NUM_CLASSES \
+    --dropout 0.1 --attention-dropout 0.1 \
+    --weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
+    --clip-norm 0.0 --lr-scheduler polynomial_decay \
+    --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
+    --no-progress-bar --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+    --quantization-config-path /path/to/config/yaml
 ```
 
-#### Language Modeling
-To quantize the Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
+2. To quantize the trained Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
 ```bash
 python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \
@@ -275,7 +276,7 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --attention-dropout 0.1 --dropout 0.2 --relu-dropout 0.1  \
     --bucket-cap-mb 25 --char-embedder-highway-layers 2 --character-embedding-dim 4 \
     --clip-norm 0.1 --criterion adaptive_loss \
-    --ddp-backend=no_c10d \
+    --ddp-backend no_c10d \
     --decoder-attention-heads 8 --decoder-embed-dim 1024 --decoder-ffn-embed-dim 4096 --decoder-input-dim 1024 --decoder-layers 16 --decoder-normalize-before --decoder-output-dim 1024 \
     --fp16 --keep-last-epochs -1 \
     --lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --max-lr 0.05 --min-lr 1e-09 \
@@ -285,9 +286,9 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --tie-adaptive-proj --tie-adaptive-weights --update-freq 3 --weight-decay 0 --seed 1  \
     --log-interval 100 --no-progress-bar --skip-invalid-size-inputs-valid-test \
     --restore-file path/to/trained/lm/with/quant/noise \
-    --max-update 4500
+    --max-update 4500 --quantization-config-path /path/to/config/yaml
 ```
-If you have less capacity or if your distributed training freezes, try reducing  `--max-tokens` and  `--tokens-per-sample` (this will likely reduce the quantized accuracy a bit).
+If you have less capacity or if your distributed training freezes, try reducing  `--max-tokens` and  `--tokens-per-sample` (this may reduce the quantized accuracy a bit).
 
 ## 4. Looking to reproduce the Vision results in the paper?
 
