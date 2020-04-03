@@ -30,7 +30,7 @@ Scalar quantization with Quant-Noise consists in randomly quantizing a proportio
 
 To train a model with Quant-Noise, add the following flag:
 ```
---quant-noise 0.5 --scalar-quantization
+--quant-noise-scalar 0.5
 ```
 Large values of noise make the network easier to quantize but may result in higher non-quantized test and validation perplexities.
 
@@ -56,7 +56,7 @@ Iterative Product Quantization with Quant-Noise proceeds in two steps. First, a 
 
 To train a model with Quant-Noise, add the following flags:
 ```
---quant-noise 0.1 --quant-noise-block-size 8
+--quant-noise-pq 0.1 --quant-noise-pq-block-size 8
 ```
 `quant-noise` controls how much dropout is applied to the blocks of the weight matrix. `quant-noise-block-size` controls the size of the weight matrix blocks.
 We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`, see the size checks [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py). Large block sizes result in higher compression ratio but may induce a loss in accuracy.
@@ -147,7 +147,7 @@ python train.py $DATA_DIR \
     --update-freq $UPDATE_FREQ --max-update $TOTAL_UPDATES \
     --save-dir checkpoint/roberta \
     --ddp-backend no_c10d --encoder-layerdrop 0.2 \
-    --quant-noise 0.2 --quant-noise-block-size 8 --untie-weights-roberta
+    --quant-noise-pq 0.2 --quant-noise-pq-block-size 8 --untie-weights-roberta
 ```
 
 To **finetune** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md). The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
@@ -181,7 +181,7 @@ python train.py /path/to/rte/data/ \
     --find-unused-parameters \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
     --ddp-backend no_c10d \
-    --quant-noise 0.2 --quant-noise-block-size 8;
+    --quant-noise-pq 0.2 --quant-noise-pq-block-size 8;
 ```
 
 To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
@@ -203,7 +203,7 @@ python train.py --task language_modeling /path/to/wikitext-103/data \
     --sample-break-mode none --update-freq 3 \
     --warmup-init-lr 1e-07 --warmup-updates 16000 \
     --weight-decay 0 --seed 1 --min-lr 1e-09 \
-    --quant-noise 0.05 --quant-noise-block-size 8
+    --quant-noise-pq 0.05 --quant-noise-pq-block-size 8
 ```
 
 To evaluate this model, note you need to use the `eval.py` script. The following command can be used to evaluate:

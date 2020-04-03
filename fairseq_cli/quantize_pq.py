@@ -4,7 +4,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 """
-Train a new model on one or across multiple GPUs.
+Quantize an already trained model with iterative PQ on one or across multiple GPUs.
+This works best if you trained your model with quantization noise.
 """
 
 import logging
@@ -29,7 +30,7 @@ logging.basicConfig(
     level=logging.INFO,
     stream=sys.stdout,
 )
-logger = logging.getLogger('fairseq_cli.train')
+logger = logging.getLogger('fairseq_cli.quantize_pq')
 
 
 def main(args, init_distributed=False):
@@ -140,7 +141,6 @@ def main(args, init_distributed=False):
                 checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
             # early stop
-            import pdb; pdb.set_trace()
             if train_utils.should_stop_early(args, valid_losses[0]):
                 logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
                 break
@@ -155,7 +155,11 @@ def main(args, init_distributed=False):
 
 
 def cli_main(modify_parser=None):
-    parser = options.get_quantization_parser()
+    parser = options.get_training_parser()
+    # quantization configuration path is only used for iterative PQ quantization
+    group = parser.add_argument_group('Quantization')
+    group.add_argument('--quantization-config-path', default=None,
+                       help='Path to Quantization Config File')
     args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
     train_utils.call_main(args, main, modify_parser)
 

@@ -164,12 +164,12 @@ class TransformerModel(FairseqEncoderDecoderModel):
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
         # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise', type=float, metavar='D', default=0,
-                            help='quantization noise at training time')
-        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
+                            help='iterative PQ quantization noise at training time')
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
                             help='block size of quantization noise at training time')
-        parser.add_argument('--scalar-quantization', default=False, action='store_true',
-                            help='train with scalar quantization')
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+                            help='scalar quantization noise and scalar quantization at training time')
         # fmt: on
 
     @classmethod
@@ -381,7 +381,7 @@ class TransformerEncoder(FairseqEncoder):
         self.register_buffer("version", torch.Tensor([3]))
 
         self.dropout = args.dropout
-        self.quant_noise = args.quant_noise
+        self.quant_noise = args.quant_noise_pq
         self.encoder_layerdrop = args.encoder_layerdrop
 
         embed_dim = embed_tokens.embedding_dim
@@ -609,7 +609,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self._future_mask = torch.empty(0)
 
         self.dropout = args.dropout
-        self.quant_noise = args.quant_noise
+        self.quant_noise = args.quant_noise_pq
         self.decoder_layerdrop = args.decoder_layerdrop
         self.share_input_output_embed = args.share_decoder_input_output_embed
 

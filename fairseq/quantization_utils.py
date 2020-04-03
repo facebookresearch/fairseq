@@ -6,7 +6,8 @@
 from fairseq.modules.quantization.scalar import quantize_model_
 
 def quantize_model_scalar(model, args):
-    if getattr(args, 'scalar_quantization', False):
+    quant_noise_scalar = getattr(args, 'quant_noise_scalar', 0)
+    if quant_noise_scalar > 0:
         # quantize_model edits the model in place
-        quantize_model_(model, p=args.quant_noise, bits=8, update_step=1000)
+        quantize_model_(model, p=quant_noise_scalar, bits=8, update_step=1000)
     return model

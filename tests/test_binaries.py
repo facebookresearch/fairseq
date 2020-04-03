@@ -696,15 +696,16 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
 
 
 class TestQuantization(unittest.TestCase):
+    # tests both scalar and iterative PQ quantization
     def setUp(self):
         logging.disable(logging.CRITICAL)
 
     def tearDown(self):
         logging.disable(logging.NOTSET)
 
-    def test_pq(self):
+    def test_quantization(self):
         with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory('test_pq') as data_dir:
+            with tempfile.TemporaryDirectory('test_quantization') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
                 quantize_language_model(data_dir, 'transformer_lm')
@@ -1132,9 +1133,10 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
     )
     train.main(train_args)
 
-    quantize_parser = options.get_quantization_parser()
-    quantize_args = options.parse_args_and_arch(
-        quantize_parser,
+    # try scalar quantization
+    scalar_quant_train_parser = options.get_training_parser()
+    scalar_quant_train_args = options.parse_args_and_arch(
+        scalar_quant_train_parser,
         [
             '--task', 'language_modeling',
             data_dir,
@@ -1145,6 +1147,31 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
             '--adaptive-softmax-cutoff', '5,10,15',
             '--max-tokens', '500',
             '--tokens-per-sample', '500',
+            '--save-dir', data_dir,
+            '--max-epoch', '1',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+            '--quant-noise-scalar', '0.5',
+        ] + (extra_flags or []),
+    )
+    train.main(scalar_quant_train_args)
+
+    # try iterative PQ quantization
+    quantize_parser = options.get_training_parser()
+    quantize_parser.add_argument('--quantization-config-path')
+    quantize_args = options.parse_args_and_arch(
+        quantize_parser,
+        [
+            '--task', 'language_modeling',
+            data_dir,
+            '--arch', arch,
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'adaptive_loss',
+            '--adaptive-softmax-cutoff', '5,10,15',
+            '--max-tokens', '50',
+            '--tokens-per-sample', '50',
             '--max-update', '1',
             '--max-epoch', '1',
             '--no-progress-bar',
@@ -1155,7 +1182,6 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
         ] + (extra_flags or []),
     )
     quantize_pq.main(quantize_args)
-    quantize_scalar.main(quantize_args)
 
 if __name__ == '__main__':
     unittest.main()

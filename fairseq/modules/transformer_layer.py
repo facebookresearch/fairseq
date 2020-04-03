@@ -32,8 +32,8 @@ class TransformerEncoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.embed_dim = args.encoder_embed_dim
-        self.quant_noise = getattr(args, "quant_noise", 0)
-        self.quant_noise_block_size = getattr(args, "quant_noise_block_size", 8)
+        self.quant_noise = getattr(args, "quant_noise_pq", 0)
+        self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8)
         self.self_attn = self.build_self_attention(self.embed_dim, args)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
         self.dropout = args.dropout
@@ -159,8 +159,8 @@ class TransformerDecoderLayer(nn.Module):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
         self.dropout = args.dropout
-        self.quant_noise = getattr(args, "quant_noise", 0)
-        self.quant_noise_block_size = getattr(args, "quant_noise_block_size", 8)
+        self.quant_noise = getattr(args, "quant_noise_pq", 0)
+        self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8)
 
         self.cross_self_attention = getattr(args, "cross_self_attention", False)
 

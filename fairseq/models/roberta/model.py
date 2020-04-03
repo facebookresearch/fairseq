@@ -90,12 +90,12 @@ class RobertaModel(FairseqLanguageModel):
         parser.add_argument('--encoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
         # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise', type=float, metavar='D', default=0,
-                            help='quantization noise at training time')
-        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
+                            help='iterative PQ quantization noise at training time')
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
                             help='block size of quantization noise at training time')
-        parser.add_argument('--scalar-quantization', default=False, action='store_true',
-                            help='train with scalar quantization')
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+                            help='scalar quantization noise and scalar quantization at training time')
         parser.add_argument('--untie-weights-roberta', action='store_true',
                             help='Untie weights between embeddings and classifiers in RoBERTa')
 
@@ -140,8 +140,8 @@ class RobertaModel(FairseqLanguageModel):
             num_classes,
             self.args.pooler_activation_fn,
             self.args.pooler_dropout,
-            self.args.quant_noise,
-            self.args.quant_noise_block_size
+            self.args.quant_noise_pq,
+            self.args.quant_noise_pq_block_size
         )
 
     @property
@@ -294,8 +294,8 @@ class RobertaEncoder(FairseqDecoder):
             encoder_normalize_before=True,
             apply_bert_init=True,
             activation_fn=args.activation_fn,
-            q_noise=args.quant_noise,
-            qn_block_size=args.quant_noise_block_size
+            q_noise=args.quant_noise_pq,
+            qn_block_size=args.quant_noise_pq_block_size
         )
         args.untie_weights_roberta = getattr(args, 'untie_weights_roberta', False)
 

@@ -29,17 +29,6 @@ def get_training_parser(default_task="translation"):
     return parser
 
 
-def get_quantization_parser(default_task='language_modeling'):
-    parser = get_parser('Trainer', default_task)
-    add_dataset_args(parser, train=True)
-    add_distributed_training_args(parser)
-    add_model_args(parser)
-    add_optimization_args(parser)
-    add_checkpoint_args(parser)
-    add_quantization_args(parser)
-    return parser
-
-
 def get_generation_parser(interactive=False, default_task="translation"):
     parser = get_parser("Generation", default_task)
     add_dataset_args(parser, gen=True)
@@ -607,13 +596,3 @@ def add_model_args(parser):
                        help='Model Architecture')
     # fmt: on
     return group
-
-
-def add_quantization_args(parser):
-    group = parser.add_argument_group('Quantization')
-    add_common_eval_args(group)
-    # fmt: off
-    group.add_argument('--quantization-config-path', default=None,
-                       help='Path to Quantization Config File')
-    group.add_argument('--save', default='',
-                       help='DUMMY-TO_REMOVE')

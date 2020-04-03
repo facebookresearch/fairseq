@@ -116,12 +116,12 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
         # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise', type=float, metavar='D', default=0,
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
                             help='iterative PQ quantization noise at training time')
-        parser.add_argument('--quant-noise-block-size', type=int, metavar='D', default=8,
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
                             help='block size of quantization noise at training time')
-        parser.add_argument('--scalar-quantization', default=False, action='store_true',
-                            help='train with scalar quantization')
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+                            help='scalar quantization noise and scalar quantization at training time')
         # fmt: on
 
     @classmethod
@@ -148,7 +148,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
                 len(task.source_dictionary), task.source_dictionary.pad(), args.decoder_input_dim,
                 args.adaptive_input_factor, args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_input_cutoff, type=int),
-                args.quant_noise, args.quant_noise_block_size
+                args.quant_noise_pq, args.quant_noise_pq_block_size
             )
         else:
             embed_tokens = cls.build_embedding(args, task.source_dictionary, args.decoder_input_dim)
