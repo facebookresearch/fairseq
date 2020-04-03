@@ -6,18 +6,19 @@ Looking for pretrained models? They will be added shortly.
 Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back, but note that both the Scalar and Iterative Product Quantization counterparts of the `nn.Conv2d` module are already included in this release.
 
 Contents:
-[Walk through of code](# 2.-walk-through-the-code)
+[Walk through of code](#walk-through-the-code)
+[Reproduce NLP Results](#looking-to-reproduce-the-nlp-results-in-the-paper)
+[Reproduce Vision Results](#looking-to-reproduce-the-vision-results-in-the-paper)
 
 
-
-## 1. Citation
+## Citation
 TODO
 
-## 2. Walk through the code
+## Walk through the code
 
 Training a model with Quant-Noise improves the performance in subsequent inference-time quantization by training models to be robust to quantization. This technique is useful for both scalar and product quantization methods, as well as multiple domains. We detail below our approach to train, quantize models and integrate our code to quantize your favorite models.
 
-### 2.1. Scalar Quantization
+### Scalar Quantization
 
 Unlike the section [Iterative Product Quantization](#iterative-product-quantization) which gives state-of-the-art compression, this section showcases the usefulness of our approach for popular scalar quantization baselines such as int8. Indeed, we perform on-GPU Fake Quantization, we do not quantize the biases and we do not fuse the modules with ReLus and Layer Norms during training.
 
@@ -43,34 +44,11 @@ Looking to quantize your own models with Quant-Noise + iPQ?
 - Then, perform your training as usual! Note that in `eval()` mode, the network is always fully quantized (weights and activations) by default (`p=1`).
 
 
-### Scalar Quantization
 
-Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing the weights and activations.
-
-
-### Product Quantization
-
-Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained *uncompressed* with quant-noise. Second, the model must be quantized.
-
-```python
-from fairseq.modules.quantization.scalar import quantize_model_
+### Iterative Product Quantization
 
 
-# get configuration parameters
-p = config["quant_noise_scalar"]
-
-# convert your model in-place
-quantize_model_(p=p, bits=8, update_step=1000)
-
-# then use your usual training loop!
-for epoch in range(...):
-    # usual training code
-```
-
-### 2.2. Iterative Product Quantization
-
-
-Iterative Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained uncompressed with Quant-Noise. Second, the model must be quantized with iPQ. Note that we implement here the simplest form of noise as stated [in the paper](), which consists in randomly dropping a proportion `p` of blocks, and that worked as well as assigning those blocks to their current centroid.
+Iterative Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained uncompressed with Quant-Noise. Second, the model must be quantized with iPQ. Note that we implement here the simplest form of noise, which consists in randomly dropping a proportion `p` of blocks, and that worked as well as assigning those blocks to their current centroid.
 
 #### Training
 
@@ -135,13 +113,13 @@ for step in range(len(layers_to_quantize)):
 ```
 
 
-## 3. Looking to reproduce the NLP results in the paper?
+## Looking to reproduce the NLP results in the paper?
 
 We detail below how to reproduce the state-of-the-art results in reported in the paper for Quant-Noise + Iterative Product Quantization.
 
 ### Training with Quant-Noise
 
-1. To **train** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
+To **train** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
 
 ```bash
 TOTAL_UPDATES=125000
@@ -204,7 +182,7 @@ python train.py /path/to/rte/data/ \
     --quant-noise 0.2 --quant-noise-block-size 8;
 ```
 
-2. To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
+To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
 
 ```bash
 python train.py --task language_modeling /path/to/wikitext-103/data \
@@ -239,9 +217,9 @@ python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
 and change the `--gen-subset` to `test` if you would like to evaluate on the test set instead.
 
 
-#### Product Quantization
+### Iterative Product Quantization
 
-1. To quantize the finetuned RoBERTa model, we use this command on 1 GPU. This should run in a day.
+To quantize the finetuned RoBERTa model, we use this command on 1 GPU. This should run in a day.
 ```bash
 TOTAL_NUM_UPDATES=2036
 WARMUP_UPDATES=122
@@ -266,7 +244,7 @@ python quantize_pq.py --task sentence_prediction /path/to/data/ \
     --quantization-config-path /path/to/config/yaml
 ```
 
-2. To quantize the trained Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
+To quantize the trained Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
 ```bash
 python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \
@@ -290,11 +268,11 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
 ```
 If you have less capacity or if your distributed training freezes, try reducing  `--max-tokens` and  `--tokens-per-sample` (this may reduce the quantized accuracy a bit).
 
-## 4. Looking to reproduce the Vision results in the paper?
+## Looking to reproduce the Vision results in the paper?
 
 We are working on open sourcing our code as part of ClassyVision. Please check back.
 
 
-## 5. Having an issue or have a question?
+## Having an issue or have a question?
 
 Please open an issue in this repository with the details of your question. Thanks!
