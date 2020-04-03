@@ -225,7 +225,7 @@ class FairseqTask(object):
 
         return criterions.build_criterion(args, self)
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
 

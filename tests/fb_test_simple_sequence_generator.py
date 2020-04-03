@@ -136,7 +136,7 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
         )
         generator = SequenceGenerator(self.task.tgt_dict, beam_size=2)
         hypos = generator.generate([model], self.sample)
-        simple_hypos = simple_generator.generate(self.sample)
+        simple_hypos = simple_generator.forward(self.sample)
         # sentence 1, beam 1
         self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
         # sentence 1, beam 2
@@ -161,7 +161,7 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
         hypos = generator.generate(
             [model], self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token
         )
-        simple_hypos = simple_generator.generate(
+        simple_hypos = simple_generator.forward(
             self.sample, prefix_tokens=prefix_tokens, bos_token=bos_token
         )
         # sentence 1, beam 1
@@ -183,7 +183,7 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
         )
 
         hypos = generator.generate([model], self.sample)
-        simple_hypos = simple_generator.generate(self.sample)
+        simple_hypos = simple_generator.forward(self.sample)
         # sentence 1, beam 1
         self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
         # sentence 1, beam 2
@@ -201,7 +201,7 @@ class TestJitSimpleSequeneceGenerator(TestJitSequenceGeneratorBase):
         generator = SequenceGeneratorWithAlignment(self.task.tgt_dict, beam_size=2)
 
         hypos = generator.generate([model], self.sample)
-        simple_hypos = simple_generator.generate(self.sample)
+        simple_hypos = simple_generator.forward(self.sample)
         # sentence 1, beam 1
         self.assertHypoEqual(hypos[0][0], simple_hypos[0][0])
         # sentence 1, beam 2
@@ -278,7 +278,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
 
     def test_with_normalization(self):
         generator = ScriptSequenceGenerator([self.model], self.tgt_dict, beam_size=2)
-        hypos = generator.generate(self.sample)
+        hypos = generator.forward(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -299,7 +299,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = ScriptSequenceGenerator(
             [self.model], self.tgt_dict, beam_size=2, normalize_scores=False
         )
-        hypos = generator.generate(self.sample)
+        hypos = generator.forward(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -319,7 +319,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = ScriptSequenceGenerator(
             [self.model], self.tgt_dict, beam_size=2, len_penalty=lenpen
         )
-        hypos = generator.generate(self.sample)
+        hypos = generator.forward(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -339,7 +339,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = ScriptSequenceGenerator(
             [self.model], self.tgt_dict, beam_size=2, len_penalty=lenpen
         )
-        hypos = generator.generate(self.sample)
+        hypos = generator.forward(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w2, w1, w2, eos])
@@ -358,7 +358,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = ScriptSequenceGenerator(
             [self.model], self.tgt_dict, beam_size=2, max_len_b=2
         )
-        hypos = generator.generate(self.sample)
+        hypos = generator.forward(self.sample)
         eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
@@ -382,7 +382,7 @@ class TestSimpleSequeneceGenerator(TestSequenceGeneratorBase):
         generator = ScriptSequenceGenerator(
             [reshaping_model], self.tgt_dict, beam_size=2, max_len_b=2
         )
-        hypos = generator.generate(self.sample)
+        hypos = generator.forward(self.sample)
         for sent in [0, 1]:
             for beam in [0, 1]:
                 assert hypos[sent][beam]["attention"] is not None
@@ -463,7 +463,7 @@ class TestDiverseBeamSearch(TestSequenceGeneratorBase):
                 "src_lengths": self.src_lengths,
             }
         }
-        hypos = generator.generate(sample)
+        hypos = generator.forward(sample)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, w1, eos])
@@ -505,7 +505,7 @@ class TestDiverseSiblingsSearch(TestDiverseBeamSearch):
                 "src_lengths": self.src_lengths,
             }
         }
-        hypos = generator.generate(sample)
+        hypos = generator.forward(sample)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, w1, eos])
@@ -602,7 +602,7 @@ class TestTopPSamplingSearch(TestSequenceGeneratorBase):
                 "src_lengths": self.src_lengths,
             }
         }
-        hypos = generator.generate(sample)
+        hypos = generator.forward(sample)
         eos, w1 = self.eos, self.w1
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, w1, eos])
@@ -633,7 +633,7 @@ class TestTopPSamplingSearch(TestSequenceGeneratorBase):
                 "src_lengths": self.src_lengths,
             }
         }
-        hypos = generator.generate(sample)
+        hypos = generator.forward(sample)
         eos, w1, w2 = self.eos, self.w1, self.w2
         # sentence 1, beam 1
         self.assertTrue(

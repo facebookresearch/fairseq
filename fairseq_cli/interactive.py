@@ -112,7 +112,7 @@ def main(args):
             model.cuda()
 
     # Initialize generator
-    generator = task.build_generator(args)
+    generator = task.build_generator(models, args)
 
     # Handle tokenization and BPE
     tokenizer = encoders.build_tokenizer(args)

@@ -145,7 +145,7 @@ class ScriptSequenceGenerator(nn.Module):
                 yield id, src, ref, hypos[i]
 
     @torch.no_grad()
-    def generate(self, sample: Dict[str, Dict[str, Tensor]], **kwargs):
+    def generate(self, models, sample: Dict[str, Dict[str, Tensor]], **kwargs):
         """Generate translations."""
         self.model.reset_incremental_state()
         return self._generate(sample, **kwargs)

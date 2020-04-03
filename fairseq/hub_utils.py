@@ -157,7 +157,7 @@ class GeneratorHubInterface(nn.Module):
         gen_args.beam = beam
         for k, v in kwargs.items():
             setattr(gen_args, k, v)
-        generator = self.task.build_generator(gen_args)
+        generator = self.task.build_generator(self.models, gen_args)
 
         results = []
         for batch in self._build_batches(tokenized_sentences, skip_invalid_size_inputs):

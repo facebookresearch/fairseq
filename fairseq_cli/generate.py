@@ -111,7 +111,7 @@ def _main(args, output_file):
 
     # Initialize generator
     gen_timer = StopwatchMeter()
-    generator = task.build_generator(args)
+    generator = task.build_generator(models, args)
 
     # Handle tokenization and BPE
     tokenizer = encoders.build_tokenizer(args)
