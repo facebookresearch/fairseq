@@ -80,8 +80,8 @@ def transformer_lm_megatron(args):
     base_lm_architecture(args)
 
 
-@register_model_architecture('model_parallel_transformer_lm', 'transformer_lm_megatron_big')
-def transformer_lm_megatron_big(args):
+@register_model_architecture('model_parallel_transformer_lm', 'transformer_lm_megatron_11b')
+def transformer_lm_megatron_11b(args):
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 3072)
     args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 3072 * 6)
     args.decoder_layers = getattr(args, 'decoder_layers', 72)

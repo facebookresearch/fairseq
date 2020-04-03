@@ -16,6 +16,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
 - March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
 - February 2020: [mBART model and code released](examples/mbart/README.md)
 - February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/master/examples/backtranslation#training-your-own-model-wmt18-english-german)
