@@ -1,4 +1,4 @@
-# Release and evaluation of 11B parameters Megatron-11b model.
+# Megatron-11b
 
 Megatron-11b is a unidirectional language model with `11B` parameters based on [Megatron-LM](https://arxiv.org/pdf/1909.08053.pdf). Following the original Megatron work, we trained the model using intra-layer model parallelism with each layer's parameters split across 8 GPUs.
 
@@ -28,9 +28,6 @@ num_updates | 300,000
 peak_lr | 1.5e-04
 lr scheduler | inverse_sqrt
 clip norm | 0.0
-
-Training data is same as used in [Roberta](https://arxiv.org/pdf/1907.11692.pdf) (i.e. Book corpus, wiki, stories, CC-News, openwebtext)
-
 
 
 ## Example training command (model parallel)
