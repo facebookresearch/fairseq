@@ -208,7 +208,7 @@ def main(args):
 
     # Initialize generator
     gen_timer = meters.StopwatchMeter()
-    generator = task.build_generator(args)
+    generator = task.build_generator(models, args)
 
     num_sentences = 0
 
