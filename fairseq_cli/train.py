@@ -88,18 +88,18 @@ def main(args, init_distributed=False):
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
+    max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
-    valid_subsets = args.valid_subset.split(',')
     while (
         lr > args.min_lr
         and epoch_itr.next_epoch_idx <= max_epoch
     ):
         # train for one epoch
-        should_end_training = train(args, trainer, task, epoch_itr)
-
-        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets)
+        valid_losses = train(args, trainer, task, epoch_itr, max_update)
+        if should_stop_early(args, valid_losses[0]) or trainer.get_num_updates() >= max_update:
+            break
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
@@ -109,9 +109,6 @@ def main(args, init_distributed=False):
             # sharded data: get train iterator for next epoch
             load_dataset=(os.pathsep in getattr(args, 'data', '')),
         )
-
-        if should_end_training:
-            break
     train_meter.stop()
     logger.info('done training in {:.1f} seconds'.format(train_meter.sum))
 
@@ -141,8 +138,8 @@ def should_stop_early(args, valid_loss):
 
 
 @metrics.aggregate('train')
-def train(args, trainer, task, epoch_itr):
-    """Train the model for one epoch."""
+def train(args, trainer, task, epoch_itr, max_update=math.inf):
+    """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
@@ -169,8 +166,6 @@ def train(args, trainer, task, epoch_itr):
     task.begin_epoch(epoch_itr.epoch, trainer.get_model())
 
     valid_subsets = args.valid_subset.split(',')
-    max_update = args.max_update or math.inf
-    should_end_training = False
     for samples in progress:
         with metrics.aggregate('train_inner'):
             log_output = trainer.train_step(samples)
@@ -189,7 +184,6 @@ def train(args, trainer, task, epoch_itr):
 
         valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets)
         if should_stop_early(args, valid_losses[0]) or num_updates >= max_update:
-            should_end_training = True
             break
 
     # log end-of-epoch stats
@@ -198,7 +192,7 @@ def train(args, trainer, task, epoch_itr):
 
     # reset epoch-level meters
     metrics.reset_meters('train')
-    return should_end_training
+    return valid_losses
 
 
 def validate_and_save(args, trainer, task, epoch_itr, valid_subsets):
