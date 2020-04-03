@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn as nn
@@ -9,7 +12,7 @@ class PQLinear(nn.Module):
     """
     Quantized counterpart of nn.Linear module. Stores the centroid, the assignments
     and the non-quantized biases. The full weight is re-instantiated at each forward
-    pass. 
+    pass.
 
     Args:
         - centroids: centroids of size n_centroids x block_size

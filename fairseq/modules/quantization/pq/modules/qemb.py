@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn as nn
@@ -7,9 +10,9 @@ import torch.nn.functional as F
 
 class PQEmbedding(nn.Module):
     """
-    Quantized counterpart of nn.Embedding module. Stores the centroids and 
+    Quantized counterpart of nn.Embedding module. Stores the centroids and
     the assignments. The full weight is re-instantiated at each forward
-    pass. 
+    pass.
 
     Args:
         - centroids: centroids of size n_centroids x block_size
@@ -24,8 +27,8 @@ class PQEmbedding(nn.Module):
           the non-quantized nn.Embedding module for a standard training loop.
     """
 
-    def __init__(self, centroids, assignments, num_embeddings, embedding_dim, 
-                     padding_idx=None, max_norm=None, norm_type=2., 
+    def __init__(self, centroids, assignments, num_embeddings, embedding_dim,
+                     padding_idx=None, max_norm=None, norm_type=2.,
                      scale_grad_by_freq=False, sparse=False, _weight=None):
         super(PQEmbedding, self).__init__()
         self.block_size = centroids.size(1)
@@ -80,5 +83,5 @@ class PQEmbedding(nn.Module):
         if self.sparse is not False:
             s += ', sparse=True'
         s += ', n_centroids={n_centroids}, block_size={block_size}'
-        
+
         return s.format(**self.__dict__)

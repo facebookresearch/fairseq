@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,24 +22,24 @@ class IntEmbedding(nn.Module):
         - method: choose among {"tensor", "histogram", "channel"}
         - update_step: recompute scale and zero_point every update_steps iterations
 
-    Remarks: 
+    Remarks:
         - We use the straight-through estimator so that the gradients
           back-propagate nicely in the network, this is implemented with
           the detach() trick
-        - Parameters scale and zero_point are recomputed every update_step 
+        - Parameters scale and zero_point are recomputed every update_step
           forward pass to reduce the overhead
         - At test time, the weights are fully quantized
     """
 
     def __init__(
         self,
-        num_embeddings, 
+        num_embeddings,
         embedding_dim,
-        padding_idx=None, 
-        max_norm=None, 
-        norm_type=2.,              
-        scale_grad_by_freq=False, 
-        sparse=False, 
+        padding_idx=None,
+        max_norm=None,
+        norm_type=2.,
+        scale_grad_by_freq=False,
+        sparse=False,
         _weight=None,
         p=0,
         update_step=1000,

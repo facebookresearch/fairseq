@@ -3,14 +3,17 @@ This page contains information for how to train and quantize models with Quantiz
 Check out our blog post [here](link_to_blog_post) and read the paper [here](link_to_paper).
 
 Looking for pretrained models? They will be added shortly.
-Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back, but note that both the Scalar and Iterative Product Quantization counterparts of the `nn.Conv2d` module are already included in this release!
+Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back, but note that both the Scalar and Iterative Product Quantization counterparts of the `nn.Conv2d` module are already included in this release.
 
-TODO: add summary with section links maybe @Angela to make structure apppear more clearly?
+Contents:
+[Walk through of code](# 2.-walk-through-the-code)
+
+
 
 ## 1. Citation
-TODO @angela
+TODO
 
-## 2. Walking through the code
+## 2. Walk through the code
 
 Training a model with Quant-Noise improves the performance in subsequent inference-time quantization by training models to be robust to quantization. This technique is useful for both scalar and product quantization methods, as well as multiple domains. We detail below our approach to train, quantize models and integrate our code to quantize your favorite models.
 
@@ -22,7 +25,7 @@ Unlike the section [Iterative Product Quantization](#iterative-product-quantizat
 
 Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of both weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing both the weights and the activations. We rely on PyTorch's [quantization primitives](https://github.com/pytorch/pytorch/tree/master/torch/quantization).
 
-TODO: correct task description and flags correction. To train a model with Quant-Noise, add the following flag:
+To train a model with Quant-Noise, add the following flag:
 ```
 --quant-noise-scalar 0.5
 ```
@@ -56,11 +59,11 @@ for epoch in range(...):
 ### 2.2. Iterative Product Quantization
 
 
-Iterative Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained uncompressed with Quant-Noise. Second, the model must be quantized with iPQ. Note that we implement here the simplest form of noise as stated [in the paper](), which consists in randomly dropping a proportion `p` of blocks, and that worked as well as assigning those blocks to their current centroid. TODO paper link.
+Iterative Product Quantization with Quant-Noise proceeds in two steps. First, a model must be trained uncompressed with Quant-Noise. Second, the model must be quantized with iPQ. Note that we implement here the simplest form of noise as stated [in the paper](), which consists in randomly dropping a proportion `p` of blocks, and that worked as well as assigning those blocks to their current centroid.
 
 #### Training
 
-TODO: correct task description and flags correction. To train a model with Quant-Noise, add the following flags:
+To train a model with Quant-Noise, add the following flags:
 ```
 --quant-noise-pq 0.1 --quant-noise-pq-block-size 8
 ```
@@ -235,9 +238,30 @@ and change the `--gen-subset` to `test` if you would like to evaluate on the tes
 
 
 #### RoBERTa.
-To quantize the finetuned RoBERTa model, we use this command on xx GPUs. This should take xx hours on xx GPUs TODO.
+
+To quantize the finetuned RoBERTa model, we use this command on 1 GPU. This should run in a day.
 ```bash
-TODO @angela
+TOTAL_NUM_UPDATES=2036
+WARMUP_UPDATES=122
+LR=2e-05
+NUM_CLASSES=2
+MAX_SENTENCES=16
+python quantize_pq.py --task sentence_prediction /path/to/data/ \
+--restore-file $ROBERTA_PATH \
+--save-dir checkpoints/roberta_finetuned \
+--max-positions 512 \
+--max-sentences $MAX_SENTENCES \
+--max-tokens 4400 \
+--init-token 0 --separator-token 2 \
+--arch roberta_large \
+--criterion sentence_prediction \
+--num-classes $NUM_CLASSES \
+--dropout 0.1 --attention-dropout 0.1 \
+--weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
+--clip-norm 0.0 --lr-scheduler polynomial_decay \
+--fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
+--no-progress-bar --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+--quantization-config-path /path/to/config/yaml
 ```
 
 #### Language Modeling

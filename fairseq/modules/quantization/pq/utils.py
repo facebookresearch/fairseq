@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import logging
 import re
@@ -85,12 +88,12 @@ def quantize_model_(
             verbose=verbose,
         )
 
-        # quantization performed on all GPUs with same seed 
+        # quantization performed on all GPUs with same seed
         quantizer.encode()
         centroids = quantizer.centroids.contiguous()
         assignments = quantizer.assignments.contiguous()
-        
-        # broadcast results to make sure weights are up-to-date 
+
+        # broadcast results to make sure weights are up-to-date
         if dist.is_initialized():
             dist.broadcast(centroids, 0)
             dist.broadcast(assignments, 0)
@@ -200,18 +203,18 @@ def get_param(module, layer_name, param_config):
           For instance, all conv2d layers with kernel size 3x3 have
           a block size of 9 and all Linear layers are quantized with
           a block size of 8, irrespective of their size.
-          
+
     Remarks:
         - if 'fuzzy_name' is passed as a parameter, layers whose layer_name
-          include 'fuzzy_name' will be assigned the given parameter. 
+          include 'fuzzy_name' will be assigned the given parameter.
           In the following example, conv.expand layers will have a block
-          size of 9 while conv.reduce will have a block size of 4 and all 
+          size of 9 while conv.reduce will have a block size of 4 and all
           other layers will have a block size of 2.
           {
               'Conv2d': ('fuzzy_name', {'expand': 9, 'reduce': 4, '*': 2}),
               'Linear': ('fuzzy_name', {'classifier': 8, 'projection': 4})
-          }          
-          
+          }
+
     """
 
     layer_type = module.__class__.__name__
@@ -220,7 +223,7 @@ def get_param(module, layer_name, param_config):
         raise KeyError(f"Layer type {layer_type} not in config for layer {module}")
 
     feature, params = param_config[module.__class__.__name__]
-    
+
     if feature != "fuzzy_name":
         feature_value = str(getattr(module, feature))
         if feature_value not in params:
@@ -241,27 +244,27 @@ def get_param(module, layer_name, param_config):
                 )
         else:
             feature_value = feature_values[0]
-            
+
     return params[feature_value]
 
 
 class SizeTracker(object):
     """
     Class to keep track of the compressed network size with iPQ.
-    
+
     Args:
-        - model: a nn.Module 
-        
+        - model: a nn.Module
+
     Remarks:
-        - The compressed size is the sum of three components 
+        - The compressed size is the sum of three components
           for each layer in the network:
-              (1) Storing the centroids given by iPQ in fp16 
-              (2) Storing the assignments of the blocks in int8 
-              (3) Storing all non-compressed elements such as biases  
+              (1) Storing the centroids given by iPQ in fp16
+              (2) Storing the assignments of the blocks in int8
+              (3) Storing all non-compressed elements such as biases
         - This cost in only valid if we use 256 centroids (then
-          indexing can indeed by done with int8). 
+          indexing can indeed by done with int8).
     """
-    
+
     def __init__(self, model):
         self.model = model
         self.size_non_compressed_model = self.compute_size()

@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import torch
 import torch.nn.functional as F
 from torch.nn.modules.conv import _ConvNd
@@ -22,7 +26,7 @@ class IntConv2d(_ConvNd):
         - We use the straight-thgourh estimator so that the gradients
           back-propagate nicely in the network, this is implemented with
           the detach() trick
-        - Parameters scale and zero_point are recomputed every update_step 
+        - Parameters scale and zero_point are recomputed every update_step
           forward pass to reduce the overhead
         - At test time, the weights are fully quantized
     """

@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import torch
 
 from ..ops import emulate_int
@@ -11,13 +15,13 @@ class ActivationQuantizer:
     Args:
         - module. a nn.Module for which we quantize the *post-activations*
         - p: proportion of activations to quantize, set by default to 1
-        - update_step: to recompute quantization parameters 
+        - update_step: to recompute quantization parameters
         - bits: number of bits for quantization
         - method: choose among {"tensor", "histogram", "channel"}
-        - clamp_threshold: to prevent gradients overflow 
+        - clamp_threshold: to prevent gradients overflow
 
     Remarks:
-        - Parameters scale and zero_point are recomputed every update_step 
+        - Parameters scale and zero_point are recomputed every update_step
           forward pass to reduce the overhead
         - For the list of quantization methods and number of bits, see ops.py
         - To remove the hook from the module, simply call self.handle.remove()
@@ -25,10 +29,10 @@ class ActivationQuantizer:
         - We use the straight-through estimator so that the gradients
           back-propagate nicely in the network, this is implemented with
           the detach() trick
-        - The activations are hard-clamped in [-clamp_threshold, clamp_threshold] 
+        - The activations are hard-clamped in [-clamp_threshold, clamp_threshold]
           to prevent overflow during the backward pass
     """
-    def __init__(self, module, p=1, update_step=1000, bits=8, 
+    def __init__(self, module, p=1, update_step=1000, bits=8,
                  method="histogram", clamp_threshold=5):
         self.module = module
         self.p = p
@@ -43,17 +47,17 @@ class ActivationQuantizer:
     def register_hook(self):
         # forward hook
         def quantize_hook(module, x, y):
-                    
+
             # update parameters every 1000 iterations
             if self.counter % self.update_step == 0:
                 self.scale = None
                 self.zero_point = None
             self.counter += 1
-        
+
             # train with QuantNoise and evaluate the fully quantized network
             p = self.p if self.module.training else 1
-            
-            # quantize activations 
+
+            # quantize activations
             y_q, self.scale, self.zero_point = emulate_int(
                 y.detach(),
                 bits=self.bits,
@@ -61,7 +65,7 @@ class ActivationQuantizer:
                 scale=self.scale,
                 zero_point=self.zero_point,
             )
-            
+
             # mask to apply noise
             mask = torch.zeros_like(y)
             mask.bernoulli_(1 - p)
