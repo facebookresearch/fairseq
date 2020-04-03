@@ -599,29 +599,59 @@ class SequenceGenerator(nn.Module):
             return True
         return False
 
-    @torch.jit.unused
+    def calculate_banned_tokens(
+        self,
+        tokens,
+        step: int,
+        gen_ngrams: List[Dict[str, List[int]]],
+        no_repeat_ngram_size: int,
+        bbsz_idx: int,
+    ):
+        tokens_list: List[int] = tokens[
+            bbsz_idx, step + 2 - no_repeat_ngram_size : step + 1
+        ].tolist()
+        # before decoding the next token, prevent decoding of ngrams that have already appeared
+        ngram_index = ",".join([str(x) for x in tokens_list])
+        return gen_ngrams[bbsz_idx].get(ngram_index, torch.jit.annotate(List[int], []))
+
+    def transpose_list(self, l: List[List[int]]):
+        # GeneratorExp aren't supported in TS so ignoring the lint
+        min_len = min([len(x) for x in l])  # noqa
+        l2 = [[row[i] for row in l] for i in range(min_len)]
+        return l2
+
     def _no_repeat_ngram(self, tokens, lprobs, bsz: int, beam_size: int, step: int):
         # for each beam and batch sentence, generate a list of previous ngrams
-        gen_ngrams = [{} for bbsz_idx in range(bsz * beam_size)]
+        gen_ngrams: List[Dict[str, List[int]]] = [
+            torch.jit.annotate(Dict[str, List[int]], {})
+            for bbsz_idx in range(bsz * beam_size)
+        ]
         for bbsz_idx in range(bsz * beam_size):
-            gen_tokens = tokens[bbsz_idx].tolist()
-            for ngram in zip(*[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]):
-                gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = \
-                        gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
-
-        def calculate_banned_tokens(bbsz_idx):
-            # before decoding the next token, prevent decoding of ngrams that have already appeared
-            ngram_index = tuple(tokens[bbsz_idx, step + 2 - self.no_repeat_ngram_size:step + 1].tolist())
-            return gen_ngrams[bbsz_idx].get(ngram_index, [])
+            gen_tokens: List[int] = tokens[bbsz_idx].tolist()
+            for ngram in self.transpose_list(
+                [gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]
+            ):
+                key = ",".join([str(x) for x in ngram[:-1]])
+                gen_ngrams[bbsz_idx][key] = gen_ngrams[bbsz_idx].get(
+                    key, torch.jit.annotate(List[int], [])
+                ) + [ngram[-1]]
 
         if step + 2 - self.no_repeat_ngram_size >= 0:
             # no banned tokens if we haven't generated no_repeat_ngram_size tokens yet
-            banned_tokens = [calculate_banned_tokens(bbsz_idx) for bbsz_idx in range(bsz * beam_size)]
+            banned_tokens = [
+                self.calculate_banned_tokens(
+                    tokens, step, gen_ngrams, self.no_repeat_ngram_size, bbsz_idx
+                )
+                for bbsz_idx in range(bsz * beam_size)
+            ]
         else:
-            banned_tokens = [[] for bbsz_idx in range(bsz * beam_size)]
-
+            banned_tokens = [
+                torch.jit.annotate(List[int], []) for bbsz_idx in range(bsz * beam_size)
+            ]
         for bbsz_idx in range(bsz * beam_size):
-            lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = -math.inf
+            lprobs[bbsz_idx][torch.tensor(banned_tokens[bbsz_idx]).long()] = torch.tensor(
+                -math.inf, dtype=torch.float
+            )
         return lprobs
 
 
