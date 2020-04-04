@@ -45,6 +45,7 @@ def get_interactive_generation_parser(default_task="translation"):
 def get_eval_lm_parser(default_task="language_modeling"):
     parser = get_parser("Evaluate Language Model", default_task)
     add_dataset_args(parser, gen=True)
+    add_distributed_training_args(parser)
     add_eval_lm_args(parser)
     return parser
 
