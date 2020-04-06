@@ -172,7 +172,7 @@ def get_valid_stats(args, trainer, stats):
     return stats
 
 
-def distributed_main(i, args, start_rank=0):
+def distributed_main(i, args, main, start_rank=0):
     args.device_id = i
     if args.distributed_rank is None:  # torch.multiprocessing.spawn
         args.distributed_rank = start_rank + i
@@ -190,11 +190,11 @@ def call_main(args, main, modify_parser=None):
             args.distributed_rank = None  # assign automatically
             torch.multiprocessing.spawn(
                 fn=distributed_main,
-                args=(args, start_rank),
+                args=(args, main, start_rank),
                 nprocs=torch.cuda.device_count(),
             )
         else:
-            distributed_main(args.device_id, args)
+            _distributed_main(args.device_id, args, main)
     elif args.distributed_world_size > 1:
         # fallback for single node with multiple GPUs
         assert args.distributed_world_size <= torch.cuda.device_count()
@@ -203,7 +203,7 @@ def call_main(args, main, modify_parser=None):
         args.distributed_rank = None  # set based on device id
         torch.multiprocessing.spawn(
             fn=distributed_main,
-            args=(args, ),
+            args=(args, main, ),
             nprocs=args.distributed_world_size,
         )
     else:
