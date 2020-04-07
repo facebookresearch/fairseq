@@ -23,7 +23,7 @@ def quantize_model_(
     block_sizes_config,
     n_centroids_config,
     step=0,
-    n_iter=1,
+    n_iter=15,
     eps=1e-6,
     max_tentatives=100,
     verbose=True,

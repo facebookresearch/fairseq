@@ -72,7 +72,9 @@ class ActivationQuantizer:
             noise = (y_q - y).masked_fill(mask.bool(), 0)
 
             # using straight-through estimator (STE)
-            return torch.clamp(y, -self.clamp_threshold, self.clamp_threshold) + noise.detach()
+            clamp_low = - self.scale * self.zero_point  
+            clamp_high = self.scale * (2 ** self.bits - 1 - self.zero_point)    
+            return torch.clamp(y, clamp_low.item(), clamp_high.item()) + noise.detach()
 
         # register hook
         self.handle = self.module.register_forward_hook(quantize_hook)

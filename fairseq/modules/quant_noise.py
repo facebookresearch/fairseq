@@ -59,8 +59,8 @@ def quant_noise(module, p, block_size):
             if not is_conv:
                 # gather weight and sizes
                 weight = mod.weight
-                in_features = weight.size(0)
-                out_features = weight.size(1)
+                in_features = weight.size(1)
+                out_features = weight.size(0)
 
                 # split weight matrix into blocks and randomly drop selected blocks
                 mask = torch.zeros(in_features // block_size * out_features, device=weight.device)
@@ -86,7 +86,7 @@ def quant_noise(module, p, block_size):
             # scale weights and apply mask
             mask = mask.to(torch.bool)  # x.bool() is not currently supported in TorchScript
             s = 1 / (1 - p)
-            mod.weight.data = s * weight.masked_fill(mask.t(), 0)
+            mod.weight.data = s * weight.masked_fill(mask, 0)
 
     module.register_forward_pre_hook(_forward_pre_hook)
     return module

@@ -6,11 +6,9 @@ Looking for pretrained models? They will be added shortly.
 Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back, but note that both the Scalar and Iterative Product Quantization counterparts of the `nn.Conv2d` module are already included in this release.
 
 **Contents**:
-[Walk through of code](#walk-through-the-code)
-
-[Reproduce NLP Results](#looking-to-reproduce-the-nlp-results-in-the-paper)
-
-[Reproduce Vision Results](#looking-to-reproduce-the-vision-results-in-the-paper)
+- [Walk through of code](#walk-through-the-code)
+- [Reproduce NLP Results](#looking-to-reproduce-the-nlp-results-in-the-paper)
+- [Reproduce Vision Results](#looking-to-reproduce-the-vision-results-in-the-paper)
 
 
 ## Citation
@@ -22,11 +20,11 @@ Training a model with Quant-Noise improves the performance in subsequent inferen
 
 ### Scalar Quantization
 
-Unlike the section [Iterative Product Quantization](#iterative-product-quantization) which gives state-of-the-art compression, this section showcases the usefulness of our approach for popular scalar quantization baselines such as int8. Indeed, we perform on-GPU Fake Quantization, we do not quantize the biases and we do not fuse the modules with ReLus and Layer Norms during training.
+Unlike the section [Iterative Product Quantization](#iterative-product-quantization) which gives state-of-the-art compression, this section showcases the usefulness of our approach for simple  scalar quantization baselines such as int8 using on-GPU Fake Quantization.
 
 #### Training
 
-Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of both weights and activations during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing both the weights and the activations. We rely on PyTorch's [quantization primitives](https://github.com/pytorch/pytorch/tree/master/torch/quantization).
+Scalar quantization with Quant-Noise consists in randomly quantizing a proportion `p` of the weights during training. Scalar quantization is implemented [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quantization/scalar) under the form of Fake Quantization, meaning that we emulate int8 on GPU by quantizing and de-quantizing both the weights and the activations. We rely on PyTorch's [quantization primitives](https://github.com/pytorch/pytorch/tree/master/torch/quantization).
 
 To train a model with Quant-Noise, add the following flag:
 ```
@@ -269,6 +267,14 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --max-update 4500 --quantization-config-path /path/to/config/yaml
 ```
 If you have less capacity or if your distributed training freezes, try reducing  `--max-tokens` and  `--tokens-per-sample` (this may reduce the quantized accuracy a bit).
+
+### Remarks
+
+We try to keep the open-sourced code as readable and as easy-to-plug as possible. Therefore, we did not test it for the following cases:
+- Scalar quantization with RoBERTa.
+- Quantization with iPQ and `int8` combined. 
+
+If you have trouble adapting it, we will be more than happy to help!
 
 ## Looking to reproduce the Vision results in the paper?
 
