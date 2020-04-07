@@ -709,7 +709,11 @@ class EnsembleModel(nn.Module):
                 decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
 
             attn: Optional[Tensor] = None
-            decoder_len = len(decoder_out)
+            # __len__ is not supported in Tuple in Script.
+            decoder_len = 0
+            for _ in decoder_out:
+                decoder_len += 1
+
             if decoder_len > 1 and decoder_out[1] is not None:
                 if isinstance(decoder_out[1], Tensor):
                     attn = decoder_out[1]
