@@ -56,7 +56,7 @@ To train a model with Quant-Noise, add the following flags:
 ```
 --quant-noise-pq 0.1 --quant-noise-pq-block-size 8
 ```
-`quant-noise` controls how much dropout is applied to the blocks of the weight matrix. `quant-noise-block-size` controls the size of the weight matrix blocks.
+`quant-noise-pq` controls how much dropout is applied to the blocks of the weight matrix. `quant-noise-pq-block-size` controls the size of the weight matrix blocks.
 We recommend training with 0.05 to 0.2 Quant-Noise, a value that worked well in our experiments. For the block-size, we recommend training with block-size of 8. Note that the block size must be a multiple of `input_features`, see the size checks [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py). Large block sizes result in higher compression ratio but may induce a loss in accuracy.
 
 We currently support training Transformer based models, such as sequence-to-sequence, language models, and BERT architectures. The `quant_noise` function [here](https://github.com/pytorch/fairseq/tree/master/fairseq/modules/quant_noise.py) wraps a module. It splits a weight matrix into blocks and applies random dropout to these blocks.
@@ -179,7 +179,7 @@ python train.py /path/to/rte/data/ \
     --find-unused-parameters \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
     --ddp-backend no_c10d \
-    --quant-noise-pq 0.2 --quant-noise-pq-block-size 8;
+    --quant-noise-pq 0.2 --quant-noise-pq-block-size 8
 ```
 
 To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
@@ -204,7 +204,7 @@ python train.py --task language_modeling /path/to/wikitext-103/data \
     --quant-noise-pq 0.05 --quant-noise-pq-block-size 8
 ```
 
-To evaluate this model, note you need to use the `eval.py` script. The following command can be used to evaluate:
+To **evaluate** this model, note you need to use the `eval.py` script. The following command can be used to evaluate:
 
 ```bash
 python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
@@ -272,7 +272,7 @@ If you have less capacity or if your distributed training freezes, try reducing 
 
 We try to keep the open-sourced code as readable and as easy-to-plug as possible. Therefore, we did not test it for the following cases:
 - Scalar quantization with RoBERTa.
-- Quantization with iPQ and `int8` combined. 
+- Quantization with iPQ and `int8` combined.
 
 If you have trouble adapting it, we will be more than happy to help!
 
