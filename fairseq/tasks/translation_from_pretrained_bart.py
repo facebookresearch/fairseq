@@ -89,6 +89,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         else:
             from fairseq.sequence_generator import SequenceGenerator
             return SequenceGenerator(
+                models,
                 self.target_dictionary,
                 beam_size=getattr(args, 'beam', 5),
                 max_len_a=getattr(args, 'max_len_a', 0),
