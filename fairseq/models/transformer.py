@@ -879,16 +879,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self._future_mask = self._future_mask.to(tensor)
         return self._future_mask[:dim, :dim]
 
-    # Overwirte the method to temporaily soppurt jit scriptable in Transformer
-    @torch.jit.export
-    def reorder_incremental_state(
-        self,
-        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
-        new_order: Tensor,
-    ):
-        """Scriptable reorder incremental state in the transformer."""
-        for layer in self.layers:
-            layer.reorder_incremental_state(incremental_state, new_order)
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
