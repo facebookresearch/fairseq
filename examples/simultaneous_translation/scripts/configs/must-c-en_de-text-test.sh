@@ -1,5 +1,5 @@
-export src="experiments/data/must_c_1_0/en-de/data/dev/txt/test.en"
-export tgt="experiments/data/must_c_1_0/en-de/data/dev/txt/test.de"
+export src="experiments/data/must_c_1_0/en-de/data/tst-COMMON/txt/tst-COMMON.en"
+export tgt="experiments/data/must_c_1_0/en-de/data/tst-COMMON/txt/tst-COMMON.de"
 export tokenizer=13a
 export src_splitter_type=SentencePieceModel
 export tgt_splitter_type=SentencePieceModel

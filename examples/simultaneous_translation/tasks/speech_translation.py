@@ -69,7 +69,7 @@ def get_ast_dataset_from_json(
         return AstDataset(aud_paths, frame_sizes, tgt,tgt_dict, ids, speakers,
                 num_mel_bins,
                 online_features=online_features,
-                mv_norm=mv_norm
+                mv_norm=mv_norm,
             )
 
 
