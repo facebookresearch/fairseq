@@ -397,6 +397,8 @@ class Trainer(object):
             # multiply gradients by (# GPUs / sample_size) since DDP
             # already normalizes by the number of GPUs. Thus we get
             # (sum_of_gradients / sample_size).
+            if sample_size == 0:
+                raise OverflowError("out of memory")
             if not self.args.use_bmuf:
                 multiplier = self.data_parallel_world_size
                 self.optimizer.multiply_grads(
@@ -442,7 +444,8 @@ class Trainer(object):
                 )
             raise
         except OverflowError as e:
-            logger.info("NOTE: overflow detected, " + str(e))
+            if "out of memory" not in str(e):
+                logger.info("NOTE: overflow detected, " + str(e))
             self.zero_grad()
             logging_output = None
         except RuntimeError as e:
