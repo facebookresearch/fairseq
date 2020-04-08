@@ -287,7 +287,9 @@ class BerardSimulEncoder(FairseqEncoder):
         x = x.transpose(1, 2).transpose(0, 1).contiguous().view(output_seq_len, bsz, -1)
 
         subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
-        input_lengths = (src_lengths.float() / subsampling_factor).ceil().long()
+        input_lengths = (
+            src_lengths.float() / subsampling_factor
+        ).ceil().long().clamp(0, x.size(0))
 
         packed_x = nn.utils.rnn.pack_padded_sequence(x, input_lengths.data.tolist())
 
