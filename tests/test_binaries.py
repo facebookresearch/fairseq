@@ -540,7 +540,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
     def test_roberta_masked_lm(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_roberta_mlm") as data_dir:
-                create_dummy_data(data_dir)
+                create_dummy_data(data_dir, num_examples=50)
                 preprocess_lm_data(data_dir)
                 train_masked_lm(data_dir, "roberta_base")
 
@@ -552,6 +552,35 @@ class TestMaskedLanguageModel(unittest.TestCase):
                 preprocess_lm_data(os.path.join(data_dir, 'input0'))
                 preprocess_lm_data(os.path.join(data_dir, 'label'))
                 train_roberta_head(data_dir, "roberta_base", num_classes=num_classes)
+
+    def test_roberta_frozen_sentence_prediction(self):
+        from fairseq.models.roberta import RobertaModel
+        num_classes = 3
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_roberta_frozen_mlm") as pretraining_dir:
+                with tempfile.TemporaryDirectory("test_roberta_frozen_head") as training_dir:
+                    # Train masked LM
+                    create_dummy_data(pretraining_dir, num_examples=10)
+                    preprocess_lm_data(pretraining_dir)
+                    train_masked_lm(pretraining_dir, "roberta_base")
+                    roberta_pretrained = RobertaModel.from_pretrained(pretraining_dir, 'checkpoint_last.pt', pretraining_dir, bpe=None)
+
+                    # Train classification head with frozen encoder
+                    create_dummy_roberta_head_data(training_dir, num_classes=num_classes)
+                    preprocess_lm_data(os.path.join(training_dir, 'input0'))
+                    preprocess_lm_data(os.path.join(training_dir, 'label'))
+                    train_roberta_head(training_dir, "roberta_base", num_classes=num_classes, extra_flags=['--freeze-encoder'])
+                    roberta_trained = RobertaModel.from_pretrained(training_dir, 'checkpoint_last.pt', training_dir, bpe=None)
+
+                    pretrained_dict = roberta_pretrained.model.state_dict()
+                    trained_dict = roberta_trained.model.state_dict()
+                    assert 'classification_heads.sentence_classification_head.dense.weight' in trained_dict
+
+                    for param_name, trained_weights in pretrained_dict.items():
+                        if param_name.startswith('classification_heads.'):
+                            assert param_name not in pretrained_dict
+                        else:
+                            assert trained_weights.equal(pretrained_dict.get(param_name)), param_name
 
     def test_roberta_regression_single(self):
         num_classes = 1
