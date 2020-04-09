@@ -126,6 +126,17 @@ class TestJitSequeneceGenerator(TestJitSequenceGeneratorBase):
         scripted_model = torch.jit.script(generator)
         self._test_save_and_load(scripted_model)
 
+    @unittest.skipIf(
+        torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
+    )
+    def test_quantized_ensemble_sequence_generator(self):
+        model = torch.quantization.quantize_dynamic(
+            self.transformer_model, {torch.nn.Linear}, dtype=torch.qint8, inplace=True
+        )
+        generator = SequenceGenerator([model], self.task.tgt_dict, beam_size=2)
+        scripted_model = torch.jit.script(generator)
+        self._test_save_and_load(scripted_model)
+
 
 class TestJitEnsemble(TestJitSequenceGeneratorBase):
 
