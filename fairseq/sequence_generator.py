@@ -177,7 +177,8 @@ class SequenceGenerator(nn.Module):
             (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
         )
         # bsz: total number of sentences in beam
-        bsz, src_len = src_tokens.size()
+        input_size = src_tokens.size()
+        bsz, src_len = input_size[0], input_size[1]
         beam_size = self.beam_size
 
         max_len: int = -1
