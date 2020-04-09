@@ -202,7 +202,7 @@ You should obtain the following scores on test set:
 
 ```Scores: {"BLEU": 9.397, "TER": 1.044, "METEOR": 0.224, "DAL": 2080.781110446501, "AL": 1517.827194666691, "AP": 0.7875444648568037}``` 
 
-This is the model of wait-k where `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide the full curve for the speech translation model, shown as follow. The detailed numbers can be found [here](speech_curve.csv).
+This is the model of wait-k where `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide the full curve for the speech translation model, shown below. The detailed numbers can be found [here](speech_curve.csv) and the corresponding checkpoints at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoints_speech_waitk${k}_stride${stride} (${k} = 1, 2, ..., 6 and ${stride} = 200, 240, 280, 320, 360, 400, 600, 800).
 ![Quality-Latency Curve for the speech-to-text baseline](speech_curve.png)
 
 ### Final Evaluation with Docker
