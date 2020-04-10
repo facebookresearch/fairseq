@@ -104,7 +104,7 @@ class Agent(object):
  
 ```
 
-Here is an exmaple of a customized agent. 
+Here is an example of a customized agent. 
 First of all, a name needs to be registered. 
 Next, reload the agent functions according to the translation model. 
 The functions that need to be reload are listed in the `MyAgent` class as follow. 
