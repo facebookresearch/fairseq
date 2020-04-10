@@ -2,7 +2,7 @@
 The simultaneous translation models from the shared task participants are evaluated under a server-client protocol. 
 The participants are required to plug in their own model API in the protocol, and submit a Docker file.
 The server provides information needed by the client and evaluates latency and quality, while the client sends the translation. 
-The fairseq toolkit is a dependency but the evaluation process can be applied in an arbitary framework.
+We use the Fairseq toolkit as an example but the evaluation process can be applied in an arbitary framework.
 
 ## Server
 The server code is provided and can be set up locally for development purposes. For example, to evaluate a text simultaneous test set,
