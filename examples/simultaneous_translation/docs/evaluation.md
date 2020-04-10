@@ -42,7 +42,7 @@ The client will handle the evaluation process mentioned above. It should be out-
 |Predict word "W"| ```{key: "SEND", value: "W"}```|
 
 The core of the client module is the [agent](../eval/agents/agent.py). 
-One can build a customized agent from the abstract class of agent, shown as follow.
+One can build a customized agent from the abstract class of the agent, shown as follows.
 The evaluation process for one sentence happens in the `_decode_one()` function (you don't have to modify this function).
 
 ```python
