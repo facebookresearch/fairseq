@@ -1,7 +1,7 @@
 # Introduction to the evaluation interface
 The simultaneous translation models from the shared task participants are evaluated under a server-client protocol. 
 The participants are required to plug in their own model API in the protocol, and submit a Docker image.
-The server provides information that client needed and evaluate latency and quality, while client sends to translation. 
+The server provides information needed by the client and evaluates latency and quality, while the client sends the translation. 
 The fairseq toolkit is a dependency but the evaluation process can be applied in an arbitary framework.
 
 ## Server
