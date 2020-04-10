@@ -150,7 +150,7 @@ python $fairseq_dir/examples/simultanesous_translation/eval/evaluate.py \
     --model-args ... # defined in MyAgent.add_args, such as model path, tokenizer etc.
 ```
 
-It can be very slow to evaluate speech model utterence by utterence, please see [here](../scripts/start-multi-client.sh) for a faster implementation, which split the evaluation set into chunks.
+It can be very slow to evaluate the speech model utterance by utterance. See [here](../scripts/start-multi-client.sh) for a faster implementation, which split the evaluation set into chunks.
 
 ### Quality
 
