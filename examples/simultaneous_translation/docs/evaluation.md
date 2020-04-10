@@ -162,4 +162,5 @@ The latency metrics are
 * Average Lagging
 * Differentiable Average Lagging
 
-For text, the latency will be evaluated on detokenized text. For speech, the latency the will be evaluated based on milliseconds
+For text, the unit is detokenized token.
+For speech, the unit is millisecond.
