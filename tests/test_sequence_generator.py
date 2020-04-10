@@ -122,7 +122,9 @@ class TestJitSequeneceGenerator(TestJitSequenceGeneratorBase):
     )
     def test_ensemble_sequence_generator(self):
         model = self.transformer_model
-        generator = SequenceGenerator([model], self.task.tgt_dict, beam_size=2)
+        generator = SequenceGenerator(
+            [model], self.task.tgt_dict, beam_size=2, no_repeat_ngram_size=2
+        )
         scripted_model = torch.jit.script(generator)
         self._test_save_and_load(scripted_model)
 
