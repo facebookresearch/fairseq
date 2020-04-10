@@ -22,7 +22,7 @@ For text models, the `$src` and `$tgt` are the raw source and target text.
 
 For speech models, please first follow the Data Preparation [here](baseline.md) except for the binarization step. After preparation, Only `$tgt` is need, which is the json file in the data directory (for example, dev.json)
 
-The state that server sent to client has the following format
+The state sent to the client by the server has the following format
 ```json
 {
   'sent_id': Int,
