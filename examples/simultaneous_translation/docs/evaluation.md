@@ -139,7 +139,7 @@ class MyAgent(Agent):
 
 Here are the implementations of agents for [text *wait-k* model](../eval/agents/simul_trans_text_agent.py) and [speech *wait-k* model](../eval/agents/simul_trans_speech_agent.py).
 
-Once there is implementation of the agent, to start the evaluation, 
+Once the agent is implemented, to start the evaluation, 
 ```
 python $fairseq_dir/examples/simultanesous_translation/eval/evaluate.py \
     --port $port \
