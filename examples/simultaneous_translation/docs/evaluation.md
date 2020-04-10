@@ -1,8 +1,8 @@
 # Introduction to the evaluation interface
 The simultaneous translation models from the shared task participants are evaluated under a server-client protocol. 
-The participants are required to plug in their own model API in the protocol, and submit a Docker image.
-The server provides information that client needed and evaluate latency and quality, while client sends to translation. 
-The fairseq toolkit is a dependency but the evaluation process can be applied in an arbitary framework.
+The participants are required to plug in their own model API in the protocol, and submit a Docker file.
+The server provides information needed by the client and evaluates latency and quality, while the client sends the translation. 
+We use the Fairseq toolkit as an example but the evaluation process can be applied in an arbitary framework.
 
 ## Server
 The server code is provided and can be set up locally for development purposes. For example, to evaluate a text simultaneous test set,
@@ -20,9 +20,9 @@ The `--score-type` can be either `text` or `speech` to evaluation different task
 
 For text models, the `$src` and `$tgt` are the raw source and target text.
 
-For speech models, please first follow the Data Preparation [here](baseline.md) excecpt binarazation. After preparation, Only `$tgt` is need, which is the json file in the data directory (for eaxample, dev.json)
+For speech models, please first follow the Data Preparation [here](baseline.md) except for the binarization step. After preparation, Only `$tgt` is need, which is the json file in the data directory (for example, dev.json)
 
-The state that server sent to client has the following format
+The state sent to the client by the server has the following format
 ```json
 {
   'sent_id': Int,
@@ -42,7 +42,7 @@ The client will handle the evaluation process mentioned above. It should be out-
 |Predict word "W"| ```{key: "SEND", value: "W"}```|
 
 The core of the client module is the [agent](../eval/agents/agent.py). 
-One can build a customized agent from the abstract class of agent, shown as follow.
+One can build a customized agent from the abstract class of the agent, shown as follows.
 The evaluation process for one sentence happens in the `_decode_one()` function (you don't have to modify this function).
 
 ```python
@@ -104,11 +104,11 @@ class Agent(object):
  
 ```
 
-Here is an exmaple of a customized agent. 
+Here is an example of a customized agent. 
 First of all, a name needs to be registered. 
-Next, reload the agent functions according to the translation model. 
-The functions that need to reload are listed in `MyAgent` class as follow. 
-Finally copy the agent file to this [directory](../eval/agents) in the local fairseq repository.
+Next, override the agent functions according to the translation model. 
+The functions that need to be overriden are listed in the `MyAgent` class as follow. 
+Finally, copy the agent file to this [directory](../eval/agents) in the local fairseq repository.
 ```python
 from example.simultaneous_translation.eval.agents import register_agent
 @register_agent("my_agent_name")
@@ -139,7 +139,7 @@ class MyAgent(Agent):
 
 Here are the implementations of agents for [text *wait-k* model](../eval/agents/simul_trans_text_agent.py) and [speech *wait-k* model](../eval/agents/simul_trans_speech_agent.py).
 
-Once there is implementation of the agent, to start the evaluation, 
+Once the agent is implemented, to start the evaluation, 
 ```
 python $fairseq_dir/examples/simultanesous_translation/eval/evaluate.py \
     --port $port \
@@ -150,7 +150,7 @@ python $fairseq_dir/examples/simultanesous_translation/eval/evaluate.py \
     --model-args ... # defined in MyAgent.add_args, such as model path, tokenizer etc.
 ```
 
-It can be very slow to evaluate speech model utterence by utterence, please see [here](../scripts/start-multi-client.sh) for a faster implementation, which split the evaluation set into chunks.
+It can be very slow to evaluate the speech model utterance by utterance. See [here](../scripts/start-multi-client.sh) for a faster implementation, which split the evaluation set into chunks.
 
 ### Quality
 
@@ -162,4 +162,4 @@ The latency metrics are
 * Average Lagging
 * Differentiable Average Lagging
 
-For text, the latency will be evaluated on detokenized text. For speech, the will be evaluated based one millisecond
+For text, the latency will be evaluated on detokenized text. For speech, the will be evaluated based on milliseconds
