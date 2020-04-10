@@ -107,7 +107,7 @@ class Agent(object):
 Here is an exmaple of a customized agent. 
 First of all, a name needs to be registered. 
 Next, reload the agent functions according to the translation model. 
-The functions that need to reload are listed in `MyAgent` class as follow. 
+The functions that need to be reload are listed in the `MyAgent` class as follow. 
 Finally copy the agent file to this [directory](../eval/agents) in the local fairseq repository.
 ```python
 from example.simultaneous_translation.eval.agents import register_agent
