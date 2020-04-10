@@ -1,5 +1,4 @@
 # **Baseline Simultaneous Translation**
----
 
 Here are the instructions for training and evaluating a *wait-k* simultaneous LSTM model on the MUST-C English-German dataset.
 
@@ -155,11 +154,23 @@ We provide the configuration files for dev and test split (`SPLIT in [dev, test]
 To evaluate text translation models on a given split set. 
 
 ``` shell
-./scripts/start-server.sh ./scripts/configs/must-c-en_de-text-${SPLIT}.sh
+python -u $user_dir/eval/server.py \
+    --tokenizer 13a \
+    --src-file ./experiments/data/must_c_1_0/en-de/data/${SPLIT}/txt/${SPLIT}.en\
+    --tgt-file ./experiments/data/must_c_1_0/en-de/data/${SPLIT}/txt/${SPLIT}.de \
+    --scorer-type text \
+    --output ./experiments/result_dir/eval/text \
+    --port 12321
 ```
-To evaluate speech translation models on a given split set.
+To evaluate speech translation models on a given split set. 
+Only `--tgt-file` (a json file) is needed for speech server.
 ``` shell
-./scripts/start-server.sh ./scripts/configs/must-c-en_de-speech-${SPLIT}.sh
+python -u $user_dir/eval/server.py \
+    --tokenizer 13a \
+    --tgt-file ./experiments/data/must_c_1_0/en-de/unigram-de-10000-3000/dev.json \
+    --scorer-type speech \
+    --output ./experiments/result_dir/eval/speech \
+    --port 12321
 ```
 
 ### Decode and Evaluate with Client
