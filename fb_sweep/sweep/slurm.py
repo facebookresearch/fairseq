@@ -143,7 +143,7 @@ def launch_train(args, config):
                 post_cmd = post_step
             post_cmd = post_cmd.strip().format(job_dir=save_dir)  # assume to provide job_dir
             post_cmds.append(post_cmd)
-    
+
     if args.dry_run:
         train_cmd_str = ' '.join(train_cmd)
         dry_run(f'train command: {train_cmd_str}')
@@ -189,7 +189,7 @@ def launch_train(args, config):
                 '--ntasks', str(args.num_nodes),
             ]
         srun_cmd = base_srun_cmd + train_cmd
-        srun_cmd_str = ' '.join(map(shlex.quote, srun_cmd)) 
+        srun_cmd_str = ' '.join(map(shlex.quote, srun_cmd))
         for post_cmd in post_cmds:
             post_cmd_str = ' '.join(map(shlex.quote, base_srun_cmd)) + f' {post_cmd}'
             srun_cmd_str = f'({srun_cmd_str} && {post_cmd_str})' if len(srun_cmd_str) > 0 else post_cmd_str
@@ -200,11 +200,10 @@ def launch_train(args, config):
         if not args.salloc:
             excluded_hosts = os.environ.get('EXCLUDED_HOSTS', None)
             included_hosts = os.environ.get('INCLUDED_HOSTS', None)
-            gres = 'gpu:{}:{}'.format(args.gpu_type, args.num_gpus)
             sbatch_cmd = [
                 'sbatch',
                 '--job-name', f'{args.prefix}.{save_dir_key}',
-                '--gres', gres,
+                '--gpus', str(args.num_gpus * args.num_nodes),
                 '--nodes', str(args.num_nodes),
                 '--ntasks-per-node', '1',
                 '--cpus-per-task', str(int(8 * args.num_gpus)),
@@ -215,7 +214,7 @@ def launch_train(args, config):
                 '--signal', 'B:USR1@180',
             ]
             if args.constraint:
-                sbatch_cmd += ['-C', args.constraint]
+                sbatch_cmd += ['--constraint', args.constraint]
 
             if args.partition:
                 sbatch_cmd += ['--partition', args.partition]
