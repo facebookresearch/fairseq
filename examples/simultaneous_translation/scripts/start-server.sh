@@ -31,7 +31,7 @@ python -u $user_dir/eval/server.py \
     --src-file $src \
     --tgt-file $tgt \
     --scorer-type $scorer_type \
-    --output $result_dir/eval \
+    --output $result_dir \
     --port $port
 exit
 

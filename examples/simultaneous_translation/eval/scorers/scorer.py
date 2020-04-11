@@ -4,16 +4,18 @@ from vizseq.scorers.meteor import METEORScorer
 from examples.simultaneous_translation.utils.eval_latency import LatencyScorer
 from collections import defaultdict
 import json
+import os
 
 DEFAULT_EOS = '</s>'
 class SimulScorer(object):
     def __init__(self, args):
         self.tokenizer = args.tokenizer
+        self.output_dir = args.output
         if args.output is not None:
             self.output_files = {
-                "text": args.output + ".text",
-                "delay": args.output + ".delay",
-                "scores": args.output + ".scores"
+                "text": os.path.join(args.output, "text"),
+                "delay": os.path.join(args.output,"delay"),
+                "scores": os.path.join(args.output, "scores")
             }
         else:
             self.output_files = None
@@ -81,8 +83,16 @@ class SimulScorer(object):
             'AP' : latency_score['average_proportion'],
         }
 
+
         if self.output_files is not None:
-            self.write_results_to_file(translations, delays, scores)
+            try:
+                os.makedirs(self.output_dir, exist_ok=True)
+                self.write_results_to_file(translations, delays, scores)
+            except:
+                print(
+                    f'Failed to write results to {self.output_dir}. '
+                    f'Skip writing predictions'
+                )
         
         return scores
 
@@ -141,3 +151,4 @@ class SimulScorer(object):
 
     def __len__(self):
         return len(self.data["tgt"])
+
