@@ -5,22 +5,50 @@ The server provides information needed by the client and evaluates latency and q
 We use the Fairseq toolkit as an example but the evaluation process can be applied in an arbitary framework.
 
 ## Server
-The server code is provided and can be set up locally for development purposes. For example, to evaluate a text simultaneous test set,
+The server code is provided and can be set up locally for development purposes. 
+Server sends source words to client, and record the delay when receving the prediction.
+Here is an instruction on how to setup server for development.
+
+To run start a text server listening at port 12321, with `SRC_FILE` and `TGT_FILE` as raw source and target text.
 
 ```shell
-python $user_dir/eval/server.py \
+python $fairseq/example/simultaneous_translation/eval/server.py \
     --tokenizer 13a \
-    --src-file $src \
-    --tgt-file $tgt \
-    --scorer-type {text, speech} \
-    --output $result_dir/eval \
+    --src-file SRC_FILE \
+    --tgt-file TGT_FILE \
+    --scorer-type text \
+    --output $result_dir \
     --port 12321
 ```
-The `--score-type` can be either `text` or `speech` to evaluation different tasks.
 
-For text models, the `$src` and `$tgt` are the raw source and target text.
+As to speech models, if you have gone through the Data Preparation in [baseline experiment](baseline.md), you can use the json file in $DATA_ROOT/data-bin/mustc_en_de, for example, dev.json. So we can start the server
 
-For speech models, please first follow the Data Preparation [here](baseline.md) except for the binarization step. After preparation, Only `$tgt` is need, which is the json file in the data directory (for example, dev.json)
+```shell
+python $fairseq/example/simultaneous_translation/eval/server.py \
+    --tokenizer 13a \
+    --tgt-file $DATA_ROOT/data-bin/mustc_en_de/dev.json \
+    --tgt-file-type json \
+    --scorer-type speech \
+    --output $result_dir \
+    --port 12321
+```
+
+If you don't want to go though Data Preparation, you need to prepare two files:
+- TGT_FILE: the file with reference sentences
+- WAV_LIST_FILE: the file with a list of paths to WAVs, line aligned to TGT_FILE 
+
+In this case we can start the server
+```shell
+python $fairseq/example/simultaneous_translation/eval/server.py \
+    --tokenizer 13a \
+    --src-file SRC_FILE \
+    --tgt-file WAV_LIST_FILE \
+    --tgt-file-type text \
+    --scorer-type speech \
+    --output $result_dir \
+    --port 12321
+```
+
 
 The state sent to the client by the server has the following format
 ```json
