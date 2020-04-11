@@ -33,9 +33,9 @@ The state sent to the client by the server has the following format
 For text, the segment is a detokenized word, while for speech, it is a list of numbers.
 
 ## Client
-The client will load model, get source tokens from server and send translated target tokens to server. 
-We have an out-of-box implementation of client which could save time from configuring the communication between the server and client.
-It's in fairseq repository but it can be applied to an arbitary toolkit.
+The client will load the model, get source tokens or speech segments from the server and send translated tokens to server. 
+We have an out-of-box implementation of the client which could save time from configuring the communication between the server and the client.
+The implementation is in the fairseq repository but it can be applied to an arbitary toolkit.
 If you plan to set up your client from scratch, please refer to [Evaluation Server API](server_api.md)
 
 
@@ -105,13 +105,13 @@ class Agent(object):
 
  
 ```
-The variable **states** is the context for the model to make the decision.
-You could customize your one states format
+The variable **states** is the context for the model to make a decision.
+You could customize your states
  `init_states` will be called at beginning of translating every sentnece. 
-`update_states` will be called everytime a new segement was requested from server
+`update_states` will be called every time a new segment or token was requested from server
 
 The `policy` function returns the action you make given the current states. 
-The actions can be one of the tree as follow.
+The actions can be one of the following:
 |Action|Content|
 |:---:|:---:|
 |Request new word (Text)| ```{key: "GET", value: None}```|
@@ -119,7 +119,7 @@ The actions can be one of the tree as follow.
 |Predict word "W"| ```{key: "SEND", value: "W"}```|
 
 Here is an example of how to develop a customized agent. 
-First of all, a name needs to be registered, here is "my_agent". 
+First of all, a name needs to be registered, for example "my_agent". 
 Next, override the agent functions according to the translation model. 
 The functions that need to be overriden are listed in the `MyAgent` class as follow. 
 The implementation should be done in this [directory](../eval/agents) in the local fairseq repository. 
