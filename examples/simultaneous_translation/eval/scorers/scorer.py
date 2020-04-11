@@ -29,14 +29,14 @@ class SimulScorer(object):
     def send_src(self, sent_id, *args):
         raise NotImplementedError
 
-    def recv_hyp(self, hypo):
-        for sent_id, trans in hypo.items():
+    def recv_hyp(self, sent_id: int, list_of_tokens: list):
+        for token in list_of_tokens:
             self.translations[
-                int(sent_id)
+                sent_id
             ].append(
                 (
-                    trans, 
-                    self.steps[int(sent_id)]
+                    token, 
+                    self.steps[sent_id]
                 )
             )
 

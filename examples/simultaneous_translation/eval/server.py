@@ -19,36 +19,51 @@ class ScorerHandler(web.RequestHandler):
         self.scorer = scorer
 
 
-class StartSessionHandler(ScorerHandler):
-    def get(self):
+class EvalSessionHandler(ScorerHandler):
+    def post(self):
         self.scorer.reset()
 
+    def get(self):
+        r = json.dumps(self.scorer.get_info())
+        self.write(r)
 
-class EndSessionHandler(ScorerHandler):
+
+class ResultHandler(ScorerHandler):
     def get(self):
         r = json.dumps(self.scorer.score())
         self.write(r)
 
 
-class GetSourceHandler(ScorerHandler):
+class SourceHandler(ScorerHandler):
     def get(self):
-        info = json.loads(self.get_argument('info'))
-        if info.get("sent_id", None) is None:
-            r = json.dumps(self.scorer.get_info())
-        else:
-            r = json.dumps(
-                self.scorer.send_src(
-                    int(info["sent_id"]),
-                    info.get("value", None)
-                )
+        sent_id = int(self.get_argument('sent_id'))
+        segment_size = None
+        if "segment_size" in self.request.arguments:
+            string = self.get_argument('segment_size')
+            if len(string) > 0:
+                segment_size = int(string)
+            
+
+        r = json.dumps(
+            self.scorer.send_src(
+                int(sent_id),
+                segment_size
             )
+        )
         self.write(r)
 
 
-class SendHypothesisHandler(ScorerHandler):
-    def get(self):
-        self.scorer.recv_hyp(json.loads(self.get_argument('hypo')))
-        
+class HypothesisHandler(ScorerHandler):
+    def put(self):
+        sent_id = int(self.get_argument('sent_id'))
+        list_of_tokens = (
+            self.request.body
+            .decode('utf-8')
+            .strip()
+            .split()
+        )
+        self.scorer.recv_hyp(sent_id, list_of_tokens)
+
 
 def add_args():
     parser = argparse.ArgumentParser()
@@ -74,10 +89,10 @@ def add_args():
 
 def start_server(scorer, hostname=DEFAULT_HOSTNAME, port=DEFAULT_PORT, debug=False):
     app = web.Application([
-        (r'/start', StartSessionHandler, dict(scorer=scorer)),
-        (r'/end', EndSessionHandler, dict(scorer=scorer)),
-        (r'/get', GetSourceHandler, dict(scorer=scorer)),
-        (r'/send', SendHypothesisHandler, dict(scorer=scorer)),
+        (r'/result', ResultHandler, dict(scorer=scorer)),
+        (r'/src', SourceHandler, dict(scorer=scorer)),
+        (r'/hypo', HypothesisHandler, dict(scorer=scorer)),
+        (r'/', EvalSessionHandler, dict(scorer=scorer)),
     ], debug=debug)
     app.listen(port, max_buffer_size=1024 ** 3)
     sys.stdout.write(f"Evaluation Server Started. Listening to port {port}\n")
