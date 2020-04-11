@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
+from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import TransformerDecoder, TransformerModel
 from fairseq.modules import LayerNorm, MultiheadAttention
@@ -47,6 +48,7 @@ class AANTransformerModel(TransformerModel):
         )
 
 
+@with_incremental_state
 class AverageAttention(nn.Module):
     def __init__(self, embed_dim, dropout=0.0, bias=True):
         super().__init__()
@@ -56,9 +58,9 @@ class AverageAttention(nn.Module):
     def forward(
         self,
         value,
-        mask_trick=False,
-        mask_future_timesteps=False,
-        incremental_state=None,
+        mask_trick: bool = False,
+        mask_future_timesteps: bool = False,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
     ):
         """Input shape: Time x Batch x Channel
        ` mask_trick` is to use matrix multiplication instead of cumulative sum
@@ -77,14 +79,15 @@ class AverageAttention(nn.Module):
                 value, mask_trick, mask_future_timesteps, incremental_state
             )
 
-    def _forward(self, value, mask_trick, mask_future_timesteps):
+    def _forward(self, value, mask_trick: bool, mask_future_timesteps: bool):
         length, batch_size = value.size()[:2]
         if not mask_future_timesteps:
             attn = value.mean(dim=0, keepdim=True).repeat(length, 1, 1)
             attn_weights = None
         elif mask_trick:
             v = value.transpose(0, 1)
-            attn_weights = torch.arange(1, length + 1, out=v.new(), requires_grad=False)
+            # no TorchScript support for specifying start in arange()
+            attn_weights = torch.arange(length, out=torch.zeros([0]).to(v)) + 1
             attn_weights = (
                 attn_weights.reciprocal_().unsqueeze_(1).repeat(1, length).tril(0)
             )
@@ -95,39 +98,51 @@ class AverageAttention(nn.Module):
             attn = torch.bmm(attn_weights, v)
             attn = attn.transpose(0, 1).contiguous()
         else:
-            batch_size = value.size()
-            attn_weights = torch.arange(
-                1, length + 1, out=value.new(), requires_grad=False
+            # no TorchScript support for specifying start in arange()
+            attn_weights = (
+                torch.arange(length, out=torch.zeros([0]).to(value)) + 1
             ).view(length, 1, 1)
             attn = value.cumsum(0) / attn_weights
             attn_weights = None
         return attn, attn_weights
 
     def _forward_incremental(
-        self, value, mask_trick, mask_future_timesteps, incremental_state
+        self,
+        value,
+        mask_trick: bool,
+        mask_future_timesteps: bool,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
     ):
         if mask_trick:
             saved_state = self._get_input_buffer(incremental_state)
             if "prev_vec" in saved_state:
-                value = torch.cat([saved_state["prev_vec"], value], dim=0)
+                prev_vec = saved_state["prev_vec"]
+                assert prev_vec is not None
+                value = torch.cat([prev_vec, value], dim=0)
             saved_state["prev_vec"] = value
-            self._set_input_buffer(incremental_state, saved_state)
+            assert incremental_state is not None
+            incremental_state = self._set_input_buffer(incremental_state, saved_state)
             attn_weights = None
             attn = value.mean(0, keepdim=True)
         else:
             saved_state = self._get_input_buffer(incremental_state)
             if "prev_sum" in saved_state:
                 prev_sum = saved_state["prev_sum"]
-                pos = saved_state["prev_pos"] + 1
+                assert prev_sum is not None
                 curr_sum = prev_sum + value
+
+                prev_pos = saved_state["prev_pos"]
+                assert prev_pos is not None
+                pos = prev_pos + 1
                 attn = curr_sum / pos
             else:
                 curr_sum = value
                 attn = value
-                pos = 1
+                pos = torch.ones([1]).int()
             saved_state["prev_sum"] = curr_sum
             saved_state["prev_pos"] = pos
-            self._set_input_buffer(incremental_state, saved_state)
+            assert incremental_state is not None
+            incremental_state = self._set_input_buffer(incremental_state, saved_state)
             attn_weights = None
         return attn, attn_weights
 
@@ -149,20 +164,25 @@ class AverageAttention(nn.Module):
                     input_buffer,
                     incremental_clone_id=incremental_clone_id,
                 )
+            incremental_state = self._set_input_buffer(incremental_state, input_buffer)
+        return incremental_state
 
-    def _get_input_buffer(self, incremental_state, incremental_clone_id=""):
-        return (
-            utils.get_incremental_state(
-                self, incremental_state, "attn_state" + incremental_clone_id
-            )
-            or {}
-        )
+    def _get_input_buffer(
+        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
+    ) -> Dict[str, Optional[Tensor]]:
+        result = self.get_incremental_state(incremental_state, "attn_state")
+        if result is not None:
+            return result
+        else:
+            empty_result: Dict[str, Optional[Tensor]] = {}
+            return empty_result
 
-    def _set_input_buffer(self, incremental_state, buffer, incremental_clone_id=""):
-        self.incremental_clone_ids.add(incremental_clone_id)
-        utils.set_incremental_state(
-            self, incremental_state, "attn_state" + incremental_clone_id, buffer
-        )
+    def _set_input_buffer(
+        self,
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
+        buffer: Dict[str, Optional[Tensor]],
+    ):
+        return self.set_incremental_state(incremental_state, "attn_state", buffer)
 
 
 class AANTransformerDecoderLayer(nn.Module):
@@ -289,18 +309,11 @@ class AANTransformerDecoderLayer(nn.Module):
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
 
-        if prev_self_attn_state is not None:
-            if incremental_state is None:
-                incremental_state = {}
-            prev_key, prev_value = prev_self_attn_state
-            saved_state = {"prev_key": prev_key, "prev_value": prev_value}
-            self.avg_attn._set_input_buffer(incremental_state, saved_state)
-
         x, _ = self.avg_attn(
             value=x,
+            mask_trick=self.training,
             mask_future_timesteps=True,
             incremental_state=incremental_state,
-            mask_trick=self.training,
         )
 
         # differently than original paper, we use a single gate
@@ -316,16 +329,6 @@ class AANTransformerDecoderLayer(nn.Module):
             residual = x
             if self.normalize_before:
                 x = self.encoder_attn_layer_norm(x)
-            if prev_attn_state is not None:
-                prev_key, prev_value = prev_attn_state[:2]
-                saved_state: Dict[str, Optional[Tensor]] = {
-                    "prev_key": prev_key,
-                    "prev_value": prev_value,
-                }
-                if len(prev_attn_state) >= 3:
-                    saved_state["prev_key_padding_mask"] = prev_attn_state[2]
-                assert incremental_state is not None
-                self.encoder_attn._set_input_buffer(incremental_state, saved_state)
 
             x, attn = self.encoder_attn(
                 query=x,
@@ -352,18 +355,7 @@ class AANTransformerDecoderLayer(nn.Module):
         x = residual + x
         if not self.normalize_before:
             x = self.final_layer_norm(x)
-        if self.onnx_trace and incremental_state is not None:
-            saved_state = self.self_attn._get_input_buffer(incremental_state)
-            assert saved_state is not None
-            if self_attn_padding_mask is not None:
-                self_attn_state = [
-                    saved_state["prev_key"],
-                    saved_state["prev_value"],
-                    saved_state["prev_key_padding_mask"],
-                ]
-            else:
-                self_attn_state = [saved_state["prev_key"], saved_state["prev_value"]]
-            return x, attn, self_attn_state
+
         return x, attn, None
 
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
