@@ -10,6 +10,7 @@ import json
 from collections import defaultdict
 from tornado import web, ioloop
 from scorers import build_scorer
+from utils.registry import REGISTRIES 
 
 DEFAULT_HOSTNAME = 'localhost'
 DEFAULT_PORT = 12321
@@ -68,6 +69,9 @@ def add_args():
                         help='Type of data to evaluate')
     parser.add_argument('--tokenizer', default="13a", choices=["none", "13a"],
                         help='Type of data to evaluate')
+    parser.add_argument('--tgt-file-type', type=str, default="json",
+                        choices=['json', "text"],
+                        help='Type of the tgt_file, choose from json, text')
     args, _ = parser.parse_known_args()
     return args
 
