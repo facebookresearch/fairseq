@@ -166,7 +166,7 @@ For text, the unit is detokenized token.
 For speech, the unit is millisecond.
 
 ## Final Evaluation with Docker
-Our final evaluation will be run inside Docker. To run evaluation with Docker, first build a Docker image from the Dockerfile. Here is an [example](../Dockerfile) 
+Our final evaluation will be run inside Docker. To run an evaluation with Docker, first build a Docker image from the Dockerfile. Here is an [example](../Dockerfile) 
 ```bash
 docker build -t iwslt2020_simulast:latest .
 ```
@@ -178,6 +178,6 @@ CLIENT_COMMAND="./examples/simultaneous_translation/scripts/start-multi-client.s
 
 docker run --env CLIENT_COMMAND=$CLIENT_COMMAND -v "$(pwd)"/experiments:/fairseq/experiments -it iwslt2020_simulast
 ```
-`CLIENT_COMMAND` can be the client command for customized client.
+`CLIENT_COMMAND` can be the client command for a customized client.
 
-When submitting you docker file, please keep the server settings in [example](../Dockerfile) and make sure it works for dev and open test set. We will modify the docker file for the blind test set.
+When submitting you Docker file, please keep the server settings in [example](../Dockerfile) and make sure it works for dev and open test set. During the official eveluation, we will run the Docker file with different environment variables corresponding to the blind test sets.

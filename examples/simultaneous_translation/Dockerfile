@@ -11,7 +11,7 @@ RUN pip3 install -e .
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
-ENTRYPOINT gpython examples/simultaneous_translation/eval/server.py \
+ENTRYPOINT python examples/simultaneous_translation/eval/server.py \
     --tokenizer 13a \
     --src-file $SRC_FILE\
     --tgt-file $TGT_FILE \
