@@ -10,7 +10,6 @@ import json
 from collections import defaultdict
 from tornado import web, ioloop
 from scorers import build_scorer
-from utils.registry import REGISTRIES 
 
 DEFAULT_HOSTNAME = 'localhost'
 DEFAULT_PORT = 12321
