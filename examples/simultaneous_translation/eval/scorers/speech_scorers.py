@@ -31,8 +31,7 @@ class SimulSpeechScorer(SimulScorer):
         parser.add_argument('--wav-data-type', type=str, default="int16",
                             help='The data type of the wav that would be transfer to client')
 
-    def send_src(self, sent_id, value):
-        client_segment_size = value.get("segment_size", None)
+    def send_src(self, sent_id, client_segment_size):
         if client_segment_size is not None:
             assert client_segment_size >= self.segment_size # in ms
         else:
@@ -59,7 +58,7 @@ class SimulSpeechScorer(SimulScorer):
 
             dict_to_return = {
                 "sent_id" : sent_id,
-                "segment_id": self.steps[sent_id],
+                "segment_id": int(self.steps[sent_id] / self.segment_size),
                 "segment": segment
             }
 
@@ -75,7 +74,7 @@ class SimulSpeechScorer(SimulScorer):
             # Finish reading this audio
             dict_to_return = {
                 "sent_id" : sent_id,
-                "segment_id": self.steps[sent_id],
+                "segment_id": int(self.steps[sent_id] / self.segment_size),
                 "segment": self.eos
             }
             if "segments" in self.data["src"][sent_id]:
