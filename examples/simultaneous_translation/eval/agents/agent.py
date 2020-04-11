@@ -22,7 +22,7 @@ class Agent(object):
         raise NotImplementedError
         
     def decode(self, session, low=0, high=100000, num_thread=10):
-        corpus_info = session.get_src()
+        corpus_info = session.corpus_info()
         high = min(corpus_info["num_sentences"] - 1, high)
         if low >= high:
             return

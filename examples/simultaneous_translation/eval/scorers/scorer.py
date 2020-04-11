@@ -29,14 +29,14 @@ class SimulScorer(object):
     def send_src(self, sent_id, *args):
         raise NotImplementedError
 
-    def recv_hyp(self, hypo):
-        for sent_id, trans in hypo.items():
+    def recv_hyp(self, sent_id: int, list_of_tokens: list):
+        for token in list_of_tokens:
             self.translations[
-                int(sent_id)
+                sent_id
             ].append(
                 (
-                    trans, 
-                    self.steps[int(sent_id)]
+                    token, 
+                    self.steps[sent_id]
                 )
             )
 
@@ -145,6 +145,18 @@ class SimulScorer(object):
                     {
                         "path": item["input"]["path"].strip(),
                         "length": item["input"]["length_ms"]
+                    }
+                )
+        return list_to_return
+
+    @classmethod
+    def _load_wav_info_from_list(cls, file):
+        list_to_return = []
+        with open(file) as f:
+            for line in f:
+                list_to_return.append(
+                    {
+                        "path": line.strip(),
                     }
                 )
         return list_to_return

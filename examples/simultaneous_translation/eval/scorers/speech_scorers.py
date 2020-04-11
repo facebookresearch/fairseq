@@ -9,15 +9,31 @@ from . import register_scorer
 class SimulSpeechScorer(SimulScorer):
     def __init__(self, args):
         super().__init__(args)
-        if args.src_file is not None:
-            sys.stderr.write(f"src_file {args.src_file} will be ignored.\n")
+        if args.tgt_file_type == "json":
+            if args.src_file is not None:
+                sys.stderr.write(
+                    f"tgt_file type: {args.tgt_file_type}. "
+                    f"src_file {args.src_file} will be ignored.\n"
+            )
+            self.data = {
+                "src" : self._load_wav_info_from_json(args.tgt_file),
+                "tgt" : self._load_text_from_json(args.tgt_file)
+            }
+        elif args.tgt_file_type == "text": 
+            assert args.src_file is not None, (
+                "--src-file is needed if --tgt-file-type is text\n"
+                "--src-file should contain the path to audio "
+                "and align to the sentence in --tgt-file"
+            ) 
+            self.data = {
+                "src" : self._load_wav_info_from_list(args.src_file),
+                "tgt" : self._load_text_file(args.tgt_file, split=False)
+            }
+        else:
+            raise NotImplementedError
 
         self.tokenizer = args.tokenizer
-        self.lengths = self._load_wav_info_from_json(args.tgt_file),
-        self.data = {
-            "src" : self._load_wav_info_from_json(args.tgt_file),
-            "tgt" : self._load_text_from_json(args.tgt_file)
-        }
+
         self.segment_size = args.segment_size
         self.sample_rate = args.sample_rate
         self.wav_data_type = args.wav_data_type
@@ -31,8 +47,7 @@ class SimulSpeechScorer(SimulScorer):
         parser.add_argument('--wav-data-type', type=str, default="int16",
                             help='The data type of the wav that would be transfer to client')
 
-    def send_src(self, sent_id, value):
-        client_segment_size = value.get("segment_size", None)
+    def send_src(self, sent_id, client_segment_size):
         if client_segment_size is not None:
             assert client_segment_size >= self.segment_size # in ms
         else:
@@ -46,6 +61,12 @@ class SimulSpeechScorer(SimulScorer):
             self.data["src"][sent_id]["segments"] = self._load_audio_from_path(
                 self.data["src"][sent_id]["path"]
             ) 
+            if "length" not in self.data["src"][sent_id]:
+                length = int(sum(
+                    len(x) / self.sample_rate * 1000 
+                    for x in self.data["src"][sent_id]["segments"]
+                ))
+                self.data["src"][sent_id]["length"] = length
         
         num_segments = client_segment_size // self.segment_size
 
@@ -59,7 +80,7 @@ class SimulSpeechScorer(SimulScorer):
 
             dict_to_return = {
                 "sent_id" : sent_id,
-                "segment_id": self.steps[sent_id],
+                "segment_id": int(self.steps[sent_id] / self.segment_size),
                 "segment": segment
             }
 
@@ -75,7 +96,7 @@ class SimulSpeechScorer(SimulScorer):
             # Finish reading this audio
             dict_to_return = {
                 "sent_id" : sent_id,
-                "segment_id": self.steps[sent_id],
+                "segment_id": int(self.steps[sent_id] / self.segment_size),
                 "segment": self.eos
             }
             if "segments" in self.data["src"][sent_id]:
