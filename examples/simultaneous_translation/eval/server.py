@@ -83,6 +83,9 @@ def add_args():
                         help='Type of data to evaluate')
     parser.add_argument('--tokenizer', default="13a", choices=["none", "13a"],
                         help='Type of data to evaluate')
+    parser.add_argument('--tgt-file-type', type=str, default="json",
+                        choices=['json', "text"], required=False,
+                        help='Type of the tgt_file, choose from json, text')
     args, _ = parser.parse_known_args()
     return args
 

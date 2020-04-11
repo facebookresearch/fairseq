@@ -149,6 +149,18 @@ class SimulScorer(object):
                 )
         return list_to_return
 
+    @classmethod
+    def _load_wav_info_from_list(cls, file):
+        list_to_return = []
+        with open(file) as f:
+            for line in f:
+                list_to_return.append(
+                    {
+                        "path": line.strip(),
+                    }
+                )
+        return list_to_return
+
     def __len__(self):
         return len(self.data["tgt"])
 
