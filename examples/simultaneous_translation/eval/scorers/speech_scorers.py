@@ -21,7 +21,7 @@ class SimulSpeechScorer(SimulScorer):
             }
         elif args.tgt_file_type == "text": 
             assert args.src_file is not None, (
-                "--src-file is needed if the --tgt-file is text\n"
+                "--src-file is needed if --tgt-file-type is text\n"
                 "--src-file should contain the path to audio "
                 "and align to the sentence in --tgt-file"
             ) 

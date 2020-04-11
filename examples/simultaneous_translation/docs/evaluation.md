@@ -6,22 +6,22 @@ We use the Fairseq toolkit as an example but the evaluation process can be appli
 
 ## Server
 The server code is provided and can be set up locally for development purposes. 
-Server sends source words to client, and record the delay when receving the prediction.
-Here is an instruction on how to setup server for development.
+The server sends source words or speech segments to the client, and records the delay when receiving predictions.
+Here are instructions on how to setup the server for development.
 
-To run start a text server listening at port 12321, with `SRC_FILE` and `TGT_FILE` as raw source and target text.
+To run start a text server listening at port 12321, with `$SRC_FILE` and `$TGT_FILE` as raw source and target text and `$result_dir` a directory to store the results:
 
 ```shell
 python $fairseq/example/simultaneous_translation/eval/server.py \
     --tokenizer 13a \
-    --src-file SRC_FILE \
-    --tgt-file TGT_FILE \
+    --src-file $SRC_FILE \
+    --tgt-file $TGT_FILE \
     --scorer-type text \
     --output $result_dir \
     --port 12321
 ```
 
-As to speech models, if you have gone through the Data Preparation in [baseline experiment](baseline.md), you can use the json file in $DATA_ROOT/data-bin/mustc_en_de, for example, dev.json. So we can start the server
+For speech models, if you have gone through the Data Preparation in [baseline experiment](baseline.md), you can use the json file in $DATA_ROOT/data-bin/mustc_en_de, for example, dev.json. So we can start the server:
 
 ```shell
 python $fairseq/example/simultaneous_translation/eval/server.py \
@@ -34,8 +34,8 @@ python $fairseq/example/simultaneous_translation/eval/server.py \
 ```
 
 If you don't want to go though Data Preparation, you need to prepare two files:
-- TGT_FILE: the file with reference sentences
-- WAV_LIST_FILE: the file with a list of paths to WAVs, line aligned to TGT_FILE 
+- `$TGT_FILE`: the file with reference sentences
+- `$WAV_LIST_FILE`: the file with a list of paths to WAVs, line aligned to TGT_FILE 
 
 In this case we can start the server
 ```shell
