@@ -11,13 +11,11 @@ RUN pip3 install -e .
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
-ENTRYPOINT python examples/simultaneous_translation/eval/server.py \
+ENTRYPOINT gpython examples/simultaneous_translation/eval/server.py \
     --tokenizer 13a \
     --src-file $SRC_FILE\
     --tgt-file $TGT_FILE \
     --scorer-type text \
     --port $PORT \
     --debug \
-    & (sleep 30 && ./examples/simultaneous_translation/scripts/start-multi-client.sh \
-        examples/simultaneous_translation/scripts/configs/must-c-en_de-text-${SPLIT}.sh \
-        experiments/checkpoints/${CHKPT_FILENAME})
+    & (sleep 30 && eval $CLIENT_COMMAND)

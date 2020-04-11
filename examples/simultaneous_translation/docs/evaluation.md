@@ -32,7 +32,7 @@ The state sent to the client by the server has the following format
 ```
 For text, the segment is a detokenized word, while for speech, it is a list of numbers.
 
-### Client
+## Client
 The client will handle the evaluation process mentioned above. It should be out-of-box as well. The client's protocol is as following table.  The segment_size the length of segment in milisecond.
 
 |Action|Content|
@@ -164,3 +164,20 @@ The latency metrics are
 
 For text, the unit is detokenized token.
 For speech, the unit is millisecond.
+
+## Final Evaluation with Docker
+Our final evaluation will be run inside Docker. To run evaluation with Docker, first build a Docker image from the Dockerfile. Here is an [example](../Dockerfile) 
+```bash
+docker build -t iwslt2020_simulast:latest .
+```
+When submitting your final models, define a client command that would run inside the docker in a Dockerfile. For example, to evaluate the text translation in [baseline](baseline.md) experiment, the model can be evaluated as follow.
+
+
+```bash
+CLIENT_COMMAND="./examples/simultaneous_translation/scripts/start-multi-client.sh ./examples/simultaneous_translation/scripts/configs/must-c-en_de-text-dev.sh experiments/checkpoints/checkpoint_text_waitk3.pt"
+
+docker run --env CLIENT_COMMAND=$CLIENT_COMMAND -v "$(pwd)"/experiments:/fairseq/experiments -it iwslt2020_simulast
+```
+`CLIENT_COMMAND` can be the client command for customized client.
+
+When submitting you docker file, please keep the server settings in [example](../Dockerfile) and make sure it works for dev and open test set. We will modify the docker file for the blind test set.
