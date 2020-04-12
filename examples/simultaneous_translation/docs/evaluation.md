@@ -228,7 +228,7 @@ SRC_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.en
 TGT_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.de
 PORT=12321
 
-docker run --env CLIENT_COMMAND=$CLIENT_COMMAND -v "$(pwd)"/experiments:/fairseq/experiments -it iwslt2020_simulast
+docker run -e CLIENT_COMMAND="$CLIENT_COMMAND" -e SRC_FILE="$SRC_FILE" -e TGT_FILE="$TGT_FILE" -e PORT="$PORT" -v "$(pwd)"/experiments:/fairseq/experiments -it iwslt2020_simulast
 ```
 `CLIENT_COMMAND` can be the client command for a customized client.
 
