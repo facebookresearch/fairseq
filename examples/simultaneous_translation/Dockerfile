@@ -18,6 +18,4 @@ ENTRYPOINT python examples/simultaneous_translation/eval/server.py \
     --scorer-type text \
     --port $PORT \
     --debug \
-    & (sleep 30 && ./examples/simultaneous_translation/scripts/start-multi-client.sh \
-        examples/simultaneous_translation/scripts/configs/must-c-en_de-text-${SPLIT}.sh \
-        experiments/checkpoints/${CHKPT_FILENAME})
+    & (sleep 30 && eval $CLIENT_COMMAND)

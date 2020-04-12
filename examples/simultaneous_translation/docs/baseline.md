@@ -215,25 +215,3 @@ You should obtain the following scores on test set:
 
 This is the model of wait-k where `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide the full curve for the speech translation model, shown below. The detailed numbers can be found [here](speech_curve.csv) and the corresponding checkpoints at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoints_speech_waitk${k}_stride${stride} (${k} = 1, 2, ..., 6 and ${stride} = 200, 240, 280, 320, 360, 400, 600, 800).
 ![Quality-Latency Curve for the speech-to-text baseline](speech_curve.png)
-
-### Final Evaluation with Docker
-Our final evaluation will be run inside Docker. When making your submission, you need to include your models
-(checkpoint files, dictionaries, etc.) and define its runtime environment in a Dockerfile. We provide an [example Dockerfile](../Dockerfile) for the
-pretrained models above.
-
-To run evaluation with Docker, first build a Docker image from the Dockerfile
-```bash
-docker build -t iwslt2020_simulast:latest .
-```
-and then run the Docker image (for the `dev` set)
-```bash
-docker run -e CHKPT_FILENAME=checkpoint_text_waitk3.pt -e SPLIT=dev -v "$(pwd)"/experiments:/fairseq/experiments \
-    -it iwslt2020_simulast
-```
-where `"$(pwd)"/experiments` is the data root path, and will be mounted to `/fairseq/experiments` insider the Docker.
- It is supposed to include the dev/text set, vocabularies and checkpoint files, with the same folder structure as what
- you get from the "Data Preparation" section above. During final evaluation, we will add the private test set to the
- folder and feed it into the Docker. 
- 
- The two runtime arguments `CHKPT_FILENAME` and `SPLIT` specify the checkpoint file name and the dataset split name to
- be used in the evaluation, respectively.

@@ -61,11 +61,11 @@ The state sent to the client by the server has the following format
 For text, the segment is a detokenized word, while for speech, it is a list of numbers.
 
 ## Client
+
 The client will load the model, get source tokens or speech segments from the server and send translated tokens to server. 
 We have an out-of-box implementation of the client which could save time from configuring the communication between the server and the client.
 The implementation is in the fairseq repository but it can be applied to an arbitary toolkit.
 If you plan to set up your client from scratch, please refer to [Evaluation Server API](server_api.md)
-
 
 ### Agent 
 The core of the client module is the [agent](../eval/agents/agent.py). 
@@ -213,3 +213,23 @@ The latency metrics are
 
 For text, the unit is detokenized token.
 For speech, the unit is millisecond.
+
+## Final Evaluation with Docker
+Our final evaluation will be run inside Docker. To run an evaluation with Docker, first build a Docker image from the Dockerfile. Here is an [example](../Dockerfile) 
+```bash
+docker build -t iwslt2020_simulast:latest .
+```
+When submitting your final models, define a client command that would run inside the docker in a Dockerfile. For example, to evaluate the text translation in [baseline](baseline.md) experiment, the model can be evaluated as follow.
+
+
+```bash
+CLIENT_COMMAND="./examples/simultaneous_translation/scripts/start-multi-client.sh ./examples/simultaneous_translation/scripts/configs/must-c-en_de-text-dev.sh experiments/checkpoints/checkpoint_text_waitk3.pt"
+SRC_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.en
+TGT_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.de
+PORT=12321
+
+docker run -e CLIENT_COMMAND="$CLIENT_COMMAND" -e SRC_FILE="$SRC_FILE" -e TGT_FILE="$TGT_FILE" -e PORT="$PORT" -v "$(pwd)"/experiments:/fairseq/experiments -it iwslt2020_simulast
+```
+`CLIENT_COMMAND` can be the client command for a customized client.
+
+When submitting you Docker file, please keep the server settings in [example](../Dockerfile) and make sure it works for dev and open test set. During the official eveluation, we will run the Docker file with different environment variables corresponding to the blind test sets.
