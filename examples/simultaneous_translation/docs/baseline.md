@@ -178,7 +178,7 @@ Same as the server, one can use different configuration files to start different
 To evaluate text translation models on a given split set. 
 ```shell
 ./scripts/start-client.sh \
-    ./scripts/configs/must-c-en_de-speech-${SPLIT}.sh \
+    ./scripts/configs/must-c-en_de-text-$SPLIT.sh \
     ./experiments/checkpoints/checkpoint_best.pt
 ```
 To evaluate speech translation models on a given split set. 
