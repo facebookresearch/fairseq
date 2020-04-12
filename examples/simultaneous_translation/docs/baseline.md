@@ -167,7 +167,7 @@ Only `--tgt-file` (a json file) is needed for speech server.
 ``` shell
 python -u $FAIRSEQ/examples/simultaneous_translation/eval/server.py \
     --tokenizer 13a \
-    --tgt-file ./experiments/data/must_c_1_0/en-de/unigram-de-10000-3000/dev.json \
+    --tgt-file ./experiments/data/must_c_1_0/en-de/unigram-de-10000-3000/${SPLIT}.json \
     --scorer-type speech \
     --output ./experiments/result_dir/eval/speech \
     --port 12321
