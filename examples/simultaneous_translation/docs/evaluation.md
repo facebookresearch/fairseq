@@ -224,6 +224,9 @@ When submitting your final models, define a client command that would run inside
 
 ```bash
 CLIENT_COMMAND="./examples/simultaneous_translation/scripts/start-multi-client.sh ./examples/simultaneous_translation/scripts/configs/must-c-en_de-text-dev.sh experiments/checkpoints/checkpoint_text_waitk3.pt"
+SRC_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.en
+TGT_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.de
+PORT=12321
 
 docker run --env CLIENT_COMMAND=$CLIENT_COMMAND -v "$(pwd)"/experiments:/fairseq/experiments -it iwslt2020_simulast
 ```
