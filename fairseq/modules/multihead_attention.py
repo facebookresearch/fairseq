@@ -45,9 +45,6 @@ class MultiheadAttention(nn.Module):
 
         self.num_heads = num_heads
         self.dropout = dropout
-        self.quant_noise = q_noise
-        self.quant_noise_block_size = qn_block_size
-
         self.head_dim = embed_dim // num_heads
         assert (
             self.head_dim * num_heads == self.embed_dim

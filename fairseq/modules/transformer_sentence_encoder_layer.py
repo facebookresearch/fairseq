@@ -56,8 +56,12 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
         # layer norm associated with the self attention layer
         self.self_attn_layer_norm = LayerNorm(self.embedding_dim, export=export)
-        self.fc1 = quant_noise(nn.Linear(self.embedding_dim, ffn_embedding_dim), q_noise, qn_block_size)
-        self.fc2 = quant_noise(nn.Linear(ffn_embedding_dim, self.embedding_dim), q_noise, qn_block_size)
+        self.fc1 = quant_noise(
+            nn.Linear(self.embedding_dim, ffn_embedding_dim), q_noise, qn_block_size
+        )
+        self.fc2 = quant_noise(
+            nn.Linear(ffn_embedding_dim, self.embedding_dim), q_noise, qn_block_size
+        )
 
         # layer norm associated with the position wise feed-forward NN
         self.final_layer_norm = LayerNorm(self.embedding_dim, export=export)

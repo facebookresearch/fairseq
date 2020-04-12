@@ -26,7 +26,7 @@ from fairseq.modules import (
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
-from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
 
 
@@ -381,7 +381,6 @@ class TransformerEncoder(FairseqEncoder):
         self.register_buffer("version", torch.Tensor([3]))
 
         self.dropout = args.dropout
-        self.quant_noise = args.quant_noise_pq
         self.encoder_layerdrop = args.encoder_layerdrop
 
         embed_dim = embed_tokens.embedding_dim
@@ -403,8 +402,14 @@ class TransformerEncoder(FairseqEncoder):
             else None
         )
 
-        if not args.adaptive_input and self.quant_noise > 0:
-            self.embed_dropout = quant_noise(nn.Linear(embed_dim, embed_dim, bias=False), args.q_noise, args.qn_block_size)
+        if not args.adaptive_input and args.quant_noise_pq > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(embed_dim, embed_dim, bias=False),
+                args.quant_noise_pq,
+                args.quant_noise_pq_block_size,
+            )
+        else:
+            self.quant_noise = None
 
         self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
@@ -434,8 +439,8 @@ class TransformerEncoder(FairseqEncoder):
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
-        if self.quant_noise > 0:
-            x = self.embed_dropout(x)
+        if self.quant_noise:
+            x = self.quant_noise(x)
         return x, embed
 
     def forward(
@@ -621,7 +626,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self._future_mask = torch.empty(0)
 
         self.dropout = args.dropout
-        self.quant_noise = args.quant_noise_pq
         self.decoder_layerdrop = args.decoder_layerdrop
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
@@ -637,10 +641,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
 
-        if not args.adaptive_input and self.quant_noise > 0:
-            self.embed_dropout = quant_noise(nn.Linear(embed_dim, embed_dim, bias=False), args.q_noise, args.qn_block_size)
+        if not args.adaptive_input and args.quant_noise_pq > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(embed_dim, embed_dim, bias=False),
+                args.quant_noise_pq,
+                args.quant_noise_pq_block_size,
+            )
         else:
-            self.embed_dropout = None
+            self.quant_noise = None
 
         self.project_in_dim = (
             Linear(input_embed_dim, embed_dim, bias=False)
@@ -795,8 +803,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 
-        if self.embed_dropout:
-            x = self.embed_dropout(x)
+        if self.quant_noise:
+            x = self.quant_noise(x)
 
         if self.project_in_dim is not None:
             x = self.project_in_dim(x)

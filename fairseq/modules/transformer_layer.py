@@ -45,8 +45,12 @@ class TransformerEncoderLayer(nn.Module):
             # for backwards compatibility with models that use args.relu_dropout
             self.activation_dropout = getattr(args, "relu_dropout", 0)
         self.normalize_before = args.encoder_normalize_before
-        self.fc1 = self.build_fc1(self.embed_dim, args.encoder_ffn_embed_dim, self.quant_noise, self.quant_noise_block_size)
-        self.fc2 = self.build_fc2(args.encoder_ffn_embed_dim, self.embed_dim, self.quant_noise, self.quant_noise_block_size)
+        self.fc1 = self.build_fc1(
+            self.embed_dim, args.encoder_ffn_embed_dim, self.quant_noise, self.quant_noise_block_size
+        )
+        self.fc2 = self.build_fc2(
+            args.encoder_ffn_embed_dim, self.embed_dim, self.quant_noise, self.quant_noise_block_size
+        )
 
         self.final_layer_norm = LayerNorm(self.embed_dim)
 
@@ -57,7 +61,7 @@ class TransformerEncoderLayer(nn.Module):
         return quant_noise(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
 
     def build_self_attention(self, embed_dim, args):
-        attention = MultiheadAttention(
+        return MultiheadAttention(
             embed_dim,
             args.encoder_attention_heads,
             dropout=args.attention_dropout,
@@ -65,7 +69,6 @@ class TransformerEncoderLayer(nn.Module):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
-        return attention
 
     def upgrade_state_dict_named(self, state_dict, name):
         """
@@ -192,8 +195,12 @@ class TransformerDecoderLayer(nn.Module):
             self.encoder_attn = self.build_encoder_attention(self.embed_dim, args)
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
 
-        self.fc1 = self.build_fc1(self.embed_dim, args.decoder_ffn_embed_dim, self.quant_noise, self.quant_noise_block_size)
-        self.fc2 = self.build_fc2(args.decoder_ffn_embed_dim, self.embed_dim, self.quant_noise, self.quant_noise_block_size)
+        self.fc1 = self.build_fc1(
+            self.embed_dim, args.decoder_ffn_embed_dim, self.quant_noise, self.quant_noise_block_size
+        )
+        self.fc2 = self.build_fc2(
+            args.decoder_ffn_embed_dim, self.embed_dim, self.quant_noise, self.quant_noise_block_size
+        )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=export)
         self.need_attn = True
@@ -207,7 +214,7 @@ class TransformerDecoderLayer(nn.Module):
         return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
 
     def build_self_attention(self, embed_dim, args, add_bias_kv=False, add_zero_attn=False):
-        attention = MultiheadAttention(
+        return MultiheadAttention(
             embed_dim,
             args.decoder_attention_heads,
             dropout=args.attention_dropout,
@@ -217,10 +224,9 @@ class TransformerDecoderLayer(nn.Module):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
-        return attention
 
     def build_encoder_attention(self, embed_dim, args):
-        attention = MultiheadAttention(
+        return MultiheadAttention(
             embed_dim,
             args.decoder_attention_heads,
             kdim=getattr(args, "encoder_embed_dim", None),
@@ -230,7 +236,6 @@ class TransformerDecoderLayer(nn.Module):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
-        return attention
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True

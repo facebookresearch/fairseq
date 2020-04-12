@@ -24,7 +24,7 @@ from fairseq.modules import (
     TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 
 from .hub_interface import RobertaHubInterface
 
@@ -141,7 +141,7 @@ class RobertaModel(FairseqLanguageModel):
             self.args.pooler_activation_fn,
             self.args.pooler_dropout,
             self.args.quant_noise_pq,
-            self.args.quant_noise_pq_block_size
+            self.args.quant_noise_pq_block_size,
         )
 
     @property
@@ -247,7 +247,9 @@ class RobertaClassificationHead(nn.Module):
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout = nn.Dropout(p=pooler_dropout)
-        self.out_proj = quant_noise(nn.Linear(inner_dim, num_classes), q_noise, qn_block_size)
+        self.out_proj = apply_quant_noise_(
+            nn.Linear(inner_dim, num_classes), q_noise, qn_block_size
+        )
 
     def forward(self, features, **kwargs):
         x = features[:, 0, :]  # take <s> token (equiv. to [CLS])
@@ -295,7 +297,7 @@ class RobertaEncoder(FairseqDecoder):
             apply_bert_init=True,
             activation_fn=args.activation_fn,
             q_noise=args.quant_noise_pq,
-            qn_block_size=args.quant_noise_pq_block_size
+            qn_block_size=args.quant_noise_pq_block_size,
         )
         args.untie_weights_roberta = getattr(args, 'untie_weights_roberta', False)
 

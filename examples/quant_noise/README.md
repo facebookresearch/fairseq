@@ -95,13 +95,13 @@ for step in range(len(layers_to_quantize)):
 
     # quantize model in-place
     quantized_layers = quantize_model_(
-                    model,
-                    size_tracker,
-                    layers_to_quantize,
-                    block_sizes_config,
-                    n_centroids_config,
-                    step=step,
-                )
+        model,
+        size_tracker,
+        layers_to_quantize,
+        block_sizes_config,
+        n_centroids_config,
+        step=step,
+    )
     logger.info(f"Finetuning stage {step}, quantized layers: {quantized_layers}")
     logger.info(f"{size_tracker}")
 
