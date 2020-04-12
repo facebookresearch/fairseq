@@ -162,8 +162,7 @@ def train(args, trainer, task, epoch_itr, max_update=math.inf):
         default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
     )
 
-    # task specific setup per epoch
-    task.begin_epoch(epoch_itr.epoch, trainer.get_model())
+    trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = args.valid_subset.split(',')
     for samples in progress:
