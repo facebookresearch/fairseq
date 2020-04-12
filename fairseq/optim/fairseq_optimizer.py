@@ -86,9 +86,9 @@ class FairseqOptimizer(object):
             if p.grad is not None:
                 p.grad.data.mul_(c)
 
-    def clip_grad_norm(self, max_norm):
+    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm."""
-        return utils.clip_grad_norm_(self.params, max_norm)
+        return utils.clip_grad_norm_(self.params, max_norm, aggregate_norm_fn)
 
     def step(self, closure=None):
         """Performs a single optimization step."""

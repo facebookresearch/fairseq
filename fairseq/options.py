@@ -45,6 +45,7 @@ def get_interactive_generation_parser(default_task="translation"):
 def get_eval_lm_parser(default_task="language_modeling"):
     parser = get_parser("Evaluate Language Model", default_task)
     add_dataset_args(parser, gen=True)
+    add_distributed_training_args(parser)
     add_eval_lm_args(parser)
     return parser
 
@@ -229,6 +230,12 @@ def get_parser(desc, default_task="translation"):
                         help='how often to clear the PyTorch CUDA cache (0 to disable)')
     parser.add_argument('--all-gather-list-size', default=16384, type=int,
                         help='number of bytes reserved for gathering stats from workers')
+
+    parser.add_argument('--model-parallel-size', type=int, metavar='N',
+                        default=1,
+                        help='total number of GPUs to parallelize model over')
+    parser.add_argument('--checkpoint-suffix', default='',
+                        help='Suffix to add to the checkpoint file name')
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():

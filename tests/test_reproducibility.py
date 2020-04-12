@@ -25,6 +25,11 @@ class TestReproducibility(unittest.TestCase):
         resume_checkpoint='checkpoint1.pt',
         max_epoch=3,
     ):
+        def get_last_log_stats_containing_string(log_records, search_string):
+            for log_record in logs.records[::-1]:
+                if search_string in log_record.msg:
+                    return json.loads(log_record.msg)
+
         if extra_flags is None:
             extra_flags = []
 
@@ -43,7 +48,8 @@ class TestReproducibility(unittest.TestCase):
                         '--max-epoch', str(max_epoch),
                     ] + extra_flags,
                 )
-            train_log, valid_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
+            train_log = get_last_log_stats_containing_string(logs.records, 'train_loss')
+            valid_log = get_last_log_stats_containing_string(logs.records, 'valid_loss')
 
             # train epoch 2, resuming from previous checkpoint 1
             os.rename(
@@ -59,7 +65,8 @@ class TestReproducibility(unittest.TestCase):
                         '--max-epoch', str(max_epoch),
                     ] + extra_flags,
                 )
-            train_res_log, valid_res_log = map(lambda rec: json.loads(rec.msg), logs.records[-4:-2])
+            train_res_log = get_last_log_stats_containing_string(logs.records, 'train_loss')
+            valid_res_log = get_last_log_stats_containing_string(logs.records, 'valid_loss')
 
             for k in ['train_loss', 'train_ppl', 'train_num_updates', 'train_gnorm']:
                 self.assertAlmostEqual(float(train_log[k]), float(train_res_log[k]), delta=delta)

@@ -108,7 +108,7 @@ class SpeechRecognitionTask(FairseqTask):
         data_json_path = os.path.join(self.args.data, "{}.json".format(split))
         self.datasets[split] = get_asr_dataset_from_json(data_json_path, self.tgt_dict)
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         w2l_decoder = getattr(args, "w2l_decoder", None)
         if w2l_decoder == "viterbi":
             from examples.speech_recognition.w2l_decoder import W2lViterbiDecoder
@@ -119,7 +119,7 @@ class SpeechRecognitionTask(FairseqTask):
 
             return W2lKenLMDecoder(args, self.target_dictionary)
         else:
-            return super().build_generator(args)
+            return super().build_generator(models, args)
 
     @property
     def target_dictionary(self):

@@ -33,8 +33,6 @@ class SparseTransformerSentenceEncoder(TransformerSentenceEncoder):
         apply_bert_init: bool = False,
         activation_fn: str = "relu",
         learned_pos_embedding: bool = True,
-        add_bias_kv: bool = False,
-        add_zero_attn: bool = False,
         embed_scale: float = None,
         freeze_embeddings: bool = False,
         n_trans_layers_to_freeze: int = 0,
@@ -49,8 +47,8 @@ class SparseTransformerSentenceEncoder(TransformerSentenceEncoder):
             ffn_embedding_dim, num_attention_heads, dropout, attention_dropout,
             activation_dropout, max_seq_len, num_segments, use_position_embeddings,
             offset_positions_by_padding, encoder_normalize_before, apply_bert_init,
-            activation_fn, learned_pos_embedding, add_bias_kv, add_zero_attn,
-            embed_scale, freeze_embeddings, n_trans_layers_to_freeze, export
+            activation_fn, learned_pos_embedding, embed_scale, freeze_embeddings,
+            n_trans_layers_to_freeze, export
         )
 
         self.layers = nn.ModuleList(
@@ -63,8 +61,6 @@ class SparseTransformerSentenceEncoder(TransformerSentenceEncoder):
                     attention_dropout=attention_dropout,
                     activation_dropout=activation_dropout,
                     activation_fn=activation_fn,
-                    add_bias_kv=add_bias_kv,
-                    add_zero_attn=add_zero_attn,
                     export=export,
                     is_bidirectional=is_bidirectional,
                     stride=stride,

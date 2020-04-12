@@ -27,10 +27,19 @@ _active_aggregators = OrderedDict()
 _active_aggregators_cnt = defaultdict(lambda: 0)
 
 
-# The "default" aggregator observes all logged values.
-_aggregators["default"] = MetersDict()
-_active_aggregators["default"] = _aggregators["default"]
-_active_aggregators_cnt["default"] = 1
+def reset() -> None:
+    """Reset all metrics aggregators."""
+    _aggregators.clear()
+    _active_aggregators.clear()
+    _active_aggregators_cnt.clear()
+
+    # The "default" aggregator observes all logged values.
+    _aggregators["default"] = MetersDict()
+    _active_aggregators["default"] = _aggregators["default"]
+    _active_aggregators_cnt["default"] = 1
+
+
+reset()
 
 
 @contextlib.contextmanager
