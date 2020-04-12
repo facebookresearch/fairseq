@@ -352,6 +352,7 @@ def add_comparable_args(parser, train=True, gen=False):
                        help="""Path to list of vocabulary files used for substitution.""")
     group.add_argument('--modeltype', '-modeltype', default='transformer',
                        help="""Set the model type. Options: [transformer|lstm]""")
+
     return group
 
 def add_dataset_args(parser, train=False, gen=False):
@@ -475,7 +476,7 @@ def add_checkpoint_args(parser):
     # fmt: off
     group.add_argument('--save-dir', metavar='DIR', default='checkpoints',
                        help='path to save checkpoints')
-    group.add_argument('--restore-file', default='checkpoint_last.pt',
+    group.add_argument('--restore-file', default='',
                        help='filename from which to load checkpoint '
                             '(default: <save-dir>/checkpoint_last.pt')
     group.add_argument('--reset-dataloader', action='store_true',

@@ -233,7 +233,7 @@ class IndexedRawTextDataset(FairseqDataset):
 
     def __init__(self, path, dictionary, append_eos=True, reverse_order=False):
         self.tokens_list = []
-        self.lines = []
+        #self.lines = []
         self.sizes = []
         self.append_eos = append_eos
         self.reverse_order = reverse_order
@@ -243,7 +243,7 @@ class IndexedRawTextDataset(FairseqDataset):
     def read_data(self, path, dictionary):
         with open(path, 'r', encoding='utf-8') as f:
             for line in f:
-                self.lines.append(line.strip('\n'))
+                #self.lines.append(line.strip('\n'))
                 tokens = dictionary.encode_line(
                     line, add_if_not_exist=False,
                     append_eos=self.append_eos, reverse_order=self.reverse_order,
@@ -261,9 +261,10 @@ class IndexedRawTextDataset(FairseqDataset):
         self.check_index(i)
         return self.tokens_list[i]
 
-    def get_original_text(self, i):
+    '''def get_original_text(self, i):
         self.check_index(i)
         return self.lines[i]
+        '''
 
     def __del__(self):
         pass
