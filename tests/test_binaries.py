@@ -21,7 +21,6 @@ from fairseq_cli import generate
 from fairseq_cli import interactive
 from fairseq_cli import eval_lm
 from fairseq_cli import validate
-from fairseq_cli import quantize_pq
 
 
 class TestTranslation(unittest.TestCase):
@@ -697,18 +696,19 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
 
 
 class TestQuantization(unittest.TestCase):
-    # tests both scalar and iterative PQ quantization
     def setUp(self):
         logging.disable(logging.CRITICAL)
 
     def tearDown(self):
         logging.disable(logging.NOTSET)
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_quantization(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_quantization') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
+                # tests both scalar and iterative PQ quantization
                 quantize_language_model(data_dir, 'transformer_lm')
 
 
@@ -1130,6 +1130,7 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
         ] + (extra_flags or []),
     )
     train.main(train_args)
@@ -1149,10 +1150,11 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
             '--max-tokens', '500',
             '--tokens-per-sample', '500',
             '--save-dir', data_dir,
-            '--max-epoch', '1',
+            '--max-update', '3',
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
             '--quant-noise-scalar', '0.5',
         ] + (extra_flags or []),
     )
@@ -1160,7 +1162,6 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
 
     # try iterative PQ quantization
     quantize_parser = options.get_training_parser()
-    quantize_parser.add_argument('--quantization-config-path')
     quantize_args = options.parse_args_and_arch(
         quantize_parser,
         [
@@ -1173,16 +1174,17 @@ def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fal
             '--adaptive-softmax-cutoff', '5,10,15',
             '--max-tokens', '50',
             '--tokens-per-sample', '50',
-            '--max-update', '1',
-            '--max-epoch', '1',
+            '--max-update', '6',
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
             '--restore-file', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--reset-optimizer',
             '--quantization-config-path', os.path.join(os.path.dirname(__file__), 'transformer_quantization_config.yaml'),
         ] + (extra_flags or []),
     )
-    quantize_pq.main(quantize_args)
+    train.main(quantize_args)
 
 if __name__ == '__main__':
     unittest.main()

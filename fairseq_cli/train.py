@@ -16,7 +16,14 @@ import sys
 import numpy as np
 import torch
 
-from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
+from fairseq import (
+    checkpoint_utils,
+    distributed_utils,
+    options,
+    quantization_utils,
+    tasks,
+    utils,
+)
 from fairseq.data import iterators
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.trainer import Trainer
@@ -72,7 +79,7 @@ def main(args, init_distributed=False):
 
     # (optionally) Configure quantization
     if args.quantization_config_path is not None:
-        quantizer = Quantizer(
+        quantizer = quantization_utils.Quantizer(
             config_path=args.quantization_config_path,
             max_epoch=args.max_epoch,
             max_update=args.max_update,

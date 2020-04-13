@@ -323,7 +323,7 @@ class Trainer(object):
             self.quantizer.begin_epoch(epoch)
 
         # task specific setup per epoch
-        task.begin_epoch(epoch_itr.epoch, self.get_model())
+        self.task.begin_epoch(epoch, self.get_model())
 
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):

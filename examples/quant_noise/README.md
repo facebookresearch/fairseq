@@ -20,7 +20,7 @@ Training a model with Quant-Noise improves the performance in subsequent inferen
 
 ### Scalar Quantization
 
-Unlike the section [Iterative Product Quantization](#iterative-product-quantization) which gives state-of-the-art compression, this section showcases the usefulness of our approach for simple  scalar quantization baselines such as int8 using on-GPU Fake Quantization.
+Unlike the section [Iterative Product Quantization](#iterative-product-quantization) which gives state-of-the-art compression, this section showcases the usefulness of our approach for simple scalar quantization baselines such as int8 using on-GPU Fake Quantization.
 
 #### Training
 
@@ -132,7 +132,7 @@ MAX_SENTENCES=16
 UPDATE_FREQ=2
 DATA_DIR=/path/to/data/here
 
-python train.py $DATA_DIR \
+fairseq-train $DATA_DIR \
     --task masked_lm --criterion masked_lm --arch roberta_base \
     --sample-break-mode complete \
     --tokens-per-sample $TOKENS_PER_SAMPLE --max-positions $MAX_POSITIONS \
@@ -160,7 +160,7 @@ NUM_CLASSES=2
 MAX_SENTENCES=16
 ROBERTA_PATH=/path/to/roberta_quantnoise/model.pt
 
-python train.py /path/to/rte/data/ \
+fairseq-train /path/to/rte/data/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \
@@ -188,7 +188,7 @@ To **train** Language Models on Wikitext-103, we followed this setting [here](ht
 The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
 
 ```bash
-python train.py --task language_modeling /path/to/wikitext-103/data \
+fairseq-train --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \
     --adaptive-input --adaptive-input-cutoff 20000,60000 --adaptive-input-factor 4 \
     --adaptive-softmax-cutoff 20000,60000 --adaptive-softmax-dropout 0.2 --adaptive-softmax-factor 4.0 \
@@ -229,7 +229,7 @@ WARMUP_UPDATES=122
 LR=2e-05
 NUM_CLASSES=2
 MAX_SENTENCES=16
-python train.py --task sentence_prediction /path/to/data/ \
+fairseq-train --task sentence_prediction /path/to/data/ \
     --restore-file $ROBERTA_PATH \
     --save-dir checkpoints/roberta_finetuned \
     --max-positions 512 \
@@ -249,7 +249,7 @@ python train.py --task sentence_prediction /path/to/data/ \
 
 To quantize the trained Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
 ```bash
-python train.py --task language_modeling /path/to/wikitext-103/data \
+fairseq-train --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \
     --adaptive-input --adaptive-input-cutoff 20000,60000 --adaptive-input-factor 4 \
     --adaptive-softmax-cutoff 20000,60000 --adaptive-softmax-dropout 0.2 --adaptive-softmax-factor 4.0 \
