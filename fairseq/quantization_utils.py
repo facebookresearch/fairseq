@@ -16,10 +16,7 @@ def quantize_model_scalar(model, args):
 
 class Quantizer(object):
 
-    def __init__(self, config_path, trainer, quantization_step=0):
-        self.quantization_step = quantization_step
-        self.trainer = trainer
-
+    def __init__(self, config_path, max_epoch, max_update):
         try:
             import yaml
         except ImportError:
@@ -38,6 +35,31 @@ class Quantizer(object):
         self.block_sizes_config = config["block_sizes"]
         self.layers_to_quantize = config["layers_to_quantize"]
 
+        # We assume that training will run for a fixed number of epochs
+        # (or updates) and that we should train for equal durations
+        # between iterations of PQ.
+        num_iterations = len(self.layers_to_quantize)
+        if max_epoch is not None:
+            assert max_epoch % num_iterations == 0, \
+                'for iterative PQ, --max-epoch must be evenly divisible by len(layers_to_quantize)'
+            self.epoch_schedule = max_epoch // num_iterations
+        else:
+            self.epoch_schedule = None
+        if max_update is not None:
+            assert max_update % num_iterations == 0, \
+                'for iterative PQ, --max-update must be evenly divisible by len(layers_to_quantize)'
+            self.update_schedule = max_update // num_iterations
+        else:
+            self.update_schedule = None
+        assert (self.epoch_schedule is not None) ^ (self.update_schedule is not None), \
+            'for iterative PQ, cannot specify both --max-update and --max-epoch'
+
+        # 0 is a special value for quantization step, which will force
+        # the first call to begin_epoch() to call step()
+        self.quantization_step = 0
+
+    def set_trainer(self, trainer):
+        self.trainer = trainer
         self.size_tracker = pq.SizeTracker(self.trainer.get_model())
 
     def step(self):
@@ -56,23 +78,33 @@ class Quantizer(object):
         self.trainer.reinitialize()
 
     def state_dict(self):
-        # TODO
         return {
+            'n_centroids_config': self.n_centroids_config,
+            'block_sizes_config': self.block_sizes_config,
+            'layers_to_quantize': self.layers_to_quantize,
+            'epoch_schedule': self.epoch_schedule,
+            'update_schedule': self.update_schedule,
+            'quantization_step': self.quantization_step,
         }
 
     def load_state_dict(self, state_dict):
-        # TODO
-        pass
+        self.n_centroids_config = state_dict['n_centroids_config']
+        self.block_sizes_config = state_dict['block_sizes_config']
+        self.layers_to_quantize = state_dict['layers_to_quantize']
+        self.epoch_schedule = state_dict['epoch_schedule']
+        self.update_schedule = state_dict['update_schedule']
+        self.quantization_step = state_dict['quantization_step']
 
     def begin_epoch(self, epoch):
-        """Called at the beginning of each epoch."""
+        """Called at the beginning of each epoch (epochs start at 1)."""
         if (
             (
-                self.epoch_schedule > 0
+                self.epoch_schedule is not None
                 and epoch > 0
-                and epoch % self.epoch_schedule == 0
+                and (epoch - 1) % self.epoch_schedule == 0
             )
-            # we always step once in the beginning
+            # we always step once in the beginning, even if using
+            # update-based quantization
             or self.quantization_step == 0
         ):
             self.step()
@@ -80,7 +112,7 @@ class Quantizer(object):
     def step_update(self, num_updates):
         """Called at the end of each step."""
         if (
-            self.update_schedule > 0
+            self.update_schedule is not None
             and num_updates > 0
             and num_updates % self.update_schedule == 0
         ):

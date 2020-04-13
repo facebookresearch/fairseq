@@ -119,7 +119,8 @@ We detail below how to reproduce the state-of-the-art results in reported in the
 
 ### Training with Quant-Noise
 
-To **train** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta). The following command can be used to train a RoBERTa Base + QuantNoise model on bookscorpus + wikipedia dataset:
+To **train** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta).
+The following command can be used to train a RoBERTa Base + QuantNoise model:
 
 ```bash
 TOTAL_UPDATES=125000
@@ -148,7 +149,8 @@ python train.py $DATA_DIR \
     --quant-noise-pq 0.2 --quant-noise-pq-block-size 8 --untie-weights-roberta
 ```
 
-To **finetune** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md). The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
+To **finetune** RoBERTa + QuantNoise, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.glue.md).
+The following command can be used to finetune a RoBERTa Base + QuantNoise model on the RTE dataset:
 
 ```bash
 TOTAL_NUM_UPDATES=2036
@@ -182,7 +184,8 @@ python train.py /path/to/rte/data/ \
     --quant-noise-pq 0.2 --quant-noise-pq-block-size 8
 ```
 
-To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model). The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
+To **train** Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model).
+The following command can be used to train a Transformer + QuantNoise model on Wikitext-103:
 
 ```bash
 python train.py --task language_modeling /path/to/wikitext-103/data \
@@ -221,12 +224,12 @@ and change the `--gen-subset` to `test` if you would like to evaluate on the tes
 
 To quantize the finetuned RoBERTa model, we use this command on 1 GPU. This should run in a day.
 ```bash
-TOTAL_NUM_UPDATES=2036
+TOTAL_NUM_UPDATES=6108  # 2036 updates for each iteration
 WARMUP_UPDATES=122
 LR=2e-05
 NUM_CLASSES=2
 MAX_SENTENCES=16
-python quantize_pq.py --task sentence_prediction /path/to/data/ \
+python train.py --task sentence_prediction /path/to/data/ \
     --restore-file $ROBERTA_PATH \
     --save-dir checkpoints/roberta_finetuned \
     --max-positions 512 \
@@ -246,7 +249,7 @@ python quantize_pq.py --task sentence_prediction /path/to/data/ \
 
 To quantize the trained Language Model, we use this command on 8 V100 23GB GPUs. This should run in a couple of hours.
 ```bash
-python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
+python train.py --task language_modeling /path/to/wikitext-103/data \
     --save-dir checkpoints/transformer_wikitext-103 \
     --adaptive-input --adaptive-input-cutoff 20000,60000 --adaptive-input-factor 4 \
     --adaptive-softmax-cutoff 20000,60000 --adaptive-softmax-dropout 0.2 --adaptive-softmax-factor 4.0 \
@@ -264,7 +267,7 @@ python quantize_pq.py --task language_modeling /path/to/wikitext-103/data \
     --tie-adaptive-proj --tie-adaptive-weights --update-freq 3 --weight-decay 0 --seed 1  \
     --log-interval 100 --no-progress-bar --skip-invalid-size-inputs-valid-test \
     --restore-file path/to/trained/lm/with/quant/noise \
-    --max-update 4500 --quantization-config-path /path/to/config/yaml
+    --max-update 13500 --quantization-config-path /path/to/config/yaml
 ```
 If you have less capacity or if your distributed training freezes, try reducing  `--max-tokens` and  `--tokens-per-sample` (this may reduce the quantized accuracy a bit).
 

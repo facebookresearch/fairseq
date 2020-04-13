@@ -70,9 +70,19 @@ def main(args, init_distributed=False):
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
+    # (optionally) Configure quantization
+    if args.quantization_config_path is not None:
+        quantizer = Quantizer(
+            config_path=args.quantization_config_path,
+            max_epoch=args.max_epoch,
+            max_update=args.max_update,
+        )
+    else:
+        quantizer = None
+
     # Build trainer
     if args.model_parallel_size == 1:
-        trainer = Trainer(args, task, model, criterion)
+        trainer = Trainer(args, task, model, criterion, quantizer)
     else:
         trainer = MegatronTrainer(args, task, model, criterion)
 

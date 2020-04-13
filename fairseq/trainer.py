@@ -35,7 +35,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion):
+    def __init__(self, args, task, model, criterion, quantizer=None):
         self.args = args
         self.task = task
 
@@ -68,13 +68,9 @@ class Trainer(object):
         else:
             self._grad_norm_buf = None
 
-        if args.quantization_config_path is not None:
-            self.quantizer = Quantizer(
-                config_path=args.quantization_config_path,
-                trainer=self,
-            )
-        else:
-            self.quantizer = None
+        self.quantizer = quantizer
+        if self.quantizer is not None:
+            self.quantizer.set_trainer(self)
 
         metrics.log_start_time("wall", priority=790, round=0)
 
