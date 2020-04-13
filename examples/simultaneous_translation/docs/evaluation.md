@@ -223,7 +223,7 @@ When submitting your final models, define a client command that would run inside
 
 
 ```bash
-CLIENT_COMMAND="./examples/simultaneous_translation/scripts/start-multi-client.sh ./examples/simultaneous_translation/scripts/configs/must-c-en_de-text-dev.sh experiments/checkpoints/checkpoint_text_waitk3.pt"
+CLIENT_COMMAND="./examples/simultaneous_translation/scripts/start-multi-client.sh ./examples/simultaneous_translation/scripts/configs/must-c-en_de-text-test.sh experiments/checkpoints/checkpoint_text_waitk3.pt"
 SRC_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.en
 TGT_FILE=experiments/data/must_c_1_0/en-de/bi-text/tst-COMMON.de
 PORT=12321
@@ -232,4 +232,4 @@ docker run -e CLIENT_COMMAND="$CLIENT_COMMAND" -e SRC_FILE="$SRC_FILE" -e TGT_FI
 ```
 `CLIENT_COMMAND` can be the client command for a customized client.
 
-When submitting you Docker file, please keep the server settings in [example](../Dockerfile) and make sure it works for dev and open test set. During the official eveluation, we will run the Docker file with different environment variables corresponding to the blind test sets.
+When submitting you Docker file, please keep the server settings in [example](../Dockerfile) and make sure it works for the MuST-C dev and test set. During the official evaluation, we will run the Docker file with different environment variables corresponding to the blind test set.
