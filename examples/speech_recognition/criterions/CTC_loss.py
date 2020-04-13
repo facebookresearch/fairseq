@@ -12,7 +12,7 @@ from itertools import groupby
 import torch
 import torch.nn.functional as F
 from fairseq import utils
-from fairseq.criterions import LegacyFairseqCriterion, register_criterion
+from fairseq.criterions import FairseqCriterion, register_criterion
 from examples.speech_recognition.data.data_utils import encoder_padding_mask_to_lengths
 from examples.speech_recognition.utils.wer_utils import Code, EditDistance, Token
 
@@ -75,12 +75,15 @@ def compute_ctc_uer(logprobs, targets, input_lengths, target_lengths, blank_idx)
 
 
 @register_criterion("ctc_loss")
-class CTCCriterion(LegacyFairseqCriterion):
-    def __init__(self, args, task):
-        super().__init__(args, task)
+class CTCCriterion(FairseqCriterion):
+    def __init__(self, task):
+        assert hasattr(task, "target_dictionary")
+        super().__init__(task)
         self.blank_idx = task.target_dictionary.index("<ctc_blank>")
-        self.pad_idx = task.target_dictionary.pad()
-        self.task = task
+
+    @staticmethod
+    def build_criterion(cls, args, task):
+        return cls(task)
 
     @staticmethod
     def add_args(parser):
@@ -134,7 +137,7 @@ class CTCCriterion(LegacyFairseqCriterion):
             # N T D -> T N D (F.ctc_loss expects this)
             lprobs = lprobs.transpose(0, 1)
 
-        pad_mask = sample["target"] != self.pad_idx
+        pad_mask = sample["target"] != self.padding_idx
         targets_flat = targets.masked_select(pad_mask)
 
         loss = F.ctc_loss(

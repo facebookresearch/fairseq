@@ -153,10 +153,10 @@ class _FP16OptimizerMixin(object):
             for p32 in self.fp32_params:
                 p32.grad.data.mul_(c)
 
-    def clip_grad_norm(self, max_norm):
+    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._sync_fp16_grads_to_fp32()
-        grad_norm = utils.clip_grad_norm_(self.fp32_params, max_norm)
+        grad_norm = utils.clip_grad_norm_(self.fp32_params, max_norm, aggregate_norm_fn)
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
@@ -224,7 +224,8 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
                     '--fp16-scale-window must be given explicitly when using a '
                     'custom --update-freq schedule'
                 )
-            scale_window = int(2**14 / args.distributed_world_size / args.update_freq[0])
+            data_parallel_size = int(args.distributed_world_size / args.model_parallel_size)
+            scale_window = int(2**14 / data_parallel_size / args.update_freq[0])
         else:
             scale_window = args.fp16_scale_window
 
@@ -346,10 +347,10 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         else:
             self.wrapped_optimizer.multiply_grads(c)
 
-    def clip_grad_norm(self, max_norm):
+    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._unscale_grads()
-        grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm)
+        grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
@@ -411,7 +412,8 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
                     '--fp16-scale-window must be given explicitly when using a '
                     'custom --update-freq schedule'
                 )
-            scale_window = 2**14 / args.distributed_world_size / args.update_freq[0]
+            data_parallel_size = int(args.distributed_world_size / args.model_parallel_size)
+            scale_window = 2**14 / data_parallel_size / args.update_freq[0]
         else:
             scale_window = args.fp16_scale_window
 

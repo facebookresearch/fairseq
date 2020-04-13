@@ -90,8 +90,6 @@ class TransformerSentenceEncoder(nn.Module):
         apply_bert_init: bool = False,
         activation_fn: str = "relu",
         learned_pos_embedding: bool = True,
-        add_bias_kv: bool = False,
-        add_zero_attn: bool = False,
         embed_scale: float = None,
         freeze_embeddings: bool = False,
         n_trans_layers_to_freeze: int = 0,
@@ -105,7 +103,6 @@ class TransformerSentenceEncoder(nn.Module):
         self.padding_idx = padding_idx
         self.vocab_size = vocab_size
         self.dropout = dropout
-        self.q_noise = q_noise
         self.layerdrop = layerdrop
         self.max_seq_len = max_seq_len
         self.embedding_dim = embedding_dim
@@ -120,7 +117,14 @@ class TransformerSentenceEncoder(nn.Module):
         )
         self.embed_scale = embed_scale
 
-        self.embed_dropout = quant_noise(nn.Linear(self.embedding_dim, self.embedding_dim, bias=False), q_noise, qn_block_size)
+        if q_noise > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(self.embedding_dim, self.embedding_dim, bias=False),
+                q_noise,
+                qn_block_size,
+            )
+        else:
+            self.quant_noise = None
 
         self.segment_embeddings = (
             nn.Embedding(self.num_segments, self.embedding_dim, padding_idx=None)
@@ -149,8 +153,6 @@ class TransformerSentenceEncoder(nn.Module):
                     attention_dropout=attention_dropout,
                     activation_dropout=activation_dropout,
                     activation_fn=activation_fn,
-                    add_bias_kv=add_bias_kv,
-                    add_zero_attn=add_zero_attn,
                     export=export,
                     q_noise=q_noise,
                     qn_block_size=qn_block_size
@@ -206,7 +208,8 @@ class TransformerSentenceEncoder(nn.Module):
         if self.segment_embeddings is not None and segment_labels is not None:
             x += self.segment_embeddings(segment_labels)
 
-        x = self.embed_dropout(x)
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
 
         if self.emb_layer_norm is not None:
             x = self.emb_layer_norm(x)

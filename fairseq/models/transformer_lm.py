@@ -148,7 +148,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
                 len(task.source_dictionary), task.source_dictionary.pad(), args.decoder_input_dim,
                 args.adaptive_input_factor, args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_input_cutoff, type=int),
-                args.quant_noise_pq, args.quant_noise_pq_block_size
+                args.quant_noise_pq, args.quant_noise_pq_block_size,
             )
         else:
             embed_tokens = cls.build_embedding(args, task.source_dictionary, args.decoder_input_dim)

@@ -43,7 +43,7 @@ class AdaptiveInput(nn.Module):
             dim = int(initial_dim // (factor ** i))
             seq = nn.Sequential(
                 nn.Embedding(size, dim, self.padding_idx),
-                quant_noise(nn.Linear(dim, output_dim, bias=False), q_noise, qn_block_size)
+                quant_noise(nn.Linear(dim, output_dim, bias=False), q_noise, qn_block_size),
             )
 
             self.embeddings.append(seq)

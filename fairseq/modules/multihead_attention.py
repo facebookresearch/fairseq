@@ -45,9 +45,6 @@ class MultiheadAttention(nn.Module):
 
         self.num_heads = num_heads
         self.dropout = dropout
-        self.quant_noise = q_noise
-        self.quant_noise_block_size = qn_block_size
-
         self.head_dim = embed_dim // num_heads
         assert (
             self.head_dim * num_heads == self.embed_dim
@@ -150,6 +147,9 @@ class MultiheadAttention(nn.Module):
             and not self.onnx_trace
             and incremental_state is None
             and not static_kv
+            # A workaround for quantization to work. Otherwise JIT compilation
+            # treats bias in linear module as method.
+            and not torch.jit.is_scripting()
         ):
             assert key is not None and value is not None
             return F.multi_head_attention_forward(

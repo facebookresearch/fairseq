@@ -79,7 +79,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             append_source_id=True
             )
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(
@@ -89,6 +89,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         else:
             from fairseq.sequence_generator import SequenceGenerator
             return SequenceGenerator(
+                models,
                 self.target_dictionary,
                 beam_size=getattr(args, 'beam', 5),
                 max_len_a=getattr(args, 'max_len_a', 0),
