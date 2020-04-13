@@ -132,13 +132,13 @@ class FusedAdamV1(torch.optim.Optimizer):
 
             # compute combined scale factor for this group
             combined_scale = scale
-            if group['max_grad_norm'] > 0:
+            if group.get('max_grad_norm', 0) > 0:
                 # norm is in fact norm*scale
                 clip = ((grad_norm / scale) + 1e-6) / group['max_grad_norm']
                 if clip > 1:
                     combined_scale = clip * scale
 
-            bias_correction = 1 if group['bias_correction'] else 0
+            bias_correction = 1 if group.get('bias_correction', 1) else 0
 
             for p, grad in zip(group['params'], grads_this_group):
                 # note: p.grad should not ever be set for correct
