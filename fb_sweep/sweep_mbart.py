@@ -4,33 +4,21 @@ from fb_sweep import sweep
 from fb_sweep.sweep import hyperparam
 
 
-CC25 = {
-    "en": "en_XX",
-    "ar": "ar_AR",
-    "de": "de_DE",
-    "es": "es_XX",
-    "fr": "fr_XX",
-    "hi": "hi_IN",
-    "it": "it_IT",
-    "ja": "ja_XX",
-    "ko": "ko_KR",
-    "nl": "nl_XX",
-    "ru": "ru_RU",
-    "zh": "zh_CN",
-    "tr": "tr_TR",
-    "vi": "vi_VN",
-    "ro": "ro_RO",
-    "my": "my_MM",
-    "ne": "ne_NP",
-    "si": "si_LK",
-    "cs": "cs_CZ",
-    "lt": "lt_LT",
-    "kk": "kk_KZ",
-    "gu": "gu_IN",
-    "fi": "fi_FI",
-    "et": "et_EE",
-    "lv": "lv_LV",
-}
+CC25 = sorted([
+    "en_XX", "ar_AR", "de_DE", "es_XX", "fr_XX",
+    "hi_IN", "it_IT", "ja_XX", "ko_KR", "nl_XX",
+    "ru_RU", "zh_CN", "tr_TR", "vi_VN", "ro_RO",
+    "my_MM", "ne_NP", "si_LK", "cs_CZ", "lt_LT",
+    "kk_KZ", "gu_IN", "fi_FI", "et_EE", "lv_LV",
+])
+
+CC50 = CC25 + sorted([
+    "af_ZA", "az_AZ", "bn_IN", "fa_IR", "he_IL",
+    "hr_HR", "id_ID", "ka_GE", "km_KH", "mk_MK",
+    "ml_IN", "mn_MN", "mr_IN", "pl_PL", "ps_AF",
+    "pt_XX", "sv_SE", "sw_KE", "ta_IN", "te_IN",
+    "th_TH", "tl_XX", "uk_UA", "ur_PK", "xh_ZA",
+    ])
 
 def get_grid(args):
     grid = []
@@ -87,17 +75,22 @@ def get_grid(args):
             hyperparam('--reset-dataloader'),
         ]
 
-    # if args.local:
-    #     grid += [
-    #         hyperparam('--train-subset', 'valid')
-    #     ]
+    grid + [
+        '--no-whole-word-mask-langs', ','.join(
+            ['ja_XX', 'km_KH', 'th_TH', 'zh_CN', 'zh_TW']
+        )
+    ]
+    if args.local:
+        grid += [
+            hyperparam('--train-subset', 'valid')
+        ]
 
     grid += [
         hyperparam('--add-lang-token', save_dir_key=lambda x: 'lgtkn')
     ]
     grid += [
-        hyperparam('--langs', ",".join(sorted([CC25[c] for c in CC25])),
-        save_dir_key=lambda x: 'cc25' )
+        hyperparam('--langs', ",".join(CC50),
+        save_dir_key=lambda x: 'cc50' )
     ]
 
     # data settings
