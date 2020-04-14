@@ -225,7 +225,7 @@ class FairseqTask(object):
 
         return criterions.build_criterion(args, self)
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
 
@@ -295,6 +295,7 @@ class FairseqTask(object):
             seq_gen_cls = SequenceGenerator
 
         return seq_gen_cls(
+            models,
             self.target_dictionary,
             beam_size=getattr(args, "beam", 5),
             max_len_a=getattr(args, "max_len_a", 0),
@@ -386,18 +387,16 @@ class FairseqTask(object):
                 "ntokens not found in Criterion logging outputs, cannot log wpb or wps"
             )
         else:
-            ntokens = utils.item(sum(log.get("ntokens", 0) for log in logging_outputs))
+            ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
             metrics.log_scalar("wpb", ntokens, priority=180, round=1)
-            metrics.log_speed("wps", ntokens, ignore_first=10, priority=90, round=1)
+            metrics.log_speed("wps", ntokens, priority=90, round=1)
 
         if not any("nsentences" in log for log in logging_outputs):
             warnings.warn(
                 "nsentences not found in Criterion logging outputs, cannot log bsz"
             )
         else:
-            nsentences = utils.item(
-                sum(log.get("nsentences", 0) for log in logging_outputs)
-            )
+            nsentences = sum(log.get("nsentences", 0) for log in logging_outputs)
             metrics.log_scalar("bsz", nsentences, priority=190, round=1)
 
         criterion.__class__.reduce_metrics(logging_outputs)

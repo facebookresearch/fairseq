@@ -37,6 +37,8 @@ class MultilingualDenoisingTask(DenoisingTask):
                             help='smoothing alpha for sample rations across multiple datasets')
         parser.add_argument('--add-lang-token', default=False, action='store_true')
         parser.add_argument('--langs', type=str, help="language ids we are considering", default=None)
+        parser.add_argument('--no-whole-word-mask-langs', type=str, default='', metavar='N',
+                            help='languages without spacing between words dont support whole word masking')
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -53,10 +55,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 if os.path.isdir(os.path.join(data_path, name))
             ])
         else:
-            languages = sorted(args.langs.split(','))
-            for name in languages:
-                assert os.path.exists(os.path.join(data_path, name)), \
-                    "{} does not exist".format(os.path.join(data_path, name))
+            languages = args.langs.split(',')
 
         if args.add_lang_token:
             for lang in languages:
@@ -104,7 +103,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 if os.path.isdir(os.path.join(data_path, name))
             ])
         else:
-            languages = sorted(self.langs.split(','))
+            languages = self.langs.split(',')
             for name in languages:
                 assert os.path.exists(os.path.join(data_path, name)), "all the languages must exist"
 
@@ -115,6 +114,7 @@ class MultilingualDenoisingTask(DenoisingTask):
         )
 
         mask_whole_words = get_whole_word_mask(self.args, self.dictionary)
+        language_without_segmentations = self.args.no_whole_word_mask_langs.split(',')
         lang_datasets = []
         for language in languages:
             split_path = os.path.join(data_path, language, split)
@@ -146,12 +146,13 @@ class MultilingualDenoisingTask(DenoisingTask):
             dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
             dataset = AppendTokenDataset(dataset, end_token)
 
+            lang_mask_whole_words = mask_whole_words if language not in language_without_segmentations else None
             lang_dataset = DenoisingDataset(
                 dataset,
                 dataset.sizes,
                 self.dictionary,
                 self.mask_idx,
-                mask_whole_words,
+                lang_mask_whole_words,
                 shuffle=self.args.shuffle_instance,
                 seed=self.seed,
                 args=self.args,

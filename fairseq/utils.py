@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
+from fairseq.logging.meters import safe_round
 from fairseq.modules import gelu, gelu_accurate
 from fairseq.modules.multihead_attention import MultiheadAttention
 from torch import Tensor
@@ -43,7 +44,7 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
 
 
 def apply_to_sample(f, sample):
-    if len(sample) == 0:
+    if hasattr(sample, '__len__') and len(sample) == 0:
         return {}
 
     def _apply(x):
@@ -64,6 +65,17 @@ def move_to_cuda(sample):
         return tensor.cuda()
 
     return apply_to_sample(_move_to_cuda, sample)
+
+
+def move_to_cpu(sample):
+    def _move_to_cpu(tensor):
+        # PyTorch has poor support for half tensors (float16) on CPU.
+        # Move any such tensors to float32.
+        if tensor.dtype == torch.float16:
+            tensor = tensor.to(dtype=torch.float32)
+        return tensor.cpu()
+
+    return apply_to_sample(_move_to_cpu, sample)
 
 
 def get_incremental_state(
@@ -159,9 +171,9 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
 
 
 def post_process_prediction(
-    hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None
+    hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None, extra_symbols_to_ignore=None
 ):
-    hypo_str = tgt_dict.string(hypo_tokens, remove_bpe)
+    hypo_str = tgt_dict.string(hypo_tokens, remove_bpe, extra_symbols_to_ignore=extra_symbols_to_ignore)
     if align_dict is not None:
         hypo_str = replace_unk(
             hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string()
@@ -231,21 +243,27 @@ def item(tensor):
     return tensor
 
 
-def clip_grad_norm_(params, max_norm):
+def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
+    if isinstance(params, torch.Tensor):
+        params = [params]
     params = list(params)
-    if len(params) == 1:
-        p = params[0]
-        grad_norm = torch.norm(p)
-        if grad_norm > max_norm > 0:
-            clip_coef = max_norm / (grad_norm + 1e-6)
-            p.mul_(clip_coef)
-        return grad_norm
-    elif max_norm > 0:
-        return torch.nn.utils.clip_grad_norm_(params, max_norm)
-    else:
-        return torch.sqrt(
-            sum(p.grad.data.norm() ** 2 for p in params if p.grad is not None)
-        )
+    grads = [p.grad.detach() for p in filter(lambda p: p.grad is not None, params)]
+    if len(grads) == 0:
+        if len(params) > 0:
+            return params[0].new_tensor(0.)
+        else:
+            return torch.tensor(0.)
+    total_norm = torch.norm(torch.stack([torch.norm(g) for g in grads]))
+
+    if aggregate_norm_fn is not None:
+        total_norm = aggregate_norm_fn(total_norm)
+
+    if max_norm > 0:
+        max_norm = float(max_norm)
+        clip_coef = (max_norm / (total_norm + 1e-6)).clamp_(max=1)
+        for g in grads:
+            g.mul_(clip_coef)
+    return total_norm
 
 
 def fill_with_neg_inf(t):
@@ -347,7 +365,10 @@ def log_softmax(x, dim: int, onnx_trace: bool = False):
 def get_perplexity(loss, round=2, base=2):
     if loss is None:
         return 0.
-    return np.round(np.power(base, loss), round)
+    try:
+        return safe_round(base ** loss, round)
+    except OverflowError:
+        return float('inf')
 
 
 def deprecation_warning(message, stacklevel=3):

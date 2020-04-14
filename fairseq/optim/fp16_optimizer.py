@@ -153,13 +153,10 @@ class _FP16OptimizerMixin(object):
             for p32 in self.fp32_params:
                 p32.grad.data.mul_(c)
 
-    def clip_grad_norm(self, max_norm):
+    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._sync_fp16_grads_to_fp32()
-        if self.has_flat_params:
-            grad_norm = utils.clip_grad_norm_([self.fp32_params.grad.data], max_norm)
-        else:
-            grad_norm = utils.clip_grad_norm_(self.fp32_params, max_norm)
+        grad_norm = utils.clip_grad_norm_(self.fp32_params, max_norm, aggregate_norm_fn)
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
@@ -216,7 +213,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
     """
 
     def __init__(self, params, fp32_optimizer, fp32_params, fp16_init_scale, fp16_scale_tolerance, threshold_loss_scale,
-                 distributed_world_size, update_freq, fp16_scale_window, min_loss_scale):
+                 distributed_world_size, update_freq, fp16_scale_window, min_loss_scale, model_parallel_size):
         super().__init__()
         self.fp16_params = params
         self.fp32_optimizer = fp32_optimizer
@@ -228,7 +225,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
                     '--fp16-scale-window must be given explicitly when using a '
                     'custom --update-freq schedule'
                 )
-            scale_window = int(2**14 / distributed_world_size / update_freq[0])
+            data_parallel_size = int(distributed_world_size / model_parallel_size)
         else:
             scale_window = fp16_scale_window
 
@@ -260,7 +257,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
             )
         return cls(params, fp32_optimizer, fp32_params, args.fp16_init_scale, args.fp16_scale_tolerance,
                    args.threshold_loss_scale, args.distributed_world_size, args.update_freq, args.fp16_scale_window,
-                   args.min_loss_scale)
+                   args.min_loss_scale, args.model_parallel_size)
 
     @property
     def optimizer(self):
@@ -352,10 +349,10 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         else:
             self.wrapped_optimizer.multiply_grads(c)
 
-    def clip_grad_norm(self, max_norm):
+    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._unscale_grads()
-        grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm)
+        grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
 
         # detect overflow and adjust loss scale
         overflow = DynamicLossScaler.has_overflow(grad_norm)
@@ -403,7 +400,7 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
     """
 
     def __init__(self, params, optimizer, fp16_init_scale, fp16_scale_tolerance, threshold_loss_scale,
-                 distributed_world_size, update_freq, fp16_scale_window, min_loss_scale):
+                 distributed_world_size, update_freq, fp16_scale_window, min_loss_scale, model_parallel_size):
         if not optimizer.supports_memory_efficient_fp16:
             raise ValueError(
                 'Unsupported optimizer: {}'.format(optimizer.__class__.__name__)
@@ -419,6 +416,7 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
                     'custom --update-freq schedule'
                 )
             scale_window = 2**14 / distributed_world_size / update_freq[0]
+            data_parallel_size = int(distributed_world_size / model_parallel_size)
         else:
             scale_window = fp16_scale_window
 
@@ -434,7 +432,7 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
     def from_args(cls, params, args):
         fp16_optimizer = optim.build_optimizer(args, params)
         return cls(params, fp16_optimizer, args.fp16_init_scale, args.fp16_scale_tolerance, args.threshold_loss_scale,
-                 args.distributed_world_size, args.update_freq, args.fp16_scale_window, args.min_loss_scale)
+                 args.distributed_world_size, args.update_freq, args.fp16_scale_window, args.min_loss_scale, args.model_parallel_size)
 
     @property
     def optimizer(self):

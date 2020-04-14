@@ -3,11 +3,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+
 import numpy as np
 import torch
 
 from fairseq.data import Dictionary, FairseqDataset
 from fairseq.tasks import FairseqTask, register_task
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('dummy_masked_lm')
@@ -49,8 +54,7 @@ class DummyMaskedLMTask(FairseqTask):
         dictionary = Dictionary()
         for i in range(args.dict_size):
             dictionary.add_symbol('word{}'.format(i))
-        print('| dictionary: {} types'.format(len(dictionary)))
-
+        logger.info('dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):

@@ -2,6 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -29,8 +30,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
         activation_fn: str = 'relu',
-        add_bias_kv: bool = False,
-        add_zero_attn: bool = False,
         export: bool = False,
     ) -> None:
 
@@ -46,8 +45,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
             self.embedding_dim,
             num_attention_heads,
             dropout=attention_dropout,
-            add_bias_kv=add_bias_kv,
-            add_zero_attn=add_zero_attn,
+            add_bias_kv=False,
+            add_zero_attn=False,
             self_attention=True
         )
 
@@ -62,12 +61,12 @@ class TransformerSentenceEncoderLayer(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        self_attn_mask: torch.Tensor = None,
-        self_attn_padding_mask: torch.Tensor = None,
+        self_attn_mask: Optional[torch.Tensor] = None,
+        self_attn_padding_mask: Optional[torch.Tensor] = None,
     ):
         """
         LayerNorm is applied either before or after the self-attention/ffn
-        modules similar to the original Transformer imlementation.
+        modules similar to the original Transformer implementation.
         """
         residual = x
         x, attn = self.self_attn(

@@ -13,7 +13,7 @@ from typing import List, Optional
 try:
     from fvcore.common.file_io import PathManager as FVCorePathManager
 
-except (ImportError, ModuleNotFoundError):
+except ImportError:
     FVCorePathManager = None
 
 
@@ -60,9 +60,9 @@ class PathManager:
         return shutil.copyfile(src_path, dst_path)
 
     @staticmethod
-    def get_local_path(path: str) -> str:
+    def get_local_path(path: str, **kwargs) -> str:
         if FVCorePathManager:
-            return FVCorePathManager.get_local_path(path)
+            return FVCorePathManager.get_local_path(path, **kwargs)
         return path
 
     @staticmethod

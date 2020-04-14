@@ -183,16 +183,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
-        def build_embedding(dictionary, embed_dim, path=None):
-            num_embeddings = len(dictionary)
-            padding_idx = dictionary.pad()
-            emb = Embedding(num_embeddings, embed_dim, padding_idx)
-            # if provided, load from preloaded dictionaries
-            if path:
-                embed_dict = utils.parse_embedding(path)
-                utils.load_embedding(embed_dict, dictionary, emb)
-            return emb
-
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
                 raise ValueError("--share-all-embeddings requires a joined dictionary")
@@ -206,22 +196,34 @@ class TransformerModel(FairseqEncoderDecoderModel):
                 raise ValueError(
                     "--share-all-embeddings not compatible with --decoder-embed-path"
                 )
-            encoder_embed_tokens = build_embedding(
-                src_dict, args.encoder_embed_dim, args.encoder_embed_path
+            encoder_embed_tokens = cls.build_embedding(
+                args, src_dict, args.encoder_embed_dim, args.encoder_embed_path
             )
             decoder_embed_tokens = encoder_embed_tokens
             args.share_decoder_input_output_embed = True
         else:
-            encoder_embed_tokens = build_embedding(
-                src_dict, args.encoder_embed_dim, args.encoder_embed_path
+            encoder_embed_tokens = cls.build_embedding(
+                args, src_dict, args.encoder_embed_dim, args.encoder_embed_path
             )
-            decoder_embed_tokens = build_embedding(
-                tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
+            decoder_embed_tokens = cls.build_embedding(
+                args, tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
             )
 
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
         return cls(args, encoder, decoder)
+
+    @classmethod
+    def build_embedding(cls, args, dictionary, embed_dim, path=None):
+        num_embeddings = len(dictionary)
+        padding_idx = dictionary.pad()
+
+        emb = Embedding(num_embeddings, embed_dim, padding_idx)
+        # if provided, load from preloaded dictionaries
+        if path:
+            embed_dict = utils.parse_embedding(path)
+            utils.load_embedding(embed_dict, dictionary, emb)
+        return emb
 
     @classmethod
     def build_encoder(cls, args, src_dict, embed_tokens):
@@ -278,7 +280,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
     @torch.jit.export
     def get_normalized_probs(
         self,
-        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
         log_probs: bool,
         sample: Optional[Dict[str, Tensor]] = None,
     ):
@@ -396,7 +398,7 @@ class TransformerEncoder(FairseqEncoder):
 
         self.layers = nn.ModuleList([])
         self.layers.extend(
-            [TransformerEncoderLayer(args) for i in range(args.encoder_layers)]
+            [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
         )
         self.num_layers = len(self.layers)
 
@@ -408,6 +410,9 @@ class TransformerEncoder(FairseqEncoder):
             self.layernorm_embedding = LayerNorm(embed_dim)
         else:
             self.layernorm_embedding = None
+
+    def build_encoder_layer(self, args):
+        return TransformerEncoderLayer(args)
 
     def forward_embedding(self, src_tokens):
         # embed tokens and positions
@@ -480,6 +485,8 @@ class TransformerEncoder(FairseqEncoder):
             encoder_padding_mask=encoder_padding_mask,  # B x T
             encoder_embedding=encoder_embedding,  # B x T x C
             encoder_states=encoder_states,  # List[T x B x C]
+            src_tokens=None,
+            src_lengths=None,
         )
 
     @torch.jit.export
@@ -511,6 +518,13 @@ class TransformerEncoder(FairseqEncoder):
             if encoder_out.encoder_embedding is None
             else encoder_out.encoder_embedding.index_select(0, new_order)
         )
+        src_tokens = encoder_out.src_tokens
+        if src_tokens is not None:
+            src_tokens = src_tokens.index_select(0, new_order)
+
+        src_lengths = encoder_out.src_lengths
+        if src_lengths is not None:
+            src_lengths = src_lengths.index_select(0, new_order)
 
         encoder_states = encoder_out.encoder_states
         if encoder_states is not None:
@@ -522,6 +536,8 @@ class TransformerEncoder(FairseqEncoder):
             encoder_padding_mask=new_encoder_out["encoder_padding_mask"],  # B x T
             encoder_embedding=new_encoder_out["encoder_embedding"],  # B x T x C
             encoder_states=encoder_states,  # List[T x B x C]
+            src_tokens=src_tokens,  # B x T
+            src_lengths=src_lengths,  # B x 1
         )
 
     def max_positions(self):
@@ -585,6 +601,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
     """
 
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
+        self.args = args
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
         self._future_mask = torch.empty(0)
@@ -628,7 +645,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.layers = nn.ModuleList([])
         self.layers.extend(
             [
-                TransformerDecoderLayer(args, no_encoder_attn)
+                self.build_decoder_layer(args, no_encoder_attn)
                 for _ in range(args.decoder_layers)
             ]
         )
@@ -668,6 +685,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layernorm_embedding = LayerNorm(embed_dim)
         else:
             self.layernorm_embedding = None
+
+    def build_decoder_layer(self, args, no_encoder_attn=False):
+        return TransformerDecoderLayer(args, no_encoder_attn)
 
     def forward(
         self,
@@ -859,16 +879,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self._future_mask = self._future_mask.to(tensor)
         return self._future_mask[:dim, :dim]
 
-    # Overwirte the method to temporaily soppurt jit scriptable in Transformer
-    @torch.jit.export
-    def reorder_incremental_state(
-        self,
-        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
-        new_order: Tensor,
-    ):
-        """Scriptable reorder incremental state in the transformer."""
-        for layer in self.layers:
-            layer.reorder_incremental_state(incremental_state, new_order)
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""

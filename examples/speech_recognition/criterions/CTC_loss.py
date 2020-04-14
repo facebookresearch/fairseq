@@ -76,11 +76,14 @@ def compute_ctc_uer(logprobs, targets, input_lengths, target_lengths, blank_idx)
 
 @register_criterion("ctc_loss")
 class CTCCriterion(FairseqCriterion):
-    def __init__(self, args, task):
-        super().__init__(args, task)
+    def __init__(self, task):
+        assert hasattr(task, "target_dictionary")
+        super().__init__(task)
         self.blank_idx = task.target_dictionary.index("<ctc_blank>")
-        self.pad_idx = task.target_dictionary.pad()
-        self.task = task
+
+    @staticmethod
+    def build_criterion(cls, args, task):
+        return cls(task)
 
     @staticmethod
     def add_args(parser):
@@ -134,7 +137,7 @@ class CTCCriterion(FairseqCriterion):
             # N T D -> T N D (F.ctc_loss expects this)
             lprobs = lprobs.transpose(0, 1)
 
-        pad_mask = sample["target"] != self.pad_idx
+        pad_mask = sample["target"] != self.padding_idx
         targets_flat = targets.masked_select(pad_mask)
 
         loss = F.ctc_loss(

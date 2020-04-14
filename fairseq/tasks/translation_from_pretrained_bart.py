@@ -47,7 +47,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
 
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args, src_dict, tgt_dict)
-        self.langs = sorted(args.langs.split(','))
+        self.langs = args.langs.split(',')
         for d in [src_dict, tgt_dict]:
             for l in self.langs:
                 d.add_symbol('[{}]'.format(l))
@@ -79,7 +79,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             append_source_id=True
             )
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(
@@ -89,6 +89,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         else:
             from fairseq.sequence_generator import SequenceGenerator
             return SequenceGenerator(
+                models,
                 self.target_dictionary,
                 beam_size=getattr(args, 'beam', 5),
                 max_len_a=getattr(args, 'max_len_a', 0),

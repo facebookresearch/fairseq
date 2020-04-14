@@ -27,10 +27,19 @@ _active_aggregators = OrderedDict()
 _active_aggregators_cnt = defaultdict(lambda: 0)
 
 
-# The "default" aggregator observes all logged values.
-_aggregators["default"] = MetersDict()
-_active_aggregators["default"] = _aggregators["default"]
-_active_aggregators_cnt["default"] = 1
+def reset() -> None:
+    """Reset all metrics aggregators."""
+    _aggregators.clear()
+    _active_aggregators.clear()
+    _active_aggregators_cnt.clear()
+
+    # The "default" aggregator observes all logged values.
+    _aggregators["default"] = MetersDict()
+    _active_aggregators["default"] = _aggregators["default"]
+    _active_aggregators_cnt["default"] = 1
+
+
+reset()
 
 
 @contextlib.contextmanager
@@ -140,7 +149,6 @@ def log_derived(key: str, fn: Callable[[MetersDict], float], priority: int = 20)
 def log_speed(
     key: str,
     value: float,
-    ignore_first: int = 0,
     priority: int = 30,
     round: Optional[int] = None,
 ):
@@ -149,13 +157,12 @@ def log_speed(
     Args:
         key (str): name of the field to log
         value (float): value to log
-        ignore_first (int): ignore the first few values
         priority (int): smaller values are logged earlier in the output
         round (Optional[int]): number of digits to round to when displaying
     """
     for agg in get_active_aggregators():
         if key not in agg:
-            agg.add_meter(key, TimeMeter(ignore_first=ignore_first, round=round), priority)
+            agg.add_meter(key, TimeMeter(round=round), priority)
             agg[key].reset()  # reset meter on the first call
         else:
             agg[key].update(value)
