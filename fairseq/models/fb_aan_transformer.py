@@ -151,20 +151,15 @@ class AverageAttention(nn.Module):
 
     def reorder_incremental_state(self, incremental_state, new_order):
         """Reorder buffered internal state (for incremental generation)."""
-        for incremental_clone_id in self.incremental_clone_ids:
-            input_buffer = self._get_input_buffer(
-                incremental_state, incremental_clone_id=incremental_clone_id
-            )
-            if input_buffer is not None:
-                for k in input_buffer.keys():
-                    if torch.is_tensor(input_buffer[k]) and input_buffer[k].size(1) > 1:
-                        input_buffer[k] = input_buffer[k].index_select(1, new_order)
-                self._set_input_buffer(
-                    incremental_state,
-                    input_buffer,
-                    incremental_clone_id=incremental_clone_id,
-                )
-            incremental_state = self._set_input_buffer(incremental_state, input_buffer)
+        input_buffer = self._get_input_buffer(incremental_state)
+        if input_buffer is not None:
+            for k in ("prev_vec", "prev_sum"):
+                if (
+                    k in input_buffer
+                    and input_buffer[k].size(1) > 1
+                ):
+                    input_buffer[k] = input_buffer[k].index_select(1, new_order)
+        incremental_state = self._set_input_buffer(incremental_state, input_buffer)
         return incremental_state
 
     def _get_input_buffer(
