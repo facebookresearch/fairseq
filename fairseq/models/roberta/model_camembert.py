@@ -18,7 +18,14 @@ class CamembertModel(RobertaModel):
     @classmethod
     def hub_models(cls):
         return {
-            'camembert.v0': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert.v0.tar.gz',
+            'camembert': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-base.tar.gz',
+            'camembert.v0': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-base.tar.gz',
+            'camembert-base': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-base.tar.gz',
+            'camembert-large': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-large.tar.gz',
+            'camembert-base-ccnet': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-base-ccnet.tar.gz',
+            'camembert-base-ccnet-4gb': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-base-ccnet-4gb.tar.gz',
+            'camembert-base-wikipedia-4gb': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-base-wikipedia-4gb.tar.gz',
+            'camembert-base-oscar-4gb': 'http://dl.fbaipublicfiles.com/fairseq/models/camembert-base-oscar-4gb.tar.gz',
         }
 
     @classmethod
