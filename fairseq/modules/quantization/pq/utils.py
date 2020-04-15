@@ -8,7 +8,6 @@ import re
 from operator import attrgetter, itemgetter
 
 import numpy as np
-import torch
 import torch.nn as nn
 import torch.distributed as dist
 

@@ -4,11 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
-import re
-from operator import attrgetter, itemgetter
+from operator import attrgetter
 
-import numpy as np
-import torch
 import torch.nn as nn
 import torch.distributed as dist
 

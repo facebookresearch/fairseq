@@ -92,6 +92,9 @@ class Quantizer(object):
             self.n_centroids_config,
             step=self.quantization_step,
         )
+        logger.info('quantized layers: {}'.format(quantized_layers))
+        logger.info(self.size_tracker)
+
         self.quantization_step += 1
 
         # reintialize the Trainer since model parameters have changed

@@ -65,7 +65,7 @@ class IntEmbedding(nn.Module):
         else:
             assert list(_weight.shape) == [num_embeddings, embedding_dim], \
                 'Shape of weight does not match num_embeddings and embedding_dim'
-            self.weight = Parameter(_weight)
+            self.weight = nn.Parameter(_weight)
         self.sparse = sparse
 
         # quantization parameters
@@ -106,8 +106,8 @@ class IntEmbedding(nn.Module):
         noise = (weight_quantized - self.weight).masked_fill(mask.bool(), 0)
 
         # using straight-through estimator (STE)
-        clamp_low = - self.scale * self.zero_point  
-        clamp_high = self.scale * (2 ** self.bits - 1 - self.zero_point)    
+        clamp_low = - self.scale * self.zero_point
+        clamp_high = self.scale * (2 ** self.bits - 1 - self.zero_point)
         weight = torch.clamp(self.weight, clamp_low.item(), clamp_high.item()) + noise.detach()
 
         # return output
@@ -128,5 +128,5 @@ class IntEmbedding(nn.Module):
             s += ', scale_grad_by_freq={scale_grad_by_freq}'
         if self.sparse is not False:
             s += ', sparse=True'
-        s+= 'quant_noise={p}, bits={bits}, method={method}'
+        s += 'quant_noise={p}, bits={bits}, method={method}'
         return s.format(**self.__dict__)

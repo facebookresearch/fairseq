@@ -5,8 +5,6 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn import Parameter
 
 
 def quant_noise(module, p, block_size):
@@ -74,7 +72,7 @@ def quant_noise(module, p, block_size):
                 out_channels = mod.out_channels
 
                 # split weight matrix into blocks and randomly drop selected blocks
-                if self.kernel_size == (1, 1):
+                if mod.kernel_size == (1, 1):
                     mask = torch.zeros(int(in_channels // block_size * out_channels), device=weight.device)
                     mask.bernoulli_(p)
                     mask = mask.repeat_interleave(block_size, -1).view(-1, in_channels)

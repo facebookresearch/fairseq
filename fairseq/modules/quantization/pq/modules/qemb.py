@@ -46,7 +46,7 @@ class PQEmbedding(nn.Module):
         self.norm_type = norm_type
         self.scale_grad_by_freq = scale_grad_by_freq
         self.sparse = sparse
-         # check compatibility
+        # check compatibility
         if self.embedding_dim % self.block_size != 0:
             raise ValueError("Wrong PQ sizes")
         if len(assignments) % self.num_embeddings != 0:
