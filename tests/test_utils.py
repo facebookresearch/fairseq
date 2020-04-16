@@ -91,6 +91,10 @@ class TestUtils(unittest.TestCase):
         grad_norm = utils.clip_grad_norm_(params, 1.0)
         self.assertAlmostEqual(grad_norm, torch.tensor(1.0))
 
+    def test_resolve_max_positions_with_tuple(self):
+        resolved = utils.resolve_max_positions(None, (2000, 100, 2000), 12000)
+        self.assertEqual(resolved, (2000, 100, 2000))
+
     def assertAlmostEqual(self, t1, t2):
         self.assertEqual(t1.size(), t2.size(), "size mismatch")
         self.assertLess(utils.item((t1 - t2).abs().max()), 1e-4)
