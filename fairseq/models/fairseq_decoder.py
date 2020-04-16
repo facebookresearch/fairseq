@@ -59,7 +59,7 @@ class FairseqDecoder(nn.Module):
         self,
         net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
         log_probs: bool,
-        sample: Optional[Dict[str, Tensor]],
+        sample: Optional[Dict[str, Tensor]] = None,
     ):
         """Get normalized probabilities (or log probs) from a net's output."""
 

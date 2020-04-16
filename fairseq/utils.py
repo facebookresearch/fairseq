@@ -212,7 +212,7 @@ def buffered_arange(max):
 
 
 def convert_padding_direction(
-    src_tokens, padding_idx, right_to_left=False, left_to_right=False
+    src_tokens, padding_idx, right_to_left: bool = False, left_to_right: bool = False
 ):
     assert right_to_left ^ left_to_right
     pad_mask = src_tokens.eq(padding_idx)
@@ -226,7 +226,10 @@ def convert_padding_direction(
         # already left padded
         return src_tokens
     max_len = src_tokens.size(1)
-    range = buffered_arange(max_len).type_as(src_tokens).expand_as(src_tokens)
+    buffered = torch.empty(0).long()
+    if max_len > 0:
+        torch.arange(max_len, out=buffered)
+    range = buffered.type_as(src_tokens).expand_as(src_tokens)
     num_pads = pad_mask.long().sum(dim=1, keepdim=True)
     if right_to_left:
         index = torch.remainder(range - num_pads, max_len)
