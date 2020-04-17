@@ -390,7 +390,6 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
     def get_cached_state(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
-
         cached_state = self.get_incremental_state(incremental_state, 'cached_state')
         assert cached_state is not None
         prev_hiddens_ = cached_state["prev_hiddens"]
@@ -399,12 +398,16 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         assert prev_cells_ is not None
         prev_hiddens = [prev_hiddens_[i] for i in range(self.num_layers)]
         prev_cells = [prev_cells_[j] for j in range(self.num_layers)]
-        input_feed = cached_state["input_feed"]
-        assert input_feed is not None
+        input_feed = cached_state["input_feed"]  # can be None for decoder-only language models
         return prev_hiddens, prev_cells, input_feed
 
-    def forward(self, prev_output_tokens, encoder_out: Dict[str, Tuple[Tensor, Tensor, Tensor]],
-                incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
+    def forward(
+        self,
+        prev_output_tokens,
+        encoder_out: Optional[Dict[str, Tuple[Tensor, Tensor, Tensor]]] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        src_lengths: Optional[Tensor] = None,
+    ):
         x, attn_scores = self.extract_features(
             prev_output_tokens, encoder_out, incremental_state
         )
@@ -533,7 +536,10 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         return x
 
     def reorder_state(self, state: List[Tensor], new_order):
-        return [state_i.index_select(0, new_order) for state_i in state]
+        return [
+            state_i.index_select(0, new_order) if state_i is not None else None
+            for state_i in state
+        ]
 
     def reorder_incremental_state(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_order):
         if incremental_state is None or len(incremental_state) == 0:
