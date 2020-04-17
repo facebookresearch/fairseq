@@ -1,6 +1,6 @@
 # Training with Quantization Noise for Extreme Model Compression ({Fan\*, Stock\*} *et al.*, 2019)
 This page contains information for how to train and quantize models with Quantization Noise, for both scalar quantization like `int8` and Iterative Product Quantization.
-Check out our blog post [here](link_to_blog_post) and read the paper [here](link_to_paper).
+Check out our paper [here](https://arxiv.org/abs/2004.07320).
 
 Looking for pretrained models? They will be added shortly.
 Looking for code to train vision models? We are working on open sourcing our code as part of ClassyVision. Please check back, but note that both the Scalar and Iterative Product Quantization counterparts of the `nn.Conv2d` module are already included in this release.
@@ -12,7 +12,16 @@ Looking for code to train vision models? We are working on open sourcing our cod
 
 
 ## Citation
-TODO
+```bibtex
+@article{fan2020training,
+    title={Training with Quantization Noise for Extreme Model Compression},
+    author={Angela Fan and Pierre Stock and and Benjamin Graham and Edouard Grave and Remi Gribonval and Herve Jegou and Armand Joulin},
+    year={2020},
+    eprint={2004.07320},
+    archivePrefix={arXiv},
+    primaryClass={cs.ML}
+}
+```
 
 ## Walk through the code
 
