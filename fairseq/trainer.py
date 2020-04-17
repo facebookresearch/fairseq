@@ -127,12 +127,10 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-        params = list(
-            filter(
-                lambda p: p.requires_grad,
-                chain(self.model.parameters(), self.criterion.parameters()),
-            )
-        )
+        params = self.model.param_groups()
+        criterion_params = self.criterion.parameters()
+        if criterion_params:
+            params.extend(criterion_params)
 
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
@@ -151,7 +149,7 @@ class Trainer(object):
                 logger.info("NOTE: your device may support faster training with --fp16")
             self._optimizer = optim.build_optimizer(self.args, params)
 
-        if self.args.use_bmuf:
+       if self.args.use_bmuf:
             self._optimizer = optim.FairseqBMUF(self.args, self._optimizer)
 
         # We should initialize the learning rate scheduler immediately after
@@ -399,12 +397,20 @@ class Trainer(object):
             # (sum_of_gradients / sample_size).
             if not self.args.use_bmuf:
                 multiplier = self.data_parallel_world_size
-                self.optimizer.multiply_grads(
-                    multiplier / sample_size
-                )
+                if getattr(self.args, 'loss_denominator', None):
+                    self.optimizer.multiply_grads(
+                        multiplier / self.args.loss_denominator
+                    )
+                else:
+                    self.optimizer.multiply_grads(
+                        multiplier / sample_size
+                    )
             elif sample_size > 0:  # BMUF needs to check sample size
                 num = self.data_parallel_world_size if self._sync_stats() else 1
-                self.optimizer.multiply_grads(num / sample_size)
+                if getattr(self.args, 'loss_denominator', None):
+                    self.optimizer.multiply_grads(num / self.args.loss_denominator)
+                else:
+                    self.optimizer.multiply_grads(num / sample_size)
 
             # clip grads
             grad_norm = self.clip_grad_norm(self.args.clip_norm)

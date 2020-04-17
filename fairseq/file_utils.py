@@ -147,7 +147,7 @@ def cached_path(url_or_filename, cache_dir=None):
 
     parsed = urlparse(url_or_filename)
 
-    if parsed.scheme in ('http', 'https', 's3'):
+    if parsed.scheme in ('http', 'https', 's3', 'gs'):
         # URL, so get it from the cache (downloading if necessary)
         return get_from_cache(url_or_filename, cache_dir)
     elif os.path.exists(url_or_filename):
@@ -256,6 +256,8 @@ def get_from_cache(url, cache_dir=None):
     # Get eTag to add to filename, if it exists.
     if url.startswith("s3://"):
         etag = s3_etag(url)
+    elif url.startswith('gs://'):
+        etag = gs_etag(url)
     else:
         try:
             import requests
@@ -289,6 +291,8 @@ def get_from_cache(url, cache_dir=None):
             # GET file object
             if url.startswith("s3://"):
                 s3_get(url, temp_file)
+            elif url.startswith("gs://"):
+                gs_get(url, temp_file)
             else:
                 http_get(url, temp_file)
 
@@ -329,3 +333,22 @@ def get_file_extension(path, dot=True, lower=True):
     ext = os.path.splitext(path)[1]
     ext = ext if dot else ext[1:]
     return ext.lower() if lower else ext
+
+
+def gs_etag(url):
+    """Get ETag from GSC."""
+    return None
+
+
+def gs_get(url, temp_file):
+    from google.cloud import storage
+
+    credentials = storage.client.AnonymousCredentials()
+    storage_client = storage.Client('fairseq', credentials)
+
+    bucket_name, path = split_s3_path(url)
+
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(path)
+    blob.download_to_filename(temp_file.name)
+

@@ -81,6 +81,15 @@ class BaseFairseqModel(nn.Module):
         """Maximum length supported by the model."""
         return None
 
+    def param_groups(self):
+        """Get trainable Parameter groups."""
+        params = list(
+            filter(
+                lambda p: p.requires_grad,
+                self.parameters())
+            )
+        return params
+
     def load_state_dict(self, state_dict, strict=True, args=None):
         """Copies parameters and buffers from *state_dict* into this module and
         its descendants.

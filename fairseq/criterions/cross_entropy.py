@@ -5,6 +5,7 @@
 
 import math
 
+import torch
 import torch.nn.functional as F
 
 from fairseq import metrics, utils
@@ -14,9 +15,18 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 @register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, task, sentence_avg):
+    def __init__(self, task, sentence_avg, z_loss=None):
         super().__init__(task)
         self.sentence_avg = sentence_avg
+        self.z_loss = z_loss
+
+    @staticmethod
+    def add_args(parser):
+        parser.add_argument(
+            '--z-loss',
+            default=0.0,
+            type=float,
+            help='Add loss equal to z_loss * log(z)^2, where z are scores before softmax.')
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
@@ -47,7 +57,20 @@ class CrossEntropyCriterion(FairseqCriterion):
             ignore_index=self.padding_idx,
             reduction='sum' if reduce else 'none',
         )
+        if self.z_loss and model.training == True:
+            loss += self.compute_z_loss(net_output[0], -1)
         return loss, loss
+
+    def compute_z_loss(self, x, vocab_dim):
+        """Compute z-loss.
+
+        Add self.z_loss * log(z)^2, where x are scores before softmax. The goal of z-loss is to keep
+        logits from drifting too far from zero. Originally taken from Tensorflow Mesh.
+
+        """
+        z_log = torch.logsumexp(x, vocab_dim)
+        out = self.z_loss * torch.sum(torch.pow(z_log, 2))
+        return out
 
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:

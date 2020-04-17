@@ -13,10 +13,26 @@ from . import data_utils, FairseqDataset
 
 logger = logging.getLogger(__name__)
 
+def collate_prev_tokens(values, pad_idx, bos_idx=None, left_pad=False, move_eos_to_beginning=False):
+    """Convert a list of 1d tensors into a padded 2d tensor."""
+    size = max(v.size(0) for v in values)
+    res = values[0].new(len(values), size).fill_(pad_idx)
+
+    def copy_tensor(src, dst):
+        assert dst.numel() == src.numel()
+        if move_eos_to_beginning:
+            dst[0] = bos_idx
+            dst[1:] = src[:-1]
+        else:
+            dst.copy_(src)
+
+    for i, v in enumerate(values):
+        copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
+    return res
 
 def collate(
     samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
-    input_feeding=True,
+    input_feeding=True, decoder_start_token_idx=None,
 ):
     if len(samples) == 0:
         return {}
@@ -68,11 +84,12 @@ def collate(
         if input_feeding:
             # we create a shifted version of targets for feeding the
             # previous output token(s) into the next decoder step
-            prev_output_tokens = merge(
-                'target',
-                left_pad=left_pad_target,
-                move_eos_to_beginning=True,
-            )
+            if decoder_start_token_idx is None:
+                decoder_start_token_idx = eos_idx
+            prev_output_tokens = collate_prev_tokens(
+                [s['target'] for s in samples],
+                pad_idx, decoder_start_token_idx, False, True)
+
             prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
         ntokens = sum(len(s['source']) for s in samples)
@@ -149,6 +166,8 @@ class LanguagePairDataset(FairseqDataset):
             containing alignments.
         append_bos (bool, optional): if set, appends bos to the beginning of
             source/target sentence.
+        decoder_start_token_idx (integer, optional), if set, put this token to the
+            beggining of previous token list in the decoder.
     """
 
     def __init__(
@@ -159,7 +178,7 @@ class LanguagePairDataset(FairseqDataset):
         shuffle=True, input_feeding=True,
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
-        append_bos=False, eos=None
+        append_bos=False, eos=None, decoder_start_token_idx=None
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -184,6 +203,14 @@ class LanguagePairDataset(FairseqDataset):
             assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
         self.append_bos = append_bos
         self.eos = (eos if eos is not None else src_dict.eos())
+
+        if decoder_start_token_idx is not None:
+            self.decoder_start_token_idx = decoder_start_token_idx
+        else:
+            if self.tgt_dict:
+                self.decoder_start_token_idx = self.tgt_dict.eos()
+            else:
+                self.decoder_start_token_idx = self.src_dict.eos()
 
     def __getitem__(self, index):
         tgt_item = self.tgt[index] if self.tgt is not None else None
@@ -255,7 +282,7 @@ class LanguagePairDataset(FairseqDataset):
         return collate(
             samples, pad_idx=self.src_dict.pad(), eos_idx=self.eos,
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
-            input_feeding=self.input_feeding,
+            input_feeding=self.input_feeding, decoder_start_token_idx=self.decoder_start_token_idx
         )
 
     def num_tokens(self, index):

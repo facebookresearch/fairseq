@@ -404,6 +404,9 @@ def add_optimization_args(parser):
     group.add_argument('--sentence-avg', action='store_true',
                        help='normalize gradients by the number of sentences in a batch'
                             ' (default is to normalize by number of tokens)')
+    group.add_argument('--loss-denominator', default=None, type=int,
+                       help='normalize gradients by a constant value instead of'
+                            ' (default is to normalize by number of tokens)')
     group.add_argument('--update-freq', default='1', metavar='N1,N2,...,N_K',
                        type=lambda uf: eval_str_list(uf, type=int),
                        help='update parameters every N_i batches, when in epoch i')
