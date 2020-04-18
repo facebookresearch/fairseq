@@ -106,7 +106,7 @@ class BaseProgressBar(object):
     """Abstract class for progress bars."""
     def __init__(self, iterable, epoch=None, prefix=None):
         self.iterable = iterable
-        self.offset = getattr(iterable, 'offset', 0)
+        self.n = getattr(iterable, 'n', 0)
         self.epoch = epoch
         self.prefix = ''
         if epoch is not None:
@@ -170,7 +170,7 @@ class JsonProgressBar(BaseProgressBar):
 
     def __iter__(self):
         self.size = len(self.iterable)
-        for i, obj in enumerate(self.iterable, start=self.offset):
+        for i, obj in enumerate(self.iterable, start=self.n):
             self.i = i
             yield obj
 
@@ -242,7 +242,7 @@ class SimpleProgressBar(BaseProgressBar):
 
     def __iter__(self):
         self.size = len(self.iterable)
-        for i, obj in enumerate(self.iterable, start=self.offset):
+        for i, obj in enumerate(self.iterable, start=self.n):
             self.i = i
             yield obj
 
