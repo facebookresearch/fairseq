@@ -16,6 +16,7 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+- April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
 - April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
 - March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
 - February 2020: [mBART model and code released](examples/mbart/README.md)
@@ -135,6 +136,7 @@ as well as example training and evaluation commands.
 - [wav2vec](examples/wav2vec/README.md): wav2vec large model is available
 
 We also have more detailed READMEs to reproduce results from specific papers:
+- [Training with Quantization Noise for Extreme Model Compression](examples/quant_noise/README.md)
 - [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
 - [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
 - [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)

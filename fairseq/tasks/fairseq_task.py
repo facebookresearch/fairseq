@@ -206,9 +206,10 @@ class FairseqTask(object):
         Returns:
             a :class:`~fairseq.models.BaseFairseqModel` instance
         """
-        from fairseq import models
+        from fairseq import models, quantization_utils
 
-        return models.build_model(args, self)
+        model = models.build_model(args, self)
+        return quantization_utils.quantize_model_scalar(model, args)
 
     def build_criterion(self, args):
         """

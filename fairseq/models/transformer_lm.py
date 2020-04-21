@@ -106,15 +106,22 @@ class TransformerLanguageModel(FairseqLanguageModel):
                             help='if set, ties the projection weights of adaptive softmax and adaptive input')
         parser.add_argument('--decoder-learned-pos', action='store_true',
                             help='use learned positional embeddings in the decoder')
+        parser.add_argument('--layernorm-embedding', action='store_true',
+                            help='add layernorm to embedding')
+        parser.add_argument('--no-scale-embedding', action='store_true',
+                            help='if True, dont scale embeddings')
         # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
         parser.add_argument('--decoder-layerdrop', type=float, metavar='D', default=0,
                             help='LayerDrop probability for decoder')
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
-        parser.add_argument('--layernorm-embedding', action='store_true',
-                            help='add layernorm to embedding')
-        parser.add_argument('--no-scale-embedding', action='store_true',
-                            help='if True, dont scale embeddings')
+        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
+                            help='iterative PQ quantization noise at training time')
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
+                            help='block size of quantization noise at training time')
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+                            help='scalar quantization noise and scalar quantization at training time')
         # fmt: on
 
     @classmethod
@@ -141,6 +148,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
                 len(task.source_dictionary), task.source_dictionary.pad(), args.decoder_input_dim,
                 args.adaptive_input_factor, args.decoder_embed_dim,
                 options.eval_str_list(args.adaptive_input_cutoff, type=int),
+                args.quant_noise_pq, args.quant_noise_pq_block_size,
             )
         else:
             embed_tokens = cls.build_embedding(args, task.source_dictionary, args.decoder_input_dim)
