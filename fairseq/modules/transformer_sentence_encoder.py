@@ -14,6 +14,7 @@ from fairseq.modules import (
     PositionalEmbedding,
     TransformerSentenceEncoderLayer,
 )
+from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 import random
 
 
@@ -94,6 +95,8 @@ class TransformerSentenceEncoder(nn.Module):
         n_trans_layers_to_freeze: int = 0,
         export: bool = False,
         traceable: bool = False,
+        q_noise: float = 0.0,
+        qn_block_size: int = 8,
     ) -> None:
 
         super().__init__()
@@ -113,6 +116,15 @@ class TransformerSentenceEncoder(nn.Module):
             self.vocab_size, self.embedding_dim, self.padding_idx
         )
         self.embed_scale = embed_scale
+
+        if q_noise > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(self.embedding_dim, self.embedding_dim, bias=False),
+                q_noise,
+                qn_block_size,
+            )
+        else:
+            self.quant_noise = None
 
         self.segment_embeddings = (
             nn.Embedding(self.num_segments, self.embedding_dim, padding_idx=None)
@@ -142,6 +154,8 @@ class TransformerSentenceEncoder(nn.Module):
                     activation_dropout=activation_dropout,
                     activation_fn=activation_fn,
                     export=export,
+                    q_noise=q_noise,
+                    qn_block_size=qn_block_size
                 )
                 for _ in range(num_encoder_layers)
             ]
@@ -193,6 +207,9 @@ class TransformerSentenceEncoder(nn.Module):
 
         if self.segment_embeddings is not None and segment_labels is not None:
             x += self.segment_embeddings(segment_labels)
+
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
 
         if self.emb_layer_norm is not None:
             x = self.emb_layer_norm(x)

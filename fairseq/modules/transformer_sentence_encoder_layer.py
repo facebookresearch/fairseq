@@ -13,7 +13,7 @@ from fairseq.modules import (
     LayerNorm,
     MultiheadAttention,
 )
-
+from fairseq.modules.quant_noise import quant_noise
 
 class TransformerSentenceEncoderLayer(nn.Module):
     """
@@ -31,6 +31,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
         activation_dropout: float = 0.1,
         activation_fn: str = 'relu',
         export: bool = False,
+        q_noise: float = 0.0,
+        qn_block_size: int = 8,
     ) -> None:
 
         super().__init__()
@@ -47,13 +49,19 @@ class TransformerSentenceEncoderLayer(nn.Module):
             dropout=attention_dropout,
             add_bias_kv=False,
             add_zero_attn=False,
-            self_attention=True
+            self_attention=True,
+            q_noise=q_noise,
+            qn_block_size=qn_block_size,
         )
 
         # layer norm associated with the self attention layer
         self.self_attn_layer_norm = LayerNorm(self.embedding_dim, export=export)
-        self.fc1 = nn.Linear(self.embedding_dim, ffn_embedding_dim)
-        self.fc2 = nn.Linear(ffn_embedding_dim, self.embedding_dim)
+        self.fc1 = quant_noise(
+            nn.Linear(self.embedding_dim, ffn_embedding_dim), q_noise, qn_block_size
+        )
+        self.fc2 = quant_noise(
+            nn.Linear(ffn_embedding_dim, self.embedding_dim), q_noise, qn_block_size
+        )
 
         # layer norm associated with the position wise feed-forward NN
         self.final_layer_norm = LayerNorm(self.embedding_dim, export=export)

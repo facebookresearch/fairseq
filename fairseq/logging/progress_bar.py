@@ -314,8 +314,7 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
 
         if SummaryWriter is None:
             logger.warning(
-                "tensorboard or required dependencies not found, please see README "
-                "for using tensorboard. (e.g. pip install tensorboardX)"
+                "tensorboard not found, please install with: pip install tensorboardX"
             )
 
     def _writer(self, key):
