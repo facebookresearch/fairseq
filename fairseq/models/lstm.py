@@ -230,10 +230,6 @@ class LSTMEncoder(FairseqEncoder):
         if bidirectional:
             self.output_units *= 2
 
-    def combine_bidir(self, outs, bsz: int):
-        out = outs.view(self.num_layers, 2, bsz, -1).transpose(1, 2).contiguous()
-        return out.view(self.num_layers, bsz, -1)
-
     def forward(self, src_tokens, src_lengths: Tensor):
         if self.left_pad:
             # nn.utils.rnn.pack_padded_sequence requires right-padding;
@@ -271,28 +267,29 @@ class LSTMEncoder(FairseqEncoder):
         assert list(x.size()) == [seqlen, bsz, self.output_units]
 
         if self.bidirectional:
-
             final_hiddens = self.combine_bidir(final_hiddens, bsz)
             final_cells = self.combine_bidir(final_cells, bsz)
 
         encoder_padding_mask = src_tokens.eq(self.padding_idx).t()
 
-        return {
-            'encoder_out': (x, final_hiddens, final_cells),
-            'encoder_padding_mask': (encoder_padding_mask, torch.empty(0), torch.empty(0)),
-        }
+        return tuple((
+            x,  # seq_len x batch x hidden
+            final_hiddens,  # num_layers x batch x num_directions*hidden
+            final_cells,  # num_layers x batch x num_directions*hidden
+            encoder_padding_mask,  # seq_len x batch
+        ))
 
-    def reorder_encoder_out(self, encoder_out: Dict[str, Tuple[Tensor, Tensor, Tensor]], new_order):
-        encoder_out['encoder_out'] = (
-                encoder_out['encoder_out'][0].index_select(1, new_order),
-                encoder_out['encoder_out'][1].index_select(1, new_order),
-                encoder_out['encoder_out'][2].index_select(1, new_order))
-        if encoder_out['encoder_padding_mask'][0] is not None:
-            encoder_out['encoder_padding_mask'] = (
-                encoder_out['encoder_padding_mask'][0].index_select(1, new_order),
-                encoder_out['encoder_padding_mask'][1],
-                encoder_out['encoder_padding_mask'][2])
-        return encoder_out
+    def combine_bidir(self, outs, bsz: int):
+        out = outs.view(self.num_layers, 2, bsz, -1).transpose(1, 2).contiguous()
+        return out.view(self.num_layers, bsz, -1)
+
+    def reorder_encoder_out(self, encoder_out, new_order):
+        return tuple((
+            encoder_out[0].index_select(1, new_order),
+            encoder_out[1].index_select(1, new_order),
+            encoder_out[2].index_select(1, new_order),
+            encoder_out[3].index_select(1, new_order),
+        ))
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
@@ -375,22 +372,25 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             )
             for layer in range(num_layers)
         ])
+
         if attention:
             # TODO make bias configurable
             self.attention = AttentionLayer(hidden_size, encoder_output_units, hidden_size, bias=False)
         else:
             self.attention = None
+
         if hidden_size != out_embed_dim:
             self.additional_fc = Linear(hidden_size, out_embed_dim)
+
         if adaptive_softmax_cutoff is not None:
             # setting adaptive_softmax dropout to dropout_out for now but can be redefined
-            self.adaptive_softmax = AdaptiveSoftmax(num_embeddings, hidden_size, adaptive_softmax_cutoff,
-                                                    dropout=dropout_out)
+            self.adaptive_softmax = AdaptiveSoftmax(
+                num_embeddings, hidden_size, adaptive_softmax_cutoff, dropout=dropout_out
+            )
         elif not self.share_input_output_embed:
             self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
     def get_cached_state(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
-
         cached_state = self.get_incremental_state(incremental_state, 'cached_state')
         assert cached_state is not None
         prev_hiddens_ = cached_state["prev_hiddens"]
@@ -399,41 +399,48 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         assert prev_cells_ is not None
         prev_hiddens = [prev_hiddens_[i] for i in range(self.num_layers)]
         prev_cells = [prev_cells_[j] for j in range(self.num_layers)]
-        input_feed = cached_state["input_feed"]
-        assert input_feed is not None
+        input_feed = cached_state["input_feed"]  # can be None for decoder-only language models
         return prev_hiddens, prev_cells, input_feed
 
-    def forward(self, prev_output_tokens, encoder_out: Dict[str, Tuple[Tensor, Tensor, Tensor]],
-                incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
+    def forward(
+        self,
+        prev_output_tokens,
+        encoder_out: Optional[Tuple[Tensor, Tensor, Tensor, Tensor]] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        src_lengths: Optional[Tensor] = None,
+    ):
         x, attn_scores = self.extract_features(
             prev_output_tokens, encoder_out, incremental_state
         )
         return self.output_layer(x), attn_scores
 
     def extract_features(
-            self, prev_output_tokens, encoder_out: Dict[str, Tuple[Tensor, Tensor, Tensor]],
-            incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None
+        self,
+        prev_output_tokens,
+        encoder_out: Optional[Tuple[Tensor, Tensor, Tensor, Tensor]] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
     ):
         """
         Similar to *forward* but only return features.
         """
+        # get outputs from encoder
         if encoder_out is not None:
-            encoder_padding_mask, _, _ = encoder_out['encoder_padding_mask']
-            encoder_out = encoder_out['encoder_out']
+            encoder_outs = encoder_out[0]
+            encoder_hiddens = encoder_out[1]
+            encoder_cells = encoder_out[2]
+            encoder_padding_mask = encoder_out[3]
         else:
-            encoder_padding_mask = None
-            encoder_out = None
+            encoder_outs = torch.empty(0)
+            encoder_hiddens = torch.empty(0)
+            encoder_cells = torch.empty(0)
+            encoder_padding_mask = torch.empty(0)
+        srclen = encoder_outs.size(0)
 
         if incremental_state is not None and len(incremental_state) > 0:
             prev_output_tokens = prev_output_tokens[:, -1:]
 
         bsz, seqlen = prev_output_tokens.size()
 
-        # get outputs from encoder
-        srclen = 0
-        if encoder_out is not None:
-            encoder_outs, encoder_hiddens, encoder_cells = encoder_out[:3]
-            srclen = encoder_outs.size(0)
         # embed tokens
         x = self.embed_tokens(prev_output_tokens)
         x = F.dropout(x, p=self.dropout_in, training=self.training)
@@ -442,7 +449,6 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         x = x.transpose(0, 1)
 
         # initialize previous states (or get from cache during incremental generation)
-
         if incremental_state is not None and len(incremental_state) > 0:
             prev_hiddens, prev_cells, input_feed = self.get_cached_state(incremental_state)
         elif encoder_out is not None:
@@ -533,7 +539,10 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         return x
 
     def reorder_state(self, state: List[Tensor], new_order):
-        return [state_i.index_select(0, new_order) for state_i in state]
+        return [
+            state_i.index_select(0, new_order) if state_i is not None else None
+            for state_i in state
+        ]
 
     def reorder_incremental_state(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_order):
         if incremental_state is None or len(incremental_state) == 0:
