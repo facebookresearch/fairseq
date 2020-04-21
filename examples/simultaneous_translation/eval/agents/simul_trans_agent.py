@@ -5,6 +5,7 @@ import torch
 from fairseq import checkpoint_utils, utils, tasks
 import os
 
+
 class SimulTransAgent(Agent):
     def __init__(self, args):
         # Load Model
@@ -19,7 +20,7 @@ class SimulTransAgent(Agent):
 
     @staticmethod
     def add_args(parser):
-        parser.add_argument('--model-path', type=str, default=None, 
+        parser.add_argument('--model-path', type=str, default=None,
                             help='path to your pretrained model.')
         parser.add_argument("--data-bin", type=str, required=True,
                             help="Path of data binary")
@@ -43,7 +44,7 @@ class SimulTransAgent(Agent):
                         help='a dictionary used to override model args at generation '
                                 'that were used during model training')
         return parser
-    
+
     def load_dictionary(self, task):
         raise NotImplementedError
 
@@ -98,7 +99,7 @@ class SimulTransAgent(Agent):
                 # READ
                 action = self.read_action(states)
             else:
-                # WRITE 
+                # WRITE
                 action = self.write_action(states)
 
             # None means we make decision again but not sending server anything
@@ -117,12 +118,12 @@ class SimulTransAgent(Agent):
             states["finished"] = True
             end_idx_last_full_word = self._target_length(states)
 
-        else:    
+        else:
             states["tokens"]["tgt"] += [token]
             end_idx_last_full_word = (
                 self.word_splitter["tgt"]
                 .end_idx_last_full_word(states["tokens"]["tgt"])
-            ) 
+            )
             self._append_indices(states, [index], "tgt")
 
         if end_idx_last_full_word > states["steps"]["tgt"]:
@@ -133,7 +134,7 @@ class SimulTransAgent(Agent):
                 ]
             )
             states["steps"]["tgt"] = end_idx_last_full_word
-            states["segments"]["tgt"] += [word] 
+            states["segments"]["tgt"] += [word]
 
             return {'key': SEND, 'value': word}
         else:
@@ -152,9 +153,9 @@ class SimulTransAgent(Agent):
         if len(new_state) == 0 and len(states["indices"]["src"]) == 0:
             return True
         return False
-        
+
     def _append_indices(self, states, new_indices, key):
         states["indices"][key] += new_indices
-    
+
     def _target_length(self, states):
         return len(states["tokens"]['tgt'])

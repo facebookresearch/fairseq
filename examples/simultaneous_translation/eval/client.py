@@ -19,14 +19,14 @@ class SimulSTEvaluationService(object):
         pass
 
     def new_session(self):
-        # start eval session    
+        # start eval session
         url = f'{self.base_url}'
-        
+
         try:
             _ = requests.post(url)
         except Exception as e:
             print(f'Failed to start an evaluation session: {e}')
-        
+
         print('Evaluation session started.')
         return self
 
@@ -39,12 +39,11 @@ class SimulSTEvaluationService(object):
             print('Evaluation session finished.')
         except Exception as e:
             print(f'Failed to end an evaluation session: {e}')
-        
-        
+
     def get_src(self, sent_id: int, extra_params: Optional[dict] = None) -> str:
         url = f'{self.base_url}/src'
         params = {"sent_id": sent_id}
-        if extra_params is not None:    
+        if extra_params is not None:
             for key in extra_params.keys():
                 params[key] = extra_params[key]
         try:
@@ -71,10 +70,28 @@ class SimulSTEvaluationService(object):
             r = requests.get(url)
         except Exception as e:
             print(f'Failed to request corpus information: {e}')
-            
+
         return r.json()
 
 
+class SimulSTLocalEvaluationService(object):
+    def __init__(self, scorer):
+        self.scorer = scorer
 
+    def get_scores(self):
+        return self.scorer.score()
 
+    def get_src(self, sent_id: int, extra_params: Optional[dict] = None) -> str:
+        if extra_params is not None:
+            segment_size = extra_params.get("segment_size", None)
+        else:
+            segment_size = None
 
+        return self.scorer.send_src(int(sent_id), segment_size)
+
+    def send_hypo(self, sent_id: int, hypo: str) -> None:
+        list_of_tokens = hypo.strip().split()
+        self.scorer.recv_hyp(sent_id, list_of_tokens)
+
+    def corpus_info(self):
+        return self.scorer.get_info()

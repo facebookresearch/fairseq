@@ -6,8 +6,8 @@ class SimulTextScorer(SimulScorer):
     def __init__(self, args):
         super().__init__(args)
         self.data = {
-            "src" : self._load_text_file(args.src_file, split=True),
-            "tgt" : self._load_text_file(args.tgt_file, split=False)
+            "src": self._load_text_file(args.src_file, split=True),
+            "tgt": self._load_text_file(args.tgt_file, split=False)
         }
 
     def send_src(self, sent_id, *args):
@@ -18,7 +18,7 @@ class SimulTextScorer(SimulScorer):
                 "segment": self.eos
             }
             # Consider EOS
-            self.steps[sent_id] = len(self.data["src"][sent_id]) + 1 
+            self.steps[sent_id] = len(self.data["src"][sent_id]) + 1
         else:
             dict_to_return = {
                 "sent_id" : sent_id,

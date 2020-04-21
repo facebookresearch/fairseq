@@ -1,11 +1,14 @@
 from . import GET, SEND, DEFAULT_EOS
 import time
 from multiprocessing.pool import ThreadPool as Pool
-from functools import partial 
+from functools import partial
+
+
 class Agent(object):
     "an agent needs to follow this pattern"
     def __init__(self, *args, **kwargs):
         pass
+
     def init_states(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -20,7 +23,7 @@ class Agent(object):
 
     def reset(self):
         raise NotImplementedError
-        
+
     def decode(self, session, low=0, high=100000, num_thread=10):
         corpus_info = session.corpus_info()
         high = min(corpus_info["num_sentences"] - 1, high)
