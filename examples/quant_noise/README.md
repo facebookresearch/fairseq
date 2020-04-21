@@ -15,7 +15,7 @@ Looking for code to train vision models? We are working on open sourcing our cod
 ```bibtex
 @article{fan2020training,
     title={Training with Quantization Noise for Extreme Model Compression},
-    author={Angela Fan and Pierre Stock and and Benjamin Graham and Edouard Grave and Remi Gribonval and Herve Jegou and Armand Joulin},
+    author={Angela Fan* and Pierre Stock* and and Benjamin Graham and Edouard Grave and Remi Gribonval and Herve Jegou and Armand Joulin},
     year={2020},
     eprint={2004.07320},
     archivePrefix={arXiv},
