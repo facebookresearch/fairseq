@@ -279,7 +279,7 @@ def _match_types(arg1, arg2):
 
     def upgrade(arg_number, arg_structure):
         if isinstance(arg_structure, tuple):
-            return (arg_number, arg_number)
+            return tuple([arg_number] * len(arg_structure))
         elif isinstance(arg_structure, dict):
             arg = copy.deepcopy(arg_structure)
             for k in arg:
