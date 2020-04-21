@@ -41,6 +41,12 @@ def get_args():
         parser.add_argument('--checkpoints-dir',
                             default=os.path.join('/mnt/vol/gfsai-east/ai-group/users', os.environ['USER'], 'checkpoints', str(datetime.date.today())),
                             help='save checkpoints and logs in <checkpoints-dir>/<prefix>.<save_dir_key>')
+        parser.add_argument(
+            '--log-main-dir',
+            default=None,
+            help="dir to store log in addition to stdout. If this "
+            "is not set, it will be set to args.checkpoints_dir",
+        )
 
     parser.add_argument('--backend', choices=['fblearner', 'chronos', 'slurm'], default=default_backend)
 

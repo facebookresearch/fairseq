@@ -32,6 +32,9 @@ def get_fb_training_parser():
         default=False,
         help="[FB only] Set has-user-data-flag for manifold storage",
     )
+    parser.add_argument('--log-dir', metavar='LOG', default=None,
+                        help='[FB only] Dir to store log in addition to stdout. If this '
+                             'is not set, it will be set to args.save_dir')
     return parser
 
 
@@ -70,6 +73,7 @@ def fb_main(device_id, args, start_rank, log_path=None):
 
     if log_path is not None and args.distributed_rank == 0:
         # write logs from worker 0 to train.log
+        PathManager.mkdirs(args.save_dir)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         Path(log_path).touch(0o777, exist_ok=True)
         add_handler(logging.FileHandler(log_path))
@@ -82,7 +86,8 @@ if __name__ == "__main__":
     parser = get_fb_training_parser()
     args = options.parse_args_and_arch(parser)
 
-    log_path = os.path.join(args.save_dir, "train.log")
+    log_dir = args.log_dir if args.log_dir is not None else args.save_dir
+    log_path = os.path.join(log_dir, "train.log")
 
     if args.distributed_init_method is not None and torch.cuda.device_count() > 1:
         start_rank = args.distributed_rank

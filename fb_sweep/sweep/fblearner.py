@@ -51,6 +51,7 @@ def main(get_grid, postprocess_hyperparams, args):
                 for cmd_args in sweep_config.values()
             ),
             "sweep_config": sweep_config,
+            "gang_affinity": False,
         }
         h.write(json.dumps(config))
         h.flush()
@@ -97,7 +98,11 @@ def setup_train(args, config):
     ))
     save_dir_key = save_dir_key.replace(",", "_")
     num_total_gpus = args.num_nodes * args.num_gpus
-    save_dir = os.path.join(args.checkpoints_dir, f'{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}')
+
+    subdir_name = f'{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}'
+    save_dir = os.path.join(args.checkpoints_dir, subdir_name)
+    log_main_dir = args.log_main_dir if args.log_main_dir is not None else args.checkpoints_dir
+    log_dir = os.path.join(log_main_dir, subdir_name)
 
     # create save directory if it doesn't exist
     if not os.path.exists(save_dir):
@@ -128,12 +133,12 @@ def setup_train(args, config):
     #        print(f'skip failed run (override with --resume-failed): {save_dir}')
     #        return
     #elif has_started(save_dir):
-    if has_started(save_dir):
-        print(f'skip in progress run: {save_dir}')
+    if has_started(log_dir):
+        print(f'skip in progress run: {log_dir}')
         return
 
     # generate train command
-    cmd_args = [args.data, '--save-dir', save_dir]
+    cmd_args = [args.data, '--save-dir', save_dir, '--log-dir', log_dir]
     for hp in config.values():
         cmd_args.extend(map(str, hp.get_cli_args()))
     if args.dry_run:
@@ -141,8 +146,10 @@ def setup_train(args, config):
         dry_run(f'train command: train.par {cmd_args_str}')
 
     # initialize train log
-    train_log = os.path.join(save_dir, 'train.log')
+    train_log = os.path.join(log_dir, 'train.log')
     if not dry_run(f'create train.log at: {train_log}'):
+        os.makedirs(log_dir, exist_ok=True)
+        os.chmod(log_dir, 0o777)
         with open(train_log, 'a') as train_log_h:
             train_log_h.write('')
         os.chmod(train_log, 0o777)
@@ -192,8 +199,8 @@ def setup_train(args, config):
 #    return _has_failed(os.path.join(save_dir, f'train.stderr.{max_job_id}'))
 
 
-def has_started(save_dir):
-    train_log = os.path.join(save_dir, 'train.log')
+def has_started(log_dir):
+    train_log = os.path.join(log_dir, 'train.log')
     if not os.path.exists(train_log):
         return False
     return True
