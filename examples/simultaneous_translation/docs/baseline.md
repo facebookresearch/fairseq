@@ -199,26 +199,27 @@ We also provide a faster evaluation script that splits the dataset and launches 
 
 You can use the client scripts with pre-trained models:
 #### [Text model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk3.pt). 
-You should obtain the following score on test set: 
+You should obtain the following score on the test set:
 
 ```Scores: {"BLEU": 14.324, "TER": 0.927, "METEOR": 0.326, "DAL": 4.322654158339632, "AL": 2.7348828697228345, "AP": 0.6579466996497951}```
 
 This corresponds to `k = 3` in the wait-k model. You can see in the figure below the quality and latency metrics for various values of k. The detailed numbers can be found [here](text_curve.csv). The corresponding checkpoints to download can be found at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_text_waitk$k.pt (replace `$k` with the corresponding value).
-In addition to the checkpoint, you may download the following files:
+
+In addition to the checkpoints, you may download the following files to populate the config that you pass to the server and client:
 * [speech_data_bin.tar.gz](https://dl.fbaipublicfiles.com/simultaneous_translation/speech_data_bin.tar.gz): you can find the SentencePiece model there.
 * [text_data_bin.tar.gz](https://dl.fbaipublicfiles.com/simultaneous_translation/text_data_bin.tar.gz)
 
 ![Quality-Latency Curve for the text-to-text baseline](text_curve.png)
 
-#### [Speech model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoint_speech_waitk_lag5_stride10.pt). 
+#### [Speech model](https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoints_speech_waitk3_stride400).
 
-You should obtain the following scores on test set: 
+You should obtain the following scores on the test set: 
 
 ```Scores: {"BLEU": 9.397, "TER": 1.044, "METEOR": 0.224, "DAL": 2080.781110446501, "AL": 1517.827194666691, "AP": 0.7875444648568037}``` 
 
-This is the model of wait-k where `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide the full curve for the speech translation model, shown below. The detailed numbers can be found [here](speech_curve.csv) and the corresponding checkpoints at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoints_speech_waitk${k}_stride${stride} (${k} = 1, 2, ..., 6 and ${stride} = 200, 240, 280, 320, 360, 400, 600, 800).
+This corresponds to the wait-k model with `k = 3` and with a stride of 400ms (read or write every 400ms). We also provide a quality-latency trade-off curve for different speech translation models, shown below. The detailed numbers can be found [here](speech_curve.csv) and the corresponding checkpoints at https://dl.fbaipublicfiles.com/simultaneous_translation/checkpoints_speech_waitk${k}_stride${stride} (${k} = 1, 2, ..., 6 and ${stride} = 200, 240, 280, 320, 360, 400, 600, 800).
 
-In addition to the checkpoint, you may download the following files:
+In addition to the checkpoints, you may download the following files to populate the config that you pass to the server and client:
 * [dev.json](https://dl.fbaipublicfiles.com/simultaneous_translation/dev.json)
 * [test.json](https://dl.fbaipublicfiles.com/simultaneous_translation/test.json)
 * [speech_data_bin.tar.gz](https://dl.fbaipublicfiles.com/simultaneous_translation/speech_data_bin.tar.gz)
