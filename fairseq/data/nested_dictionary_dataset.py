@@ -113,4 +113,5 @@ class NestedDictionaryDataset(FairseqDataset):
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
         for ds in self.defn.values():
-            ds.set_epoch(epoch)
+            if hasattr(ds, 'set_epoch'):
+                ds.set_epoch(epoch)
