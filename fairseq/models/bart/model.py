@@ -9,6 +9,7 @@ Natural Language Generation, Translation, and Comprehension
 
 import logging
 
+import torch
 import torch.nn as nn
 
 from fairseq import utils
@@ -177,6 +178,40 @@ class BARTModel(TransformerModel):
         if loaded_dict_size == len(self.encoder.dictionary) + 1 and '<mask>' not in self.encoder.dictionary:
             state_dict['encoder.embed_tokens.weight'] = state_dict['encoder.embed_tokens.weight'][:loaded_dict_size-1, :]
             state_dict['decoder.embed_tokens.weight'] = state_dict['decoder.embed_tokens.weight'][:loaded_dict_size-1, :]
+
+        # When continued pretraining on new set of languages for mbart,
+        # add extra lang embeddings at the end of embed_tokens.
+        # Note: newly added languages are assumed to have been added at the end.
+        if self.args.task == 'multilingual_denoising' and loaded_dict_size < len(self.encoder.dictionary):
+            logger.info(
+                "Adding extra language embeddings not found in pretrained model for "\
+                "continued pretraining of MBART on new set of languages."
+            )
+            loaded_mask_token_embedding = state_dict['encoder.embed_tokens.weight'][-1, :]
+
+            num_langids_to_add = len(self.encoder.dictionary) - loaded_dict_size
+            embed_dim = state_dict['encoder.embed_tokens.weight'].size(1)
+
+            new_lang_embed_to_add = torch.zeros(num_langids_to_add, embed_dim)
+            nn.init.normal_(
+                new_lang_embed_to_add,
+                mean=0,
+                std=embed_dim ** -0.5
+            )
+            new_lang_embed_to_add = new_lang_embed_to_add.to(
+                dtype=state_dict['encoder.embed_tokens.weight'].dtype,
+            )
+
+            state_dict['encoder.embed_tokens.weight'] = torch.cat([
+                state_dict['encoder.embed_tokens.weight'][:loaded_dict_size-1, :],
+                new_lang_embed_to_add,
+                loaded_mask_token_embedding.unsqueeze(0)]
+            )
+            state_dict['decoder.embed_tokens.weight'] = torch.cat([
+                state_dict['decoder.embed_tokens.weight'][:loaded_dict_size-1, :],
+                new_lang_embed_to_add,
+                loaded_mask_token_embedding.unsqueeze(0)]
+            )
 
         # Copy any newly-added classification heads into the state dict
         # with their current weights.

@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
     from fairseq import distributed_utils, meters
+    
+    # only one worker should attempt to create the required dir
+    if args.distributed_rank == 0:
+        os.makedirs(args.save_dir, exist_ok=True)
 
     prev_best = getattr(save_checkpoint, "best", val_loss)
     if val_loss is not None:
@@ -118,10 +122,7 @@ def load_checkpoint(args, trainer, **passthrough_args):
     *passthrough_args* will be passed through to
     ``trainer.get_train_iterator``.
     """
-    # only one worker should attempt to create the required dir
-    if args.distributed_rank == 0:
-        os.makedirs(args.save_dir, exist_ok=True)
-
+    
     suffix = getattr(args, "checkpoint_suffix", "")
     if args.restore_file == "checkpoint_last.pt":
         checkpoint_path = os.path.join(args.save_dir, "checkpoint_last{}.pt".format(suffix))

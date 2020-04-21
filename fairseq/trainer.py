@@ -35,7 +35,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion):
+    def __init__(self, args, task, model, criterion, quantizer=None):
         self.args = args
         self.task = task
 
@@ -68,7 +68,18 @@ class Trainer(object):
         else:
             self._grad_norm_buf = None
 
+        self.quantizer = quantizer
+        if self.quantizer is not None:
+            self.quantizer.set_trainer(self)
+
         metrics.log_start_time("wall", priority=790, round=0)
+
+    def reinitialize(self):
+        """Reinitialize the Trainer, typically after model params change."""
+        self._lr_scheduler = None
+        self._optimizer = None
+        self._wrapped_criterion = None
+        self._wrapped_model = None
 
     @property
     def data_parallel_world_size(self):
@@ -305,6 +316,14 @@ class Trainer(object):
             shard_id=self.data_parallel_rank,
             num_workers=self.args.num_workers,
         )
+
+    def begin_epoch(self, epoch):
+        """Called at the beginning of each epoch."""
+        if self.quantizer is not None:
+            self.quantizer.begin_epoch(epoch)
+
+        # task specific setup per epoch
+        self.task.begin_epoch(epoch, self.get_model())
 
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
@@ -585,6 +604,8 @@ class Trainer(object):
         """Set the number of parameters updates."""
         self._num_updates = num_updates
         self.lr_step_update()
+        if self.quantizer:
+            self.quantizer.step_update(self._num_updates)
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
     def clip_grad_norm(self, clip_norm):

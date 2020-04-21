@@ -20,6 +20,7 @@ from fairseq.data import (
     NumelDataset,
     PadDataset,
     PrependTokenDataset,
+    StripTokenDataset,
     TokenBlockDataset,
     TransformEosDataset,
     TruncateDataset,
@@ -203,17 +204,17 @@ class LanguageModelingTask(FairseqTask):
         (or bos if `--add-bos-token` is set) and we append a <pad> to target.
         This is convenient both for generation with a prefix and LM scoring.
         """
-        dataset = TokenBlockDataset(
-            src_tokens,
-            src_lengths,
-            block_size=None,  # ignored for "eos" break mode
-            pad=self.source_dictionary.pad(),
-            eos=self.source_dictionary.eos(),
-            break_mode="eos",
-        )
-        tgt_dataset = AppendTokenDataset(
-            dataset,
-            token=self.source_dictionary.pad()
+        dataset = StripTokenDataset(
+            TokenBlockDataset(
+                src_tokens,
+                src_lengths,
+                block_size=None,  # ignored for "eos" break mode
+                pad=self.source_dictionary.pad(),
+                eos=self.source_dictionary.eos(),
+                break_mode="eos",
+            ),
+            # remove eos from (end of) target sequence
+            self.source_dictionary.eos(),
         )
         src_dataset = PrependTokenDataset(
             dataset,
@@ -222,6 +223,10 @@ class LanguageModelingTask(FairseqTask):
                 if getattr(self.args, "add_bos_token", False)
                 else self.source_dictionary.eos()
             ),
+        )
+        tgt_dataset = AppendTokenDataset(
+            dataset,
+            token=self.source_dictionary.pad()
         )
         return NestedDictionaryDataset(
             {

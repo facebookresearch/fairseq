@@ -6,6 +6,7 @@
 
 import torch
 from torch import nn
+from fairseq.modules.quant_noise import quant_noise
 
 from typing import List
 
@@ -20,6 +21,8 @@ class AdaptiveInput(nn.Module):
         factor: float,
         output_dim: int,
         cutoff: List[int],
+        q_noise: float = 0,
+        qn_block_size: int = 8,
     ):
         super().__init__()
 
@@ -40,8 +43,9 @@ class AdaptiveInput(nn.Module):
             dim = int(initial_dim // (factor ** i))
             seq = nn.Sequential(
                 nn.Embedding(size, dim, self.padding_idx),
-                nn.Linear(dim, output_dim, bias=False)
+                quant_noise(nn.Linear(dim, output_dim, bias=False), q_noise, qn_block_size),
             )
+
             self.embeddings.append(seq)
             self.padding_idx = None
         self.padding_idx = padding_idx
