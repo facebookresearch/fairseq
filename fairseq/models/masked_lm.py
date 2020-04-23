@@ -188,7 +188,7 @@ class MaskedLMEncoder(FairseqEncoder):
                     bias=False
                 )
 
-    def forward(self, src_tokens, segment_labels=None, **unused):
+    def forward(self, src_tokens, segment_labels=None, masked_tokens=None, **unused):
         """
         Forward pass for Masked LM encoder. This first computes the token
         embedding using the token embedding matrix, position embeddings (if
@@ -218,6 +218,11 @@ class MaskedLMEncoder(FairseqEncoder):
         )
 
         x = inner_states[-1].transpose(0, 1)
+
+        # project masked tokens only
+        if masked_tokens is not None:
+            x = x[masked_tokens, :]
+
         x = self.layer_norm(self.activation_fn(self.lm_head_transform_weight(x)))
 
         pooled_output = self.pooler_activation(self.masked_lm_pooler(sentence_rep))
@@ -229,8 +234,13 @@ class MaskedLMEncoder(FairseqEncoder):
         elif self.embed_out is not None:
             x = self.embed_out(x)
 
+       
+
         if self.lm_output_learned_bias is not None:
             x = x + self.lm_output_learned_bias
+
+   
+
         sentence_logits = None
         if self.sentence_projection_layer:
             sentence_logits = self.sentence_projection_layer(pooled_output)
