@@ -231,7 +231,6 @@ class MaskedLMEncoder(FairseqEncoder):
             x = F.linear(x, self.sentence_encoder.embed_tokens.weight)
         elif self.embed_out is not None:
             x = self.embed_out(x)
-       
         if self.lm_output_learned_bias is not None:
             x = x + self.lm_output_learned_bias
         sentence_logits = None
