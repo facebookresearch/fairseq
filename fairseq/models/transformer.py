@@ -296,8 +296,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
 
-
-
 @register_model("transformer_align")
 class TransformerAlignModel(TransformerModel):
     """
@@ -697,11 +695,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 factor=args.adaptive_softmax_factor,
                 tie_proj=args.tie_adaptive_proj,
             )
-        elif not self.share_input_output_embed:
-            self.embed_out = nn.Parameter(
-                torch.Tensor(len(dictionary), self.output_embed_dim)
-            )
-            nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
 
         if args.decoder_normalize_before and not getattr(
             args, "no_decoder_final_norm", False
@@ -713,6 +706,21 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layernorm_embedding = LayerNorm(embed_dim)
         else:
             self.layernorm_embedding = None
+
+        if self.share_input_output_embed:
+            self.output_projection = nn.Linear(
+                self.embed_tokens.weight.shape[1],
+                self.embed_tokens.weight.shape[0],
+                bias=False,
+            )
+            self.output_projection.weight = self.embed_tokens.weight
+        else:
+            self.output_projection = nn.Linear(
+                self.output_embed_dim, len(dictionary), bias=False
+            )
+            nn.init.normal_(
+                self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
+            )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         return TransformerDecoderLayer(args, no_encoder_attn)
@@ -883,10 +891,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         """Project features to the vocabulary size."""
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
-            if self.share_input_output_embed:
-                return F.linear(features, self.embed_tokens.weight)
-            else:
-                return F.linear(features, self.embed_out)
+            return self.output_projection(features)
         else:
             return features
 
@@ -910,7 +915,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self._future_mask = self._future_mask.to(tensor)
         return self._future_mask[:dim, :dim]
 
-
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
@@ -920,6 +924,20 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             state_dict[
                 "{}.embed_positions._float_tensor".format(name)
             ] = torch.FloatTensor(1)
+
+        if self.share_input_output_embed:
+            embed_tokens_weight_key = f"{name}.embed_tokens.weight"
+            if embed_tokens_weight_key in state_dict:
+                state_dict[f"{name}.output_projection.weight"] = state_dict[
+                    embed_tokens_weight_key
+                ]
+        else:
+            embed_out_key = f"{name}.embed_out"
+            if embed_out_key in state_dict:
+                state_dict[f"{name}.output_projection.weight"] = state_dict[
+                    embed_out_key
+                ]
+                del state_dict[embed_out_key]
 
         for i in range(self.num_layers):
             # update layer norms
