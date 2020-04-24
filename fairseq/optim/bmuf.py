@@ -19,7 +19,7 @@ class FairseqBMUF(FairseqOptimizer):
     model-update filtering
     """
 
-    def __init__(self, optimizer, global_sync_iter, block_momentum, block_lr, warmup_iterations, use_nbm, average_sync):
+    def __init__(self, optimizer, global_sync_iter, block_momentum, block_lr, warmup_iterations, use_nbm, average_sync, distributed_world_size):
 
         super().__init__()
         self._optimizer = optimizer
@@ -32,12 +32,12 @@ class FairseqBMUF(FairseqOptimizer):
         self.use_nbm = use_nbm
         self.initial_state = self._optimizer.state_dict()
         self.average_sync = average_sync
-
+        self.world_size = distributed_world_size
+        
     @classmethod
     def from_args(cls, params, args):
         # 'params' is actually an optimizer here... TODO: how do we clean this up?
         return cls(params, args.global_sync_iter, args.block_momentum, args.block_lr, args.warmup_iterations,
-                   args.use_nbm, args.average_sync)
 
     @staticmethod
     def add_args(parser):
@@ -109,6 +109,8 @@ class FairseqBMUF(FairseqOptimizer):
         self._optimizer.average_params()
 
     def _block_sync(self):
+        if self.world_size <= 1:
+            return
         # Update the global model using local models from all GPUs
         # (Step-1) Calculate grad between previously synced model and
         # currrent local model
@@ -141,6 +143,8 @@ class FairseqBMUF(FairseqOptimizer):
         return False
 
     def _warmup_sync(self, root_rank=0):
+        if self.world_size <= 1:
+            return
         # Broadcast the local model to all gpus
         for param in self.params:
             dist.broadcast(param.data, src=root_rank)

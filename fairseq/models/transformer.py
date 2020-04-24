@@ -26,6 +26,7 @@ from fairseq.modules import (
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
+from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
 
 
@@ -142,6 +143,10 @@ class TransformerModel(FairseqEncoderDecoderModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        parser.add_argument('--layernorm-embedding', action='store_true',
+                            help='add layernorm to embedding')
+        parser.add_argument('--no-scale-embedding', action='store_true',
+                            help='if True, dont scale embeddings')
         # args for "Cross+Self-Attention for Transformer Models" (Peitz et al., 2019)
         parser.add_argument('--no-cross-attention', default=False, action='store_true',
                             help='do not perform cross-attention')
@@ -158,10 +163,13 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='which layers to *keep* when pruning as a comma-separated list')
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
-        parser.add_argument('--layernorm-embedding', action='store_true',
-                            help='add layernorm to embedding')
-        parser.add_argument('--no-scale-embedding', action='store_true',
-                            help='if True, dont scale embeddings')
+        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
+                            help='iterative PQ quantization noise at training time')
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
+                            help='block size of quantization noise at training time')
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+                            help='scalar quantization noise and scalar quantization at training time')
         # fmt: on
 
     @classmethod
@@ -394,6 +402,15 @@ class TransformerEncoder(FairseqEncoder):
             else None
         )
 
+        if not args.adaptive_input and args.quant_noise_pq > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(embed_dim, embed_dim, bias=False),
+                args.quant_noise_pq,
+                args.quant_noise_pq_block_size,
+            )
+        else:
+            self.quant_noise = None
+
         self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
         self.layers = nn.ModuleList([])
@@ -422,6 +439,8 @@ class TransformerEncoder(FairseqEncoder):
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
         return x, embed
 
     def forward(
@@ -622,6 +641,15 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
 
+        if not args.adaptive_input and args.quant_noise_pq > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(embed_dim, embed_dim, bias=False),
+                args.quant_noise_pq,
+                args.quant_noise_pq_block_size,
+            )
+        else:
+            self.quant_noise = None
+
         self.project_in_dim = (
             Linear(input_embed_dim, embed_dim, bias=False)
             if embed_dim != input_embed_dim
@@ -774,6 +802,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
+
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
 
         if self.project_in_dim is not None:
             x = self.project_in_dim(x)

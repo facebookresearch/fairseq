@@ -184,7 +184,7 @@ def log_start_time(key: str, priority: int = 40, round: Optional[int] = None):
         agg[key].start()
 
 
-def log_stop_time(key: str, weight: float = 0.):
+def log_stop_time(key: str, weight: float = 0., prehook=None):
     """Log the duration of some event in seconds.
 
     The duration will be computed since :func:`log_start_time` was called.
@@ -193,9 +193,12 @@ def log_stop_time(key: str, weight: float = 0.):
     Args:
         key (str): name of the field to log
         weight (float): weight that this time contributes to the average
+        prehook (function, no arguments): will be called before the timer
+        is stopped. For example, use prehook=torch.cuda.synchronize to
+        make sure all gpu operations are done before timer is stopped.
     """
     for agg in get_active_aggregators():
-        agg[key].stop(weight)
+        agg[key].stop(weight, prehook)
 
 
 def log_custom(

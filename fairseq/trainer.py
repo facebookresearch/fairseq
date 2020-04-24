@@ -35,7 +35,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion):
+    def __init__(self, args, task, model, criterion, quantizer=None):
         self.args = args
         self.task = task
 
@@ -68,7 +68,18 @@ class Trainer(object):
         else:
             self._grad_norm_buf = None
 
+        self.quantizer = quantizer
+        if self.quantizer is not None:
+            self.quantizer.set_trainer(self)
+
         metrics.log_start_time("wall", priority=790, round=0)
+
+    def reinitialize(self):
+        """Reinitialize the Trainer, typically after model params change."""
+        self._lr_scheduler = None
+        self._optimizer = None
+        self._wrapped_criterion = None
+        self._wrapped_model = None
 
     @property
     def data_parallel_world_size(self):
@@ -306,6 +317,14 @@ class Trainer(object):
             num_workers=self.args.num_workers,
         )
 
+    def begin_epoch(self, epoch):
+        """Called at the beginning of each epoch."""
+        if self.quantizer is not None:
+            self.quantizer.begin_epoch(epoch)
+
+        # task specific setup per epoch
+        self.task.begin_epoch(epoch, self.get_model())
+
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
@@ -393,6 +412,7 @@ class Trainer(object):
                 logging_outputs, sample_size, ooms, ignore=is_dummy_batch,
             )
 
+        overflow = False
         try:
             # multiply gradients by (# GPUs / sample_size) since DDP
             # already normalizes by the number of GPUs. Thus we get
@@ -410,29 +430,11 @@ class Trainer(object):
             grad_norm = self.clip_grad_norm(self.args.clip_norm)
 
             # check that grad norms are consistent across workers
-            if not self.args.use_bmuf:
+            if not self.args.use_bmuf and self.args.distributed_wrapper != 'SlowMo':
                 self._check_grad_norms(grad_norm)
 
             # take an optimization step
             self.optimizer.step()
-            self.set_num_updates(self.get_num_updates() + 1)
-
-            # log stats
-            logging_output = self._reduce_and_log_stats(
-                logging_outputs, sample_size, grad_norm,
-            )
-
-            # clear CUDA cache to reduce memory fragmentation
-            if (
-                self.args.empty_cache_freq > 0
-                and (
-                    (self.get_num_updates() + self.args.empty_cache_freq - 1)
-                    % self.args.empty_cache_freq
-                ) == 0
-                and torch.cuda.is_available()
-                and not self.args.cpu
-            ):
-                torch.cuda.empty_cache()
         except FloatingPointError:
             # re-run the forward and backward pass with hooks attached to print out where it fails
             with NanDetector(self.model):
@@ -442,14 +444,42 @@ class Trainer(object):
                 )
             raise
         except OverflowError as e:
+            overflow = True
             logger.info("NOTE: overflow detected, " + str(e))
+            grad_norm = torch.tensor(0.).cuda()
             self.zero_grad()
-            logging_output = None
         except RuntimeError as e:
             if "out of memory" in str(e):
                 self._log_oom(e)
                 logger.error("OOM during optimization, irrecoverable")
             raise e
+
+        # Some distributed wrappers (e.g., SlowMo) need access to the optimizer after the step
+        if hasattr(self.model, 'perform_additional_optimizer_actions'):
+            if hasattr(self.optimizer, 'fp32_params'):
+                self.model.perform_additional_optimizer_actions(self.optimizer.optimizer, self.optimizer.fp32_params)
+            else:
+                self.model.perform_additional_optimizer_actions(self.optimizer.optimizer)
+
+        if not overflow or self.args.distributed_wrapper == 'SlowMo':
+            self.set_num_updates(self.get_num_updates() + 1)
+
+            # log stats
+            logging_output = self._reduce_and_log_stats(
+                logging_outputs, sample_size, grad_norm,
+            )
+
+        # clear CUDA cache to reduce memory fragmentation
+        if (
+            self.args.empty_cache_freq > 0
+            and (
+                (self.get_num_updates() + self.args.empty_cache_freq - 1)
+                % self.args.empty_cache_freq
+            ) == 0
+            and torch.cuda.is_available()
+            and not self.args.cpu
+        ):
+            torch.cuda.empty_cache()
 
         if self.args.fp16:
             metrics.log_scalar("loss_scale", self.optimizer.scaler.loss_scale, priority=700, round=0)
@@ -585,6 +615,8 @@ class Trainer(object):
         """Set the number of parameters updates."""
         self._num_updates = num_updates
         self.lr_step_update()
+        if self.quantizer:
+            self.quantizer.step_update(self._num_updates)
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
     def clip_grad_norm(self, clip_norm):
