@@ -186,16 +186,18 @@ class SequenceGeneratorWithDelay(SequenceGenerator):
                     else:
                         hypo_attn = None
 
-                    delay = list(model.incremental_states.values())[0]["fastest_step"][unfin_idx]
-
                     return_dict = {
                         'tokens': tokens_clone[i],
                         'score': score,
                         'attention': hypo_attn,  # src_len x tgt_len
                         'alignment': None,
                         'positional_scores': pos_scores[i],
-                        'delay': delay
                     }
+
+                    if "fastest_step" in list(model.incremental_states.values())[0]:
+                        delay = list(model.incremental_states.values())[0]["fastest_step"][unfin_idx]
+                        return_dict["delay"] = delay
+
 
                     return return_dict
 
@@ -534,7 +536,7 @@ def main(args):
     #logger.info('NOTE: hypothesis and token scores are output in base 2')
     #logger.info('Type the input sentence and press return:')
     start_id = 0
-    if True:#True:#args.max_sentences == 1:
+    if False:#True:#args.max_sentences == 1:
         lines = [line.strip() for line in sys.stdin.readlines()]
         sys.stdin = open('/dev/tty')
         new_lines = []
@@ -589,17 +591,19 @@ def main(args):
                     remove_bpe=args.remove_bpe,
                 )
                 hypo_str = decode_fn(hypo_str)
-                delays = hypo["delay"].cpu().tolist()
+                if "delay" in hypo:
+                    delays = hypo["delay"].cpu().tolist()
+                else:
+                    delays = []
                 if args.verbose:
                     print('S-{}\t{}'.format(id, src_str))
                     print('H-{}\t{}'.format(id, hypo_str))
                     print('D-{}\t{}'.format(id, ", ".join([str(x) for x in delays])))
-                score = hypo['score'] / math.log(2)  # convert to base 2
                 f_delay.write(
                     json.dumps(
                         {
-                            "src_len": 1 + len(src_str.strip().split()), # +1 for <eos>
-                            "delays": hypo["delay"].cpu().tolist()
+                            "src_len": src_tokens.size(0), # including <eos>
+                            "delays": delays
                         }
                     ) + '\n'
                 )
