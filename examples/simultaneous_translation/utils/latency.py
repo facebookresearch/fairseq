@@ -248,7 +248,7 @@ class LatencyInference(object):
         """
         if not self.start_from_zero:
             monotonic_step -= 1
-        
+
         src_lens = src_lens
 
         delays = (
@@ -278,7 +278,7 @@ class LatencyInference(object):
 class LatencyTraining(object):
     def __init__(
         self, avg_weight, var_weight, avg_type, var_type,
-        stay_on_last_token, average_method, var_power, var_span,
+        stay_on_last_token, average_method,
     ):
         self.avg_weight = avg_weight
         self.var_weight = var_weight
@@ -390,7 +390,10 @@ class LatencyTraining(object):
 
         if self.avg_weight > 0.0:
             if self.avg_type in self.metric_calculator:
-                average_delays = self.metric_calculator[self.avg_type](expected_delays, src_lens, target_padding_mask,batch_first=True, start_from_zero=False)
+                average_delays = self.metric_calculator[self.avg_type](
+                    expected_delays, src_lens, target_padding_mask,
+                    batch_first=True, start_from_zero=False
+                )
             else:
                 raise RuntimeError(f"{self.avg_type} is not supported.")
 
@@ -426,4 +429,3 @@ class LatencyTraining(object):
         latency_loss += self.var_loss(expected_delays, src_lens, target_padding_mask)
 
         return latency_loss
-

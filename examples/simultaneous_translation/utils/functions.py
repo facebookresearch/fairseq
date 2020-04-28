@@ -1,4 +1,6 @@
 import torch
+
+
 def exclusive_cumprod(tensor, dim: int, eps: float = 1e-10):
     """
     Implementing exclusive cumprod.
@@ -21,6 +23,7 @@ def exclusive_cumprod(tensor, dim: int, eps: float = 1e-10):
     else:
         raise RuntimeError("Cumprod on dimension 3 and more is not implemented")
 
+
 def safe_cumprod(tensor, dim: int, eps: float = 1e-10):
     """
     An implementation of cumprod to prevent precision issue.
@@ -40,6 +43,7 @@ def safe_cumprod(tensor, dim: int, eps: float = 1e-10):
     cumsum_log_tensor = torch.cumsum(log_tensor, dim)
     exp_cumsum_log_tensor = torch.exp(cumsum_log_tensor)
     return exp_cumsum_log_tensor
+
 
 def lengths_to_mask(lengths, max_len: int, dim: int = 0, negative_mask: bool = False):
     """
@@ -75,6 +79,7 @@ def lengths_to_mask(lengths, max_len: int, dim: int = 0, negative_mask: bool = F
         mask = mask.t()
 
     return mask
+
 
 def moving_sum(x, start_idx: int, end_idx: int):
     """

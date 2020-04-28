@@ -37,8 +37,6 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
             self.latency_weight_var_type,
             self.mass_preservation,
             self.average_method,
-            args.var_power,
-            args.var_span
         )
 
     @staticmethod
@@ -59,10 +57,6 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
                             help="Statistics for variance loss type")
         parser.add_argument("--average-method", default="weighted_average",
                             help="Average loss type")
-        parser.add_argument("--var-power", type=float, default=2.0,
-                            help="Variance loss power")
-        parser.add_argument("--var-span", type=float, default=1.0,
-                            help="Variance loss span")
         # fmt: on
 
     def compute_loss(self, model, net_output, sample, reduce=True):
