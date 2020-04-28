@@ -227,6 +227,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                 - the decoder's features of shape `(batch, tgt_len, embed_dim)`
                 - a dictionary with any model-specific outputs
         """
+        # incremental_state = None
         (
             x,
             encoder_outs,
@@ -257,6 +258,8 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
             if incremental_state is not None:
                 curr_steps = layer.get_steps(incremental_state)
+                #print(curr_steps)
+                #import pdb;pdb.set_trace()
                 step_list.append(curr_steps)
 
                 if incremental_state.get("online", False):
@@ -310,10 +313,11 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
     def reorder_incremental_state(self, incremental_state, new_order):
         super().reorder_incremental_state(incremental_state, new_order)
-        incremental_state["fastest_step"] = (
-            incremental_state["fastest_step"]
-            .index_select(0, new_order)
-        )
+        if "fastest_step" in incremental_state:
+            incremental_state["fastest_step"] = (
+                incremental_state["fastest_step"]
+                .index_select(0, new_order)
+            )
 
 
 @register_model_architecture(

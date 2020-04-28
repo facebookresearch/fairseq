@@ -61,17 +61,16 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         parser.add_argument('--noise-type', type=str, default="flat",
                             help='Type of discretness noise')
         parser.add_argument('--energy-bias', action="store_true", default=False,
-                            help='')
+                            help='Bias for energy')
         parser.add_argument('--energy-bias-init', type=float, default=-2.0,
-                            help='')
-        parser.add_argument('--reuse-attention', action='store_true', default=False)
-
-        parser.add_argument('--attention-eps', type=float, default=1e-6)
+                            help='Initial value of the bias for energy')
+        parser.add_argument('--attention-eps', type=float, default=1e-6,
+                            help='Epsilon when calculating expected attention')
 
     def forward(self, query, key, value, 
                 incremental_state=None, key_padding_mask=None,
                 need_weights=True, static_kv=False, attn_mask=None, 
-                monotonic_step=None, encoder_decoder_attn=None, *args, **kwargs):
+                *args, **kwargs):
         """Input shape: Time x Batch x Channel
 
         Timesteps can be masked by supplying a T x T mask in the
@@ -85,7 +84,7 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         # prepare inputs
         (
             q_proj, k_proj, v_proj,
-            key_padding_mask, attn_mask 
+            key_padding_mask, attn_mask
         ) = self.multihead_inputs(
             query, key, value,
             incremental_state, key_padding_mask, attn_mask,
@@ -93,26 +92,26 @@ class MonotonicMultiheadAttention(MultiheadAttention):
 
         src_len = v_proj.size(1)
 
-        if encoder_decoder_attn is not None:
-            attn_weights = (
-                encoder_decoder_attn[0]
-                .view(bsz * self.num_heads, tgt_len, -1)
-            )
+        # stepwise prob
+        # p_choose: bsz * self.num_heads, tgt_len, src_len
+        p_choose = self.p_choose(
+            q_proj, k_proj, key_padding_mask, attn_mask)
+        
+        # expected alignment alpha
+        if incremental_state is not None:
+            alpha = self.expected_alignment_infer(
+                p_choose, incremental_state, key_padding_mask)
         else:
-            # stepwise prob
-            # p_choose: bsz * self.num_heads, tgt_len, src_len
-            p_choose = self.p_choose(q_proj, k_proj, key_padding_mask, attn_mask)
-            if incremental_state is not None:
-                alpha = self.expected_alignment_infer(p_choose, incremental_state, key_padding_mask)
-            else:
-                alpha = self.expected_alignment_train(p_choose, src_len)
-            
-            beta = self.expected_attention(
-                alpha, query, key, value,
-                incremental_state, key_padding_mask, attn_mask
-            )
+            alpha = self.expected_alignment_train(
+                p_choose, src_len)
+        
+         # expected attention beta
+        beta = self.expected_attention(
+            alpha, query, key, value,
+            incremental_state, key_padding_mask, attn_mask
+        )
 
-            attn_weights = beta
+        attn_weights = beta
 
         attn = torch.bmm(attn_weights.type_as(v_proj), v_proj)
 
@@ -131,6 +130,9 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         return attn, {"alpha": alpha, "beta": beta, "p_choose": p_choose}
 
     def expected_attention(self, alpha, *args):
+        '''
+        For MMA-H, beta = alpha
+        '''
         return alpha
 
     def expected_alignment_train(self, p_choose, key_padding_mask):
@@ -195,7 +197,7 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         self, p_choose, incremental_state, encoder_padding_mask
     ):
         """
-        Calculating monotonic alignment for MMA
+        Calculating mo alignment for MMA during inference time
 
         ============================================================
         Expected input size
@@ -276,7 +278,8 @@ class MonotonicMultiheadAttention(MultiheadAttention):
             new_monotonic_step += action
 
             finish_read = new_monotonic_step.eq(max_steps) | (action == 0)
-
+            # finish_read = (~ (finish_read.sum(dim=1, keepdim=True) < self.num_heads / 2)) | finish_read
+ 
         monotonic_cache["step"] = new_monotonic_step
 
         # alpha: bsz * num_heads, 1, src_len
@@ -319,22 +322,18 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         """
 
         # attention energy
-        attn_energy = self.multihead_energy(q_proj, k_proj, key_padding_mask, attn_mask)
+        attn_energy = self.multihead_energy(
+            q_proj, k_proj, key_padding_mask, attn_mask)
         noise = 0
 
         if self.training:
-            if self.noise_type == "flat":
-                # add noise here to encourage discretness
-                noise = (
-                    torch
-                    .normal(
-                        self.noise_mean,
-                        self.noise_var,
-                        attn_energy.size()
-                    )
-                    .type_as(attn_energy)
-                    .to(attn_energy.device)
-                )
+            # add noise here to encourage discretness
+            noise = (
+                torch
+                .normal(self.noise_mean, self.noise_var, attn_energy.size())
+                .type_as(attn_energy)
+                .to(attn_energy.device)
+            )
 
         p_choose = torch.sigmoid(attn_energy + noise)
 
@@ -458,8 +457,10 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         bsz = bsz // self.num_heads
         src_len = k_proj.size(1)
 
-        attn_energy = torch.bmm(q_proj, k_proj.transpose(1, 2)) + self.energy_bias
-        attn_energy = MultiheadAttention.apply_sparse_mask(attn_energy, tgt_len, src_len, bsz)
+        attn_energy = (
+            torch.bmm(q_proj, k_proj.transpose(1, 2))
+            + self.energy_bias
+        )
 
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
@@ -554,7 +555,6 @@ class MonotonicInfiniteLookbackMultiheadAttention(MonotonicMultiheadAttention):
             query, key, value, incremental_state, key_padding_mask, attn_mask, softmax=True
         )
         soft_energy = torch.bmm(q, k.transpose(1, 2))
-        #soft_energy = self.apply_sparse_mask(soft_energy, tgt_len, src_len, bsz)
 
         try:
             assert list(soft_energy.size()) == [bsz * self.num_heads, tgt_len, src_len]
