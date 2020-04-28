@@ -22,6 +22,8 @@ class SimulTransTextAgent(SimulTransAgent):
         self.dict["src"] = task.source_dictionary
 
     def update_states(self, states, new_state):
+        if states["finish_read"]:
+            return states 
 
         new_word = new_state["segment"]
 

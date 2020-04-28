@@ -4,16 +4,18 @@ from vizseq.scorers.meteor import METEORScorer
 from examples.simultaneous_translation.utils.eval_latency import LatencyScorer
 from collections import defaultdict
 import json
+import os
 
 DEFAULT_EOS = '</s>'
 class SimulScorer(object):
     def __init__(self, args):
         self.tokenizer = args.tokenizer
+        self.output_dir = args.output
         if args.output is not None:
             self.output_files = {
-                "text": args.output + ".text",
-                "delay": args.output + ".delay",
-                "scores": args.output + ".scores"
+                "text": os.path.join(args.output, "text"),
+                "delay": os.path.join(args.output,"delay"),
+                "scores": os.path.join(args.output, "scores")
             }
         else:
             self.output_files = None
@@ -27,14 +29,14 @@ class SimulScorer(object):
     def send_src(self, sent_id, *args):
         raise NotImplementedError
 
-    def recv_hyp(self, hypo):
-        for sent_id, trans in hypo.items():
+    def recv_hyp(self, sent_id: int, list_of_tokens: list):
+        for token in list_of_tokens:
             self.translations[
-                int(sent_id)
+                sent_id
             ].append(
                 (
-                    trans, 
-                    self.steps[int(sent_id)]
+                    token, 
+                    self.steps[sent_id]
                 )
             )
 
@@ -81,8 +83,16 @@ class SimulScorer(object):
             'AP' : latency_score['average_proportion'],
         }
 
+
         if self.output_files is not None:
-            self.write_results_to_file(translations, delays, scores)
+            try:
+                os.makedirs(self.output_dir, exist_ok=True)
+                self.write_results_to_file(translations, delays, scores)
+            except:
+                print(
+                    f'Failed to write results to {self.output_dir}. '
+                    f'Skip writing predictions'
+                )
         
         return scores
 
@@ -139,5 +149,18 @@ class SimulScorer(object):
                 )
         return list_to_return
 
+    @classmethod
+    def _load_wav_info_from_list(cls, file):
+        list_to_return = []
+        with open(file) as f:
+            for line in f:
+                list_to_return.append(
+                    {
+                        "path": line.strip(),
+                    }
+                )
+        return list_to_return
+
     def __len__(self):
         return len(self.data["tgt"])
+
