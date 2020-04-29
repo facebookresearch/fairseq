@@ -1,18 +1,16 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 import argparse
-import os.path as op
-import os
 import sys
-
-from typing import List
-import time
 import json
-
-from collections import defaultdict
 from tornado import web, ioloop
 from scorers import build_scorer
 
 DEFAULT_HOSTNAME = 'localhost'
 DEFAULT_PORT = 12321
+
 
 class ScorerHandler(web.RequestHandler):
     def initialize(self, scorer):
@@ -42,51 +40,31 @@ class SourceHandler(ScorerHandler):
             string = self.get_argument('segment_size')
             if len(string) > 0:
                 segment_size = int(string)
-            
 
-        r = json.dumps(
-            self.scorer.send_src(
-                int(sent_id),
-                segment_size
-            )
-        )
+        r = json.dumps(self.scorer.send_src(int(sent_id), segment_size))
+
         self.write(r)
 
 
 class HypothesisHandler(ScorerHandler):
     def put(self):
         sent_id = int(self.get_argument('sent_id'))
-        list_of_tokens = (
-            self.request.body
-            .decode('utf-8')
-            .strip()
-            .split()
-        )
+        list_of_tokens = self.request.body.decode('utf-8').strip().split()
         self.scorer.recv_hyp(sent_id, list_of_tokens)
 
 
 def add_args():
     parser = argparse.ArgumentParser()
+    # fmt: off
     parser.add_argument('--hostname', type=str, default=DEFAULT_HOSTNAME,
-                        help='server hostname')
+                        help='Server hostname')
     parser.add_argument('--port', type=int, default=DEFAULT_PORT,
-                        help='server port number')
-    parser.add_argument('--src-file', type=str,
-                        help='Source file')
-    parser.add_argument('--tgt-file', type=str,
-                        help='Target file')
-    parser.add_argument('--output', type=str,
-                        help='')
-    parser.add_argument('--debug', action='store_true', help='debug mode')
+                        help='Server port number')
+    parser.add_argument('--scorer-type', type=str, default="text",
+                        help='Type of data to evaluate')
 
-    parser.add_argument('--scorer-type', type=str, default="text", choices=["text", "speech"],
-                        help='Type of data to evaluate')
-    parser.add_argument('--tokenizer', default="13a", choices=["none", "13a"],
-                        help='Type of data to evaluate')
-    parser.add_argument('--tgt-file-type', type=str, default="json",
-                        choices=['json', "text"], required=False,
-                        help='Type of the tgt_file, choose from json, text')
     args, _ = parser.parse_known_args()
+    # fmt: on
     return args
 
 

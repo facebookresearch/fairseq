@@ -1,6 +1,11 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import requests
-import json
 from typing import Optional
+from scorers import build_scorer
 
 
 class SimulSTEvaluationService(object):
@@ -60,7 +65,7 @@ class SimulSTEvaluationService(object):
         params = {"sent_id": sent_id}
 
         try:
-            out = requests.put(url, params=params, data=hypo.encode("utf-8"))
+            requests.put(url, params=params, data=hypo.encode("utf-8"))
         except Exception as e:
             print(f'Failed to send a translated segment: {e}')
 
@@ -75,8 +80,8 @@ class SimulSTEvaluationService(object):
 
 
 class SimulSTLocalEvaluationService(object):
-    def __init__(self, scorer):
-        self.scorer = scorer
+    def __init__(self, args):
+        self.scorer = build_scorer(args)
 
     def get_scores(self):
         return self.scorer.score()
