@@ -8,7 +8,7 @@ class SubwordSplitter(object):
     def process_line(self, string):
         raise NotImplementedError
 
-    def split(self, string: str) -> list:
+    def split(self, string):
         raise NotImplementedError
 
 
@@ -43,7 +43,7 @@ class BPEWordSplitter(object):
         with open(model_path) as f:
             self.model = BPE(f)
 
-    def split(self, string: str) -> list:
+    def split(self, string):
         return self.model.process_line(string).split()
 
     def end_idx_last_full_word(self, tokens):
@@ -66,7 +66,7 @@ class SentencePieceModelWordSplitter(object):
         self.model = spm.SentencePieceProcessor()
         self.model.Load(model_path)
 
-    def split(self, string: str) -> list:
+    def split(self, string):
         return self.model.EncodeAsPieces(string)
 
     def end_idx_last_full_word(self, tokens):

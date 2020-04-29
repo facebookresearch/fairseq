@@ -7,6 +7,7 @@ from . agent import Agent
 from . import DEFAULT_EOS, GET, SEND
 from fairseq import checkpoint_utils, utils, tasks
 import os
+import json
 
 
 class SimulTransAgent(Agent):
@@ -56,7 +57,7 @@ class SimulTransAgent(Agent):
         if not os.path.exists(filename):
             raise IOError("Model file not found: {}".format(filename))
 
-        state = checkpoint_utils.load_checkpoint_to_cpu(filename, eval(args.model_overrides))
+        state = checkpoint_utils.load_checkpoint_to_cpu(filename, json.loads(args.model_overrides))
 
         saved_args = state["args"]
         saved_args.data = args.data_bin

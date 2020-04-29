@@ -50,7 +50,7 @@ class SimulScorer(object):
     def send_src(self, sent_id, *args):
         raise NotImplementedError
 
-    def recv_hyp(self, sent_id: int, list_of_tokens: list):
+    def recv_hyp(self, sent_id, list_of_tokens):
         for token in list_of_tokens:
             self.translations[
                 sent_id
