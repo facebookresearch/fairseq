@@ -5,10 +5,10 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import math
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from torch.nn import Parameter
 
 from fairseq import utils
 
@@ -20,120 +20,82 @@ from examples.simultaneous_translation.utils.functions import (
 )
 
 
+from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.utils import convert_padding_direction
 from . import register_monotonic_attention
 
 
-@register_monotonic_attention("hard_aligned")
-class MonotonicMultiheadAttention(MultiheadAttention):
-
+@with_incremental_state
+class MonotonicAttention(nn.Module):
+    """
+    Abstract class of monotonic attentions
+    """
     def __init__(self, args):
-        super().__init__(
-            embed_dim=args.decoder_embed_dim,
-            num_heads=args.decoder_attention_heads,
-            kdim=getattr(args, 'encoder_embed_dim', None),
-            vdim=getattr(args, 'encoder_embed_dim', None),
-            dropout=args.attention_dropout,
-            encoder_decoder_attention=True
-        )
-        self.bias = True
         self.eps = args.attention_eps
         self.mass_preservation = args.mass_preservation
 
-        self.noise_type = args.noise_type
         self.noise_mean = args.noise_mean
         self.noise_var = args.noise_var
 
         self.energy_bias_init = args.energy_bias_init
         self.energy_bias = (
             nn.Parameter(self.energy_bias_init * torch.ones([1]))
-            if args.energy_bias == True else 0
+            if args.energy_bias is True else 0
         )
 
     @staticmethod
     def add_args(parser):
         # fmt: off
-        parser.add_argument('--mass-preservation', action="store_true", default=False,
+        parser.add_argument('--no-mass-preservation', action="store_false", dest="mass_preservation",
+                            help='Do not stay on the last token when decoding')
+        parser.add_argument('--mass-preservation', action="store_true", dest="mass_preservation",
                             help='Stay on the last token when decoding')
+        parser.set_defaults(mass_preservation=True)
+
         parser.add_argument('--noise-var', type=float, default=1.0,
                             help='Variance of discretness noise')
         parser.add_argument('--noise-mean', type=float, default=0.0,
                             help='Mean of discretness noise')
-        parser.add_argument('--noise-type', type=str, default="flat",
-                            help='Type of discretness noise')
         parser.add_argument('--energy-bias', action="store_true", default=False,
                             help='Bias for energy')
         parser.add_argument('--energy-bias-init', type=float, default=-2.0,
                             help='Initial value of the bias for energy')
         parser.add_argument('--attention-eps', type=float, default=1e-6,
                             help='Epsilon when calculating expected attention')
+        # fmt: on
 
-    def forward(self, query, key, value, 
-                incremental_state=None, key_padding_mask=None,
-                need_weights=True, static_kv=False, attn_mask=None, 
-                *args, **kwargs):
-        """Input shape: Time x Batch x Channel
+    def p_choose(self, *args):
+        raise NotImplementedError
 
-        Timesteps can be masked by supplying a T x T mask in the
-        `attn_mask` argument. Padding elements can be excluded from
-        the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
-        batch x src_len, where padding elements are indicated by 1s.
+    def input_projections(self, *args):
+        raise NotImplementedError
+
+    def attn_energy(self, q_proj, k_proj, key_padding_mask=None):
         """
+        Calculating monotonic energies
 
-        tgt_len, bsz, embed_dim = query.size()
+        ============================================================
+        Expected input size
+        q_proj: bsz * num_heads, tgt_len, self.head_dim
+        k_proj: bsz * num_heads, src_len, self.head_dim
+        key_padding_mask: bsz, src_len
+        attn_mask: tgt_len, src_len
+        """
+        bsz, tgt_len, embed_dim = q_proj.size()
+        bsz = bsz // self.num_heads
+        src_len = k_proj.size(1)
 
-        # prepare inputs
-        (
-            q_proj, k_proj, v_proj,
-            key_padding_mask, attn_mask
-        ) = self.multihead_inputs(
-            query, key, value,
-            incremental_state, key_padding_mask, attn_mask,
-        )
+        attn_energy = torch.bmm(q_proj, k_proj.transpose(1, 2)) + self.energy_bias
 
-        src_len = v_proj.size(1)
+        attn_energy = attn_energy.view(bsz, self.num_heads, tgt_len, src_len)
 
-        # stepwise prob
-        # p_choose: bsz * self.num_heads, tgt_len, src_len
-        p_choose = self.p_choose(
-            q_proj, k_proj, key_padding_mask, attn_mask)
-        
-        # expected alignment alpha
-        if incremental_state is not None:
-            alpha = self.expected_alignment_infer(
-                p_choose, incremental_state, key_padding_mask)
-        else:
-            alpha = self.expected_alignment_train(
-                p_choose, src_len)
-        
-         # expected attention beta
-        beta = self.expected_attention(
-            alpha, query, key, value,
-            incremental_state, key_padding_mask, attn_mask
-        )
+        if key_padding_mask is not None:
+            attn_energy = attn_energy.masked_fill(
+                key_padding_mask.unsqueeze(1).unsqueeze(2).bool(),
+                float('-inf'),
+            )
 
-        attn_weights = beta
-
-        attn = torch.bmm(attn_weights.type_as(v_proj), v_proj)
-
-        attn = (
-            attn
-            .transpose(0, 1)
-            .contiguous()
-            .view(tgt_len, bsz, embed_dim)
-        )
-
-        attn = self.out_proj(attn)
-
-        beta = beta.view(bsz, self.num_heads, tgt_len, src_len)
-        alpha = alpha.view(bsz, self.num_heads, tgt_len, src_len)
-
-        return attn, {"alpha": alpha, "beta": beta, "p_choose": p_choose}
-
-    def expected_attention(self, alpha, *args):
-        '''
-        For MMA-H, beta = alpha
-        '''
-        return alpha
+        return attn_energy
 
     def expected_alignment_train(self, p_choose, key_padding_mask):
         """
@@ -175,7 +137,7 @@ class MonotonicMultiheadAttention(MultiheadAttention):
                     previous_attn[i][:, 0] / cumprod_1mp_clamp[:, i],
                     dim=1
                 )
-            )
+            ).clamp(0, 1.0)
             previous_attn.append(alpha_i.unsqueeze(1))
 
         # alpha: bsz * num_heads, tgt_len, src_len
@@ -185,25 +147,19 @@ class MonotonicMultiheadAttention(MultiheadAttention):
             # Last token has the residual probabilities
             alpha[:, :, -1] = 1 - alpha[:, :, :-1].sum(dim=-1).clamp(0.0, 1.0)
 
-        if torch.isnan(alpha).any():
-            # Something is wrong
-            raise RuntimeError("NaN in alpha.")
-
-        alpha = F.dropout(alpha, p=self.dropout, training=self.training)
+        assert not torch.isnan(alpha).any(), "NaN detected in alpha."
 
         return alpha
 
-    def expected_alignment_infer(
-        self, p_choose, incremental_state, encoder_padding_mask
-    ):
+    def expected_alignment_infer(self, p_choose, key_padding_mask, incremental_state):
         """
         Calculating mo alignment for MMA during inference time
 
         ============================================================
         Expected input size
         p_choose: bsz * num_heads, tgt_len, src_len
+        key_padding_mask: bsz * src_len
         incremental_state: dict
-        encodencoder_padding_mask: bsz * src_len
         """
         # p_choose: bsz * self.num_heads, src_len
         bsz_num_heads, tgt_len, src_len = p_choose.size()
@@ -226,8 +182,9 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         # p_choose: bsz, num_heads, src_len
         p_choose = p_choose.view(bsz, num_heads, src_len)
 
-        if encoder_padding_mask is not None:
-            src_lengths = src_len - encoder_padding_mask.sum(dim=1, keepdim=True).long()
+        if key_padding_mask is not None:
+            src_lengths = src_len - \
+                key_padding_mask.sum(dim=1, keepdim=True).long()
         else:
             src_lengths = prev_monotonic_step.new_ones(bsz, 1) * src_len
 
@@ -237,10 +194,10 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         new_monotonic_step = prev_monotonic_step
 
         step_offset = 0
-        if encoder_padding_mask is not None:
-            if encoder_padding_mask[:, 0].any():
+        if key_padding_mask is not None:
+            if key_padding_mask[:, 0].any():
                 # left_pad_source = True:
-                step_offset = encoder_padding_mask.sum(dim=-1, keepdim=True)
+                step_offset = key_padding_mask.sum(dim=-1, keepdim=True)
 
         max_steps = (
             src_lengths - 1 if self.mass_preservation
@@ -279,7 +236,7 @@ class MonotonicMultiheadAttention(MultiheadAttention):
 
             finish_read = new_monotonic_step.eq(max_steps) | (action == 0)
             # finish_read = (~ (finish_read.sum(dim=1, keepdim=True) < self.num_heads / 2)) | finish_read
- 
+
         monotonic_cache["step"] = new_monotonic_step
 
         # alpha: bsz * num_heads, 1, src_len
@@ -289,7 +246,8 @@ class MonotonicMultiheadAttention(MultiheadAttention):
             .new_zeros([bsz * self.num_heads, src_len])
             .scatter(
                 1,
-                (step_offset + new_monotonic_step).view(bsz * self.num_heads, 1).clamp(0, src_len - 1),
+                (step_offset + new_monotonic_step).view(bsz *
+                                                        self.num_heads, 1).clamp(0, src_len - 1),
                 1
             )
         )
@@ -306,186 +264,51 @@ class MonotonicMultiheadAttention(MultiheadAttention):
 
         return alpha
 
-    def p_choose(self, q_proj, k_proj, key_padding_mask=None, attn_mask=None):
-        """
-        Calculating step wise prob for reading and writing
-        1 to read, 0 to write
+    def v_proj_output(self, value):
+        raise NotImplementedError
 
-        ============================================================
-        Expected input size
-        query: bsz, tgt_len, embed_dim
-        key: bsz, src_len, embed_dim
-        value: bsz, src_len, embed_dim
-        key_padding_mask: bsz, src_len
-        attn_mask: bsz, src_len
-        query: bsz, tgt_len, embed_dim
-        """
-
-        # attention energy
-        attn_energy = self.multihead_energy(
-            q_proj, k_proj, key_padding_mask, attn_mask)
-        noise = 0
-
-        if self.training:
-            # add noise here to encourage discretness
-            noise = (
-                torch
-                .normal(self.noise_mean, self.noise_var, attn_energy.size())
-                .type_as(attn_energy)
-                .to(attn_energy.device)
-            )
-
-        p_choose = torch.sigmoid(attn_energy + noise)
-
-        # p_choose: bsz * self.num_heads, tgt_len, src_len
-        return p_choose
-
-    def multihead_inputs(self, query, key, value, incremental_state=None, key_padding_mask=None,
-                         attn_mask=None, static_kv=True, softmax=False):
-        """
-        Prepare inputs for multihead attention
-
-        ============================================================
-        Expected input size
-        energy_type: monotonic or soft
-        query: tgt_len, bsz, embed_dim
-        key: src_len, bsz, embed_dim
-        """
-        prev_key_name = 'prev_key_soft' if softmax else 'prev_key'
-        prev_value_name = 'prev_value_soft' if softmax else 'prev_value'
+    def forward(
+        self, query, key, value,
+        key_padding_mask=None, incremental_state=None, *args, **kwargs,
+    ):
 
         tgt_len, bsz, embed_dim = query.size()
-        assert embed_dim == self.embed_dim
-        assert list(query.size()) == [tgt_len, bsz, embed_dim]
+        src_len = value.size(0)
 
+        # stepwise prob
+        # p_choose: bsz * self.num_heads, tgt_len, src_len
+        p_choose = self.p_choose(query, key, key_padding_mask)
+
+        # expected alignment alpha
+        # bsz * self.num_heads, tgt_len, src_len
         if incremental_state is not None:
-            saved_state = self._get_input_buffer(incremental_state)
+            alpha = self.expected_alignment_infer(p_choose, key_padding_mask, incremental_state)
         else:
-            saved_state = None
+            alpha = self.expected_alignment_train(p_choose, key_padding_mask)
 
-        if softmax:
-            q = self.in_proj_q_soft(query)
-        else:
-            q = self.q_proj(query)
+        # expected attention beta
+        # bsz * self.num_heads, tgt_len, src_len
+        beta = self.expected_attention(alpha, query, key, value, key_padding_mask, incremental_state)
 
-        if key is None:
-            # using prev_key and prev_value
-            # assert value is None
-            k = v = None
-        else:
-            if softmax:
-                k = self.in_proj_k_soft(key)
-            else:
-                k = self.k_proj(key)
-            if softmax:
-                v = k
-            else:
-                v = self.v_proj(key)
+        attn_weights = beta
 
-        q *= self.scaling
+        v_proj = self.v_proj_output(value)
+        attn = torch.bmm(attn_weights.type_as(v_proj), v_proj)
 
-        if self.bias_k is not None:
-            assert self.bias_v is not None
-            k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
-            v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
-            if attn_mask is not None:
-                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
-
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
-        if k is not None:
-            k = k.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
-        if v is not None:
-            v = v.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
-
-        if False and saved_state is not None:
-            # TODO: Leave it for now because we are not doing incremental encoding
-            # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-            if prev_key_name in saved_state:
-                prev_key = saved_state[prev_key_name].view(bsz * self.num_heads, -1, self.head_dim)
-                if static_kv:
-                    k = prev_key
-                else:
-                    k = torch.cat((prev_key, k), dim=1)
-            if prev_value_name in saved_state:
-                prev_value = saved_state[prev_value_name].view(bsz * self.num_heads, -1, self.head_dim)
-                if static_kv:
-                    v = prev_value
-                else:
-                    v = torch.cat((prev_value, v), dim=1)
-            saved_state[prev_key_name] = k.view(bsz, self.num_heads, -1, self.head_dim)
-            saved_state[prev_value_name] = v.view(bsz, self.num_heads, -1, self.head_dim)
-
-            self._set_input_buffer(incremental_state, saved_state)
-
-        src_len = k.size(1)
-        # This is part of a workaround to get around fork/join parallelism
-        # not supporting Optional types.
-        if key_padding_mask is not None and key_padding_mask.shape == torch.Size([]):
-            key_padding_mask = None
-
-        if key_padding_mask is not None:
-            assert key_padding_mask.size(0) == bsz
-            assert key_padding_mask.size(1) == src_len
-
-        if self.add_zero_attn:
-            src_len += 1
-            k = torch.cat([k, k.new_zeros((k.size(0), 1) + k.size()[2:])], dim=1)
-            v = torch.cat([v, v.new_zeros((v.size(0), 1) + v.size()[2:])], dim=1)
-            if attn_mask is not None:
-                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [key_padding_mask, torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask)], dim=1)
-
-        return q, k, v, key_padding_mask, attn_mask
-
-    def multihead_energy(self, q_proj, k_proj, key_padding_mask=None, attn_mask=None):
-        """
-        Calculating multihead energies
-
-        ============================================================
-        Expected input size
-        q_proj: bsz * num_heads, tgt_len, self.head_dim
-        k_proj: bsz * num_heads, src_len, self.head_dim
-        key_padding_mask: bsz, src_len
-        attn_mask: tgt_len, src_len
-        """
-        bsz, tgt_len, embed_dim = q_proj.size()
-        bsz = bsz // self.num_heads
-        src_len = k_proj.size(1)
-
-        attn_energy = (
-            torch.bmm(q_proj, k_proj.transpose(1, 2))
-            + self.energy_bias
+        attn = (
+            attn
+            .transpose(0, 1)
+            .contiguous()
+            .view(tgt_len, bsz, embed_dim)
         )
 
-        if attn_mask is not None:
-            attn_mask = attn_mask.unsqueeze(0)
-            if self.onnx_trace:
-                attn_mask = attn_mask.repeat(attn_energy.size(0), 1, 1)
-            attn_energy += attn_mask
+        attn = self.out_proj(attn)
 
-        if key_padding_mask is not None:
-            # don't attend to padding symbols
-            attn_energy = attn_energy.view(bsz, self.num_heads, tgt_len, src_len)
-            if self.onnx_trace:
-                attn_energy = torch.where(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2),
-                    torch.Tensor([float("-Inf")]),
-                    attn_energy.float()
-                ).type_as(attn_energy)
-            else:
-                attn_energy = attn_energy.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2),
-                    float('-inf'),
-                )
+        beta = beta.view(bsz, self.num_heads, tgt_len, src_len)
+        alpha = alpha.view(bsz, self.num_heads, tgt_len, src_len)
+        p_choose = p_choose.view(bsz, self.num_heads, tgt_len, src_len)
 
-            attn_energy = attn_energy.view(bsz * self.num_heads, tgt_len, src_len)
-
-        return attn_energy
+        return attn, {"alpha": alpha, "beta": beta, "p_choose": p_choose}
 
     def reorder_incremental_state(self, incremental_state, new_order):
         """Reorder buffered internal state (for incremental generation)."""
@@ -510,14 +333,14 @@ class MonotonicMultiheadAttention(MultiheadAttention):
             'monotonic',
             buffer,
         )
-    
+
     def get_pointer(self, incremental_state):
         return utils.get_incremental_state(
             self,
             incremental_state,
             'monotonic',
         ) or {}
-    
+
     def get_fastest_pointer(self, incremental_state):
         return self.get_pointer(incremental_state)["step"].max(0)[0]
 
@@ -528,10 +351,8 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         else:
             buffer = self.get_pointer(incremental_state)["step"]
 
-        
-        #print(buffer.size(), p_choose.size())
         buffer += (p_choose < 0.5).type_as(buffer)
-        
+
         utils.set_incremental_state(
             self,
             incremental_state,
@@ -540,48 +361,143 @@ class MonotonicMultiheadAttention(MultiheadAttention):
         )
 
 
+@register_monotonic_attention("hard_aligned")
+class MonotonicMultiheadAttentionHard(MonotonicAttention, MultiheadAttention):
+
+    def __init__(self, args):
+        MultiheadAttention.__init__(
+            self,
+            embed_dim=args.decoder_embed_dim,
+            num_heads=args.decoder_attention_heads,
+            kdim=getattr(args, 'encoder_embed_dim', None),
+            vdim=getattr(args, 'encoder_embed_dim', None),
+            dropout=args.attention_dropout,
+            encoder_decoder_attention=True
+        )
+
+        MonotonicAttention.__init__(self, args)
+
+        self.k_in_proj = {"monotonic": self.k_proj}
+        self.q_in_proj = {"monotonic": self.q_proj}
+        self.v_in_proj = {"output": self.v_proj}
+
+    def input_projections(self, query, key, value, name):
+        """
+        Prepare inputs for multihead attention
+
+        ============================================================
+        Expected input size
+        query: tgt_len, bsz, embed_dim
+        key: src_len, bsz, embed_dim
+        value: src_len, bsz, embed_dim
+        name: monotonic or soft
+        """
+
+        if query is not None:
+            bsz = query.size(1)
+            q = self.q_in_proj[name](query)
+            q *= self.scaling
+            q = q.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        else:
+            q = None
+
+        if key is not None:
+            bsz = key.size(1)
+            k = self.k_in_proj[name](key)
+            k = k.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        else:
+            k = None
+
+        if value is not None:
+            bsz = value.size(1)
+            v = self.v_in_proj[name](value)
+            v = v.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        else:
+            v = None
+
+        return q, k, v
+
+    def p_choose(self, query, key, key_padding_mask=None):
+        """
+        Calculating step wise prob for reading and writing
+        1 to read, 0 to write
+
+        ============================================================
+        Expected input size
+        query: bsz, tgt_len, embed_dim
+        key: bsz, src_len, embed_dim
+        value: bsz, src_len, embed_dim
+        key_padding_mask: bsz, src_len
+        attn_mask: bsz, src_len
+        query: bsz, tgt_len, embed_dim
+        """
+
+        # prepare inputs
+        q_proj, k_proj, _ = self.input_projections(query, key, None, "monotonic")
+
+        # attention energy
+        attn_energy = self.attn_energy(q_proj, k_proj, key_padding_mask)
+
+        noise = 0
+
+        if self.training:
+            # add noise here to encourage discretness
+            noise = (
+                torch
+                .normal(self.noise_mean, self.noise_var, attn_energy.size())
+                .type_as(attn_energy)
+                .to(attn_energy.device)
+            )
+
+        p_choose = torch.sigmoid(attn_energy + noise)
+        _, _, tgt_len, src_len = p_choose.size()
+
+        # p_choose: bsz * self.num_heads, tgt_len, src_len
+        return p_choose.view(-1, tgt_len, src_len)
+
+    def expected_attention(self, alpha, *args):
+        '''
+        For MMA-H, beta = alpha
+        '''
+        return alpha
+
+    def v_proj_output(self, value):
+        _, _, v_proj = self.input_projections(None, None, value, "output")
+        return v_proj
+
+
 @register_monotonic_attention("infinite_lookback")
-class MonotonicInfiniteLookbackMultiheadAttention(MonotonicMultiheadAttention):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class MonotonicMultiheadAttentionInfiniteLookback(MonotonicMultiheadAttentionHard):
+    def __init__(self, args):
+        super().__init__(args)
         self.init_soft_attention()
 
-    def expected_attention(self, alpha, query, key, value, incremental_state, key_padding_mask, attn_mask):
+    def init_soft_attention(self):
+        self.k_proj_soft = nn.Linear(self.kdim, self.embed_dim, bias=True)
+        self.q_proj_soft = nn.Linear(self.embed_dim, self.embed_dim, bias=True)
+        self.k_in_proj["soft"] = self.k_proj_soft
+        self.q_in_proj["soft"] = self.q_proj_soft
+
+        if self.qkv_same_dim:
+            # Empirically observed the convergence to be much better with
+            # the scaled initialization
+            nn.init.xavier_uniform_(self.k_in_proj["soft"].weight, gain=1 / math.sqrt(2))
+            nn.init.xavier_uniform_(self.q_in_proj["soft"].weight, gain=1 / math.sqrt(2))
+        else:
+            nn.init.xavier_uniform_(self.k_in_proj["soft"].weight)
+            nn.init.xavier_uniform_(self.q_in_proj["soft"].weight)
+
+    def expected_attention(self, alpha, query, key, value, key_padding_mask, incremental_state):
         # monotonic attention, we will calculate milk here
         bsz_x_num_heads, tgt_len, src_len = alpha.size()
         bsz = int(bsz_x_num_heads / self.num_heads)
 
-        q, k, v, key_padding_mask, attn_mask = self.multihead_inputs(
-            query, key, value, incremental_state, key_padding_mask, attn_mask, softmax=True
-        )
-        soft_energy = torch.bmm(q, k.transpose(1, 2))
+        q, k, _ = self.input_projections(query, key, None, "soft")
+        soft_energy = self.attn_energy(q, k, key_padding_mask)
 
-        try:
-            assert list(soft_energy.size()) == [bsz * self.num_heads, tgt_len, src_len]
-        except:
-            import pdb;pdb.set_trace()
+        assert list(soft_energy.size()) == [bsz, self.num_heads, tgt_len, src_len]
 
-        if attn_mask is not None:
-            attn_mask = attn_mask.unsqueeze(0)
-            if self.onnx_trace:
-                attn_mask = attn_mask.repeat(soft_energy.size(0), 1, 1)
-            soft_energy += attn_mask
-
-        if key_padding_mask is not None:
-            # don't attend to padding symbols
-            soft_energy = soft_energy.view(bsz, self.num_heads, tgt_len, src_len)
-            if self.onnx_trace:
-                soft_energy = torch.where(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2),
-                    torch.Tensor([float("-Inf")]),
-                    soft_energy.float()
-                ).type_as(soft_energy)
-            else:
-                soft_energy = soft_energy.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2),
-                    float('-inf'),
-                )
-            soft_energy = soft_energy.view(bsz * self.num_heads, tgt_len, src_len)
+        soft_energy = soft_energy.view(bsz * self.num_heads, tgt_len, src_len)
 
         if incremental_state is not None:
             monotonic_cache = self._get_monotonic_buffer(incremental_state)
@@ -592,105 +508,85 @@ class MonotonicInfiniteLookbackMultiheadAttention(MonotonicMultiheadAttention):
                     # left_pad_source = True:
                     step_offset = key_padding_mask.sum(dim=-1, keepdim=True)
             monotonic_step += step_offset
-            mask = lengths_to_mask(monotonic_step.view(-1), soft_energy.size(2), 1).unsqueeze(1)
-            
-            soft_energy = soft_energy.masked_fill(~ mask, float('-inf'))
+            mask = lengths_to_mask(
+                monotonic_step.view(-1), soft_energy.size(2), 1).unsqueeze(1)
+
+            soft_energy = soft_energy.masked_fill(~ mask.bool(), float('-inf'))
             soft_energy = soft_energy - soft_energy.max(dim=2, keepdim=True)[0]
             exp_soft_energy = torch.exp(soft_energy)
             exp_soft_energy_sum = exp_soft_energy.sum(dim=2)
             beta = exp_soft_energy / exp_soft_energy_sum.unsqueeze(2)
-            
+
         else:
+            # bsz * num_heads, tgt_len, src_len
             soft_energy = soft_energy - soft_energy.max(dim=2, keepdim=True)[0]
-            exp_soft_energy = torch.exp(soft_energy) + self.eps
-            inner_items = alpha / (torch.cumsum(exp_soft_energy, dim=2))
+            exp_soft_energy = torch.exp(soft_energy)
+            exp_soft_energy_cumsum = torch.cumsum(exp_soft_energy, dim=2)
+
+            if key_padding_mask is not None:
+                if key_padding_mask.any():
+                    exp_soft_energy_cumsum = (
+                        exp_soft_energy_cumsum.view(-1, self.num_heads, tgt_len, src_len)
+                        .masked_fill(key_padding_mask.unsqueeze(1).unsqueeze(1), self.eps)
+                        .view(-1, tgt_len, src_len)
+                    )
+
+            inner_items = alpha / exp_soft_energy_cumsum
+
             beta = exp_soft_energy * torch.cumsum(inner_items.flip(dims=[2]), dim=2).flip(dims=[2])
-            beta = beta.view(bsz, self.num_heads, tgt_len, src_len).masked_fill(key_padding_mask.unsqueeze(1).unsqueeze(2), 0)
-            beta = beta / beta.sum(dim=3, keepdim=True)
-            beta = beta.view(bsz * self.num_heads, tgt_len, src_len)
+
             beta = F.dropout(beta, p=self.dropout, training=self.training)
 
-        if torch.isnan(beta).any():
-            print(beta)
-            import pdb;pdb.set_trace()
+        assert not torch.isnan(beta).any(), "NaN detected in beta."
 
         return beta
 
-    def init_soft_attention(self):
-        embed_dim = self.embed_dim
 
-        if self.qkv_same_dim:
-            self.in_proj_weight_soft = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
-        else:
-            self.k_proj_weight_soft = Parameter(torch.Tensor(embed_dim, self.kdim))
-            # self.v_proj_weight_soft = Parameter(torch.Tensor(embed_dim, self.vdim))
-            self.q_proj_weight_soft = Parameter(torch.Tensor(embed_dim, embed_dim))
+@register_monotonic_attention("waitk")
+class MonotonicMultiheadAttentionWaitk(MonotonicMultiheadAttentionInfiniteLookback):
+    def __init__(self, args):
+        super().__init__(args)
+        self.q_in_proj["soft"] = self.q_in_proj["monotonic"]
+        self.k_in_proj["soft"] = self.k_in_proj["monotonic"]
+        self.waitk_lagging = args.waitk_lagging
+        assert self.waitk_lagging > 0, f"Lagging has to been larger than 0, get {self.waitk_lagging}."
 
-        if self.bias:
-            self.in_proj_bias_soft = Parameter(torch.Tensor(2 * embed_dim))
-        else:
-            self.register_parameter('in_proj_bias_soft', None)
+    @staticmethod
+    def add_args(parser):
+        super(
+            MonotonicMultiheadAttentionWaitk,
+            MonotonicMultiheadAttentionWaitk,
+        ).add_args(parser)
 
-        #self.out_proj_soft = nn.Linear(embed_dim, embed_dim, bias=bias)
+        parser.add_argument('--waitk-lagging', type=int, required=True,
+                            help='Wait k lagging')
 
-        if self.bias_k is not None and self.bias_v is not None:
-            self.bias_k_soft = Parameter(torch.Tensor(1, 1, embed_dim))
-            # self.bias_v_soft = Parameter(torch.Tensor(1, 1, embed_dim))
-        else:
-            self.bias_k_soft = self.bias_v_soft = None
-        
-        self.reset_parameters_soft()
+    def p_choose(self, query, key, key_padding_mask=None, attn_mask=None, incremental_state=None):
+        """
+        query: bsz, tgt_len
+        key: bsz, src_len
+        key_padding_mask: bsz, src_len
+        """
+        src_len, bsz, _ = key.size()
+        tgt_len, bsz, _ = query.size()
+        p_choose = query.new_ones(bsz, tgt_len, src_len)
+        p_choose = torch.tril(p_choose, diagonal=self.waitk_lagging - 1)
+        p_choose = torch.triu(p_choose, diagonal=self.waitk_lagging - 1)
 
-    def reset_parameters_soft(self):
-        if self.qkv_same_dim:
-            nn.init.xavier_uniform_(self.in_proj_weight_soft)
-        else:
-            nn.init.xavier_uniform_(self.k_proj_weight_soft)
-            # nn.init.xavier_uniform_(self.v_proj_weight_soft)
-            nn.init.xavier_uniform_(self.q_proj_weight_soft)
+        if key_padding_mask is not None and key_padding_mask[:, 0].eq(1).any():
+            # Left pad source
+            # add -1 to the end
+            p_choose = p_choose.masked_fill(key_padding_mask.float().flip(1).unsqueeze(1).bool(), -1)
+            p_choose = convert_padding_direction(p_choose.view(-1, src_len).long(), padding_idx=-1, right_to_left=True)
+            p_choose = p_choose.view(bsz, tgt_len, src_len).type_as(query)
+            # remove -1
+            p_choose[p_choose.eq(-1)] = 0
 
-        nn.init.xavier_uniform_(self.out_proj.weight)
-        if self.in_proj_bias_soft is not None:
-            nn.init.constant_(self.in_proj_bias_soft, 0.)
-            nn.init.constant_(self.out_proj.bias, 0.)
-        if self.bias_k_soft is not None:
-            nn.init.xavier_normal_(self.bias_k_soft)
-        # if self.bias_v_soft is not None:
-            # nn.init.xavier_normal_(self.bias_v_soft)
+        # Extend to each head
+        p_choose = (
+            p_choose.contiguous().unsqueeze(1)
+            .expand(-1, self.num_heads, -1, -1).contiguous()
+            .view(-1, tgt_len, src_len)
+        )
 
-    def in_proj_q_soft(self, query):
-        if self.qkv_same_dim:
-            return self._in_proj_soft(query, end=self.embed_dim)
-        else:
-            bias = self.in_proj_bias_soft
-            if bias is not None:
-                bias = bias[:self.embed_dim]
-            return F.linear(query, self.q_proj_weight_soft, bias)
-
-    def in_proj_k_soft(self, key):
-        if self.qkv_same_dim:
-            return self._in_proj_soft(key, start=self.embed_dim, end=2 * self.embed_dim)
-        else:
-            weight = self.k_proj_weight_soft
-            bias = self.in_proj_bias_soft
-            if bias is not None:
-                bias = bias[self.embed_dim:2 * self.embed_dim]
-            return F.linear(key, weight, bias)
-
-    # def in_proj_v_soft(self, value):
-    #     if self.qkv_same_dim:
-    #         return self._in_proj_soft(value, start=2 * self.embed_dim)
-    #     else:
-    #         weight = self.v_proj_weight_soft
-    #         bias = self.in_proj_bias_soft
-    #         if bias is not None:
-    #             bias = bias[2 * self.embed_dim:]
-    #         return F.linear(value, weight, bias)
-
-    def _in_proj_soft(self, input, start=0, end=None):
-        weight = self.in_proj_weight_soft
-        bias = self.in_proj_bias_soft
-        weight = weight[start:end, :]
-        if bias is not None:
-            bias = bias[start:end]
-        return F.linear(input, weight, bias)
+        return p_choose
