@@ -12,6 +12,7 @@ from fairseq.models import (
     register_model_architecture,
 )
 
+
 from fairseq.models.transformer import (
     TransformerModel,
     TransformerEncoder,
@@ -19,7 +20,6 @@ from fairseq.models.transformer import (
     base_architecture,
     transformer_iwslt_de_en,
     transformer_vaswani_wmt_en_de_big,
-    transformer_vaswani_wmt_en_fr_big
 )
 
 
@@ -258,8 +258,6 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
             if incremental_state is not None:
                 curr_steps = layer.get_steps(incremental_state)
-                #print(curr_steps)
-                #import pdb;pdb.set_trace()
                 step_list.append(curr_steps)
 
                 if incremental_state.get("online", False):
@@ -346,6 +344,7 @@ def transformer_monotonic_iwslt_de_en(args):
 )
 def transformer_monotonic_vaswani_wmt_en_de_big(args):
     transformer_vaswani_wmt_en_de_big(args)
+
 
 @register_model_architecture(
     'transformer_monotonic',
