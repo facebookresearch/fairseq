@@ -317,6 +317,8 @@ def add_dataset_args(parser, train=False, gen=False):
     parser.add_argument('--dataset-impl', metavar='FORMAT',
                         choices=get_available_dataset_impl(),
                         help='output dataset implementation')
+    group.add_argument('--data-buffer-size', default=0, type=int, metavar='N',
+                        help='Number of batches to preload')
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
                            help='data subset to use for training (e.g. train, valid, test)')
