@@ -1,0 +1,28 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# This file defines example configuration arguments for quantizing
+# a transformer model with product quantization
+
+n_centroids:
+    Linear:
+        key: in_features
+        value: {"*": 8}
+    Embedding:
+        key: embedding_dim
+        value: {"*": 8}
+
+block_sizes:
+  Linear:
+      key: fuzzy_name
+      value: {fc: 8, attn: 4, emb: 4}
+  Embedding:
+      key: fuzzy_name
+      value: {emb: 8}
+
+layers_to_quantize:
+    - decoder\\.layers\\.\d+\\.fc[12]
+    - decoder\\.embed_tokens\\.embeddings\\.[012]\\.[01]
+    - decoder\\.layers\\.\d+\\.self_attn\\.(k_proj|v_proj|q_proj|out_proj)

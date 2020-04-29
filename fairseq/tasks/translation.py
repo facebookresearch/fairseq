@@ -232,7 +232,7 @@ class TranslationTask(FairseqTask):
 
         return cls(args, src_dict, tgt_dict)
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -240,7 +240,7 @@ class TranslationTask(FairseqTask):
         """
         paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         # infer langcode
         src, tgt = self.args.source_lang, self.args.target_lang
@@ -261,6 +261,7 @@ class TranslationTask(FairseqTask):
         return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
 
     def build_model(self, args):
+        model = super().build_model(args)
         if getattr(args, 'eval_bleu', False):
             assert getattr(args, 'eval_bleu_detok', None) is not None, (
                 '--eval-bleu-detok is required if using --eval-bleu; '
@@ -274,8 +275,8 @@ class TranslationTask(FairseqTask):
             ))
 
             gen_args = json.loads(getattr(args, 'eval_bleu_args', '{}') or '{}')
-            self.sequence_generator = self.build_generator(Namespace(**gen_args))
-        return super().build_model(args)
+            self.sequence_generator = self.build_generator([model], Namespace(**gen_args))
+        return model
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
@@ -367,5 +368,7 @@ class TranslationTask(FairseqTask):
         if self.args.eval_bleu_print_samples:
             logger.info('example hypothesis: ' + hyps[0])
             logger.info('example reference: ' + refs[0])
-        tokenize = sacrebleu.DEFAULT_TOKENIZER if not self.args.eval_tokenized_bleu else 'none'
-        return sacrebleu.corpus_bleu(hyps, [refs], tokenize=tokenize)
+        if self.args.eval_tokenized_bleu:
+            return sacrebleu.corpus_bleu(hyps, [refs], tokenize='none')
+        else:
+            return sacrebleu.corpus_bleu(hyps, [refs])

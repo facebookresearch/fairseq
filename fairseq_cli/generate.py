@@ -17,6 +17,7 @@ import torch
 from fairseq import bleu, checkpoint_utils, options, tasks, utils
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
+from fairseq.data import encoders
 
 
 def main(args):
@@ -66,7 +67,7 @@ def _main(args, output_file):
     # Load ensemble
     logger.info('loading model(s) from {}'.format(args.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
-        args.path.split(os.pathsep),
+        utils.split_paths(args.path),
         arg_overrides=eval(args.model_overrides),
         task=task,
     )
@@ -110,7 +111,18 @@ def _main(args, output_file):
 
     # Initialize generator
     gen_timer = StopwatchMeter()
-    generator = task.build_generator(args)
+    generator = task.build_generator(models, args)
+
+    # Handle tokenization and BPE
+    tokenizer = encoders.build_tokenizer(args)
+    bpe = encoders.build_bpe(args)
+
+    def decode_fn(x):
+        if bpe is not None:
+            x = bpe.decode(x)
+        if tokenizer is not None:
+            x = tokenizer.decode(x)
+        return x
 
     # Generate and compute BLEU score
     if args.sacrebleu:
@@ -153,7 +165,18 @@ def _main(args, output_file):
                 else:
                     src_str = ""
                 if has_target:
-                    target_str = tgt_dict.string(target_tokens, args.remove_bpe, escape_unk=True)
+                    target_str = tgt_dict.string(
+                        target_tokens,
+                        args.remove_bpe,
+                        escape_unk=True,
+                        extra_symbols_to_ignore={
+                            generator.eos,
+                        }
+                    )
+
+            src_str = decode_fn(src_str)
+            if has_target:
+                target_str = decode_fn(target_str)
 
             if not args.quiet:
                 if src_dict is not None:
@@ -170,11 +193,17 @@ def _main(args, output_file):
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
+                    extra_symbols_to_ignore={
+                        generator.eos,
+                    }
                 )
-
+                detok_hypo_str = decode_fn(hypo_str)
                 if not args.quiet:
                     score = hypo['score'] / math.log(2)  # convert to base 2
+                    # original hypothesis (after tokenization and BPE)
                     print('H-{}\t{}\t{}'.format(sample_id, score, hypo_str), file=output_file)
+                    # detokenized hypothesis
+                    print('D-{}\t{}\t{}'.format(sample_id, score, detok_hypo_str), file=output_file)
                     print('P-{}\t{}'.format(
                         sample_id,
                         ' '.join(map(
@@ -210,8 +239,9 @@ def _main(args, output_file):
                     if align_dict is not None or args.remove_bpe is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tgt_dict.encode_line(target_str, add_if_not_exist=True)
+                        hypo_tokens = tgt_dict.encode_line(detok_hypo_str, add_if_not_exist=True)
                     if hasattr(scorer, 'add_string'):
-                        scorer.add_string(target_str, hypo_str)
+                        scorer.add_string(target_str, detok_hypo_str)
                     else:
                         scorer.add(target_tokens, hypo_tokens)
 
@@ -223,6 +253,11 @@ def _main(args, output_file):
     logger.info('Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
         num_sentences, gen_timer.n, gen_timer.sum, num_sentences / gen_timer.sum, 1. / gen_timer.avg))
     if has_target:
+        if args.bpe and not args.sacrebleu:
+            if args.remove_bpe:
+                logger.warning("BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization")
+            else:
+                logger.warning("If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --sacrebleu for standard 13a BLEU tokenization")
         logger.info('Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
 
     return scorer

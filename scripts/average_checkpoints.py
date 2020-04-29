@@ -10,6 +10,8 @@ import torch
 import os
 import re
 
+from fairseq.file_io import PathManager
+
 
 def average_checkpoints(inputs):
     """Loads checkpoints from inputs and returns a model with averaged weights.
@@ -27,13 +29,14 @@ def average_checkpoints(inputs):
     new_state = None
     num_models = len(inputs)
 
-    for f in inputs:
-        state = torch.load(
-            f,
-            map_location=(
-                lambda s, _: torch.serialization.default_restore_location(s, 'cpu')
-            ),
-        )
+    for fpath in inputs:
+        with PathManager.open(fpath, 'rb') as f:
+            state = torch.load(
+                f,
+                map_location=(
+                    lambda s, _: torch.serialization.default_restore_location(s, 'cpu')
+                ),
+            )
         # Copies over the settings from the first checkpoint
         if new_state is None:
             new_state = state
@@ -74,7 +77,7 @@ def last_n_checkpoints(paths, n, update_based, upper_bound=None):
         pt_regexp = re.compile(r'checkpoint_\d+_(\d+)\.pt')
     else:
         pt_regexp = re.compile(r'checkpoint(\d+)\.pt')
-    files = os.listdir(path)
+    files = PathManager.ls(path)
 
     entries = []
     for f in files:
@@ -106,8 +109,11 @@ def main():
                            help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, '
                            'and average last this many of them.')
     parser.add_argument('--checkpoint-upper-bound', type=int,
-                        help='when using --num-epoch-checkpoints, this will set an upper bound on which checkpoint to use, '
-                        'e.g., with --num-epoch-checkpoints=10 --checkpoint-upper-bound=50, checkpoints 41-50 would be averaged.')
+                        help='when using --num-epoch-checkpoints, this will set an upper bound on which epoch to use, '
+                        'when using --num-update-checkpoints, this will set an upper bound on which update to use'
+                        'e.g., with --num-epoch-checkpoints=10 --checkpoint-upper-bound=50, checkpoints 41-50 would be averaged.'
+                        'e.g., with --num-update-checkpoints=10 --checkpoint-upper-bound=50000, checkpoints 40500-50000 would be averaged assuming --save-interval-updates 500'
+                        )
     # fmt: on
     args = parser.parse_args()
     print(args)
@@ -120,8 +126,8 @@ def main():
     elif args.num_epoch_checkpoints is not None:
         num = args.num_epoch_checkpoints
 
-    assert args.checkpoint_upper_bound is None or args.num_epoch_checkpoints is not None, \
-        '--checkpoint-upper-bound requires --num-epoch-checkpoints'
+    assert args.checkpoint_upper_bound is None or (args.num_epoch_checkpoints is not None or args.num_update_checkpoints is not None), \
+        '--checkpoint-upper-bound requires --num-epoch-checkpoints or --num-update-checkpoints'
     assert args.num_epoch_checkpoints is None or args.num_update_checkpoints is None, \
         'Cannot combine --num-epoch-checkpoints and --num-update-checkpoints'
 
@@ -132,7 +138,8 @@ def main():
         print('averaging checkpoints: ', args.inputs)
 
     new_state = average_checkpoints(args.inputs)
-    torch.save(new_state, args.output)
+    with PathManager.open(args.output, 'wb') as f:
+        torch.save(new_state, f)
     print('Finished writing averaged checkpoint to {}.'.format(args.output))
 
 

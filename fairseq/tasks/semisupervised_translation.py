@@ -136,12 +136,11 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
         dicts, training = MultilingualTranslationTask.prepare(args, **kwargs)
         return cls(args, dicts, training)
 
-    def load_dataset(self, split, epoch=0, **kwargs):
+    def load_dataset(self, split, epoch=1, **kwargs):
         """Load a dataset split."""
-
         paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         def split_exists(split, src, tgt, lang):
             if src is not None:
@@ -322,8 +321,12 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
 
         return model
 
-    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
+    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
+
+        if update_num > 0:
+            self.update_step(update_num)
+
         agg_loss, agg_sample_size, agg_logging_output = 0., 0., {}
 
         def forward_backward(model, samples, logging_output_key, weight):

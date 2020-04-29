@@ -7,6 +7,7 @@
 Wrapper around various loggers and progress bars (e.g., tqdm).
 """
 
+import atexit
 import json
 import logging
 import os
@@ -164,32 +165,31 @@ class JsonProgressBar(BaseProgressBar):
     def __init__(self, iterable, epoch=None, prefix=None, log_interval=1000):
         super().__init__(iterable, epoch, prefix)
         self.log_interval = log_interval
-        self.stats = None
-        self.tag = None
+        self.i = None
+        self.size = None
 
     def __iter__(self):
-        size = float(len(self.iterable))
+        self.size = len(self.iterable)
         for i, obj in enumerate(self.iterable, start=self.offset):
+            self.i = i
             yield obj
-            if (
-                self.stats is not None
-                and i > 0
-                and self.log_interval is not None
-                and (i + 1) % self.log_interval == 0
-            ):
-                update = (
-                    self.epoch - 1 + float(i / size)
-                    if self.epoch is not None
-                    else None
-                )
-                stats = self._format_stats(self.stats, epoch=self.epoch, update=update)
-                with rename_logger(logger, self.tag):
-                    logger.info(json.dumps(stats))
 
     def log(self, stats, tag=None, step=None):
         """Log intermediate stats according to log_interval."""
-        self.stats = stats
-        self.tag = tag
+        step = step or self.i or 0
+        if (
+            step > 0
+            and self.log_interval is not None
+            and step % self.log_interval == 0
+        ):
+            update = (
+                self.epoch - 1 + (self.i + 1) / float(self.size)
+                if self.epoch is not None
+                else None
+            )
+            stats = self._format_stats(stats, epoch=self.epoch, update=update)
+            with rename_logger(logger, tag):
+                logger.info(json.dumps(stats))
 
     def print(self, stats, tag=None, step=None):
         """Print end-of-epoch stats."""
@@ -237,27 +237,30 @@ class SimpleProgressBar(BaseProgressBar):
     def __init__(self, iterable, epoch=None, prefix=None, log_interval=1000):
         super().__init__(iterable, epoch, prefix)
         self.log_interval = log_interval
-        self.stats = None
-        self.tag = None
+        self.i = None
+        self.size = None
 
     def __iter__(self):
-        size = len(self.iterable)
+        self.size = len(self.iterable)
         for i, obj in enumerate(self.iterable, start=self.offset):
+            self.i = i
             yield obj
-            if (
-                self.stats is not None
-                and i > 0
-                and self.log_interval is not None
-                and (i + 1) % self.log_interval == 0
-            ):
-                postfix = self._str_commas(self.stats)
-                with rename_logger(logger, self.tag):
-                    logger.info('{}:  {:5d} / {:d} {}'.format(self.prefix, i, size, postfix))
 
     def log(self, stats, tag=None, step=None):
         """Log intermediate stats according to log_interval."""
-        self.stats = self._format_stats(stats)
-        self.tag = tag
+        step = step or self.i or 0
+        if (
+            step > 0
+            and self.log_interval is not None
+            and step % self.log_interval == 0
+        ):
+            stats = self._format_stats(stats)
+            postfix = self._str_commas(stats)
+            with rename_logger(logger, tag):
+                logger.info(
+                    '{}:  {:5d} / {:d} {}'
+                    .format(self.prefix, self.i + 1, self.size, postfix)
+                )
 
     def print(self, stats, tag=None, step=None):
         """Print end-of-epoch stats."""
@@ -288,10 +291,18 @@ class TqdmProgressBar(BaseProgressBar):
 
 
 try:
-    from tensorboardX import SummaryWriter
     _tensorboard_writers = {}
+    from tensorboardX import SummaryWriter
 except ImportError:
     SummaryWriter = None
+
+
+def _close_writers():
+    for w in _tensorboard_writers.values():
+        w.close()
+
+
+atexit.register(_close_writers)
 
 
 class TensorboardProgressBarWrapper(BaseProgressBar):
@@ -303,8 +314,7 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
 
         if SummaryWriter is None:
             logger.warning(
-                "tensorboard or required dependencies not found, please see README "
-                "for using tensorboard. (e.g. pip install tensorboardX)"
+                "tensorboard not found, please install with: pip install tensorboardX"
             )
 
     def _writer(self, key):
@@ -340,3 +350,4 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
                 writer.add_scalar(key, stats[key].val, step)
             elif isinstance(stats[key], Number):
                 writer.add_scalar(key, stats[key], step)
+        writer.flush()

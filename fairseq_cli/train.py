@@ -16,10 +16,18 @@ import sys
 import numpy as np
 import torch
 
-from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
+from fairseq import (
+    checkpoint_utils,
+    distributed_utils,
+    options,
+    quantization_utils,
+    tasks,
+    utils,
+)
 from fairseq.data import iterators
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.trainer import Trainer
+from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 
 
 logging.basicConfig(
@@ -36,6 +44,7 @@ def main(args, init_distributed=False):
 
     assert args.max_tokens is not None or args.max_sentences is not None, \
         'Must specify batch size either with --max-tokens or --max-sentences'
+    metrics.reset()
 
     # Initialize CUDA and distributed training
     if torch.cuda.is_available() and not args.cpu:
@@ -56,7 +65,7 @@ def main(args, init_distributed=False):
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     for valid_sub_split in args.valid_subset.split(','):
-        task.load_dataset(valid_sub_split, combine=False, epoch=0)
+        task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # Build model and criterion
     model = task.build_model(args)
@@ -68,8 +77,22 @@ def main(args, init_distributed=False):
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
+    # (optionally) Configure quantization
+    if args.quantization_config_path is not None:
+        quantizer = quantization_utils.Quantizer(
+            config_path=args.quantization_config_path,
+            max_epoch=args.max_epoch,
+            max_update=args.max_update,
+        )
+    else:
+        quantizer = None
+
     # Build trainer
-    trainer = Trainer(args, task, model, criterion)
+    if args.model_parallel_size == 1:
+        trainer = Trainer(args, task, model, criterion, quantizer)
+    else:
+        trainer = MegatronTrainer(args, task, model, criterion)
+
     logger.info('training on {} GPUs'.format(args.distributed_world_size))
     logger.info('max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
@@ -86,38 +109,20 @@ def main(args, init_distributed=False):
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
-    valid_subsets = args.valid_subset.split(',')
     while (
         lr > args.min_lr
-        and (
-            epoch_itr.epoch < max_epoch
-            # allow resuming training from the final checkpoint
-            or epoch_itr._next_epoch_itr is not None
-        )
-        and trainer.get_num_updates() < max_update
+        and epoch_itr.next_epoch_idx <= max_epoch
     ):
         # train for one epoch
-        train(args, trainer, task, epoch_itr)
-
-        if not args.disable_validation and epoch_itr.epoch % args.validate_interval == 0:
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-        else:
-            valid_losses = [None]
+        valid_losses = train(args, trainer, task, epoch_itr, max_update)
+        if should_stop_early(args, valid_losses[0]) or trainer.get_num_updates() >= max_update:
+            break
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
 
-        # save checkpoint
-        if epoch_itr.epoch % args.save_interval == 0:
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
-
-        # early stop
-        if should_stop_early(args, valid_losses[0]):
-            logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
-            break
-
         epoch_itr = trainer.get_train_iterator(
-            epoch_itr.epoch,
+            epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
             load_dataset=(os.pathsep in getattr(args, 'data', '')),
         )
@@ -126,6 +131,9 @@ def main(args, init_distributed=False):
 
 
 def should_stop_early(args, valid_loss):
+    # skip check if no validation was done in the current epoch
+    if valid_loss is None:
+        return False
     if args.patience <= 0:
         return False
 
@@ -139,16 +147,20 @@ def should_stop_early(args, valid_loss):
         return False
     else:
         should_stop_early.num_runs += 1
-        return should_stop_early.num_runs > args.patience
+        if should_stop_early.num_runs >= args.patience:
+            logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
+            return True
+        else:
+            return False
 
 
 @metrics.aggregate('train')
-def train(args, trainer, task, epoch_itr):
-    """Train the model for one epoch."""
+def train(args, trainer, task, epoch_itr, max_update=math.inf):
+    """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
-        shuffle=(epoch_itr.epoch >= args.curriculum),
+        shuffle=(epoch_itr.next_epoch_idx > args.curriculum),
     )
     update_freq = (
         args.update_freq[epoch_itr.epoch - 1]
@@ -167,31 +179,27 @@ def train(args, trainer, task, epoch_itr):
         default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
     )
 
-    # task specific setup per epoch
-    task.begin_epoch(epoch_itr.epoch, trainer.get_model())
+    trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = args.valid_subset.split(',')
-    max_update = args.max_update or math.inf
     for samples in progress:
-        log_output = trainer.train_step(samples)
-        num_updates = trainer.get_num_updates()
-        if log_output is None:
-            continue
+        with metrics.aggregate('train_inner'):
+            log_output = trainer.train_step(samples)
+            if log_output is None:  # OOM, overflow, ...
+                continue
 
         # log mid-epoch stats
-        stats = get_training_stats(metrics.get_smoothed_values('train'))
-        progress.log(stats, tag='train', step=num_updates)
+        num_updates = trainer.get_num_updates()
+        if num_updates % args.log_interval == 0:
+            stats = get_training_stats(metrics.get_smoothed_values('train_inner'))
+            progress.log(stats, tag='train_inner', step=num_updates)
 
-        if (
-            not args.disable_validation
-            and args.save_interval_updates > 0
-            and num_updates % args.save_interval_updates == 0
-            and num_updates > 0
-        ):
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+            # reset mid-epoch stats after each log interval
+            # the end-of-epoch stats will still be preserved
+            metrics.reset_meters('train_inner')
 
-        if num_updates >= max_update:
+        valid_losses = validate_and_save(args, trainer, task, epoch_itr, valid_subsets)
+        if should_stop_early(args, valid_losses[0]) or num_updates >= max_update:
             break
 
     # log end-of-epoch stats
@@ -200,6 +208,41 @@ def train(args, trainer, task, epoch_itr):
 
     # reset epoch-level meters
     metrics.reset_meters('train')
+    return valid_losses
+
+
+def validate_and_save(args, trainer, task, epoch_itr, valid_subsets):
+    num_updates = trainer.get_num_updates()
+    do_save = (
+        (
+            args.save_interval_updates > 0
+            and num_updates > 0
+            and num_updates % args.save_interval_updates == 0
+        )
+        or (
+            epoch_itr.end_of_epoch()
+            and epoch_itr.epoch % args.save_interval == 0
+        )
+    )
+    do_validate = (
+        (
+            do_save  # saving requires validation
+            or (
+                epoch_itr.end_of_epoch()
+                and epoch_itr.epoch % args.validate_interval == 0
+            )
+        )
+        and not args.disable_validation
+    )
+
+    # Validate
+    valid_losses = [None]
+    if do_validate:
+        valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+    # Save
+    if do_save:
+        checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+    return valid_losses
 
 
 def get_training_stats(stats):
@@ -306,8 +349,6 @@ def cli_main(modify_parser=None):
         port = random.randint(10000, 20000)
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
         args.distributed_rank = None  # set based on device id
-        if max(args.update_freq) > 1 and args.ddp_backend != 'no_c10d':
-            logger.info('NOTE: you may get faster training with: --ddp-backend=no_c10d')
         torch.multiprocessing.spawn(
             fn=distributed_main,
             args=(args, ),

@@ -48,8 +48,10 @@ class LegacyMaskedLmLoss(FairseqCriterion):
            an argument.
     """
 
-    def __init__(self, args, task):
-        super().__init__(args, task)
+    def __init__(self, task, masked_lm_only, nsp_loss_weight):
+        super().__init__(task)
+        self.masked_lm_only = masked_lm_only
+        self.nsp_loss_weight = nsp_loss_weight
 
     @staticmethod
     def add_args(parser):
@@ -85,7 +87,7 @@ class LegacyMaskedLmLoss(FairseqCriterion):
 
         # Compute sentence loss if masked_lm_only is False
         sentence_loss = None
-        if not self.args.masked_lm_only:
+        if not self.masked_lm_only:
             sentence_logits = output_metadata['sentence_logits']
             sentence_targets = sample['sentence_target'].view(-1)
             # This needs to be recomputed due to some differences between
@@ -102,7 +104,7 @@ class LegacyMaskedLmLoss(FairseqCriterion):
                 sentence_loss = compute_cross_entropy_loss(
                     sentence_logits, sentence_targets)
 
-                loss += self.args.nsp_loss_weight * (sentence_loss / nsentences)
+                loss += self.nsp_loss_weight * (sentence_loss / nsentences)
 
         # NOTE: as we are summing up per token mlm loss and per sentence nsp loss
         # we don't need to use sample_size as denominator for the gradient

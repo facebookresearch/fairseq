@@ -77,7 +77,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
 
         config = GPT2Config(
             vocab_size=len(task.target_dictionary),
-            n_positions=args.max_target_positions,
+            n_positions=args.max_target_positions + 1,
             n_ctx=args.max_target_positions,
             n_embd=args.embed_dim,
             n_layer=args.num_layers,
@@ -138,7 +138,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         return last_hidden_states
 
     def max_positions(self):
-        return self.model.config.n_positions
+        return self.model.config.n_positions - 1
 
 
 @register_model_architecture('hf_gpt2', 'hf_gpt2')

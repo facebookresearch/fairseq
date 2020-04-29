@@ -187,12 +187,11 @@ class MultilingualTranslationTask(FairseqTask):
             new_tgt_bos=new_tgt_bos,
         )
 
-    def load_dataset(self, split, epoch=0, **kwargs):
+    def load_dataset(self, split, epoch=1, **kwargs):
         """Load a dataset split."""
-
         paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         def language_pair_dataset(lang_pair):
             src, tgt = lang_pair.split('-')
@@ -262,7 +261,7 @@ class MultilingualTranslationTask(FairseqTask):
             raise ValueError('MultilingualTranslationTask requires a FairseqMultiModel architecture')
         return model
 
-    def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
+    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
         from collections import defaultdict
         agg_loss, agg_sample_size, agg_logging_output = 0., 0., defaultdict(float)

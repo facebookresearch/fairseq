@@ -115,7 +115,7 @@ class BARTHubInterface(nn.Module):
         gen_args.beam = beam
         for k, v in kwargs.items():
             setattr(gen_args, k, v)
-        generator = self.task.build_generator(gen_args)
+        generator = self.task.build_generator([self.model], gen_args)
         translations = self.task.inference_step(
             generator,
             [self.model],

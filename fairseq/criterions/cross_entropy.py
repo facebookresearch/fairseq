@@ -14,8 +14,9 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 @register_criterion('cross_entropy')
 class CrossEntropyCriterion(FairseqCriterion):
 
-    def __init__(self, args, task):
-        super().__init__(args, task)
+    def __init__(self, task, sentence_avg):
+        super().__init__(task)
+        self.sentence_avg = sentence_avg
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
@@ -27,7 +28,7 @@ class CrossEntropyCriterion(FairseqCriterion):
         """
         net_output = model(**sample['net_input'])
         loss, _ = self.compute_loss(model, net_output, sample, reduce=reduce)
-        sample_size = sample['target'].size(0) if self.args.sentence_avg else sample['ntokens']
+        sample_size = sample['target'].size(0) if self.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': loss.data,
             'ntokens': sample['ntokens'],
@@ -51,9 +52,9 @@ class CrossEntropyCriterion(FairseqCriterion):
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
-        ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
-        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
+        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
+        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
+        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
 
         metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
         if sample_size != ntokens:

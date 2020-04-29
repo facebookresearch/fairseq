@@ -282,6 +282,7 @@ class TestTranslation(unittest.TestCase):
                     '--print-step',
                 ])
 
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
     def test_levenshtein_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory('test_levenshtein_transformer') as data_dir:
@@ -536,6 +537,38 @@ class TestMaskedLanguageModel(unittest.TestCase):
                 preprocess_lm_data(data_dir)
                 train_legacy_masked_language_model(data_dir, "masked_lm")
 
+    def test_roberta_masked_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_roberta_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_lm(data_dir, "roberta_base")
+
+    def test_roberta_sentence_prediction(self):
+        num_classes = 3
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_roberta_head") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes)
+                preprocess_lm_data(os.path.join(data_dir, 'input0'))
+                preprocess_lm_data(os.path.join(data_dir, 'label'))
+                train_roberta_head(data_dir, "roberta_base", num_classes=num_classes)
+
+    def test_roberta_regression_single(self):
+        num_classes = 1
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_roberta_regression_single") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes, regression=True)
+                preprocess_lm_data(os.path.join(data_dir, 'input0'))
+                train_roberta_head(data_dir, "roberta_base", num_classes=num_classes, extra_flags=['--regression-target'])
+
+    def test_roberta_regression_multiple(self):
+        num_classes = 3
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_roberta_regression_multiple") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes, regression=True)
+                preprocess_lm_data(os.path.join(data_dir, 'input0'))
+                train_roberta_head(data_dir, "roberta_base", num_classes=num_classes, extra_flags=['--regression-target'])
+
     def _test_pretrained_masked_lm_for_translation(self, learned_pos_emb, encoder_only):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_mlm") as data_dir:
@@ -662,6 +695,23 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
     train.main(train_args)
 
 
+class TestQuantization(unittest.TestCase):
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
+    @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
+    def test_quantization(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_quantization') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                # tests both scalar and iterative PQ quantization
+                quantize_language_model(data_dir, 'transformer_lm')
+
+
 class TestOptimizers(unittest.TestCase):
 
     def setUp(self):
@@ -757,6 +807,41 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
         _create_dummy_alignment_data('train.in', 'train.out', 'train.align')
         _create_dummy_alignment_data('valid.in', 'valid.out', 'valid.align')
         _create_dummy_alignment_data('test.in', 'test.out', 'test.align')
+
+
+def create_dummy_roberta_head_data(data_dir, num_examples=100, maxlen=10, num_classes=2, regression=False):
+    input_dir = 'input0'
+    def _create_dummy_data(filename):
+        random_data = torch.rand(num_examples * maxlen)
+        input_data = 97 + torch.floor(26 * random_data).int()
+        if regression:
+            output_data = torch.rand((num_examples, num_classes))
+        else:
+            output_data = 1 + torch.floor(num_classes * torch.rand(num_examples)).int()
+        with open(os.path.join(data_dir, input_dir, filename+'.out'), 'w') as f_in:
+            label_filename = filename+'.label' if regression else filename+'.out'
+            with open(os.path.join(data_dir, 'label', label_filename), 'w') as f_out:
+                offset = 0
+                for i in range(num_examples):
+                    # write example input
+                    ex_len = random.randint(1, maxlen)
+                    ex_str = ' '.join(map(chr, input_data[offset:offset+ex_len]))
+                    print(ex_str, file=f_in)
+                    # write example label
+                    if regression:
+                        class_str = ' '.join(map(str, output_data[i].numpy()))
+                        print(class_str, file=f_out)
+                    else:
+                        class_str = 'class{}'.format(output_data[i])
+                        print(class_str, file=f_out)
+                    offset += ex_len
+
+    os.mkdir(os.path.join(data_dir, input_dir))
+    os.mkdir(os.path.join(data_dir, 'label'))
+    _create_dummy_data('train')
+    _create_dummy_data('valid')
+    _create_dummy_data('test')
+
 
 def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess_parser = options.get_preprocessing_parser()
@@ -859,6 +944,55 @@ def preprocess_lm_data(data_dir):
         '--destdir', data_dir,
     ])
     preprocess.main(preprocess_args)
+
+
+def train_masked_lm(data_dir, arch, extra_flags=None):
+    train_parser = options.get_training_parser()
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            '--task', 'masked_lm',
+            data_dir,
+            '--arch', arch,
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'masked_lm',
+            '--max-sentences', '500',
+            '--save-dir', data_dir,
+            '--max-epoch', '1',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
+        ] + (extra_flags or []),
+    )
+    train.main(train_args)
+
+
+def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
+    train_parser = options.get_training_parser()
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            '--task', 'sentence_prediction',
+            data_dir,
+            '--arch', arch,
+            '--num-classes', str(num_classes),
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'sentence_prediction',
+            '--max-tokens', '500',
+            '--max-positions', '500',
+            '--max-sentences', '500',
+            '--save-dir', data_dir,
+            '--max-epoch', '1',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
+        ] + (extra_flags or []),
+    )
+    train.main(train_args)
 
 
 def train_language_model(data_dir, arch, extra_flags=None, run_validation=False):
@@ -976,6 +1110,81 @@ def train_masked_language_model(data_dir, arch, extra_args=()):
     )
     train.main(train_args)
 
+
+def quantize_language_model(data_dir, arch, extra_flags=None, run_validation=False):
+    train_parser = options.get_training_parser()
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            '--task', 'language_modeling',
+            data_dir,
+            '--arch', arch,
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'adaptive_loss',
+            '--adaptive-softmax-cutoff', '5,10,15',
+            '--max-tokens', '500',
+            '--tokens-per-sample', '500',
+            '--save-dir', data_dir,
+            '--max-epoch', '1',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
+        ] + (extra_flags or []),
+    )
+    train.main(train_args)
+
+    # try scalar quantization
+    scalar_quant_train_parser = options.get_training_parser()
+    scalar_quant_train_args = options.parse_args_and_arch(
+        scalar_quant_train_parser,
+        [
+            '--task', 'language_modeling',
+            data_dir,
+            '--arch', arch,
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'adaptive_loss',
+            '--adaptive-softmax-cutoff', '5,10,15',
+            '--max-tokens', '500',
+            '--tokens-per-sample', '500',
+            '--save-dir', data_dir,
+            '--max-update', '3',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
+            '--quant-noise-scalar', '0.5',
+        ] + (extra_flags or []),
+    )
+    train.main(scalar_quant_train_args)
+
+    # try iterative PQ quantization
+    quantize_parser = options.get_training_parser()
+    quantize_args = options.parse_args_and_arch(
+        quantize_parser,
+        [
+            '--task', 'language_modeling',
+            data_dir,
+            '--arch', arch,
+            '--optimizer', 'adam',
+            '--lr', '0.0001',
+            '--criterion', 'adaptive_loss',
+            '--adaptive-softmax-cutoff', '5,10,15',
+            '--max-tokens', '50',
+            '--tokens-per-sample', '50',
+            '--max-update', '6',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--ddp-backend', 'no_c10d',
+            '--num-workers', 0,
+            '--restore-file', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--reset-optimizer',
+            '--quantization-config-path', os.path.join(os.path.dirname(__file__), 'transformer_quantization_config.yaml'),
+        ] + (extra_flags or []),
+    )
+    train.main(quantize_args)
 
 if __name__ == '__main__':
     unittest.main()

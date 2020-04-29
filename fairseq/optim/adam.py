@@ -195,6 +195,8 @@ class Adam(torch.optim.Optimizer):
 
                 p_data_fp32.addcdiv_(-step_size, exp_avg, denom)
 
-                p.data.copy_(p_data_fp32)
+                # TODO: remove check once pyTorch avoids a copy for this case
+                if p.data_ptr() != p_data_fp32.data_ptr():
+                    p.data.copy_(p_data_fp32)
 
         return loss
