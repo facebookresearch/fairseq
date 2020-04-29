@@ -6,7 +6,7 @@
 from vizseq.scorers.bleu import BLEUScorer
 from vizseq.scorers.ter import TERScorer
 from vizseq.scorers.meteor import METEORScorer
-from examples.simultaneous_translation.utils.eval_latency import LatencyScorer
+from examples.simultaneous_translation.eval.eval_latency import LatencyScorer
 from collections import defaultdict
 import json
 import os
@@ -37,7 +37,7 @@ class SimulScorer(object):
     @staticmethod
     def add_args(parser):
         # fmt: off
-        parser.add_argument('--src-file', type=str, requred=True,
+        parser.add_argument('--src-file', type=str, required=True,
                             help='Source input file')
         parser.add_argument('--tgt-file', type=str, required=True,
                             help='Target reference file')

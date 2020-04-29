@@ -261,10 +261,8 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                 step_list.append(curr_steps)
 
                 if incremental_state.get("online", False):
-                    p_choose = (
-                        attn["p_choose"].squeeze(1)
-                        .gather(1, curr_steps.t())
-                    )
+                    p_choose = attn["p_choose"].squeeze(0).squeeze(1).gather(1, curr_steps.t())
+
                     new_steps = (
                         curr_steps
                         + (p_choose < 0.5).t().type_as(curr_steps)

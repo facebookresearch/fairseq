@@ -6,8 +6,8 @@
 import argparse
 
 from client import SimulSTEvaluationService, SimulSTLocalEvaluationService
+from fairseq.registry import REGISTRIES
 from agents import build_agent
-from agents.registry import REGISTRIES
 
 DEFAULT_HOSTNAME = 'localhost'
 DEFAULT_PORT = 12321
@@ -22,6 +22,8 @@ def get_args():
                         help='server port number')
     parser.add_argument('--agent-type', default='simul_trans_text',
                         help='Agent type')
+    parser.add_argument('--scorer-type', default='text',
+                        help='Scorer type')
     parser.add_argument('--start-idx', type=int, default=0,
                         help='Start index of the sentence to evaluate')
     parser.add_argument('--end-idx', type=int, default=float('inf'),
@@ -32,7 +34,7 @@ def get_args():
                         help='Reset the server')
     parser.add_argument('--num-threads', type=int, default=10,
                         help='Number of threads used by agent')
-    parser.add_argument('--local', action="store_true", type=bool, default=False,
+    parser.add_argument('--local', action="store_true", default=False,
                         help='Local evaluation')
 
     args, _ = parser.parse_known_args()
@@ -40,8 +42,8 @@ def get_args():
     for registry_name, REGISTRY in REGISTRIES.items():
         choice = getattr(args, registry_name, None)
         if choice is not None:
-            cls = REGISTRY['registry'][choice]
-            if hasattr(cls, 'add_args'):
+            cls = REGISTRY["registry"][choice]
+            if hasattr(cls, "add_args"):
                 cls.add_args(parser)
     args = parser.parse_args()
 
@@ -65,3 +67,4 @@ if __name__ == "__main__":
 
     if args.scores:
         session.get_scores()
+    print(session.get_scores())

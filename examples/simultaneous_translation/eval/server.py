@@ -60,8 +60,6 @@ def add_args():
                         help='Server hostname')
     parser.add_argument('--port', type=int, default=DEFAULT_PORT,
                         help='Server port number')
-    parser.add_argument('--scorer-type', type=str, default="text",
-                        help='Type of data to evaluate')
 
     args, _ = parser.parse_known_args()
     # fmt: on

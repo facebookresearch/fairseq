@@ -9,7 +9,7 @@ from fairseq import registry
 (
     build_scorer,
     register_scorer,
-    simul_scorer
+    SCORER_REGISTRIES
 ) = registry.setup_registry('--scorer-type')
 
 for file in os.listdir(os.path.dirname(__file__)):
