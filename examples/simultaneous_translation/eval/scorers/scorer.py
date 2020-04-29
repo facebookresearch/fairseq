@@ -1,3 +1,8 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 from vizseq.scorers.bleu import BLEUScorer
 from vizseq.scorers.ter import TERScorer
 from vizseq.scorers.meteor import METEORScorer
@@ -6,7 +11,10 @@ from collections import defaultdict
 import json
 import os
 
+
 DEFAULT_EOS = '</s>'
+
+
 class SimulScorer(object):
     def __init__(self, args):
         self.tokenizer = args.tokenizer
@@ -14,7 +22,7 @@ class SimulScorer(object):
         if args.output is not None:
             self.output_files = {
                 "text": os.path.join(args.output, "text"),
-                "delay": os.path.join(args.output,"delay"),
+                "delay": os.path.join(args.output, "delay"),
                 "scores": os.path.join(args.output, "scores")
             }
         else:
@@ -22,10 +30,23 @@ class SimulScorer(object):
         self.eos = DEFAULT_EOS
         self.data = {"tgt": []}
         self.reset()
-    
+
     def get_info(self):
         return {"num_sentences": len(self)}
-        
+
+    @staticmethod
+    def add_args(parser):
+        # fmt: off
+        parser.add_argument('--src-file', type=str, requred=True,
+                            help='Source input file')
+        parser.add_argument('--tgt-file', type=str, required=True,
+                            help='Target reference file')
+        parser.add_argument('--tokenizer', default="13a", choices=["none", "13a"],
+                            help='Tokenizer used for sacrebleu')
+        parser.add_argument('--output', type=str, default=None,
+                            help='Path for output directory')
+        # fmt: on
+
     def send_src(self, sent_id, *args):
         raise NotImplementedError
 
@@ -35,7 +56,7 @@ class SimulScorer(object):
                 sent_id
             ].append(
                 (
-                    token, 
+                    token,
                     self.steps[sent_id]
                 )
             )
@@ -43,7 +64,7 @@ class SimulScorer(object):
     def reset(self):
         self.steps = defaultdict(int)
         self.translations = defaultdict(list)
-    
+
     def src_lengths(self):
         raise NotImplementedError
 
@@ -68,48 +89,46 @@ class SimulScorer(object):
 
         latency_score = LatencyScorer().score(
             [
-                {"src_len" : src_len, "delays" : delay} 
+                {"src_len": src_len, "delays": delay}
                 for src_len, delay in zip(self.src_lengths(), delays)
             ],
             start_from_zero=False
         )
 
         scores = {
-            'BLEU': bleu_score[0], 
-            'TER': ter_score[0], 
+            'BLEU': bleu_score[0],
+            'TER': ter_score[0],
             'METEOR': meteor_score[0],
-            'DAL' : latency_score['differentiable_average_lagging'],
-            'AL' : latency_score['average_lagging'],
-            'AP' : latency_score['average_proportion'],
+            'DAL': latency_score['differentiable_average_lagging'],
+            'AL': latency_score['average_lagging'],
+            'AP': latency_score['average_proportion'],
         }
-
 
         if self.output_files is not None:
             try:
                 os.makedirs(self.output_dir, exist_ok=True)
                 self.write_results_to_file(translations, delays, scores)
-            except:
-                print(
-                    f'Failed to write results to {self.output_dir}. '
-                    f'Skip writing predictions'
-                )
-        
+            except BaseException as be:
+                print(f'Failed to write results to {self.output_dir}.')
+                print(be)
+                print('Skip writing predictions')
+
         return scores
 
     def write_results_to_file(self, translations, delays, scores):
-        if self.output_files["text"] is not None: 
+        if self.output_files["text"] is not None:
             with open(self.output_files["text"], "w") as f:
                 for line in translations:
                     f.write(line + "\n")
 
-        if self.output_files["delay"] is not None: 
+        if self.output_files["delay"] is not None:
             with open(self.output_files["delay"], "w") as f:
                 for i, delay in enumerate(delays):
                     f.write(
                         json.dumps(
                             {
                                 "src_len": self.src_lengths()[i],
-                                "delays" : delay
+                                "delays": delay
                             }
                         ) + "\n"
                     )
@@ -125,7 +144,7 @@ class SimulScorer(object):
                 return [r.strip().split() for r in f]
             else:
                 return [r.strip() for r in f]
-    
+
     @classmethod
     def _load_text_from_json(cls, file):
         list_to_return = []
@@ -163,4 +182,3 @@ class SimulScorer(object):
 
     def __len__(self):
         return len(self.data["tgt"])
-

@@ -1,5 +1,11 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 from . scorer import SimulScorer
 from . import register_scorer
+
 
 @register_scorer("text")
 class SimulTextScorer(SimulScorer):
@@ -13,7 +19,7 @@ class SimulTextScorer(SimulScorer):
     def send_src(self, sent_id, *args):
         if self.steps[sent_id] >= len(self.data["src"][sent_id]):
             dict_to_return = {
-                "sent_id" : sent_id,
+                "sent_id": sent_id,
                 "segment_id": self.steps[sent_id],
                 "segment": self.eos
             }
@@ -21,7 +27,7 @@ class SimulTextScorer(SimulScorer):
             self.steps[sent_id] = len(self.data["src"][sent_id]) + 1
         else:
             dict_to_return = {
-                "sent_id" : sent_id,
+                "sent_id": sent_id,
                 "segment_id": self.steps[sent_id],
                 "segment": self.data["src"][sent_id][self.steps[sent_id]]
             }
