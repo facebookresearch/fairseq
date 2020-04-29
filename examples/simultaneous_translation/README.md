@@ -88,7 +88,6 @@ python ./eval/server.py \
 
 ```shell
 python ./evaluate.py \
-    --agent-type simul_trans_text \
     --data-bin data-bin/wmt15_en_de_32k \
     --model-path ./checkpoints/checkpoint_best.pt
 ```
