@@ -1,7 +1,12 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 from . simul_trans_agent import SimulTransAgent
-from . import DEFAULT_EOS, GET, SEND
+from . import DEFAULT_EOS, GET
 from . import register_agent
-from . word_splitter import *
+from . word_splitter import SPLITTER_DICT
 
 
 @register_agent("simul_trans_text")
@@ -9,10 +14,10 @@ class SimulTransTextAgent(SimulTransAgent):
     def build_word_splitter(self, args):
         self.word_splitter = {}
 
-        self.word_splitter["src"] = eval(f"{args.src_splitter_type}WordSplitter")(
+        self.word_splitter["src"] = SPLITTER_DICT[args.src_splitter_type](
                 getattr(args, f"src_splitter_path")
             )
-        self.word_splitter["tgt"] = eval(f"{args.tgt_splitter_type}WordSplitter")(
+        self.word_splitter["tgt"] = SPLITTER_DICT[args.tgt_splitter_type](
                 getattr(args, f"tgt_splitter_path")
             )
 
@@ -23,7 +28,7 @@ class SimulTransTextAgent(SimulTransAgent):
 
     def update_states(self, states, new_state):
         if states["finish_read"]:
-            return states 
+            return states
 
         new_word = new_state["segment"]
 
@@ -34,7 +39,7 @@ class SimulTransTextAgent(SimulTransAgent):
             # You can change to you own dictionary
             indices = self.dict["src"].encode_line(
                 tokens,
-                line_tokenizer=lambda x : x,
+                line_tokenizer=lambda x: x,
                 add_if_not_exist=False,
                 append_eos=False
             ).tolist()
@@ -56,7 +61,7 @@ class SimulTransTextAgent(SimulTransAgent):
 
         # At leat one word is read
         if len(states["tokens"]["src"]) == 0:
-            return {'key': GET, 'value': None} 
+            return {'key': GET, 'value': None}
 
         # Only request new word if there is no buffered tokens
         if len(states["tokens"]["src"]) <= states["steps"]["src"]:

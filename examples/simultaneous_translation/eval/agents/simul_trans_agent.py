@@ -1,7 +1,10 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 from . agent import Agent
 from . import DEFAULT_EOS, GET, SEND
-from . import register_agent
-import torch
 from fairseq import checkpoint_utils, utils, tasks
 import os
 
@@ -20,29 +23,27 @@ class SimulTransAgent(Agent):
 
     @staticmethod
     def add_args(parser):
-        parser.add_argument('--model-path', type=str, default=None,
+        # fmt: off
+        parser.add_argument('--model-path', type=str, required=True,
                             help='path to your pretrained model.')
         parser.add_argument("--data-bin", type=str, required=True,
                             help="Path of data binary")
-        parser.add_argument("--user-dir", type=str,
+        parser.add_argument("--user-dir", type=str, default="example/simultaneous_translation",
                             help="User directory for simultaneous translation")
-        parser.add_argument("--src-splitter-type", type=str,
-                            help="")
-        parser.add_argument("--tgt-splitter-type", type=str,
-                            help="")
-        parser.add_argument("--src-splitter-path", type=str,
-                            help="")
-        parser.add_argument("--tgt-splitter-path", type=str,
-                            help="")
-        parser.add_argument("-s", "--source-lang", default=None, metavar="SRC",
-                            help="source language")
-        parser.add_argument("-t", "--target-lang", default=None, metavar="TARGET",
-                            help="target language")
+        parser.add_argument("--src-splitter-type", type=str, default=None,
+                            help="Subword splitter type for source text")
+        parser.add_argument("--tgt-splitter-type", type=str, default=None,
+                            help="Subword splitter type for target text")
+        parser.add_argument("--src-splitter-path", type=str, default=None,
+                            help="Subword splitter model path for source text")
+        parser.add_argument("--tgt-splitter-path", type=str, default=None,
+                            help="Subword splitter model path for target text")
         parser.add_argument("--max-len", type=int, default=150,
                             help="Maximum length difference between source and target prediction")
         parser.add_argument('--model-overrides', default="{}", type=str, metavar='DICT',
-                        help='a dictionary used to override model args at generation '
-                                'that were used during model training')
+                            help='A dictionary used to override model args at generation '
+                                 'that were used during model training')
+        # fmt: on
         return parser
 
     def load_dictionary(self, task):
@@ -72,11 +73,11 @@ class SimulTransAgent(Agent):
     def init_states(self):
         return {
             "indices": {"src": [], "tgt": []},
-            "tokens" : {"src": [], "tgt": []},
-            "segments" : {"src": [], "tgt": []},
-            "steps" : {"src": 0, "tgt": 0},
-            "finished" : False,
-            "finish_read" : False,
+            "tokens": {"src": [], "tgt": []},
+            "segments": {"src": [], "tgt": []},
+            "steps": {"src": 0, "tgt": 0},
+            "finished": False,
+            "finish_read": False,
             "model_states": {}
         }
 
