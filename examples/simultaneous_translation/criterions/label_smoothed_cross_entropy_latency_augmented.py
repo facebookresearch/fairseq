@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
@@ -66,22 +64,13 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
         # Obtain the expected alignment
         attn_list = [item["alpha"] for item in net_output[-1]["attn_list"]]
 
-        target_padding_mask = (
-            model
-            .get_targets(sample, net_output)
-            .eq(self.padding_idx)
-        )
+        target_padding_mask = model.get_targets(sample, net_output).eq(self.padding_idx)
 
-        source_padding_mask = (
-            net_output[-1].get("encoder_padding_mask", None)
-        )
+        source_padding_mask = net_output[-1].get("encoder_padding_mask", None)
 
         # Get latency loss
         latency_loss = self.latency_train.loss(
-            attn_list,
-            source_padding_mask,
-            target_padding_mask,
-        )
+            attn_list, source_padding_mask, target_padding_mask)
 
         loss += latency_loss
 
