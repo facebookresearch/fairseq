@@ -88,9 +88,9 @@ python ./eval/server.py \
 
 ```shell
 python ./evaluate.py \
-    --agent-type simul_trans_text \
     --data-bin data-bin/wmt15_en_de_32k \
     --model-path ./checkpoints/checkpoint_best.pt
+    --scores --output $RESULT_DIR
 ```
 
 ### Run evaluation locally without server
@@ -101,6 +101,6 @@ python ./eval/evaluate.py
     --src-file $SRC_FILE \
     --tgt-file $TGT_FILE \
     --data-bin data-bin/wmt15_en_de_32k \
-    --model-path $MODEL_PATH \
+    --model-path ./checkpoints/checkpoint_best.pt \
     --scores --output $RESULT_DIR
 ```
