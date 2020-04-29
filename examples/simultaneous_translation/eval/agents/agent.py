@@ -62,3 +62,4 @@ class Agent(object):
 
             elif action['key'] == SEND:
                 session.send_hypo(sent_id, action['value'])
+        print(" ".join(states["tokens"]["tgt"]))

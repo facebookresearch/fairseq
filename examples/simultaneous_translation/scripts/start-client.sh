@@ -44,7 +44,7 @@ python $user_dir/eval/evaluate.py \
     --tgt-splitter-path $tgt_splitter_path \
     --model-path $model \
     --reset-server \
-    --num-threads 4 \
+    --num-threads 1 \
     --scores
 echo Evaluation ends at $(date +%Y/%m/%d-%H:%M:%S)
 
