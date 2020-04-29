@@ -261,7 +261,7 @@ class SequenceGenerator(nn.Module):
         batch_idxs: Optional[Tensor] = None
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
-            # print(f'step: {step}')
+            print(f'step: {step}')
             if reorder_state is not None:
                 if batch_idxs is not None:
                     # update beam indices to take into account removed sentences
