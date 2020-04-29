@@ -25,7 +25,6 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
         self.latency_weight_avg_type = args.latency_weight_avg_type
         self.latency_weight_var = args.latency_weight_var
         self.latency_weight_var_type = args.latency_weight_var_type
-        self.latency_weight_non_trivial = args.latency_weight_non_trivial
         self.mass_preservation = args.mass_preservation
         self.average_method = args.average_method
         self.latency_train = LatencyTraining(
@@ -74,4 +73,4 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
 
         loss += latency_loss
 
-        return loss, nll_loss, latency_loss
+        return loss, nll_loss
