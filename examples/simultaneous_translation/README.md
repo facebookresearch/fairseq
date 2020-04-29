@@ -90,6 +90,7 @@ python ./eval/server.py \
 python ./evaluate.py \
     --data-bin data-bin/wmt15_en_de_32k \
     --model-path ./checkpoints/checkpoint_best.pt
+    --scores --output $RESULT_DIR
 ```
 
 ### Run evaluation locally without server
