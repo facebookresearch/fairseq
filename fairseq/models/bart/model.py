@@ -9,6 +9,7 @@ Natural Language Generation, Translation, and Comprehension
 
 import logging
 
+import torch
 import torch.nn as nn
 
 from fairseq import utils
@@ -34,6 +35,7 @@ class BARTModel(TransformerModel):
             'bart.large': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.tar.gz',
             'bart.large.mnli': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.mnli.tar.gz',
             'bart.large.cnn': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.cnn.tar.gz',
+            'bart.large.xsum': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.xsum.tar.gz',
         }
 
     def __init__(self, args, encoder, decoder):
@@ -177,6 +179,40 @@ class BARTModel(TransformerModel):
             state_dict['encoder.embed_tokens.weight'] = state_dict['encoder.embed_tokens.weight'][:loaded_dict_size-1, :]
             state_dict['decoder.embed_tokens.weight'] = state_dict['decoder.embed_tokens.weight'][:loaded_dict_size-1, :]
 
+        # When continued pretraining on new set of languages for mbart,
+        # add extra lang embeddings at the end of embed_tokens.
+        # Note: newly added languages are assumed to have been added at the end.
+        if self.args.task == 'multilingual_denoising' and loaded_dict_size < len(self.encoder.dictionary):
+            logger.info(
+                "Adding extra language embeddings not found in pretrained model for "\
+                "continued pretraining of MBART on new set of languages."
+            )
+            loaded_mask_token_embedding = state_dict['encoder.embed_tokens.weight'][-1, :]
+
+            num_langids_to_add = len(self.encoder.dictionary) - loaded_dict_size
+            embed_dim = state_dict['encoder.embed_tokens.weight'].size(1)
+
+            new_lang_embed_to_add = torch.zeros(num_langids_to_add, embed_dim)
+            nn.init.normal_(
+                new_lang_embed_to_add,
+                mean=0,
+                std=embed_dim ** -0.5
+            )
+            new_lang_embed_to_add = new_lang_embed_to_add.to(
+                dtype=state_dict['encoder.embed_tokens.weight'].dtype,
+            )
+
+            state_dict['encoder.embed_tokens.weight'] = torch.cat([
+                state_dict['encoder.embed_tokens.weight'][:loaded_dict_size-1, :],
+                new_lang_embed_to_add,
+                loaded_mask_token_embedding.unsqueeze(0)]
+            )
+            state_dict['decoder.embed_tokens.weight'] = torch.cat([
+                state_dict['decoder.embed_tokens.weight'][:loaded_dict_size-1, :],
+                new_lang_embed_to_add,
+                loaded_mask_token_embedding.unsqueeze(0)]
+            )
+
         # Copy any newly-added classification heads into the state dict
         # with their current weights.
         if hasattr(self, 'classification_heads'):
@@ -251,7 +287,30 @@ def bart_large_architecture(args):
     args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
 
 
+@register_model_architecture('bart', 'bart_base')
+def bart_base_architecture(args):
+    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 768)
+    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4*768)
+    args.encoder_layers = getattr(args, 'encoder_layers', 6)
+    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 12)
+    args.decoder_layers = getattr(args, 'decoder_layers', 6)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 12)
+    bart_large_architecture(args)
+
+
 @register_model_architecture('bart', 'mbart_large')
 def mbart_large_architecture(args):
     args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
     bart_large_architecture(args)
+
+
+@register_model_architecture('bart', 'mbart_base')
+def mbart_base_architecture(args):
+    args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
+    bart_base_architecture(args)
+
+
+@register_model_architecture('bart', 'mbart_base_wmt20')
+def mbart_base_wmt20_architecture(args):
+    args.layernorm_embedding = getattr(args, 'layernorm_embedding', False)
+    mbart_base_architecture(args)

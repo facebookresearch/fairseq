@@ -54,7 +54,7 @@ class SequenceScorer(object):
         for model in models:
             model.eval()
             decoder_out = model(**net_input)
-            attn = decoder_out[1]
+            attn = decoder_out[1] if len(decoder_out) > 1 else None
             if type(attn) is dict:
                 attn = attn.get('attn', None)
 

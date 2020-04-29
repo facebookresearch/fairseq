@@ -102,7 +102,7 @@ class CrossLingualLMTask(FairseqTask):
 
         paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         for k in itertools.count():
             split_k = split + (str(k) if k > 0 else '')
@@ -136,8 +136,9 @@ class CrossLingualLMTask(FairseqTask):
 
         return dataset, sizes
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
+
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
@@ -165,5 +166,5 @@ class CrossLingualLMTask(FairseqTask):
 
         self.datasets[split] = MultiCorpusSampledDataset(dataset_map)
         logger.info('{} {} {} examples'.format(
-            utils.split_paths(self.args.data)[epoch], split, len(self.datasets[split]))
+            utils.split_paths(self.args.data)[epoch - 1], split, len(self.datasets[split]))
         )

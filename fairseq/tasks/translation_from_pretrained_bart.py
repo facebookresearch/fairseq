@@ -47,13 +47,13 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
 
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args, src_dict, tgt_dict)
-        self.langs = sorted(args.langs.split(','))
+        self.langs = args.langs.split(',')
         for d in [src_dict, tgt_dict]:
             for l in self.langs:
                 d.add_symbol('[{}]'.format(l))
             d.add_symbol('<mask>')
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -61,7 +61,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         """
         paths = self.args.data.split(':')
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         # infer langcode
         src, tgt = self.args.source_lang, self.args.target_lang
@@ -79,7 +79,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             append_source_id=True
             )
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(
@@ -89,6 +89,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         else:
             from fairseq.sequence_generator import SequenceGenerator
             return SequenceGenerator(
+                models,
                 self.target_dictionary,
                 beam_size=getattr(args, 'beam', 5),
                 max_len_a=getattr(args, 'max_len_a', 0),

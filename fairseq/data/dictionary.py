@@ -60,13 +60,16 @@ class Dictionary(object):
             return self.indices[sym]
         return self.unk_index
 
-    def string(self, tensor, bpe_symbol=None, escape_unk=False):
+    def string(self, tensor, bpe_symbol=None, escape_unk=False, extra_symbols_to_ignore=None):
         """Helper for converting a tensor of token indices to a string.
 
         Can optionally remove BPE symbols or escape <unk> words.
         """
         if torch.is_tensor(tensor) and tensor.dim() == 2:
-            return "\n".join(self.string(t, bpe_symbol, escape_unk) for t in tensor)
+            return "\n".join(self.string(t, bpe_symbol, escape_unk, extra_symbols_to_ignore) for t in tensor)
+
+        extra_symbols_to_ignore = set(extra_symbols_to_ignore or [])
+        extra_symbols_to_ignore.add(self.eos())
 
         def token_string(i):
             if i == self.unk():
@@ -75,13 +78,10 @@ class Dictionary(object):
                 return self[i]
 
         if hasattr(self, "bos_index"):
-            sent = " ".join(
-                token_string(i)
-                for i in tensor
-                if (i != self.eos()) and (i != self.bos())
-            )
-        else:
-            sent = " ".join(token_string(i) for i in tensor if i != self.eos())
+            extra_symbols_to_ignore.add(self.bos())
+
+        sent = " ".join(token_string(i) for i in tensor if i.item() not in extra_symbols_to_ignore)
+
         return data_utils.process_bpe_symbol(sent, bpe_symbol)
 
     def unk_string(self, escape=False):
@@ -91,9 +91,9 @@ class Dictionary(object):
         else:
             return self.unk_word
 
-    def add_symbol(self, word, n=1):
+    def add_symbol(self, word, n=1, overwrite=False):
         """Adds a word to the dictionary"""
-        if word in self.indices:
+        if word in self.indices and not overwrite:
             idx = self.indices[word]
             self.count[idx] = self.count[idx] + n
             return idx
@@ -215,17 +215,31 @@ class Dictionary(object):
 
         lines = f.readlines()
         indices_start_line = self._load_meta(lines)
+
         for line in lines[indices_start_line:]:
-            idx = line.rfind(" ")
-            if idx == -1:
+            try:
+                line, field = line.rstrip().rsplit(" ", 1)
+                if field == "#fairseq:overwrite":
+                    overwrite = True
+                    line, field = line.rsplit(" ", 1)
+                else:
+                    overwrite = False
+                count = int(field)
+                word = line
+                if word in self and not overwrite:
+                    raise RuntimeError(
+                        "Duplicate word found when loading Dictionary: '{}'. "
+                        "Duplicate words can overwrite earlier ones by adding the "
+                        "#fairseq:overwrite flag at the end of the corresponding row "
+                        "in the dictionary file. If using the Camembert model, please "
+                        "download an updated copy of the model file."
+                        .format(word)
+                    )
+                self.add_symbol(word, n=count, overwrite=overwrite)
+            except ValueError:
                 raise ValueError(
-                    "Incorrect dictionary format, expected '<token> <cnt>'"
+                    "Incorrect dictionary format, expected '<token> <cnt> [flags]'"
                 )
-            word = line[:idx]
-            count = int(line[idx + 1 :])
-            self.indices[word] = len(self.symbols)
-            self.symbols.append(word)
-            self.count.append(count)
 
     def _save(self, f, kv_iterator):
         if isinstance(f, str):

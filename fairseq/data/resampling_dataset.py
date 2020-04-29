@@ -31,7 +31,7 @@ class ResamplingDataset(BaseWrapperDataset):
         batch_by_size (bool): whether or not to batch by sequence length
             (default: True).
         seed (int): RNG seed to use (default: 0).
-        epoch (int): starting epoch number (default: 0).
+        epoch (int): starting epoch number (default: 1).
     """
 
     def __init__(
@@ -42,7 +42,7 @@ class ResamplingDataset(BaseWrapperDataset):
         size_ratio=1.0,
         batch_by_size=True,
         seed=0,
-        epoch=0,
+        epoch=1,
     ):
         super().__init__(dataset)
 

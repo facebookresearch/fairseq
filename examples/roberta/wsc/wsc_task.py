@@ -95,13 +95,13 @@ class WSCTask(FairseqTask):
             prefix + leading_space + txt + trailing_space + suffix,
             append_eos=True,
         )
-        mask = torch.zeros_like(toks, dtype=torch.uint8)
+        mask = torch.zeros_like(toks, dtype=torch.bool)
         mask_start = len(self.binarize(prefix))
         mask_size = len(self.binarize(leading_space + txt))
         mask[mask_start:mask_start + mask_size] = 1
         return toks, mask
 
-    def load_dataset(self, split, epoch=0, combine=False, data_path=None, return_only=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, data_path=None, return_only=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -281,7 +281,7 @@ class WinograndeTask(WSCTask):
 
         return cls(args, vocab)
 
-    def load_dataset(self, split, epoch=0, combine=False, data_path=None, return_only=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, data_path=None, return_only=False, **kwargs):
         """Load a given dataset split.
 
         Args:

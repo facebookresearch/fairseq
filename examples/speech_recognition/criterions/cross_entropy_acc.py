@@ -16,8 +16,9 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 
 @register_criterion("cross_entropy_acc")
 class CrossEntropyWithAccCriterion(FairseqCriterion):
-    def __init__(self, args, task):
-        super().__init__(args, task)
+    def __init__(self, task, sentence_avg):
+        super().__init__(task)
+        self.sentence_avg = sentence_avg
 
     def compute_loss(self, model, net_output, target, reduction, log_probs):
         # N, T -> N * T
@@ -50,7 +51,7 @@ class CrossEntropyWithAccCriterion(FairseqCriterion):
         )
         total = torch.sum(mask)
         sample_size = (
-            sample["target"].size(0) if self.args.sentence_avg else sample["ntokens"]
+            sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
         )
 
         logging_output = {

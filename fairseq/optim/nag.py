@@ -93,7 +93,9 @@ class NAG(Optimizer):
 
                 buf.mul_(momentum * lr_correct).add_(-lr, d_p)
 
-                p.data.copy_(p_data_fp32)
+                # TODO: remove check once pyTorch avoids a copy for this case
+                if p.data_ptr() != p_data_fp32.data_ptr():
+                    p.data.copy_(p_data_fp32)
 
             group['lr_old'] = lr
 

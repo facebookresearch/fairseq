@@ -45,7 +45,7 @@ class BaseFairseqModel(nn.Module):
 
     def get_normalized_probs(
         self,
-        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
         log_probs: bool,
         sample: Optional[Dict[str, Tensor]] = None,
     ):
@@ -58,7 +58,7 @@ class BaseFairseqModel(nn.Module):
     # call the helper function from scriptable Subclass.
     def get_normalized_probs_scriptable(
         self,
-        net_output: Tuple[Tensor, Dict[str, List[Optional[Tensor]]]],
+        net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
         log_probs: bool,
         sample: Optional[Dict[str, Tensor]] = None,
     ):
@@ -118,6 +118,15 @@ class BaseFairseqModel(nn.Module):
                 do_upgrade(c, name)
 
         do_upgrade(self, name)
+
+    def set_num_updates(self, num_updates):
+        """ State from trainer to pass along to model at every update """
+
+        def _apply(m):
+            if hasattr(m, 'set_num_updates') and m != self:
+                m.set_num_updates(num_updates)
+        self.apply(_apply)
+
 
     def make_generation_fast_(self, **kwargs):
         """Optimize model for faster generation."""

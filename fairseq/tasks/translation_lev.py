@@ -29,7 +29,7 @@ class TranslationLevenshteinTask(TranslationTask):
             default='random_delete',
             choices=['random_delete', 'random_mask', 'no_noise', 'full_mask'])
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -37,7 +37,7 @@ class TranslationLevenshteinTask(TranslationTask):
         """
         paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         # infer langcode
         src, tgt = self.args.source_lang, self.args.target_lang
@@ -126,7 +126,8 @@ class TranslationLevenshteinTask(TranslationTask):
         else:
             raise NotImplementedError
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
+        # add models input to match the API for SequenceGenerator
         from fairseq.iterative_refinement_generator import IterativeRefinementGenerator
         return IterativeRefinementGenerator(
             self.target_dictionary,
@@ -143,6 +144,7 @@ class TranslationLevenshteinTask(TranslationTask):
                    model,
                    criterion,
                    optimizer,
+                   update_num,
                    ignore_grad=False):
         model.train()
         sample['prev_target'] = self.inject_noise(sample['target'])
