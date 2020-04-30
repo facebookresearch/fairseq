@@ -16,6 +16,8 @@ modeling and other text generation tasks.
 
 ### What's New:
 
+
+- April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
 - April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
 - April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
 - March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
