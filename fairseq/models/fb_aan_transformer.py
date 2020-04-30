@@ -149,17 +149,21 @@ class AverageAttention(nn.Module):
     def extra_repr(self):
         return "embed_dim={}, dropout={}".format(self.embed_dim, self.dropout)
 
-    def reorder_incremental_state(self, incremental_state, new_order):
+    def reorder_incremental_state(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order,
+    ):
         """Reorder buffered internal state (for incremental generation)."""
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
             for k in ("prev_vec", "prev_sum"):
-                if (
-                    k in input_buffer
-                    and input_buffer[k].size(1) > 1
-                ):
-                    input_buffer[k] = input_buffer[k].index_select(1, new_order)
-        incremental_state = self._set_input_buffer(incremental_state, input_buffer)
+                if k in input_buffer:
+                    input_buffer_k = input_buffer[k]
+                    if input_buffer_k is not None and input_buffer_k.size(1) > 1:
+                        input_buffer[k] = input_buffer_k.index_select(1, new_order)
+        if incremental_state is not None:
+            incremental_state = self._set_input_buffer(incremental_state, input_buffer)
         return incremental_state
 
     def _get_input_buffer(
@@ -355,6 +359,18 @@ class AANTransformerDecoderLayer(nn.Module):
 
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn
+
+    @torch.jit.export
+    def reorder_incremental_state(
+        self,
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
+        new_order: Tensor,
+    ):
+        """Scriptable reorder incremental state in transformer layers."""
+        self.avg_attn.reorder_incremental_state(incremental_state, new_order)
+
+        if self.encoder_attn is not None:
+            self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
 
 
 class AANTransformerDecoder(TransformerDecoder):
