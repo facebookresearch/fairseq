@@ -461,7 +461,7 @@ class SequenceGenerator(nn.Module):
         prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
         prefix_mask = prefix_toks.ne(self.pad)
         lprobs[prefix_mask] = torch.tensor(-math.inf).to(lprobs)
-        lprobs[prefix_mask] = lprobs[prefix_mask].scatter_(
+        lprobs[prefix_mask] = lprobs[prefix_mask].scatter(
             -1, prefix_toks[prefix_mask].unsqueeze(-1), prefix_lprobs[prefix_mask]
         )
         # if prefix includes eos, then we should make sure tokens and
