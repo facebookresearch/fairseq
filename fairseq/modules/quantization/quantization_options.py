@@ -16,9 +16,9 @@ def parse_config_yaml(yaml_data):
             "Embedding": ["fuzzy_name", {"emb": 8}],
         },
         "layers_to_quantize": [
-            "decoder\\.layers\\.\d+\\.fc[12]",
+            "decoder\\.layers\\.\\d+\\.fc[12]",
             "decoder\\.embed_tokens\\.embeddings\\.[012]\\.[01]",
-            "decoder\\.layers\\.\d+\\.self_attn\\.(k_proj|v_proj|q_proj|out_proj)",
+            "decoder\\.layers\\.\\d+\\.self_attn\\.(k_proj|v_proj|q_proj|out_proj)",
         ],
     }
 

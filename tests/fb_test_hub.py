@@ -95,7 +95,7 @@ class TestLMHub(unittest.TestCase):
             en_lm.sample('Barack Obama', beam=1, sampling=True, sampling_topk=10, temperature=0.8)
 
             ppl = en_lm.score('Barack Obama is coming to Sydney and New Zealand')['positional_scores'].mean().neg().exp()
-            self.assertAlmostEqual(ppl.item(), 15.1474, places=4)
+            self.assertAlmostEqual(ppl.item(), 4.2739, places=4)
 
 
 @unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')

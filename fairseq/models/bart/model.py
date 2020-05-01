@@ -172,12 +172,18 @@ class BARTModel(TransformerModel):
         for k in keys_to_delete:
             del state_dict[k]
 
+        def truncate_emb(key):
+            if key in state_dict:
+                state_dict[key] = state_dict[key][:-1, :]
+
         # When finetuning on translation task, remove last row of
         # embedding matrix that corresponds to mask_idx token.
         loaded_dict_size = state_dict['encoder.embed_tokens.weight'].size(0)
         if loaded_dict_size == len(self.encoder.dictionary) + 1 and '<mask>' not in self.encoder.dictionary:
-            state_dict['encoder.embed_tokens.weight'] = state_dict['encoder.embed_tokens.weight'][:loaded_dict_size-1, :]
-            state_dict['decoder.embed_tokens.weight'] = state_dict['decoder.embed_tokens.weight'][:loaded_dict_size-1, :]
+            truncate_emb('encoder.embed_tokens.weight')
+            truncate_emb('decoder.embed_tokens.weight')
+            truncate_emb('encoder.output_projection.weight')
+            truncate_emb('decoder.output_projection.weight')
 
         # When continued pretraining on new set of languages for mbart,
         # add extra lang embeddings at the end of embed_tokens.
