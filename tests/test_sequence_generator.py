@@ -111,7 +111,7 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
 class TestJitSequeneceGenerator(TestJitSequenceGeneratorBase):
 
     @unittest.skipIf(
-        torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
+        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
     )
     def test_export_transformer(self):
         model = self.transformer_model

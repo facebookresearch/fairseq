@@ -27,7 +27,9 @@ def get_fused_adam_class():
         try:
             # fallback to the newer interface
             from apex.optimizers import FusedAdam as _FusedAdam  # noqa
-            return FusedAdamV2
+            from apex.multi_tensor_apply import multi_tensor_applier
+            if multi_tensor_applier.available:
+                return FusedAdamV2
         except ImportError:
             pass
     return None
@@ -255,6 +257,9 @@ try:
                         state['exp_avg'] = torch.zeros_like(p.data, dtype=torch.float)
                         # Exponential moving average of squared gradient values
                         state['exp_avg_sq'] = torch.zeros_like(p.data, dtype=torch.float)
+                    else:
+                        state['exp_avg'] = state['exp_avg'].to(device=p.data.device, dtype=torch.float)
+                        state['exp_avg_sq'] = state['exp_avg_sq'].to(device=p.data.device, dtype=torch.float)
 
                     if p.dtype == torch.float16:
                         g_16.append(p.grad.data.float())
