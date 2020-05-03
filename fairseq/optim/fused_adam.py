@@ -168,8 +168,8 @@ class FusedAdamV1(torch.optim.Optimizer):
                     # Exponential moving average of squared gradient values
                     state['exp_avg_sq'] = torch.zeros_like(p_data_fp32)
                 else:
-                    state['exp_avg'] = state['exp_avg'].type_as(p_data_fp32)
-                    state['exp_avg_sq'] = state['exp_avg_sq'].type_as(p_data_fp32)
+                    state['exp_avg'] = state['exp_avg'].to(p_data_fp32)
+                    state['exp_avg_sq'] = state['exp_avg_sq'].to(p_data_fp32)
 
                 exp_avg = state['exp_avg']
                 exp_avg_sq = state['exp_avg_sq']

@@ -75,14 +75,16 @@ class NAG(Optimizer):
                 if p.grad is None:
                     continue
 
-                p_data_fp32 = p.data.float()
+                p_data_fp32 = p.data
+                if p_data_fp32.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
 
                 d_p = p.grad.data.float()
                 param_state = self.state[p]
                 if 'momentum_buffer' not in param_state:
                     param_state['momentum_buffer'] = torch.zeros_like(d_p)
                 else:
-                    param_state['momentum_buffer'] = param_state['momentum_buffer'].type_as(d_p)
+                    param_state['momentum_buffer'] = param_state['momentum_buffer'].to(d_p)
 
                 buf = param_state['momentum_buffer']
 
@@ -93,8 +95,7 @@ class NAG(Optimizer):
 
                 buf.mul_(momentum * lr_correct).add_(d_p, alpha=-lr)
 
-                # TODO: remove check once pyTorch avoids a copy for this case
-                if p.data_ptr() != p_data_fp32.data_ptr():
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)
 
             group['lr_old'] = lr
