@@ -111,6 +111,7 @@ class TransformerSentenceEncoder(nn.Module):
         self.apply_bert_init = apply_bert_init
         self.learned_pos_embedding = learned_pos_embedding
         self.traceable = traceable
+        self.tpu = False  # whether we're on TPU
 
         self.embed_tokens = nn.Embedding(
             self.vocab_size, self.embedding_dim, self.padding_idx
@@ -184,6 +185,9 @@ class TransformerSentenceEncoder(nn.Module):
         for layer in range(n_trans_layers_to_freeze):
             freeze_module_params(self.layers[layer])
 
+    def prepare_for_tpu_(self, **kwargs):
+        self.tpu = True
+
     def forward(
         self,
         tokens: torch.Tensor,
@@ -194,7 +198,7 @@ class TransformerSentenceEncoder(nn.Module):
 
         # compute padding mask. This is needed for multi-head attention
         padding_mask = tokens.eq(self.padding_idx)
-        if not self.traceable and not padding_mask.any():
+        if not self.traceable and not self.tpu and not padding_mask.any():
             padding_mask = None
 
         x = self.embed_tokens(tokens)
