@@ -208,9 +208,11 @@ class FairseqTask(object):
             a :class:`~fairseq.models.BaseFairseqModel` instance
         """
         from fairseq import models, quantization_utils
-
         model = models.build_model(args, self)
-        return quantization_utils.quantize_model_scalar(model, args)
+        if getattr(args, 'tpu', False):
+            model.prepare_for_tpu_()
+        model = quantization_utils.quantize_model_scalar(model, args)
+        return model
 
     def build_criterion(self, args):
         """
