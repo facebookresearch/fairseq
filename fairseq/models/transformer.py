@@ -20,6 +20,7 @@ from fairseq.models import (
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.modules import (
     AdaptiveSoftmax,
+    LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
@@ -152,8 +153,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='do not perform cross-attention')
         parser.add_argument('--cross-self-attention', default=False, action='store_true',
                             help='perform cross+self-attention')
-        parser.add_argument('--layer-wise-attention', default=False, action='store_true',
-                            help='perform layer-wise attention (cross-attention or cross+self-attention)')
         # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
         parser.add_argument('--encoder-layerdrop', type=float, metavar='D', default=0,
                             help='LayerDrop probability for encoder')
@@ -296,73 +295,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
 
-@register_model("transformer_align")
-class TransformerAlignModel(TransformerModel):
-    """
-    See "Jointly Learning to Align and Translate with Transformer
-    Models" (Garg et al., EMNLP 2019).
-    """
-
-    def __init__(self, encoder, decoder, args):
-        super().__init__(args, encoder, decoder)
-        self.alignment_heads = args.alignment_heads
-        self.alignment_layer = args.alignment_layer
-        self.full_context_alignment = args.full_context_alignment
-
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        super(TransformerAlignModel, TransformerAlignModel).add_args(parser)
-        parser.add_argument('--alignment-heads', type=int, metavar='D',
-                            help='Number of cross attention heads per layer to supervised with alignments')
-        parser.add_argument('--alignment-layer', type=int, metavar='D',
-                            help='Layer number which has to be supervised. 0 corresponding to the bottommost layer.')
-        parser.add_argument('--full-context-alignment', type=bool, metavar='D',
-                            help='Whether or not alignment is supervised conditioned on the full target context.')
-        # fmt: on
-
-    @classmethod
-    def build_model(cls, args, task):
-        # set any default arguments
-        transformer_align(args)
-
-        transformer_model = TransformerModel.build_model(args, task)
-        return TransformerAlignModel(
-            transformer_model.encoder, transformer_model.decoder, args
-        )
-
-    def forward(self, src_tokens, src_lengths, prev_output_tokens):
-        encoder_out = self.encoder(src_tokens, src_lengths)
-        return self.forward_decoder(prev_output_tokens, encoder_out)
-
-    def forward_decoder(
-        self,
-        prev_output_tokens,
-        encoder_out=None,
-        incremental_state=None,
-        features_only=False,
-        **extra_args,
-    ):
-        attn_args = {
-            "alignment_layer": self.alignment_layer,
-            "alignment_heads": self.alignment_heads,
-        }
-        decoder_out = self.decoder(prev_output_tokens, encoder_out, **attn_args)
-
-        if self.full_context_alignment:
-            attn_args["full_context_alignment"] = self.full_context_alignment
-            _, alignment_out = self.decoder(
-                prev_output_tokens,
-                encoder_out,
-                features_only=True,
-                **attn_args,
-                **extra_args,
-            )
-            decoder_out[1]["attn"] = alignment_out["attn"]
-
-        return decoder_out
-
-
 class TransformerEncoder(FairseqEncoder):
     """
     Transformer encoder consisting of *args.encoder_layers* layers. Each layer
@@ -409,12 +341,14 @@ class TransformerEncoder(FairseqEncoder):
         else:
             self.quant_noise = None
 
-        self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
-
-        self.layers = nn.ModuleList([])
-        self.layers.extend(
-            [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
-        )
+        if self.encoder_layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+        self.layers.extend([
+            self.build_encoder_layer(args)
+            for i in range(args.encoder_layers)
+        ])
         self.num_layers = len(self.layers)
 
         if args.encoder_normalize_before:
@@ -469,9 +403,6 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
-        if self.layer_wise_attention:
-            return_all_hiddens = True
-
         x, encoder_embedding = self.forward_embedding(src_tokens)
 
         # B x T x C -> T x B x C
@@ -484,18 +415,13 @@ class TransformerEncoder(FairseqEncoder):
 
         # encoder layers
         for layer in self.layers:
-            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = torch.empty(1).uniform_()
-            if not self.training or (dropout_probability > self.encoder_layerdrop):
-                x = layer(x, encoder_padding_mask)
-                if return_all_hiddens:
-                    assert encoder_states is not None
-                    encoder_states.append(x)
+            x = layer(x, encoder_padding_mask)
+            if return_all_hiddens:
+                assert encoder_states is not None
+                encoder_states.append(x)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
-            if return_all_hiddens:
-                encoder_states[-1] = x
 
         return EncoderOut(
             encoder_out=x,  # T x B x C
@@ -562,22 +488,6 @@ class TransformerEncoder(FairseqEncoder):
         if self.embed_positions is None:
             return self.max_source_positions
         return min(self.max_source_positions, self.embed_positions.max_positions)
-
-    def buffered_future_mask(self, tensor):
-        dim = tensor.size(0)
-        if (
-            not hasattr(self, "_future_mask")
-            or self._future_mask is None
-            or self._future_mask.device != tensor.device
-        ):
-            self._future_mask = torch.triu(
-                utils.fill_with_neg_inf(tensor.new(dim, dim)), 1
-            )
-            if self._future_mask.size(0) < dim:
-                self._future_mask = torch.triu(
-                    utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1
-                )
-        return self._future_mask[:dim, :dim]
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
@@ -666,15 +576,15 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         )
 
         self.cross_self_attention = getattr(args, "cross_self_attention", False)
-        self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
-        self.layers = nn.ModuleList([])
-        self.layers.extend(
-            [
-                self.build_decoder_layer(args, no_encoder_attn)
-                for _ in range(args.decoder_layers)
-            ]
-        )
+        if self.decoder_layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+        self.layers.extend([
+            self.build_decoder_layer(args, no_encoder_attn)
+            for _ in range(args.decoder_layers)
+        ])
         self.num_layers = len(self.layers)
 
         self.adaptive_softmax = None
@@ -836,38 +746,24 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
         for idx, layer in enumerate(self.layers):
-            encoder_state: Optional[Tensor] = None
-            if encoder_out is not None:
-                if self.layer_wise_attention:
-                    encoder_states = encoder_out.encoder_states
-                    assert encoder_states is not None
-                    encoder_state = encoder_states[idx]
-                else:
-                    encoder_state = encoder_out.encoder_out
-
             if incremental_state is None and not full_context_alignment:
                 self_attn_mask = self.buffered_future_mask(x)
             else:
                 self_attn_mask = None
 
-            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = torch.empty(1).uniform_()
-            if not self.training or (dropout_probability > self.decoder_layerdrop):
-                x, layer_attn, _ = layer(
-                    x,
-                    encoder_state,
-                    encoder_out.encoder_padding_mask
-                    if encoder_out is not None
-                    else None,
-                    incremental_state,
-                    self_attn_mask=self_attn_mask,
-                    self_attn_padding_mask=self_attn_padding_mask,
-                    need_attn=bool((idx == alignment_layer)),
-                    need_head_weights=bool((idx == alignment_layer)),
-                )
-                inner_states.append(x)
-                if layer_attn is not None and idx == alignment_layer:
-                    attn = layer_attn.float().to(x)
+            x, layer_attn, _ = layer(
+                x,
+                encoder_out.encoder_out if encoder_out is not None else None,
+                encoder_out.encoder_padding_mask if encoder_out is not None else None,
+                incremental_state,
+                self_attn_mask=self_attn_mask,
+                self_attn_padding_mask=self_attn_padding_mask,
+                need_attn=bool((idx == alignment_layer)),
+                need_head_weights=bool((idx == alignment_layer)),
+            )
+            inner_states.append(x)
+            if layer_attn is not None and idx == alignment_layer:
+                attn = layer_attn.float().to(x)
 
         if attn is not None:
             if alignment_heads is not None:
@@ -1020,7 +916,6 @@ def base_architecture(args):
     args.adaptive_input = getattr(args, "adaptive_input", False)
     args.no_cross_attention = getattr(args, "no_cross_attention", False)
     args.cross_self_attention = getattr(args, "cross_self_attention", False)
-    args.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
     args.decoder_output_dim = getattr(
         args, "decoder_output_dim", args.decoder_embed_dim
@@ -1083,18 +978,3 @@ def transformer_wmt_en_de_big_t2t(args):
     args.attention_dropout = getattr(args, "attention_dropout", 0.1)
     args.activation_dropout = getattr(args, "activation_dropout", 0.1)
     transformer_vaswani_wmt_en_de_big(args)
-
-
-@register_model_architecture("transformer_align", "transformer_align")
-def transformer_align(args):
-    args.alignment_heads = getattr(args, "alignment_heads", 1)
-    args.alignment_layer = getattr(args, "alignment_layer", 4)
-    args.full_context_alignment = getattr(args, "full_context_alignment", False)
-    base_architecture(args)
-
-
-@register_model_architecture("transformer_align", "transformer_wmt_en_de_big_align")
-def transformer_wmt_en_de_big_align(args):
-    args.alignment_heads = getattr(args, "alignment_heads", 1)
-    args.alignment_layer = getattr(args, "alignment_layer", 4)
-    transformer_wmt_en_de_big(args)

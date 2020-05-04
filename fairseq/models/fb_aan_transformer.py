@@ -420,7 +420,6 @@ def base_architecture(args):
     args.adaptive_input = getattr(args, "adaptive_input", False)
     args.no_cross_attention = getattr(args, "no_cross_attention", False)
     args.cross_self_attention = getattr(args, "cross_self_attention", False)
-    args.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
     args.decoder_output_dim = getattr(
         args, "decoder_output_dim", args.decoder_embed_dim

@@ -248,7 +248,6 @@ class TestTranslation(unittest.TestCase):
                     '--decoder-embed-dim', '8',
                     '--no-cross-attention',
                     '--cross-self-attention',
-                    '--layer-wise-attention',
                 ], run_validation=True)
                 generate_main(data_dir, extra_flags=[])
 
