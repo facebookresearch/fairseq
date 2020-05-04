@@ -248,7 +248,6 @@ def main(parsed_args, **unused_kwargs):
 
 def cli_main():
     parser = options.get_eval_lm_parser()
-    add_distributed_training_args(parser)
     args = options.parse_args_and_arch(parser)
     distributed_utils.call_main(args, main)
 

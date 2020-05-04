@@ -96,7 +96,7 @@ class LSTMLanguageModel(FairseqLanguageModel):
             num_layers=args.decoder_layers,
             dropout_in=args.decoder_dropout_in,
             dropout_out=args.decoder_dropout_out,
-            attention=options.eval_bool(args.decoder_attention),
+            attention=False,  # decoder-only language model doesn't support attention
             encoder_output_units=0,
             pretrained_embed=pretrained_decoder_embed,
             share_input_output_embed=args.share_decoder_input_output_embed,

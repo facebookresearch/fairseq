@@ -60,7 +60,14 @@ class Dictionary(object):
             return self.indices[sym]
         return self.unk_index
 
-    def string(self, tensor, bpe_symbol=None, escape_unk=False, extra_symbols_to_ignore=None):
+    def string(
+        self,
+        tensor,
+        bpe_symbol=None,
+        escape_unk=False,
+        extra_symbols_to_ignore=None,
+        unk_string=None,
+    ):
         """Helper for converting a tensor of token indices to a string.
 
         Can optionally remove BPE symbols or escape <unk> words.
@@ -73,7 +80,10 @@ class Dictionary(object):
 
         def token_string(i):
             if i == self.unk():
-                return self.unk_string(escape_unk)
+                if unk_string is not None:
+                    return unk_string
+                else:
+                    return self.unk_string(escape_unk)
             else:
                 return self[i]
 

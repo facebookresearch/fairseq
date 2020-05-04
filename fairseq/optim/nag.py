@@ -88,10 +88,10 @@ class NAG(Optimizer):
 
                 if weight_decay != 0:
                     p_data_fp32.mul_(1 - lr * weight_decay)
-                p_data_fp32.add_(momentum * momentum * lr_correct, buf)
-                p_data_fp32.add_(-(1 + momentum) * lr, d_p)
+                p_data_fp32.add_(buf, alpha=momentum * momentum * lr_correct)
+                p_data_fp32.add_(d_p, alpha=-(1 + momentum) * lr)
 
-                buf.mul_(momentum * lr_correct).add_(-lr, d_p)
+                buf.mul_(momentum * lr_correct).add_(d_p, alpha=-lr)
 
                 # TODO: remove check once pyTorch avoids a copy for this case
                 if p.data_ptr() != p_data_fp32.data_ptr():
