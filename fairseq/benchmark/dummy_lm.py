@@ -57,7 +57,9 @@ class DummyLMTask(FairseqTask):
                 'id': 1,
                 'net_input': {
                     'src_tokens': torch.stack([self.dummy_src for _ in range(bsz)]),
-                    'src_lengths': torch.full((bsz, ), self.args.tokens_per_sample),
+                    'src_lengths': torch.full(
+                        (bsz, ), self.args.tokens_per_sample, dtype=torch.long
+                    ),
                 },
                 'target': torch.stack([self.dummy_tgt for _ in range(bsz)]),
                 'nsentences': bsz,

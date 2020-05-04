@@ -181,14 +181,14 @@ class TranslationTask(FairseqTask):
         parser.add_argument('--eval-bleu', action='store_true',
                             help='evaluation with BLEU scores')
         parser.add_argument('--eval-bleu-detok', type=str, default="space",
-                            help='detokenizer before computing BLEU (e.g., "moses"); '
+                            help='detokenize before computing BLEU (e.g., "moses"); '
                                  'required if using --eval-bleu; use "space" to '
                                  'disable detokenization; see fairseq.data.encoders '
                                  'for other options')
         parser.add_argument('--eval-bleu-detok-args', type=str, metavar='JSON',
                             help='args for building the tokenizer, if needed')
         parser.add_argument('--eval-tokenized-bleu', action='store_true', default=False,
-                            help='if setting, we compute tokenized BLEU instead of sacrebleu')
+                            help='compute tokenized BLEU instead of sacrebleu')
         parser.add_argument('--eval-bleu-remove-bpe', nargs='?', const='@@ ', default=None,
                             help='remove BPE before computing BLEU')
         parser.add_argument('--eval-bleu-args', type=str, metavar='JSON',
@@ -351,7 +351,14 @@ class TranslationTask(FairseqTask):
             s = self.tgt_dict.string(
                 toks.int().cpu(),
                 self.args.eval_bleu_remove_bpe,
-                escape_unk=escape_unk,
+                # The default unknown string in fairseq is `<unk>`, but
+                # this is tokenized by sacrebleu as `< unk >`, inflating
+                # BLEU scores. Instead, we use a somewhat more verbose
+                # alternative that is unlikely to appear in the real
+                # reference, but doesn't get split into multiple tokens.
+                unk_string=(
+                    "UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"
+                ),
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
