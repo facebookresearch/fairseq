@@ -194,10 +194,7 @@ class SequenceGenerator(nn.Module):
             self.min_len <= max_len
         ), "min_len cannot be larger than max_len, please adjust these!"
         # compute the encoder output for each beam
-        encoder_outs = self.model.forward_encoder(
-            src_tokens=encoder_input["src_tokens"],
-            src_lengths=encoder_input["src_lengths"],
-        )
+        encoder_outs = self.model.forward_encoder(encoder_input)
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
@@ -707,11 +704,11 @@ class EnsembleModel(nn.Module):
         return min([m.max_decoder_positions() for m in self.models])
 
     @torch.jit.export
-    def forward_encoder(self, src_tokens, src_lengths):
+    def forward_encoder(self, encoder_inputs):
         if not self.has_encoder():
             return None
         return [
-            model.encoder(src_tokens=src_tokens, src_lengths=src_lengths)
+            model.encoder(**encoder_inputs)
             for model in self.models
         ]
 
