@@ -454,16 +454,16 @@ class Trainer(object):
 
         overflow = False
         try:
-            # multiply gradients by (# GPUs / sample_size) since DDP
-            # already normalizes by the number of GPUs. Thus we get
-            # (sum_of_gradients / sample_size).
             if self.tpu and self.data_parallel_world_size > 1:
                 import torch_xla.core.xla_model as xm
                 gradients = xm._fetch_gradients(self.optimizer.optimizer)
-                xm.all_reduce('sum', gradients, scale=1.0 / sample_size)
-            elif not self.args.use_bmuf:
-                multiplier = self.data_parallel_world_size
-                self.optimizer.multiply_grads(multiplier / sample_size)
+                xm.all_reduce('sum', gradients, scale=1.0 / self.data_parallel_world_size)
+
+            # multiply gradients by (# GPUs / sample_size) since DDP
+            # already normalizes by the number of GPUs. Thus we get
+            # (sum_of_gradients / sample_size).
+            if not self.args.use_bmuf:
+                self.optimizer.multiply_grads(self.data_parallel_world_size / sample_size)
             elif sample_size > 0:  # BMUF needs to check sample size
                 num = self.data_parallel_world_size if self._sync_stats() else 1
                 self.optimizer.multiply_grads(num / sample_size)
