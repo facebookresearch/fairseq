@@ -439,7 +439,10 @@ class Trainer(object):
                 xm.mark_step()
 
         if is_dummy_batch:
-            sample_size *= 0.  # multiply by 0 to preserve device
+            if torch.is_tensor(sample_size):
+                sample_size.zero_()
+            else:
+                sample_size *= 0.
 
         if torch.is_tensor(sample_size):
             sample_size = sample_size.float()
@@ -593,7 +596,10 @@ class Trainer(object):
 
             logging_outputs = [logging_output]
             if is_dummy_batch:
-                sample_size *= 0  # multiply by 0 to preserve device
+                if torch.is_tensor(sample_size):
+                    sample_size.zero_()
+                else:
+                    sample_size *= 0.
 
         # gather logging outputs from all replicas
         if self.data_parallel_world_size > 1:
