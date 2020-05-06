@@ -18,7 +18,7 @@ class MaskedLMDictionary(Dictionary):
         unk='<unk>',
         mask='<mask>',
     ):
-        super().__init__(pad, eos, unk)
+        super().__init__(pad=pad, eos=eos, unk=unk)
         self.mask_word = mask
         self.mask_index = self.add_symbol(mask)
         self.nspecial = len(self.symbols)
@@ -42,7 +42,7 @@ class BertDictionary(MaskedLMDictionary):
         cls='<cls>',
         sep='<sep>'
     ):
-        super().__init__(pad, eos, unk, mask)
+        super().__init__(pad=pad, eos=eos, unk=unk)
         self.cls_word = cls
         self.sep_word = sep
         self.cls_index = self.add_symbol(cls)

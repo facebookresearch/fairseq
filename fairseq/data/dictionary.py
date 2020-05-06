@@ -19,6 +19,7 @@ class Dictionary(object):
 
     def __init__(
         self,
+        *,  # begin keyword-only arguments
         pad="<pad>",
         eos="</s>",
         unk="<unk>",
