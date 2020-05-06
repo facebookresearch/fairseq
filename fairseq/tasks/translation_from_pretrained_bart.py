@@ -84,7 +84,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(
                 self.target_dictionary,
-                eos=self.tgt_dict.index('[{}]'.format(self.target_lang))
+                eos=self.tgt_dict.index('[{}]'.format(self.args.target_lang))
             )
         else:
             from fairseq.sequence_generator import SequenceGenerator
