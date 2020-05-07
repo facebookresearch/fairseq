@@ -489,6 +489,11 @@ class TestLanguageModeling(unittest.TestCase):
                     '--lr', '0.1',
                 ])
                 eval_lm_main(data_dir)
+                generate_main(data_dir, [
+                    '--task', 'language_modeling',
+                    '--sample-break-mode', 'eos',
+                    '--tokens-per-sample', '500',
+                ])
 
     def test_transformer_lm(self):
         with contextlib.redirect_stdout(StringIO()):

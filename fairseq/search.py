@@ -75,7 +75,11 @@ class BeamSearch(Search):
         )
         scores_buf = top_prediction[0]
         indices_buf = top_prediction[1]
-        beams_buf = torch.div(indices_buf, vocab_size)
+        if hasattr(torch, 'floor_divide'):
+            beams_buf = torch.floor_divide(indices_buf, vocab_size)
+        else:
+            raise Exception
+            beams_buf = torch.div(indices_buf, vocab_size)
         indices_buf = indices_buf.fmod(vocab_size)
         return scores_buf, indices_buf, beams_buf
 
