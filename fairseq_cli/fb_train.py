@@ -63,7 +63,10 @@ def fb_main(device_id, args, start_rank, log_path=None):
     # For latte_training use case, we have separate NMTManifoldPathHandler registered in
     # https://fburl.com/wurd7t70. So if parameters need to be updated the right place
     # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
-    PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
+    try:
+        PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
+    except AssertionError:
+        logging.warning("ManifoldPathHandler already registered.")
 
     def train_main():
         if args.distributed_world_size > 1:
