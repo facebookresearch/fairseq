@@ -132,6 +132,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='use learned positional embeddings in the decoder')
         parser.add_argument('--decoder-normalize-before', action='store_true',
                             help='apply layernorm before each decoder block')
+        parser.add_argument('--decoder-output-dim', type=int, metavar='N',
+                            help='decoder output dimension (extra linear layer '
+                                 'if different from decoder embed dim')
         parser.add_argument('--share-decoder-input-output-embed', action='store_true',
                             help='share decoder input and output embeddings')
         parser.add_argument('--share-all-embeddings', action='store_true',
@@ -924,6 +927,7 @@ def base_architecture(args):
 
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
+    args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
 
 
 @register_model_architecture("transformer", "transformer_iwslt_de_en")
