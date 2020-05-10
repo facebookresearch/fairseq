@@ -3,8 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import torch
 import torch.nn as nn
-from typing import List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 from torch import Tensor
 
 EncoderOut = NamedTuple(
@@ -36,6 +37,29 @@ class FairseqEncoder(nn.Module):
                 `(batch)`
         """
         raise NotImplementedError
+
+    def forward_torchscript(self, net_input: Dict[str, Tensor]):
+        """A TorchScript-compatible version of forward.
+
+        Encoders which use additional arguments may want to override
+        this method for TorchScript compatibility.
+        """
+        if torch.jit.is_scripting():
+            return self.forward(
+                src_tokens=net_input["src_tokens"],
+                src_lengths=net_input["src_lengths"],
+            )
+        else:
+            return self.forward_non_torchscript(net_input)
+
+    @torch.jit.unused
+    def forward_non_torchscript(self, net_input: Dict[str, Tensor]):
+        encoder_input = {
+            k: v
+            for k, v in net_input.items()
+            if k != "prev_output_tokens"
+        }
+        return self.forward(**encoder_input)
 
     def reorder_encoder_out(self, encoder_out, new_order):
         """

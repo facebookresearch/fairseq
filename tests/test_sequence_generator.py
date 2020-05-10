@@ -302,6 +302,19 @@ class TestSequeneceGenerator(TestSequenceGeneratorBase):
             for beam in [0, 1]:
                 assert hypos[sent][beam]['attention'] is not None
 
+    def test_generation_with_additional_input(self):
+        args = self.model.encoder.args
+        task = test_utils.TestTranslationTask.setup_task(args, self.tgt_dict, self.tgt_dict)
+        add_input_model = test_utils.TestAdditionalInputModel.build_model(args, task)
+        generator = SequenceGenerator([add_input_model], self.tgt_dict, beam_size=2)
+        sample = self.sample.copy()
+        sample['net_input']['fancy_other_input'] = sample['net_input']['src_tokens']
+        hypos = generator.forward(self.sample)
+        eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
+        # sentence 1, beam 1
+        self.assertHypoTokens(hypos[0][0], [w1, eos])
+        self.assertHypoScore(hypos[0][0], [0.9, 1.0])
+
 
 class TestDiverseBeamSearch(TestSequenceGeneratorBase):
 
