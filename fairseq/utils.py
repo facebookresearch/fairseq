@@ -54,6 +54,10 @@ def apply_to_sample(f, sample):
             return {key: _apply(value) for key, value in x.items()}
         elif isinstance(x, list):
             return [_apply(x) for x in x]
+        elif isinstance(x, tuple):
+            return tuple(_apply(x) for x in x)
+        elif isinstance(x, set):
+            return {_apply(x) for x in x}
         else:
             return x
 
@@ -71,7 +75,7 @@ def move_to_cpu(sample):
     def _move_to_cpu(tensor):
         # PyTorch has poor support for half tensors (float16) on CPU.
         # Move any such tensors to float32.
-        if tensor.dtype == torch.float16:
+        if tensor.dtype in {torch.bfloat16, torch.float16}:
             tensor = tensor.to(dtype=torch.float32)
         return tensor.cpu()
 
@@ -256,7 +260,11 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
             return params[0].new_tensor(0.)
         else:
             return torch.tensor(0.)
-    total_norm = torch.norm(torch.stack([torch.norm(g) for g in grads]))
+
+    if len(grads) == 1:
+        total_norm = torch.norm(grads[0])
+    else:
+        total_norm = torch.norm(torch.stack([torch.norm(g) for g in grads]))
 
     if aggregate_norm_fn is not None:
         total_norm = aggregate_norm_fn(total_norm)
