@@ -45,7 +45,7 @@ def get_interactive_generation_parser(default_task="translation"):
 def get_eval_lm_parser(default_task="language_modeling"):
     parser = get_parser("Evaluate Language Model", default_task)
     add_dataset_args(parser, gen=True)
-    add_distributed_training_args(parser)
+    add_distributed_training_args(parser, default_world_size=1)
     add_eval_lm_args(parser)
     return parser
 
@@ -350,11 +350,13 @@ def add_dataset_args(parser, train=False, gen=False):
     return group
 
 
-def add_distributed_training_args(parser):
+def add_distributed_training_args(parser, default_world_size=None):
     group = parser.add_argument_group("Distributed training")
     # fmt: off
+    if default_world_size is None:
+        default_world_size = max(1, torch.cuda.device_count())
     group.add_argument('--distributed-world-size', type=int, metavar='N',
-                       default=max(1, torch.cuda.device_count()),
+                       default=default_world_size,
                        help='total number of GPUs across all nodes (default: all visible GPUs)')
     group.add_argument('--distributed-rank', default=0, type=int,
                        help='rank of the current worker')
