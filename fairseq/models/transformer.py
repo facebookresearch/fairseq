@@ -255,7 +255,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
         src_tokens,
         src_lengths,
         prev_output_tokens,
-        cls_input: Optional[Tensor] = None,
         return_all_hiddens: bool = True,
         features_only: bool = False,
         alignment_layer: Optional[int] = None,
@@ -270,7 +269,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
         encoder_out = self.encoder(
             src_tokens,
             src_lengths=src_lengths,
-            cls_input=cls_input,
             return_all_hiddens=return_all_hiddens,
         )
         decoder_out = self.decoder(
@@ -382,7 +380,6 @@ class TransformerEncoder(FairseqEncoder):
         self,
         src_tokens,
         src_lengths,
-        cls_input: Optional[Tensor] = None,
         return_all_hiddens: bool = False,
     ):
         """

@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq.modules import (
+    LayerDropModuleList,
     LayerNorm,
     MultiheadAttention,
     PositionalEmbedding,
@@ -143,23 +144,25 @@ class TransformerSentenceEncoder(nn.Module):
             else None
         )
 
-        self.layers = nn.ModuleList(
-            [
-                TransformerSentenceEncoderLayer(
-                    embedding_dim=self.embedding_dim,
-                    ffn_embedding_dim=ffn_embedding_dim,
-                    num_attention_heads=num_attention_heads,
-                    dropout=self.dropout,
-                    attention_dropout=attention_dropout,
-                    activation_dropout=activation_dropout,
-                    activation_fn=activation_fn,
-                    export=export,
-                    q_noise=q_noise,
-                    qn_block_size=qn_block_size
-                )
-                for _ in range(num_encoder_layers)
-            ]
-        )
+        if self.layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+        self.layers.extend([
+            TransformerSentenceEncoderLayer(
+                embedding_dim=self.embedding_dim,
+                ffn_embedding_dim=ffn_embedding_dim,
+                num_attention_heads=num_attention_heads,
+                dropout=self.dropout,
+                attention_dropout=attention_dropout,
+                activation_dropout=activation_dropout,
+                activation_fn=activation_fn,
+                export=export,
+                q_noise=q_noise,
+                qn_block_size=qn_block_size
+            )
+            for _ in range(num_encoder_layers)
+        ])
 
         if encoder_normalize_before:
             self.emb_layer_norm = LayerNorm(self.embedding_dim, export=export)
@@ -228,12 +231,9 @@ class TransformerSentenceEncoder(nn.Module):
             inner_states.append(x)
 
         for layer in self.layers:
-            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
-            if not self.training or (dropout_probability > self.layerdrop):
-                x, _ = layer(x, self_attn_padding_mask=padding_mask)
-                if not last_state_only:
-                    inner_states.append(x)
+            x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            if not last_state_only:
+                inner_states.append(x)
 
         sentence_rep = x[0, :, :]
 

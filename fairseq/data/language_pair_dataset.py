@@ -165,6 +165,8 @@ class LanguagePairDataset(FairseqDataset):
             assert src_dict.pad() == tgt_dict.pad()
             assert src_dict.eos() == tgt_dict.eos()
             assert src_dict.unk() == tgt_dict.unk()
+        if tgt is not None:
+            assert len(src) == len(tgt), "Source and target must contain the same number of examples"
         self.src = src
         self.tgt = tgt
         self.src_sizes = np.array(src_sizes)

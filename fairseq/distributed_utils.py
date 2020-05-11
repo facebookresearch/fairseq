@@ -170,7 +170,7 @@ def call_main(args, main, **kwargs):
         )
     else:
         # single GPU main
-        main(args, kwargs)
+        main(args, **kwargs)
 
 
 def get_rank():
