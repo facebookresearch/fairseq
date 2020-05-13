@@ -198,7 +198,8 @@ def log_stop_time(key: str, weight: float = 0., prehook=None):
         make sure all gpu operations are done before timer is stopped.
     """
     for agg in get_active_aggregators():
-        agg[key].stop(weight, prehook)
+        if key in agg:
+            agg[key].stop(weight, prehook)
 
 
 def log_custom(
