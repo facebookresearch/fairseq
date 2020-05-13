@@ -352,7 +352,7 @@ class DenoisingDataset(FairseqDataset):
         Returns:
             dict: a mini-batch of data
         """
-        return collate(samples, self.vocab.pad(), self.vocab.eos(), self.vocab)
+        return collate(samples, self.vocab.pad(), self.eos, self.vocab)
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
