@@ -96,8 +96,7 @@ class LengthConstrainedBeamSearch(Search):
         min_lens = self.min_len_a * self.src_lengths + self.min_len_b
         max_lens = self.max_len_a * self.src_lengths + self.max_len_b
         lprobs[step < min_lens, :, self.eos] = -math.inf
-        lprobs[step == max_lens, :, self.eos] = 0
-        lprobs[step > max_lens, :, self.eos] = -math.inf
+        lprobs[step >= max_lens, :, self.eos] = 0
         return self.beam.step(step, lprobs, scores)
 
 
