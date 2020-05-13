@@ -66,12 +66,11 @@ class TestJitLSTMModel(unittest.TestCase):
             torch.jit.load(f.name)
 
     def assertTensorEqual(self, t1, t2):
+        t1 = t1[~torch.isnan(t1)]  # can cause size mismatch errors if there are NaNs
+        t2 = t2[~torch.isnan(t2)]
         self.assertEqual(t1.size(), t2.size(), "size mismatch")
         self.assertEqual(t1.ne(t2).long().sum(), 0)
 
-    @unittest.skipIf(
-        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
-    )
     def test_jit_and_export_lstm(self):
         task, parser = get_dummy_task_and_parser()
         LSTMModel.add_args(parser)
@@ -81,9 +80,6 @@ class TestJitLSTMModel(unittest.TestCase):
         scripted_model = torch.jit.script(model)
         self._test_save_and_load(scripted_model)
 
-    @unittest.skipIf(
-        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
-    )
     def test_assert_jit_vs_nonjit_(self):
         task, parser = get_dummy_task_and_parser()
         LSTMModel.add_args(parser)
