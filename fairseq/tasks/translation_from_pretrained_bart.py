@@ -110,5 +110,5 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         for s_t in src_tokens:
             s_t = torch.cat([s_t, s_t.new(1).fill_(src_lang_id)])
             source_tokens.append(s_t)
-        dataset = LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
+        dataset = LanguagePairDataset(source_tokens, src_lengths, self.source_dictionary)
         return dataset
