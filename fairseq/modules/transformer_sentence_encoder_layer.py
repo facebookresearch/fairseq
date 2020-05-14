@@ -47,8 +47,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
             self.embedding_dim,
             num_attention_heads,
             dropout=attention_dropout,
-            add_bias_kv=False,
-            add_zero_attn=False,
             self_attention=True,
             q_noise=q_noise,
             qn_block_size=qn_block_size,
