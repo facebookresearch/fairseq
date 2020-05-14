@@ -8,6 +8,7 @@ from collections import Counter
 from multiprocessing import Pool
 
 import torch
+from fairseq import utils
 from fairseq.binarizer import safe_readline
 from fairseq.data import data_utils
 from fairseq.file_io import PathManager
@@ -74,7 +75,10 @@ class Dictionary(object):
         Can optionally remove BPE symbols or escape <unk> words.
         """
         if torch.is_tensor(tensor) and tensor.dim() == 2:
-            return "\n".join(self.string(t, bpe_symbol, escape_unk, extra_symbols_to_ignore) for t in tensor)
+            return "\n".join(
+                self.string(t, bpe_symbol, escape_unk, extra_symbols_to_ignore)
+                for t in tensor
+            )
 
         extra_symbols_to_ignore = set(extra_symbols_to_ignore or [])
         extra_symbols_to_ignore.add(self.eos())
@@ -91,7 +95,11 @@ class Dictionary(object):
         if hasattr(self, "bos_index"):
             extra_symbols_to_ignore.add(self.bos())
 
-        sent = " ".join(token_string(i) for i in tensor if i.item() not in extra_symbols_to_ignore)
+        sent = " ".join(
+            token_string(i)
+            for i in tensor
+            if utils.item(i) not in extra_symbols_to_ignore
+        )
 
         return data_utils.process_bpe_symbol(sent, bpe_symbol)
 
