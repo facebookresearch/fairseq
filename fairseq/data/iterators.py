@@ -5,6 +5,7 @@
 
 import itertools
 import math
+import operator
 import os
 import time
 import numpy as np
@@ -27,31 +28,37 @@ class CountingIterator(object):
 
     Args:
         iterable (iterable): iterable to wrap
-        start (int): starting iteration count
-        override_len (int): override the iterator length
-            returned by ``__len__``
+        start (int): starting iteration count. Note that this doesn't
+            actually advance the iterator.
+        total (int): override the iterator length returned by
+            ``__len__``. This can be used to truncate *iterator*.
 
     Attributes:
-        count (int): number of elements consumed from this iterator
+        n (int): number of elements consumed from this iterator
     """
 
-    def __init__(self, iterable, start=0, override_len=None):
+    def __init__(self, iterable, start=None, total=None):
         self.iterable = iterable
-        self.count = start
         self.itr = iter(self)
-        if override_len is None:
-            self.len = start + len(iterable)
+
+        if start is None:
+            self.n = getattr(iterable, 'n', 0)
         else:
-            self.len = override_len
+            self.n = start
+
+        if total is None:
+            self.total = self.n + len(iterable)
+        else:
+            self.total = total
 
     def __len__(self):
-        return self.len
+        return self.total
 
     def __iter__(self):
         for x in self.iterable:
-            if self.count >= self.len:
+            if self.n >= self.total:
                 return
-            self.count += 1
+            self.n += 1
             yield x
 
     def __next__(self):
@@ -59,7 +66,7 @@ class CountingIterator(object):
 
     def has_next(self):
         """Whether the iterator has been exhausted."""
-        return self.count < len(self)
+        return self.n < len(self)
 
     def skip(self, num_to_skip):
         """Fast-forward the iterator by skipping *num_to_skip* elements."""
@@ -70,7 +77,7 @@ class CountingIterator(object):
         """
         Truncates the iterator to n elements at most.
         """
-        self.len = min(self.len, n)
+        self.total = min(self.total, n)
 
 
 class EpochBatchIterating(object):
@@ -148,7 +155,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
     @property
     def iterations_in_epoch(self) -> int:
         if self._current_epoch_iterator is not None:
-            return self._current_epoch_iterator.count
+            return self._current_epoch_iterator.n
         return 0
 
     def state_dict(self):
@@ -213,7 +220,11 @@ class EpochBatchIterator(EpochBatchIterating):
         self._supports_prefetch = getattr(dataset, 'supports_prefetch', False)
 
     def __len__(self):
-        return len(self.frozen_batches)
+        return int(math.ceil(len(self.frozen_batches) / float(self.num_shards)))
+
+    @property
+    def n(self):
+        return self.iterations_in_epoch
 
     @property
     def next_epoch_idx(self):
@@ -255,9 +266,9 @@ class EpochBatchIterator(EpochBatchIterating):
     def iterations_in_epoch(self):
         """The number of consumed batches in the current epoch."""
         if self._cur_epoch_itr is not None:
-            return self._cur_epoch_itr.count
+            return self._cur_epoch_itr.n
         elif self._next_epoch_itr is not None:
-            return self._next_epoch_itr.count
+            return self._next_epoch_itr.n
         return 0
 
     def state_dict(self):
@@ -337,38 +348,39 @@ class EpochBatchIterator(EpochBatchIterating):
         return itr
 
 
-class GroupedIterator(object):
+class GroupedIterator(CountingIterator):
     """Wrapper around an iterable that returns groups (chunks) of items.
 
     Args:
         iterable (iterable): iterable to wrap
         chunk_size (int): size of each chunk
+
+    Attributes:
+        n (int): number of elements consumed from this iterator
     """
 
     def __init__(self, iterable, chunk_size):
-        self._len = int(math.ceil(len(iterable) / float(chunk_size)))
-        self.offset = int(math.ceil(getattr(iterable, 'count', 0) / float(chunk_size)))
-        self.itr = iterable
+        itr = _chunk_iterator(iterable, chunk_size)
+        super().__init__(
+            itr,
+            start=int(math.ceil(getattr(iterable, 'n', 0) / float(chunk_size))),
+            total=int(math.ceil(len(iterable) / float(chunk_size))),
+        )
         self.chunk_size = chunk_size
 
-    def __len__(self):
-        return self._len
 
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        chunk = []
-        try:
-            for _ in range(self.chunk_size):
-                chunk.append(next(self.itr))
-        except StopIteration as e:
-            if len(chunk) == 0:
-                raise e
-        return chunk
+def _chunk_iterator(itr, chunk_size):
+    chunk = []
+    for x in itr:
+        chunk.append(x)
+        if len(chunk) == chunk_size:
+            yield chunk
+            chunk = []
+    if len(chunk) > 0:
+        yield chunk
 
 
-class ShardedIterator(object):
+class ShardedIterator(CountingIterator):
     """A sharded wrapper around an iterable, padded to length.
 
     Args:
@@ -377,30 +389,28 @@ class ShardedIterator(object):
         shard_id (int): which shard to iterator over
         fill_value (Any, optional): padding value when the iterable doesn't
             evenly divide *num_shards* (default: None).
+
+    Attributes:
+        n (int): number of elements consumed from this iterator
     """
 
     def __init__(self, iterable, num_shards, shard_id, fill_value=None):
         if shard_id < 0 or shard_id >= num_shards:
             raise ValueError('shard_id must be between 0 and num_shards')
-
-        self._sharded_len = len(iterable) // num_shards
-        if len(iterable) % num_shards > 0:
-            self._sharded_len += 1
-
-        self.itr = itertools.zip_longest(
-            range(self._sharded_len),
-            itertools.islice(iterable, shard_id, len(iterable), num_shards),
-            fillvalue=fill_value,
+        sharded_len = int(math.ceil(len(iterable) / float(num_shards)))
+        itr = map(
+            operator.itemgetter(1),
+            itertools.zip_longest(
+                range(sharded_len),
+                itertools.islice(iterable, shard_id, len(iterable), num_shards),
+                fillvalue=fill_value,
+            ),
         )
-
-    def __len__(self):
-        return self._sharded_len
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return next(self.itr)[1]
+        super().__init__(
+            itr,
+            start=int(math.ceil(getattr(iterable, 'n', 0) / float(num_shards))),
+            total=sharded_len,
+        )
 
 
 class BackgroundConsumer(Thread):
