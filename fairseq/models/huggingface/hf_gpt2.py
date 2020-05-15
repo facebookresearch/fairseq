@@ -99,7 +99,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         prev_output_tokens,
         src_lengths=None,
         incremental_state: Optional[Dict[str, List[torch.Tensor]]] = None,
-        **kwargs
+        encoder_out=None,
     ):
         features = self.extract_features(prev_output_tokens, incremental_state)
         lm_logits = self.model.lm_head(features)
