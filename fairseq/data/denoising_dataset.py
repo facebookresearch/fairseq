@@ -26,7 +26,9 @@ def collate(
     def merge(key, left_pad, move_eos_to_beginning=False):
         return data_utils.collate_tokens(
             [s[key] for s in samples],
-            pad_idx, eos_idx, left_pad, move_eos_to_beginning,
+            pad_idx=vocab.pad(),
+            eos_idx=None,  # use eos_idx of each sample instead of vocab.eos()
+            left_pad=left_pad, move_eos_to_beginning=move_eos_to_beginning,
         )
 
     id = torch.LongTensor([s['id'] for s in samples])

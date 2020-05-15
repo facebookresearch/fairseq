@@ -38,7 +38,12 @@ def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_be
     def copy_tensor(src, dst):
         assert dst.numel() == src.numel()
         if move_eos_to_beginning:
-            dst[0] = eos_idx
+            # if no eos_idx is specified, then use the last token in src
+            if eos_idx is None:
+                dst[0] = src[-1]
+            # else use the given eos_idx
+            else:
+                dst[0] = eos_idx
             dst[1:] = src[:-1]
         else:
             dst.copy_(src)
