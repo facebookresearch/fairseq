@@ -8,16 +8,13 @@ import logging
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.models import (
-    register_model,
-)
-
+from fairseq import distributed_utils as dist_utils
+from fairseq.models import register_model
 from fairseq.models.transformer import (
     TransformerDecoder,
     TransformerEncoder,
     TransformerModel,
 )
-
 from fairseq.model_parallel.modules import (
     ModelParallelTransformerDecoderLayer,
     ModelParallelTransformerEncoderLayer,

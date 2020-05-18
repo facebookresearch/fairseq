@@ -372,10 +372,13 @@ class Trainer(object):
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
+        with self.set_seed_for_train_step():
+            return self._train_step(samples, raise_oom=raise_oom)
+
+    def _train_step(self, samples, raise_oom=False):
         if self._dummy_batch == "DUMMY":
             self._dummy_batch = samples[0]
 
-        self._set_seed()
         self.model.train()
         self.criterion.train()
         self.zero_grad()
@@ -748,11 +751,13 @@ class Trainer(object):
 
         return sample
 
-    def _set_seed(self):
-        # Set seed based on args.seed and the update number so that we get
-        # reproducible results when resuming from checkpoints
+    @contextlib.contextmanager
+    def set_seed_for_train_step(self):
+        # Set seed based on args.seed and the update number so that we
+        # get reproducible results when resuming from checkpoints
         seed = self.args.seed + self.get_num_updates()
-        utils.set_torch_seed(seed)
+        with utils.set_torch_seed(seed):
+            yield
 
     def _sync_stats(self):
         # Return True if it's using multiple GPUs and DDP or multiple GPUs with
