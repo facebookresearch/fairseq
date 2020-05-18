@@ -111,7 +111,9 @@ class Adamax(torch.optim.Optimizer):
                 if grad.is_sparse:
                     raise RuntimeError('Adamax does not support sparse gradients')
 
-                p_data_fp32 = p.data.float()
+                p_data_fp32 = p.data
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
 
                 state = self.state[p]
 
@@ -121,8 +123,8 @@ class Adamax(torch.optim.Optimizer):
                     state['exp_avg'] = torch.zeros_like(p_data_fp32)
                     state['exp_inf'] = torch.zeros_like(p_data_fp32)
                 else:
-                    state['exp_avg'] = state['exp_avg'].type_as(p_data_fp32)
-                    state['exp_inf'] = state['exp_inf'].type_as(p_data_fp32)
+                    state['exp_avg'] = state['exp_avg'].to(p_data_fp32)
+                    state['exp_inf'] = state['exp_inf'].to(p_data_fp32)
 
                 exp_avg, exp_inf = state['exp_avg'], state['exp_inf']
                 beta1, beta2 = group['betas']
@@ -150,6 +152,7 @@ class Adamax(torch.optim.Optimizer):
 
                 p_data_fp32.addcdiv_(exp_avg, exp_inf.add(eps), value=-step_size)
 
-                p.data.copy_(p_data_fp32)
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p.data.copy_(p_data_fp32)
 
         return loss
