@@ -34,7 +34,11 @@ class FairseqAdam(FairseqOptimizer):
             and fused_adam_cls is not None
             and torch.cuda.is_available()
         )
-        if use_fused_adam:
+        if getattr(args, 'tpu', False):
+            # on TPUs we use the Adam defined here, since it
+            # automatically casts gradients to FP32
+            self._optimizer = Adam(params, **self.optimizer_config)
+        elif use_fused_adam:
             logger.info('using FusedAdam')
             self._optimizer = fused_adam_cls(params, **self.optimizer_config)
         else:
@@ -143,12 +147,16 @@ class Adam(torch.optim.Optimizer):
             for p in group['params']:
                 if p.grad is None:
                     continue
-                grad = p.grad.data.float()
+                grad = p.grad.data
+                if grad.dtype in {torch.float16, torch.bfloat16}:
+                    grad = grad.float()
                 if grad.is_sparse:
                     raise RuntimeError('Adam does not support sparse gradients, please consider SparseAdam instead')
                 amsgrad = group['amsgrad']
 
-                p_data_fp32 = p.data.float()
+                p_data_fp32 = p.data
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
 
                 state = self.state[p]
 
@@ -163,10 +171,10 @@ class Adam(torch.optim.Optimizer):
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_sq'] = torch.zeros_like(p_data_fp32)
                 else:
-                    state['exp_avg'] = state['exp_avg'].type_as(p_data_fp32)
-                    state['exp_avg_sq'] = state['exp_avg_sq'].type_as(p_data_fp32)
+                    state['exp_avg'] = state['exp_avg'].to(p_data_fp32)
+                    state['exp_avg_sq'] = state['exp_avg_sq'].to(p_data_fp32)
                     if amsgrad:
-                        state['max_exp_avg_sq'] = state['max_exp_avg_sq'].type_as(p_data_fp32)
+                        state['max_exp_avg_sq'] = state['max_exp_avg_sq'].to(p_data_fp32)
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 if amsgrad:
@@ -195,8 +203,7 @@ class Adam(torch.optim.Optimizer):
 
                 p_data_fp32.addcdiv_(exp_avg, denom, value=-step_size)
 
-                # TODO: remove check once pyTorch avoids a copy for this case
-                if p.data_ptr() != p_data_fp32.data_ptr():
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)
 
         return loss
