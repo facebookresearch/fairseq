@@ -4,9 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
-import torch.nn as nn
 from typing import Dict, List, NamedTuple, Optional
 from torch import Tensor
+
+from fairseq.modules.inference_dropout_module import InferenceDropoutModule
+
 
 EncoderOut = NamedTuple(
     "EncoderOut",
@@ -21,7 +23,7 @@ EncoderOut = NamedTuple(
 )
 
 
-class FairseqEncoder(nn.Module):
+class FairseqEncoder(InferenceDropoutModule):
     """Base class for encoders."""
 
     def __init__(self, dictionary):

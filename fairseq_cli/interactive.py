@@ -14,6 +14,8 @@ import math
 import sys
 import os
 
+import numpy as np
+
 import torch
 
 from fairseq import checkpoint_utils, options, tasks, utils
@@ -83,6 +85,11 @@ def main(args):
 
     logger.info(args)
 
+    # Fix seed for stochastic decoding
+    if args.seed is not None:
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Setup task, e.g., translation
@@ -106,6 +113,10 @@ def main(args):
             beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
             need_attn=args.print_alignment,
         )
+        if args.retain_dropout:
+            model.set_inference_dropout(args.retain_dropout_modules)
+        else:
+            model.eval()
         if args.fp16:
             model.half()
         if use_cuda:

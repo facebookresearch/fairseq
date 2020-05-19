@@ -214,7 +214,7 @@ class FConvEncoder(FairseqEncoder):
         """
         # embed tokens and positions
         x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
         input_embedding = x
 
         # project to size of convolution
@@ -240,7 +240,7 @@ class FConvEncoder(FairseqEncoder):
             if encoder_padding_mask is not None:
                 x = x.masked_fill(encoder_padding_mask.unsqueeze(-1), 0)
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
             if conv.kernel_size[0] % 2 == 1:
                 # padding is implicit in the conv
                 x = conv(x)
@@ -440,7 +440,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
         # embed tokens and combine with positional embeddings
         x += pos_embed
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
         target_embedding = x
 
         # project to size of convolution
@@ -461,7 +461,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             else:
                 residual = None
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
             x = conv(x, incremental_state)
             x = F.glu(x, dim=2)
 
@@ -491,7 +491,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
         # project back to size of vocabulary if not using adaptive softmax
         if self.fc2 is not None and self.fc3 is not None:
             x = self.fc2(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
             x = self.fc3(x)
 
         return x, avg_attn_scores

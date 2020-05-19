@@ -12,6 +12,8 @@ import math
 import os
 import sys
 
+import numpy as np
+
 import torch
 
 from fairseq import bleu, checkpoint_utils, options, tasks, utils
@@ -51,6 +53,11 @@ def _main(args, output_file):
         args.max_tokens = 12000
     logger.info(args)
 
+    # Fix seed for stochastic decoding
+    if args.seed is not None:
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load dataset splits
@@ -78,6 +85,10 @@ def _main(args, output_file):
             beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
             need_attn=args.print_alignment,
         )
+        if args.retain_dropout:
+            model.set_inference_dropout(module_names=args.retain_dropout_modules)
+        else:
+            model.eval()
         if args.fp16:
             model.half()
         if use_cuda:

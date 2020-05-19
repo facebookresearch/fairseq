@@ -11,10 +11,11 @@ import torch.nn.functional as F
 from fairseq import utils
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.inference_dropout_module import InferenceDropoutModule
 from torch import Tensor
 
 
-class TransformerEncoderLayer(nn.Module):
+class TransformerEncoderLayer(InferenceDropoutModule):
     """Encoder layer block.
 
     In the original paper each operation (multi-head attention or FFN) is
@@ -120,7 +121,7 @@ class TransformerEncoderLayer(nn.Module):
             key_padding_mask=encoder_padding_mask,
             attn_mask=attn_mask,
         )
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
         x = residual + x
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
@@ -130,16 +131,16 @@ class TransformerEncoderLayer(nn.Module):
             x = self.final_layer_norm(x)
 
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=float(self.activation_dropout), training=self.training)
+        x = F.dropout(x, p=float(self.activation_dropout), training=self.is_dropout_applied())
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
         x = residual + x
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         return x
 
 
-class TransformerDecoderLayer(nn.Module):
+class TransformerDecoderLayer(InferenceDropoutModule):
     """Decoder layer block.
 
     In the original paper each operation (multi-head attention, encoder
@@ -316,7 +317,7 @@ class TransformerDecoderLayer(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
         x = residual + x
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
@@ -346,7 +347,7 @@ class TransformerDecoderLayer(nn.Module):
                 need_weights=need_attn or (not self.training and self.need_attn),
                 need_head_weights=need_head_weights,
             )
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
             x = residual + x
             if not self.normalize_before:
                 x = self.encoder_attn_layer_norm(x)
@@ -356,9 +357,9 @@ class TransformerDecoderLayer(nn.Module):
             x = self.final_layer_norm(x)
 
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=float(self.activation_dropout), training=self.training)
+        x = F.dropout(x, p=float(self.activation_dropout), training=self.is_dropout_applied())
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
         x = residual + x
         if not self.normalize_before:
             x = self.final_layer_norm(x)

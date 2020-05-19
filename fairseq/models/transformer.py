@@ -371,7 +371,7 @@ class TransformerEncoder(FairseqEncoder):
             x = embed + self.embed_positions(src_tokens)
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
         if self.quant_noise is not None:
             x = self.quant_noise(x)
         return x, embed
@@ -731,7 +731,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
 
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)

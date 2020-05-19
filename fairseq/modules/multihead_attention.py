@@ -13,10 +13,11 @@ from torch import Tensor, nn
 from torch.nn import Parameter
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.inference_dropout_module import InferenceDropoutModule
 
 
 @with_incremental_state
-class MultiheadAttention(nn.Module):
+class MultiheadAttention(InferenceDropoutModule):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
@@ -342,7 +343,7 @@ class MultiheadAttention(nn.Module):
         attn_probs = F.dropout(
             attn_weights_float.type_as(attn_weights),
             p=self.dropout,
-            training=self.training,
+            training=self.is_dropout_applied(),
         )
         assert v is not None
         attn = torch.bmm(attn_probs, v)

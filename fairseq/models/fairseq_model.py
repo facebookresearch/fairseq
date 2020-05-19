@@ -28,6 +28,7 @@ class BaseFairseqModel(nn.Module):
     def __init__(self):
         super().__init__()
         self._is_generation_fast = False
+        self.retain_dropout = False
 
     @staticmethod
     def add_args(parser):
@@ -38,6 +39,9 @@ class BaseFairseqModel(nn.Module):
     def build_model(cls, args, task):
         """Build a new model instance."""
         raise NotImplementedError("Model must implement the build_model method")
+
+    def is_dropout_applied(self):
+        return self.retain_dropout or self.training
 
     def get_targets(self, sample, net_output):
         """Get targets from either the sample or the net's output."""
@@ -127,6 +131,21 @@ class BaseFairseqModel(nn.Module):
                 m.set_num_updates(num_updates)
         self.apply(_apply)
 
+    def set_inference_dropout(self, module_names=None):
+
+        self.retain_dropout = True
+
+        seen = set()
+
+        def set_inference_dropout_module(module):
+            if module_names is not None and type(module).__name__ not in module_names:
+                return
+            if module != self and hasattr(module, 'retain_dropout') \
+                    and module not in seen:
+                seen.add(module)
+                module.retain_dropout = True
+
+        self.apply(set_inference_dropout_module)
 
     def make_generation_fast_(self, **kwargs):
         """Optimize model for faster generation."""
