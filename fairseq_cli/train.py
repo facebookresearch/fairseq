@@ -276,21 +276,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
     valid_losses = []
     for subset in subsets:
         # Initialize data iterator
-        itr = task.get_batch_iterator(
-            dataset=task.dataset(subset),
-            max_tokens=args.max_tokens_valid,
-            max_sentences=args.max_sentences_valid,
-            max_positions=utils.resolve_max_positions(
-                task.max_positions(),
-                trainer.get_model().max_positions(),
-            ),
-            ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
-            required_batch_size_multiple=args.required_batch_size_multiple,
-            seed=args.seed,
-            num_shards=args.distributed_world_size,
-            shard_id=args.distributed_rank,
-            num_workers=args.num_workers,
-        ).next_epoch_itr(shuffle=False)
+        itr = trainer.get_valid_iterator(subset).next_epoch_itr(shuffle=False)
         if getattr(args, 'tpu', False):
             itr = tpu_data_loader(args, itr)
         progress = progress_bar.progress_bar(
