@@ -16,11 +16,13 @@ modeling and other text generation tasks.
 
 ### What's New:
 
-
+- May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
 - April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
 - April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
 - April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
 - March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
+<details><summary>Earlier updates</summary><p>
+
 - February 2020: [mBART model and code released](examples/mbart/README.md)
 - February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/master/examples/backtranslation#training-your-own-model-wmt18-english-german)
 - December 2019: [fairseq 0.9.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.9.0)
@@ -33,6 +35,8 @@ modeling and other text generation tasks.
 - July 2019: fairseq relicensed under MIT license
 - July 2019: [RoBERTa models and code released](examples/roberta/README.md)
 - June 2019: [wav2vec models and code released](examples/wav2vec/README.md)
+
+</p></details>
 
 ### Features:
 
@@ -156,6 +160,7 @@ We also have more detailed READMEs to reproduce results from specific papers:
 
 # Join the fairseq community
 
+* Twitter: https://twitter.com/fairseq
 * Facebook page: https://www.facebook.com/groups/fairseq.users
 * Google group: https://groups.google.com/forum/#!forum/fairseq-users
 
