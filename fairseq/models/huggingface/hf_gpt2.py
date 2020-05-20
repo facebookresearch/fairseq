@@ -99,6 +99,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         prev_output_tokens,
         src_lengths=None,
         incremental_state: Optional[Dict[str, List[torch.Tensor]]] = None,
+        encoder_out=None,
     ):
         features = self.extract_features(prev_output_tokens, incremental_state)
         lm_logits = self.model.lm_head(features)
@@ -109,7 +110,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         prev_output_tokens,
         incremental_state: Optional[Dict[str, List[torch.Tensor]]] = None,
     ):
-        if incremental_state is not None:
+        if incremental_state:
             past = self.get_incremental_state("past")
         else:
             past = None
@@ -132,7 +133,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         )
         last_hidden_states = outputs[0]
 
-        if incremental_state is not None:
+        if incremental_state:
             self.set_incremental_state(incremental_state, "past", outputs[1])
 
         return last_hidden_states
