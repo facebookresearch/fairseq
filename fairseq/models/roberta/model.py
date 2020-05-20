@@ -226,7 +226,7 @@ class RobertaLMHead(nn.Module):
         self.bias = nn.Parameter(torch.zeros(output_dim))
 
     def forward(self, features, masked_tokens=None, **kwargs):
-        # Only project the unmasked tokens while training,
+        # Only project the masked tokens while training,
         # saves both memory and computation
         if masked_tokens is not None:
             features = features[masked_tokens, :]
