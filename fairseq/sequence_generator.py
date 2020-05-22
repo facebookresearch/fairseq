@@ -833,6 +833,11 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
                 for i in range(bsz * beam_size)
             ]
 
+        if src_tokens.device != "cpu":
+            src_tokens = src_tokens.to('cpu')
+            tgt_tokens = tgt_tokens.to('cpu')
+            attn = [i.to('cpu') for i in attn]
+
         # Process the attn matrix to extract hard alignments.
         for i in range(bsz * beam_size):
             alignment = utils.extract_hard_alignment(
