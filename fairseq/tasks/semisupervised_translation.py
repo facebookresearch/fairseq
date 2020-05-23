@@ -300,6 +300,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 src, tgt = lang_pair.split('-')
                 key = '{}-{}'.format(tgt, src)
                 self.sequence_generators[key] = SequenceGenerator(
+                    [model.models[key]],
                     tgt_dict=self.dicts[src],
                     beam_size=args.bt_beam_size,
                     max_len_a=args.bt_max_len_a,
