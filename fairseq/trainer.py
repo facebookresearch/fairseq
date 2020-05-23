@@ -395,6 +395,11 @@ class Trainer(object):
                     )
                     ooms += 1
                     self.zero_grad()
+
+                    if self.cuda:
+                        torch.cuda.empty_cache()
+
+                    return None
                 else:
                     raise e
 
