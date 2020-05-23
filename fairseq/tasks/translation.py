@@ -164,9 +164,9 @@ class TranslationTask(FairseqTask):
                             help='target language')
         parser.add_argument('--load-alignments', action='store_true',
                             help='load the binarized alignments')
-        parser.add_argument('--left-pad-source', default='True', type=str, metavar='BOOL',
+        parser.add_argument('--left-pad-source', default=True, type=str, metavar='BOOL',
                             help='pad the source on the left')
-        parser.add_argument('--left-pad-target', default='False', type=str, metavar='BOOL',
+        parser.add_argument('--left-pad-target', default=False, type=str, metavar='BOOL',
                             help='pad the target on the left')
         parser.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
                             help='max number of tokens in the source sequence')
