@@ -43,6 +43,11 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
                                  'be careful these langs are what you used for pretraining (the same order),'
                                  'not for finetuning.'
                                  'you should always add all pretraining language idx during finetuning.')
+
+        parser.add_argument('--prepend-bos', action='store_true',
+                            help='prepend bos token to each sentence. '
+                                 'this aligns with how mBART was pretrained.')
+
         # fmt: on
 
     def __init__(self, args, src_dict, tgt_dict):
@@ -75,7 +80,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             max_source_positions=getattr(self.args, 'max_source_positions', 1024),
             max_target_positions=getattr(self.args, 'max_target_positions', 1024),
             load_alignments=self.args.load_alignments,
-            prepend_bos=getattr(self.args, 'preprend_bos', False),
+            prepend_bos=getattr(self.args, 'prepend_bos', False),
             append_source_id=True
             )
 
