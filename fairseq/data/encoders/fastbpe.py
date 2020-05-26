@@ -19,7 +19,7 @@ class fastBPE(object):
 
     def __init__(self, args):
         if args.bpe_codes is None:
-            raise ValueError('--bpe-codes is required for --bpe=subword_nmt')
+            raise ValueError('--bpe-codes is required for --bpe=fastbpe')
         codes = file_utils.cached_path(args.bpe_codes)
         try:
             import fastBPE

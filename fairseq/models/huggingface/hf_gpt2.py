@@ -16,6 +16,18 @@ from fairseq.models import (
     register_model_architecture,
 )
 
+try:
+    # Prepend the transformers submodule to the path, so that
+    # it's prioritized over other installations. This allows
+    # making local changes in the submodule.
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), 'transformers', 'src')
+    )
+    from transformers import AutoModel, GPT2Config, GPT2LMHeadModel
+    has_hf = True
+except ImportError:
+    has_hf = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +40,14 @@ class HuggingFaceGPT2LanguageModel(FairseqLanguageModel):
 
     def __init__(self, decoder):
         super().__init__(decoder)
+        if not has_hf:
+            raise ImportError(
+                '\n\nPlease install huggingface/transformers with:'
+                '\n\n  pip install transformers'
+                '\n\nOr to make local edits, install the submodule:'
+                '\n\n  git submodule update --init '
+                'fairseq/models/huggingface/transformers'
+            )
 
     @staticmethod
     def add_args(parser):
