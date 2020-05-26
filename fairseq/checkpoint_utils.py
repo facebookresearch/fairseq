@@ -400,7 +400,7 @@ def prune_state_dict(state_dict, args):
         for i in range(len(keep_layers)):
             mapping_dict[str(keep_layers[i])] = str(i)
 
-        regex = re.compile("^{layer}.*\.layers\.(\d+)".format(layer=layer_name))
+        regex = re.compile(r"^{layer}.*\.layers\.(\d+)".format(layer=layer_name))
         return {"substitution_regex": regex, "mapping_dict": mapping_dict}
 
     pruning_passes = []
@@ -411,7 +411,7 @@ def prune_state_dict(state_dict, args):
 
     new_state_dict = {}
     for layer_name in state_dict.keys():
-        match = re.search("\.layers\.(\d+)\.", layer_name)
+        match = re.search(r"\.layers\.(\d+)\.", layer_name)
         # if layer has no number in it, it is a supporting layer, such as an
         # embedding
         if not match:

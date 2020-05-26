@@ -109,7 +109,6 @@ def main(args, init_distributed=False):
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
-    max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
@@ -118,8 +117,8 @@ def main(args, init_distributed=False):
         and epoch_itr.next_epoch_idx <= max_epoch
     ):
         # train for one epoch
-        valid_losses = train(args, trainer, task, epoch_itr, max_update)
-        if should_stop_early(args, valid_losses[0]) or trainer.get_num_updates() >= max_update:
+        valid_losses, should_stop = train(args, trainer, task, epoch_itr)
+        if should_stop:
             break
 
         # only use first validation loss to update the learning rate
@@ -172,7 +171,7 @@ def tpu_data_loader(args, itr):
 
 
 @metrics.aggregate('train')
-def train(args, trainer, task, epoch_itr, max_update=math.inf):
+def train(args, trainer, task, epoch_itr):
     """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
@@ -201,6 +200,7 @@ def train(args, trainer, task, epoch_itr, max_update=math.inf):
     trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = args.valid_subset.split(',')
+    should_stop = False
     for samples in progress:
         with metrics.aggregate('train_inner'):
             log_output = trainer.train_step(samples)
@@ -218,10 +218,10 @@ def train(args, trainer, task, epoch_itr, max_update=math.inf):
             metrics.reset_meters('train_inner')
 
         end_of_epoch = not itr.has_next()
-        valid_losses = validate_and_save(
+        valid_losses, should_stop = validate_and_save(
             args, trainer, task, epoch_itr, valid_subsets, end_of_epoch
         )
-        if should_stop_early(args, valid_losses[0]) or num_updates >= max_update:
+        if should_stop:
             break
 
     # log end-of-epoch stats
@@ -230,7 +230,7 @@ def train(args, trainer, task, epoch_itr, max_update=math.inf):
 
     # reset epoch-level meters
     metrics.reset_meters('train')
-    return valid_losses
+    return valid_losses, should_stop
 
 
 def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoch):
@@ -245,7 +245,7 @@ def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoc
     )
     do_validate = (
         (
-            do_save  # saving requires validation
+            (not end_of_epoch and do_save)  # validate during mid-epoch saves
             or (end_of_epoch and epoch_itr.epoch % args.validate_interval == 0)
         )
         and not args.disable_validation
@@ -255,10 +255,19 @@ def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoc
     valid_losses = [None]
     if do_validate:
         valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-    # Save
-    if do_save:
+
+    # Stopping conditions
+    max_update = args.max_update or math.inf
+    should_stop = (
+        should_stop_early(args, valid_losses[0])
+        or trainer.get_num_updates() >= max_update
+    )
+
+    # Save checkpoint
+    if do_save or should_stop:
         checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
-    return valid_losses
+
+    return valid_losses, should_stop
 
 
 def get_training_stats(stats):
@@ -276,21 +285,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
     valid_losses = []
     for subset in subsets:
         # Initialize data iterator
-        itr = task.get_batch_iterator(
-            dataset=task.dataset(subset),
-            max_tokens=args.max_tokens_valid,
-            max_sentences=args.max_sentences_valid,
-            max_positions=utils.resolve_max_positions(
-                task.max_positions(),
-                trainer.get_model().max_positions(),
-            ),
-            ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
-            required_batch_size_multiple=args.required_batch_size_multiple,
-            seed=args.seed,
-            num_shards=args.distributed_world_size,
-            shard_id=args.distributed_rank,
-            num_workers=args.num_workers,
-        ).next_epoch_itr(shuffle=False)
+        itr = trainer.get_valid_iterator(subset).next_epoch_itr(shuffle=False)
         if getattr(args, 'tpu', False):
             itr = tpu_data_loader(args, itr)
         progress = progress_bar.progress_bar(
