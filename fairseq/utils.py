@@ -356,7 +356,6 @@ def import_user_module(args):
         if module_name not in sys.modules:
             sys.path.insert(0, module_parent)
             importlib.import_module(module_name)
-            sys.path.pop(0)
 
 
 def softmax(x, dim: int, onnx_trace: bool = False):
