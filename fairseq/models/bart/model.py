@@ -32,6 +32,7 @@ class BARTModel(TransformerModel):
     @classmethod
     def hub_models(cls):
         return {
+            'bart.base': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.base.tar.gz',
             'bart.large': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.tar.gz',
             'bart.large.mnli': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.mnli.tar.gz',
             'bart.large.cnn': 'http://dl.fbaipublicfiles.com/fairseq/models/bart.large.cnn.tar.gz',
