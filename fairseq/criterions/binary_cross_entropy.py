@@ -57,7 +57,7 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         else:
             loss = F.binary_cross_entropy_with_logits(logits, target.float(), weights, reduction="sum" if reduce else "none",)
 
-        sample_size = target.numel() if self.infonce else target.sum().long().item()
+        sample_size = target.numel() if self.infonce else target.long().sum().item()
         losses.append(loss)
 
         if self.loss_weights is not None and hasattr(model, "get_extra_losses"):

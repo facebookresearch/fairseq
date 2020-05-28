@@ -111,14 +111,14 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
 class TestJitSequeneceGenerator(TestJitSequenceGeneratorBase):
 
     @unittest.skipIf(
-        torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
+        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
     )
     def test_export_transformer(self):
         model = self.transformer_model
         torch.jit.script(model)
 
     @unittest.skipIf(
-        torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
+        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
     )
     def test_ensemble_sequence_generator(self):
         model = self.transformer_model
@@ -128,22 +128,11 @@ class TestJitSequeneceGenerator(TestJitSequenceGeneratorBase):
         scripted_model = torch.jit.script(generator)
         self._test_save_and_load(scripted_model)
 
-    @unittest.skipIf(
-        torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
-    )
-    def test_quantized_ensemble_sequence_generator(self):
-        model = torch.quantization.quantize_dynamic(
-            self.transformer_model, {torch.nn.Linear}, dtype=torch.qint8, inplace=True
-        )
-        generator = SequenceGenerator([model], self.task.tgt_dict, beam_size=2)
-        scripted_model = torch.jit.script(generator)
-        self._test_save_and_load(scripted_model)
-
 
 class TestJitEnsemble(TestJitSequenceGeneratorBase):
 
     @unittest.skipIf(
-        torch.__version__ < "1.5.0", "Targeting OSS scriptability for the 1.5 release"
+        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
     )
     def test_export_ensemble_model(self):
         model = self.transformer_model
@@ -312,6 +301,19 @@ class TestSequeneceGenerator(TestSequenceGeneratorBase):
         for sent in [0, 1]:
             for beam in [0, 1]:
                 assert hypos[sent][beam]['attention'] is not None
+
+    def test_generation_with_additional_input(self):
+        args = self.model.encoder.args
+        task = test_utils.TestTranslationTask.setup_task(args, self.tgt_dict, self.tgt_dict)
+        add_input_model = test_utils.TestAdditionalInputModel.build_model(args, task)
+        generator = SequenceGenerator([add_input_model], self.tgt_dict, beam_size=2)
+        sample = self.sample.copy()
+        sample['net_input']['fancy_other_input'] = sample['net_input']['src_tokens']
+        hypos = generator.forward(self.sample)
+        eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
+        # sentence 1, beam 1
+        self.assertHypoTokens(hypos[0][0], [w1, eos])
+        self.assertHypoScore(hypos[0][0], [0.9, 1.0])
 
 
 class TestDiverseBeamSearch(TestSequenceGeneratorBase):

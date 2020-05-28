@@ -112,6 +112,7 @@ class SequenceGenerator(nn.Module):
         self.model.reset_incremental_state()
         return self._generate(sample, prefix_tokens, bos_token)
 
+    # TODO(myleott): unused, deprecate after pytorch-translate migration
     def generate_batched_itr(self, data_itr, beam_size=None, cuda=False, timer=None):
         """Iterate over a batched dataset and yield individual translations.
         Args:
@@ -165,13 +166,8 @@ class SequenceGenerator(nn.Module):
         prefix_tokens: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
-
-        encoder_input: Dict[str, Tensor] = {}
-        for k, v in sample["net_input"].items():
-            if k != "prev_output_tokens":
-                encoder_input[k] = v
-
-        src_tokens = encoder_input["src_tokens"]
+        net_input = sample["net_input"]
+        src_tokens = net_input["src_tokens"]
         # length of the source text being the character length except EndOfSentence and pad
         src_lengths = (
             (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
@@ -194,10 +190,7 @@ class SequenceGenerator(nn.Module):
             self.min_len <= max_len
         ), "min_len cannot be larger than max_len, please adjust these!"
         # compute the encoder output for each beam
-        encoder_outs = self.model.forward_encoder(
-            src_tokens=encoder_input["src_tokens"],
-            src_lengths=encoder_input["src_lengths"],
-        )
+        encoder_outs = self.model.forward_encoder(net_input)
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
@@ -461,7 +454,7 @@ class SequenceGenerator(nn.Module):
         prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
         prefix_mask = prefix_toks.ne(self.pad)
         lprobs[prefix_mask] = torch.tensor(-math.inf).to(lprobs)
-        lprobs[prefix_mask] = lprobs[prefix_mask].scatter_(
+        lprobs[prefix_mask] = lprobs[prefix_mask].scatter(
             -1, prefix_toks[prefix_mask].unsqueeze(-1), prefix_lprobs[prefix_mask]
         )
         # if prefix includes eos, then we should make sure tokens and
@@ -707,11 +700,11 @@ class EnsembleModel(nn.Module):
         return min([m.max_decoder_positions() for m in self.models])
 
     @torch.jit.export
-    def forward_encoder(self, src_tokens, src_lengths):
+    def forward_encoder(self, net_input: Dict[str, Tensor]):
         if not self.has_encoder():
             return None
         return [
-            model.encoder(src_tokens=src_tokens, src_lengths=src_lengths)
+            model.encoder.forward_torchscript(net_input)
             for model in self.models
         ]
 
@@ -839,6 +832,11 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
                 finalized[i // beam_size][i % beam_size]["attention"].transpose(1, 0)
                 for i in range(bsz * beam_size)
             ]
+
+        if src_tokens.device != "cpu":
+            src_tokens = src_tokens.to('cpu')
+            tgt_tokens = tgt_tokens.to('cpu')
+            attn = [i.to('cpu') for i in attn]
 
         # Process the attn matrix to extract hard alignments.
         for i in range(bsz * beam_size):

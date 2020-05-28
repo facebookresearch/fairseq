@@ -47,7 +47,7 @@ $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 -
 ### Extract embeddings from the downstream task data:
 
 ```
-$ PYTHONPATH /path/to/fairseq python examples/wav2vec/wav2vec_featurize.py --input /path/to/task/waves --output /path/to/output \
+$ PYTHONPATH=/path/to/fairseq python examples/wav2vec/wav2vec_featurize.py --input /path/to/task/waves --output /path/to/output \
 --model /model/path/checkpoint_best.pt --split train valid test
 ```
 
@@ -109,6 +109,6 @@ for k-means training, set vq-type with "kmeans" and add --loss-weights [1] argum
 ### Tokenize audio data (e.g. for BERT training):
 
 ```
-$ PYTHONPATH /path/to/fairseq python examples/wav2vec/vq-wav2vec_featurize.py --data-dir /manifest/path --output-dir /path/to/output \
+$ PYTHONPATH=/path/to/fairseq python examples/wav2vec/vq-wav2vec_featurize.py --data-dir /manifest/path --output-dir /path/to/output \
 --checkpoint /model/path/checkpoint_best.pt --split train valid test --extension tsv
 ```

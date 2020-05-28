@@ -292,3 +292,49 @@ class TestReshapingModel(FairseqEncoderDecoderModel):
         encoder = TestReshapingEncoder(args, task.source_dictionary)
         decoder = TestIncrementalDecoder(args, task.target_dictionary)
         return cls(encoder, decoder)
+
+
+class TestAdditionalInputEncoder(FairseqEncoder):
+    def __init__(self, args, dictionary):
+        super().__init__(dictionary)
+        self.args = args
+
+    def forward(self, src_tokens, src_lengths=None, **kwargs):
+        assert 'fancy_other_input' in kwargs
+        assert kwargs['fancy_other_input'] is not None
+        return EncoderOut(
+            encoder_out=src_tokens,
+            encoder_padding_mask=None,
+            encoder_embedding=None,
+            encoder_states=None,
+            src_tokens=None,
+            src_lengths=None,
+        )
+
+    def reorder_encoder_out(self, encoder_out, new_order):
+        return EncoderOut(
+            encoder_out=encoder_out.encoder_out.index_select(0, new_order),
+            encoder_padding_mask=None,
+            encoder_embedding=None,
+            encoder_states=None,
+            src_tokens=None,
+            src_lengths=None,
+        )
+
+
+class TestAdditionalInputModel(FairseqEncoderDecoderModel):
+    def __init__(self, encoder, decoder):
+        super().__init__(encoder, decoder)
+
+    @classmethod
+    def build_model(cls, args, task):
+        encoder = TestAdditionalInputEncoder(args, task.source_dictionary)
+        decoder = TestIncrementalDecoder(args, task.target_dictionary)
+        return cls(encoder, decoder)
+
+    def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
+        encoder_out = self.encoder(
+            src_tokens, src_lengths=src_lengths, **kwargs)
+        decoder_out = self.decoder(
+            prev_output_tokens, encoder_out=encoder_out, **kwargs)
+        return decoder_out
