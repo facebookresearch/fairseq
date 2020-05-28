@@ -870,6 +870,16 @@ class Trainer(object):
                 self.task.reduce_metrics(logging_outputs, self.get_criterion())
                 del logging_outputs
 
+            # extra warning for criterions that don't properly log a loss value
+            if "loss" not in agg:
+                if "loss" not in self._warn_once:
+                    self._warn_once.add("loss")
+                    logger.warning(
+                        "Criterion.reduce_metrics did not log a 'loss' value, "
+                        "which may break some functionality"
+                    )
+                metrics.log_scalar("loss", -1)
+
             # support legacy interface
             if self.tpu:
                 logging_output = {}
