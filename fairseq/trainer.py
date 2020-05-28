@@ -191,7 +191,7 @@ class Trainer(object):
                 logger.info("NOTE: your device may support faster training with --fp16")
             self._optimizer = optim.build_optimizer(self.args, params)
 
-       if self.args.use_bmuf:
+        if self.args.use_bmuf:
             self._optimizer = optim.FairseqBMUF(self.args, self._optimizer)
 
         # We should initialize the learning rate scheduler immediately after
