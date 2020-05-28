@@ -454,7 +454,7 @@ class BufferedIterator(object):
                     logger.info(
                         "Data loading buffer is empty or nearly empty. This may "
                         "indicate a data loading bottleneck, and increasing the "
-                        "number of workers may help."
+                        "number of workers (--num-workers) may help."
                     )
                     self.warning_time = time.time()
 
