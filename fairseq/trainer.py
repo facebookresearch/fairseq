@@ -837,16 +837,39 @@ class Trainer(object):
             logging_outputs = []
         return logging_outputs, extra_stats_to_sum
 
+    def _is_grad_norms_consistent(self, grad_norm_buf):
+        """check whether a given tensor (shape (N,)) is consistent """
+        """consistent means all the values are diff within a tolerate range"""
+        diff = grad_norm_buf - grad_norm_buf[0]
+        max_abs_diff = torch.max(torch.abs(diff)).item()
+        first_grad_norm = grad_norm_buf[0].item()
+        # TODO: make 1e-6 a configurable value
+        return max_abs_diff / (first_grad_norm + 1e-6) < 1e-6
+
     def _check_grad_norms(self, grad_norm):
         """Check that grad norms are consistent across workers."""
         if self._grad_norm_buf is not None:
             self._grad_norm_buf.zero_()
             self._grad_norm_buf[self.data_parallel_rank] = grad_norm
-            distributed_utils.all_reduce(self._grad_norm_buf, group=self.data_parallel_process_group)
-            if not (self._grad_norm_buf == self._grad_norm_buf[0]).all():
+            distributed_utils.all_reduce(
+                self._grad_norm_buf,
+                group=self.data_parallel_process_group
+            )
+
+            if not self._is_grad_norms_consistent(self._grad_norm_buf):
+                pretty_detail = "\n".join(
+                    "rank {:3d} = {:.8f}".format(r, n)
+                    for r, n in enumerate(self._grad_norm_buf.tolist())
+                )
+                error_detail = "grad_norm across the workers:\n{}\n".format(pretty_detail)
                 raise RuntimeError(
                     "Fatal error: gradients are inconsistent between workers. "
-                    "Try --ddp-backend=no_c10d."
+                    "Try --ddp-backend=no_c10d. "
+                    "Or are you mixing up different generation of GPUs in training?"
+                    + "\n"
+                    + "-" * 80
+                    + "\n{}\n".format(error_detail)
+                    + "-" * 80
                 )
 
     def _reduce_and_log_stats(self, logging_outputs, sample_size, grad_norm=None):
