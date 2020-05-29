@@ -141,6 +141,7 @@ setup(
         'sacrebleu',
         'torch',
         'tqdm',
+        'google-cloud-storage',
     ],
     dependency_links=dependency_links,
     packages=find_packages(exclude=['scripts', 'tests']),
