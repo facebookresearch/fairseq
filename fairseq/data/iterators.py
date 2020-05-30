@@ -211,7 +211,9 @@ class EpochBatchIterator(EpochBatchIterating):
         self.num_shards = num_shards
         self.shard_id = shard_id
         self.num_workers = num_workers
-        self.buffer_size = buffer_size
+        # This upper limit here is to prevent people from abusing this feature
+        # in a shared computing environment.
+        self.buffer_size = min(buffer_size, 5)
 
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = True
