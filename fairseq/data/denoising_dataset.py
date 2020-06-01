@@ -248,7 +248,7 @@ class DenoisingDataset(FairseqDataset):
             lengths = lengths[lengths > 0]
             num_inserts = num_to_mask - lengths.size(0)
             num_to_mask -= num_inserts
-            if num_to_mask == 0:
+            if num_to_mask == 0 and self.insert_ratio > 0:
                 return self.add_insertion_noise(source, num_inserts / source.size(0))
 
             assert (lengths > 0).all()
@@ -306,7 +306,7 @@ class DenoisingDataset(FairseqDataset):
 
         source = source[to_keep]
 
-        if num_inserts > 0:
+        if num_inserts > 0 and self.insert_ratio > 0:
             source = self.add_insertion_noise(source, num_inserts / source.size(0))
 
         return source
