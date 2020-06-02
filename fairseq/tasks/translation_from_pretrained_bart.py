@@ -2,6 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+import logging
 
 import torch
 
@@ -9,7 +10,9 @@ from fairseq.data import LanguagePairDataset
 
 from .translation import load_langpair_dataset, TranslationTask
 from . import register_task
+from .. import utils
 
+logger = logging.getLogger(__name__)
 
 @register_task('translation_from_pretrained_bart')
 class TranslationFromPretrainedBARTTask(TranslationTask):
@@ -117,3 +120,43 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             source_tokens.append(s_t)
         dataset = LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
         return dataset
+
+    def _inference_with_bleu(self, generator, sample, model):
+        import sacrebleu
+
+        def decode(toks, escape_unk=False, **kwargs):
+            s = self.tgt_dict.string(
+                toks.int().cpu(),
+                self.args.eval_bleu_remove_bpe,
+                # The default unknown string in fairseq is `<unk>`, but
+                # this is tokenized by sacrebleu as `< unk >`, inflating
+                # BLEU scores. Instead, we use a somewhat more verbose
+                # alternative that is unlikely to appear in the real
+                # reference, but doesn't get split into multiple tokens.
+                unk_string=(
+                    "UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"
+                ), **kwargs
+            )
+            if self.tokenizer:
+                s = self.tokenizer.decode(s)
+            return s
+
+        gen_out = self.inference_step(generator, [model], sample, None)
+        hyps, refs = [], []
+        eos = self.tgt_dict.index('[{}]'.format(self.args.target_lang))
+        for i in range(len(gen_out)):
+            hyps.append(decode(gen_out[i][0]['tokens'],
+                               extra_symbols_to_ignore=[eos]))
+            refs.append(decode(
+                utils.strip_pad(sample['target'][i], self.tgt_dict.pad()),
+                escape_unk=True,  # don't count <unk> as matches to the hypo
+                extra_symbols_to_ignore=[eos]
+            ))
+        if self.args.eval_bleu_print_samples:
+            logger.info('example hypothesis: ' + hyps[0])
+            logger.info('example reference: ' + refs[0])
+        if self.args.eval_tokenized_bleu:
+            return sacrebleu.corpus_bleu(hyps, [refs], tokenize='none')
+        else:
+            return sacrebleu.corpus_bleu(hyps, [refs])
+
