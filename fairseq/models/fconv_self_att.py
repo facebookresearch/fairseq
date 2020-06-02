@@ -21,6 +21,7 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.modules import (
+    FairseqDropout,
     DownsampledMultiHeadAttention,
     GradMultiply,
     LayerNorm,
@@ -137,7 +138,8 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
             dropout=args.dropout,
             max_positions=args.max_source_positions,
             attention=eval(args.encoder_attention),
-            attention_nheads=args.encoder_attention_nheads
+            attention_nheads=args.encoder_attention_nheads,
+            args=args,
         )
 
         decoder = FConvDecoder(
@@ -155,7 +157,8 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
             gated_attention=eval(args.gated_attention),
             downsample=eval(args.downsample),
             pretrained=pretrained,
-            trained_decoder=trained_decoder
+            trained_decoder=trained_decoder,
+            args=args,
         )
         model = FConvModelSelfAtt(encoder, decoder, trained_encoder)
 
@@ -171,10 +174,10 @@ class FConvEncoder(FairseqEncoder):
     def __init__(
         self, dictionary, embed_dim=512, max_positions=1024,
         convolutions=((512, 3),) * 20, dropout=0.1, attention=False,
-        attention_nheads=1,
+        attention_nheads=1, args=None,
     ):
         super().__init__(dictionary)
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, args=args, parent_module=self)
         self.num_attention_layers = None
 
         num_embeddings = len(dictionary)
@@ -209,7 +212,7 @@ class FConvEncoder(FairseqEncoder):
             )
 
             self.attention.append(
-                SelfAttention(out_channels, embed_dim, attention_nheads) if attention[i] else None
+                SelfAttention(out_channels, embed_dim, attention_nheads, args=args) if attention[i] else None
             )
             in_channels = out_channels
 
@@ -218,7 +221,7 @@ class FConvEncoder(FairseqEncoder):
     def forward(self, src_tokens, src_lengths):
         # embed tokens and positions
         x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         input_embedding = x.transpose(0, 1)
 
         # project to size of convolution
@@ -238,7 +241,7 @@ class FConvEncoder(FairseqEncoder):
             if encoder_padding_mask is not None:
                 x = x.masked_fill(encoder_padding_mask.unsqueeze(-1), 0)
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             padding_l = (conv.kernel_size[0] - 1) // 2
             padding_r = conv.kernel_size[0] // 2
             x = F.pad(x, (0, 0, 0, 0, padding_l, padding_r))
@@ -299,13 +302,13 @@ class FConvDecoder(FairseqDecoder):
         convolutions=((512, 3),) * 8, attention=True, dropout=0.1,
         selfattention=False, attention_nheads=1, selfattention_nheads=1,
         project_input=False, gated_attention=False, downsample=False,
-        pretrained=False, trained_decoder=None,
+        pretrained=False, trained_decoder=None, args=None,
     ):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
         self.pretrained = pretrained
         self.pretrained_decoder = trained_decoder
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, args=args, parent_module=self)
         self.need_attn = True
         in_channels = convolutions[0][0]
 
@@ -352,7 +355,7 @@ class FConvDecoder(FairseqDecoder):
             self.attention.append(
                 DownsampledMultiHeadAttention(
                     out_channels, embed_dim, attention_nheads,
-                    project_input=project_input, gated=False, downsample=False,
+                    project_input=project_input, gated=False, downsample=False, args=args
                 ) if attention[i] else None
             )
 
@@ -363,7 +366,7 @@ class FConvDecoder(FairseqDecoder):
                 SelfAttention(
                     out_channels, embed_dim, selfattention_nheads,
                     project_input=project_input, gated=gated_attention,
-                    downsample=downsample,
+                    downsample=downsample, args=args,
                 ) if selfattention[i] else None
             )
             in_channels = out_channels
@@ -410,7 +413,7 @@ class FConvDecoder(FairseqDecoder):
 
         # embed tokens and positions
         x = self.embed_tokens(prev_output_tokens) + positions
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         target_embedding = x.transpose(0, 1)
 
         # project to size of convolution
@@ -426,7 +429,7 @@ class FConvDecoder(FairseqDecoder):
         ):
             residual = x if proj is None else proj(x)
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             x = conv(x)
             x = F.glu(x, dim=2)
 
@@ -451,7 +454,7 @@ class FConvDecoder(FairseqDecoder):
 
         # project back to size of vocabulary
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         if not self.pretrained:
             x = self.fc3(x)
 
@@ -489,11 +492,11 @@ class FConvDecoder(FairseqDecoder):
 
 class SelfAttention(nn.Module):
 
-    def __init__(self, out_channels, embed_dim, num_heads, project_input=False, gated=False, downsample=False):
+    def __init__(self, out_channels, embed_dim, num_heads, project_input=False, gated=False, downsample=False, args=None):
         super().__init__()
         self.attention = DownsampledMultiHeadAttention(
             out_channels, embed_dim, num_heads, dropout=0, bias=True,
-            project_input=project_input, gated=gated, downsample=downsample,
+            project_input=project_input, gated=gated, downsample=downsample, args=args,
         )
         self.in_proj_q = Linear(out_channels, embed_dim)
         self.in_proj_k = Linear(out_channels, embed_dim)
@@ -538,7 +541,7 @@ def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0., **kwarg
     return m
 
 
-def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
+def ConvTBC(in_channels, out_channels, kernel_size, dropout=0., **kwargs):
     """Weight-normalized Conv1d layer"""
     from fairseq.modules import ConvTBC
     m = ConvTBC(in_channels, out_channels, kernel_size, **kwargs)

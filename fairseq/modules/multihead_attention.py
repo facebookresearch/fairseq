@@ -13,11 +13,11 @@ from torch import Tensor, nn
 from torch.nn import Parameter
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.inference_dropout_module import InferenceDropoutModule
+from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
 @with_incremental_state
-class MultiheadAttention(InferenceDropoutModule):
+class MultiheadAttention(nn.Module):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
@@ -37,6 +37,7 @@ class MultiheadAttention(InferenceDropoutModule):
         encoder_decoder_attention=False,
         q_noise=0.0,
         qn_block_size=8,
+        args=None,
     ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -45,7 +46,8 @@ class MultiheadAttention(InferenceDropoutModule):
         self.qkv_same_dim = self.kdim == embed_dim and self.vdim == embed_dim
 
         self.num_heads = num_heads
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, args=args, parent_module=self)
+
         self.head_dim = embed_dim // num_heads
         assert (
             self.head_dim * num_heads == self.embed_dim
@@ -164,10 +166,10 @@ class MultiheadAttention(InferenceDropoutModule):
                 self.bias_k,
                 self.bias_v,
                 self.add_zero_attn,
-                self.dropout,
+                self.dropout_module.p,
                 self.out_proj.weight,
                 self.out_proj.bias,
-                self.training,
+                self.training or self.dropout_module.apply_during_inference,
                 key_padding_mask,
                 need_weights,
                 attn_mask,
@@ -340,10 +342,8 @@ class MultiheadAttention(InferenceDropoutModule):
             attn_weights, dim=-1, onnx_trace=self.onnx_trace
         )
         attn_weights = attn_weights_float.type_as(attn_weights)
-        attn_probs = F.dropout(
+        attn_probs = self.dropout_module(
             attn_weights_float.type_as(attn_weights),
-            p=self.dropout,
-            training=self.is_dropout_applied(),
         )
         assert v is not None
         attn = torch.bmm(attn_probs, v)

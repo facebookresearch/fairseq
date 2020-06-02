@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from fairseq import options, utils
 from fairseq.models import (
     FairseqEncoder,
@@ -20,6 +19,7 @@ from fairseq.models import (
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.modules import (
     AdaptiveSoftmax,
+    FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
@@ -311,7 +311,7 @@ class TransformerEncoder(FairseqEncoder):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
 
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(args.dropout, args=args, parent_module=self)
         self.encoder_layerdrop = args.encoder_layerdrop
 
         embed_dim = embed_tokens.embedding_dim
@@ -371,7 +371,7 @@ class TransformerEncoder(FairseqEncoder):
             x = embed + self.embed_positions(src_tokens)
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
-        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
+        x = self.dropout_module(x)
         if self.quant_noise is not None:
             x = self.quant_noise(x)
         return x, embed
@@ -533,7 +533,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.register_buffer("version", torch.Tensor([3]))
         self._future_mask = torch.empty(0)
 
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(args.dropout, args=args, parent_module=self)
         self.decoder_layerdrop = args.decoder_layerdrop
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
@@ -614,6 +614,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 adaptive_inputs=embed_tokens if args.tie_adaptive_weights else None,
                 factor=args.adaptive_softmax_factor,
                 tie_proj=args.tie_adaptive_proj,
+                args=args,
             )
         elif self.share_input_output_embed:
             self.output_projection = nn.Linear(
@@ -731,7 +732,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
 
-        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
+        x = self.dropout_module(x)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)

@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from fairseq import utils
 from torch import Tensor, nn
 from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.modules.fairseq_dropout import FairseqDropout
 
 try:
     from fairseq.model_parallel.megatron.mpu import (
@@ -41,6 +42,7 @@ class ModelParallelMultiheadAttention(nn.Module):
         bias=True,
         self_attention=False,
         encoder_decoder_attention=False,
+        args=None,
     ):
         super().__init__()
         if not has_megatron_submodule:
@@ -61,7 +63,7 @@ class ModelParallelMultiheadAttention(nn.Module):
             self.num_heads_partition * self.model_parallel_size == num_heads
         ), "Number of heads must be divisble by model parallel size"
 
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, args=args, parent_module=self)
         self.head_dim = embed_dim // num_heads
         assert (
             self.head_dim * num_heads == self.embed_dim
@@ -228,11 +230,7 @@ class ModelParallelMultiheadAttention(nn.Module):
         attn_weights = attn_weights_float.type_as(attn_weights)
 
         with get_cuda_rng_tracker().fork():
-            attn_probs = F.dropout(
-                attn_weights_float.type_as(attn_weights),
-                p=self.dropout,
-                training=self.training,
-            )
+            attn_probs = self.dropout_module(attn_weights_float.type_as(attn_weights))
 
         assert v is not None
         attn = torch.bmm(attn_probs, v)

@@ -178,6 +178,12 @@ def parse_args_and_arch(
     if getattr(args, "memory_efficient_fp16", False):
         args.fp16 = True
 
+    if args.seed is None:
+        args.seed = 1  # default seed for training
+        args.no_seed_provided = True
+    else:
+        args.no_seed_provided = False
+
     # Apply architecture configuration.
     if hasattr(args, "arch"):
         ARCH_CONFIG_REGISTRY[args.arch](args)
@@ -206,7 +212,7 @@ def get_parser(desc, default_task="translation"):
     parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
                         help='path to save logs for tensorboard, should match --logdir '
                              'of running tensorboard (default: no tensorboard logging)')
-    parser.add_argument('--seed', default=1, type=int, metavar='N',
+    parser.add_argument('--seed', default=None, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
     parser.add_argument('--fp16', action='store_true', help='use FP16')
@@ -593,8 +599,8 @@ def add_generation_args(parser):
                        help='if set, decoding returns the whole history of iterative refinement')
     group.add_argument('--retain-dropout', action='store_true',
                        help='Use dropout at inference time')
-    group.add_argument('--retain-dropout-modules', default=None, nargs='+', type=str,
-                       help='Use dropout at inference time only for specific modules.')
+    group.add_argument('--exclude-dropout-modules', default=None, nargs='+', type=str,
+                       help='Exclude specified modules when using dropout at inference time.')
 
     # special decoding format for advanced decoding.
     group.add_argument('--decoding-format', default=None, type=str, choices=['unigram', 'ensemble', 'vote', 'dp', 'bs'])

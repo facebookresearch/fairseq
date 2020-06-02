@@ -2,11 +2,12 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+import argparse
+
 from typing import Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from fairseq import utils
 from fairseq.modules import (
@@ -14,6 +15,8 @@ from fairseq.modules import (
     MultiheadAttention,
 )
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.fairseq_dropout import FairseqDropout
+
 
 class TransformerSentenceEncoderLayer(nn.Module):
     """
@@ -33,13 +36,15 @@ class TransformerSentenceEncoderLayer(nn.Module):
         export: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,
+        args: argparse.Namespace = None,
+
     ) -> None:
 
         super().__init__()
         # Initialize parameters
         self.embedding_dim = embedding_dim
-        self.dropout = dropout
-        self.activation_dropout = activation_dropout
+        self.dropout_module = FairseqDropout(dropout, args=args, parent_module=self)
+        self.activation_dropout_module = FairseqDropout(activation_dropout, args=args, parent_module=self)
 
         # Initialize blocks
         self.activation_fn = utils.get_activation_fn(activation_fn)
@@ -50,6 +55,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
             self_attention=True,
             q_noise=q_noise,
             qn_block_size=qn_block_size,
+            args=args,
         )
 
         # layer norm associated with the self attention layer
@@ -83,15 +89,15 @@ class TransformerSentenceEncoderLayer(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.self_attn_layer_norm(x)
 
         residual = x
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=self.activation_dropout, training=self.training)
+        x = self.activation_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.final_layer_norm(x)
         return x, attn

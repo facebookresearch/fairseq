@@ -186,9 +186,7 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True, s
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
-    ensemble, args, _task = load_model_ensemble_and_task(
-        filenames, arg_overrides, task, strict, suffix,
-    )
+    ensemble, args, _task = load_model_ensemble_and_task(filenames, arg_overrides, task, strict, suffix)
     return ensemble, args
 
 

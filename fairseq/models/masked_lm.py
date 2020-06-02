@@ -150,6 +150,7 @@ class MaskedLMEncoder(FairseqEncoder):
             apply_bert_init=args.apply_bert_init,
             activation_fn=args.activation_fn,
             learned_pos_embedding=args.encoder_learned_pos,
+            args=args,
         )
 
         self.share_input_output_embed = args.share_encoder_input_output_embed

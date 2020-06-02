@@ -21,11 +21,12 @@ class SparseMultiheadAttention(MultiheadAttention):
 
     def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True,
                  add_bias_kv=False, add_zero_attn=False, self_attention=False,
-                 encoder_decoder_attention=False, stride=32, expressivity=8, is_bidirectional=True):
+                 encoder_decoder_attention=False, stride=32, expressivity=8, is_bidirectional=True,
+                 args=None):
 
         super().__init__(
             embed_dim, num_heads, kdim, vdim, dropout, bias, add_bias_kv,
-            add_zero_attn, self_attention, encoder_decoder_attention
+            add_zero_attn, self_attention, encoder_decoder_attention, args=args
         )
 
         self.is_bidirectional = is_bidirectional

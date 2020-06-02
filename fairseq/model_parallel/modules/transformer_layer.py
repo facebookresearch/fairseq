@@ -42,6 +42,7 @@ class ModelParallelTransformerEncoderLayer(TransformerEncoderLayer):
             args.encoder_attention_heads,
             dropout=args.attention_dropout,
             self_attention=True,
+            args=args,
         )
 
 
@@ -66,6 +67,7 @@ class ModelParallelTransformerDecoderLayer(TransformerDecoderLayer):
             num_heads=args.decoder_attention_heads,
             dropout=args.attention_dropout,
             self_attention=not getattr(args, "cross_self_attention", False),
+            args=args,
         )
 
     def build_encoder_attention(self, embed_dim, args, **unused_kwargs):
@@ -76,4 +78,5 @@ class ModelParallelTransformerDecoderLayer(TransformerDecoderLayer):
             vdim=getattr(args, "encoder_embed_dim", None),
             dropout=args.attention_dropout,
             encoder_decoder_attention=True,
+            args=args,
         )

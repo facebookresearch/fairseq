@@ -121,6 +121,9 @@ class TestTranslation(unittest.TestCase):
                     '--diversity-rate', '0.5',
                     '--beam', '6',
                 ])
+                generate_main(data_dir, [
+                    '--retain-dropout',
+                ])
                 with self.assertRaises(ValueError):
                     generate_main(data_dir, [
                         '--diverse-beam-groups', '4',

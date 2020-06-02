@@ -7,15 +7,14 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from fairseq import utils
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.inference_dropout_module import InferenceDropoutModule
+from fairseq.modules.fairseq_dropout import FairseqDropout
 from torch import Tensor
 
 
-class TransformerEncoderLayer(InferenceDropoutModule):
+class TransformerEncoderLayer(nn.Module):
     """Encoder layer block.
 
     In the original paper each operation (multi-head attention or FFN) is
@@ -37,14 +36,16 @@ class TransformerEncoderLayer(InferenceDropoutModule):
         self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8)
         self.self_attn = self.build_self_attention(self.embed_dim, args)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(args.dropout, args=args, parent_module=self)
         self.activation_fn = utils.get_activation_fn(
             activation=getattr(args, "activation_fn", "relu")
         )
-        self.activation_dropout = getattr(args, "activation_dropout", 0)
-        if self.activation_dropout == 0:
+        activation_dropout_p = getattr(args, "activation_dropout", 0)
+        if activation_dropout_p == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            self.activation_dropout = getattr(args, "relu_dropout", 0)
+            activation_dropout_p = getattr(args, "relu_dropout", 0)
+        self.activation_dropout_module = FairseqDropout(
+            float(activation_dropout_p), args=args, parent_module=self)
         self.normalize_before = args.encoder_normalize_before
         self.fc1 = self.build_fc1(
             self.embed_dim, args.encoder_ffn_embed_dim, self.quant_noise, self.quant_noise_block_size
@@ -69,6 +70,7 @@ class TransformerEncoderLayer(InferenceDropoutModule):
             self_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            args=args,
         )
 
     def upgrade_state_dict_named(self, state_dict, name):
@@ -121,7 +123,7 @@ class TransformerEncoderLayer(InferenceDropoutModule):
             key_padding_mask=encoder_padding_mask,
             attn_mask=attn_mask,
         )
-        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
+        x = self.dropout_module(x)
         x = residual + x
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
@@ -131,16 +133,16 @@ class TransformerEncoderLayer(InferenceDropoutModule):
             x = self.final_layer_norm(x)
 
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=float(self.activation_dropout), training=self.is_dropout_applied())
+        x = self.activation_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
+        x = self.dropout_module(x)
         x = residual + x
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         return x
 
 
-class TransformerDecoderLayer(InferenceDropoutModule):
+class TransformerDecoderLayer(nn.Module):
     """Decoder layer block.
 
     In the original paper each operation (multi-head attention, encoder
@@ -162,7 +164,7 @@ class TransformerDecoderLayer(InferenceDropoutModule):
     ):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(args.dropout, args=args, parent_module=self)
         self.quant_noise = getattr(args, "quant_noise_pq", 0)
         self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8)
 
@@ -177,10 +179,12 @@ class TransformerDecoderLayer(InferenceDropoutModule):
         self.activation_fn = utils.get_activation_fn(
             activation=getattr(args, "activation_fn", "relu")
         )
-        self.activation_dropout = getattr(args, "activation_dropout", 0)
-        if self.activation_dropout == 0:
+        activation_dropout_p = getattr(args, "activation_dropout", 0)
+        if activation_dropout_p == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            self.activation_dropout = getattr(args, "relu_dropout", 0)
+            activation_dropout_p = getattr(args, "relu_dropout", 0)
+        self.activation_dropout_module = FairseqDropout(
+            float(activation_dropout_p), args=args, parent_module=self)
         self.normalize_before = args.decoder_normalize_before
 
         # use layerNorm rather than FusedLayerNorm for exporting.
@@ -224,6 +228,7 @@ class TransformerDecoderLayer(InferenceDropoutModule):
             self_attention=not getattr(args, "cross_self_attention", False),
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            args=args,
         )
 
     def build_encoder_attention(self, embed_dim, args):
@@ -236,6 +241,7 @@ class TransformerDecoderLayer(InferenceDropoutModule):
             encoder_decoder_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            args=args,
         )
 
     def prepare_for_onnx_export_(self):
@@ -317,7 +323,7 @@ class TransformerDecoderLayer(InferenceDropoutModule):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
-        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
+        x = self.dropout_module(x)
         x = residual + x
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
@@ -347,7 +353,7 @@ class TransformerDecoderLayer(InferenceDropoutModule):
                 need_weights=need_attn or (not self.training and self.need_attn),
                 need_head_weights=need_head_weights,
             )
-            x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
+            x = self.dropout_module(x)
             x = residual + x
             if not self.normalize_before:
                 x = self.encoder_attn_layer_norm(x)
@@ -357,9 +363,9 @@ class TransformerDecoderLayer(InferenceDropoutModule):
             x = self.final_layer_norm(x)
 
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=float(self.activation_dropout), training=self.is_dropout_applied())
+        x = self.activation_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.is_dropout_applied())
+        x = self.dropout_module(x)
         x = residual + x
         if not self.normalize_before:
             x = self.final_layer_norm(x)

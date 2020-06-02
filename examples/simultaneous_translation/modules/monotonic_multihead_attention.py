@@ -370,7 +370,8 @@ class MonotonicMultiheadAttentionHard(MonotonicAttention, MultiheadAttention):
             kdim=getattr(args, 'encoder_embed_dim', None),
             vdim=getattr(args, 'encoder_embed_dim', None),
             dropout=args.attention_dropout,
-            encoder_decoder_attention=True
+            encoder_decoder_attention=True,
+            args=args,
         )
 
         MonotonicAttention.__init__(self, args)
@@ -533,7 +534,7 @@ class MonotonicMultiheadAttentionInfiniteLookback(MonotonicMultiheadAttentionHar
 
             beta = exp_soft_energy * torch.cumsum(inner_items.flip(dims=[2]), dim=2).flip(dims=[2])
 
-            beta = F.dropout(beta, p=self.dropout, training=self.training)
+            beta = self.dropout_module(beta)
 
         assert not torch.isnan(beta).any(), "NaN detected in beta."
 

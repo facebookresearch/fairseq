@@ -86,7 +86,7 @@ def main(args):
     logger.info(args)
 
     # Fix seed for stochastic decoding
-    if args.seed is not None:
+    if args.seed is not None and not args.no_seed_provided:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
 
@@ -95,11 +95,21 @@ def main(args):
     # Setup task, e.g., translation
     task = tasks.setup_task(args)
 
+    # Set inference dropout
+    overrides = eval(args.model_overrides)
+    if args.retain_dropout:
+        gen_overrides = {'retain_dropout': args.retain_dropout,
+                         'exclude_dropout_modules': args.exclude_dropout_modules, }
+        if overrides is not None:
+            overrides.update(gen_overrides)
+        else:
+            overrides = gen_overrides
+
     # Load ensemble
     logger.info('loading model(s) from {}'.format(args.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
         args.path.split(os.pathsep),
-        arg_overrides=eval(args.model_overrides),
+        arg_overrides=overrides,
         task=task,
     )
 
@@ -113,10 +123,6 @@ def main(args):
             beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
             need_attn=args.print_alignment,
         )
-        if args.retain_dropout:
-            model.set_inference_dropout(args.retain_dropout_modules)
-        else:
-            model.eval()
         if args.fp16:
             model.half()
         if use_cuda:

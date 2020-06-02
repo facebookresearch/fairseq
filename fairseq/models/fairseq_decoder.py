@@ -5,13 +5,12 @@
 
 from typing import Dict, List, Optional, Tuple
 
+import torch.nn as nn
 from fairseq import utils
 from torch import Tensor
 
-from fairseq.modules.inference_dropout_module import InferenceDropoutModule
 
-
-class FairseqDecoder(InferenceDropoutModule):
+class FairseqDecoder(nn.Module):
     """Base class for decoders."""
 
     def __init__(self, dictionary):
