@@ -335,7 +335,7 @@ class DiverseSiblingsSearch(Search):
             k,
         )
 
-        final_beams = torch.div(final_indices, k)
+        final_beams = final_indices // k
 
         for i in range(bsz):
             final_indices[i] = indices[i][final_indices[i]]
