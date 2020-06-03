@@ -56,27 +56,37 @@ class TransformerSentenceEncoderLayer(nn.Module):
         # layer norm associated with the self attention layer
         self.self_attn_layer_norm = LayerNorm(self.embedding_dim, export=export)
 
-        self.fc1 = self.build_fc1(self.embedding_dim, ffn_embedding_dim, q_noise, qn_block_size)
-        self.fc2 = self.build_fc2(ffn_embedding_dim, self.embedding_dim, q_noise, qn_block_size)
+        self.fc1 = self.build_fc1(
+            self.embedding_dim,
+            ffn_embedding_dim,
+            q_noise=q_noise,
+            qn_block_size=qn_block_size,
+        )
+        self.fc2 = self.build_fc2(
+            ffn_embedding_dim,
+            self.embedding_dim,
+            q_noise=q_noise,
+            qn_block_size=qn_block_size,
+        )
 
         # layer norm associated with the position wise feed-forward NN
         self.final_layer_norm = LayerNorm(self.embedding_dim, export=export)
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
-            nn.Linear(self.embedding_dim, ffn_embedding_dim), q_noise, qn_block_size
+            nn.Linear(input_dim, output_dim), q_noise, qn_block_size
         )
 
-    def build_fc2(self, input_dim, output_dim):
+    def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
-            nn.Linear(ffn_embedding_dim, self.embedding_dim), q_noise, qn_block_size
+            nn.Linear(input_dim, output_dim), q_noise, qn_block_size
         )
 
     def build_self_attention(
         self,
         embed_dim,
         num_attention_heads,
-        attention_dropout,
+        dropout,
         self_attention,
         q_noise,
         qn_block_size,
@@ -84,7 +94,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         return MultiheadAttention(
             embed_dim,
             num_attention_heads,
-            dropout=attention_dropout,
+            dropout=dropout,
             self_attention=True,
             q_noise=q_noise,
             qn_block_size=qn_block_size,

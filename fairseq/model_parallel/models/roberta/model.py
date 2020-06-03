@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from fairseq.models import (
-    FairseqDecoder,
+    FairseqEncoder,
     register_model,
     register_model_architecture,
 )
@@ -76,7 +76,7 @@ class ModelParallelRobertaModel(RobertaModel):
         if classification_head_name is not None:
             features_only = True
 
-        x, extra = self.decoder(src_tokens, features_only, return_all_hiddens, **kwargs)
+        x, extra = self.encoder(src_tokens, features_only, return_all_hiddens, **kwargs)
 
         if classification_head_name is not None:
             x = self.classification_heads[classification_head_name](x)
@@ -155,7 +155,7 @@ class ModelParallelRobertaClassificationHead(nn.Module):
         return x
 
 
-class ModelParallelRobertaEncoder(FairseqDecoder):
+class ModelParallelRobertaEncoder(FairseqEncoder):
     """RoBERTa encoder.
 
     Implements the :class:`~fairseq.models.FairseqDecoder` interface required
