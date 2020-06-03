@@ -26,23 +26,23 @@ class ModelParallelTransformerSentenceEncoderLayer(TransformerSentenceEncoderLay
     Implements a Model Parallel Transformer Encoder Layer used in
     BERT/XLM style pre-trained models.
     """
-    def build_fc1(self, input_dim, output_dim):
+    def build_fc1(self, input_dim, output_dim, **unused):
         return ColumnParallelLinear(input_dim, output_dim, gather_output=False)
 
-    def build_fc2(self, input_dim, output_dim):
+    def build_fc2(self, input_dim, output_dim, **unused):
         return RowParallelLinear(input_dim, output_dim, input_is_parallel=True)
 
     def build_self_attention(
         self,
         embed_dim,
         num_attention_heads,
-        attention_dropout,
+        dropout,
         **kwargs,
     ):
         return ModelParallelMultiheadAttention(
             embed_dim,
             num_attention_heads,
-            dropout=attention_dropout,
+            dropout=dropout,
             self_attention=True
         )
 
@@ -76,4 +76,4 @@ class ModelParallelTransformerSentenceEncoderLayer(TransformerSentenceEncoderLay
         x = self.fc2(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
-        return x
+        return x, None
