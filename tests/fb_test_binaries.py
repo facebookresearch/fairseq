@@ -11,7 +11,7 @@ import unittest
 
 import torch
 
-from tests.test_binaries import (
+from tests.utils import (
     create_dummy_data,
     preprocess_translation_data,
     train_translation_model,
