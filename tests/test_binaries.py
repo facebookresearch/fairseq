@@ -169,30 +169,6 @@ class TestTranslation(unittest.TestCase):
                 ], run_validation=True)
                 generate_main(data_dir)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
-    def test_transformer_fp16(self):
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_transformer") as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_translation_data(data_dir)
-                train_translation_model(
-                    data_dir,
-                    "transformer_iwslt_de_en",
-                    [
-                        "--encoder-layers",
-                        "2",
-                        "--decoder-layers",
-                        "2",
-                        "--encoder-embed-dim",
-                        "8",
-                        "--decoder-embed-dim",
-                        "8",
-                        "--fp16",
-                    ],
-                    run_validation=True,
-                )
-                generate_main(data_dir)
-
     def test_multilingual_transformer(self):
         # test with all combinations of encoder/decoder lang tokens
         encoder_langtok_flags = [[], ['--encoder-langtok', 'src'], ['--encoder-langtok', 'tgt']]
