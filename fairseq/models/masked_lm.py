@@ -78,6 +78,8 @@ class MaskedLMModel(FairseqEncoderModel):
                             ' (outside self attention)')
         parser.add_argument('--num-segment', type=int, metavar='N',
                             help='num segment in the input')
+        parser.add_argument('--max-positions', type=int,
+                            help='number of positional embeddings to learn')
 
         # Arguments related to sentence level prediction
         parser.add_argument('--sentence-class-num', type=int, metavar='N',
