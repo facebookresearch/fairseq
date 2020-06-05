@@ -253,10 +253,11 @@ class ElmoTokenEmbedder(nn.Module):
         if not self.add_bos and not self.add_eos:
             return input, None
 
+        type_args = {"device": input.device, "dtype": input.dtype}
         zero_block = input.new(0, 0)
         block_size = (input.size(0), 1, input.size(2)) if self.char_inputs else (input.size(0), 1)
-        bos_block = torch.full(block_size, self.eos_idx, dtype=input.dtype) if self.add_bos else zero_block
-        pad_block = torch.full(block_size, self.padding_idx, dtype=input.dtype) if self.add_eos else zero_block
+        bos_block = torch.full(block_size, self.eos_idx, **type_args) if self.add_bos else zero_block
+        pad_block = torch.full(block_size, self.padding_idx, **type_args) if self.add_eos else zero_block
 
         # add eos in the beginning and pad to the end of the sentence
         input = torch.cat([bos_block, input, pad_block], dim=1)
