@@ -28,7 +28,7 @@ CUDA_VISIBLE_DEVICES=0,1 fairseq-train $DATA_DIR --ddp-backend=no_c10d \
     --init-token 0 --separator-token 2 \
     --max-option-length 128 \
     --max-positions 512 \
-    --truncate-sequence \
+    --shorten-method "truncate" \
     --arch roberta_large \
     --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
     --criterion sentence_ranking \

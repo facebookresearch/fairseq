@@ -92,6 +92,7 @@ class MaskTokensDataset(BaseWrapperDataset):
         self.epoch = 0
 
     def set_epoch(self, epoch, **unused):
+        super().set_epoch(epoch)
         self.epoch = epoch
 
     @lru_cache(maxsize=8)
