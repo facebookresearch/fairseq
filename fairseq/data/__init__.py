@@ -12,6 +12,7 @@ from .base_wrapper_dataset import BaseWrapperDataset
 from .append_token_dataset import AppendTokenDataset
 from .audio.raw_audio_dataset import FileAudioDataset
 from .backtranslation_dataset import BacktranslationDataset
+from .bucket_pad_length_dataset import BucketPadLengthDataset
 from .colorize_dataset import ColorizeDataset
 from .concat_dataset import ConcatDataset
 from .concat_sentences_dataset import ConcatSentencesDataset
@@ -57,6 +58,7 @@ __all__ = [
     'AppendTokenDataset',
     'BacktranslationDataset',
     'BaseWrapperDataset',
+    'BucketPadLengthDataset',
     'ColorizeDataset',
     'ConcatDataset',
     'ConcatSentencesDataset',
