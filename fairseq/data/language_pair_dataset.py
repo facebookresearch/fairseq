@@ -65,7 +65,9 @@ def collate(
         tgt_lengths = torch.LongTensor([s['target'].numel() for s in samples]).index_select(0, sort_order)
         ntokens = sum(len(s['target']) for s in samples)
 
-        if input_feeding:
+        if samples[0].get('prev_output_tokens', None) is not None:
+            prev_output_tokens = merge('prev_output_tokens', left_pad=left_pad_target)
+        elif input_feeding:
             # we create a shifted version of targets for feeding the
             # previous output token(s) into the next decoder step
             prev_output_tokens = merge(
