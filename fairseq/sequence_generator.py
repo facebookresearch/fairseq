@@ -620,7 +620,7 @@ class SequenceGenerator(nn.Module):
             torch.jit.annotate(Dict[str, List[int]], {})
             for bbsz_idx in range(bsz * beam_size)
         ]
-        cpu_tokens = tokens.cpu()
+        cpu_tokens = tokens.cpu()[:, :step+1]
         for bbsz_idx in range(bsz * beam_size):
             gen_tokens: List[int] = cpu_tokens[bbsz_idx].tolist()
             for ngram in self.transpose_list(
@@ -635,7 +635,7 @@ class SequenceGenerator(nn.Module):
             # no banned tokens if we haven't generated no_repeat_ngram_size tokens yet
             banned_tokens = [
                 self.calculate_banned_tokens(
-                    tokens, step, gen_ngrams, self.no_repeat_ngram_size, bbsz_idx
+                    cpu_tokens, step, gen_ngrams, self.no_repeat_ngram_size, bbsz_idx
                 )
                 for bbsz_idx in range(bsz * beam_size)
             ]
@@ -643,10 +643,10 @@ class SequenceGenerator(nn.Module):
             banned_tokens = [
                 torch.jit.annotate(List[int], []) for bbsz_idx in range(bsz * beam_size)
             ]
-        for bbsz_idx in range(bsz * beam_size):
-            lprobs[bbsz_idx][
-                torch.tensor(banned_tokens[bbsz_idx]).long()
-            ] = torch.tensor(-math.inf, dtype=torch.float)
+        banned_lprobs = [(bbsz_idx, banned_idx) for bbsz_idx in range(len(banned_tokens)) for banned_idx in banned_tokens[bbsz_idx]]
+        if banned_lprobs:
+            banned_lprobs = tuple(torch.LongTensor(list(zip(*banned_lprobs))))
+            lprobs.index_put_(banned_lprobs, lprobs.new_tensor([-math.inf] * banned_lprobs[0].nelement()))
         return lprobs
 
 
