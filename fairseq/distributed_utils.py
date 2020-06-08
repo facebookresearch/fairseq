@@ -18,6 +18,7 @@ import torch
 import torch.distributed as dist
 
 from fairseq import utils
+import herring.torch as hrg
 
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,8 @@ def get_default_group():
 
 
 def all_reduce(tensor, group=None):
+    return hrg.all_reduce(tensor)
+
     if isinstance(group, tuple) and group[0] == 'tpu':
         import torch_xla.core.xla_model as xm
         return xm.all_reduce('sum', [tensor], groups=group[1])

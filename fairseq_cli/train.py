@@ -28,6 +28,7 @@ from fairseq.data import iterators
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.trainer import Trainer
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
+import herring.torch as hrg
 
 
 logging.basicConfig(
@@ -48,7 +49,8 @@ def main(args, init_distributed=False):
 
     # Initialize CUDA and distributed training
     if torch.cuda.is_available() and not args.cpu and not getattr(args, 'tpu', False):
-        torch.cuda.set_device(args.device_id)
+        # torch.cuda.set_device(args.device_id)
+        torch.cuda.set_device(hrg.get_local_rank())
     np.random.seed(args.seed)
     utils.set_torch_seed(args.seed)
     if init_distributed:
@@ -211,7 +213,7 @@ def train(args, trainer, task, epoch_itr):
         num_updates = trainer.get_num_updates()
         if num_updates % args.log_interval == 0:
             stats = get_training_stats(metrics.get_smoothed_values('train_inner'))
-            progress.log(stats, tag='train_inner', step=num_updates)
+            progress.log(stats, tag='train_inner_{}'.format(hm.get_rank()), step=num_updates)
 
             # reset mid-epoch stats after each log interval
             # the end-of-epoch stats will still be preserved

@@ -20,6 +20,7 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
+import herring.torch as hrg
 
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,9 @@ class Trainer(object):
         self._wrapped_model = None
 
         # TODO(myleott): support tpu
-        if self.cuda and self.data_parallel_world_size > 1:
+        if self.args.distributed_backend == "herring":
+            self._grad_norm_buf = torch.cuda.DoubleTensor(hrg.get_world_size())
+        elif self.cuda and self.data_parallel_world_size > 1:
             self._grad_norm_buf = torch.cuda.DoubleTensor(self.data_parallel_world_size)
         else:
             self._grad_norm_buf = None
@@ -147,7 +150,7 @@ class Trainer(object):
                 self.data_parallel_world_size > 1
                 and not self.args.use_bmuf
                 and not self.tpu
-            ):
+            ) or self.args.distributed_backend == "herring":
                 self._wrapped_model = models.DistributedFairseqModel(
                     self.args, self._model,
                     process_group=self.data_parallel_process_group
@@ -450,7 +453,7 @@ class Trainer(object):
             sample_size = float(sample_size)
 
         # gather logging outputs from all replicas
-        if self._sync_stats():
+        if self._sync_stats() or self.args.distributed_backend == "herring":
             logging_outputs, (sample_size, ooms) = self._aggregate_logging_outputs(
                 logging_outputs, sample_size, ooms, ignore=is_dummy_batch,
             )
@@ -469,9 +472,10 @@ class Trainer(object):
                 self.optimizer.multiply_grads(self.data_parallel_world_size / sample_size)
             elif sample_size > 0:  # BMUF needs to check sample size
                 num = self.data_parallel_world_size if self._sync_stats() else 1
-                self.optimizer.multiply_grads(num / sample_size)
+                # self.optimizer.multiply_grads(num / sample_size)
+                self.optimizer.multiply_grads(hrg.get_world_size() / sample_size)
 
-            # clip grads
+                # clip grads
             grad_norm = self.clip_grad_norm(self.args.clip_norm)
 
             # check that grad norms are consistent across workers
@@ -602,7 +606,7 @@ class Trainer(object):
                     sample_size *= 0.
 
         # gather logging outputs from all replicas
-        if self.data_parallel_world_size > 1:
+        if self.data_parallel_world_size > 1  or self.args.distributed_backend == "herring":
             logging_outputs, (sample_size, ) = self._aggregate_logging_outputs(
                 logging_outputs, sample_size, ignore=is_dummy_batch,
             )
