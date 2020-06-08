@@ -5,12 +5,22 @@
 
 import itertools
 import math
+import operator
 import os
-
+import time
 import numpy as np
 import torch
-
+import queue
+import logging
+from threading import Thread
 from . import data_utils
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Object used by _background_consumer to signal the source is exhausted
+# to the main thread.
+_sentinel = object()
 
 
 class CountingIterator(object):
@@ -18,31 +28,37 @@ class CountingIterator(object):
 
     Args:
         iterable (iterable): iterable to wrap
-        start (int): starting iteration count
-        override_len (int): override the iterator length
-            returned by ``__len__``
+        start (int): starting iteration count. Note that this doesn't
+            actually advance the iterator.
+        total (int): override the iterator length returned by
+            ``__len__``. This can be used to truncate *iterator*.
 
     Attributes:
-        count (int): number of elements consumed from this iterator
+        n (int): number of elements consumed from this iterator
     """
 
-    def __init__(self, iterable, start=0, override_len=None):
+    def __init__(self, iterable, start=None, total=None):
         self.iterable = iterable
-        self.count = start
         self.itr = iter(self)
-        if override_len is None:
-            self.len = start + len(iterable)
+
+        if start is None:
+            self.n = getattr(iterable, 'n', 0)
         else:
-            self.len = override_len
+            self.n = start
+
+        if total is None:
+            self.total = self.n + len(iterable)
+        else:
+            self.total = total
 
     def __len__(self):
-        return self.len
+        return self.total
 
     def __iter__(self):
         for x in self.iterable:
-            if self.count >= self.len:
+            if self.n >= self.total:
                 return
-            self.count += 1
+            self.n += 1
             yield x
 
     def __next__(self):
@@ -50,7 +66,7 @@ class CountingIterator(object):
 
     def has_next(self):
         """Whether the iterator has been exhausted."""
-        return self.count < len(self)
+        return self.n < len(self)
 
     def skip(self, num_to_skip):
         """Fast-forward the iterator by skipping *num_to_skip* elements."""
@@ -61,7 +77,7 @@ class CountingIterator(object):
         """
         Truncates the iterator to n elements at most.
         """
-        self.len = min(self.len, n)
+        self.total = min(self.total, n)
 
 
 class EpochBatchIterating(object):
@@ -139,7 +155,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
     @property
     def iterations_in_epoch(self) -> int:
         if self._current_epoch_iterator is not None:
-            return self._current_epoch_iterator.count
+            return self._current_epoch_iterator.n
         return 0
 
     def state_dict(self):
@@ -178,11 +194,14 @@ class EpochBatchIterator(EpochBatchIterating):
             (default: 0).
         epoch (int, optional): the epoch to start the iterator from
             (default: 1).
+        buffer_size (int, optional): the number of batches to keep ready in the
+            queue. Helps speeding up dataloading. When buffer_size is zero, the
+            default torch.utils.data.DataLoader preloading is used.
     """
 
     def __init__(
         self, dataset, collate_fn, batch_sampler, seed=1, num_shards=1, shard_id=0,
-        num_workers=0, epoch=1,
+        num_workers=0, epoch=1, buffer_size=0
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -192,6 +211,9 @@ class EpochBatchIterator(EpochBatchIterating):
         self.num_shards = num_shards
         self.shard_id = shard_id
         self.num_workers = num_workers
+        # This upper limit here is to prevent people from abusing this feature
+        # in a shared computing environment.
+        self.buffer_size = min(buffer_size, 5)
 
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = True
@@ -200,7 +222,11 @@ class EpochBatchIterator(EpochBatchIterating):
         self._supports_prefetch = getattr(dataset, 'supports_prefetch', False)
 
     def __len__(self):
-        return len(self.frozen_batches)
+        return int(math.ceil(len(self.frozen_batches) / float(self.num_shards)))
+
+    @property
+    def n(self):
+        return self.iterations_in_epoch
 
     @property
     def next_epoch_idx(self):
@@ -242,9 +268,9 @@ class EpochBatchIterator(EpochBatchIterating):
     def iterations_in_epoch(self):
         """The number of consumed batches in the current epoch."""
         if self._cur_epoch_itr is not None:
-            return self._cur_epoch_itr.count
+            return self._cur_epoch_itr.n
         elif self._next_epoch_itr is not None:
-            return self._next_epoch_itr.count
+            return self._next_epoch_itr.n
         return 0
 
     def state_dict(self):
@@ -307,49 +333,56 @@ class EpochBatchIterator(EpochBatchIterating):
         if self.num_workers > 0:
             os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 
-        return CountingIterator(
-            torch.utils.data.DataLoader(
-                self.dataset,
-                collate_fn=self.collate_fn,
-                batch_sampler=batches[offset:],
-                num_workers=self.num_workers,
-            ),
-            start=offset,
+        # Create data loader
+        itr = torch.utils.data.DataLoader(
+            self.dataset,
+            collate_fn=self.collate_fn,
+            batch_sampler=batches[offset:],
+            num_workers=self.num_workers,
         )
 
+        # Wrap with a BufferedIterator if needed
+        if self.buffer_size > 0:
+            itr = BufferedIterator(self.buffer_size, itr)
 
-class GroupedIterator(object):
+        # Wrap with CoutingIterator
+        itr = CountingIterator(itr, start=offset)
+        return itr
+
+
+class GroupedIterator(CountingIterator):
     """Wrapper around an iterable that returns groups (chunks) of items.
 
     Args:
         iterable (iterable): iterable to wrap
         chunk_size (int): size of each chunk
+
+    Attributes:
+        n (int): number of elements consumed from this iterator
     """
 
     def __init__(self, iterable, chunk_size):
-        self._len = int(math.ceil(len(iterable) / float(chunk_size)))
-        self.offset = int(math.ceil(getattr(iterable, 'count', 0) / float(chunk_size)))
-        self.itr = iterable
+        itr = _chunk_iterator(iterable, chunk_size)
+        super().__init__(
+            itr,
+            start=int(math.ceil(getattr(iterable, 'n', 0) / float(chunk_size))),
+            total=int(math.ceil(len(iterable) / float(chunk_size))),
+        )
         self.chunk_size = chunk_size
 
-    def __len__(self):
-        return self._len
 
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        chunk = []
-        try:
-            for _ in range(self.chunk_size):
-                chunk.append(next(self.itr))
-        except StopIteration as e:
-            if len(chunk) == 0:
-                raise e
-        return chunk
+def _chunk_iterator(itr, chunk_size):
+    chunk = []
+    for x in itr:
+        chunk.append(x)
+        if len(chunk) == chunk_size:
+            yield chunk
+            chunk = []
+    if len(chunk) > 0:
+        yield chunk
 
 
-class ShardedIterator(object):
+class ShardedIterator(CountingIterator):
     """A sharded wrapper around an iterable, padded to length.
 
     Args:
@@ -358,27 +391,82 @@ class ShardedIterator(object):
         shard_id (int): which shard to iterator over
         fill_value (Any, optional): padding value when the iterable doesn't
             evenly divide *num_shards* (default: None).
+
+    Attributes:
+        n (int): number of elements consumed from this iterator
     """
 
     def __init__(self, iterable, num_shards, shard_id, fill_value=None):
         if shard_id < 0 or shard_id >= num_shards:
             raise ValueError('shard_id must be between 0 and num_shards')
-
-        self._sharded_len = len(iterable) // num_shards
-        if len(iterable) % num_shards > 0:
-            self._sharded_len += 1
-
-        self.itr = itertools.zip_longest(
-            range(self._sharded_len),
-            itertools.islice(iterable, shard_id, len(iterable), num_shards),
-            fillvalue=fill_value,
+        sharded_len = int(math.ceil(len(iterable) / float(num_shards)))
+        itr = map(
+            operator.itemgetter(1),
+            itertools.zip_longest(
+                range(sharded_len),
+                itertools.islice(iterable, shard_id, len(iterable), num_shards),
+                fillvalue=fill_value,
+            ),
+        )
+        super().__init__(
+            itr,
+            start=int(math.ceil(getattr(iterable, 'n', 0) / float(num_shards))),
+            total=sharded_len,
         )
 
-    def __len__(self):
-        return self._sharded_len
+
+class BackgroundConsumer(Thread):
+    def __init__(self, queue, source):
+        Thread.__init__(self)
+
+        self._queue = queue
+        self._source = source
+
+    def run(self):
+        try:
+            for item in self._source:
+                self._queue.put(item)
+
+            # Signal the consumer we are done.
+            self._queue.put(_sentinel)
+        except Exception as e:
+            self._queue.put(e)
+
+
+class BufferedIterator(object):
+    def __init__(self, size, iterable):
+        self._queue = queue.Queue(size)
+        self._iterable = iterable
+
+        self._consumer = BackgroundConsumer(self._queue, iterable)
+        self._consumer.daemon = True
+        self._consumer.start()
+
+        self.start_time = time.time()
+        self.warning_time = None
 
     def __iter__(self):
         return self
 
+    def __len__(self):
+        return len(self._iterable)
+
     def __next__(self):
-        return next(self.itr)[1]
+        # Notify the user if there is a data loading bottleneck
+        if self._queue.qsize() < 2:
+            if time.time() - self.start_time > 5 * 60:
+                if self.warning_time is None or time.time() - self.warning_time > 15 * 60:
+                    logger.info(
+                        "Data loading buffer is empty or nearly empty. This may "
+                        "indicate a data loading bottleneck, and increasing the "
+                        "number of workers (--num-workers) may help."
+                    )
+                    self.warning_time = time.time()
+
+        # Get next example
+        item = self._queue.get(True)
+        if isinstance(item, Exception):
+            raise item
+        if item is _sentinel:
+            raise StopIteration()
+        return item

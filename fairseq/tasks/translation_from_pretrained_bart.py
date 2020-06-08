@@ -84,7 +84,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(
                 self.target_dictionary,
-                eos=self.tgt_dict.index('[{}]'.format(self.target_lang))
+                eos=self.tgt_dict.index('[{}]'.format(self.args.target_lang))
             )
         else:
             from fairseq.sequence_generator import SequenceGenerator
@@ -110,5 +110,5 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         for s_t in src_tokens:
             s_t = torch.cat([s_t, s_t.new(1).fill_(src_lang_id)])
             source_tokens.append(s_t)
-        dataset = LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
+        dataset = LanguagePairDataset(source_tokens, src_lengths, self.source_dictionary)
         return dataset

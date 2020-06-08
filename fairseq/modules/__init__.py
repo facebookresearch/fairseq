@@ -17,6 +17,7 @@ from .gelu import gelu, gelu_accurate
 from .grad_multiply import GradMultiply
 from .gumbel_vector_quantizer import GumbelVectorQuantizer
 from .kmeans_vector_quantizer import KmeansVectorQuantizer
+from .layer_drop import LayerDropModuleList
 from .layer_norm import Fp32LayerNorm, LayerNorm
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .lightweight_convolution import LightweightConv, LightweightConv1dTBC
@@ -49,6 +50,7 @@ __all__ = [
     'GradMultiply',
     'GumbelVectorQuantizer',
     'KmeansVectorQuantizer',
+    'LayerDropModuleList',
     'LayerNorm',
     'LearnedPositionalEmbedding',
     'LightweightConv1dTBC',

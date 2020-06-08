@@ -11,6 +11,13 @@ from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParall
 from fairseq.models import BaseFairseqModel
 
 
+_GOSSIP_DISABLED = False
+try:
+    import gossip
+except ImportError:
+    _GOSSIP_DISABLED = True
+
+
 def DistributedFairseqModel(args, model, process_group=None):
     """
     Wrap a *model* to support distributed data parallel training.
@@ -26,7 +33,7 @@ def DistributedFairseqModel(args, model, process_group=None):
     """
     # determine which DDP class to extend
     assert isinstance(model, nn.Module)
-    if args.ddp_backend == 'c10d':
+    if args.distributed_wrapper == 'DDP' and args.ddp_backend == 'c10d':
         ddp_class = nn.parallel.DistributedDataParallel
         init_kwargs = dict(
             module=model,
@@ -41,13 +48,43 @@ def DistributedFairseqModel(args, model, process_group=None):
             init_kwargs['check_reduction'] = True
         if 'find_unused_parameters' in inspect.getargspec(ddp_class)[0]:
             init_kwargs['find_unused_parameters'] = args.find_unused_parameters
-    elif args.ddp_backend == 'no_c10d':
+    elif args.distributed_wrapper == 'DDP' and args.ddp_backend == 'no_c10d':
         ddp_class = LegacyDistributedDataParallel
         init_kwargs = dict(
             module=model,
             world_size=args.distributed_world_size,
             buffer_size=2**28,
             process_group=process_group,
+        )
+    elif args.distributed_wrapper == 'SlowMo':
+        if _GOSSIP_DISABLED:
+            raise ImportError(
+                'Cannot find gossip library. Please install from: '
+                'github.com/facebookresearch/stochastic_gradient_push'
+            )
+        ddp_class = gossip.GossipDataParallel
+
+        # The values of slowmo_momentum below were obtained by tuning on the
+        # En-De 16 dataset by training the transformer_wmt_en_de_large model
+        if args.slowmo_momentum is None:
+            if args.distributed_world_size <= 16:
+                args.slowmo_momentum = 0.0
+            elif args.distributed_world_size <= 32:
+                args.slowmo_momentum = 0.2
+            elif args.distributed_world_size <= 64:
+                args.slowmo_momentum = 0.5
+            else:
+                args.slowmo_momentum = 0.6
+
+        init_kwargs = dict(
+            module=model,
+            device_ids=[args.device_id],
+            output_device=args.device_id,
+            broadcast_buffers=args.broadcast_buffers,
+            nprocs_per_node=args.nprocs_per_node,
+            slowmo_momentum=args.slowmo_momentum,
+            localsgd=(args.slowmo_algorithm == 'LocalSGD'),
+            localsgd_frequency=args.localsgd_frequency
         )
     else:
         raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)

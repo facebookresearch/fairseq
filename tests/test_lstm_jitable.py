@@ -66,6 +66,8 @@ class TestJitLSTMModel(unittest.TestCase):
             torch.jit.load(f.name)
 
     def assertTensorEqual(self, t1, t2):
+        t1 = t1[~torch.isnan(t1)]  # can cause size mismatch errors if there are NaNs
+        t2 = t2[~torch.isnan(t2)]
         self.assertEqual(t1.size(), t2.size(), "size mismatch")
         self.assertEqual(t1.ne(t2).long().sum(), 0)
 
@@ -105,6 +107,7 @@ class TestJitLSTMModel(unittest.TestCase):
             scripted_result = scripted_model(src_token[0], src_lengths, prev_output_token[0], None)
             self.assertTensorEqual(result[0], scripted_result[0])
             self.assertTensorEqual(result[1], scripted_result[1])
+
 
 if __name__ == "__main__":
     unittest.main()

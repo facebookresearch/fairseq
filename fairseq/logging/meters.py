@@ -171,8 +171,10 @@ class StopwatchMeter(Meter):
     def start(self):
         self.start_time = time.perf_counter()
 
-    def stop(self, n=1):
+    def stop(self, n=1, prehook=None):
         if self.start_time is not None:
+            if prehook is not None:
+                prehook()
             delta = time.perf_counter() - self.start_time
             self.sum = self.sum + delta
             self.n = type_as(self.n, n) + n

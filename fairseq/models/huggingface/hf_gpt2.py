@@ -16,6 +16,18 @@ from fairseq.models import (
     register_model_architecture,
 )
 
+try:
+    # Prepend the transformers submodule to the path, so that
+    # it's prioritized over other installations. This allows
+    # making local changes in the submodule.
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), 'transformers', 'src')
+    )
+    from transformers import AutoModel, GPT2Config, GPT2LMHeadModel
+    has_hf = True
+except ImportError:
+    has_hf = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +40,14 @@ class HuggingFaceGPT2LanguageModel(FairseqLanguageModel):
 
     def __init__(self, decoder):
         super().__init__(decoder)
+        if not has_hf:
+            raise ImportError(
+                '\n\nPlease install huggingface/transformers with:'
+                '\n\n  pip install transformers'
+                '\n\nOr to make local edits, install the submodule:'
+                '\n\n  git submodule update --init '
+                'fairseq/models/huggingface/transformers'
+            )
 
     @staticmethod
     def add_args(parser):
@@ -99,6 +119,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         prev_output_tokens,
         src_lengths=None,
         incremental_state: Optional[Dict[str, List[torch.Tensor]]] = None,
+        encoder_out=None,
     ):
         features = self.extract_features(prev_output_tokens, incremental_state)
         lm_logits = self.model.lm_head(features)
@@ -109,7 +130,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         prev_output_tokens,
         incremental_state: Optional[Dict[str, List[torch.Tensor]]] = None,
     ):
-        if incremental_state is not None:
+        if incremental_state:
             past = self.get_incremental_state("past")
         else:
             past = None
@@ -132,7 +153,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
         )
         last_hidden_states = outputs[0]
 
-        if incremental_state is not None:
+        if incremental_state:
             self.set_incremental_state(incremental_state, "past", outputs[1])
 
         return last_hidden_states

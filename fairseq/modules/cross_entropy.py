@@ -20,6 +20,7 @@ def _cross_entropy_pytorch(logits, target, ignore_index=None, reduction='mean'):
 
 
 try:
+    import xentropy_cuda
     from apex.contrib import xentropy
 
     logger.info('using fused cross entropy')

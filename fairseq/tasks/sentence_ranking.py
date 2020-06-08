@@ -8,6 +8,7 @@ import os
 
 import numpy as np
 
+from fairseq import utils
 from fairseq.data import (
     ConcatSentencesDataset,
     data_utils,
@@ -20,8 +21,8 @@ from fairseq.data import (
     RawLabelDataset,
     RightPadDataset,
     SortDataset,
-    TruncateDataset,
 )
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import FairseqTask, register_task
 
 
@@ -49,8 +50,12 @@ class SentenceRankingTask(FairseqTask):
         parser.add_argument('--separator-token', type=int,
                             help='add separator token between inputs')
         parser.add_argument('--no-shuffle', action='store_true')
-        parser.add_argument('--truncate-sequence', action='store_true',
-                            help='Truncate sequence to max_positions')
+        parser.add_argument('--shorten-method', default='none',
+                            choices=['none', 'truncate', 'random_crop'],
+                            help='if not none, shorten sequences that exceed --tokens-per-sample')
+        parser.add_argument('--shorten-data-split-whitelist', default='',
+                            help='comma-separated list of dataset splits to apply shortening to, '
+                                 'e.g., "train,valid" (default: all dataset splits)')
         parser.add_argument('--max-option-length', type=int,
                             help='max length for each option')
 
@@ -120,7 +125,14 @@ class SentenceRankingTask(FairseqTask):
                 input_option = TruncateDataset(input_option, self.args.max_option_length)
             src_token = ConcatSentencesDataset(input_option, input0)
             if self.args.truncate_sequence:
-                src_token = TruncateDataset(src_token, self.args.max_positions)
+                src_token = maybe_shorten_dataset(
+                    src_token,
+                    split,
+                    self.args.shorten_data_split_whitelist,
+                    self.args.shorten_method,
+                    self.args.max_positions,
+                    self.args.seed,
+                )
             src_tokens.append(src_token)
 
         with data_utils.numpy_seed(self.args.seed):

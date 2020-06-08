@@ -62,7 +62,7 @@ class BeamSearch(Search):
         else:
             # make probs contain cumulative scores for each hypothesis
             assert scores is not None
-            lprobs.add_(scores[:, :, step - 1].unsqueeze(-1))
+            lprobs = lprobs + scores[:, :, step - 1].unsqueeze(-1)
 
         top_prediction = torch.topk(
             lprobs.view(bsz, -1),
@@ -75,8 +75,11 @@ class BeamSearch(Search):
         )
         scores_buf = top_prediction[0]
         indices_buf = top_prediction[1]
-        beams_buf = torch.div(indices_buf, vocab_size)
-        indices_buf.fmod_(vocab_size)
+        if torch.__version__ < '1.6.0':
+            beams_buf = torch.div(indices_buf, vocab_size)
+        else:
+            beams_buf = torch.floor_divide(indices_buf, vocab_size)
+        indices_buf = indices_buf.fmod(vocab_size)
         return scores_buf, indices_buf, beams_buf
 
 
@@ -93,8 +96,7 @@ class LengthConstrainedBeamSearch(Search):
         min_lens = self.min_len_a * self.src_lengths + self.min_len_b
         max_lens = self.max_len_a * self.src_lengths + self.max_len_b
         lprobs[step < min_lens, :, self.eos] = -math.inf
-        lprobs[step == max_lens, :, self.eos] = 0
-        lprobs[step > max_lens, :, self.eos] = -math.inf
+        lprobs[step >= max_lens, :, self.eos] = 0
         return self.beam.step(step, lprobs, scores)
 
 
@@ -333,7 +335,7 @@ class DiverseSiblingsSearch(Search):
             k,
         )
 
-        final_beams = torch.div(final_indices, k)
+        final_beams = final_indices // k
 
         for i in range(bsz):
             final_indices[i] = indices[i][final_indices[i]]
