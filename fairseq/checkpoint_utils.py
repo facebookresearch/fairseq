@@ -23,12 +23,16 @@ logger = logging.getLogger(__name__)
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
     from fairseq import distributed_utils, meters
 
+    # only one worker should attempt to create the required dir
+    if args.distributed_rank == 0:
+        os.makedirs(args.save_dir, exist_ok=True)
+
     prev_best = getattr(save_checkpoint, "best", val_loss)
     if val_loss is not None:
         best_function = max if args.maximize_best_checkpoint_metric else min
         save_checkpoint.best = best_function(val_loss, prev_best)
 
-    if args.no_save or not distributed_utils.is_master(args):
+    if args.no_save or not trainer.is_data_parallel_master:
         return
 
     def is_better(a, b):
@@ -41,18 +45,19 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     end_of_epoch = epoch_itr.end_of_epoch()
     updates = trainer.get_num_updates()
 
+    suffix = getattr(args, "checkpoint_suffix", "")
     checkpoint_conds = collections.OrderedDict()
-    checkpoint_conds["checkpoint{}.pt".format(epoch)] = (
+    checkpoint_conds["checkpoint{}{}.pt".format(epoch, suffix)] = (
         end_of_epoch
         and not args.no_epoch_checkpoints
         and epoch % args.save_interval == 0
     )
-    checkpoint_conds["checkpoint_{}_{}.pt".format(epoch, updates)] = (
+    checkpoint_conds["checkpoint_{}_{}{}.pt".format(epoch, updates, suffix)] = (
         not end_of_epoch
         and args.save_interval_updates > 0
         and updates % args.save_interval_updates == 0
     )
-    checkpoint_conds["checkpoint_best.pt"] = val_loss is not None and (
+    checkpoint_conds["checkpoint_best{}.pt".format(suffix)] = val_loss is not None and (
         not hasattr(save_checkpoint, "best")
         or is_better(val_loss, save_checkpoint.best)
     )
@@ -62,7 +67,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
             not hasattr(save_checkpoint, "best")
             or is_better(val_loss, save_checkpoint.best)
         )
-    checkpoint_conds["checkpoint_last.pt"] = not args.no_last_checkpoints
+    checkpoint_conds["checkpoint_last{}.pt".format(suffix)] = not args.no_last_checkpoints
 
     extra_state = {"train_iterator": epoch_itr.state_dict(), "val_loss": val_loss}
     if hasattr(save_checkpoint, "best"):
@@ -117,12 +122,10 @@ def load_checkpoint(args, trainer, **passthrough_args):
     *passthrough_args* will be passed through to
     ``trainer.get_train_iterator``.
     """
-    # only one worker should attempt to create the required dir
-    if args.distributed_rank == 0:
-        os.makedirs(args.save_dir, exist_ok=True)
 
+    suffix = getattr(args, "checkpoint_suffix", "")
     if args.restore_file == "checkpoint_last.pt":
-        checkpoint_path = os.path.join(args.save_dir, "checkpoint_last.pt")
+        checkpoint_path = os.path.join(args.save_dir, "checkpoint_last{}.pt".format(suffix))
     else:
         checkpoint_path = args.restore_file
 
@@ -174,7 +177,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
     return state
 
 
-def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True):
+def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True, suffix=''):
     """Loads an ensemble of models.
 
     Args:
@@ -184,16 +187,17 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True):
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
     ensemble, args, _task = load_model_ensemble_and_task(
-        filenames, arg_overrides, task, strict
+        filenames, arg_overrides, task, strict, suffix,
     )
     return ensemble, args
 
 
-def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None, strict=True):
+def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None, strict=True, suffix=''):
     from fairseq import tasks
 
     ensemble = []
     for filename in filenames:
+        filename = filename.replace(".pt", suffix + ".pt")
         if not PathManager.exists(filename):
             raise IOError("Model file not found: {}".format(filename))
         state = load_checkpoint_to_cpu(filename, arg_overrides)
@@ -237,20 +241,6 @@ def torch_persistent_save(*args, **kwargs):
                 logger.error(traceback.format_exc())
 
 
-def convert_state_dict_type(state_dict, ttype=torch.FloatTensor):
-    if isinstance(state_dict, dict):
-        cpu_dict = OrderedDict()
-        for k, v in state_dict.items():
-            cpu_dict[k] = convert_state_dict_type(v)
-        return cpu_dict
-    elif isinstance(state_dict, list):
-        return [convert_state_dict_type(v) for v in state_dict]
-    elif torch.is_tensor(state_dict):
-        return state_dict.type(ttype)
-    else:
-        return state_dict
-
-
 def save_state(
     filename,
     args,
@@ -270,7 +260,7 @@ def save_state(
         extra_state = {}
     state_dict = {
         "args": args,
-        "model": model_state_dict if model_state_dict else {},
+        "model": model_state_dict or {},
         "optimizer_history": optim_history
         + [
             {
@@ -285,9 +275,10 @@ def save_state(
     if utils.has_parameters(criterion):
         state_dict["criterion"] = criterion.state_dict()
     if not args.no_save_optimizer_state:
-        state_dict["last_optimizer_state"] = convert_state_dict_type(
-            optimizer.state_dict()
-        )
+        state_dict["last_optimizer_state"] = optimizer.state_dict()
+
+    # convert all state to CPU
+    state_dict = utils.move_to_cpu(state_dict)
 
     with PathManager.open(filename, "wb") as f:
         torch_persistent_save(state_dict, f)
@@ -409,7 +400,7 @@ def prune_state_dict(state_dict, args):
         for i in range(len(keep_layers)):
             mapping_dict[str(keep_layers[i])] = str(i)
 
-        regex = re.compile("^{layer}.*\.layers\.(\d+)".format(layer=layer_name))
+        regex = re.compile(r"^{layer}.*\.layers\.(\d+)".format(layer=layer_name))
         return {"substitution_regex": regex, "mapping_dict": mapping_dict}
 
     pruning_passes = []
@@ -420,7 +411,7 @@ def prune_state_dict(state_dict, args):
 
     new_state_dict = {}
     for layer_name in state_dict.keys():
-        match = re.search("\.layers\.(\d+)\.", layer_name)
+        match = re.search(r"\.layers\.(\d+)\.", layer_name)
         # if layer has no number in it, it is a supporting layer, such as an
         # embedding
         if not match:

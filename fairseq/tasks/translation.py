@@ -181,14 +181,14 @@ class TranslationTask(FairseqTask):
         parser.add_argument('--eval-bleu', action='store_true',
                             help='evaluation with BLEU scores')
         parser.add_argument('--eval-bleu-detok', type=str, default="space",
-                            help='detokenizer before computing BLEU (e.g., "moses"); '
+                            help='detokenize before computing BLEU (e.g., "moses"); '
                                  'required if using --eval-bleu; use "space" to '
                                  'disable detokenization; see fairseq.data.encoders '
                                  'for other options')
         parser.add_argument('--eval-bleu-detok-args', type=str, metavar='JSON',
                             help='args for building the tokenizer, if needed')
         parser.add_argument('--eval-tokenized-bleu', action='store_true', default=False,
-                            help='if setting, we compute tokenized BLEU instead of sacrebleu')
+                            help='compute tokenized BLEU instead of sacrebleu')
         parser.add_argument('--eval-bleu-remove-bpe', nargs='?', const='@@ ', default=None,
                             help='remove BPE before computing BLEU')
         parser.add_argument('--eval-bleu-args', type=str, metavar='JSON',
@@ -261,6 +261,7 @@ class TranslationTask(FairseqTask):
         return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
 
     def build_model(self, args):
+        model = super().build_model(args)
         if getattr(args, 'eval_bleu', False):
             assert getattr(args, 'eval_bleu_detok', None) is not None, (
                 '--eval-bleu-detok is required if using --eval-bleu; '
@@ -274,8 +275,8 @@ class TranslationTask(FairseqTask):
             ))
 
             gen_args = json.loads(getattr(args, 'eval_bleu_args', '{}') or '{}')
-            self.sequence_generator = self.build_generator(Namespace(**gen_args))
-        return super().build_model(args)
+            self.sequence_generator = self.build_generator([model], Namespace(**gen_args))
+        return model
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
@@ -350,7 +351,14 @@ class TranslationTask(FairseqTask):
             s = self.tgt_dict.string(
                 toks.int().cpu(),
                 self.args.eval_bleu_remove_bpe,
-                escape_unk=escape_unk,
+                # The default unknown string in fairseq is `<unk>`, but
+                # this is tokenized by sacrebleu as `< unk >`, inflating
+                # BLEU scores. Instead, we use a somewhat more verbose
+                # alternative that is unlikely to appear in the real
+                # reference, but doesn't get split into multiple tokens.
+                unk_string=(
+                    "UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"
+                ),
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
@@ -367,5 +375,7 @@ class TranslationTask(FairseqTask):
         if self.args.eval_bleu_print_samples:
             logger.info('example hypothesis: ' + hyps[0])
             logger.info('example reference: ' + refs[0])
-        tokenize = sacrebleu.DEFAULT_TOKENIZER if not self.args.eval_tokenized_bleu else 'none'
-        return sacrebleu.corpus_bleu(hyps, [refs], tokenize=tokenize)
+        if self.args.eval_tokenized_bleu:
+            return sacrebleu.corpus_bleu(hyps, [refs], tokenize='none')
+        else:
+            return sacrebleu.corpus_bleu(hyps, [refs])

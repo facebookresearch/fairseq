@@ -27,7 +27,9 @@ def get_fused_adam_class():
         try:
             # fallback to the newer interface
             from apex.optimizers import FusedAdam as _FusedAdam  # noqa
-            return FusedAdamV2
+            from apex.multi_tensor_apply import multi_tensor_applier
+            if multi_tensor_applier.available:
+                return FusedAdamV2
         except ImportError:
             pass
     return None
@@ -132,13 +134,13 @@ class FusedAdamV1(torch.optim.Optimizer):
 
             # compute combined scale factor for this group
             combined_scale = scale
-            if group['max_grad_norm'] > 0:
+            if group.get('max_grad_norm', 0) > 0:
                 # norm is in fact norm*scale
                 clip = ((grad_norm / scale) + 1e-6) / group['max_grad_norm']
                 if clip > 1:
                     combined_scale = clip * scale
 
-            bias_correction = 1 if group['bias_correction'] else 0
+            bias_correction = 1 if group.get('bias_correction', 1) else 0
 
             for p, grad in zip(group['params'], grads_this_group):
                 # note: p.grad should not ever be set for correct
@@ -166,8 +168,8 @@ class FusedAdamV1(torch.optim.Optimizer):
                     # Exponential moving average of squared gradient values
                     state['exp_avg_sq'] = torch.zeros_like(p_data_fp32)
                 else:
-                    state['exp_avg'] = state['exp_avg'].type_as(p_data_fp32)
-                    state['exp_avg_sq'] = state['exp_avg_sq'].type_as(p_data_fp32)
+                    state['exp_avg'] = state['exp_avg'].to(p_data_fp32)
+                    state['exp_avg_sq'] = state['exp_avg_sq'].to(p_data_fp32)
 
                 exp_avg = state['exp_avg']
                 exp_avg_sq = state['exp_avg_sq']
@@ -255,6 +257,9 @@ try:
                         state['exp_avg'] = torch.zeros_like(p.data, dtype=torch.float)
                         # Exponential moving average of squared gradient values
                         state['exp_avg_sq'] = torch.zeros_like(p.data, dtype=torch.float)
+                    else:
+                        state['exp_avg'] = state['exp_avg'].to(device=p.data.device, dtype=torch.float)
+                        state['exp_avg_sq'] = state['exp_avg_sq'].to(device=p.data.device, dtype=torch.float)
 
                     if p.dtype == torch.float16:
                         g_16.append(p.grad.data.float())

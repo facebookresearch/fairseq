@@ -79,16 +79,17 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             append_source_id=True
             )
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(
                 self.target_dictionary,
-                eos=self.tgt_dict.index('[{}]'.format(self.target_lang))
+                eos=self.tgt_dict.index('[{}]'.format(self.args.target_lang))
             )
         else:
             from fairseq.sequence_generator import SequenceGenerator
             return SequenceGenerator(
+                models,
                 self.target_dictionary,
                 beam_size=getattr(args, 'beam', 5),
                 max_len_a=getattr(args, 'max_len_a', 0),
@@ -109,5 +110,5 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         for s_t in src_tokens:
             s_t = torch.cat([s_t, s_t.new(1).fill_(src_lang_id)])
             source_tokens.append(s_t)
-        dataset = LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
+        dataset = LanguagePairDataset(source_tokens, src_lengths, self.source_dictionary)
         return dataset

@@ -14,8 +14,8 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from fairseq.models import (
-    FairseqDecoder,
-    FairseqLanguageModel,
+    FairseqEncoder,
+    FairseqEncoderModel,
     register_model,
     register_model_architecture,
 )
@@ -24,6 +24,7 @@ from fairseq.modules import (
     TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 
 from .hub_interface import RobertaHubInterface
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_model('roberta')
-class RobertaModel(FairseqLanguageModel):
+class RobertaModel(FairseqEncoderModel):
 
     @classmethod
     def hub_models(cls):
@@ -88,6 +89,15 @@ class RobertaModel(FairseqLanguageModel):
                             help='LayerDrop probability for encoder')
         parser.add_argument('--encoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
+        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
+                            help='iterative PQ quantization noise at training time')
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
+                            help='block size of quantization noise at training time')
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+                            help='scalar quantization noise and scalar quantization at training time')
+        parser.add_argument('--untie-weights-roberta', action='store_true',
+                            help='Untie weights between embeddings and classifiers in RoBERTa')
 
     @classmethod
     def build_model(cls, args, task):
@@ -106,11 +116,19 @@ class RobertaModel(FairseqLanguageModel):
         if classification_head_name is not None:
             features_only = True
 
-        x, extra = self.decoder(src_tokens, features_only, return_all_hiddens, **kwargs)
+        x, extra = self.encoder(src_tokens, features_only, return_all_hiddens, **kwargs)
 
         if classification_head_name is not None:
             x = self.classification_heads[classification_head_name](x)
         return x, extra
+
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        logits = net_output[0].float()
+        if log_probs:
+            return F.log_softmax(logits, dim=-1)
+        else:
+            return F.softmax(logits, dim=-1)
 
     def register_classification_head(self, name, num_classes=None, inner_dim=None, **kwargs):
         """Register a classification head."""
@@ -130,6 +148,8 @@ class RobertaModel(FairseqLanguageModel):
             num_classes,
             self.args.pooler_activation_fn,
             self.args.pooler_dropout,
+            self.args.quant_noise_pq,
+            self.args.quant_noise_pq_block_size,
         )
 
     @property
@@ -151,13 +171,23 @@ class RobertaModel(FairseqLanguageModel):
         return RobertaHubInterface(x['args'], x['task'], x['models'][0])
 
     def upgrade_state_dict_named(self, state_dict, name):
+        prefix = name + '.' if name != '' else ''
+
+        # rename decoder -> encoder before upgrading children modules
+        for k in list(state_dict.keys()):
+            if k.startswith(prefix + 'decoder'):
+                new_k = prefix + 'encoder' + k[len(prefix + 'decoder'):]
+                state_dict[new_k] = state_dict[k]
+                del state_dict[k]
+
+        # upgrade children modules
         super().upgrade_state_dict_named(state_dict, name)
 
-        prefix = name + '.' if name != '' else ''
-        current_head_names = [] if not hasattr(self, 'classification_heads') else \
-            self.classification_heads.keys()
-
         # Handle new classification heads present in the state dict.
+        current_head_names = (
+            [] if not hasattr(self, 'classification_heads')
+            else self.classification_heads.keys()
+        )
         keys_to_delete = []
         for k in state_dict.keys():
             if not k.startswith(prefix + 'classification_heads.'):
@@ -214,7 +244,7 @@ class RobertaLMHead(nn.Module):
         self.bias = nn.Parameter(torch.zeros(output_dim))
 
     def forward(self, features, masked_tokens=None, **kwargs):
-        # Only project the unmasked tokens while training,
+        # Only project the masked tokens while training,
         # saves both memory and computation
         if masked_tokens is not None:
             features = features[masked_tokens, :]
@@ -230,12 +260,14 @@ class RobertaLMHead(nn.Module):
 class RobertaClassificationHead(nn.Module):
     """Head for sentence-level classification tasks."""
 
-    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout):
+    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout, q_noise=0, qn_block_size=8):
         super().__init__()
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout = nn.Dropout(p=pooler_dropout)
-        self.out_proj = nn.Linear(inner_dim, num_classes)
+        self.out_proj = apply_quant_noise_(
+            nn.Linear(inner_dim, num_classes), q_noise, qn_block_size
+        )
 
     def forward(self, features, **kwargs):
         x = features[:, 0, :]  # take <s> token (equiv. to [CLS])
@@ -247,24 +279,15 @@ class RobertaClassificationHead(nn.Module):
         return x
 
 
-class RobertaEncoder(FairseqDecoder):
-    """RoBERTa encoder.
-
-    Implements the :class:`~fairseq.models.FairseqDecoder` interface required
-    by :class:`~fairseq.models.FairseqLanguageModel`.
-    """
+class RobertaEncoder(FairseqEncoder):
+    """RoBERTa encoder."""
 
     def __init__(self, args, dictionary):
         super().__init__(dictionary)
         self.args = args
 
-        # RoBERTa is a sentence encoder model, so users will intuitively trim
-        # encoder layers. However, the implementation uses the fairseq decoder,
-        # so we fix here.
         if args.encoder_layers_to_keep:
             args.encoder_layers = len(args.encoder_layers_to_keep.split(","))
-            args.decoder_layers_to_keep = args.encoder_layers_to_keep
-            args.encoder_layers_to_keep = None
 
         self.sentence_encoder = TransformerSentenceEncoder(
             padding_idx=dictionary.pad(),
@@ -282,12 +305,16 @@ class RobertaEncoder(FairseqDecoder):
             encoder_normalize_before=True,
             apply_bert_init=True,
             activation_fn=args.activation_fn,
+            q_noise=args.quant_noise_pq,
+            qn_block_size=args.quant_noise_pq_block_size,
         )
+        args.untie_weights_roberta = getattr(args, 'untie_weights_roberta', False)
+
         self.lm_head = RobertaLMHead(
             embed_dim=args.encoder_embed_dim,
             output_dim=len(dictionary),
             activation_fn=args.activation_fn,
-            weight=self.sentence_encoder.embed_tokens.weight,
+            weight=self.sentence_encoder.embed_tokens.weight if not args.untie_weights_roberta else None,
         )
 
     def forward(self, src_tokens, features_only=False, return_all_hiddens=False, masked_tokens=None, **unused):

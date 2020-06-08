@@ -26,10 +26,14 @@ class ModelParallelTransformerEncoderLayer(TransformerEncoderLayer):
         See "Megatron-LM: https://arxiv.org/pdf/1909.08053.pdf" for more details.
     """
 
-    def build_fc1(self, input_dim, output_dim):
+    def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
+        if q_noise > 0:
+            raise NotImplementedError
         return ColumnParallelLinear(input_dim, output_dim, gather_output=False)
 
-    def build_fc2(self, input_dim, output_dim):
+    def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
+        if q_noise > 0:
+            raise NotImplementedError
         return RowParallelLinear(input_dim, output_dim, input_is_parallel=True)
 
     def build_self_attention(self, embed_dim, args, **unused_kwargs):
@@ -46,10 +50,14 @@ class ModelParallelTransformerDecoderLayer(TransformerDecoderLayer):
 
         See "Megatron-LM: https://arxiv.org/pdf/1909.08053.pdf" for more details.
     """
-    def build_fc1(self, input_dim, output_dim):
+    def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
+        if q_noise > 0:
+            raise NotImplementedError
         return ColumnParallelLinear(input_dim, output_dim, gather_output=False)
 
-    def build_fc2(self, input_dim, output_dim):
+    def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
+        if q_noise > 0:
+            raise NotImplementedError
         return RowParallelLinear(input_dim, output_dim, input_is_parallel=True)
 
     def build_self_attention(self, embed_dim, args, **unused_kwargs):
@@ -62,10 +70,10 @@ class ModelParallelTransformerDecoderLayer(TransformerDecoderLayer):
 
     def build_encoder_attention(self, embed_dim, args, **unused_kwargs):
         return ModelParallelMultiheadAttention(
-                embed_dim=embed_dim,
-                num_heads=args.decoder_attention_heads,
-                kdim=getattr(args, "encoder_embed_dim", None),
-                vdim=getattr(args, "encoder_embed_dim", None),
-                dropout=args.attention_dropout,
-                encoder_decoder_attention=True,
+            embed_dim=embed_dim,
+            num_heads=args.decoder_attention_heads,
+            kdim=getattr(args, "encoder_embed_dim", None),
+            vdim=getattr(args, "encoder_embed_dim", None),
+            dropout=args.attention_dropout,
+            encoder_decoder_attention=True,
         )

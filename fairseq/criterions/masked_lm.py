@@ -8,7 +8,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from fairseq import metrics, utils
+from fairseq import metrics, modules, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
 
@@ -18,6 +18,10 @@ class MaskedLmLoss(FairseqCriterion):
     Implementation for the loss used in masked language model (MLM) training.
     """
 
+    def __init__(self, task, tpu):
+        super().__init__(task)
+        self.tpu = tpu
+
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
@@ -26,16 +30,18 @@ class MaskedLmLoss(FairseqCriterion):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
-        # compute MLM loss
         masked_tokens = sample['target'].ne(self.padding_idx)
+        sample_size = masked_tokens.int().sum()
 
         # Rare: when all tokens are masked, project all tokens.
         # We use torch.where to avoid device-to-host transfers,
         # except on CPU where torch.where is not well supported
         # (see github.com/pytorch/pytorch/issues/26247).
-        if masked_tokens.device == torch.device('cpu'):
+        if self.tpu:
+            masked_tokens = None  # always project all tokens on TPU
+        elif masked_tokens.device == torch.device('cpu'):
             if not masked_tokens.any():
-                masked_tokens.fill_(True)
+                masked_tokens = None
         else:
             masked_tokens = torch.where(
                 masked_tokens.any(),
@@ -45,22 +51,18 @@ class MaskedLmLoss(FairseqCriterion):
 
         logits = model(**sample['net_input'], masked_tokens=masked_tokens)[0]
         targets = model.get_targets(sample, [logits])
-        targets = targets[masked_tokens]
+        if masked_tokens is not None:
+            targets = targets[masked_tokens]
 
-        loss = F.nll_loss(
-            F.log_softmax(
-                logits.view(-1, logits.size(-1)),
-                dim=-1,
-                dtype=torch.float32,
-            ),
+        loss = modules.cross_entropy(
+            logits.view(-1, logits.size(-1)),
             targets.view(-1),
             reduction='sum',
             ignore_index=self.padding_idx,
         )
 
-        sample_size = masked_tokens.int().sum()
         logging_output = {
-            'loss': loss.data,
+            'loss': loss,
             'ntokens': sample['ntokens'],
             'nsentences': sample['nsentences'],
             'sample_size': sample_size,

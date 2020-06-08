@@ -44,7 +44,7 @@ from .subsample_dataset import SubsampleDataset
 from .token_block_dataset import TokenBlockDataset
 from .transform_eos_dataset import TransformEosDataset
 from .transform_eos_lang_pair_dataset import TransformEosLangPairDataset
-from .truncate_dataset import TruncateDataset
+from .shorten_dataset import TruncateDataset, RandomCropDataset
 
 from .iterators import (
     CountingIterator,

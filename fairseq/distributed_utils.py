@@ -6,6 +6,7 @@
 import logging
 import os
 import pickle
+import random
 import socket
 import struct
 import subprocess
@@ -27,7 +28,7 @@ def is_master(args):
 
 
 def infer_init_method(args):
-    if args.distributed_init_method is not None:
+    if args.distributed_init_method is not None or getattr(args, 'tpu', False):
         return
 
     # support torch.distributed.launch
@@ -79,38 +80,45 @@ def distributed_init(args):
     if args.distributed_world_size == 1:
         raise ValueError('Cannot initialize distributed with distributed_world_size=1')
 
-    if torch.distributed.is_initialized():
-        warnings.warn('Distributed is already initialized, cannot initialize twice!')
+    if not getattr(args, 'tpu', False):
+        if torch.distributed.is_initialized():
+            warnings.warn('Distributed is already initialized, cannot initialize twice!')
+        else:
+            logger.info('distributed init (rank {}): {}'.format(
+                args.distributed_rank, args.distributed_init_method,
+            ))
+            dist.init_process_group(
+                backend=args.distributed_backend,
+                init_method=args.distributed_init_method,
+                world_size=args.distributed_world_size,
+                rank=args.distributed_rank,
+            )
+            logger.info('initialized host {} as rank {}'.format(
+                socket.gethostname(), args.distributed_rank,
+            ))
+
+            # perform a dummy all-reduce to initialize the NCCL communicator
+            if torch.cuda.is_available():
+                dist.all_reduce(torch.zeros(1).cuda())
+
+        args.distributed_rank = torch.distributed.get_rank()
     else:
-        logger.info('distributed init (rank {}): {}'.format(
-            args.distributed_rank, args.distributed_init_method,
-        ))
-        dist.init_process_group(
-            backend=args.distributed_backend,
-            init_method=args.distributed_init_method,
-            world_size=args.distributed_world_size,
-            rank=args.distributed_rank,
-        )
-        logger.info('initialized host {} as rank {}'.format(
-            socket.gethostname(), args.distributed_rank,
-        ))
+        import torch_xla.core.xla_model as xm
+        assert xm.xrt_world_size() == args.distributed_world_size
+        args.device_id = xm.get_local_ordinal()
+        args.distributed_rank = xm.get_ordinal()
+        xm.rendezvous('distributed_init')  # wait for all workers
+        xm.mark_step()
 
-        # perform a dummy all-reduce to initialize the NCCL communicator
-        if torch.cuda.is_available():
-            dist.all_reduce(torch.zeros(1).cuda())
-        else:
-            dist.all_reduce(torch.zeros(1))
-
-        if is_master(args):
-            logging.getLogger().setLevel(logging.INFO)
-        else:
-            logging.getLogger().setLevel(logging.WARNING)
-
-    args.distributed_rank = torch.distributed.get_rank()
+    if is_master(args):
+        logging.getLogger().setLevel(logging.INFO)
+    else:
+        logging.getLogger().setLevel(logging.WARNING)
 
     if args.model_parallel_size > 1:
         try:
             from fairseq.model_parallel.megatron.mpu import (
+                get_model_parallel_rank,
                 initialize_model_parallel,
                 model_parallel_cuda_manual_seed,
             )
@@ -122,7 +130,53 @@ def distributed_init(args):
             )
         initialize_model_parallel(args.model_parallel_size)
         model_parallel_cuda_manual_seed(args.seed)
+        model_part_number = get_model_parallel_rank()
+        args.checkpoint_suffix += '-model_part-{0}'.format(model_part_number)
     return args.distributed_rank
+
+
+def _distributed_main(i, main, args, kwargs):
+    args.device_id = i
+    if torch.cuda.is_available() and not args.cpu:
+        torch.cuda.set_device(args.device_id)
+    if args.distributed_rank is None:  # torch.multiprocessing.spawn
+        args.distributed_rank = kwargs.get('start_rank', 0) + i
+
+    args.distributed_rank = distributed_init(args)
+    main(args, **kwargs)
+
+
+def call_main(args, main, **kwargs):
+    if args.distributed_init_method is None:
+        infer_init_method(args)
+
+    if args.distributed_init_method is not None:
+        # distributed main
+        if torch.cuda.device_count() > 1 and not args.distributed_no_spawn:
+            start_rank = args.distributed_rank
+            args.distributed_rank = None  # assign automatically
+            kwargs['start_rank'] = start_rank
+            torch.multiprocessing.spawn(
+                fn=_distributed_main,
+                args=(main, args, kwargs),
+                nprocs=torch.cuda.device_count(),
+            )
+        else:
+            _distributed_main(args.device_id, main, args, kwargs)
+    elif args.distributed_world_size > 1:
+        # fallback for single node with multiple GPUs
+        assert args.distributed_world_size <= torch.cuda.device_count()
+        port = random.randint(10000, 20000)
+        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
+        args.distributed_rank = None  # set based on device id
+        torch.multiprocessing.spawn(
+            fn=_distributed_main,
+            args=(main, args, kwargs),
+            nprocs=args.distributed_world_size,
+        )
+    else:
+        # single GPU main
+        main(args, **kwargs)
 
 
 def get_rank():
@@ -138,9 +192,13 @@ def get_default_group():
 
 
 def all_reduce(tensor, group=None):
-    if group is None:
-        group = get_default_group()
-    return dist.all_reduce(tensor, group=group)
+    if isinstance(group, tuple) and group[0] == 'tpu':
+        import torch_xla.core.xla_model as xm
+        return xm.all_reduce('sum', [tensor], groups=group[1])
+    else:
+        if group is None:
+            group = get_default_group()
+        return dist.all_reduce(tensor, group=group)
 
 
 def all_gather_list(data, group=None, max_size=16384):

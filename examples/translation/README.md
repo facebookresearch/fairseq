@@ -22,7 +22,7 @@ Model | Description | Dataset | Download
 
 We require a few additional Python dependencies for preprocessing:
 ```bash
-pip install sacremoses subword_nmt
+pip install fastBPE sacremoses subword_nmt
 ```
 
 Interactive translation via PyTorch Hub:
@@ -33,7 +33,9 @@ import torch
 torch.hub.list('pytorch/fairseq')  # [..., 'transformer.wmt16.en-de', ... ]
 
 # Load a transformer trained on WMT'16 En-De
-en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt16.en-de', tokenizer='moses', bpe='subword_nmt')
+# Note: WMT'19 models use fastBPE instead of subword_nmt, see instructions below
+en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt16.en-de',
+                       tokenizer='moses', bpe='subword_nmt')
 en2de.eval()  # disable dropout
 
 # The underlying model is available under the *models* attribute
@@ -63,6 +65,15 @@ zh2en = TransformerModel.from_pretrained(
 )
 zh2en.translate('你好 世界')
 # 'Hello World'
+```
+
+If you are using a `transformer.wmt19` models, you will need to set the `bpe`
+argument to `'fastbpe'` and (optionally) load the 4-model ensemble:
+```python
+en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de',
+                       checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
+                       tokenizer='moses', bpe='fastbpe')
+en2de.eval()  # disable dropout
 ```
 
 ## Example usage (CLI tools)

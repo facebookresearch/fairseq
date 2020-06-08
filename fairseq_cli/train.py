@@ -16,7 +16,14 @@ import sys
 import numpy as np
 import torch
 
-from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
+from fairseq import (
+    checkpoint_utils,
+    distributed_utils,
+    options,
+    quantization_utils,
+    tasks,
+    utils,
+)
 from fairseq.data import iterators
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.trainer import Trainer
@@ -40,10 +47,10 @@ def main(args, init_distributed=False):
     metrics.reset()
 
     # Initialize CUDA and distributed training
-    if torch.cuda.is_available() and not args.cpu:
+    if torch.cuda.is_available() and not args.cpu and not getattr(args, 'tpu', False):
         torch.cuda.set_device(args.device_id)
     np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    utils.set_torch_seed(args.seed)
     if init_distributed:
         args.distributed_rank = distributed_utils.distributed_init(args)
 
@@ -70,13 +77,23 @@ def main(args, init_distributed=False):
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
+    # (optionally) Configure quantization
+    if args.quantization_config_path is not None:
+        quantizer = quantization_utils.Quantizer(
+            config_path=args.quantization_config_path,
+            max_epoch=args.max_epoch,
+            max_update=args.max_update,
+        )
+    else:
+        quantizer = None
+
     # Build trainer
     if args.model_parallel_size == 1:
-        trainer = Trainer(args, task, model, criterion)
+        trainer = Trainer(args, task, model, criterion, quantizer)
     else:
         trainer = MegatronTrainer(args, task, model, criterion)
 
-    logger.info('training on {} GPUs'.format(args.distributed_world_size))
+    logger.info('training on {} devices (GPUs/TPUs)'.format(args.distributed_world_size))
     logger.info('max tokens per GPU = {} and max sentences per GPU = {}'.format(
         args.max_tokens,
         args.max_sentences,
@@ -85,38 +102,27 @@ def main(args, init_distributed=False):
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
     extra_state, epoch_itr = checkpoint_utils.load_checkpoint(args, trainer)
+    if args.tpu:
+        import torch_xla.core.xla_model as xm
+        xm.rendezvous('load_checkpoint')  # wait for all workers
+        xm.mark_step()
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
-    max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
-    valid_subsets = args.valid_subset.split(',')
     while (
         lr > args.min_lr
         and epoch_itr.next_epoch_idx <= max_epoch
-        and trainer.get_num_updates() < max_update
     ):
         # train for one epoch
-        train(args, trainer, task, epoch_itr)
-
-        if not args.disable_validation and epoch_itr.epoch % args.validate_interval == 0:
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-        else:
-            valid_losses = [None]
+        valid_losses, should_stop = train(args, trainer, task, epoch_itr)
+        if should_stop:
+            break
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
-
-        # save checkpoint
-        if epoch_itr.epoch % args.save_interval == 0:
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
-
-        # early stop
-        if should_stop_early(args, valid_losses[0]):
-            logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
-            break
 
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
@@ -144,12 +150,29 @@ def should_stop_early(args, valid_loss):
         return False
     else:
         should_stop_early.num_runs += 1
-        return should_stop_early.num_runs >= args.patience
+        if should_stop_early.num_runs >= args.patience:
+            logger.info('early stop since valid performance hasn\'t improved for last {} runs'.format(args.patience))
+            return True
+        else:
+            return False
+
+
+def tpu_data_loader(args, itr):
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.parallel_loader as pl
+    xm.rendezvous('tpu_data_loader')  # wait for all workers
+    xm.mark_step()
+    device = utils.get_tpu_device(args)
+    return iterators.CountingIterator(
+        pl.ParallelLoader(itr, [device]).per_device_loader(device),
+        start=getattr(itr, 'n', 0),
+        total=len(itr),
+    )
 
 
 @metrics.aggregate('train')
 def train(args, trainer, task, epoch_itr):
-    """Train the model for one epoch."""
+    """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=args.fix_batches_to_gpus,
@@ -161,6 +184,8 @@ def train(args, trainer, task, epoch_itr):
         else args.update_freq[-1]
     )
     itr = iterators.GroupedIterator(itr, update_freq)
+    if getattr(args, 'tpu', False):
+        itr = tpu_data_loader(args, itr)
     progress = progress_bar.progress_bar(
         itr,
         log_format=args.log_format,
@@ -172,11 +197,10 @@ def train(args, trainer, task, epoch_itr):
         default_log_format=('tqdm' if not args.no_progress_bar else 'simple'),
     )
 
-    # task specific setup per epoch
-    task.begin_epoch(epoch_itr.epoch, trainer.get_model())
+    trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = args.valid_subset.split(',')
-    max_update = args.max_update or math.inf
+    should_stop = False
     for samples in progress:
         with metrics.aggregate('train_inner'):
             log_output = trainer.train_step(samples)
@@ -193,16 +217,11 @@ def train(args, trainer, task, epoch_itr):
             # the end-of-epoch stats will still be preserved
             metrics.reset_meters('train_inner')
 
-        if (
-            not args.disable_validation
-            and args.save_interval_updates > 0
-            and num_updates % args.save_interval_updates == 0
-            and num_updates > 0
-        ):
-            valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
-            checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
-
-        if num_updates >= max_update:
+        end_of_epoch = not itr.has_next()
+        valid_losses, should_stop = validate_and_save(
+            args, trainer, task, epoch_itr, valid_subsets, end_of_epoch
+        )
+        if should_stop:
             break
 
     # log end-of-epoch stats
@@ -211,11 +230,47 @@ def train(args, trainer, task, epoch_itr):
 
     # reset epoch-level meters
     metrics.reset_meters('train')
+    return valid_losses, should_stop
+
+
+def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoch):
+    num_updates = trainer.get_num_updates()
+    do_save = (
+        (
+            args.save_interval_updates > 0
+            and num_updates > 0
+            and num_updates % args.save_interval_updates == 0
+        )
+        or (end_of_epoch and epoch_itr.epoch % args.save_interval == 0)
+    )
+    do_validate = (
+        (
+            (not end_of_epoch and do_save)  # validate during mid-epoch saves
+            or (end_of_epoch and epoch_itr.epoch % args.validate_interval == 0)
+        )
+        and not args.disable_validation
+    )
+
+    # Validate
+    valid_losses = [None]
+    if do_validate:
+        valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
+
+    # Stopping conditions
+    max_update = args.max_update or math.inf
+    should_stop = (
+        should_stop_early(args, valid_losses[0])
+        or trainer.get_num_updates() >= max_update
+    )
+
+    # Save checkpoint
+    if do_save or should_stop:
+        checkpoint_utils.save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
+
+    return valid_losses, should_stop
 
 
 def get_training_stats(stats):
-    if 'nll_loss' in stats and 'ppl' not in stats:
-        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
     stats['wall'] = round(metrics.get_meter('default', 'wall').elapsed_time, 0)
     return stats
 
@@ -230,21 +285,9 @@ def validate(args, trainer, task, epoch_itr, subsets):
     valid_losses = []
     for subset in subsets:
         # Initialize data iterator
-        itr = task.get_batch_iterator(
-            dataset=task.dataset(subset),
-            max_tokens=args.max_tokens_valid,
-            max_sentences=args.max_sentences_valid,
-            max_positions=utils.resolve_max_positions(
-                task.max_positions(),
-                trainer.get_model().max_positions(),
-            ),
-            ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
-            required_batch_size_multiple=args.required_batch_size_multiple,
-            seed=args.seed,
-            num_shards=args.distributed_world_size,
-            shard_id=args.distributed_rank,
-            num_workers=args.num_workers,
-        ).next_epoch_itr(shuffle=False)
+        itr = trainer.get_valid_iterator(subset).next_epoch_itr(shuffle=False)
+        if getattr(args, 'tpu', False):
+            itr = tpu_data_loader(args, itr)
         progress = progress_bar.progress_bar(
             itr,
             log_format=args.log_format,
@@ -272,8 +315,6 @@ def validate(args, trainer, task, epoch_itr, subsets):
 
 
 def get_valid_stats(args, trainer, stats):
-    if 'nll_loss' in stats and 'ppl' not in stats:
-        stats['ppl'] = utils.get_perplexity(stats['nll_loss'])
     stats['num_updates'] = trainer.get_num_updates()
     if hasattr(checkpoint_utils.save_checkpoint, 'best'):
         key = 'best_{0}'.format(args.best_checkpoint_metric)
@@ -312,16 +353,25 @@ def cli_main(modify_parser=None):
         else:
             distributed_main(args.device_id, args)
     elif args.distributed_world_size > 1:
-        # fallback for single node with multiple GPUs
-        assert args.distributed_world_size <= torch.cuda.device_count()
-        port = random.randint(10000, 20000)
-        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
-        args.distributed_rank = None  # set based on device id
-        torch.multiprocessing.spawn(
-            fn=distributed_main,
-            args=(args, ),
-            nprocs=args.distributed_world_size,
-        )
+        if not getattr(args, 'tpu', False):
+            # fallback for single node with multiple GPUs
+            assert args.distributed_world_size <= torch.cuda.device_count()
+            port = random.randint(10000, 20000)
+            args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
+            args.distributed_rank = None  # set based on device id
+            torch.multiprocessing.spawn(
+                fn=distributed_main,
+                args=(args, ),
+                nprocs=args.distributed_world_size,
+            )
+        else:
+            import torch_xla.distributed.xla_multiprocessing as xmp
+            torch.multiprocessing.set_sharing_strategy('file_system')
+            xmp.spawn(
+                fn=distributed_main,
+                args=(args, ),
+                nprocs=8,  # use all 8 TPU cores
+            )
     else:
         # single GPU training
         main(args)

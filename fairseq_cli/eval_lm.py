@@ -19,6 +19,8 @@ from fairseq.data import LMContextWindowDataset
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
+from fairseq.options import add_distributed_training_args
+from fairseq import distributed_utils
 
 
 logging.basicConfig(
@@ -55,8 +57,11 @@ class WordStat(object):
                                                self.next_word_prob, self.count - self.missing_next_words)
 
 
-def main(parsed_args):
+def main(parsed_args, **unused_kwargs):
     assert parsed_args.path is not None, '--path required for evaluation!'
+
+    if torch.cuda.is_available() and not parsed_args.cpu:
+        torch.cuda.set_device(parsed_args.device_id)
 
     utils.import_user_module(parsed_args)
 
@@ -72,6 +77,7 @@ def main(parsed_args):
         parsed_args.path.split(os.pathsep),
         arg_overrides=eval(parsed_args.model_overrides),
         task=task,
+        suffix=getattr(parsed_args, "checkpoint_suffix", ""),
     )
 
     for arg in vars(parsed_args).keys():
@@ -243,7 +249,7 @@ def main(parsed_args):
 def cli_main():
     parser = options.get_eval_lm_parser()
     args = options.parse_args_and_arch(parser)
-    main(args)
+    distributed_utils.call_main(args, main)
 
 
 if __name__ == '__main__':
