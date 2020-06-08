@@ -415,6 +415,20 @@ class TestTranslation(unittest.TestCase):
                 )
                 generate_main(data_dir)
 
+    def test_transformer_relative_positional_embeddings(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_transformer') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'transformer_rel_pos_embeddings', [
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--max-relative-pos', '5'
+                ], run_validation=True)
+                generate_main(data_dir)
+
 
 class TestStories(unittest.TestCase):
 

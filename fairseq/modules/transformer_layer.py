@@ -58,6 +58,12 @@ class TransformerEncoderLayer(nn.Module):
             args.encoder_attention_heads,
             dropout=args.attention_dropout,
             self_attention=True,
+            relative_pos_type=("unmasked"
+                               if getattr(args, "use_relative_pos_embeddings", False)
+                               else None),
+            max_relative_pos=getattr(args, "max_relative_pos", 128),
+            heads_share_embeddings=getattr(args, "heads_share_embeddings", False),
+            add_pos_embeddings_to_values=getattr(args, "add_pos_embeddings_to_values", False)
         )
 
     def upgrade_state_dict_named(self, state_dict, name):
@@ -107,6 +113,7 @@ class TransformerEncoderLayer(nn.Module):
             key=x,
             value=x,
             key_padding_mask=encoder_padding_mask,
+            need_weights=False,
             attn_mask=attn_mask,
         )
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -202,6 +209,12 @@ class TransformerDecoderLayer(nn.Module):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
             self_attention=not getattr(args, "cross_self_attention", False),
+            relative_pos_type=("masked"
+                               if getattr(args, "use_relative_pos_embeddings", False)
+                               else None),
+            max_relative_pos=getattr(args, "max_relative_pos", 128),
+            heads_share_embeddings=getattr(args, "heads_share_embeddings", False),
+            add_pos_embeddings_to_values=getattr(args, "add_pos_embeddings_to_values", False)
         )
 
     def build_encoder_attention(self, embed_dim, args):

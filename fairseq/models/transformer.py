@@ -162,6 +162,15 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='add layernorm to embedding')
         parser.add_argument('--no-scale-embedding', action='store_true',
                             help='if True, dont scale embeddings')
+        # args for using learned relative positional embeddings
+        parser.add_argument('--use-relative-pos-embeddings', default=False, action='store_true',
+                            help='Use learned relative positions in multi-head self attention')
+        parser.add_argument('--max-relative-pos', type=int, default=128,
+                            help='Max relative position to create an embedding for.')
+        parser.add_argument('--heads-share-embeddings', default=False, action='store_true',
+                            help='Heads share the same relative positional embeddings')
+        parser.add_argument('--add-pos-embeddings-to-values', default=False, action='store_true',
+                            help='Add relative positional embeddings to values (apart from keys)')
         # fmt: on
 
     @classmethod
@@ -1042,3 +1051,9 @@ def transformer_wmt_en_de_big_align(args):
     args.alignment_heads = getattr(args, "alignment_heads", 1)
     args.alignment_layer = getattr(args, "alignment_layer", 4)
     transformer_wmt_en_de_big(args)
+
+@register_model_architecture("transformer", "transformer_rel_pos_embeddings")
+def transformer_rel_pos_embeddings(args):
+    args.no_token_positional_embeddings = getattr(args, "no_token_positional_embeddings", True)
+    args.use_relative_pos_embeddings = getattr(args, "use_relative_pos_embeddings", True)
+    base_architecture(args)
