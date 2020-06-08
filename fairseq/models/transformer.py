@@ -819,14 +819,15 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 "{}.embed_positions._float_tensor".format(name)
             ] = torch.FloatTensor(1)
 
-        if self.share_input_output_embed:
-            embed_out_key = f"{name}.embed_tokens.weight"
-        else:
-            embed_out_key = f"{name}.embed_out"
-        if embed_out_key in state_dict:
-            state_dict[f"{name}.output_projection.weight"] = state_dict[embed_out_key]
-            if not self.share_input_output_embed:
-                del state_dict[embed_out_key]
+        if f"{name}.output_projection.weight" not in state_dict:
+            if self.share_input_output_embed:
+                embed_out_key = f"{name}.embed_tokens.weight"
+            else:
+                embed_out_key = f"{name}.embed_out"
+            if embed_out_key in state_dict:
+                state_dict[f"{name}.output_projection.weight"] = state_dict[embed_out_key]
+                if not self.share_input_output_embed:
+                    del state_dict[embed_out_key]
 
         for i in range(self.num_layers):
             # update layer norms
