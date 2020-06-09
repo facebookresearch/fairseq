@@ -21,6 +21,7 @@ from fairseq.data import (
     RawLabelDataset,
     RightPadDataset,
     SortDataset,
+    TruncateDataset,
 )
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import FairseqTask, register_task
