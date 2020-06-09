@@ -5,6 +5,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from itertools import chain
 import logging
 import sys
 
@@ -12,7 +13,7 @@ import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, utils
 from fairseq.logging import metrics, progress_bar
-from fairseq.options import add_distributed_training_args
+
 
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -31,6 +32,9 @@ def main(args, override_args=None):
 
     use_fp16 = args.fp16
     use_cuda = torch.cuda.is_available() and not args.cpu
+
+    if use_cuda:
+        torch.cuda.set_device(args.device_id)
 
     if override_args is not None:
         overrides = vars(override_args)
@@ -80,6 +84,8 @@ def main(args, override_args=None):
             ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
             required_batch_size_multiple=args.required_batch_size_multiple,
             seed=args.seed,
+            num_shards=args.distributed_world_size,
+            shard_id=args.distributed_rank,
             num_workers=args.num_workers,
         ).next_epoch_itr(shuffle=False)
         progress = progress_bar.progress_bar(
@@ -97,6 +103,13 @@ def main(args, override_args=None):
             progress.log(log_output, step=i)
             log_outputs.append(log_output)
 
+        if args.distributed_world_size > 1:
+            log_outputs = distributed_utils.all_gather_list(
+                log_outputs,
+                max_size=getattr(args, 'all_gather_list_size', 16384),
+            )
+            log_outputs = list(chain.from_iterable(log_outputs))
+
         with metrics.aggregate() as agg:
             task.reduce_metrics(log_outputs, criterion)
             log_output = agg.get_smoothed_values()
@@ -106,12 +119,10 @@ def main(args, override_args=None):
 
 def cli_main():
     parser = options.get_validation_parser()
-    add_distributed_training_args(parser)
     args = options.parse_args_and_arch(parser)
 
     # only override args that are explicitly given on the command line
     override_parser = options.get_validation_parser()
-    add_distributed_training_args(override_parser)
     override_args = options.parse_args_and_arch(override_parser, suppress_defaults=True)
 
     distributed_utils.call_main(args, main, override_args=override_args)

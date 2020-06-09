@@ -375,13 +375,7 @@ class FairseqMultiModel(BaseFairseqModel):
         return build_embedding(shared_dict, embed_dim, pretrained_embed_path)
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
-        decoder_outs = {}
-        for key in self.keys:
-            encoder_out = self.models[key].encoder(src_tokens, src_lengths, **kwargs)
-            decoder_outs[key] = self.models[key].decoder(
-                prev_output_tokens, encoder_out, **kwargs
-            )
-        return decoder_outs
+        raise NotImplementedError
 
     def max_positions(self):
         """Maximum length supported by the model."""

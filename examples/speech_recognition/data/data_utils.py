@@ -19,6 +19,10 @@ def calc_mean_invstddev(feature):
 
 
 def apply_mv_norm(features):
+    # If there is less than 2 spectrograms, the variance cannot be computed (is NaN)
+    # and normalization is not possible, so return the item as it is
+    if features.size(0) < 2:
+        return features
     mean, invstddev = calc_mean_invstddev(features)
     res = (features - mean) * invstddev
     return res

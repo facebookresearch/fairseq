@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 from fairseq import utils
 from fairseq.models import (
-    BaseFairseqModel,
+    FairseqEncoderModel,
     FairseqEncoder,
     register_model,
     register_model_architecture,
@@ -28,15 +28,14 @@ logger = logging.getLogger(__name__)
 
 
 @register_model('masked_lm')
-class MaskedLMModel(BaseFairseqModel):
+class MaskedLMModel(FairseqEncoderModel):
     """
     Class for training a Masked Language Model. It also supports an
     additional sentence level prediction if the sent-loss argument is set.
     """
     def __init__(self, args, encoder):
-        super().__init__()
+        super().__init__(encoder)
         self.args = args
-        self.encoder = encoder
 
         # if specified then apply bert initialization on the model. We need
         # to explictly call this to make sure that the output embeddings
@@ -79,6 +78,8 @@ class MaskedLMModel(BaseFairseqModel):
                             ' (outside self attention)')
         parser.add_argument('--num-segment', type=int, metavar='N',
                             help='num segment in the input')
+        parser.add_argument('--max-positions', type=int,
+                            help='number of positional embeddings to learn')
 
         # Arguments related to sentence level prediction
         parser.add_argument('--sentence-class-num', type=int, metavar='N',

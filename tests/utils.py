@@ -4,10 +4,14 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import os
+import random
+import sys
 import torch
 import torch.nn.functional as F
 
-from fairseq import utils
+from io import StringIO
+from fairseq import options, utils
 from fairseq.data import Dictionary
 from fairseq.data.language_pair_dataset import collate
 from fairseq.models import (
@@ -17,6 +21,13 @@ from fairseq.models import (
 )
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.tasks import FairseqTask
+from fairseq_cli import (
+    generate,
+    interactive,
+    preprocess,
+    train,
+    validate,
+)
 
 
 def dummy_dictionary(vocab_size, prefix='token_'):
@@ -114,6 +125,148 @@ def sequence_generator_setup():
     tgt_dict = task.target_dictionary
 
     return tgt_dict, w1, w2, src_tokens, src_lengths, model
+
+
+def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
+    def _create_dummy_data(filename):
+        data = torch.rand(num_examples * maxlen)
+        data = 97 + torch.floor(26 * data).int()
+        with open(os.path.join(data_dir, filename), 'w') as h:
+            offset = 0
+            for _ in range(num_examples):
+                ex_len = random.randint(1, maxlen)
+                ex_str = ' '.join(map(chr, data[offset:offset+ex_len]))
+                print(ex_str, file=h)
+                offset += ex_len
+
+    def _create_dummy_alignment_data(filename_src, filename_tgt, filename):
+        with open(os.path.join(data_dir, filename_src), 'r') as src_f, \
+             open(os.path.join(data_dir, filename_tgt), 'r') as tgt_f, \
+             open(os.path.join(data_dir, filename), 'w') as h:
+            for src, tgt in zip(src_f, tgt_f):
+                src_len = len(src.split())
+                tgt_len = len(tgt.split())
+                avg_len = (src_len + tgt_len) // 2
+                num_alignments = random.randint(avg_len // 2, 2 * avg_len)
+                src_indices = torch.floor(torch.rand(num_alignments) * src_len).int()
+                tgt_indices = torch.floor(torch.rand(num_alignments) * tgt_len).int()
+                ex_str = ' '.join(["{}-{}".format(src, tgt) for src, tgt in zip(src_indices, tgt_indices)])
+                print(ex_str, file=h)
+
+    _create_dummy_data('train.in')
+    _create_dummy_data('train.out')
+    _create_dummy_data('valid.in')
+    _create_dummy_data('valid.out')
+    _create_dummy_data('test.in')
+    _create_dummy_data('test.out')
+
+    if alignment:
+        _create_dummy_alignment_data('train.in', 'train.out', 'train.align')
+        _create_dummy_alignment_data('valid.in', 'valid.out', 'valid.align')
+        _create_dummy_alignment_data('test.in', 'test.out', 'test.align')
+
+
+def preprocess_lm_data(data_dir):
+    preprocess_parser = options.get_preprocessing_parser()
+    preprocess_args = preprocess_parser.parse_args([
+        '--only-source',
+        '--trainpref', os.path.join(data_dir, 'train.out'),
+        '--validpref', os.path.join(data_dir, 'valid.out'),
+        '--testpref', os.path.join(data_dir, 'test.out'),
+        '--destdir', data_dir,
+    ])
+    preprocess.main(preprocess_args)
+
+
+def preprocess_translation_data(data_dir, extra_flags=None):
+    preprocess_parser = options.get_preprocessing_parser()
+    preprocess_args = preprocess_parser.parse_args(
+        [
+            '--source-lang', 'in',
+            '--target-lang', 'out',
+            '--trainpref', os.path.join(data_dir, 'train'),
+            '--validpref', os.path.join(data_dir, 'valid'),
+            '--testpref', os.path.join(data_dir, 'test'),
+            '--thresholdtgt', '0',
+            '--thresholdsrc', '0',
+            '--destdir', data_dir,
+        ] + (extra_flags or []),
+    )
+    preprocess.main(preprocess_args)
+
+
+def train_translation_model(data_dir, arch, extra_flags=None, task='translation', run_validation=False,
+                            lang_flags=None, extra_valid_flags=None):
+    if lang_flags is None:
+        lang_flags = [
+            '--source-lang', 'in',
+            '--target-lang', 'out',
+        ]
+    train_parser = options.get_training_parser()
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            '--task', task,
+            data_dir,
+            '--save-dir', data_dir,
+            '--arch', arch,
+            '--lr', '0.05',
+            '--max-tokens', '500',
+            '--max-epoch', '1',
+            '--no-progress-bar',
+            '--distributed-world-size', '1',
+            '--num-workers', 0,
+        ] + lang_flags + (extra_flags or []),
+    )
+    train.main(train_args)
+
+    if run_validation:
+        # test validation
+        validate_parser = options.get_validation_parser()
+        validate_args = options.parse_args_and_arch(
+            validate_parser,
+            [
+                '--task', task,
+                data_dir,
+                '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+                '--valid-subset', 'valid',
+                '--max-tokens', '500',
+                '--no-progress-bar',
+            ] + lang_flags + (extra_valid_flags or [])
+        )
+        validate.main(validate_args)
+
+
+def generate_main(data_dir, extra_flags=None):
+    if extra_flags is None:
+        extra_flags = [
+            '--print-alignment',
+        ]
+    generate_parser = options.get_generation_parser()
+    generate_args = options.parse_args_and_arch(
+        generate_parser,
+        [
+            data_dir,
+            '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
+            '--beam', '3',
+            '--batch-size', '64',
+            '--max-len-b', '5',
+            '--gen-subset', 'valid',
+            '--no-progress-bar',
+        ] + (extra_flags or []),
+    )
+
+    # evaluate model in batch mode
+    generate.main(generate_args)
+
+    # evaluate model interactively
+    generate_args.buffer_size = 0
+    generate_args.input = '-'
+    generate_args.max_sentences = None
+    orig_stdin = sys.stdin
+    sys.stdin = StringIO('h e l l o\n')
+    interactive.main(generate_args)
+    sys.stdin = orig_stdin
 
 
 class TestDataset(torch.utils.data.Dataset):

@@ -211,7 +211,9 @@ class EpochBatchIterator(EpochBatchIterating):
         self.num_shards = num_shards
         self.shard_id = shard_id
         self.num_workers = num_workers
-        self.buffer_size = buffer_size
+        # This upper limit here is to prevent people from abusing this feature
+        # in a shared computing environment.
+        self.buffer_size = min(buffer_size, 5)
 
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = True
@@ -421,11 +423,14 @@ class BackgroundConsumer(Thread):
         self._source = source
 
     def run(self):
-        for item in self._source:
-            self._queue.put(item)
+        try:
+            for item in self._source:
+                self._queue.put(item)
 
-        # Signal the consumer we are done.
-        self._queue.put(_sentinel)
+            # Signal the consumer we are done.
+            self._queue.put(_sentinel)
+        except Exception as e:
+            self._queue.put(e)
 
 
 class BufferedIterator(object):
@@ -454,12 +459,14 @@ class BufferedIterator(object):
                     logger.info(
                         "Data loading buffer is empty or nearly empty. This may "
                         "indicate a data loading bottleneck, and increasing the "
-                        "number of workers may help."
+                        "number of workers (--num-workers) may help."
                     )
                     self.warning_time = time.time()
 
         # Get next example
         item = self._queue.get(True)
+        if isinstance(item, Exception):
+            raise item
         if item is _sentinel:
             raise StopIteration()
         return item

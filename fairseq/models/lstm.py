@@ -176,7 +176,8 @@ class LSTMModel(FairseqEncoderDecoderModel):
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int)
                 if args.criterion == 'adaptive_loss' else None
             ),
-            max_target_positions=max_target_positions
+            max_target_positions=max_target_positions,
+            residuals=False
         )
         return cls(encoder, decoder)
 
@@ -346,7 +347,6 @@ class AttentionLayer(nn.Module):
         x = torch.tanh(self.output_proj(torch.cat((x, input), dim=1)))
         return x, attn_scores
 
-
 class LSTMDecoder(FairseqIncrementalDecoder):
     """LSTM decoder."""
     def __init__(
@@ -354,7 +354,8 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         num_layers=1, dropout_in=0.1, dropout_out=0.1, attention=True,
         encoder_output_units=512, pretrained_embed=None,
         share_input_output_embed=False, adaptive_softmax_cutoff=None,
-        max_target_positions=DEFAULT_MAX_TARGET_POSITIONS
+        max_target_positions=DEFAULT_MAX_TARGET_POSITIONS,
+        residuals=False
     ):
         super().__init__(dictionary)
         self.dropout_in = dropout_in
@@ -363,6 +364,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         self.share_input_output_embed = share_input_output_embed
         self.need_attn = True
         self.max_target_positions = max_target_positions
+        self.residuals = residuals
         self.num_layers = num_layers
 
         self.adaptive_softmax = None
@@ -501,6 +503,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
                 # hidden state becomes the input to the next layer
                 input = F.dropout(hidden, p=self.dropout_out, training=self.training)
+                if self.residuals: input = input + prev_hiddens[i]
 
                 # save state for next time step
                 prev_hiddens[i] = hidden

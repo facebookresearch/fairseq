@@ -123,7 +123,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py IMDB-bin/ \
     --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
-    --truncate-sequence \
+    --shorten-method "truncate" \
     --find-unused-parameters \
     --update-freq 4
 ```

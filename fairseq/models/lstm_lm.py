@@ -39,6 +39,9 @@ class LSTMLanguageModel(FairseqLanguageModel):
         parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
                             help='comma separated list of adaptive softmax cutoff points. '
                                  'Must be used with adaptive_loss criterion')
+        parser.add_argument('--residuals', default=False,
+                            action='store_true',
+                            help='applying residuals between LSTM layers')
 
         # Granular dropout settings (if not specified these default to --dropout)
         parser.add_argument('--decoder-dropout-in', type=float, metavar='D',
@@ -104,7 +107,8 @@ class LSTMLanguageModel(FairseqLanguageModel):
                 options.eval_str_list(args.adaptive_softmax_cutoff, type=int)
                 if args.criterion == 'adaptive_loss' else None
             ),
-            max_target_positions=max_target_positions
+            max_target_positions=max_target_positions,
+            residuals=args.residuals
         )
 
         return cls(decoder)
@@ -123,3 +127,4 @@ def base_architecture(args):
     args.decoder_dropout_out = getattr(args, 'decoder_dropout_out', args.dropout)
     args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
     args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '10000,50000,200000')
+    args.residuals = getattr(args, 'residuals', False)

@@ -8,6 +8,7 @@ import os
 
 import numpy as np
 
+from fairseq import utils
 from fairseq.data import (
     ConcatSentencesDataset,
     data_utils,
@@ -23,8 +24,8 @@ from fairseq.data import (
     RollDataset,
     SortDataset,
     StripTokenDataset,
-    TruncateDataset,
 )
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import FairseqTask, register_task
 
 
@@ -53,8 +54,12 @@ class SentencePredictionTask(FairseqTask):
                             help='add separator token between inputs')
         parser.add_argument('--regression-target', action='store_true', default=False)
         parser.add_argument('--no-shuffle', action='store_true', default=False)
-        parser.add_argument('--truncate-sequence', action='store_true', default=False,
-                            help='truncate sequence to max-positions')
+        parser.add_argument('--shorten-method', default='none',
+                            choices=['none', 'truncate', 'random_crop'],
+                            help='if not none, shorten sequences that exceed --tokens-per-sample')
+        parser.add_argument('--shorten-data-split-whitelist', default='',
+                            help='comma-separated list of dataset splits to apply shortening to, '
+                                 'e.g., "train,valid" (default: all dataset splits)')
         parser.add_argument('--add-prev-output-tokens', action='store_true', default=False,
                             help='add prev_output_tokens to sample, used for encoder-decoder arch')
 
@@ -141,8 +146,14 @@ class SentencePredictionTask(FairseqTask):
         with data_utils.numpy_seed(self.args.seed):
             shuffle = np.random.permutation(len(src_tokens))
 
-        if self.args.truncate_sequence:
-            src_tokens = TruncateDataset(src_tokens, self.args.max_positions)
+        src_tokens = maybe_shorten_dataset(
+            src_tokens,
+            split,
+            self.args.shorten_data_split_whitelist,
+            self.args.shorten_method,
+            self.args.max_positions,
+            self.args.seed,
+        )
 
         dataset = {
             'id': IdDataset(),

@@ -114,7 +114,7 @@ class TransformerSentenceEncoder(nn.Module):
         self.traceable = traceable
         self.tpu = False  # whether we're on TPU
 
-        self.embed_tokens = nn.Embedding(
+        self.embed_tokens = self.build_embedding(
             self.vocab_size, self.embedding_dim, self.padding_idx
         )
         self.embed_scale = embed_scale
@@ -150,7 +150,7 @@ class TransformerSentenceEncoder(nn.Module):
         else:
             self.layers = nn.ModuleList([])
         self.layers.extend([
-            TransformerSentenceEncoderLayer(
+            self.build_transformer_sentence_encoder_layer(
                 embedding_dim=self.embedding_dim,
                 ffn_embedding_dim=ffn_embedding_dim,
                 num_attention_heads=num_attention_heads,
@@ -187,6 +187,35 @@ class TransformerSentenceEncoder(nn.Module):
 
         for layer in range(n_trans_layers_to_freeze):
             freeze_module_params(self.layers[layer])
+
+    def build_embedding(self, vocab_size, embedding_dim, padding_idx):
+        return nn.Embedding(vocab_size, embedding_dim, padding_idx)
+
+    def build_transformer_sentence_encoder_layer(
+        self,
+        embedding_dim,
+        ffn_embedding_dim,
+        num_attention_heads,
+        dropout,
+        attention_dropout,
+        activation_dropout,
+        activation_fn,
+        export,
+        q_noise,
+        qn_block_size,
+    ):
+        return TransformerSentenceEncoderLayer(
+            embedding_dim=embedding_dim,
+            ffn_embedding_dim=ffn_embedding_dim,
+            num_attention_heads=num_attention_heads,
+            dropout=dropout,
+            attention_dropout=attention_dropout,
+            activation_dropout=activation_dropout,
+            activation_fn=activation_fn,
+            export=export,
+            q_noise=q_noise,
+            qn_block_size=qn_block_size,
+        )
 
     def prepare_for_tpu_(self, **kwargs):
         self.tpu = True
