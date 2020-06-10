@@ -423,11 +423,14 @@ class BackgroundConsumer(Thread):
         self._source = source
 
     def run(self):
-        for item in self._source:
-            self._queue.put(item)
+        try:
+            for item in self._source:
+                self._queue.put(item)
 
-        # Signal the consumer we are done.
-        self._queue.put(_sentinel)
+            # Signal the consumer we are done.
+            self._queue.put(_sentinel)
+        except Exception as e:
+            self._queue.put(e)
 
 
 class BufferedIterator(object):
@@ -462,6 +465,8 @@ class BufferedIterator(object):
 
         # Get next example
         item = self._queue.get(True)
+        if isinstance(item, Exception):
+            raise item
         if item is _sentinel:
             raise StopIteration()
         return item
