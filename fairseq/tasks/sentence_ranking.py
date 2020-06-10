@@ -21,6 +21,7 @@ from fairseq.data import (
     RawLabelDataset,
     RightPadDataset,
     SortDataset,
+    TruncateDataset
 )
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import FairseqTask, register_task
@@ -124,15 +125,14 @@ class SentenceRankingTask(FairseqTask):
             if self.args.max_option_length is not None:
                 input_option = TruncateDataset(input_option, self.args.max_option_length)
             src_token = ConcatSentencesDataset(input_option, input0)
-            if self.args.truncate_sequence:
-                src_token = maybe_shorten_dataset(
-                    src_token,
-                    split,
-                    self.args.shorten_data_split_whitelist,
-                    self.args.shorten_method,
-                    self.args.max_positions,
-                    self.args.seed,
-                )
+            src_token = maybe_shorten_dataset(
+                src_token,
+                split,
+                self.args.shorten_data_split_whitelist,
+                self.args.shorten_method,
+                self.args.max_positions,
+                self.args.seed,
+            )
             src_tokens.append(src_token)
 
         with data_utils.numpy_seed(self.args.seed):
