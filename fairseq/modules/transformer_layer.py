@@ -89,30 +89,28 @@ class TransformerEncoderLayer(nn.Module):
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
             encoder_padding_mask (ByteTensor): binary ByteTensor of shape
-                `(batch, src_len)` where padding elements are indicated by ``1``.
-            attn_mask (ByteTensor): binary tensor of shape (T_tgt, T_src), where
-            T_tgt is the length of query, while T_src is the length of key,
-            though here both query and key is x here,
-            attn_mask[t_tgt, t_src] = 1 means when calculating embedding
-            for t_tgt, t_src is excluded (or masked out), =0 means it is
-            included in attention
+                `(batch, seq_len)` where padding elements are indicated by ``1``.
+            attn_mask (ByteTensor): binary tensor of shape `(tgt_len, src_len)`,
+                where `tgt_len` is the length of output and `src_len` is the
+                length of input, though here both are equal to `seq_len`.
+                `attn_mask[tgt_i, src_j] = 1` means that when calculating the
+                embedding for `tgt_i`, we exclude (mask out) `src_j`. This is
+                useful for strided self-attention.
 
         Returns:
             encoded output of shape `(seq_len, batch, embed_dim)`
         """
-        residual = x
-        if self.normalize_before:
-            x = self.self_attn_layer_norm(x)
-        if attn_mask is not None:
-            attn_mask = attn_mask.masked_fill(attn_mask.to(torch.bool), -1e8)
         # anything in original attn_mask = 1, becomes -1e8
         # anything in original attn_mask = 0, becomes 0
         # Note that we cannot use -inf here, because at some edge cases,
         # the attention weight (before softmax) for some padded element in query
         # will become -inf, which results in NaN in model parameters
-        # TODO: to formally solve this problem, we need to change fairseq's
-        # MultiheadAttention. We will do this later on.
+        if attn_mask is not None:
+            attn_mask = attn_mask.masked_fill(attn_mask.to(torch.bool), -1e8)
 
+        residual = x
+        if self.normalize_before:
+            x = self.self_attn_layer_norm(x)
         x, _ = self.self_attn(
             query=x,
             key=x,
