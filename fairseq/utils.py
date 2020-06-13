@@ -262,9 +262,11 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
             return torch.tensor(0.)
 
     if len(grads) == 1:
-        total_norm = torch.norm(grads[0])
+        total_norm = torch.norm(grads[0], p=2, dtype=torch.float32)
     else:
-        total_norm = torch.norm(torch.stack([torch.norm(g) for g in grads]))
+        total_norm = torch.norm(
+            torch.stack([torch.norm(g, p=2, dtype=torch.float32) for g in grads])
+        )
 
     if aggregate_norm_fn is not None:
         total_norm = aggregate_norm_fn(total_norm)
