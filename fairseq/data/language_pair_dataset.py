@@ -8,14 +8,18 @@ import logging
 import numpy as np
 import torch
 
-from . import data_utils, FairseqDataset
+from fairseq.data import data_utils, FairseqDataset
 
 
 logger = logging.getLogger(__name__)
 
 
 def collate(
-    samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
+    samples,
+    pad_idx,
+    eos_idx,
+    left_pad_source=True,
+    left_pad_target=False,
     input_feeding=True,
 ):
     if len(samples) == 0:
@@ -52,7 +56,9 @@ def collate(
     id = torch.LongTensor([s['id'] for s in samples])
     src_tokens = merge('source', left_pad=left_pad_source)
     # sort by descending source length
-    src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
+    src_lengths = torch.LongTensor([
+        s['source'].ne(pad_idx).long().sum() for s in samples
+    ])
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
@@ -62,8 +68,10 @@ def collate(
     if samples[0].get('target', None) is not None:
         target = merge('target', left_pad=left_pad_target)
         target = target.index_select(0, sort_order)
-        tgt_lengths = torch.LongTensor([s['target'].numel() for s in samples]).index_select(0, sort_order)
-        ntokens = sum(len(s['target']) for s in samples)
+        tgt_lengths = torch.LongTensor([
+            s['target'].ne(pad_idx).long().sum() for s in samples
+        ]).index_select(0, sort_order)
+        ntokens = tgt_lengths.sum()
 
         if input_feeding:
             # we create a shifted version of targets for feeding the
@@ -75,7 +83,7 @@ def collate(
             )
             prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
-        ntokens = sum(len(s['source']) for s in samples)
+        ntokens = src_lengths.sum()
 
     batch = {
         'id': id,
@@ -154,7 +162,7 @@ class LanguagePairDataset(FairseqDataset):
         shuffle=True, input_feeding=True,
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
-        append_bos=False, eos=None
+        append_bos=False, eos=None,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -248,8 +256,11 @@ class LanguagePairDataset(FairseqDataset):
                   on the left if *left_pad_target* is ``True``.
         """
         return collate(
-            samples, pad_idx=self.src_dict.pad(), eos_idx=self.eos,
-            left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
+            samples,
+            pad_idx=self.src_dict.pad(),
+            eos_idx=self.eos,
+            left_pad_source=self.left_pad_source,
+            left_pad_target=self.left_pad_target,
             input_feeding=self.input_feeding,
         )
 
@@ -271,7 +282,9 @@ class LanguagePairDataset(FairseqDataset):
         else:
             indices = np.arange(len(self))
         if self.tgt_sizes is not None:
-            indices = indices[np.argsort(self.tgt_sizes[indices], kind='mergesort')]
+            indices = indices[
+                np.argsort(self.tgt_sizes[indices], kind='mergesort')
+            ]
         return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
 
     @property
