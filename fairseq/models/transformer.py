@@ -267,9 +267,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
         which are not supported by TorchScript.
         """
         encoder_out = self.encoder(
-            src_tokens,
-            src_lengths=src_lengths,
-            return_all_hiddens=return_all_hiddens,
+            src_tokens, src_lengths=src_lengths, return_all_hiddens=return_all_hiddens
         )
         decoder_out = self.decoder(
             prev_output_tokens,
@@ -346,10 +344,9 @@ class TransformerEncoder(FairseqEncoder):
             self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
-        self.layers.extend([
-            self.build_encoder_layer(args)
-            for i in range(args.encoder_layers)
-        ])
+        self.layers.extend(
+            [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
+        )
         self.num_layers = len(self.layers)
 
         if args.encoder_normalize_before:
@@ -376,12 +373,7 @@ class TransformerEncoder(FairseqEncoder):
             x = self.quant_noise(x)
         return x, embed
 
-    def forward(
-        self,
-        src_tokens,
-        src_lengths,
-        return_all_hiddens: bool = False,
-    ):
+    def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -586,13 +578,17 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
-        self.layers.extend([
-            self.build_decoder_layer(args, no_encoder_attn)
-            for _ in range(args.decoder_layers)
-        ])
+        self.layers.extend(
+            [
+                self.build_decoder_layer(args, no_encoder_attn)
+                for _ in range(args.decoder_layers)
+            ]
+        )
         self.num_layers = len(self.layers)
 
-        if args.decoder_normalize_before and not getattr(args, "no_decoder_final_norm", False):
+        if args.decoder_normalize_before and not getattr(
+            args, "no_decoder_final_norm", False
+        ):
             self.layer_norm = LayerNorm(embed_dim)
         else:
             self.layer_norm = None
@@ -672,6 +668,29 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         return x, extra
 
     def extract_features(
+        self,
+        prev_output_tokens,
+        encoder_out: Optional[EncoderOut] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        full_context_alignment: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
+    ):
+        return self.extract_features_scriptable(
+            prev_output_tokens,
+            encoder_out,
+            incremental_state,
+            full_context_alignment,
+            alignment_layer,
+            alignment_heads,
+        )
+
+    '''
+    A scriptable subclass of this class has an extract_features method and calls
+    super().extract_features, but super() is not supported in torchscript. Aa copy of
+    this function is made to be used in the subclass instead.
+    '''
+    def extract_features_scriptable(
         self,
         prev_output_tokens,
         encoder_out: Optional[EncoderOut] = None,
@@ -825,7 +844,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             else:
                 embed_out_key = f"{name}.embed_out"
             if embed_out_key in state_dict:
-                state_dict[f"{name}.output_projection.weight"] = state_dict[embed_out_key]
+                state_dict[f"{name}.output_projection.weight"] = state_dict[
+                    embed_out_key
+                ]
                 if not self.share_input_output_embed:
                     del state_dict[embed_out_key]
 
