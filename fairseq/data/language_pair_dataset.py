@@ -153,6 +153,8 @@ class LanguagePairDataset(FairseqDataset):
             containing alignments.
         append_bos (bool, optional): if set, appends bos to the beginning of
             source/target sentence.
+        num_buckets (int, optional): if set to a value greater than 0, then
+            batches will be bucketed into the given number of batch shapes.
     """
 
     def __init__(
@@ -163,6 +165,7 @@ class LanguagePairDataset(FairseqDataset):
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
         append_bos=False, eos=None,
+        num_buckets=0,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -187,6 +190,42 @@ class LanguagePairDataset(FairseqDataset):
             assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
         self.append_bos = append_bos
         self.eos = (eos if eos is not None else src_dict.eos())
+
+        if num_buckets > 0:
+            from fairseq.data import BucketPadLengthDataset
+            self.src = BucketPadLengthDataset(
+                self.src,
+                sizes=self.src_sizes,
+                num_buckets=num_buckets,
+                pad_idx=self.src_dict.pad(),
+                left_pad=self.left_pad_source,
+            )
+            self.src_sizes = self.src.sizes
+            logger.info('bucketing source lengths: {}'.format(list(self.src.buckets)))
+            if self.tgt is not None:
+                self.tgt = BucketPadLengthDataset(
+                    self.tgt,
+                    sizes=self.tgt_sizes,
+                    num_buckets=num_buckets,
+                    pad_idx=self.tgt_dict.pad(),
+                    left_pad=self.left_pad_target,
+                )
+                self.tgt_sizes = self.tgt.sizes
+                logger.info('bucketing target lengths: {}'.format(list(self.tgt.buckets)))
+
+            # determine bucket sizes using self.num_tokens, which will return
+            # the padded lengths (thanks to BucketPadLengthDataset)
+            num_tokens = np.vectorize(self.num_tokens, otypes=[np.long])
+            self.bucketed_num_tokens = num_tokens(np.arange(len(self.src)))
+            self.buckets = [
+                (None, num_tokens)
+                for num_tokens in np.unique(self.bucketed_num_tokens)
+            ]
+        else:
+            self.buckets = None
+
+    def get_batch_shapes(self):
+        return self.buckets
 
     def __getitem__(self, index):
         tgt_item = self.tgt[index] if self.tgt is not None else None
@@ -281,11 +320,19 @@ class LanguagePairDataset(FairseqDataset):
             indices = np.random.permutation(len(self))
         else:
             indices = np.arange(len(self))
-        if self.tgt_sizes is not None:
-            indices = indices[
-                np.argsort(self.tgt_sizes[indices], kind='mergesort')
+        if self.buckets is None:
+            # sort by target length, then source length
+            if self.tgt_sizes is not None:
+                indices = indices[
+                    np.argsort(self.tgt_sizes[indices], kind='mergesort')
+                ]
+            return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
+        else:
+            # sort by bucketed_num_tokens, which is:
+            #   max(padded_src_len, padded_tgt_len)
+            return indices[
+                np.argsort(self.bucketed_num_tokens[indices], kind='mergesort')
             ]
-        return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
 
     @property
     def supports_prefetch(self):
