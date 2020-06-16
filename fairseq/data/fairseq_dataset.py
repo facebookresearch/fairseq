@@ -62,6 +62,26 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
         """Prefetch the data required for this epoch."""
         raise NotImplementedError
 
+    def batch_by_size(
+        self,
+        indices,
+        max_tokens=None,
+        max_sentences=None,
+        required_batch_size_multiple=1,
+    ):
+        """
+        Given an ordered set of indices, return batches according to
+        *max_tokens*, *max_sentences* and *required_batch_size_multiple*.
+        """
+        from fairseq.data import data_utils
+        return data_utils.batch_by_size(
+            indices,
+            num_tokens_fn=self.num_tokens,
+            max_tokens=max_tokens,
+            max_sentences=max_sentences,
+            required_batch_size_multiple=required_batch_size_multiple,
+        )
+
 
 class FairseqIterableDataset(torch.utils.data.IterableDataset, EpochListening):
     """For datasets that need to be read sequentially, usually because the data
