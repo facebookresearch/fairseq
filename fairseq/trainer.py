@@ -278,6 +278,17 @@ class Trainer(object):
                 )
             )
 
+            # handle changed world size
+            cpt_world_size = state["args"].distributed_world_size
+            if cpt_world_size != self.args.distributed_world_size:
+                logger.info("world size changed from checkpoint: {} -> {}".format(
+                    cpt_world_size, self.args.distributed_world_size
+                ))
+                old_iters = extra_state["train_iterator"]["iterations_in_epoch"]
+                extra_state["train_iterator"]["iterations_in_epoch"] = int(
+                    old_iters * cpt_world_size / self.args.distributed_world_size
+                )
+
             self.lr_step(epoch)
 
             if "metrics" in extra_state and not reset_meters:
@@ -485,7 +496,8 @@ class Trainer(object):
             # take an optimization step
             self.optimizer.step()
         except FloatingPointError:
-            # re-run the forward and backward pass with hooks attached to print out where it fails
+            # re-run the forward and backward pass with hooks attached to print
+            # out where it fails
             with NanDetector(self.model):
                 self.task.train_step(
                     sample, self.model, self.criterion, self.optimizer, self.get_num_updates(),
@@ -837,15 +849,6 @@ class Trainer(object):
             logging_outputs = []
         return logging_outputs, extra_stats_to_sum
 
-    def _is_grad_norms_consistent(self, grad_norm_buf):
-        """check whether a given tensor (shape (N,)) is consistent """
-        """consistent means all the values are diff within a tolerate range"""
-        diff = grad_norm_buf - grad_norm_buf[0]
-        max_abs_diff = torch.max(torch.abs(diff)).item()
-        first_grad_norm = grad_norm_buf[0].item()
-        # TODO: make 1e-6 a configurable value
-        return max_abs_diff / (first_grad_norm + 1e-6) < 1e-6
-
     def _check_grad_norms(self, grad_norm):
         """Check that grad norms are consistent across workers."""
         if self._grad_norm_buf is not None:
@@ -856,7 +859,11 @@ class Trainer(object):
                 group=self.data_parallel_process_group
             )
 
-            if not self._is_grad_norms_consistent(self._grad_norm_buf):
+            def is_consistent(tensor):
+                max_abs_diff = torch.max(torch.abs(tensor - tensor[0]))
+                return (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+
+            if not is_consistent(self._grad_norm_buf):
                 pretty_detail = "\n".join(
                     "rank {:3d} = {:.8f}".format(r, n)
                     for r, n in enumerate(self._grad_norm_buf.tolist())
