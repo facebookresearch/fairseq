@@ -227,8 +227,7 @@ def launch_train(args, config):
                 if args.snapshot_code:
                     comment += ', Code Location: {0}'.format(destination)
                 sbatch_cmd += ['--comment', comment]
-
-            if args.snapshot_code:
+            elif args.snapshot_code:
                 sbatch_cmd += ['--comment', 'Code Location: {0}'.format(destination)]
 
             if args.dep is not None:
