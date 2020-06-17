@@ -95,6 +95,19 @@ class Trainer(object):
         if self.quantizer is not None:
             self.quantizer.set_trainer(self)
 
+        # get detailed cuda environment
+        if self.cuda:
+            self.cuda_env = utils.CudaEnvironment()
+            if self.data_parallel_world_size > 1:
+                self.cuda_env_arr = distributed_utils.all_gather_list(self.cuda_env)
+            else:
+                self.cuda_env_arr = [self.cuda_env]
+            if self.data_parallel_rank == 0:
+                utils.CudaEnvironment.pretty_print_cuda_env_list(self.cuda_env_arr)
+        else:
+            self.cuda_env = None
+            self.cuda_env_arr = None
+
         metrics.log_start_time("wall", priority=790, round=0)
 
     def reinitialize(self):
