@@ -189,7 +189,7 @@ class GeneratorHubInterface(nn.Module):
                     ))
                     if hypo['alignment'] is not None and getarg('print_alignment', False):
                         logger.info('A\t{}'.format(
-                            ' '.join(map(lambda x: str(utils.item(x)), hypo['alignment'].int().cpu()))
+                            ' '.join(['{}-{}'.format(src_idx, tgt_idx) for src_idx, tgt_idx in hypo['alignment']])
                         ))
         return outputs
 
