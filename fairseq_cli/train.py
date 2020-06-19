@@ -211,8 +211,8 @@ def train(args, trainer, task, epoch_itr):
 
     valid_subsets = args.valid_subset.split(",")
     should_stop = False
-    for samples in progress:
-        with metrics.aggregate("train_inner"):
+    for i, samples in enumerate(progress):
+        with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function("train_step-%d" % i):
             log_output = trainer.train_step(samples)
             if log_output is None:  # OOM, overflow, ...
                 continue
@@ -339,7 +339,15 @@ def distributed_main(i, args, start_rank=0):
 def cli_main(modify_parser=None):
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
+    if args.profile:
+        with torch.cuda.profiler.profile():
+            with torch.autograd.profiler.emit_nvtx():
+                cli_main_helper(args)
+    else:
+        cli_main_helper(args)
 
+
+def cli_main_helper(args):
     if args.distributed_init_method is None:
         distributed_utils.infer_init_method(args)
 

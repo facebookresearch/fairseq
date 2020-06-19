@@ -250,6 +250,7 @@ def get_parser(desc, default_task="translation"):
                         help='suffix to add to the checkpoint file name')
     parser.add_argument('--quantization-config-path', default=None,
                         help='path to quantization config file')
+    parser.add_argument('--profile', action='store_true', help='enable autograd profiler emit_nvtx')
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():
