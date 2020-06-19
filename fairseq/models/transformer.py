@@ -436,22 +436,28 @@ class TransformerEncoder(FairseqEncoder):
         Returns:
             *encoder_out* rearranged according to *new_order*
         """
-        new_encoder_out: Dict[str, Tensor] = {}
+        """
+        Since encoder_padding_mask and encoder_embedding are both of type
+        Optional[Tensor] in EncoderOut, they need to be copied as local
+        variables for Torchscript Optional refinement
+        """
+        encoder_padding_mask: Optional[Tensor] = encoder_out.encoder_padding_mask
+        encoder_embedding: Optional[Tensor] = encoder_out.encoder_embedding
 
-        new_encoder_out["encoder_out"] = (
+        new_encoder_out = (
             encoder_out.encoder_out
             if encoder_out.encoder_out is None
             else encoder_out.encoder_out.index_select(1, new_order)
         )
-        new_encoder_out["encoder_padding_mask"] = (
-            encoder_out.encoder_padding_mask
-            if encoder_out.encoder_padding_mask is None
-            else encoder_out.encoder_padding_mask.index_select(0, new_order)
+        new_encoder_padding_mask = (
+            encoder_padding_mask
+            if encoder_padding_mask is None
+            else encoder_padding_mask.index_select(0, new_order)
         )
-        new_encoder_out["encoder_embedding"] = (
-            encoder_out.encoder_embedding
-            if encoder_out.encoder_embedding is None
-            else encoder_out.encoder_embedding.index_select(0, new_order)
+        new_encoder_embedding = (
+            encoder_embedding
+            if encoder_embedding is None
+            else encoder_embedding.index_select(0, new_order)
         )
         src_tokens = encoder_out.src_tokens
         if src_tokens is not None:
@@ -467,9 +473,9 @@ class TransformerEncoder(FairseqEncoder):
                 encoder_states[idx] = state.index_select(1, new_order)
 
         return EncoderOut(
-            encoder_out=new_encoder_out["encoder_out"],  # T x B x C
-            encoder_padding_mask=new_encoder_out["encoder_padding_mask"],  # B x T
-            encoder_embedding=new_encoder_out["encoder_embedding"],  # B x T x C
+            encoder_out=new_encoder_out,  # T x B x C
+            encoder_padding_mask=new_encoder_padding_mask,  # B x T
+            encoder_embedding=new_encoder_embedding,  # B x T x C
             encoder_states=encoder_states,  # List[T x B x C]
             src_tokens=src_tokens,  # B x T
             src_lengths=src_lengths,  # B x 1
@@ -685,11 +691,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             alignment_heads,
         )
 
-    '''
+    """
     A scriptable subclass of this class has an extract_features method and calls
     super().extract_features, but super() is not supported in torchscript. Aa copy of
     this function is made to be used in the subclass instead.
-    '''
+    """
+
     def extract_features_scriptable(
         self,
         prev_output_tokens,
