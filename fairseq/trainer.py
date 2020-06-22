@@ -291,17 +291,6 @@ class Trainer(object):
                 )
             )
 
-            # handle changed world size
-            cpt_world_size = state["args"].distributed_world_size
-            if cpt_world_size != self.args.distributed_world_size:
-                logger.info("world size changed from checkpoint: {} -> {}".format(
-                    cpt_world_size, self.args.distributed_world_size
-                ))
-                old_iters = extra_state["train_iterator"]["iterations_in_epoch"]
-                extra_state["train_iterator"]["iterations_in_epoch"] = int(
-                    old_iters * cpt_world_size / self.args.distributed_world_size
-                )
-
             self.lr_step(epoch)
 
             if "metrics" in extra_state and not reset_meters:
