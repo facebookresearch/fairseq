@@ -200,11 +200,13 @@ class EpochBatchIterator(EpochBatchIterating):
         buffer_size (int, optional): the number of batches to keep ready in the
             queue. Helps speeding up dataloading. When buffer_size is zero, the
             default torch.utils.data.DataLoader preloading is used.
+        timeout (int, optional): if positive, the timeout value for collecting a batch
+            from workers. Should always be non-negative. (default: ``0``)
     """
 
     def __init__(
         self, dataset, collate_fn, batch_sampler, seed=1, num_shards=1, shard_id=0,
-        num_workers=0, epoch=1, buffer_size=0
+        num_workers=0, epoch=1, buffer_size=0, timeout=0,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -217,6 +219,7 @@ class EpochBatchIterator(EpochBatchIterating):
         # This upper limit here is to prevent people from abusing this feature
         # in a shared computing environment.
         self.buffer_size = min(buffer_size, 20)
+        self.timeout = timeout
 
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = True
@@ -342,6 +345,7 @@ class EpochBatchIterator(EpochBatchIterating):
             collate_fn=self.collate_fn,
             batch_sampler=batches[offset:],
             num_workers=self.num_workers,
+            timeout=self.timeout,
         )
 
         # Wrap with a BufferedIterator if needed
