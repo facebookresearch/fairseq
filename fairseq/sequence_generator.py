@@ -794,7 +794,7 @@ class EnsembleModel(nn.Module):
         if not self.has_incremental_states():
             return
         for i, model in enumerate(self.models):
-            model.decoder.reorder_incremental_state(
+            model.decoder.reorder_incremental_state_scripting(
                 self.incremental_states[i], new_order
             )
 
