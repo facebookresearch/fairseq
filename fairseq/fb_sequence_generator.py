@@ -433,4 +433,6 @@ class FBEnsembleModelWithFork(EnsembleModel):
         new_order,
     ):
         for i, model in enumerate(self.models):
-            model.decoder.reorder_incremental_state(incremental_states[i], new_order)
+            model.decoder.reorder_incremental_state_scripting(
+                incremental_states[i], new_order
+            )

@@ -360,18 +360,6 @@ class AANTransformerDecoderLayer(nn.Module):
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn
 
-    @torch.jit.export
-    def reorder_incremental_state(
-        self,
-        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
-        new_order: Tensor,
-    ):
-        """Scriptable reorder incremental state in transformer layers."""
-        self.avg_attn.reorder_incremental_state(incremental_state, new_order)
-
-        if self.encoder_attn is not None:
-            self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
-
 
 class AANTransformerDecoder(TransformerDecoder):
     def build_decoder_layer(self, args, no_encoder_attn=False):
