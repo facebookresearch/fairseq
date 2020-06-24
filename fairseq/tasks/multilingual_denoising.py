@@ -34,7 +34,7 @@ class MultilingualDenoisingTask(DenoisingTask):
     def add_args(parser):
         DenoisingTask.add_args(parser)
         parser.add_argument('--multilang-sampling-alpha', type=float, default=1.0,
-                            help='smoothing alpha for sample rations across multiple datasets')
+                            help='smoothing alpha for sample ratios across multiple datasets')
         parser.add_argument('--add-lang-token', default=False, action='store_true')
         parser.add_argument('--langs', type=str, help="language ids we are considering", default=None)
         parser.add_argument('--no-whole-word-mask-langs', type=str, default='', metavar='N',
@@ -61,7 +61,7 @@ class MultilingualDenoisingTask(DenoisingTask):
             for lang in languages:
                 dictionary.add_symbol('[{}]'.format(lang))
 
-        logger.info("| dictionary: {} types".format(len(dictionary)))
+        logger.info("dictionary: {} types".format(len(dictionary)))
         if not hasattr(args, 'shuffle_instance'):
             args.shuffle_instance = False
         return cls(args, dictionary)
@@ -105,10 +105,11 @@ class MultilingualDenoisingTask(DenoisingTask):
         else:
             languages = self.langs.split(',')
             for name in languages:
-                assert os.path.exists(os.path.join(data_path, name)), "all the languages must exist"
+                p = os.path.join(data_path, name)
+                assert os.path.exists(p), "data not found: {}".format(p)
 
-        logger.info("| Training on {0} languages: {1}".format(len(languages), languages))
-        logger.info("| Language to id mapping: ", {
+        logger.info("Training on {0} languages: {1}".format(len(languages), languages))
+        logger.info("Language to id mapping: ", {
                 lang: id for id, lang in enumerate(languages)
             }
         )
@@ -140,7 +141,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 eos=end_token,
                 break_mode=self.args.sample_break_mode,
             )
-            logger.info('| loaded {} blocks from: {}'.format(len(dataset), split_path))
+            logger.info('loaded {} blocks from: {}'.format(len(dataset), split_path))
 
             # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
             dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
@@ -165,23 +166,25 @@ class MultilingualDenoisingTask(DenoisingTask):
             dtype=float,
         )
         logger.info(
-            '| loaded total {} blocks for all languages'.format(
-                dataset_lengths.sum(),
+            'loaded total {} blocks for all languages'.format(
+                int(dataset_lengths.sum()),
             )
         )
         if split == self.args.train_subset:
             # For train subset, additionally up or down sample languages.
             sample_probs = self._get_sample_prob(dataset_lengths)
-            logger.info("| Sample probability by language: ", {
+            logger.info(
+                "Sample probability by language: {}".format({
                     lang: "{0:.4f}".format(sample_probs[id])
                     for id, lang in enumerate(languages)
-                }
+                })
             )
             size_ratio = (sample_probs * dataset_lengths.sum()) / dataset_lengths
-            logger.info("| Up/Down Sampling ratio by language: ", {
+            logger.info(
+                "Up/Down Sampling ratio by language: {}".format({
                     lang: "{0:.2f}".format(size_ratio[id])
                     for id, lang in enumerate(languages)
-                }
+                })
             )
 
             resampled_lang_datasets = [

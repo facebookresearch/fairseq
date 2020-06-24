@@ -54,7 +54,7 @@ class SentenceRankingTask(FairseqTask):
         parser.add_argument('--shorten-method', default='none',
                             choices=['none', 'truncate', 'random_crop'],
                             help='if not none, shorten sequences that exceed --tokens-per-sample')
-        parser.add_argument('--shorten-data-split-whitelist', default='',
+        parser.add_argument('--shorten-data-split-list', default='',
                             help='comma-separated list of dataset splits to apply shortening to, '
                                  'e.g., "train,valid" (default: all dataset splits)')
         parser.add_argument('--max-option-length', type=int,
@@ -128,7 +128,7 @@ class SentenceRankingTask(FairseqTask):
             src_token = maybe_shorten_dataset(
                 src_token,
                 split,
-                self.args.shorten_data_split_whitelist,
+                self.args.shorten_data_split_list,
                 self.args.shorten_method,
                 self.args.max_positions,
                 self.args.seed,

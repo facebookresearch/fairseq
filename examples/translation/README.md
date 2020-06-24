@@ -225,7 +225,7 @@ train a multilingual `{de,fr}-en` translation model using the IWSLT'17 datasets.
 
 Note that we use slightly different preprocessing here than for the IWSLT'14
 En-De data above. In particular we learn a joint BPE code for all three
-languages and use interactive.py and sacrebleu for scoring the test set.
+languages and use fairseq-interactive and sacrebleu for scoring the test set.
 
 ```bash
 # First install sacrebleu and sentencepiece

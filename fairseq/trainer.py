@@ -439,6 +439,10 @@ class Trainer(object):
                     )
                     ooms += 1
                     self.zero_grad()
+                    if self.cuda:
+                        torch.cuda.empty_cache()
+                    if self.args.distributed_world_size == 1:
+                        return None
                 else:
                     raise e
 

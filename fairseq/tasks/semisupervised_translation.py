@@ -298,6 +298,7 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 src, tgt = lang_pair.split('-')
                 key = '{}-{}'.format(tgt, src)
                 self.sequence_generators[key] = SequenceGenerator(
+                    [model.models[key]],
                     tgt_dict=self.dicts[src],
                     beam_size=args.bt_beam_size,
                     max_len_a=args.bt_max_len_a,
@@ -340,7 +341,9 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             agg_loss += loss.detach().item()
             # TODO make summing of the sample sizes configurable
             agg_sample_size += sample_size
-            agg_logging_output[logging_output_key] = logging_output
+            for k in logging_output:
+                agg_logging_output[k] += logging_output[k]
+                agg_logging_output[logging_output_key] += logging_output[k]
 
         if self.lambda_parallel > 0.0:
             for lang_pair in self.lang_pairs:
@@ -380,20 +383,3 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             self.lambda_denoising = lambda_step_func(self.lambda_denoising_steps, num_updates)
         if self.lambda_otf_bt_steps is not None:
             self.lambda_otf_bt = lambda_step_func(self.lambda_otf_bt_steps, num_updates)
-
-    def aggregate_logging_outputs(self, logging_outputs, criterion):
-        # aggregate logging outputs for each language pair
-        logging_output_keys = {
-            key
-            for logging_output in logging_outputs
-            for key in logging_output
-        }
-        lang_pair_keys = set(self.lang_pairs + [
-            _get_bt_dataset_key(lang_pair)
-            for lang_pair in self.lang_pairs
-        ] + [
-            _get_denoising_dataset_key(lang_pair)
-            for lang_pair in self.lang_pairs
-        ])
-        logging_output_keys = logging_output_keys.intersection(lang_pair_keys)
-        return super().aggregate_logging_outputs(logging_outputs, criterion, logging_output_keys)

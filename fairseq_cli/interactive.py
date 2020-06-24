@@ -16,7 +16,7 @@ import os
 
 import torch
 
-from fairseq import checkpoint_utils, options, tasks, utils
+from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import encoders
 
 
@@ -94,6 +94,7 @@ def main(args):
         args.path.split(os.pathsep),
         arg_overrides=eval(args.model_overrides),
         task=task,
+        suffix=getattr(args, "checkpoint_suffix", ""),
     )
 
     # Set dictionaries
@@ -208,9 +209,9 @@ def main(args):
 
 
 def cli_main():
-    parser = options.get_generation_parser(interactive=True)
+    parser = options.get_interactive_generation_parser()
     args = options.parse_args_and_arch(parser)
-    main(args)
+    distributed_utils.call_main(args, main)
 
 
 if __name__ == '__main__':
