@@ -19,7 +19,6 @@ from fairseq.data import LMContextWindowDataset
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
-from fairseq.options import add_distributed_training_args
 from fairseq import distributed_utils
 
 

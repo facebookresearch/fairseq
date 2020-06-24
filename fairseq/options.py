@@ -32,6 +32,7 @@ def get_training_parser(default_task="translation"):
 def get_generation_parser(interactive=False, default_task="translation"):
     parser = get_parser("Generation", default_task)
     add_dataset_args(parser, gen=True)
+    add_distributed_training_args(parser)
     add_generation_args(parser)
     if interactive:
         add_interactive_args(parser)
@@ -436,7 +437,7 @@ def add_optimization_args(parser):
                        help='force stop training at specified epoch')
     group.add_argument('--max-update', '--mu', default=0, type=int, metavar='N',
                        help='force stop training at specified update')
-    group.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
+    group.add_argument('--clip-norm', default=0.0, type=float, metavar='NORM',
                        help='clip threshold of gradients')
     group.add_argument('--sentence-avg', action='store_true',
                        help='normalize gradients by the number of sentences in a batch'

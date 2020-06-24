@@ -103,7 +103,7 @@ NUM_CLASSES=2           # Number of classes for the classification task.
 MAX_SENTENCES=8         # Batch size.
 ROBERTA_PATH=/path/to/roberta.large/model.pt
 
-CUDA_VISIBLE_DEVICES=0 python train.py IMDB-bin/ \
+CUDA_VISIBLE_DEVICES=0 fairseq-train IMDB-bin/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \

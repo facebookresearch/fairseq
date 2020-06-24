@@ -24,7 +24,7 @@ NUM_CLASSES=2
 MAX_SENTENCES=16        # Batch size.
 BART_PATH=/path/to/bart/model.pt
 
-CUDA_VISIBLE_DEVICES=0,1 python train.py RTE-bin/ \
+CUDA_VISIBLE_DEVICES=0,1 fairseq-train RTE-bin/ \
     --restore-file $BART_PATH \
     --max-sentences $MAX_SENTENCES \
     --max-tokens 4400 \

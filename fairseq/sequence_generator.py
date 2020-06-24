@@ -212,11 +212,11 @@ class SequenceGenerator(nn.Module):
         tokens[:, 0] = self.eos if bos_token is None else bos_token
         attn: Optional[Tensor] = None
 
-        # The blacklist indicates candidates that should be ignored.
+        # A list that indicates candidates that should be ignored.
         # For example, suppose we're sampling and have already finalized 2/5
-        # samples. Then the blacklist would mark 2 positions as being ignored,
+        # samples. Then cands_to_ignore would mark 2 positions as being ignored,
         # so that we only finalize the remaining 3 samples.
-        blacklist = (
+        cands_to_ignore = (
             torch.zeros(bsz, beam_size).to(src_tokens).eq(-1)
         )  # forward and backward-compatible False mask
 
@@ -317,7 +317,7 @@ class SequenceGenerator(nn.Module):
 
             # finalize hypotheses that end in eos
             eos_mask = cand_indices.eq(self.eos) & cand_scores.ne(-math.inf)
-            eos_mask[:, :beam_size][blacklist] = torch.tensor(0).to(eos_mask)
+            eos_mask[:, :beam_size][cands_to_ignore] = torch.tensor(0).to(eos_mask)
 
             # only consider eos when it's among the top beam_size indices
             eos_bbsz_idx = torch.masked_select(
@@ -369,7 +369,7 @@ class SequenceGenerator(nn.Module):
                 if prefix_tokens is not None:
                     prefix_tokens = prefix_tokens[batch_idxs]
                 src_lengths = src_lengths[batch_idxs]
-                blacklist = blacklist[batch_idxs]
+                cands_to_ignore = cands_to_ignore[batch_idxs]
 
                 scores = scores.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
                 tokens = tokens.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
@@ -386,7 +386,7 @@ class SequenceGenerator(nn.Module):
 
             # Rewrite the operator since the element wise or is not supported in torchscript.
 
-            eos_mask[:, :beam_size] = ~((~blacklist) & (~eos_mask[:, :beam_size]))
+            eos_mask[:, :beam_size] = ~((~cands_to_ignore) & (~eos_mask[:, :beam_size]))
             active_mask = torch.add(
                 eos_mask.type_as(cand_offsets) * cand_size,
                 cand_offsets[: eos_mask.size(1)],
@@ -394,13 +394,13 @@ class SequenceGenerator(nn.Module):
 
             # get the top beam_size active hypotheses, which are just the hypos
             # with the smallest values in active_mask
-            new_blacklist, active_hypos = torch.topk(
+            new_cands_to_ignore, active_hypos = torch.topk(
                 active_mask, k=beam_size, dim=1, largest=False
             )
 
-            # update blacklist to ignore any finalized hypos
-            blacklist = new_blacklist.ge(cand_size)[:, :beam_size]
-            assert (~blacklist).any(dim=1).all()
+            # update cands_to_ignore to ignore any finalized hypos
+            cands_to_ignore = new_cands_to_ignore.ge(cand_size)[:, :beam_size]
+            assert (~cands_to_ignore).any(dim=1).all()
 
             active_bbsz_idx = torch.gather(cand_bbsz_idx, dim=1, index=active_hypos)
             active_scores = torch.gather(cand_scores, dim=1, index=active_hypos)

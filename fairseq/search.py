@@ -75,10 +75,7 @@ class BeamSearch(Search):
         )
         scores_buf = top_prediction[0]
         indices_buf = top_prediction[1]
-        if torch.__version__ < '1.6.0':
-            beams_buf = torch.div(indices_buf, vocab_size)
-        else:
-            beams_buf = torch.floor_divide(indices_buf, vocab_size)
+        beams_buf = indices_buf // vocab_size
         indices_buf = indices_buf.fmod(vocab_size)
         return scores_buf, indices_buf, beams_buf
 

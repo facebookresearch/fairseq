@@ -62,7 +62,7 @@ class MaskedLMTask(FairseqTask):
         parser.add_argument('--shorten-method', default='none',
                             choices=['none', 'truncate', 'random_crop'],
                             help='if not none, shorten sequences that exceed --tokens-per-sample')
-        parser.add_argument('--shorten-data-split-whitelist', default='',
+        parser.add_argument('--shorten-data-split-list', default='',
                             help='comma-separated list of dataset splits to apply shortening to, '
                                  'e.g., "train,valid" (default: all dataset splits)')
 
@@ -105,7 +105,7 @@ class MaskedLMTask(FairseqTask):
         dataset = maybe_shorten_dataset(
             dataset,
             split,
-            self.args.shorten_data_split_whitelist,
+            self.args.shorten_data_split_list,
             self.args.shorten_method,
             self.args.tokens_per_sample,
             self.args.seed,

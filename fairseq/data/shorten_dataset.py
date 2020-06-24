@@ -57,9 +57,16 @@ class RandomCropDataset(TruncateDataset):
                 item = item[start_idx:start_idx+self.truncation_length]
             return item
 
-def maybe_shorten_dataset(dataset, split, shorten_data_split_whitelist, shorten_method, tokens_per_sample, seed):
-    truncate_split = split in shorten_data_split_whitelist.split(',') \
-        or len(shorten_data_split_whitelist) == 0
+def maybe_shorten_dataset(
+    dataset,
+    split,
+    shorten_data_split_list,
+    shorten_method,
+    tokens_per_sample,
+    seed,
+):
+    truncate_split = split in shorten_data_split_list.split(',') \
+        or len(shorten_data_split_list) == 0
     if shorten_method == 'truncate' and truncate_split:
         dataset = TruncateDataset(dataset, tokens_per_sample)
     elif shorten_method == 'random_crop' and truncate_split:

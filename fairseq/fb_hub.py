@@ -31,7 +31,7 @@ def load(model, *args, **kwargs):
         >>> model = torch.hub.load('pytorch/vision', 'resnet50', pretrained=True)
     """
     # Setup hub_dir to save downloaded files
-    torch.hub._setup_hubdir()
+    _setup_hubdir()
 
     force_reload = kwargs.get('force_reload', False)
     kwargs.pop('force_reload', None)
@@ -51,6 +51,15 @@ def load(model, *args, **kwargs):
     return model
 
 
+def _setup_hubdir():
+    if hasattr(torch.hub, '_setup_hubdir'):
+        torch.hub._setup_hubdir()
+    else:
+        hub_dir = torch.hub.get_dir()
+        if not os.path.exists(hub_dir):
+            os.makedirs(hub_dir)
+
+
 def list(force_reload=False):
     r"""
     List all entrypoints available in `github` hubconf.
@@ -65,7 +74,7 @@ def list(force_reload=False):
         >>> entrypoints = torch.hub.list('pytorch/vision', force_reload=True)
     """
     # Setup hub_dir to save downloaded files
-    torch.hub._setup_hubdir()
+    _setup_hubdir()
 
     repo_dir = os.path.dirname(os.path.dirname(__file__))
 

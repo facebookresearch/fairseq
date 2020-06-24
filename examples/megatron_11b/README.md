@@ -74,7 +74,7 @@ Note: Above was tested on `DGX-1` box, with `8xV100-32Gb` GPUs.
 
 **[Wikitext103](https://blog.einstein.ai/the-wikitext-long-term-dependency-language-modeling-dataset/)**
 
-Model | vValid perplexity | Test perplexity
+Model | Valid perplexity | Test perplexity
 ---|---|---
 `megatron_11b` | 10.64 | 10.54
 
