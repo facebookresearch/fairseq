@@ -26,7 +26,11 @@ Model | Description | Download
 Evaluate performance of these pre-trained models:
 ```bash
 # Example for Machine Translation
-python generate.py /path/to/bped/wmt/data --path nmt_checkpoint.pt --lenpen 0.4 --batch-size 64 --remove-bpe --beam 8 --gen-subset test > wmt16_gen.txt
+fairseq-generate /path/to/bped/wmt/data --path nmt_checkpoint.pt \
+  --beam 8 --lenpen 0.4 \
+  --batch-size 64 \
+  --remove-bpe \
+  --gen-subset test > wmt16_gen.txt
 bash scripts/compound_split_bleu.sh wmt16_gen.txt
 # prints BLEU4 = 30.17
 ```
@@ -111,8 +115,10 @@ num. model params: 146163712
 ```
 
 If you would like to pick up training with a model that has been pruned, simply adding these flags is sufficient. If you would like to use a script that only does evaluation (no training), you may need to pass an override command. A specific example would be for language modeling:
-```
-python eval_lm.py /path/to/wikitext-103 --path '/path/to/model/checkpoint' --model-overrides "{'decoder_layers_to_keep':'0,2,4,6,8,10,12,14'}"
+```bash
+fairseq-eval-lm /path/to/wikitext-103 \
+  --path /path/to/model/checkpoint.pt \
+  --model-overrides "{'decoder_layers_to_keep':'0,2,4,6,8,10,12,14'}"
 ```
 This model override command overrides the training parameters and updates the model arguments so that the pruned model is run instead of the full model.
 

@@ -53,6 +53,7 @@ def get_eval_lm_parser(default_task="language_modeling"):
 def get_validation_parser(default_task=None):
     parser = get_parser("Validation", default_task)
     add_dataset_args(parser, train=True)
+    add_distributed_training_args(parser, default_world_size=1)
     group = parser.add_argument_group("Evaluation")
     add_common_eval_args(group)
     return parser
@@ -177,6 +178,14 @@ def parse_args_and_arch(
         args.max_tokens_valid = args.max_tokens
     if getattr(args, "memory_efficient_fp16", False):
         args.fp16 = True
+    if getattr(args, "memory_efficient_bf16", False):
+        args.bf16 = True
+    args.tpu = getattr(args, "tpu", False)
+    args.bf16 = getattr(args, "bf16", False)
+    if args.bf16:
+        args.tpu = True
+    if args.tpu and args.fp16:
+        raise ValueError("Cannot combine --fp16 and --tpu, use --bf16 on TPUs")
 
     if args.seed is None:
         args.seed = 1  # default seed for training
@@ -215,7 +224,11 @@ def get_parser(desc, default_task="translation"):
     parser.add_argument('--seed', default=None, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
+    parser.add_argument('--tpu', action='store_true', help='use TPU instead of CUDA')
+    parser.add_argument('--bf16', action='store_true', help='use bfloat16; implies --tpu')
     parser.add_argument('--fp16', action='store_true', help='use FP16')
+    parser.add_argument('--memory-efficient-bf16', action='store_true',
+                        help='use a memory-efficient version of BF16 training; implies --bf16')
     parser.add_argument('--memory-efficient-fp16', action='store_true',
                         help='use a memory-efficient version of FP16 training; implies --fp16')
     parser.add_argument('--fp16-no-flatten-grads', action='store_true',
@@ -243,6 +256,7 @@ def get_parser(desc, default_task="translation"):
                         help='suffix to add to the checkpoint file name')
     parser.add_argument('--quantization-config-path', default=None,
                         help='path to quantization config file')
+    parser.add_argument('--profile', action='store_true', help='enable autograd profiler emit_nvtx')
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():
@@ -323,8 +337,8 @@ def add_dataset_args(parser, train=False, gen=False):
     parser.add_argument('--dataset-impl', metavar='FORMAT',
                         choices=get_available_dataset_impl(),
                         help='output dataset implementation')
-    group.add_argument('--data-buffer-size', default=0, type=int, metavar='N',
-                        help='Number of batches to preload')
+    group.add_argument('--data-buffer-size', default=10, type=int, metavar='N',
+                        help='number of batches to preload')
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
                            help='data subset to use for training (e.g. train, valid, test)')

@@ -82,9 +82,9 @@ class TestUtils(unittest.TestCase):
 
         params = [torch.nn.Parameter(torch.zeros(5)) for i in range(3)]
         for p in params:
-            p.grad = torch.full((5,), fill_value=2)
+            p.grad = torch.full((5,), fill_value=2.)
         grad_norm = utils.clip_grad_norm_(params, 1.0)
-        exp_grad_norm = torch.full((15,), fill_value=2).norm()
+        exp_grad_norm = torch.full((15,), fill_value=2.).norm()
         self.assertTrue(torch.is_tensor(grad_norm))
         self.assertEqual(grad_norm, exp_grad_norm)
 

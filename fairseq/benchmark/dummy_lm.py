@@ -21,7 +21,7 @@ class DummyLMTask(FairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('--dict-size', default=50000, type=int)
+        parser.add_argument('--dict-size', default=49996, type=int)
         parser.add_argument('--dataset-size', default=100000, type=int)
         parser.add_argument('--tokens-per-sample', default=512, type=int,
                             help='max number of total tokens over all segments '
@@ -31,6 +31,8 @@ class DummyLMTask(FairseqTask):
         super().__init__(args)
         self.dictionary = dictionary
         self.seed = args.seed
+
+        dictionary.pad_to_multiple_(8)  # often faster if divisible by 8
 
         seq = torch.arange(args.tokens_per_sample + 1) + dictionary.pad() + 1
 
@@ -51,7 +53,10 @@ class DummyLMTask(FairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        bsz = self.args.max_sentences
+        if self.args.max_sentences is not None:
+            bsz = self.args.max_sentences
+        else:
+            bsz = max(1, self.args.max_tokens // self.args.tokens_per_sample)
         self.datasets[split] = DummyDataset(
             {
                 'id': 1,

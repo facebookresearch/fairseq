@@ -789,7 +789,7 @@ class EnsembleModel(nn.Module):
         if not self.has_incremental_states():
             return
         for i, model in enumerate(self.models):
-            model.decoder.reorder_incremental_state(
+            model.decoder.reorder_incremental_state_scripting(
                 self.incremental_states[i], new_order
             )
 
@@ -827,6 +827,11 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
                 finalized[i // beam_size][i % beam_size]["attention"].transpose(1, 0)
                 for i in range(bsz * beam_size)
             ]
+
+        if src_tokens.device != "cpu":
+            src_tokens = src_tokens.to('cpu')
+            tgt_tokens = tgt_tokens.to('cpu')
+            attn = [i.to('cpu') for i in attn]
 
         # Process the attn matrix to extract hard alignments.
         for i in range(bsz * beam_size):

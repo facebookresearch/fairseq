@@ -267,9 +267,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
         which are not supported by TorchScript.
         """
         encoder_out = self.encoder(
-            src_tokens,
-            src_lengths=src_lengths,
-            return_all_hiddens=return_all_hiddens,
+            src_tokens, src_lengths=src_lengths, return_all_hiddens=return_all_hiddens
         )
         decoder_out = self.decoder(
             prev_output_tokens,
@@ -346,10 +344,9 @@ class TransformerEncoder(FairseqEncoder):
             self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
-        self.layers.extend([
-            self.build_encoder_layer(args)
-            for i in range(args.encoder_layers)
-        ])
+        self.layers.extend(
+            [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
+        )
         self.num_layers = len(self.layers)
 
         if args.encoder_normalize_before:
@@ -376,12 +373,7 @@ class TransformerEncoder(FairseqEncoder):
             x = self.quant_noise(x)
         return x, embed
 
-    def forward(
-        self,
-        src_tokens,
-        src_lengths,
-        return_all_hiddens: bool = False,
-    ):
+    def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -444,22 +436,28 @@ class TransformerEncoder(FairseqEncoder):
         Returns:
             *encoder_out* rearranged according to *new_order*
         """
-        new_encoder_out: Dict[str, Tensor] = {}
+        """
+        Since encoder_padding_mask and encoder_embedding are both of type
+        Optional[Tensor] in EncoderOut, they need to be copied as local
+        variables for Torchscript Optional refinement
+        """
+        encoder_padding_mask: Optional[Tensor] = encoder_out.encoder_padding_mask
+        encoder_embedding: Optional[Tensor] = encoder_out.encoder_embedding
 
-        new_encoder_out["encoder_out"] = (
+        new_encoder_out = (
             encoder_out.encoder_out
             if encoder_out.encoder_out is None
             else encoder_out.encoder_out.index_select(1, new_order)
         )
-        new_encoder_out["encoder_padding_mask"] = (
-            encoder_out.encoder_padding_mask
-            if encoder_out.encoder_padding_mask is None
-            else encoder_out.encoder_padding_mask.index_select(0, new_order)
+        new_encoder_padding_mask = (
+            encoder_padding_mask
+            if encoder_padding_mask is None
+            else encoder_padding_mask.index_select(0, new_order)
         )
-        new_encoder_out["encoder_embedding"] = (
-            encoder_out.encoder_embedding
-            if encoder_out.encoder_embedding is None
-            else encoder_out.encoder_embedding.index_select(0, new_order)
+        new_encoder_embedding = (
+            encoder_embedding
+            if encoder_embedding is None
+            else encoder_embedding.index_select(0, new_order)
         )
         src_tokens = encoder_out.src_tokens
         if src_tokens is not None:
@@ -475,9 +473,9 @@ class TransformerEncoder(FairseqEncoder):
                 encoder_states[idx] = state.index_select(1, new_order)
 
         return EncoderOut(
-            encoder_out=new_encoder_out["encoder_out"],  # T x B x C
-            encoder_padding_mask=new_encoder_out["encoder_padding_mask"],  # B x T
-            encoder_embedding=new_encoder_out["encoder_embedding"],  # B x T x C
+            encoder_out=new_encoder_out,  # T x B x C
+            encoder_padding_mask=new_encoder_padding_mask,  # B x T
+            encoder_embedding=new_encoder_embedding,  # B x T x C
             encoder_states=encoder_states,  # List[T x B x C]
             src_tokens=src_tokens,  # B x T
             src_lengths=src_lengths,  # B x 1
@@ -586,13 +584,17 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
-        self.layers.extend([
-            self.build_decoder_layer(args, no_encoder_attn)
-            for _ in range(args.decoder_layers)
-        ])
+        self.layers.extend(
+            [
+                self.build_decoder_layer(args, no_encoder_attn)
+                for _ in range(args.decoder_layers)
+            ]
+        )
         self.num_layers = len(self.layers)
 
-        if args.decoder_normalize_before and not getattr(args, "no_decoder_final_norm", False):
+        if args.decoder_normalize_before and not getattr(
+            args, "no_decoder_final_norm", False
+        ):
             self.layer_norm = LayerNorm(embed_dim)
         else:
             self.layer_norm = None
@@ -673,6 +675,30 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         return x, extra
 
     def extract_features(
+        self,
+        prev_output_tokens,
+        encoder_out: Optional[EncoderOut] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        full_context_alignment: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
+    ):
+        return self.extract_features_scriptable(
+            prev_output_tokens,
+            encoder_out,
+            incremental_state,
+            full_context_alignment,
+            alignment_layer,
+            alignment_heads,
+        )
+
+    """
+    A scriptable subclass of this class has an extract_features method and calls
+    super().extract_features, but super() is not supported in torchscript. Aa copy of
+    this function is made to be used in the subclass instead.
+    """
+
+    def extract_features_scriptable(
         self,
         prev_output_tokens,
         encoder_out: Optional[EncoderOut] = None,
@@ -820,14 +846,17 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 "{}.embed_positions._float_tensor".format(name)
             ] = torch.FloatTensor(1)
 
-        if self.share_input_output_embed:
-            embed_out_key = f"{name}.embed_tokens.weight"
-        else:
-            embed_out_key = f"{name}.embed_out"
-        if embed_out_key in state_dict:
-            state_dict[f"{name}.output_projection.weight"] = state_dict[embed_out_key]
-            if not self.share_input_output_embed:
-                del state_dict[embed_out_key]
+        if f"{name}.output_projection.weight" not in state_dict:
+            if self.share_input_output_embed:
+                embed_out_key = f"{name}.embed_tokens.weight"
+            else:
+                embed_out_key = f"{name}.embed_out"
+            if embed_out_key in state_dict:
+                state_dict[f"{name}.output_projection.weight"] = state_dict[
+                    embed_out_key
+                ]
+                if not self.share_input_output_embed:
+                    del state_dict[embed_out_key]
 
         for i in range(self.num_layers):
             # update layer norms
@@ -853,17 +882,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             state_dict[version_key] = torch.Tensor([1])
 
         return state_dict
-
-    # Overwrite the method to temporaily support JIT scripting in Transformer
-    @torch.jit.export
-    def reorder_incremental_state(
-        self,
-        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
-        new_order: Tensor,
-    ):
-        """Scriptable reorder incremental state in the transformer."""
-        for layer in self.layers:
-            layer.reorder_incremental_state(incremental_state, new_order)
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

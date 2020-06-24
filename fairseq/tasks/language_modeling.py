@@ -23,9 +23,9 @@ from fairseq.data import (
     StripTokenDataset,
     TokenBlockDataset,
     TransformEosDataset,
-    TruncateDataset,
     TruncatedDictionary,
 )
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import FairseqTask, register_task
 
 
@@ -88,8 +88,12 @@ class LanguageModelingTask(FairseqTask):
                             help='prepend beginning of sentence token (<s>)')
         parser.add_argument('--max-target-positions', type=int, metavar='N',
                             help='max number of tokens in the target sequence')
-        parser.add_argument('--truncate-sequence', action='store_true', default=False,
-                            help='truncate sequences to --tokens-per-sample')
+        parser.add_argument('--shorten-method', default='none',
+                            choices=['none', 'truncate', 'random_crop'],
+                            help='if not none, shorten sequences that exceed --tokens-per-sample')
+        parser.add_argument('--shorten-data-split-whitelist', default='',
+                            help='comma-separated list of dataset splits to apply shortening to, '
+                                 'e.g., "train,valid" (default: all dataset splits)')
         # fmt: on
 
     def __init__(self, args, dictionary, output_dictionary=None, targets=None):
@@ -169,8 +173,14 @@ class LanguageModelingTask(FairseqTask):
                 "Dataset not found: {} ({})".format(split, split_path)
             )
 
-        if self.args.truncate_sequence:
-            dataset = TruncateDataset(dataset, self.args.tokens_per_sample)
+        dataset = maybe_shorten_dataset(
+            dataset,
+            split,
+            self.args.shorten_data_split_whitelist,
+            self.args.shorten_method,
+            self.args.tokens_per_sample,
+            self.args.seed,
+        )
 
         dataset = TokenBlockDataset(
             dataset,

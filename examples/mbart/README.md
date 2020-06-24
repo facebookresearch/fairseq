@@ -71,7 +71,7 @@ python train.py path_2_data  --encoder-normalize-before --decoder-normalize-befo
 ## Generate on EN-RO
 Get sacrebleu on finetuned en-ro model
 
-set tokenizer  [here](https://github.com/rsennrich/wmt16-scripts)  
+get tokenizer  [here](https://github.com/rsennrich/wmt16-scripts)  
 wget https://dl.fbaipublicfiles.com/fairseq/models/mbart/mbart.cc25.ft.enro.tar.gz  
 tar -xzvf mbart.cc25.ft.enro.tar.gz
 

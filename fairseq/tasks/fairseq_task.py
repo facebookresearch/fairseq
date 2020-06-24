@@ -208,9 +208,11 @@ class FairseqTask(object):
             a :class:`~fairseq.models.BaseFairseqModel` instance
         """
         from fairseq import models, quantization_utils
-
         model = models.build_model(args, self)
-        return quantization_utils.quantize_model_scalar(model, args)
+        if getattr(args, 'tpu', False):
+            model.prepare_for_tpu_()
+        model = quantization_utils.quantize_model_scalar(model, args)
+        return model
 
     def build_criterion(self, args):
         """
@@ -337,10 +339,12 @@ class FairseqTask(object):
         """
         model.train()
         model.set_num_updates(update_num)
-        loss, sample_size, logging_output = criterion(model, sample)
+        with torch.autograd.profiler.record_function("forward"):
+            loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
-        optimizer.backward(loss)
+        with torch.autograd.profiler.record_function("backward"):
+            optimizer.backward(loss)
         return loss, sample_size, logging_output
 
     def valid_step(self, sample, model, criterion):

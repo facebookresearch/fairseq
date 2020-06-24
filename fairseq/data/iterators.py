@@ -4,16 +4,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import itertools
+import logging
 import math
 import operator
 import os
+import queue
 import time
+from threading import Thread
+
 import numpy as np
 import torch
-import queue
-import logging
-from threading import Thread
-from . import data_utils
+
+from fairseq.data import data_utils
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -197,11 +200,13 @@ class EpochBatchIterator(EpochBatchIterating):
         buffer_size (int, optional): the number of batches to keep ready in the
             queue. Helps speeding up dataloading. When buffer_size is zero, the
             default torch.utils.data.DataLoader preloading is used.
+        timeout (int, optional): if positive, the timeout value for collecting a batch
+            from workers. Should always be non-negative. (default: ``0``)
     """
 
     def __init__(
         self, dataset, collate_fn, batch_sampler, seed=1, num_shards=1, shard_id=0,
-        num_workers=0, epoch=1, buffer_size=0
+        num_workers=0, epoch=1, buffer_size=0, timeout=0,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -211,7 +216,10 @@ class EpochBatchIterator(EpochBatchIterating):
         self.num_shards = num_shards
         self.shard_id = shard_id
         self.num_workers = num_workers
-        self.buffer_size = buffer_size
+        # This upper limit here is to prevent people from abusing this feature
+        # in a shared computing environment.
+        self.buffer_size = min(buffer_size, 20)
+        self.timeout = timeout
 
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = True
@@ -337,6 +345,7 @@ class EpochBatchIterator(EpochBatchIterating):
             collate_fn=self.collate_fn,
             batch_sampler=batches[offset:],
             num_workers=self.num_workers,
+            timeout=self.timeout,
         )
 
         # Wrap with a BufferedIterator if needed
@@ -421,11 +430,14 @@ class BackgroundConsumer(Thread):
         self._source = source
 
     def run(self):
-        for item in self._source:
-            self._queue.put(item)
+        try:
+            for item in self._source:
+                self._queue.put(item)
 
-        # Signal the consumer we are done.
-        self._queue.put(_sentinel)
+            # Signal the consumer we are done.
+            self._queue.put(_sentinel)
+        except Exception as e:
+            self._queue.put(e)
 
 
 class BufferedIterator(object):
@@ -448,18 +460,20 @@ class BufferedIterator(object):
 
     def __next__(self):
         # Notify the user if there is a data loading bottleneck
-        if self._queue.qsize() < 2:
+        if self._queue.qsize() < max(1, self._queue.maxsize // 2):
             if time.time() - self.start_time > 5 * 60:
                 if self.warning_time is None or time.time() - self.warning_time > 15 * 60:
                     logger.info(
                         "Data loading buffer is empty or nearly empty. This may "
                         "indicate a data loading bottleneck, and increasing the "
-                        "number of workers may help."
+                        "number of workers (--num-workers) may help."
                     )
                     self.warning_time = time.time()
 
         # Get next example
         item = self._queue.get(True)
+        if isinstance(item, Exception):
+            raise item
         if item is _sentinel:
             raise StopIteration()
         return item
