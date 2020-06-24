@@ -264,8 +264,6 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     tgt_dataset, tgt_dataset.sizes, self.dicts[tgt],
                     left_pad_source=self.args.left_pad_source,
                     left_pad_target=self.args.left_pad_target,
-                    max_source_positions=self.args.max_source_positions,
-                    max_target_positions=self.args.max_target_positions,
                 ),
                 self.dicts[src].eos(),
                 src,
