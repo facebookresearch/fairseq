@@ -8,14 +8,18 @@ import logging
 import numpy as np
 import torch
 
-from . import data_utils, FairseqDataset
+from fairseq.data import data_utils, FairseqDataset
 
 
 logger = logging.getLogger(__name__)
 
 
 def collate(
-    samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
+    samples,
+    pad_idx,
+    eos_idx,
+    left_pad_source=True,
+    left_pad_target=False,
     input_feeding=True,
 ):
     if len(samples) == 0:
@@ -52,7 +56,9 @@ def collate(
     id = torch.LongTensor([s['id'] for s in samples])
     src_tokens = merge('source', left_pad=left_pad_source)
     # sort by descending source length
-    src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
+    src_lengths = torch.LongTensor([
+        s['source'].ne(pad_idx).long().sum() for s in samples
+    ])
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
@@ -62,8 +68,10 @@ def collate(
     if samples[0].get('target', None) is not None:
         target = merge('target', left_pad=left_pad_target)
         target = target.index_select(0, sort_order)
-        tgt_lengths = torch.LongTensor([s['target'].numel() for s in samples]).index_select(0, sort_order)
-        ntokens = sum(len(s['target']) for s in samples)
+        tgt_lengths = torch.LongTensor([
+            s['target'].ne(pad_idx).long().sum() for s in samples
+        ]).index_select(0, sort_order)
+        ntokens = tgt_lengths.sum().item()
 
         if input_feeding:
             # we create a shifted version of targets for feeding the
@@ -75,7 +83,7 @@ def collate(
             )
             prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
-        ntokens = sum(len(s['source']) for s in samples)
+        ntokens = src_lengths.sum().item()
 
     batch = {
         'id': id,
@@ -133,10 +141,6 @@ class LanguagePairDataset(FairseqDataset):
             (default: True).
         left_pad_target (bool, optional): pad target tensors on the left side
             (default: False).
-        max_source_positions (int, optional): max number of tokens in the
-            source sentence (default: 1024).
-        max_target_positions (int, optional): max number of tokens in the
-            target sentence (default: 1024).
         shuffle (bool, optional): shuffle dataset elements before batching
             (default: True).
         input_feeding (bool, optional): create a shifted version of the targets
@@ -149,17 +153,19 @@ class LanguagePairDataset(FairseqDataset):
             containing alignments.
         append_bos (bool, optional): if set, appends bos to the beginning of
             source/target sentence.
+        num_buckets (int, optional): if set to a value greater than 0, then
+            batches will be bucketed into the given number of batch shapes.
     """
 
     def __init__(
         self, src, src_sizes, src_dict,
         tgt=None, tgt_sizes=None, tgt_dict=None,
         left_pad_source=True, left_pad_target=False,
-        max_source_positions=1024, max_target_positions=1024,
         shuffle=True, input_feeding=True,
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
-        append_bos=False, eos=None
+        append_bos=False, eos=None,
+        num_buckets=0,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -175,8 +181,6 @@ class LanguagePairDataset(FairseqDataset):
         self.tgt_dict = tgt_dict
         self.left_pad_source = left_pad_source
         self.left_pad_target = left_pad_target
-        self.max_source_positions = max_source_positions
-        self.max_target_positions = max_target_positions
         self.shuffle = shuffle
         self.input_feeding = input_feeding
         self.remove_eos_from_source = remove_eos_from_source
@@ -186,6 +190,42 @@ class LanguagePairDataset(FairseqDataset):
             assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
         self.append_bos = append_bos
         self.eos = (eos if eos is not None else src_dict.eos())
+
+        if num_buckets > 0:
+            from fairseq.data import BucketPadLengthDataset
+            self.src = BucketPadLengthDataset(
+                self.src,
+                sizes=self.src_sizes,
+                num_buckets=num_buckets,
+                pad_idx=self.src_dict.pad(),
+                left_pad=self.left_pad_source,
+            )
+            self.src_sizes = self.src.sizes
+            logger.info('bucketing source lengths: {}'.format(list(self.src.buckets)))
+            if self.tgt is not None:
+                self.tgt = BucketPadLengthDataset(
+                    self.tgt,
+                    sizes=self.tgt_sizes,
+                    num_buckets=num_buckets,
+                    pad_idx=self.tgt_dict.pad(),
+                    left_pad=self.left_pad_target,
+                )
+                self.tgt_sizes = self.tgt.sizes
+                logger.info('bucketing target lengths: {}'.format(list(self.tgt.buckets)))
+
+            # determine bucket sizes using self.num_tokens, which will return
+            # the padded lengths (thanks to BucketPadLengthDataset)
+            num_tokens = np.vectorize(self.num_tokens, otypes=[np.long])
+            self.bucketed_num_tokens = num_tokens(np.arange(len(self.src)))
+            self.buckets = [
+                (None, num_tokens)
+                for num_tokens in np.unique(self.bucketed_num_tokens)
+            ]
+        else:
+            self.buckets = None
+
+    def get_batch_shapes(self):
+        return self.buckets
 
     def __getitem__(self, index):
         tgt_item = self.tgt[index] if self.tgt is not None else None
@@ -255,8 +295,11 @@ class LanguagePairDataset(FairseqDataset):
                   on the left if *left_pad_target* is ``True``.
         """
         return collate(
-            samples, pad_idx=self.src_dict.pad(), eos_idx=self.eos,
-            left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
+            samples,
+            pad_idx=self.src_dict.pad(),
+            eos_idx=self.eos,
+            left_pad_source=self.left_pad_source,
+            left_pad_target=self.left_pad_target,
             input_feeding=self.input_feeding,
         )
 
@@ -277,9 +320,19 @@ class LanguagePairDataset(FairseqDataset):
             indices = np.random.permutation(len(self))
         else:
             indices = np.arange(len(self))
-        if self.tgt_sizes is not None:
-            indices = indices[np.argsort(self.tgt_sizes[indices], kind='mergesort')]
-        return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
+        if self.buckets is None:
+            # sort by target length, then source length
+            if self.tgt_sizes is not None:
+                indices = indices[
+                    np.argsort(self.tgt_sizes[indices], kind='mergesort')
+                ]
+            return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
+        else:
+            # sort by bucketed_num_tokens, which is:
+            #   max(padded_src_len, padded_tgt_len)
+            return indices[
+                np.argsort(self.bucketed_num_tokens[indices], kind='mergesort')
+            ]
 
     @property
     def supports_prefetch(self):

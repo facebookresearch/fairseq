@@ -282,8 +282,6 @@ following contents::
               tgt_sizes=torch.ones(len(labels)),  # targets have length 1
               tgt_dict=self.label_vocab,
               left_pad_source=False,
-              max_source_positions=self.args.max_positions,
-              max_target_positions=1,
               # Since our target is a single class label, there's no need for
               # teacher forcing. If we set this to ``True`` then our Model's
               # ``forward()`` method would receive an additional argument called
