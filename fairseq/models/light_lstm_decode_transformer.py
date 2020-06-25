@@ -27,6 +27,16 @@ DEFAULT_MAX_SOURCE_POSITIONS = 1024
 class LightLSTMDecodeTransformerModel(FairseqEncoderDecoderModel):
     """Transformer with lightweight LSTM based decoder.
 
+    This model takes advantage of the performance of the transformer
+    encoder while scaling linearly in decoding speed and memory against
+    generated sequence length.
+
+    Rather than using multi-head attention in every layer in the
+    decoder, only 1 single-headed attention block is used in the final
+    layer of the decoder.
+
+    This model follows closely in implementation to fairseq.models.lstm
+
     The model provides the following command-line arguments
 
     .. argparse::

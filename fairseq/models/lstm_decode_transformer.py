@@ -30,8 +30,14 @@ DEFAULT_MAX_SOURCE_POSITIONS = 1024
 class LSTMDecodeTransformerModel(FairseqEncoderDecoderModel):
     """Transformer with LSTM based decoder.
 
-    This model provides near transformer-like performance while being faster
-    and offering
+    This model takes advantage of the performance of the transformer
+    encoder while scaling linearly in decoding speed and memory against
+    generated sequence length.
+
+    Similar to the standard transformer, this model takes advantage
+    of multi-head attention to attend on encoder outputs.
+    However, instead of using multi-head self-attention, this model uses
+    a LSTM blocks instead.
 
     The model provides the following command-line arguments
 
