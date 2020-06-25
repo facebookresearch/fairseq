@@ -86,6 +86,10 @@ class SequenceGenerator(nn.Module):
         self.search = (
             search.BeamSearch(tgt_dict) if search_strategy is None else search_strategy
         )
+        # We only need to set src_lengths in LengthConstrainedBeamSearch.
+        # As a module attribute, setting it would break in multithread
+        # settings when the model is shared.
+        self.should_set_src_lengths = hasattr(self.search, 'needs_src_lengths') and self.search.needs_src_lengths
         if not self.retain_dropout:
             self.model.eval()
 
@@ -109,7 +113,6 @@ class SequenceGenerator(nn.Module):
             bos_token (int, optional): beginning of sentence token
                 (default: self.eos)
         """
-        self.model.reset_incremental_state()
         return self._generate(sample, prefix_tokens, bos_token)
 
     # TODO(myleott): unused, deprecate after pytorch-translate migration
@@ -157,7 +160,6 @@ class SequenceGenerator(nn.Module):
             bos_token (int, optional): beginning of sentence token
                 (default: self.eos)
         """
-        self.model.reset_incremental_state()
         return self._generate(sample, **kwargs)
 
     def _generate(
@@ -166,6 +168,13 @@ class SequenceGenerator(nn.Module):
         prefix_tokens: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
+        incremental_states = torch.jit.annotate(
+            List[Dict[str, Dict[str, Optional[Tensor]]]],
+            [
+                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                for i in range(self.model.models_size)
+            ],
+        )
         net_input = sample["net_input"]
         src_tokens = net_input["src_tokens"]
         # length of the source text being the character length except EndOfSentence and pad
@@ -252,13 +261,16 @@ class SequenceGenerator(nn.Module):
                     reorder_state.view(-1, beam_size).add_(
                         corr.unsqueeze(-1) * beam_size
                     )
-                self.model.reorder_incremental_state(reorder_state)
+                self.model.reorder_incremental_state(incremental_states, reorder_state)
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
 
             lprobs, avg_attn_scores = self.model.forward_decoder(
-                tokens[:, : step + 1], encoder_outs, self.temperature
+                tokens[:, : step + 1],
+                encoder_outs,
+                incremental_states,
+                self.temperature,
             )
             lprobs[lprobs != lprobs] = torch.tensor(-math.inf).to(lprobs)
 
@@ -299,7 +311,8 @@ class SequenceGenerator(nn.Module):
                 scores
             )  # scores of hypothesis ending with eos (finished sentences)
 
-            self.search.set_src_lengths(src_lengths)
+            if self.should_set_src_lengths:
+                self.search.set_src_lengths(src_lengths)
 
             if self.no_repeat_ngram_size > 0:
                 lprobs = self._no_repeat_ngram(tokens, lprobs, bsz, beam_size, step)
@@ -653,8 +666,6 @@ class SequenceGenerator(nn.Module):
 class EnsembleModel(nn.Module):
     """A wrapper around an ensemble of models."""
 
-    incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]]
-
     def __init__(self, models):
         super().__init__()
         self.models_size = len(models)
@@ -662,13 +673,6 @@ class EnsembleModel(nn.Module):
         self.single_model = models[0]
         self.models = nn.ModuleList(models)
 
-        self.incremental_states = torch.jit.annotate(
-            List[Dict[str, Dict[str, Optional[Tensor]]]],
-            [
-                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
-                for i in range(self.models_size)
-            ],
-        )
         self.has_incremental: bool = False
         if all(
             hasattr(m, "decoder") and isinstance(m.decoder, FairseqIncrementalDecoder)
@@ -678,17 +682,6 @@ class EnsembleModel(nn.Module):
 
     def forward(self):
         pass
-
-    def reset_incremental_state(self):
-        if self.has_incremental_states():
-            self.incremental_states = torch.jit.annotate(
-                List[Dict[str, Dict[str, Optional[Tensor]]]],
-                [
-                    torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
-                    for i in range(self.models_size)
-                ],
-            )
-        return
 
     def has_encoder(self):
         return hasattr(self.single_model, "encoder")
@@ -710,7 +703,11 @@ class EnsembleModel(nn.Module):
 
     @torch.jit.export
     def forward_decoder(
-        self, tokens, encoder_outs: List[EncoderOut], temperature: float = 1.0
+        self,
+        tokens,
+        encoder_outs: List[EncoderOut],
+        incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
+        temperature: float = 1.0,
     ):
         log_probs = []
         avg_attn: Optional[Tensor] = None
@@ -723,7 +720,7 @@ class EnsembleModel(nn.Module):
                 decoder_out = model.decoder.forward(
                     tokens,
                     encoder_out=encoder_out,
-                    incremental_state=self.incremental_states[i],
+                    incremental_state=incremental_states[i],
                 )
             else:
                 decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
@@ -790,12 +787,16 @@ class EnsembleModel(nn.Module):
         return new_outs
 
     @torch.jit.export
-    def reorder_incremental_state(self, new_order):
+    def reorder_incremental_state(
+        self,
+        incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order,
+    ):
         if not self.has_incremental_states():
             return
         for i, model in enumerate(self.models):
             model.decoder.reorder_incremental_state_scripting(
-                self.incremental_states[i], new_order
+                incremental_states[i], new_order
             )
 
 
@@ -816,7 +817,6 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):
-        self.model.reset_incremental_state()
         finalized = super()._generate(sample, **kwargs)
 
         src_tokens = sample["net_input"]["src_tokens"]
