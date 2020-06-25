@@ -27,6 +27,9 @@ arguments for further configuration.
 Convolutional Neural Networks (CNN)
 -----------------------------------
 
+Fully Convolutional Model
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
 .. module:: fairseq.models.fconv
 .. autoclass:: fairseq.models.fconv.FConvModel
     :members:
@@ -40,6 +43,9 @@ Convolutional Neural Networks (CNN)
 Long Short-Term Memory (LSTM) networks
 --------------------------------------
 
+LSTM Model
+^^^^^^^^^^
+
 .. module:: fairseq.models.lstm
 .. autoclass:: fairseq.models.lstm.LSTMModel
     :members:
@@ -51,6 +57,9 @@ Long Short-Term Memory (LSTM) networks
 
 Transformer (self-attention) networks
 -------------------------------------
+
+Transformer Model
+^^^^^^^^^^^^^^^^^
 
 .. module:: fairseq.models.transformer
 .. autoclass:: fairseq.models.transformer.TransformerModel
@@ -64,14 +73,14 @@ Transformer (self-attention) networks
 .. autoclass:: fairseq.models.transformer.TransformerDecoderLayer
     :members:
 
-
-Transformer (self-attention) with LSTM decoder networks
--------------------------------------------------------
-
+LSTM Decode Transformer Model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. module:: fairseq.models.lstm_decode_transformer
 .. autoclass:: fairseq.models.lstm_decode_transformer.LSTMDecodeTransformerModel
     :members:
 
+Light LSTM Decode Transformer Model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. module:: fairseq.models.light_lstm_decode_transformer
 .. autoclass:: fairseq.models.light_lstm_decode_transformer.LightLSTMDecodeTransformerModel
     :members:
