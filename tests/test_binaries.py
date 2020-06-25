@@ -169,6 +169,32 @@ class TestTranslation(unittest.TestCase):
                 ], run_validation=True)
                 generate_main(data_dir)
 
+    def test_lstm_decode_transformer(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_lstm_decode_transformer') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'lstm_decode_transformer', [
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                ], run_validation=True)
+                generate_main(data_dir)
+
+    def test_light_lstm_decode_transformer(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_light_lstm_decode_transformer') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, 'light_lstm_decode_transformer', [
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                ], run_validation=True)
+                generate_main(data_dir)
+
     def test_multilingual_transformer(self):
         # test with all combinations of encoder/decoder lang tokens
         encoder_langtok_flags = [[], ['--encoder-langtok', 'src'], ['--encoder-langtok', 'tgt']]
