@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from fairseq import options as fairseq_options
 from fairseq import utils as fairseq_utils
+from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.data.dictionary import Dictionary
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.fairseq_incremental_decoder import \
@@ -374,9 +375,6 @@ class LSTMDecodeTransformerDecoder(FairseqIncrementalDecoder):
                 incremental_state=incremental_state
             )
 
-        if attn is not None:
-            attn = attn.mean(dim=0)
-
         if self.layer_norm is not None:
             x = self.layer_norm(x)
 
@@ -386,9 +384,10 @@ class LSTMDecodeTransformerDecoder(FairseqIncrementalDecoder):
         if self.out_proj is not None:
             x = self.out_proj(x)
 
-        return x, {'attn': attn}
+        return x, {'attn': [attn]}
 
 
+@with_incremental_state
 class LSTMTransformerDecoderLayer(nn.Module):
     """Multihead attention decoder layer with LSTM instead of self-attn."""
 
@@ -480,6 +479,7 @@ class LSTMTransformerDecoderLayer(nn.Module):
             c.index_select(1, new_order)
         )
         self._set_input_buffer(incremental_state, new_buffer)
+        return incremental_state
 
     def forward(
         self,
@@ -521,6 +521,7 @@ class LSTMTransformerDecoderLayer(nn.Module):
         if incremental_state is not None:
             self._set_input_buffer(incremental_state, new_states)
 
+        attn = None
         if self.attn is not None:
             residual = x
             if self.normalize_before:
@@ -586,6 +587,7 @@ def base_architecture(args):
     args.decoder_normalize_before = \
         getattr(args, "decoder_normalize_before", False)
 
+    args.adaptive_input = getattr(args, "adaptive_input", False)
     args.adaptive_softmax_cutoff = \
         getattr(args, 'adaptive_softmax_cutoff', None)
     args.adaptive_softmax_dropout = \
@@ -598,6 +600,6 @@ def base_architecture(args):
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
 
-    # To account for dummy args
+    args.quant_noise_pq = 0
     args.encoder_layerdrop = 0
     args.no_token_positional_embeddings = False
