@@ -88,6 +88,7 @@ class LengthConstrainedBeamSearch(Search):
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
         self.beam = BeamSearch(tgt_dict)
+        self.needs_src_lengths = True
 
     def step(self, step: int, lprobs, scores):
         min_lens = self.min_len_a * self.src_lengths + self.min_len_b
