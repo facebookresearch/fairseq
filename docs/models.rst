@@ -65,6 +65,18 @@ Transformer (self-attention) networks
     :members:
 
 
+Transformer (self-attention) with LSTM decoder networks
+-------------------------------------------------------
+
+.. module:: fairseq.models.lstm_decode_transformer
+.. autoclass:: fairseq.models.lstm_decode_transformer.LSTMDecodeTransformerModel
+    :members:
+
+.. module:: fairseq.models.light_lstm_decode_transformer
+.. autoclass:: fairseq.models.light_lstm_decode_transformer.LightLSTMDecodeTransformerModel
+    :members:
+
+
 Adding new models
 -----------------
 
