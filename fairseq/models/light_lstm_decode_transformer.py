@@ -260,9 +260,9 @@ class LightLSTMDecodeTransformerDecoder(FairseqIncrementalDecoder):
         if not no_encoder_attn:
             self.attention = AttentionLayer(embed_dim, encoder_embed_dim)
 
-        self.fc1 = Linear(self.hidden_size, self.hidden_size * 4)
-        self.fc2 = Linear(self.hidden_size * 4, self.hidden_size)
-        self.final_layer_norm = LayerNorm(self.hidden_size)
+        self.fc1 = Linear(embed_dim, embed_dim * 4)
+        self.fc2 = Linear(embed_dim * 4, embed_dim)
+        self.final_layer_norm = LayerNorm(embed_dim)
 
         self.project_out_dim = None
         if embed_dim != output_embed_dim:
@@ -284,6 +284,7 @@ class LightLSTMDecodeTransformerDecoder(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.embed_out, mean=0, std=output_embed_dim ** -0.5)
 
+        self.layernorm_embedding = None
         if layernorm_embedding:
             self.layernorm_embedding = LayerNorm(embed_dim)
 
@@ -353,14 +354,16 @@ class LightLSTMDecodeTransformerDecoder(FairseqIncrementalDecoder):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        prev_states, input_feed = fairseq_utils.get_incremental_state(
+        cached_state = fairseq_utils.get_incremental_state(
             self,
             incremental_state,
             self.__class__.__name__
         )
-        if prev_states is None:
+        if cached_state is None:
             prev_states = [None] * self.num_layers
             input_feed = x.new_zeros(bsz, self.embed_dim)
+        else:
+            prev_states, input_feed = cached_state
 
         attn_scores = []
         outs = []
@@ -418,7 +421,7 @@ class LightLSTMDecodeTransformerDecoder(FairseqIncrementalDecoder):
         else:
             attn_scores = None
 
-        return x, {'attn': attn_scores}
+        return x, {'attn': [attn_scores]}
 
     def reorder_incremental_state(self, incremental_state, new_order):
         super().reorder_incremental_state(incremental_state, new_order)
@@ -528,6 +531,7 @@ def base_architecture(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 2048)
     args.decoder_layers = getattr(args, "decoder_layers", 1)
 
+    args.adaptive_input = getattr(args, "adaptive_input", False)
     args.adaptive_softmax_cutoff = \
         getattr(args, 'adaptive_softmax_cutoff', None)
     args.adaptive_softmax_dropout = \
@@ -540,6 +544,6 @@ def base_architecture(args):
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
 
-    # To account for dummy args
+    args.quant_noise_pq = 0
     args.encoder_layerdrop = 0
     args.no_token_positional_embeddings = False
