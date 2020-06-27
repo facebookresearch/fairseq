@@ -3,59 +3,28 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Optional, Tuple
-
-import torch
+import math
 import torch.nn as nn
-import torch.nn.functional as F
 from fairseq.modules import (
     LayerDropModuleList,
     LayerNorm,
-    MultiheadAttention,
     PositionalEmbedding,
-    TransformerSentenceEncoderLayer,
+    TransformerSentenceEncoder,
 )
+from .transformer_sentence_encoder import init_bert_params
+from .fb_linformer_sentence_encoder_layer import LinformerSentenceEncoderLayer
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
-import random
 
 
-def init_bert_params(module):
+class LinformerSentenceEncoder(TransformerSentenceEncoder):
     """
-    Initialize the weights specific to the BERT Model.
-    This overrides the default initializations depending on the specified arguments.
-        1. If normal_init_linear_weights is set then weights of linear
-           layer will be initialized using the normal distribution and
-           bais will be set to the specified value.
-        2. If normal_init_embed_weights is set then weights of embedding
-           layer will be initialized using the normal distribution.
-        3. If normal_init_proj_weights is set then weights of
-           in_project_weight for MultiHeadAttention initialized using
-           the normal distribution (to be validated).
-    """
-
-    if isinstance(module, nn.Linear):
-        module.weight.data.normal_(mean=0.0, std=0.02)
-        if module.bias is not None:
-            module.bias.data.zero_()
-    if isinstance(module, nn.Embedding):
-        module.weight.data.normal_(mean=0.0, std=0.02)
-        if module.padding_idx is not None:
-            module.weight.data[module.padding_idx].zero_()
-    if isinstance(module, MultiheadAttention):
-        module.q_proj.weight.data.normal_(mean=0.0, std=0.02)
-        module.k_proj.weight.data.normal_(mean=0.0, std=0.02)
-        module.v_proj.weight.data.normal_(mean=0.0, std=0.02)
-
-
-class TransformerSentenceEncoder(nn.Module):
-    """
-    Implementation for a Bi-directional Transformer based Sentence Encoder used
+    Implementation for a Bi-directional Linformer based Sentence Encoder used
     in BERT/XLM style pre-trained models.
 
     This first computes the token embedding using the token embedding matrix,
     position embeddings (if specified) and segment embeddings
     (if specified). After applying the specified number of
-    TransformerEncoderLayers, it outputs all the internal states of the
+    LinformerEncoderLayers, it outputs all the internal states of the
     encoder as well as the final representation associated with the first
     token (usually CLS token).
 
@@ -98,9 +67,13 @@ class TransformerSentenceEncoder(nn.Module):
         traceable: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,
+        compressed: int = 4,
+        shared_kv_compressed: int = 0,
+        shared_layer_kv_compressed: int = 0,
+        freeze_compress: int = 0,
     ) -> None:
 
-        super().__init__()
+        nn.Module.__init__(self)
         self.padding_idx = padding_idx
         self.vocab_size = vocab_size
         self.dropout = dropout
@@ -145,6 +118,19 @@ class TransformerSentenceEncoder(nn.Module):
             else None
         )
 
+        self.compressed = compressed
+        self.shared_kv_compressed = shared_kv_compressed
+        self.shared_layer_kv_compressed = shared_layer_kv_compressed
+        self.compress_layer = None
+        self.freeze_compress = freeze_compress
+        if self.shared_layer_kv_compressed == 1:
+            compress_layer = nn.Linear(self.max_seq_len, self.max_seq_len // self.compressed)
+            # intialize parameters for compressed layer
+            nn.init.xavier_uniform_(compress_layer.weight, gain=1 / math.sqrt(2))
+            if self.freeze_compress == 1:
+                compress_layer.weight.requires_grad = False
+            self.compress_layer = compress_layer
+
         if self.layerdrop > 0.0:
             self.layers = LayerDropModuleList(p=self.layerdrop)
         else:
@@ -188,9 +174,6 @@ class TransformerSentenceEncoder(nn.Module):
         for layer in range(n_trans_layers_to_freeze):
             freeze_module_params(self.layers[layer])
 
-    def build_embedding(self, vocab_size, embedding_dim, padding_idx):
-        return nn.Embedding(vocab_size, embedding_dim, padding_idx)
-
     def build_transformer_sentence_encoder_layer(
         self,
         embedding_dim,
@@ -204,7 +187,7 @@ class TransformerSentenceEncoder(nn.Module):
         q_noise,
         qn_block_size,
     ):
-        return TransformerSentenceEncoderLayer(
+        return LinformerSentenceEncoderLayer(
             embedding_dim=embedding_dim,
             ffn_embedding_dim=ffn_embedding_dim,
             num_attention_heads=num_attention_heads,
@@ -215,65 +198,12 @@ class TransformerSentenceEncoder(nn.Module):
             export=export,
             q_noise=q_noise,
             qn_block_size=qn_block_size,
+            compressed=self.compressed,
+            max_seq_len=self.max_seq_len,
+            shared_kv_compressed=self.shared_kv_compressed,
+            shared_compress_layer=(
+                None if self.shared_layer_kv_compressed == 0
+                else self.compress_layer
+            ),
+            freeze_compress=self.freeze_compress,
         )
-
-    def prepare_for_tpu_(self, **kwargs):
-        self.tpu = True
-
-    def forward(
-        self,
-        tokens: torch.Tensor,
-        segment_labels: torch.Tensor = None,
-        last_state_only: bool = False,
-        positions: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-
-        # compute padding mask. This is needed for multi-head attention
-        padding_mask = tokens.eq(self.padding_idx)
-        if not self.traceable and not self.tpu and not padding_mask.any():
-            padding_mask = None
-
-        x = self.embed_tokens(tokens)
-
-        if self.embed_scale is not None:
-            x *= self.embed_scale
-
-        if self.embed_positions is not None:
-            x += self.embed_positions(tokens, positions=positions)
-
-        if self.segment_embeddings is not None and segment_labels is not None:
-            x += self.segment_embeddings(segment_labels)
-
-        if self.quant_noise is not None:
-            x = self.quant_noise(x)
-
-        if self.emb_layer_norm is not None:
-            x = self.emb_layer_norm(x)
-
-        x = F.dropout(x, p=self.dropout, training=self.training)
-
-        # account for padding while computing the representation
-        if padding_mask is not None:
-            x *= 1 - padding_mask.unsqueeze(-1).type_as(x)
-
-        # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
-
-        inner_states = []
-        if not last_state_only:
-            inner_states.append(x)
-
-        for layer in self.layers:
-            x, _ = layer(x, self_attn_padding_mask=padding_mask)
-            if not last_state_only:
-                inner_states.append(x)
-
-        sentence_rep = x[0, :, :]
-
-        if last_state_only:
-            inner_states = [x]
-
-        if self.traceable:
-            return torch.stack(inner_states), sentence_rep
-        else:
-            return inner_states, sentence_rep
