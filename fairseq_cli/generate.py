@@ -30,7 +30,7 @@ def main(args):
     if args.results_path is not None:
         os.makedirs(args.results_path, exist_ok=True)
         output_path = os.path.join(args.results_path, 'generate-{}.txt'.format(args.gen_subset))
-        with open(output_path, 'w', buffering=1) as h:
+        with open(output_path, 'w', buffering=1, encoding='utf-8') as h:
             return _main(args, h)
     else:
         return _main(args, sys.stdout)
