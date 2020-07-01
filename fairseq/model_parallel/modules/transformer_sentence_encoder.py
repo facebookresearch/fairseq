@@ -20,11 +20,7 @@ from fairseq.model_parallel.modules import (
 )
 
 try:
-    from fairseq.model_parallel.megatron.mpu import (
-        copy_to_model_parallel_region,
-        gather_from_model_parallel_region,
-        VocabParallelEmbedding,
-    )
+    from fairseq.model_parallel.megatron.mpu import VocabParallelEmbedding
     has_megatron_submodule = True
 except (ImportError, ModuleNotFoundError):
     has_megatron_submodule = False

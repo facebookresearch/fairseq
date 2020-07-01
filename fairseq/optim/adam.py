@@ -167,7 +167,7 @@ class Adam(torch.optim.Optimizer):
                     raise RuntimeError(
                         "Adam does not support sparse gradients, please consider SparseAdam instead"
                     )
-                amsgrad = group["amsgrad"]
+                amsgrad = group.get("amsgrad", False)
 
                 p_data_fp32 = p.data
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
