@@ -66,7 +66,7 @@ def fb_main(device_id, args, start_rank, log_path=None):
     # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
     try:
         PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
-    except AssertionError:
+    except KeyError:
         logging.warning("ManifoldPathHandler already registered.")
 
     def train_main():
