@@ -97,13 +97,15 @@ class ModelParallelTransformerDecoder(TransformerDecoder):
 
     def output_layer(self, features, **kwargs):
         """Project features to the vocabulary size."""
+        if not self.share_input_output_embed:
+            raise NotImplementedError(
+                'Model parallel training currently requires --share-decoder-input-output-embed'
+            )
+
         features = copy_to_model_parallel_region(features)
 
         # project back to size of vocabulary
-        if self.share_input_output_embed:
-            x = F.linear(features, self.embed_tokens.weight)
-        else:
-            x = F.linear(features, self.embed_out)
+        x = self.output_projection(features)
 
         if getattr(self.args, 'criterion') != 'vocab_parallel_cross_entropy':
             x = gather_from_model_parallel_region(x).contiguous()
