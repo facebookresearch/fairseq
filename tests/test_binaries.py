@@ -112,6 +112,7 @@ class TestTranslation(unittest.TestCase):
                         '--match-source-len',
                     ])
                 generate_main(data_dir, ['--prefix-size', '2'])
+                generate_main(data_dir, ['--retain-dropout'])
 
     def test_eval_bleu(self):
         with contextlib.redirect_stdout(StringIO()):

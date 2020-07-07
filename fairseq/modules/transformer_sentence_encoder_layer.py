@@ -7,7 +7,6 @@ from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from fairseq import utils
 from fairseq.modules import (
@@ -15,6 +14,8 @@ from fairseq.modules import (
     MultiheadAttention,
 )
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.fairseq_dropout import FairseqDropout
+
 
 
 class TransformerSentenceEncoderLayer(nn.Module):
@@ -44,8 +45,8 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
         # Initialize parameters
         self.embedding_dim = embedding_dim
-        self.dropout = dropout
-        self.activation_dropout = activation_dropout
+        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
+        self.activation_dropout_module = FairseqDropout(activation_dropout, module_name=self.__class__.__name__)
 
         # Initialize blocks
         self.activation_fn = utils.get_activation_fn(activation_fn)
@@ -124,15 +125,15 @@ class TransformerSentenceEncoderLayer(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.self_attn_layer_norm(x)
 
         residual = x
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=self.activation_dropout, training=self.training)
+        x = self.activation_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.final_layer_norm(x)
         return x, attn

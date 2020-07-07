@@ -120,16 +120,33 @@ class BaseFairseqModel(nn.Module):
         do_upgrade(self, name)
 
     def set_num_updates(self, num_updates):
-        """ State from trainer to pass along to model at every update """
+        """State from trainer to pass along to model at every update."""
 
         def _apply(m):
             if hasattr(m, 'set_num_updates') and m != self:
                 m.set_num_updates(num_updates)
         self.apply(_apply)
 
+    def prepare_for_inference_(self, args):
+        """Prepare model for inference."""
+        kwargs = {}
+        kwargs['beamable_mm_beam_size'] = (
+            None if getattr(args, 'no_beamable_mm', False)
+            else getattr(args, 'beam', 5)
+        )
+        kwargs['need_attn'] = getattr(args, 'print_alignment', False)
+        if hasattr(args, 'retain_dropout'):
+            kwargs['retain_dropout'] = args.retain_dropout
+            kwargs['retain_dropout_modules'] = getattr(
+                args, 'retain_dropout_modules', None
+            )
+        self.make_generation_fast_(**kwargs)
 
     def make_generation_fast_(self, **kwargs):
-        """Optimize model for faster generation."""
+        """
+        Legacy entry point to optimize model for faster generation.
+        Prefer prepare_for_inference_.
+        """
         if self._is_generation_fast:
             return  # only apply once
         self._is_generation_fast = True
@@ -143,18 +160,23 @@ class BaseFairseqModel(nn.Module):
 
         self.apply(apply_remove_weight_norm)
 
-        seen = set()
+        def apply_make_generation_fast_(module, prefix):
+            if len(prefix) > 0:
+                prefix += "."
 
-        def apply_make_generation_fast_(module):
-            if (
-                module != self
-                and hasattr(module, "make_generation_fast_")
-                and module not in seen
-            ):
-                seen.add(module)
-                module.make_generation_fast_(**kwargs)
+            base_func = BaseFairseqModel.make_generation_fast_
+            for n, m in module.named_modules():
+                if (
+                    m != self
+                    and hasattr(m, "make_generation_fast_")
+                    # don't call this implementation again, e.g., if
+                    # children modules also inherit from BaseFairseqModel
+                    and m.make_generation_fast_.__func__ is not base_func
+                ):
+                    name = prefix + n
+                    m.make_generation_fast_(name=name, **kwargs)
 
-        self.apply(apply_make_generation_fast_)
+        apply_make_generation_fast_(self, "")
 
         def train(mode=True):
             if mode:
