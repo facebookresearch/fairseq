@@ -82,6 +82,10 @@ class CountingIterator(object):
         """
         self.total = min(self.total, n)
 
+        # Propagate this change to the underlying iterator
+        if hasattr(self.iterable, "take"):
+            self.iterable.take(n)
+
 
 class EpochBatchIterating(object):
     def __len__(self) -> int:
@@ -423,11 +427,13 @@ class ShardedIterator(CountingIterator):
 
 
 class BackgroundConsumer(Thread):
-    def __init__(self, queue, source):
+    def __init__(self, queue, source, max_len):
         Thread.__init__(self)
 
         self._queue = queue
         self._source = source
+        self._max_len = max_len
+        self.count = 0
 
     def run(self):
         try:
@@ -435,6 +441,11 @@ class BackgroundConsumer(Thread):
             for _ in range(len(self._source)):
                 item = next(self._source_iter)
                 self._queue.put(item)
+
+                # Stop if we reached the maximum length
+                self.count += 1
+                if self._max_len is not None and self.count >= self._max_len:
+                    break
 
             # Signal the consumer we are done.
             self._queue.put(_sentinel)
@@ -448,13 +459,20 @@ class BufferedIterator(object):
     def __init__(self, size, iterable):
         self._queue = queue.Queue(size)
         self._iterable = iterable
-
-        self._consumer = BackgroundConsumer(self._queue, iterable)
-        self._consumer.daemon = True
-        self._consumer.start()
+        self.max_len = None
+        self._consumer = None
 
         self.start_time = time.time()
         self.warning_time = None
+
+    def _create_consumer(self):
+        self._consumer = BackgroundConsumer(
+            self._queue,
+            self._iterable,
+            self.max_len
+        )
+        self._consumer.daemon = True
+        self._consumer.start()
 
     def __iter__(self):
         return self
@@ -462,7 +480,14 @@ class BufferedIterator(object):
     def __len__(self):
         return len(self._iterable)
 
+    def take(self, n):
+        self.max_len = n
+
     def __next__(self):
+        # Create consumer if not created yet
+        if self._consumer is None:
+            self._create_consumer()
+
         # Notify the user if there is a data loading bottleneck
         if self._queue.qsize() < max(1, self._queue.maxsize // 2):
             if time.time() - self.start_time > 5 * 60:
