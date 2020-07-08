@@ -10,15 +10,17 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderModel,
     register_model,
     register_model_architecture,
 )
+from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
-default_conv_enc_config = """[ 
+default_conv_enc_config = """[
     (400, 13, 170, 0.2),
     (440, 14, 0, 0.214),
     (484, 15, 0, 0.22898),
@@ -106,7 +108,9 @@ class W2lConvGluEncoder(FairseqEncoder):
             layer = nn.Conv1d(cur_channels, out_channels, kernel_size, padding=padding)
             layer.weight.data.mul_(math.sqrt(3))  # match wav2letter init
             self.conv_layers.append(nn.utils.weight_norm(layer))
-            self.dropouts.append(dropout)
+            self.dropouts.append(
+                FairseqDropout(dropout, module_name=self.__class__.__name__)
+            )
             if out_channels % 2 != 0:
                 raise ValueError("odd # of out_channels is incompatible with GLU")
             cur_channels = out_channels // 2  # halved by GLU
@@ -129,12 +133,12 @@ class W2lConvGluEncoder(FairseqEncoder):
         for layer_idx in range(len(self.conv_layers)):
             x = self.conv_layers[layer_idx](x)
             x = F.glu(x, dim=1)
-            x = F.dropout(x, p=self.dropouts[layer_idx], training=self.training)
+            x = self.dropouts[layer_idx](x)
 
         x = x.transpose(1, 2).contiguous()  # (B, T, 908)
         x = self.linear_layers[0](x)
         x = F.glu(x, dim=2)
-        x = F.dropout(x, p=self.dropouts[-1])
+        x = self.dropouts[-1](x)
         x = self.linear_layers[1](x)
 
         assert x.size(0) == B

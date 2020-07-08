@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from fairseq import utils
 from fairseq.modules.unfold import unfold1d
 from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
 def LightweightConv(input_size, kernel_size=1, padding_l=None, num_heads=1,
@@ -66,7 +67,7 @@ class LightweightConv1d(nn.Module):
             self.bias = nn.Parameter(torch.Tensor(input_size))
         else:
             self.bias = None
-        self.weight_dropout = weight_dropout
+        self.weight_dropout_module = FairseqDropout(weight_dropout, module_name=self.__class__.__name__)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -86,7 +87,7 @@ class LightweightConv1d(nn.Module):
         if self.weight_softmax:
             weight = F.softmax(weight, dim=-1)
 
-        weight = F.dropout(weight, self.weight_dropout, training=self.training)
+        weight = self.weight_dropout_module(weight)
         # Merge every C/H entries into the batch dimension (C = self.input_size)
         # B x C x T -> (B * C/H) x H x T
         # One can also expand the weight to C x 1 x K by a factor of C/H
@@ -128,7 +129,7 @@ class LightweightConv1dTBC(nn.Module):
         self.kernel_size = kernel_size
         self.padding_l = padding_l
         self.num_heads = num_heads
-        self.weight_dropout = weight_dropout
+        self.weight_dropout_module = FairseqDropout(weight_dropout, module_name=self.__class__.__name__)
         self.weight_softmax = weight_softmax
 
         self.weight = nn.Parameter(torch.Tensor(num_heads, 1, kernel_size))
@@ -197,7 +198,7 @@ class LightweightConv1dTBC(nn.Module):
 
         weight = weight.view(1, H, K).expand(T*B, H, K).contiguous().view(T*B*H, K, 1)
 
-        weight = F.dropout(weight, self.weight_dropout, training=self.training)
+        weight = self.weight_dropout_module(weight)
         output = torch.bmm(x_unfold, weight)  # T*B*H x R x 1
         output = output.view(T, B, C)
         return output
@@ -227,7 +228,7 @@ class LightweightConv1dTBC(nn.Module):
         weight_expanded = weight.new_zeros(B*H, T, T+K-1, requires_grad=False)
         weight_expanded.as_strided((B*H, T, K), (T*(T+K-1), T+K, 1)).copy_(weight)
         weight_expanded = weight_expanded.narrow(2, P, T)
-        weight_expanded = F.dropout(weight_expanded, self.weight_dropout, training=self.training)
+        weight_expanded = self.weight_dropout_module(weight_expanded)
 
         output = torch.bmm(weight_expanded, x)
         output = output.transpose(0, 1).contiguous().view(T, B, C)
@@ -250,6 +251,6 @@ class LightweightConv1dTBC(nn.Module):
             self.input_size, self.kernel_size, self.padding_l,
             self.num_heads, self.weight_softmax, self.bias is not None
         )
-        if self.weight_dropout > 0.:
-            s += ', weight_dropout={}'.format(self.weight_dropout)
+        if self.weight_dropout_module.p > 0.:
+            s += ', weight_dropout={}'.format(self.weight_dropout_module.p)
         return s

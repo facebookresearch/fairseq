@@ -57,7 +57,7 @@ class SparseTransformerSentenceEncoder(TransformerSentenceEncoder):
                     embedding_dim=self.embedding_dim,
                     ffn_embedding_dim=ffn_embedding_dim,
                     num_attention_heads=num_attention_heads,
-                    dropout=self.dropout,
+                    dropout=dropout,
                     attention_dropout=attention_dropout,
                     activation_dropout=activation_dropout,
                     activation_fn=activation_fn,

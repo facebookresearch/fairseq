@@ -27,7 +27,6 @@ class SequenceGenerator(nn.Module):
         normalize_scores=True,
         len_penalty=1.0,
         unk_penalty=0.0,
-        retain_dropout=False,
         temperature=1.0,
         match_source_len=False,
         no_repeat_ngram_size=0,
@@ -50,8 +49,6 @@ class SequenceGenerator(nn.Module):
                 shorter, >1.0 favors longer sentences (default: 1.0)
             unk_penalty (float, optional): unknown word penalty, where <0
                 produces more unks, >0 produces fewer (default: 0.0)
-            retain_dropout (bool, optional): use dropout when generating
-                (default: False)
             temperature (float, optional): temperature, where values
                 >1.0 produce more uniform samples and values <1.0 produce
                 sharper samples (default: 1.0)
@@ -77,7 +74,6 @@ class SequenceGenerator(nn.Module):
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
         self.unk_penalty = unk_penalty
-        self.retain_dropout = retain_dropout
         self.temperature = temperature
         self.match_source_len = match_source_len
         self.no_repeat_ngram_size = no_repeat_ngram_size
@@ -90,8 +86,8 @@ class SequenceGenerator(nn.Module):
         # As a module attribute, setting it would break in multithread
         # settings when the model is shared.
         self.should_set_src_lengths = hasattr(self.search, 'needs_src_lengths') and self.search.needs_src_lengths
-        if not self.retain_dropout:
-            self.model.eval()
+
+        self.model.eval()
 
     def cuda(self):
         self.model.cuda()
