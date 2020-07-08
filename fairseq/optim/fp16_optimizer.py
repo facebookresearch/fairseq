@@ -342,32 +342,37 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         if self.scaler is not None:
             loss = loss * self.scaler.loss_scale
             self._grads_are_scaled = True
+            self._multiply_factor = 1
         loss.backward()
 
-    def _unscale_grads(self, multiply_grads=1.):
+    def _unscale_grads(self):
         if self._grads_are_scaled:
             self._grads_are_scaled = False
 
             # correct for dynamic loss scaler
-            self.wrapped_optimizer.multiply_grads(multiply_grads / self.scaler.loss_scale)
+            self.wrapped_optimizer.multiply_grads(self._multiply_factor / self.scaler.loss_scale)
+            self._multiply_factor = 1
         else:
-            assert multiply_grads == 1.
+            assert self._multiply_factor == 1
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
         if self._grads_are_scaled:
-            self._unscale_grads(c)
+            self._multiply_factor *= c
         else:
             self.wrapped_optimizer.multiply_grads(c)
 
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
-        self._unscale_grads()
-        grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
 
         # detect overflow and adjust loss scale
         if self.scaler is not None:
-            overflow = DynamicLossScaler.has_overflow(grad_norm)
+            scale = self._multiply_factor / self.scaler.loss_scale
+            grad_norm = self.wrapped_optimizer.clip_grad_norm(0, aggregate_norm_fn) * scale
+            grad_norm_cpu = float(grad_norm)
+            if grad_norm_cpu > max_norm:
+                self._multiply_factor *= max_norm / grad_norm_cpu
+            overflow = DynamicLossScaler.has_overflow(grad_norm_cpu)
             prev_scale = self.scaler.loss_scale
             self.scaler.update_scale(overflow)
             if overflow:
@@ -381,13 +386,20 @@ class _MemoryEfficientFP16OptimizerMixin(object):
                         'increasing the batch size.'
                     ).format(self.min_loss_scale))
                 raise OverflowError('setting loss scale to: ' + str(self.scaler.loss_scale))
+        else:
+            self._unscale_grads()
+            grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
 
         return grad_norm
 
     def step(self, closure=None):
         """Performs a single optimization step."""
-        self._unscale_grads()
-        self.wrapped_optimizer.step(closure)
+        if self.supports_step_with_scale and self._grads_are_scaled:
+            scale = self._multiply_factor / self.scaler.loss_scale
+            self.wrapped_optimizer.step(closure, scale=scale)
+        else:
+            self._unscale_grads()
+            self.wrapped_optimizer.step(closure)
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
