@@ -2,7 +2,8 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Optional
+
+from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
@@ -34,9 +35,13 @@ class TransformerSentenceEncoderLayer(nn.Module):
         export: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,
+        init_fn: Callable = None,
     ) -> None:
-
         super().__init__()
+
+        if init_fn is not None:
+            init_fn()
+
         # Initialize parameters
         self.embedding_dim = embedding_dim
         self.dropout = dropout
