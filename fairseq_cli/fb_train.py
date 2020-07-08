@@ -3,11 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import argparse
 import contextlib
 import logging
 import os
 import sys
 from pathlib import Path
+from typing import Callable, Optional
 
 import torch.fb.rendezvous.zeus  # noqa: F401
 from fairseq import options
@@ -25,21 +27,24 @@ def get_fb_training_parser():
         help="[FB only] send tensorboard plots to manifold",
     )
     parser.add_argument(
-        "--manifold-ttl", type=int, help="[FB only] Set object ttl for manifold storage"
+        "--log-dir",
+        metavar="LOG",
+        default=None,
+        help="[FB only] Dir to store log in addition to stdout. If this "
+        "is not set, it will be set to args.save_dir",
     )
-    parser.add_argument(
-        "--manifold-has-user-data",
-        type=bool,
-        default=False,
-        help="[FB only] Set has-user-data-flag for manifold storage",
-    )
-    parser.add_argument('--log-dir', metavar='LOG', default=None,
-                        help='[FB only] Dir to store log in addition to stdout. If this '
-                             'is not set, it will be set to args.save_dir')
     return parser
 
 
-def fb_main(device_id, args, start_rank, log_path=None):
+def fb_main(
+    device_id,
+    args,
+    start_rank,
+    log_path=None,
+    after_distributed_init_fn: Optional[
+        Callable[[argparse.Namespace], argparse.Namespace]
+    ] = None,
+):
     """[FB] entry point for each worker process."""
 
     args.distributed_rank = start_rank + device_id
@@ -70,10 +75,9 @@ def fb_main(device_id, args, start_rank, log_path=None):
         logging.warning("ManifoldPathHandler already registered.")
 
     def train_main():
-        if args.distributed_world_size > 1:
-            distributed_main(device_id, args)
-        else:
-            main(args)
+        distributed_main(
+            device_id, args, after_distributed_init_fn=after_distributed_init_fn
+        )
 
     if log_path is not None and args.distributed_rank == 0:
         # write logs from worker 0 to train.log

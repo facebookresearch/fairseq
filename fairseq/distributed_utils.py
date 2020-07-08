@@ -77,9 +77,6 @@ def infer_init_method(args):
 
 
 def distributed_init(args):
-    if args.distributed_world_size == 1:
-        raise ValueError('Cannot initialize distributed with distributed_world_size=1')
-
     if not getattr(args, 'tpu', False):
         if torch.distributed.is_initialized():
             warnings.warn('Distributed is already initialized, cannot initialize twice!')
