@@ -12,6 +12,8 @@ import math
 import os
 import sys
 
+import numpy as np
+
 import torch
 
 from fairseq import bleu, checkpoint_utils, options, tasks, utils
@@ -51,6 +53,11 @@ def _main(args, output_file):
         args.max_tokens = 12000
     logger.info(args)
 
+    # Fix seed for stochastic decoding
+    if args.seed is not None and not args.no_seed_provided:
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+
     use_cuda = torch.cuda.is_available() and not args.cpu
 
     # Load dataset splits
@@ -75,10 +82,7 @@ def _main(args, output_file):
 
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
-            need_attn=args.print_alignment,
-        )
+        model.prepare_for_inference_(args)
         if args.fp16:
             model.half()
         if use_cuda:

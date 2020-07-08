@@ -27,6 +27,7 @@ from fairseq.models.transformer import (
 from fairseq.modules import (
     AdaptiveSoftmax,
     CharacterTokenEmbedder,
+    FairseqDropout,
     SinusoidalPositionalEmbedding,
 )
 from fairseq.modules.character_token_embedder import CHAR_PAD_IDX
@@ -170,7 +171,9 @@ class BiTransformerDecoder(FairseqDecoder):
     def __init__(self, args, dictionary, embed_tokens, classification_head=None):
         super().__init__(dictionary)
         self.onnx_trace = False
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(
+            args.dropout, module_name=self.__class__.__name__
+        )
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
         self.embed_dim = embed_tokens.embedding_dim
@@ -274,7 +277,7 @@ class BiTransformerDecoder(FairseqDecoder):
         x = self.embed_scale * self.embed_tokens(src_tokens)
         if positions is not None:
             x += positions
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
 
         # B x T x C -> T x B x C
         fwd_x = bwd_x = x.transpose(0, 1)
@@ -441,14 +444,19 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
             dropout=args.attention_dropout,
             mask_curr_state=not args.unmask_curr_state,
         )
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(
+            args.dropout, module_name=self.__class__.__name__
+        )
         self.activation_fn = utils.get_activation_fn(
             activation=getattr(args, 'activation_fn', 'relu')
         )
-        self.activation_dropout = getattr(args, 'activation_dropout', 0)
-        if self.activation_dropout == 0:
+        activation_dropout_p = getattr(args, "activation_dropout", 0)
+        if activation_dropout_p == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            self.activation_dropout = getattr(args, 'relu_dropout', 0)
+            activation_dropout_p = getattr(args, "relu_dropout", 0)
+        self.activation_dropout_module = FairseqDropout(
+            float(activation_dropout_p), module_name=self.__class__.__name__
+        )
         self.normalize_before = args.decoder_normalize_before
 
         self.fwd_layer_norm = LayerNorm(self.embed_dim, export=args.char_inputs)
@@ -467,15 +475,15 @@ class BidirectionalTransformerDecoderLayer(nn.Module):
             bwd_x=bwd_x,
             key_padding_mask=key_padding_mask,
         )
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = self.maybe_layer_norm(self.fwd_layer_norm, x, after=True)
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=self.activation_dropout, training=self.training)
+        x = self.activation_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
         return x, attn

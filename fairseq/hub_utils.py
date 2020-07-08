@@ -96,13 +96,7 @@ class GeneratorHubInterface(nn.Module):
 
         # optimize model for generation
         for model in self.models:
-            model.make_generation_fast_(
-                beamable_mm_beam_size=(
-                    None if getattr(args, 'no_beamable_mm', False)
-                    else getattr(args, 'beam', 5)
-                ),
-                need_attn=getattr(args, 'print_alignment', False),
-            )
+            model.prepare_for_inference_(args)
 
         # Load alignment dictionary for unknown word replacement
         # (None if no unknown word replacement, empty if no path to align dictionary)

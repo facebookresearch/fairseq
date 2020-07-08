@@ -12,7 +12,7 @@ from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import TransformerDecoder, TransformerModel
-from fairseq.modules import LayerNorm, MultiheadAttention
+from fairseq.modules import FairseqDropout, LayerNorm, MultiheadAttention
 from torch import Tensor
 
 
@@ -213,14 +213,20 @@ class AANTransformerDecoderLayer(nn.Module):
         # differently than original paper, we use a single gate
         self.aan_gating_fc = Linear(self.embed_dim * 2, self.embed_dim)
 
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(
+            args.dropout, module_name=self.__class__.__name__
+        )
         self.activation_fn = utils.get_activation_fn(
             activation=getattr(args, "activation_fn", "relu")
         )
-        self.activation_dropout = getattr(args, "activation_dropout", 0)
-        if self.activation_dropout == 0:
+        activation_dropout_p = getattr(args, "activation_dropout", 0)
+        if activation_dropout_p == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            self.activation_dropout = getattr(args, "relu_dropout", 0)
+            activation_dropout_p = getattr(args, "relu_dropout", 0)
+            self.activation_dropout_module = FairseqDropout(
+                float(activation_dropout_p), module_name=self.__class__.__name__
+            )
+
         self.normalize_before = args.decoder_normalize_before
 
         # use layerNorm rather than FusedLayerNorm for exporting.
@@ -319,7 +325,7 @@ class AANTransformerDecoderLayer(nn.Module):
         gate = torch.sigmoid(self.aan_gating_fc(torch.cat([residual, x], dim=-1)))
         x = gate * x + (1 - gate) * residual
 
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
@@ -339,7 +345,7 @@ class AANTransformerDecoderLayer(nn.Module):
                 need_weights=need_attn or (not self.training and self.need_attn),
                 need_head_weights=need_head_weights,
             )
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             x = residual + x
             if not self.normalize_before:
                 x = self.encoder_attn_layer_norm(x)
@@ -348,9 +354,9 @@ class AANTransformerDecoderLayer(nn.Module):
         if self.normalize_before:
             x = self.final_layer_norm(x)
         x = self.activation_fn(self.fc1(x))
-        x = F.dropout(x, p=float(self.activation_dropout), training=self.training)
+        x = self.activation_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         if not self.normalize_before:
             x = self.final_layer_norm(x)

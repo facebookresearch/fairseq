@@ -7,8 +7,8 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from fairseq.modules import (
+    FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
     MultiheadAttention,
@@ -16,7 +16,6 @@ from fairseq.modules import (
     TransformerSentenceEncoderLayer,
 )
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
-import random
 
 
 def init_bert_params(module):
@@ -103,7 +102,7 @@ class TransformerSentenceEncoder(nn.Module):
         super().__init__()
         self.padding_idx = padding_idx
         self.vocab_size = vocab_size
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
         self.layerdrop = layerdrop
         self.max_seq_len = max_seq_len
         self.embedding_dim = embedding_dim
@@ -154,13 +153,13 @@ class TransformerSentenceEncoder(nn.Module):
                 embedding_dim=self.embedding_dim,
                 ffn_embedding_dim=ffn_embedding_dim,
                 num_attention_heads=num_attention_heads,
-                dropout=self.dropout,
+                dropout=self.dropout_module.p,
                 attention_dropout=attention_dropout,
                 activation_dropout=activation_dropout,
                 activation_fn=activation_fn,
                 export=export,
                 q_noise=q_noise,
-                qn_block_size=qn_block_size
+                qn_block_size=qn_block_size,
             )
             for _ in range(num_encoder_layers)
         ])
@@ -250,7 +249,7 @@ class TransformerSentenceEncoder(nn.Module):
         if self.emb_layer_norm is not None:
             x = self.emb_layer_norm(x)
 
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
 
         # account for padding while computing the representation
         if padding_mask is not None:

@@ -8,10 +8,12 @@ from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from fairseq import utils
 from torch import Tensor, nn
 from torch.nn import Parameter
+
+from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 
 
@@ -44,7 +46,10 @@ class MultiheadAttention(nn.Module):
         self.qkv_same_dim = self.kdim == embed_dim and self.vdim == embed_dim
 
         self.num_heads = num_heads
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
+
         self.head_dim = embed_dim // num_heads
         assert (
             self.head_dim * num_heads == self.embed_dim
@@ -161,10 +166,10 @@ class MultiheadAttention(nn.Module):
                 self.bias_k,
                 self.bias_v,
                 self.add_zero_attn,
-                self.dropout,
+                self.dropout_module.p,
                 self.out_proj.weight,
                 self.out_proj.bias,
-                self.training,
+                self.training or self.dropout_module.apply_during_inference,
                 key_padding_mask,
                 need_weights,
                 attn_mask,
@@ -343,11 +348,8 @@ class MultiheadAttention(nn.Module):
             attn_weights, dim=-1, onnx_trace=self.onnx_trace
         )
         attn_weights = attn_weights_float.type_as(attn_weights)
-        attn_probs = F.dropout(
-            attn_weights,
-            p=self.dropout,
-            training=self.training,
-        )
+        attn_probs = self.dropout_module(attn_weights)
+
         assert v is not None
         attn = torch.bmm(attn_probs, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]

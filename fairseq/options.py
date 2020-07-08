@@ -188,6 +188,12 @@ def parse_args_and_arch(
     if args.tpu and args.fp16:
         raise ValueError("Cannot combine --fp16 and --tpu, use --bf16 on TPUs")
 
+    if getattr(args, "seed", None) is None:
+        args.seed = 1  # default seed for training
+        args.no_seed_provided = True
+    else:
+        args.no_seed_provided = False
+
     # Apply architecture configuration.
     if hasattr(args, "arch"):
         ARCH_CONFIG_REGISTRY[args.arch](args)
@@ -216,7 +222,7 @@ def get_parser(desc, default_task="translation"):
     parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
                         help='path to save logs for tensorboard, should match --logdir '
                              'of running tensorboard (default: no tensorboard logging)')
-    parser.add_argument('--seed', default=1, type=int, metavar='N',
+    parser.add_argument('--seed', default=None, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
     parser.add_argument('--tpu', action='store_true', help='use TPU instead of CUDA')
@@ -607,6 +613,11 @@ def add_generation_args(parser):
                        help='if set, the last checkpoint are assumed to be a reranker to rescore the translations'),
     group.add_argument('--retain-iter-history', action='store_true',
                        help='if set, decoding returns the whole history of iterative refinement')
+    group.add_argument('--retain-dropout', action='store_true',
+                       help='Use dropout at inference time')
+    group.add_argument('--retain-dropout-modules', default=None, nargs='+', type=str,
+                       help='if set, only retain dropout for the specified modules; '
+                            'if not set, then dropout will be retained for all modules')
 
     # special decoding format for advanced decoding.
     group.add_argument('--decoding-format', default=None, type=str, choices=['unigram', 'ensemble', 'vote', 'dp', 'bs'])

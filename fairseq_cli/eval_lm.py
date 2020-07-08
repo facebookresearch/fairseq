@@ -104,7 +104,7 @@ def main(parsed_args, **unused_kwargs):
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
-        model.make_generation_fast_()
+        model.prepare_for_inference_(args)
         if args.fp16:
             model.half()
         if use_cuda:
