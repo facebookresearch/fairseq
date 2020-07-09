@@ -138,7 +138,7 @@ class MultilingualTranslationTask(FairseqTask):
         for lang in sorted_langs:
             paths = utils.split_paths(args.data)
             assert len(paths) > 0
-            dicts[lang] = Dictionary.load(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
+            dicts[lang] = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
             if len(dicts) > 0:
                 assert dicts[lang].pad() == dicts[sorted_langs[0]].pad()
                 assert dicts[lang].eos() == dicts[sorted_langs[0]].eos()
