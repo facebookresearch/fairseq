@@ -150,3 +150,24 @@ class LinformerSentenceEncoder(TransformerSentenceEncoder):
             ),
             freeze_compress=self.freeze_compress,
         )
+
+    def upgrade_state_dict_named(self, state_dict, name):
+        prefix = name + "." if name != "" else ""
+        items_to_add = {}
+        keys_to_remove = []
+
+        # update key name for shared layer in new version of code
+        for k in state_dict.keys():
+            if k.startswith(prefix + "compress_layer"):
+                if self.shared_layer_kv_compressed:
+                    for layer_idx in range(len(self.layers)):
+                        new_k = prefix + "layers.{0}.shared_compress_layer.{1}".format(
+                            layer_idx, k[len(prefix + 'compress_layer.'):],
+                        )
+                        items_to_add[new_k] = state_dict[k]
+
+        for k in keys_to_remove:
+            del state_dict[k]
+
+        for key, value in items_to_add.items():
+            state_dict[key] = value
