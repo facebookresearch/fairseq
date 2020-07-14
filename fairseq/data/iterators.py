@@ -489,7 +489,7 @@ class BufferedIterator(object):
             self._create_consumer()
 
         # Notify the user if there is a data loading bottleneck
-        if self._queue.qsize() < max(1, self._queue.maxsize // 2):
+        if self._queue.qsize() < min(2, max(1, self._queue.maxsize // 2)):
             if time.time() - self.start_time > 5 * 60:
                 if self.warning_time is None or time.time() - self.warning_time > 15 * 60:
                     logger.info(

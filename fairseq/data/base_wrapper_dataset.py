@@ -46,6 +46,23 @@ class BaseWrapperDataset(FairseqDataset):
     def prefetch(self, indices):
         self.dataset.prefetch(indices)
 
+    def get_batch_shapes(self):
+        return self.dataset.get_batch_shapes()
+
+    def batch_by_size(
+        self,
+        indices,
+        max_tokens=None,
+        max_sentences=None,
+        required_batch_size_multiple=1,
+    ):
+        return self.dataset.batch_by_size(
+            indices,
+            max_tokens=max_tokens,
+            max_sentences=max_sentences,
+            required_batch_size_multiple=required_batch_size_multiple,
+        )
+
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
         if hasattr(self.dataset, 'set_epoch'):

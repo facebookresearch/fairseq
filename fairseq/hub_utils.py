@@ -59,7 +59,7 @@ def from_pretrained(
     for file, arg in {
         'code': 'bpe_codes',
         'bpecodes': 'bpe_codes',
-        'sentencepiece.bpe.model': 'sentencepiece_vocab',
+        'sentencepiece.bpe.model': 'sentencepiece_model',
     }.items():
         path = os.path.join(model_path, file)
         if os.path.exists(path):

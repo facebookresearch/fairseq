@@ -9,9 +9,9 @@ import torch.utils.data
 
 class EpochListening:
     """Mixin for receiving updates whenever the epoch increments."""
+
     def set_epoch(self, epoch):
-        """Will receive the updated epoch number at the beginning of the epoch.
-        """
+        """Will receive the updated epoch number at the beginning of the epoch."""
         pass
 
 
