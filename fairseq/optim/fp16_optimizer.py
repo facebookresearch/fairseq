@@ -286,7 +286,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
 class _MemoryEfficientFP16OptimizerMixin(object):
 
     def __init__(self, *args, **kwargs):
-        # forward __init__ call to the next class in mro(method resolution order)
+        # forward __init__ call to the next class in MRO (method resolution order)
         super().__init__(*args, **kwargs)
 
     @property
@@ -341,37 +341,29 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         """
         if self.scaler is not None:
             loss = loss * self.scaler.loss_scale
-            self._grads_are_scaled = True
-            self._multiply_factor = 1
+            self._multiply_factor /= float(self.scaler.loss_scale)
         loss.backward()
 
     def _unscale_grads(self):
-        if self._grads_are_scaled:
-            self._grads_are_scaled = False
-
-            # correct for dynamic loss scaler
-            self.wrapped_optimizer.multiply_grads(self._multiply_factor / self.scaler.loss_scale)
-            self._multiply_factor = 1
-        else:
-            assert self._multiply_factor == 1
+        if self._multiply_factor != 1.:
+            self.wrapped_optimizer.multiply_grads(self._multiply_factor)
+            self._multiply_factor = 1.
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
-        if self._grads_are_scaled:
-            self._multiply_factor *= c
-        else:
-            self.wrapped_optimizer.multiply_grads(c)
+        self._multiply_factor *= c
 
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
+        max_norm = float(max_norm)
+        grad_norm = self._multiply_factor * self.wrapped_optimizer.clip_grad_norm(0, aggregate_norm_fn)
 
-        # detect overflow and adjust loss scale
         if self.scaler is not None:
-            scale = self._multiply_factor / self.scaler.loss_scale
-            grad_norm = self.wrapped_optimizer.clip_grad_norm(0, aggregate_norm_fn) * scale
             grad_norm_cpu = float(grad_norm)
-            if grad_norm_cpu > max_norm:
+            if grad_norm_cpu > max_norm > 0.:
                 self._multiply_factor *= max_norm / grad_norm_cpu
+
+            # detect overflow and adjust loss scale
             overflow = DynamicLossScaler.has_overflow(grad_norm_cpu)
             prev_scale = self.scaler.loss_scale
             self.scaler.update_scale(overflow)
@@ -387,16 +379,15 @@ class _MemoryEfficientFP16OptimizerMixin(object):
                     ).format(self.min_loss_scale))
                 raise OverflowError('setting loss scale to: ' + str(self.scaler.loss_scale))
         else:
-            self._unscale_grads()
-            grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
+            clip_coef = (max_norm / (grad_norm + 1e-6)).clamp_(max=1)
+            self._multiply_factor *= clip_coef
 
         return grad_norm
 
     def step(self, closure=None):
         """Performs a single optimization step."""
-        if self.supports_step_with_scale and self._grads_are_scaled:
-            scale = self._multiply_factor / self.scaler.loss_scale
-            self.wrapped_optimizer.step(closure, scale=scale)
+        if self.supports_step_with_scale:
+            self.wrapped_optimizer.step(closure, scale=self._multiply_factor)
         else:
             self._unscale_grads()
             self.wrapped_optimizer.step(closure)
@@ -404,7 +395,7 @@ class _MemoryEfficientFP16OptimizerMixin(object):
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
         self.wrapped_optimizer.zero_grad()
-        self._grads_are_scaled = False
+        self._multiply_factor = 1.
 
 
 class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.FairseqOptimizer):

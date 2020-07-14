@@ -556,12 +556,6 @@ def get_tpu_device(args):
     return xm.xla_device()
 
 
-def logging_multiple_line_messages(msg):
-    msg_arr = msg.split("\n")
-    for line in msg_arr:
-        logger.info(line)
-
-
 class CudaEnvironment(object):
     def __init__(self):
         cur_device = torch.cuda.current_device()
@@ -580,13 +574,12 @@ class CudaEnvironment(object):
         center = "CUDA enviroments for all {} workers".format(num_workers)
         banner_len = 40 - len(center) // 2
         first_line = "*" * banner_len + center + "*" * banner_len
-        msg_arr = [first_line]
+        logger.info(first_line)
         for r, env in enumerate(cuda_env_list):
-            msg_arr.append(
+            logger.info(
                 "rank {:3d}: ".format(r)
                 + "capabilities = {:2d}.{:<2d} ; ".format(env.major, env.minor)
                 + "total memory = {:.3f} GB ; ".format(env.total_memory_in_GB)
                 + "name = {:40s}".format(env.name)
             )
-        msg_arr.append(first_line)
-        logging_multiple_line_messages("\n".join(msg_arr))
+        logger.info(first_line)

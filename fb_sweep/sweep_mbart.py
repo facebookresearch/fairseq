@@ -99,7 +99,7 @@ def get_grid(args):
     ]
     grid += [
         hyperparam('--bpe', 'sentencepiece', save_dir_key=lambda x: 'spm'),
-        hyperparam('--sentencepiece-vocab', '/private/home/namangoyal/src/fairseq_megatron_codepush/fairseq-py/mbart.cc25/sentence.bpe.model'),
+        hyperparam('--sentencepiece-model', '/private/home/namangoyal/src/fairseq_megatron_codepush/fairseq-py/mbart.cc25/sentence.bpe.model'),
     ]
     # model settings
     grid += [

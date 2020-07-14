@@ -3,10 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
 import torch.nn as nn
 
-from fairseq import utils
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer_lm import (
     base_lm_architecture,
@@ -14,11 +12,7 @@ from fairseq.models.transformer_lm import (
 )
 from fairseq.model_parallel.models.transformer import ModelParallelTransformerDecoder
 try:
-    from fairseq.model_parallel.megatron.mpu import get_model_parallel_group
-    from fairseq.model_parallel.megatron.mpu import get_model_parallel_rank
-    from fairseq.model_parallel.megatron.mpu import get_model_parallel_world_size
     from fairseq.model_parallel.megatron.mpu import VocabParallelEmbedding
-    from fairseq.model_parallel.megatron.mpu.utils import VocabUtility
     has_megatron_submodule = True
 except (ImportError, ModuleNotFoundError):
     has_megatron_submodule = False

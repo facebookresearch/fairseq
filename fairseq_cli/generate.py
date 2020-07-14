@@ -32,7 +32,7 @@ def main(args):
     if args.results_path is not None:
         os.makedirs(args.results_path, exist_ok=True)
         output_path = os.path.join(args.results_path, 'generate-{}.txt'.format(args.gen_subset))
-        with open(output_path, 'w', buffering=1) as h:
+        with open(output_path, 'w', buffering=1, encoding='utf-8') as h:
             return _main(args, h)
     else:
         return _main(args, sys.stdout)
@@ -56,7 +56,7 @@ def _main(args, output_file):
     # Fix seed for stochastic decoding
     if args.seed is not None and not args.no_seed_provided:
         np.random.seed(args.seed)
-        torch.manual_seed(args.seed)
+        utils.set_torch_seed(args.seed)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 

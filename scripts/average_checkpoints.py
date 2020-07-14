@@ -143,7 +143,7 @@ def main():
     new_state = average_checkpoints(args.inputs)
     with PathManager.open(args.output, 'wb') as f:
         torch.save(new_state, f)
-    print('Finished writing averaged checkpoint to {}.'.format(args.output))
+    print('Finished writing averaged checkpoint to {}'.format(args.output))
 
 
 if __name__ == '__main__':

@@ -98,7 +98,7 @@ fairseq-generate path_2_data \
   --task translation_from_pretrained_bart \
   --gen-subset test \
   -t ro_RO -s en_XX \
-  --bpe 'sentencepiece' --sentencepiece-vocab sentence.bpe.model \
+  --bpe 'sentencepiece' --sentencepiece-model sentence.bpe.model \
   --sacrebleu --remove-bpe 'sentencepiece'\
   --max-sentences 32 --langs $langs > en_ro
 
