@@ -387,7 +387,8 @@ class _MemoryEfficientFP16OptimizerMixin(object):
     def step(self, closure=None):
         """Performs a single optimization step."""
         if self.supports_step_with_scale:
-            self.wrapped_optimizer.step(closure, scale=self._multiply_factor)
+            # NOTE(msb) optimizer divides by scale factor
+            self.wrapped_optimizer.step(closure, scale=(1. / self._multiply_factor))
         else:
             self._unscale_grads()
             self.wrapped_optimizer.step(closure)
