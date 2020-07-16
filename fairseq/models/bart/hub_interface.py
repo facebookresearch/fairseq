@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class BARTHubInterface(nn.Module):
     """A simple PyTorch Hub interface to BART.
 
-    Usage: https://github.com/pytorch/fairseq/tree/master/examples/BART
+    Usage: https://github.com/pytorch/fairseq/tree/master/examples/bart
     """
 
     def __init__(self, args, task, model):
