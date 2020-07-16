@@ -341,7 +341,6 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         """
         if self.scaler is not None:
             loss = loss * self.scaler.loss_scale
-            self._multiply_factor /= float(self.scaler.loss_scale)
         loss.backward()
 
     def _unscale_grads(self):
@@ -396,7 +395,8 @@ class _MemoryEfficientFP16OptimizerMixin(object):
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
         self.wrapped_optimizer.zero_grad()
-        self._multiply_factor = 1.
+        if self.scaler is not None:
+            self._multiply_factor = 1. / float(self.scaler.loss_scale)
 
 
 class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.FairseqOptimizer):
