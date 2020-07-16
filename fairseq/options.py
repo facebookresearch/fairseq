@@ -60,6 +60,10 @@ def get_validation_parser(default_task=None):
     return parser
 
 
+def csv_str_list(x):
+    return x.split(',')
+
+
 def eval_str_list(x, type=float):
     if x is None:
         return None
@@ -69,6 +73,14 @@ def eval_str_list(x, type=float):
         return list(map(type, x))
     except TypeError:
         return [type(x)]
+
+
+def eval_str_dict(x, type=dict):
+    if x is None:
+        return None
+    if isinstance(x, str):
+        x = eval(x)
+    return x
 
 
 def eval_bool(x, default=False):

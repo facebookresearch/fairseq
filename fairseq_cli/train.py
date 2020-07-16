@@ -10,7 +10,6 @@ Train a new model on one or across multiple GPUs.
 import argparse
 import logging
 import math
-import os
 import random
 import sys
 from typing import Callable, Optional
@@ -130,6 +129,7 @@ def main(
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
+
     while lr > args.min_lr and epoch_itr.next_epoch_idx <= max_epoch:
         # train for one epoch
         valid_losses, should_stop = train(args, trainer, task, epoch_itr)
@@ -142,7 +142,7 @@ def main(
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
-            load_dataset=(os.pathsep in getattr(args, "data", "")),
+            load_dataset=task.has_sharded_data('train'),
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
