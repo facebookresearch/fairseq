@@ -30,9 +30,10 @@ def infer_language_pair(path):
     return src, dst
 
 
-def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False):
+def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False, pad_to_length=None):
     """Convert a list of 1d tensors into a padded 2d tensor."""
     size = max(v.size(0) for v in values)
+    size = size if pad_to_length is None else max(size, pad_to_length)
     res = values[0].new(len(values), size).fill_(pad_idx)
 
     def copy_tensor(src, dst):
@@ -132,6 +133,9 @@ def collect_filtered(function, iterable, filtered):
 
 
 def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=False):
+    def compare_leq(a, b):
+        return a <= b if not isinstance(a, tuple) else max(a) <= b
+
     def check_size(idx):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
             return size_fn(idx) <= max_positions
@@ -148,7 +152,7 @@ def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=Fal
             # Hacky as heck, for the specific case of multilingual training with RoundRobin.
             if isinstance(size_fn(idx), dict) and isinstance(max_positions, tuple):
                 return all(
-                    a is None or b is None or a <= b
+                    a is None or b is None or compare_leq(a, b)
                     for a, b in zip(size_fn(idx).values(), max_positions)
                 )
             # For MultiCorpusSampledDataset, will generalize it later
