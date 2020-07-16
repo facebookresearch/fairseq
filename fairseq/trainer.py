@@ -11,6 +11,7 @@ import contextlib
 from itertools import chain
 import logging
 import sys
+import time
 from typing import Any, Dict, List
 
 import torch
@@ -109,6 +110,9 @@ class Trainer(object):
             self.cuda_env_arr = None
 
         metrics.log_start_time("wall", priority=790, round=0)
+
+        self._start_time = time.time()
+        self._previous_training_time = 0
 
     def reinitialize(self):
         """Reinitialize the Trainer, typically after model params change."""
@@ -218,6 +222,7 @@ class Trainer(object):
         """Save all training state in a checkpoint file."""
         if self.is_data_parallel_master:  # only save one checkpoint
             extra_state["metrics"] = metrics.state_dict()
+            extra_state["previous_training_time"] = self.cumulative_training_time()
             checkpoint_utils.save_state(
                 filename,
                 self.args,
@@ -290,6 +295,10 @@ class Trainer(object):
                     filename, epoch, self.get_num_updates()
                 )
             )
+
+            if "previous_training_time" in extra_state:
+                self._previous_training_time = extra_state["previous_training_time"]
+                self._start_time = time.time()
 
             self.lr_step(epoch)
 
@@ -715,6 +724,10 @@ class Trainer(object):
 
     def clip_grad_norm(self, clip_norm):
         return self.optimizer.clip_grad_norm(clip_norm, aggregate_norm_fn=None)
+
+    def cumulative_training_time(self):
+        """aggregate training time in seconds"""
+        return time.time() - self._start_time + self._previous_training_time
 
     def _prepare_sample(self, sample):
         if sample == "DUMMY":
