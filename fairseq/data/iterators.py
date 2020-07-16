@@ -188,8 +188,10 @@ class EpochBatchIterator(EpochBatchIterating):
     Args:
         dataset (~torch.utils.data.Dataset): dataset from which to load the data
         collate_fn (callable): merges a list of samples to form a mini-batch
-        batch_sampler (~torch.utils.data.Sampler): an iterator over batches of
-            indices
+        batch_sampler (~torch.utils.data.Sampler or a callable): an iterator over batches of
+            indices, or a callable to create such an iterator (~torch.utils.data.Sampler).
+            A callable batch_sampler will be called for each epoch to enable per epoch dynamic
+            batch iterators defined by this callable batch_sampler.
         seed (int, optional): seed for random number generator for
             reproducibility (default: 1).
         num_shards (int, optional): shard the data iterator into N
@@ -215,7 +217,8 @@ class EpochBatchIterator(EpochBatchIterating):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
         self.collate_fn = collate_fn
-        self.frozen_batches = tuple(batch_sampler)
+        self.batch_sampler = batch_sampler
+        self._frozen_batches = tuple(batch_sampler) if not callable(batch_sampler) else None
         self.seed = seed
         self.num_shards = num_shards
         self.shard_id = shard_id
@@ -230,6 +233,12 @@ class EpochBatchIterator(EpochBatchIterating):
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
         self._supports_prefetch = getattr(dataset, 'supports_prefetch', False)
+
+    @property
+    def frozen_batches(self):
+        if self._frozen_batches is None:
+            self._frozen_batches = tuple(self.batch_sampler(self.dataset, self.epoch))
+        return self._frozen_batches
 
     def __len__(self):
         return int(math.ceil(len(self.frozen_batches) / float(self.num_shards)))
@@ -259,14 +268,17 @@ class EpochBatchIterator(EpochBatchIterating):
                 that :attr:`dataset` supports prefetching (default: False).
         """
         self.epoch = self.next_epoch_idx
+        self.dataset.set_epoch(self.epoch)
         if self._next_epoch_itr is not None:
             self._cur_epoch_itr = self._next_epoch_itr
             self._next_epoch_itr = None
         else:
+            if callable(self.batch_sampler):
+                # reset _frozen_batches to refresh the next epoch
+                self._frozen_batches = None
             self._cur_epoch_itr = self._get_iterator_for_epoch(
                 self.epoch, shuffle, fix_batches_to_gpus=fix_batches_to_gpus,
             )
-        self.dataset.set_epoch(self.epoch)
         self.shuffle = shuffle
         return self._cur_epoch_itr
 

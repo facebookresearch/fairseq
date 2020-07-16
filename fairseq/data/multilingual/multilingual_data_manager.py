@@ -12,7 +12,7 @@ from collections import OrderedDict
 
 import json
 from fairseq import options
-from fairseq.options import eval_str_dict, eval_str_list
+from fairseq.options import eval_str_dict, csv_str_list
 
 from fairseq.data import (
     Dictionary,
@@ -123,9 +123,13 @@ class MultilingualDatasetManager(object):
                             e.g. {"mined": comma-separated-lang-pairs, "denoised":  comma-separated-lang-pairs}',
                             type=lambda uf: eval_str_dict(uf, type=str),
                             default=None)
-        parser.add_argument('--langtoks-specs', help='a list of comma separated language tokens specifictions',
+        parser.add_argument('--langtoks-specs',
+                            help='a list of comma separated data types that a set of language tokens to be specialized for, \
+                            e.g. "main,dae,mined". There will be a set of language tokens added to the vocab to \
+                            distinguish languages in different training data types. If not specified, default language \
+                            tokens per languages will be added',
                             default='main',
-                            type=lambda uf: eval_str_list(uf, type=str),
+                            type=csv_str_list,
                             )
         parser.add_argument('--langtoks', help='a dictionary of how to add language tokens, \
                             e.g. {"mined": (None, "tgt"), "mono_dae": ("src.dae", "tgt"), "main": \

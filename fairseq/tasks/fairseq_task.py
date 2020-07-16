@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import warnings
+import os
 
 import torch
 
@@ -77,6 +78,9 @@ class FairseqTask(object):
             args (argparse.Namespace): parsed command-line arguments
         """
         return cls(args, **kwargs)
+
+    def has_sharded_data(self, split):
+        return (os.pathsep in getattr(self.args, 'data', ''))
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
