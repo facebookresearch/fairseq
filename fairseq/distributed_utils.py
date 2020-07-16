@@ -27,7 +27,7 @@ def is_master(args):
     return args.distributed_rank == 0
 
 
-def infer_init_method(args):
+def infer_init_method(args, force_distributed=False):
     if args.distributed_init_method is not None or getattr(args, 'tpu', False):
         return
 
@@ -74,6 +74,12 @@ def infer_init_method(args):
                 raise e
             except FileNotFoundError:  # Slurm is not installed
                 pass
+
+    elif args.distributed_world_size > 1 or force_distributed:
+        # fallback for single node with multiple GPUs
+        assert args.distributed_world_size <= torch.cuda.device_count()
+        port = random.randint(10000, 20000)
+        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
 
 
 def distributed_init(args):
@@ -132,14 +138,19 @@ def distributed_init(args):
     return args.distributed_rank
 
 
-def _distributed_main(i, main, args, kwargs):
+def distributed_main(i, main, args, kwargs):
     args.device_id = i
-    if torch.cuda.is_available() and not args.cpu:
+    if torch.cuda.is_available() and not args.cpu and not getattr(args, "tpu", False):
         torch.cuda.set_device(args.device_id)
     if args.distributed_rank is None:  # torch.multiprocessing.spawn
-        args.distributed_rank = kwargs.get('start_rank', 0) + i
+        args.distributed_rank = kwargs.pop('start_rank', 0) + i
 
     args.distributed_rank = distributed_init(args)
+
+    after_distributed_init_fn = kwargs.pop('after_distributed_init_fn', None)
+    if after_distributed_init_fn:
+        args = after_distributed_init_fn(args)
+
     main(args, **kwargs)
 
 
@@ -149,27 +160,27 @@ def call_main(args, main, **kwargs):
 
     if args.distributed_init_method is not None:
         # distributed main
-        if torch.cuda.device_count() > 1 and not args.distributed_no_spawn:
+        if not args.distributed_no_spawn:
             start_rank = args.distributed_rank
             args.distributed_rank = None  # assign automatically
             kwargs['start_rank'] = start_rank
             torch.multiprocessing.spawn(
-                fn=_distributed_main,
+                fn=distributed_main,
                 args=(main, args, kwargs),
-                nprocs=torch.cuda.device_count(),
+                nprocs=min(
+                    torch.cuda.device_count(),
+                    args.distributed_world_size,
+                ),
             )
         else:
-            _distributed_main(args.device_id, main, args, kwargs)
-    elif args.distributed_world_size > 1:
-        # fallback for single node with multiple GPUs
-        assert args.distributed_world_size <= torch.cuda.device_count()
-        port = random.randint(10000, 20000)
-        args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
-        args.distributed_rank = None  # set based on device id
-        torch.multiprocessing.spawn(
-            fn=_distributed_main,
+            distributed_main(args.device_id, main, args, kwargs)
+    elif getattr(args, "tpu", False):
+        import torch_xla.distributed.xla_multiprocessing as xmp
+        torch.multiprocessing.set_sharing_strategy("file_system")
+        xmp.spawn(
+            fn=distributed_main,
             args=(main, args, kwargs),
-            nprocs=args.distributed_world_size,
+            nprocs=8,  # use all 8 TPU cores
         )
     else:
         # single GPU main
