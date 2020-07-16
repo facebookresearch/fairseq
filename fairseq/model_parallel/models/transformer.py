@@ -47,6 +47,7 @@ class ModelParallelTransformerModel(TransformerModel):
                 '\n\n  git submodule update --init '
                 'fairseq/model_parallel/megatron'
             )
+        dictionary.pad_to_multiple_(args.model_parallel_size)
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
 
