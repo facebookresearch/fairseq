@@ -106,12 +106,7 @@ class LanguageModelingTask(FairseqTask):
         self.targets = targets
 
     @classmethod
-    def setup_task(cls, args, **kwargs):
-        """Setup the task (e.g., load dictionaries).
-
-        Args:
-            args (argparse.Namespace): parsed command-line arguments
-        """
+    def setup_dictionary(cls, args, **kwargs):
         dictionary = None
         output_dictionary = None
         if args.data:
@@ -124,6 +119,16 @@ class LanguageModelingTask(FairseqTask):
                 output_dictionary = TruncatedDictionary(
                     dictionary, args.output_dictionary_size
                 )
+        return (dictionary, output_dictionary)
+
+    @classmethod
+    def setup_task(cls, args, **kwargs):
+        """Setup the task (e.g., load dictionaries).
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+        """
+        dictionary, output_dictionary = cls.setup_dictionary(args, **kwargs)
 
         # upgrade old checkpoints
         if hasattr(args, "exclude_self_target"):
@@ -197,16 +202,19 @@ class LanguageModelingTask(FairseqTask):
             and self.args.sample_break_mode != "none"
         )
 
-        self.datasets[split] = MonolingualDataset(
-            dataset,
-            dataset.sizes,
-            self.dictionary,
-            self.output_dictionary,
+        self.datasets[split] = self._initialize_dataset(
+            dataset=dataset,
+            sizes=dataset.sizes,
+            src_vocab=self.dictionary,
+            tgt_vocab=self.output_dictionary,
             add_eos_for_other_targets=add_eos_for_other_targets,
             shuffle=True,
             targets=self.targets,
             add_bos_token=self.args.add_bos_token,
         )
+
+    def _initialize_dataset(self, **kwargs):
+        return MonolingualDataset(**kwargs)
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):
         """
