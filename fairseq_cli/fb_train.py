@@ -12,9 +12,9 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import torch.fb.rendezvous.zeus  # noqa: F401
-from fairseq import options
+from fairseq import distributed_utils, options
 from fairseq.file_io import PathManager
-from fairseq_cli.train import distributed_main, main
+from fairseq_cli.train import main as fairseq_train_main
 from fairseq_latte_prod import tasks  # noqa
 from fvcore.fb.manifold import ManifoldPathHandler
 
@@ -75,8 +75,13 @@ def fb_main(
         logging.warning("ManifoldPathHandler already registered.")
 
     def train_main():
-        distributed_main(
-            device_id, args, after_distributed_init_fn=after_distributed_init_fn
+        distributed_utils.distributed_main(
+            device_id,
+            fairseq_train_main,
+            args,
+            kwargs={
+                "after_distributed_init_fn": after_distributed_init_fn,
+            },
         )
 
     if log_path is not None and args.distributed_rank == 0:
@@ -97,14 +102,15 @@ if __name__ == "__main__":
     log_dir = args.log_dir if args.log_dir is not None else args.save_dir
     log_path = os.path.join(log_dir, "train.log")
 
-    if args.distributed_init_method is not None and torch.cuda.device_count() > 1:
-        start_rank = args.distributed_rank
-        args.distributed_rank = None
-        torch.multiprocessing.spawn(
-            fn=fb_main,
-            args=(args, start_rank, log_path),
-            nprocs=torch.cuda.device_count(),
-        )
-    else:
-        # single GPU training
-        fb_main(args.device_id, args, 0, log_path)
+    distributed_utils.infer_init_method(args, force_distributed=True)
+
+    start_rank = args.distributed_rank
+    args.distributed_rank = None  # assign automatically
+    torch.multiprocessing.spawn(
+        fn=fb_main,
+        args=(args, start_rank, log_path),
+        nprocs=min(
+            torch.cuda.device_count(),
+            args.distributed_world_size,
+        ),
+    )
