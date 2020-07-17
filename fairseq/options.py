@@ -455,6 +455,8 @@ def add_optimization_args(parser):
                        help='force stop training at specified epoch')
     group.add_argument('--max-update', '--mu', default=0, type=int, metavar='N',
                        help='force stop training at specified update')
+    group.add_argument('--stop-time-hours', default=0, type=float, metavar='N',
+                       help='force stop training after specified cumulative time (if >0)')
     group.add_argument('--clip-norm', default=0.0, type=float, metavar='NORM',
                        help='clip threshold of gradients')
     group.add_argument('--sentence-avg', action='store_true',

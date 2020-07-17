@@ -229,6 +229,12 @@ def train(args, trainer, task, epoch_itr):
         valid_losses, should_stop = validate_and_save(
             args, trainer, task, epoch_itr, valid_subsets, end_of_epoch
         )
+
+        if args.stop_time_hours > 0:
+            elapsed_hours = trainer.cumulative_training_time() / (60 * 60)
+            if elapsed_hours > args.stop_time_hours:
+                should_stop = True
+
         if should_stop:
             break
 
