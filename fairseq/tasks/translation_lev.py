@@ -7,6 +7,8 @@ import os
 
 import torch
 
+from fairseq.data import LanguagePairDataset
+
 from fairseq.utils import new_arange
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask, load_langpair_dataset
@@ -138,6 +140,11 @@ class TranslationLevenshteinTask(TranslationTask):
             decoding_format=getattr(args, 'decoding_format', None),
             adaptive=not getattr(args, 'iter_decode_force_max_iter', False),
             retain_history=getattr(args, 'retain_iter_history', False))
+
+    def build_dataset_for_inference(self, src_tokens, src_lengths):
+        return LanguagePairDataset(
+            src_tokens, src_lengths, self.source_dictionary, append_bos=True
+        )
 
     def train_step(self,
                    sample,
