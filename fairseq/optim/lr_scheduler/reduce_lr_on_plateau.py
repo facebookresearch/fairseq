@@ -30,7 +30,8 @@ class ReduceLROnPlateau(FairseqLRScheduler):
                 ' Consider --lr-scheduler=fixed instead.'
             )
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer.optimizer, patience=0, factor=args.lr_shrink,
+            self.optimizer.optimizer, mode='max' if args.maximize_best_checkpoint_metric else 'min',
+            patience=0, factor=args.lr_shrink,
             threshold=args.lr_threshold)
         warmup_end_lr = args.lr[0]
         """if no warm up, sets initial lr to be args.lr[0]"""
