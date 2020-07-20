@@ -38,6 +38,8 @@ def infer_init_method(args, force_distributed=False):
         args.distributed_init_method = 'env://'
         args.distributed_world_size = int(os.environ['WORLD_SIZE'])
         args.distributed_rank = int(os.environ['RANK'])
+        # processes are created by torch.distributed.launch
+        args.distributed_no_spawn = True
 
     # we can determine the init method automatically for Slurm
     elif args.distributed_port > 0:
@@ -159,7 +161,7 @@ def call_main(args, main, **kwargs):
         infer_init_method(args)
 
     if args.distributed_init_method is not None:
-        # distributed main
+        # distributed training
         if not args.distributed_no_spawn:
             start_rank = args.distributed_rank
             args.distributed_rank = None  # assign automatically
