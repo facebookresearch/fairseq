@@ -55,7 +55,7 @@ class SacrebleuScorer(object):
     def result_string(self, order=4):
         if order != 4:
             raise NotImplementedError
-        return self.sacrebleu.corpus_bleu(self.sys, [self.ref])
+        return self.sacrebleu.corpus_bleu(self.sys, [self.ref]).format()
 
 
 class Scorer(object):
