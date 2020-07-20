@@ -11,6 +11,8 @@ import torch.nn.functional as F
 import dynamicconv_cuda
 from fairseq import utils
 from fairseq.modules.unfold import unfold1d
+from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
 class dynamicconvFunction(Function):
@@ -28,11 +30,12 @@ class dynamicconvFunction(Function):
         outputs = dynamicconv_cuda.backward(
                 grad_output.contiguous(),
                 ctx.padding_l,
-                *ctx.saved_variables)
+                *ctx.saved_tensors)
         grad_input, grad_weights = outputs
         return grad_input, grad_weights, None
 
 
+@with_incremental_state
 class DynamicconvLayer(nn.Module):
     def __init__(
             self,
@@ -45,7 +48,8 @@ class DynamicconvLayer(nn.Module):
             bias=False,
             renorm_padding=False,
             conv_bias=False,
-            query_size=None):
+            query_size=None,
+    ):
 
         super(DynamicconvLayer, self).__init__()
         self.input_size = input_size
@@ -54,7 +58,7 @@ class DynamicconvLayer(nn.Module):
         self.padding_l = padding_l
         self.num_heads = num_heads
         self.weight_softmax = weight_softmax
-        self.weight_dropout = weight_dropout
+        self.weight_dropout_module = FairseqDropout(weight_dropout, module_name=self.__class__.__name__)
         self.renorm_padding = renorm_padding
         self.bias = bias
 
@@ -100,8 +104,8 @@ class DynamicconvLayer(nn.Module):
             weight = self.weight_linear(x).view(T, B, H, K)
             if self.weight_softmax:
                 weight = F.softmax(weight, dim=-1)
-            if self.weight_dropout:
-                weight = F.dropout(weight, self.weight_dropout, training=self.training)
+            if self.weight_dropout_module.p:
+                weight = self.weight_dropout_module(weight)
 
             weight = weight.permute(1, 2, 3, 0).contiguous()
             self.filters = weight
@@ -164,7 +168,7 @@ class DynamicconvLayer(nn.Module):
         if self.weight_softmax and self.renorm_padding:
             weight = F.softmax(weight, dim=1)
 
-        weight = F.dropout(weight, self.weight_dropout, training=self.training, inplace=False)
+        weight = self.weight_dropout_module(weight, inplace=False)
 
         output = torch.bmm(x_unfold, weight.unsqueeze(2))  # T*B*H x R x 1
         output = output.view(T, B, C)
@@ -184,7 +188,7 @@ class DynamicconvLayer(nn.Module):
         if not self.renorm_padding:
             if self.weight_softmax:
                 weight = F.softmax(weight, dim=1)
-            weight = F.dropout(weight, self.weight_dropout, training=self.training, inplace=False)
+            weight = self.weight_dropout_module(weight, inplace=False)
         weight = weight.narrow(1, 0, K).contiguous()
         weight = weight.view(T, B*H, K).transpose(0, 1)
 
@@ -196,7 +200,7 @@ class DynamicconvLayer(nn.Module):
             weight_expanded = weight_expanded.narrow(2, self.padding_l, T)
             # normalize the weight over valid positions like self-attention
             weight_expanded = F.softmax(weight_expanded, dim=2)
-            weight_expanded = F.dropout(weight_expanded, self.weight_dropout, training=self.training, inplace=False)
+            weight_expanded = self.weight_dropout_module(weight_expanded, inplace=False)
         else:
             P = self.padding_l
             # For efficieny, we cut the kernel size and reduce the padding when the kernel is larger than the length

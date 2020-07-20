@@ -85,14 +85,15 @@ done
 echo "pre-processing valid data..."
 for ((i=0;i<${#SRCS[@]};++i)); do
     SRC=${SRCS[i]}
-    VALID_SET=${VALID_SETS[i]}
-    for FILE in ${VALID_SET[@]}; do
+    VALID_SET=(${VALID_SETS[i]})
+    for ((j=0;j<${#VALID_SET[@]};++j)); do
+        FILE=${VALID_SET[j]}
         for LANG in "$SRC" "$TGT"; do
             grep '<seg id' "$ORIG/${SRC}-${TGT}/${FILE}.${LANG}.xml" \
                 | sed -e 's/<seg id="[0-9]*">\s*//g' \
                 | sed -e 's/\s*<\/seg>\s*//g' \
                 | sed -e "s/\’/\'/g" \
-                > "$DATA/valid.${SRC}-${TGT}.${LANG}"
+                > "$DATA/valid${j}.${SRC}-${TGT}.${LANG}"
         done
     done
 done
@@ -107,20 +108,26 @@ python "$SPM_TRAIN" \
     --character_coverage=1.0 \
     --model_type=bpe
 
-# encode train/valid/test
-echo "encoding train/valid with learned BPE..."
+# encode train/valid
+echo "encoding train with learned BPE..."
 for SRC in "${SRCS[@]}"; do
-    for LANG in "$SRC" "$TGT"; do
+    python "$SPM_ENCODE" \
+        --model "$DATA/sentencepiece.bpe.model" \
+        --output_format=piece \
+        --inputs $DATA/train.${SRC}-${TGT}.${SRC} $DATA/train.${SRC}-${TGT}.${TGT} \
+        --outputs $DATA/train.bpe.${SRC}-${TGT}.${SRC} $DATA/train.bpe.${SRC}-${TGT}.${TGT} \
+        --min-len $TRAIN_MINLEN --max-len $TRAIN_MAXLEN
+done
+
+echo "encoding valid with learned BPE..."
+for ((i=0;i<${#SRCS[@]};++i)); do
+    SRC=${SRCS[i]}
+    VALID_SET=(${VALID_SETS[i]})
+    for ((j=0;j<${#VALID_SET[@]};++j)); do
         python "$SPM_ENCODE" \
             --model "$DATA/sentencepiece.bpe.model" \
             --output_format=piece \
-            --inputs $DATA/train.${SRC}-${TGT}.${SRC} $DATA/train.${SRC}-${TGT}.${TGT} \
-            --outputs $DATA/train.bpe.${SRC}-${TGT}.${SRC} $DATA/train.bpe.${SRC}-${TGT}.${TGT} \
-            --min-len $TRAIN_MINLEN --max-len $TRAIN_MAXLEN
-        python "$SPM_ENCODE" \
-            --model "$DATA/sentencepiece.bpe.model" \
-            --output_format=piece \
-            --inputs $DATA/valid.${SRC}-${TGT}.${SRC} $DATA/valid.${SRC}-${TGT}.${TGT} \
-            --outputs $DATA/valid.bpe.${SRC}-${TGT}.${SRC} $DATA/valid.bpe.${SRC}-${TGT}.${TGT}
+            --inputs $DATA/valid${j}.${SRC}-${TGT}.${SRC} $DATA/valid${j}.${SRC}-${TGT}.${TGT} \
+            --outputs $DATA/valid${j}.bpe.${SRC}-${TGT}.${SRC} $DATA/valid${j}.bpe.${SRC}-${TGT}.${TGT}
     done
 done

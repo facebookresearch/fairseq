@@ -3,10 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 import numpy as np
 
+from fairseq import utils
 from fairseq.data import (
     ConcatSentencesDataset,
     data_utils,
@@ -22,10 +24,12 @@ from fairseq.data import (
     RollDataset,
     SortDataset,
     StripTokenDataset,
-    TruncateDataset,
 )
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
+from fairseq.tasks import FairseqTask, register_task
 
-from . import FairseqTask, register_task
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('sentence_prediction')
@@ -43,17 +47,21 @@ class SentencePredictionTask(FairseqTask):
         parser.add_argument('data', metavar='FILE',
                             help='file prefix for data')
         parser.add_argument('--num-classes', type=int, default=-1,
-                            help='number of classes')
+                            help='number of classes or regression targets')
         parser.add_argument('--init-token', type=int, default=None,
                             help='add token at the beginning of each batch item')
         parser.add_argument('--separator-token', type=int, default=None,
                             help='add separator token between inputs')
         parser.add_argument('--regression-target', action='store_true', default=False)
         parser.add_argument('--no-shuffle', action='store_true', default=False)
-        parser.add_argument('--truncate-sequence', action='store_true', default=False,
-                            help='Truncate sequence to max_sequence_length')
+        parser.add_argument('--shorten-method', default='none',
+                            choices=['none', 'truncate', 'random_crop'],
+                            help='if not none, shorten sequences that exceed --tokens-per-sample')
+        parser.add_argument('--shorten-data-split-list', default='',
+                            help='comma-separated list of dataset splits to apply shortening to, '
+                                 'e.g., "train,valid" (default: all dataset splits)')
         parser.add_argument('--add-prev-output-tokens', action='store_true', default=False,
-                            help='Add prev_output_tokens to sample, used for encoder-decoder arch')
+                            help='add prev_output_tokens to sample, used for encoder-decoder arch')
 
     def __init__(self, args, data_dictionary, label_dictionary):
         super().__init__(args)
@@ -89,7 +97,7 @@ class SentencePredictionTask(FairseqTask):
             os.path.join(args.data, 'input0', 'dict.txt'),
             source=True,
         )
-        print('| [input] dictionary: {} types'.format(len(data_dict)))
+        logger.info('[input] dictionary: {} types'.format(len(data_dict)))
 
         label_dict = None
         if not args.regression_target:
@@ -99,7 +107,7 @@ class SentencePredictionTask(FairseqTask):
                 os.path.join(args.data, 'label', 'dict.txt'),
                 source=False,
             )
-            print('| [label] dictionary: {} types'.format(len(label_dict)))
+            logger.info('[label] dictionary: {} types'.format(len(label_dict)))
         else:
             label_dict = data_dict
         return SentencePredictionTask(args, data_dict, label_dict)
@@ -114,7 +122,7 @@ class SentencePredictionTask(FairseqTask):
 
             dataset = data_utils.load_indexed_dataset(
                 split_path,
-                self.source_dictionary,
+                dictionary,
                 self.args.dataset_impl,
                 combine=combine,
             )
@@ -138,8 +146,14 @@ class SentencePredictionTask(FairseqTask):
         with data_utils.numpy_seed(self.args.seed):
             shuffle = np.random.permutation(len(src_tokens))
 
-        if self.args.truncate_sequence:
-            src_tokens = TruncateDataset(src_tokens, self.args.max_positions)
+        src_tokens = maybe_shorten_dataset(
+            src_tokens,
+            split,
+            self.args.shorten_data_split_list,
+            self.args.shorten_method,
+            self.args.max_positions,
+            self.args.seed,
+        )
 
         dataset = {
             'id': IdDataset(),
@@ -164,23 +178,28 @@ class SentencePredictionTask(FairseqTask):
             )
 
         if not self.args.regression_target:
-            label_dataset = make_dataset('label', self.target_dictionary)
+            label_dataset = make_dataset('label', self.label_dictionary)
             if label_dataset is not None:
                 dataset.update(
                     target=OffsetTokensDataset(
                         StripTokenDataset(
                             label_dataset,
-                            id_to_strip=self.target_dictionary.eos(),
+                            id_to_strip=self.label_dictionary.eos(),
                         ),
-                        offset=-self.target_dictionary.nspecial,
+                        offset=-self.label_dictionary.nspecial,
                     )
                 )
         else:
             label_path = "{0}.label".format(get_path('label', split))
             if os.path.exists(label_path):
+                def parse_regression_target(i, line):
+                    values = line.split()
+                    assert len(values) == self.args.num_classes, \
+                        f'expected num_classes={self.args.num_classes} regression target values on line {i}, found: "{line}"'
+                    return [float(x) for x in values]
                 dataset.update(
                     target=RawLabelDataset([
-                        float(x.strip()) for x in open(label_path).readlines()
+                        parse_regression_target(i, line.strip()) for i, line in enumerate(open(label_path).readlines())
                     ])
                 )
 
@@ -198,7 +217,7 @@ class SentencePredictionTask(FairseqTask):
                 sort_order=[shuffle],
             )
 
-        print("| Loaded {0} with #samples: {1}".format(split, len(dataset)))
+        logger.info("Loaded {0} with #samples: {1}".format(split, len(dataset)))
 
         self.datasets[split] = dataset
         return self.datasets[split]

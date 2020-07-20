@@ -8,17 +8,22 @@ Train a network across multiple GPUs.
 """
 
 import contextlib
-import math
-import os
-import sys
-from collections import OrderedDict
 from itertools import chain
+import logging
+import sys
+import time
+from typing import Any, Dict, List
 
 import torch
+
 from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.file_io import PathManager
-from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
+from fairseq.logging import meters, metrics
+from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
+
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer(object):
@@ -31,67 +36,123 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, args, task, model, criterion, dummy_batch=None, oom_batch=None):
+    def __init__(self, args, task, model, criterion, quantizer=None):
         self.args = args
         self.task = task
 
-        # copy model and criterion to current device
+        # catalog shared parameters
+        shared_params = _catalog_shared_params(model)
+
+        self.tpu = getattr(args, 'tpu', False)
+        self.cuda = torch.cuda.is_available() and not args.cpu and not self.tpu
+        if self.cuda:
+            self.device = torch.device('cuda')
+        elif self.tpu:
+            self.device = utils.get_tpu_device(args)
+        else:
+            self.device = torch.device('cpu')
+
+        # copy model and criterion to current device/dtype
         self._criterion = criterion
         self._model = model
-        self.cuda = torch.cuda.is_available() and not args.cpu
+        if self.tpu:
+            import torch_xla.core.xla_model as xm
+            self._model = xm.send_cpu_data_to_device(self._model, self.device)
         if args.fp16:
             self._criterion = self._criterion.half()
             self._model = self._model.half()
-        if self.cuda:
-            self._criterion = self._criterion.cuda()
-            self._model = self._model.cuda()
+        elif args.bf16:
+            self._criterion = self._criterion.to(dtype=torch.bfloat16)
+            self._model = self._model.to(dtype=torch.bfloat16)
+        self._criterion = self._criterion.to(device=self.device)
+        self._model = self._model.to(device=self.device)
 
-        self._dummy_batch = dummy_batch
-        self._oom_batch = oom_batch or dummy_batch
+        # check that shared parameters are preserved after device transfer
+        for shared_param in shared_params:
+            ref = _get_module_by_path(self._model, shared_param[0])
+            for path in shared_param[1:]:
+                logger.info(
+                    'detected shared parameter: {} <- {}'.format(shared_param[0], path)
+                )
+                _set_module_by_path(self._model, path, ref)
 
+        self._dummy_batch = "DUMMY"  # indicates we don't have a dummy batch at first
         self._lr_scheduler = None
         self._num_updates = 0
+        self._num_xla_compiles = 0  # for TPUs
         self._optim_history = None
         self._optimizer = None
-        self._prev_grad_norm = None
+        self._warn_once = set()
         self._wrapped_criterion = None
         self._wrapped_model = None
 
-        # Fast stats sync avoids memcpy and is 7% faster when tested on 16 nodes.
-        # It is less flexible and syncs only the default stats.
-        self._all_reduce_list = [0.0] * 6
-        self.fast_stat_sync = args.fast_stat_sync
+        # TODO(myleott): support tpu
+        if self.cuda and self.data_parallel_world_size > 1:
+            self._grad_norm_buf = torch.cuda.DoubleTensor(self.data_parallel_world_size)
+        else:
+            self._grad_norm_buf = None
 
-        self.init_meters(args)
+        self.quantizer = quantizer
+        if self.quantizer is not None:
+            self.quantizer.set_trainer(self)
 
-    def init_meters(self, args):
-        self.meters = OrderedDict()
-        self.meters["train_loss"] = AverageMeter()
-        self.meters["train_nll_loss"] = AverageMeter()
-        self.meters["valid_loss"] = AverageMeter()
-        self.meters["valid_nll_loss"] = AverageMeter()
-        self.meters["wps"] = TimeMeter()  # words per second
-        self.meters["ups"] = TimeMeter()  # updates per second
-        self.meters["wpb"] = AverageMeter()  # words per batch
-        self.meters["bsz"] = AverageMeter()  # sentences per batch
-        self.meters["gnorm"] = AverageMeter()  # gradient norm
-        self.meters["clip"] = AverageMeter()  # % of updates clipped
-        self.meters["oom"] = AverageMeter()  # out of memory
-        if args.fp16:
-            self.meters["loss_scale"] = AverageMeter()  # dynamic loss scale
-        self.meters["wall"] = TimeMeter()  # wall time in seconds
-        self.meters["train_wall"] = StopwatchMeter()  # train wall time in seconds
+        # get detailed cuda environment
+        if self.cuda:
+            self.cuda_env = utils.CudaEnvironment()
+            if self.data_parallel_world_size > 1:
+                self.cuda_env_arr = distributed_utils.all_gather_list(self.cuda_env)
+            else:
+                self.cuda_env_arr = [self.cuda_env]
+            if self.data_parallel_rank == 0:
+                utils.CudaEnvironment.pretty_print_cuda_env_list(self.cuda_env_arr)
+        else:
+            self.cuda_env = None
+            self.cuda_env_arr = None
+
+        metrics.log_start_time("wall", priority=790, round=0)
+
+        self._start_time = time.time()
+        self._previous_training_time = 0
+        self._cumulative_training_time = None
+
+    def reinitialize(self):
+        """Reinitialize the Trainer, typically after model params change."""
+        self._lr_scheduler = None
+        self._optimizer = None
+        self._wrapped_criterion = None
+        self._wrapped_model = None
+
+    @property
+    def data_parallel_world_size(self):
+        return self.args.distributed_world_size
+
+    @property
+    def data_parallel_process_group(self):
+        if self.tpu:
+            return ('tpu', None)
+        else:
+            return None
+
+    @property
+    def data_parallel_rank(self):
+        return self.args.distributed_rank
+
+    @property
+    def is_data_parallel_master(self):
+        return distributed_utils.is_master(self.args)
 
     @property
     def criterion(self):
         if self._wrapped_criterion is None:
             if (
                 utils.has_parameters(self._criterion)
-                and self.args.distributed_world_size > 1
+                and self.data_parallel_world_size > 1
                 and not self.args.use_bmuf
+                and not self.tpu
             ):
                 self._wrapped_criterion = models.DistributedFairseqModel(
-                    self.args, self._criterion
+                    self.args, self._criterion,
+                    process_group=self.data_parallel_process_group
                 )
             else:
                 self._wrapped_criterion = self._criterion
@@ -100,9 +161,14 @@ class Trainer(object):
     @property
     def model(self):
         if self._wrapped_model is None:
-            if self.args.distributed_world_size > 1 and not self.args.use_bmuf:
+            if (
+                self.data_parallel_world_size > 1
+                and not self.args.use_bmuf
+                and not self.tpu
+            ):
                 self._wrapped_model = models.DistributedFairseqModel(
-                    self.args, self._model
+                    self.args, self._model,
+                    process_group=self.data_parallel_process_group
                 )
             else:
                 self._wrapped_model = self._model
@@ -128,13 +194,13 @@ class Trainer(object):
             )
         )
 
-        if self.args.fp16:
+        if self.args.fp16 or self.args.bf16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
-                print(
-                    "| WARNING: your device does NOT support faster training with --fp16, "
+                logger.info(
+                    "NOTE: your device does NOT support faster training with --fp16, "
                     "please switch to FP32 which is likely to be faster"
                 )
-            if self.args.memory_efficient_fp16:
+            if self.args.memory_efficient_fp16 or self.args.memory_efficient_bf16:
                 self._optimizer = optim.MemoryEfficientFP16Optimizer.build_optimizer(
                     self.args, params
                 )
@@ -142,7 +208,7 @@ class Trainer(object):
                 self._optimizer = optim.FP16Optimizer.build_optimizer(self.args, params)
         else:
             if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
-                print("| NOTICE: your device may support faster training with --fp16")
+                logger.info("NOTE: your device may support faster training with --fp16")
             self._optimizer = optim.build_optimizer(self.args, params)
 
         if self.args.use_bmuf:
@@ -155,8 +221,9 @@ class Trainer(object):
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
-        if distributed_utils.is_master(self.args):  # only save one checkpoint
-            extra_state["train_meters"] = self.meters
+        if self.is_data_parallel_master:  # only save one checkpoint
+            extra_state["metrics"] = metrics.state_dict()
+            extra_state["previous_training_time"] = self.cumulative_training_time()
             checkpoint_utils.save_state(
                 filename,
                 self.args,
@@ -224,24 +291,27 @@ class Trainer(object):
 
         if extra_state is not None:
             epoch = extra_state["train_iterator"]["epoch"]
-            print(
-                "| loaded checkpoint {} (epoch {} @ {} updates)".format(
+            logger.info(
+                "loaded checkpoint {} (epoch {} @ {} updates)".format(
                     filename, epoch, self.get_num_updates()
                 )
             )
 
+            if "previous_training_time" in extra_state:
+                self._previous_training_time = extra_state["previous_training_time"]
+                self._start_time = time.time()
+
             self.lr_step(epoch)
 
-            if "train_meters" in extra_state and not reset_meters:
-                self.meters.update(extra_state["train_meters"])
-                del extra_state["train_meters"]
+            if "metrics" in extra_state and not reset_meters:
+                metrics.load_state_dict(extra_state["metrics"])
 
                 # reset TimeMeters, since their start times don't make sense anymore
-                for meter in self.meters.values():
-                    if isinstance(meter, TimeMeter):
+                for meter in metrics.get_meters("default"):
+                    if isinstance(meter, meters.TimeMeter):
                         meter.reset()
         else:
-            print("| no existing checkpoint found {}".format(filename))
+            logger.info("no existing checkpoint found {}".format(filename))
 
         return extra_state
 
@@ -255,7 +325,7 @@ class Trainer(object):
     ):
         """Return an EpochBatchIterator over the training set for a given epoch."""
         if load_dataset:
-            print("| loading train data for epoch {}".format(epoch))
+            logger.info("loading train data for epoch {}".format(epoch))
             self.task.load_dataset(
                 self.args.train_subset,
                 epoch=epoch,
@@ -274,15 +344,45 @@ class Trainer(object):
             ignore_invalid_inputs=True,
             required_batch_size_multiple=self.args.required_batch_size_multiple,
             seed=self.args.seed,
-            num_shards=self.args.distributed_world_size if shard_batch_itr else 1,
-            shard_id=self.args.distributed_rank if shard_batch_itr else 0,
+            num_shards=self.data_parallel_world_size if shard_batch_itr else 1,
+            shard_id=self.data_parallel_rank if shard_batch_itr else 0,
             num_workers=self.args.num_workers,
-            epoch=epoch,
+            epoch=epoch
         )
 
-    def train_step(self, samples, dummy_batch=False, raise_oom=False):
+    def get_valid_iterator(
+        self,
+        subset,
+    ):
+        """Return an EpochBatchIterator over given validation subset for a given epoch."""
+        return self.task.get_batch_iterator(
+            dataset=self.task.dataset(subset),
+            max_tokens=self.args.max_tokens_valid,
+            max_sentences=self.args.max_sentences_valid,
+            max_positions=utils.resolve_max_positions(
+                self.task.max_positions(),
+                self.model.max_positions(),
+            ),
+            ignore_invalid_inputs=self.args.skip_invalid_size_inputs_valid_test,
+            required_batch_size_multiple=self.args.required_batch_size_multiple,
+            seed=self.args.seed,
+            num_shards=self.data_parallel_world_size,
+            shard_id=self.data_parallel_rank,
+            num_workers=self.args.num_workers
+        )
+
+    def begin_epoch(self, epoch):
+        """Called at the beginning of each epoch."""
+        if self.quantizer is not None:
+            self.quantizer.begin_epoch(epoch)
+
+        # task specific setup per epoch
+        self.task.begin_epoch(epoch, self.get_model())
+
+    @metrics.aggregate("train")
+    def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
-        if self._dummy_batch is None:
+        if self._dummy_batch == "DUMMY":
             self._dummy_batch = samples[0]
 
         self._set_seed()
@@ -290,20 +390,19 @@ class Trainer(object):
         self.criterion.train()
         self.zero_grad()
 
-        if not dummy_batch:
-            self.meters["train_wall"].start()
+        metrics.log_start_time("train_wall", priority=800, round=0)
 
         # forward and backward pass
-        logging_outputs, sample_sizes, ooms = [], [], 0
+        logging_outputs, sample_size, ooms = [], 0, 0
         for i, sample in enumerate(samples):
             sample = self._prepare_sample(sample)
             if sample is None:
                 # when sample is None, run forward/backward on a dummy batch
                 # and ignore the resulting gradients
                 sample = self._prepare_sample(self._dummy_batch)
-                ignore_grad = True
+                is_dummy_batch = True
             else:
-                ignore_grad = False
+                is_dummy_batch = False
 
             def maybe_no_sync():
                 """
@@ -312,7 +411,7 @@ class Trainer(object):
                 all-reduce in the last backwards pass.
                 """
                 if (
-                    self.args.distributed_world_size > 1
+                    self.data_parallel_world_size > 1
                     and hasattr(self.model, "no_sync")
                     and i < len(samples) - 1
                 ):
@@ -323,183 +422,181 @@ class Trainer(object):
             try:
                 with maybe_no_sync():
                     # forward and backward
-                    loss, sample_size, logging_output = self.task.train_step(
-                        sample, self.model, self.criterion, self.optimizer, ignore_grad
+                    loss, sample_size_i, logging_output = self.task.train_step(
+                        sample=sample,
+                        model=self.model,
+                        criterion=self.criterion,
+                        optimizer=self.optimizer,
+                        update_num=self.get_num_updates(),
+                        ignore_grad=is_dummy_batch,
                     )
+                    del loss
 
-                if not ignore_grad:
-                    logging_outputs.append(logging_output)
-                    sample_sizes.append(sample_size)
+                logging_outputs.append(logging_output)
+                sample_size += sample_size_i
 
-                    if self.fast_stat_sync:
-                        self._all_reduce_list[0] += sample_size
-                        self._all_reduce_list[1] += logging_output.get(
-                            "nsentences", 0.0
-                        )
-                        self._all_reduce_list[2] += logging_output.get("loss", 0.0)
-                        self._all_reduce_list[3] += logging_output.get("nll_loss", 0.0)
-                        self._all_reduce_list[4] += logging_output.get("ntokens", 0.0)
+                # emptying the CUDA cache after the first step can
+                # reduce the chance of OOM
+                if self.cuda and self.get_num_updates() == 0:
+                    torch.cuda.empty_cache()
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     self._log_oom(e)
                     if raise_oom:
                         raise e
-                    print(
-                        "| WARNING: attempting to recover from OOM in forward/backward pass",
-                        file=sys.stderr,
+                    logger.warning(
+                        "attempting to recover from OOM in forward/backward pass"
                     )
                     ooms += 1
                     self.zero_grad()
+                    if self.cuda:
+                        torch.cuda.empty_cache()
+                    if self.args.distributed_world_size == 1:
+                        return None
                 else:
                     raise e
 
-            if self.fast_stat_sync:
-                self._all_reduce_list[5] += ooms
+            if self.tpu and i < len(samples) - 1:
+                # tpu-comment: every XLA operation before marking step is
+                # appended to the IR graph, and processing too many batches
+                # before marking step can lead to OOM errors.
+                # To handle gradient accumulation use case, we explicitly
+                # mark step here for every forward pass without a backward pass
+                import torch_xla.core.xla_model as xm
+                xm.mark_step()
 
-        if ooms > 0 and self._oom_batch is not None:
-            self.handle_ooms(ooms)
+        if is_dummy_batch:
+            if torch.is_tensor(sample_size):
+                sample_size.zero_()
+            else:
+                sample_size *= 0.
 
-        if dummy_batch:
-            return None
+        if torch.is_tensor(sample_size):
+            sample_size = sample_size.float()
+        else:
+            sample_size = float(sample_size)
 
         # gather logging outputs from all replicas
-        if self.fast_stat_sync:
-            # rework all_gather_list
-            all_reduce_list_tensor = torch.cuda.DoubleTensor(self._all_reduce_list)
-            if self._sync_stats():
-                torch.distributed.all_reduce(all_reduce_list_tensor)
-            # Normalize loss and nll_loss by "sample_size"
-            # and convert to log base 2
-            all_reduce_list_tensor[2:4].div_(
-                (all_reduce_list_tensor[0:1] * torch.log(torch.cuda.DoubleTensor([2])))
+        if self._sync_stats():
+            train_time = self._local_cumulative_training_time()
+            logging_outputs, (sample_size, ooms, total_train_time) = self._aggregate_logging_outputs(
+                logging_outputs, sample_size, ooms, train_time, ignore=is_dummy_batch,
             )
-            self._all_reduce_list = all_reduce_list_tensor.tolist()
-            logging_output = {}
-            [
-                sample_size,
-                logging_output["nsentences"],
-                logging_output["loss"],
-                logging_output["nll_loss"],
-                logging_output["ntokens"],
-                ooms,
-            ] = self._all_reduce_list
-        elif self._sync_stats():
-            logging_outputs, sample_sizes, ooms, prev_norms = zip(
-                *distributed_utils.all_gather_list(
-                    [logging_outputs, sample_sizes, ooms, self._prev_grad_norm]
-                )
-            )
-            logging_outputs = list(chain.from_iterable(logging_outputs))
-            sample_sizes = list(chain.from_iterable(sample_sizes))
-            ooms = sum(ooms)
+            self._cumulative_training_time = total_train_time / self.data_parallel_world_size
 
-            if not self.args.use_bmuf:
-                assert all(norm == prev_norms[0] for norm in prev_norms) or all(
-                    math.isnan(norm) or math.isinf(norm) for norm in prev_norms
-                ), "Fatal error: gradients are inconsistent between workers"
-
-        self.meters["oom"].update(ooms, len(samples))
-        if ooms == self.args.distributed_world_size * len(samples):
-            print("| WARNING: OOM in all workers, skipping update")
-            self.zero_grad()
-            return None
-
-        if not self.fast_stat_sync:
-            # aggregate logging outputs and sample sizes
-            logging_output = self.task.aggregate_logging_outputs(
-                logging_outputs, self.get_criterion()
-            )
-            sample_size = self.task.grad_denom(sample_sizes, self.get_criterion())
-
-        if not all(k in logging_output for k in ["ntokens", "nsentences"]):
-            raise Exception(
-                (
-                    "Please update the {}.aggregate_logging_outputs() method to "
-                    "return ntokens and nsentences"
-                ).format(self.task.__class__.__name__)
-            )
-
+        overflow = False
         try:
-            # normalize grads by sample size
-            if sample_size > 0:
-                # In DDP: multiply gradients by #GPUs/#sample_size because
-                # gradients are accumulated and divided by #GPUs before.
-                # In BMUF: during non-sync gradients are divided by #sample_size
-                # whereas during sync (while calculating global model): sync accumulate
-                # gradients and divided by #GPUs and now multiply by #GPUs/#sample_size
-                if self._sync_stats():
-                    self.optimizer.multiply_grads(self.args.distributed_world_size / float(sample_size))
-                else:
-                    self.optimizer.multiply_grads(1 / float(sample_size))
+            if self.tpu and self.data_parallel_world_size > 1:
+                import torch_xla.core.xla_model as xm
+                gradients = xm._fetch_gradients(self.optimizer.optimizer)
+                xm.all_reduce('sum', gradients, scale=1.0 / self.data_parallel_world_size)
 
-            # clip grads
-            grad_norm = self.optimizer.clip_grad_norm(self.args.clip_norm)
-            self._prev_grad_norm = grad_norm
+            with torch.autograd.profiler.record_function("multiply-grads"):
+                # multiply gradients by (# GPUs / sample_size) since DDP
+                # already normalizes by the number of GPUs. Thus we get
+                # (sum_of_gradients / sample_size).
+                if not self.args.use_bmuf:
+                    self.optimizer.multiply_grads(self.data_parallel_world_size / sample_size)
+                elif sample_size > 0:  # BMUF needs to check sample size
+                    num = self.data_parallel_world_size if self._sync_stats() else 1
+                    self.optimizer.multiply_grads(num / sample_size)
 
-            # take an optimization step
-            self.optimizer.step()
-            self.set_num_updates(self.get_num_updates() + 1)
+            with torch.autograd.profiler.record_function("clip-grads"):
+                # clip grads
+                grad_norm = self.clip_grad_norm(self.args.clip_norm)
 
-            # task specific update per step
-            self.task.update_step(self._num_updates)
-
-            # update meters
-            ntokens = logging_output.get("ntokens", 0)
-            nsentences = logging_output.get("nsentences", 0)
-            self.meters["wps"].update(ntokens)
-            self.meters["ups"].update(1.0)
-            self.meters["wpb"].update(ntokens)
-            self.meters["bsz"].update(nsentences)
-            self.meters["gnorm"].update(grad_norm)
-            self.meters["clip"].update(
-                1.0
-                if grad_norm > self.args.clip_norm and self.args.clip_norm > 0
-                else 0.0
-            )
-            self.meters["train_loss"].update(logging_output.get("loss", 0), sample_size)
-            if "train_acc" in self.meters:
-                self.meters["train_acc"].update(
-                    logging_output.get("acc", 0), sample_size
-                )
-
-            if "nll_loss" in logging_output:
-                self.meters["train_nll_loss"].update(
-                    logging_output.get("nll_loss", 0), ntokens
-                )
-
-            # clear CUDA cache to reduce memory fragmentation
+            # check that grad norms are consistent across workers
             if (
-                self.args.empty_cache_freq > 0
-                and (
-                    (self.get_num_updates() + self.args.empty_cache_freq - 1)
-                    % self.args.empty_cache_freq
-                )
-                == 0
-                and torch.cuda.is_available()
-                and not self.args.cpu
+                not self.args.use_bmuf
+                and self.args.distributed_wrapper != 'SlowMo'
+                and not self.tpu
             ):
-                torch.cuda.empty_cache()
+                self._check_grad_norms(grad_norm)
+
+            with torch.autograd.profiler.record_function("optimizer"):
+                # take an optimization step
+                self.optimizer.step()
+        except FloatingPointError:
+            # re-run the forward and backward pass with hooks attached to print
+            # out where it fails
+            with NanDetector(self.model):
+                self.task.train_step(
+                    sample, self.model, self.criterion, self.optimizer, self.get_num_updates(),
+                    ignore_grad=False
+                )
+            raise
         except OverflowError as e:
-            print("| WARNING: overflow detected, " + str(e))
+            overflow = True
+            logger.info("NOTE: overflow detected, " + str(e))
+            grad_norm = torch.tensor(0.).cuda()
             self.zero_grad()
-            logging_output = None
         except RuntimeError as e:
             if "out of memory" in str(e):
                 self._log_oom(e)
-                print("| ERROR: OOM during optimization, irrecoverable")
+                logger.error("OOM during optimization, irrecoverable")
             raise e
 
-        if self.args.fp16:
-            self.meters["loss_scale"].reset()
-            self.meters["loss_scale"].update(self.optimizer.scaler.loss_scale)
+        # Some distributed wrappers (e.g., SlowMo) need access to the optimizer after the step
+        if hasattr(self.model, 'perform_additional_optimizer_actions'):
+            if hasattr(self.optimizer, 'fp32_params'):
+                self.model.perform_additional_optimizer_actions(self.optimizer.optimizer, self.optimizer.fp32_params)
+            else:
+                self.model.perform_additional_optimizer_actions(self.optimizer.optimizer)
 
-        self.clear_buffered_stats()
-        self.meters["train_wall"].stop()
+        if not overflow or self.args.distributed_wrapper == 'SlowMo':
+            self.set_num_updates(self.get_num_updates() + 1)
+
+            if self.tpu:
+                # mark step on TPUs
+                import torch_xla.core.xla_model as xm
+                xm.mark_step()
+
+                # only log stats every log_interval steps
+                # this causes wps to be misreported when log_interval > 1
+                logging_output = {}
+                if self.get_num_updates() % self.args.log_interval == 0:
+                    logging_output = self._reduce_and_log_stats(
+                        logging_outputs, sample_size, grad_norm,
+                    )
+
+                # log whenever there's an XLA compilation, since these
+                # slow down training and may indicate opportunities for
+                # optimization
+                self._check_xla_compilation()
+            else:
+                # log stats
+                logging_output = self._reduce_and_log_stats(
+                    logging_outputs, sample_size, grad_norm,
+                )
+
+                # clear CUDA cache to reduce memory fragmentation
+                if (
+                    self.cuda
+                    and self.args.empty_cache_freq > 0
+                    and (
+                        (self.get_num_updates() + self.args.empty_cache_freq - 1)
+                        % self.args.empty_cache_freq
+                    ) == 0
+                ):
+                    torch.cuda.empty_cache()
+
+        if self.args.fp16:
+            metrics.log_scalar("loss_scale", self.optimizer.scaler.loss_scale, priority=700, round=0)
+
+        metrics.log_stop_time("train_wall")
 
         return logging_output
 
+    @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
+        if self._dummy_batch == "DUMMY":
+            self._dummy_batch = sample
+        if self.tpu:
+            import torch_xla.core.xla_model as xm
+            xm.rendezvous('valid_step')  # wait for all workers
+            xm.mark_step()
+
         with torch.no_grad():
             self.model.eval()
             self.criterion.eval()
@@ -507,9 +604,9 @@ class Trainer(object):
             sample = self._prepare_sample(sample)
             if sample is None:
                 sample = self._prepare_sample(self._dummy_batch)
-                ignore_results = True
+                is_dummy_batch = True
             else:
-                ignore_results = False
+                is_dummy_batch = False
 
             try:
                 _loss, sample_size, logging_output = self.task.valid_step(
@@ -519,8 +616,8 @@ class Trainer(object):
                 if "out of memory" in str(e):
                     self._log_oom(e)
                     if not raise_oom:
-                        print(
-                            "| WARNING: ran out of memory in validation step, retrying batch"
+                        logger.warning(
+                            "ran out of memory in validation step, retrying batch"
                         )
                         for p in self.model.parameters():
                             if p.grad is not None:
@@ -530,68 +627,38 @@ class Trainer(object):
                         return self.valid_step(sample, raise_oom=True)
                 raise e
 
-            if ignore_results:
-                logging_output, sample_size = {}, 0
+            logging_outputs = [logging_output]
+            if is_dummy_batch:
+                if torch.is_tensor(sample_size):
+                    sample_size.zero_()
+                else:
+                    sample_size *= 0.
 
         # gather logging outputs from all replicas
-        if self.args.distributed_world_size > 1:
-            logging_output, sample_size = zip(
-                *distributed_utils.all_gather_list([logging_output, sample_size])
+        if self.data_parallel_world_size > 1:
+            logging_outputs, (sample_size, ) = self._aggregate_logging_outputs(
+                logging_outputs, sample_size, ignore=is_dummy_batch,
             )
-            logging_output = list(logging_output)
-            sample_size = list(sample_size)
-        else:
-            logging_output = [logging_output]
-            sample_size = [sample_size]
 
-        # aggregate logging outputs and sample sizes
-        logging_output = self.task.aggregate_logging_outputs(
-            logging_output, self.get_criterion()
-        )
-        sample_size = self.task.grad_denom(sample_size, self.get_criterion())
-
-        # update meters for validation
-        ntokens = logging_output.get("ntokens", 0)
-        self.meters["valid_loss"].update(logging_output.get("loss", 0), sample_size)
-        if "valid_acc" in self.meters:
-            self.meters["valid_acc"].update(logging_output.get("acc", 0), sample_size)
-
-        if "nll_loss" in logging_output:
-            self.meters["valid_nll_loss"].update(
-                logging_output.get("nll_loss", 0), ntokens
-            )
+        # log validation stats
+        logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
 
         return logging_output
-
-    def dummy_train_step(self, dummy_batch):
-        """Dummy training step for warming caching allocator."""
-        self.train_step(dummy_batch, dummy_batch=True)
-        self.zero_grad()
-
-    def handle_ooms(self, number_of_ooms):
-        """
-        c10d accumulates/syncs gradients between gpus during backward pass.
-        In case of OOMs, gpus may fail to sync, so we manually iterate
-        extra to make sure each gpu makes same number of iterations.
-        """
-        for _ in range(number_of_ooms):
-            self.train_step([self._oom_batch], True)
 
     def zero_grad(self):
         self.optimizer.zero_grad()
 
-    def clear_buffered_stats(self):
-        self._all_reduce_list = [0.0] * 6
-
     def lr_step(self, epoch, val_loss=None):
-        """Adjust the learning rate based on the validation loss."""
+        """Adjust the learning rate at the end of the epoch."""
         self.lr_scheduler.step(epoch, val_loss)
         # prefer updating the LR based on the number of steps
         return self.lr_step_update()
 
     def lr_step_update(self):
         """Update the learning rate after each update."""
-        return self.lr_scheduler.step_update(self.get_num_updates())
+        new_lr = self.lr_scheduler.step_update(self.get_num_updates())
+        metrics.log_scalar("lr", new_lr, weight=0, priority=300)
+        return new_lr
 
     def get_lr(self):
         """Get the current learning rate."""
@@ -606,10 +673,45 @@ class Trainer(object):
         return self._criterion
 
     def get_meter(self, name):
-        """Get a specific meter by name."""
-        if name not in self.meters:
-            return None
-        return self.meters[name]
+        """[deprecated] Get a specific meter by name."""
+        from fairseq import meters
+
+        if 'get_meter' not in self._warn_once:
+            self._warn_once.add('get_meter')
+            utils.deprecation_warning(
+                'Trainer.get_meter is deprecated. Please use fairseq.metrics instead.'
+            )
+
+        train_meters = metrics.get_meters("train")
+        if train_meters is None:
+            train_meters = {}
+
+        if name == "train_loss" and "loss" in train_meters:
+            return train_meters["loss"]
+        elif name == "train_nll_loss":
+            # support for legacy train.py, which assumed this meter is
+            # always initialized
+            m = train_meters.get("nll_loss", None)
+            return m or meters.AverageMeter()
+        elif name == "wall":
+            # support for legacy train.py, which assumed this meter is
+            # always initialized
+            m = metrics.get_meter("default", "wall")
+            return m or meters.TimeMeter()
+        elif name == "wps":
+            m = metrics.get_meter("train", "wps")
+            return m or meters.TimeMeter()
+        elif name in {"valid_loss", "valid_nll_loss"}:
+            # support for legacy train.py, which assumed these meters
+            # are always initialized
+            k = name[len("valid_"):]
+            m = metrics.get_meter("valid", k)
+            return m or meters.AverageMeter()
+        elif name == "oom":
+            return meters.AverageMeter()
+        elif name in train_meters:
+            return train_meters[name]
+        return None
 
     def get_num_updates(self):
         """Get the number of parameters updates."""
@@ -619,8 +721,32 @@ class Trainer(object):
         """Set the number of parameters updates."""
         self._num_updates = num_updates
         self.lr_step_update()
+        if self.quantizer:
+            self.quantizer.step_update(self._num_updates)
+        metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
+
+    def clip_grad_norm(self, clip_norm):
+        return self.optimizer.clip_grad_norm(clip_norm, aggregate_norm_fn=None)
+
+    def cumulative_training_time(self):
+        if self._cumulative_training_time is None:
+            # single GPU
+            return self._local_cumulative_training_time()
+        else:
+            return self._cumulative_training_time
+
+    def _local_cumulative_training_time(self):
+        """Aggregate training time in seconds."""
+        return time.time() - self._start_time + self._previous_training_time
 
     def _prepare_sample(self, sample):
+        if sample == "DUMMY":
+            raise Exception(
+                "Trying to use an uninitialized 'dummy' batch. This usually indicates "
+                "that the total number of batches is smaller than the number of "
+                "participating GPUs. Try reducing the batch size or using fewer GPUs."
+            )
+
         if sample is None or len(sample) == 0:
             return None
 
@@ -632,8 +758,16 @@ class Trainer(object):
                 return t.half()
             return t
 
+        def apply_bfloat16(t):
+            if t.dtype is torch.float32:
+                return t.to(dtype=torch.bfloat16)
+            return t
+
         if self.args.fp16:
             sample = utils.apply_to_sample(apply_half, sample)
+
+        if self.args.bf16:
+            sample = utils.apply_to_sample(apply_bfloat16, sample)
 
         return sample
 
@@ -641,30 +775,229 @@ class Trainer(object):
         # Set seed based on args.seed and the update number so that we get
         # reproducible results when resuming from checkpoints
         seed = self.args.seed + self.get_num_updates()
-        torch.manual_seed(seed)
-        if self.cuda:
-            torch.cuda.manual_seed(seed)
+        utils.set_torch_seed(seed)
 
     def _sync_stats(self):
         # Return True if it's using multiple GPUs and DDP or multiple GPUs with
         # BMUF and it's a bmuf sync with warmup iterations completed before.
-        return self.args.distributed_world_size > 1 and (
-            (not self.args.use_bmuf)
-            or (
-                self.args.use_bmuf
-                and (self.get_num_updates() + 1) % self.args.global_sync_iter == 0
+        if self.data_parallel_world_size == 1:
+            return False
+        elif self.args.use_bmuf:
+            return (
+                (self.get_num_updates() + 1) % self.args.global_sync_iter == 0
                 and (self.get_num_updates() + 1) > self.args.warmup_iterations
             )
-        )
+        else:
+            return True
 
     def _log_oom(self, exc):
-        msg = "| OOM: Ran out of memory with exception: {}".format(exc)
-        # TODO: print should really go to logger, this print goes
-        # to stderr, which is buffered, which in many cases is not
-        # printed out if another exception happens.
-        # NB(jerry): added a flush to mitigate this
-        print(msg, file=sys.stderr)
+        msg = "OOM: Ran out of memory with exception: {}".format(exc)
+        logger.warning(msg)
         if torch.cuda.is_available() and hasattr(torch.cuda, "memory_summary"):
             for device_idx in range(torch.cuda.device_count()):
-                print(torch.cuda.memory_summary(device=device_idx), file=sys.stderr)
+                logger.warning(torch.cuda.memory_summary(device=device_idx))
         sys.stderr.flush()
+
+    def _aggregate_logging_outputs(
+        self,
+        logging_outputs: List[Dict[str, Any]],
+        *extra_stats_to_sum,
+        ignore=False,
+    ):
+        if self.task.__class__.logging_outputs_can_be_summed(self.get_criterion()):
+            return self._fast_stat_sync_sum(
+                logging_outputs, *extra_stats_to_sum, ignore=ignore
+            )
+        else:
+            return self._all_gather_list_sync(
+                logging_outputs, *extra_stats_to_sum, ignore=ignore
+            )
+
+    def _all_gather_list_sync(
+        self,
+        logging_outputs: List[Dict[str, Any]],
+        *extra_stats_to_sum,
+        ignore=False,
+    ):
+        """
+        Sync logging outputs across workers. all_gather_list_sync is
+        suitable when logging outputs are complex types.
+        """
+        if self.tpu:
+            raise NotImplementedError
+        if ignore:
+            logging_outputs = []
+        results = list(zip(
+            *distributed_utils.all_gather_list(
+                [logging_outputs] + list(extra_stats_to_sum),
+                max_size=getattr(self.args, 'all_gather_list_size', 16384),
+                group=self.data_parallel_process_group,
+            )
+        ))
+        logging_outputs, extra_stats_to_sum = results[0], results[1:]
+        logging_outputs = list(chain.from_iterable(logging_outputs))
+        extra_stats_to_sum = [sum(s) for s in extra_stats_to_sum]
+        return logging_outputs, extra_stats_to_sum
+
+    def _fast_stat_sync_sum(
+        self,
+        logging_outputs: List[Dict[str, Any]],
+        *extra_stats_to_sum,
+        ignore=False,
+    ):
+        """
+        Sync logging outputs across workers. fast_stat_sync_sum is
+        faster than all_gather_list_sync, but is only suitable when
+        logging outputs are scalars and can be summed. Note that
+        *logging_outputs* cannot contain any nested dicts/lists.
+        """
+        data = {}
+        for i, stat in enumerate(extra_stats_to_sum):
+            data['extra_stats_' + str(i)] = stat
+        if len(logging_outputs) > 0:
+            log_keys = list(logging_outputs[0].keys())
+            for k in log_keys:
+                if not ignore:
+                    v = sum(log[k] for log in logging_outputs if k in log)
+                else:
+                    v = logging_outputs[0][k]
+                    v = torch.zeros_like(v) if torch.is_tensor(v) else 0
+                data['logging_outputs_' + k] = v
+        else:
+            log_keys = None
+
+        data = distributed_utils.all_reduce_dict(
+            data,
+            device=self.device,
+            group=self.data_parallel_process_group
+        )
+
+        extra_stats_to_sum = [
+            data['extra_stats_' + str(i)] for i in range(len(extra_stats_to_sum))
+        ]
+        if log_keys is not None:
+            logging_outputs = [{k: data['logging_outputs_' + k] for k in log_keys}]
+        else:
+            logging_outputs = []
+        return logging_outputs, extra_stats_to_sum
+
+    def _check_grad_norms(self, grad_norm):
+        """Check that grad norms are consistent across workers."""
+        if self._grad_norm_buf is not None:
+            self._grad_norm_buf.zero_()
+            self._grad_norm_buf[self.data_parallel_rank] = grad_norm
+            distributed_utils.all_reduce(
+                self._grad_norm_buf,
+                group=self.data_parallel_process_group
+            )
+
+            def is_consistent(tensor):
+                max_abs_diff = torch.max(torch.abs(tensor - tensor[0]))
+                return (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+
+            if not is_consistent(self._grad_norm_buf):
+                pretty_detail = "\n".join(
+                    "rank {:3d} = {:.8f}".format(r, n)
+                    for r, n in enumerate(self._grad_norm_buf.tolist())
+                )
+                error_detail = "grad_norm across the workers:\n{}\n".format(pretty_detail)
+                raise RuntimeError(
+                    "Fatal error: gradients are inconsistent between workers. "
+                    "Try --ddp-backend=no_c10d. "
+                    "Or are you mixing up different generation of GPUs in training?"
+                    + "\n"
+                    + "-" * 80
+                    + "\n{}\n".format(error_detail)
+                    + "-" * 80
+                )
+
+    def _reduce_and_log_stats(self, logging_outputs, sample_size, grad_norm=None):
+        if grad_norm is not None:
+            metrics.log_speed("ups", 1., priority=100, round=2)
+            metrics.log_scalar("gnorm", grad_norm, priority=400, round=3)
+            if self.args.clip_norm > 0:
+                metrics.log_scalar(
+                    "clip",
+                    torch.where(
+                        grad_norm > self.args.clip_norm,
+                        grad_norm.new_tensor(100),
+                        grad_norm.new_tensor(0),
+                    ),
+                    priority=500,
+                    round=1,
+                )
+
+        with metrics.aggregate() as agg:
+            if logging_outputs is not None:
+                self.task.reduce_metrics(logging_outputs, self.get_criterion())
+                del logging_outputs
+
+            # extra warning for criterions that don't properly log a loss value
+            if "loss" not in agg:
+                if "loss" not in self._warn_once:
+                    self._warn_once.add("loss")
+                    logger.warning(
+                        "Criterion.reduce_metrics did not log a 'loss' value, "
+                        "which may break some functionality"
+                    )
+                metrics.log_scalar("loss", -1)
+
+            # support legacy interface
+            if self.tpu:
+                logging_output = {}
+            else:
+                logging_output = agg.get_smoothed_values()
+                logging_output["sample_size"] = sample_size
+                for key_to_delete in ["ppl", "wps", "wpb", "bsz"]:
+                    if key_to_delete in logging_output:
+                        del logging_output[key_to_delete]
+            return logging_output
+
+    def _check_xla_compilation(self, message=None):
+        import torch_xla.debug.metrics as met
+        compile_stats = met.metric_data("CompileTime")
+        if compile_stats is None:
+            return
+        num_xla_compiles = compile_stats[0]
+        if num_xla_compiles > self._num_xla_compiles:
+            if message is None:
+                message = (
+                    "too many of these can lead to slow training, "
+                    "but we expect a few in the beginning"
+                )
+            logging.info("NOTE: XLA compilation detected; {}".format(message))
+        self._num_xla_compiles = num_xla_compiles
+
+
+def _catalog_shared_params(module, memo=None, prefix=''):
+    if memo is None:
+        first_call = True
+        memo = {}
+    else:
+        first_call = False
+    for name, param in module._parameters.items():
+        param_prefix = prefix + ('.' if prefix else '') + name
+        if param not in memo:
+            memo[param] = []
+        memo[param].append(param_prefix)
+    for name, m in module._modules.items():
+        if m is None:
+            continue
+        submodule_prefix = prefix + ('.' if prefix else '') + name
+        _catalog_shared_params(m, memo, submodule_prefix)
+    if first_call:
+        return [x for x in memo.values() if len(x) > 1]
+
+
+def _get_module_by_path(module, path):
+    path = path.split('.')
+    for name in path:
+        module = getattr(module, name)
+    return module
+
+
+def _set_module_by_path(module, path, value):
+    path = path.split('.')
+    for name in path[:-1]:
+        module = getattr(module, name)
+    setattr(module, path[-1], value)

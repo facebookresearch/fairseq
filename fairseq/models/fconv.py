@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,7 +18,7 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.modules import (
-    AdaptiveSoftmax, BeamableMM, GradMultiply, LearnedPositionalEmbedding,
+    AdaptiveSoftmax, BeamableMM, FairseqDropout, GradMultiply, LearnedPositionalEmbedding,
     LinearizedConvolution,
 )
 
@@ -150,7 +151,9 @@ class FConvEncoder(FairseqEncoder):
         convolutions=((512, 3),) * 20, dropout=0.1,
     ):
         super().__init__(dictionary)
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
         self.num_attention_layers = None
 
         num_embeddings = len(dictionary)
@@ -213,7 +216,7 @@ class FConvEncoder(FairseqEncoder):
         """
         # embed tokens and positions
         x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         input_embedding = x
 
         # project to size of convolution
@@ -239,7 +242,7 @@ class FConvEncoder(FairseqEncoder):
             if encoder_padding_mask is not None:
                 x = x.masked_fill(encoder_padding_mask.unsqueeze(-1), 0)
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             if conv.kernel_size[0] % 2 == 1:
                 # padding is implicit in the conv
                 x = conv(x)
@@ -288,7 +291,7 @@ class FConvEncoder(FairseqEncoder):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
 
 class AttentionLayer(nn.Module):
@@ -350,11 +353,13 @@ class FConvDecoder(FairseqIncrementalDecoder):
         self, dictionary, embed_dim=512, embed_dict=None, out_embed_dim=256,
         max_positions=1024, convolutions=((512, 3),) * 20, attention=True,
         dropout=0.1, share_embed=False, positional_embeddings=True,
-        adaptive_softmax_cutoff=None, adaptive_softmax_dropout=0,
+        adaptive_softmax_cutoff=None, adaptive_softmax_dropout=0.,
     ):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([2]))
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
         self.need_attn = True
 
         convolutions = extend_conv_spec(convolutions)
@@ -439,7 +444,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
         # embed tokens and combine with positional embeddings
         x += pos_embed
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         target_embedding = x
 
         # project to size of convolution
@@ -460,7 +465,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
             else:
                 residual = None
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             x = conv(x, incremental_state)
             x = F.glu(x, dim=2)
 
@@ -490,7 +495,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
         # project back to size of vocabulary if not using adaptive softmax
         if self.fc2 is not None and self.fc3 is not None:
             x = self.fc2(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             x = self.fc3(x)
 
         return x, avg_attn_scores
@@ -504,7 +509,7 @@ class FConvDecoder(FairseqIncrementalDecoder):
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
-        return self.embed_positions.max_positions() if self.embed_positions is not None else float('inf')
+        return self.embed_positions.max_positions if self.embed_positions is not None else float('inf')
 
     def upgrade_state_dict(self, state_dict):
         if utils.item(state_dict.get('decoder.version', torch.Tensor([1]))[0]) < 2:
@@ -580,7 +585,7 @@ def PositionalEmbedding(num_embeddings, embedding_dim, padding_idx):
     return m
 
 
-def Linear(in_features, out_features, dropout=0):
+def Linear(in_features, out_features, dropout=0.):
     """Weight-normalized Linear layer (input: N x T x C)"""
     m = nn.Linear(in_features, out_features)
     nn.init.normal_(m.weight, mean=0, std=math.sqrt((1 - dropout) / in_features))
@@ -588,7 +593,7 @@ def Linear(in_features, out_features, dropout=0):
     return nn.utils.weight_norm(m)
 
 
-def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
+def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0., **kwargs):
     """Weight-normalized Conv1d layer optimized for decoding"""
     m = LinearizedConvolution(in_channels, out_channels, kernel_size, **kwargs)
     std = math.sqrt((4 * (1.0 - dropout)) / (m.kernel_size[0] * in_channels))
@@ -597,7 +602,7 @@ def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0, **kwargs
     return nn.utils.weight_norm(m, dim=2)
 
 
-def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
+def ConvTBC(in_channels, out_channels, kernel_size, dropout=0., **kwargs):
     """Weight-normalized Conv1d layer"""
     from fairseq.modules import ConvTBC
     m = ConvTBC(in_channels, out_channels, kernel_size, **kwargs)

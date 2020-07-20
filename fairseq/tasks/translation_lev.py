@@ -3,12 +3,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
+
 import torch
+
+from fairseq.data import LanguagePairDataset
 
 from fairseq.utils import new_arange
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask, load_langpair_dataset
-
+from fairseq import utils
 
 @register_task('translation_lev')
 class TranslationLevenshteinTask(TranslationTask):
@@ -27,15 +31,15 @@ class TranslationLevenshteinTask(TranslationTask):
             default='random_delete',
             choices=['random_delete', 'random_mask', 'no_noise', 'full_mask'])
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(':')
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
 
         # infer langcode
         src, tgt = self.args.source_lang, self.args.target_lang
@@ -124,7 +128,8 @@ class TranslationLevenshteinTask(TranslationTask):
         else:
             raise NotImplementedError
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
+        # add models input to match the API for SequenceGenerator
         from fairseq.iterative_refinement_generator import IterativeRefinementGenerator
         return IterativeRefinementGenerator(
             self.target_dictionary,
@@ -136,11 +141,17 @@ class TranslationLevenshteinTask(TranslationTask):
             adaptive=not getattr(args, 'iter_decode_force_max_iter', False),
             retain_history=getattr(args, 'retain_iter_history', False))
 
+    def build_dataset_for_inference(self, src_tokens, src_lengths):
+        return LanguagePairDataset(
+            src_tokens, src_lengths, self.source_dictionary, append_bos=True
+        )
+
     def train_step(self,
                    sample,
                    model,
                    criterion,
                    optimizer,
+                   update_num,
                    ignore_grad=False):
         model.train()
         sample['prev_target'] = self.inject_noise(sample['target'])

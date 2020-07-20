@@ -22,7 +22,7 @@ Model | Description | Dataset | Download
 
 We require a few additional Python dependencies for preprocessing:
 ```bash
-pip install sacremoses subword_nmt
+pip install fastBPE sacremoses subword_nmt
 ```
 
 Interactive translation via PyTorch Hub:
@@ -33,14 +33,24 @@ import torch
 torch.hub.list('pytorch/fairseq')  # [..., 'transformer.wmt16.en-de', ... ]
 
 # Load a transformer trained on WMT'16 En-De
-en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt16.en-de', tokenizer='moses', bpe='subword_nmt')
+# Note: WMT'19 models use fastBPE instead of subword_nmt, see instructions below
+en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt16.en-de',
+                       tokenizer='moses', bpe='subword_nmt')
+en2de.eval()  # disable dropout
 
 # The underlying model is available under the *models* attribute
 assert isinstance(en2de.models[0], fairseq.models.transformer.TransformerModel)
 
+# Move model to GPU for faster translation
+en2de.cuda()
+
 # Translate a sentence
 en2de.translate('Hello world!')
 # 'Hallo Welt!'
+
+# Batched translation
+en2de.translate(['Hello world!', 'The cat sat on the mat.'])
+# ['Hallo Welt!', 'Die Katze saß auf der Matte.']
 ```
 
 Loading custom models:
@@ -55,6 +65,15 @@ zh2en = TransformerModel.from_pretrained(
 )
 zh2en.translate('你好 世界')
 # 'Hello World'
+```
+
+If you are using a `transformer.wmt19` models, you will need to set the `bpe`
+argument to `'fastbpe'` and (optionally) load the 4-model ensemble:
+```python
+en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de',
+                       checkpoint_file='model1.pt:model2.pt:model3.pt:model4.pt',
+                       tokenizer='moses', bpe='fastbpe')
+en2de.eval()  # disable dropout
 ```
 
 ## Example usage (CLI tools)
@@ -108,7 +127,13 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train \
     --lr 5e-4 --lr-scheduler inverse_sqrt --warmup-updates 4000 \
     --dropout 0.3 --weight-decay 0.0001 \
     --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
-    --max-tokens 4096
+    --max-tokens 4096 \
+    --eval-bleu \
+    --eval-bleu-args '{"beam": 5, "max_len_a": 1.2, "max_len_b": 10}' \
+    --eval-bleu-detok moses \
+    --eval-bleu-remove-bpe \
+    --eval-bleu-print-samples \
+    --best-checkpoint-metric bleu --maximize-best-checkpoint-metric
 ```
 
 Finally we can evaluate our trained model:
@@ -200,7 +225,7 @@ train a multilingual `{de,fr}-en` translation model using the IWSLT'17 datasets.
 
 Note that we use slightly different preprocessing here than for the IWSLT'14
 En-De data above. In particular we learn a joint BPE code for all three
-languages and use interactive.py and sacrebleu for scoring the test set.
+languages and use fairseq-interactive and sacrebleu for scoring the test set.
 
 ```bash
 # First install sacrebleu and sentencepiece
@@ -214,16 +239,17 @@ cd ../..
 # Binarize the de-en dataset
 TEXT=examples/translation/iwslt17.de_fr.en.bpe16k
 fairseq-preprocess --source-lang de --target-lang en \
-    --trainpref $TEXT/train.bpe.de-en --validpref $TEXT/valid.bpe.de-en \
-    --joined-dictionary \
+    --trainpref $TEXT/train.bpe.de-en \
+    --validpref $TEXT/valid0.bpe.de-en,$TEXT/valid1.bpe.de-en,$TEXT/valid2.bpe.de-en,$TEXT/valid3.bpe.de-en,$TEXT/valid4.bpe.de-en,$TEXT/valid5.bpe.de-en \
     --destdir data-bin/iwslt17.de_fr.en.bpe16k \
     --workers 10
 
 # Binarize the fr-en dataset
 # NOTE: it's important to reuse the en dictionary from the previous step
 fairseq-preprocess --source-lang fr --target-lang en \
-    --trainpref $TEXT/train.bpe.fr-en --validpref $TEXT/valid.bpe.fr-en \
-    --joined-dictionary --tgtdict data-bin/iwslt17.de_fr.en.bpe16k/dict.en.txt \
+    --trainpref $TEXT/train.bpe.fr-en \
+    --validpref $TEXT/valid0.bpe.fr-en,$TEXT/valid1.bpe.fr-en,$TEXT/valid2.bpe.fr-en,$TEXT/valid3.bpe.fr-en,$TEXT/valid4.bpe.fr-en,$TEXT/valid5.bpe.fr-en \
+    --tgtdict data-bin/iwslt17.de_fr.en.bpe16k/dict.en.txt \
     --destdir data-bin/iwslt17.de_fr.en.bpe16k \
     --workers 10
 
@@ -253,7 +279,8 @@ sacrebleu --test-set iwslt17 --language-pair ${SRC}-en --echo src \
     > iwslt17.test.${SRC}-en.${SRC}.bpe
 cat iwslt17.test.${SRC}-en.${SRC}.bpe \
     | fairseq-interactive data-bin/iwslt17.de_fr.en.bpe16k/ \
-      --task multilingual_translation --source-lang ${SRC} --target-lang en \
+      --task multilingual_translation --lang-pairs de-en,fr-en \
+      --source-lang ${SRC} --target-lang en \
       --path checkpoints/multilingual_transformer/checkpoint_best.pt \
       --buffer-size 2000 --batch-size 128 \
       --beam 5 --remove-bpe=sentencepiece \

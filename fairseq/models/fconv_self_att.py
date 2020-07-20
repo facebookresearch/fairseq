@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import math
 import os
 
@@ -20,12 +21,16 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.modules import (
+    FairseqDropout,
     DownsampledMultiHeadAttention,
     GradMultiply,
     LayerNorm,
     LearnedPositionalEmbedding,
     LinearizedConvolution,
 )
+from fairseq.incremental_decoding_utils import with_incremental_state
+
+logger = logging.getLogger(__name__)
 
 
 @register_model('fconv_self_att')
@@ -108,7 +113,7 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
         trained_encoder, trained_decoder = None, None
         pretrained = eval(args.pretrained)
         if pretrained:
-            print("| loading pretrained model")
+            logger.info('loading pretrained model')
             if not os.path.exists(args.pretrained_checkpoint):
                 new_pretrained_checkpoint = os.path.join(args.data, args.pretrained_checkpoint)
                 if os.path.exists(new_pretrained_checkpoint):
@@ -133,7 +138,7 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
             dropout=args.dropout,
             max_positions=args.max_source_positions,
             attention=eval(args.encoder_attention),
-            attention_nheads=args.encoder_attention_nheads
+            attention_nheads=args.encoder_attention_nheads,
         )
 
         decoder = FConvDecoder(
@@ -151,7 +156,7 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
             gated_attention=eval(args.gated_attention),
             downsample=eval(args.downsample),
             pretrained=pretrained,
-            trained_decoder=trained_decoder
+            trained_decoder=trained_decoder,
         )
         model = FConvModelSelfAtt(encoder, decoder, trained_encoder)
 
@@ -170,7 +175,9 @@ class FConvEncoder(FairseqEncoder):
         attention_nheads=1,
     ):
         super().__init__(dictionary)
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
         self.num_attention_layers = None
 
         num_embeddings = len(dictionary)
@@ -214,7 +221,7 @@ class FConvEncoder(FairseqEncoder):
     def forward(self, src_tokens, src_lengths):
         # embed tokens and positions
         x = self.embed_tokens(src_tokens) + self.embed_positions(src_tokens)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         input_embedding = x.transpose(0, 1)
 
         # project to size of convolution
@@ -234,7 +241,7 @@ class FConvEncoder(FairseqEncoder):
             if encoder_padding_mask is not None:
                 x = x.masked_fill(encoder_padding_mask.unsqueeze(-1), 0)
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             padding_l = (conv.kernel_size[0] - 1) // 2
             padding_r = conv.kernel_size[0] // 2
             x = F.pad(x, (0, 0, 0, 0, padding_l, padding_r))
@@ -284,9 +291,10 @@ class FConvEncoder(FairseqEncoder):
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
 
+@with_incremental_state
 class FConvDecoder(FairseqDecoder):
     """Convolutional decoder"""
     def __init__(
@@ -300,7 +308,9 @@ class FConvDecoder(FairseqDecoder):
         self.register_buffer('version', torch.Tensor([2]))
         self.pretrained = pretrained
         self.pretrained_decoder = trained_decoder
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
         self.need_attn = True
         in_channels = convolutions[0][0]
 
@@ -405,7 +415,7 @@ class FConvDecoder(FairseqDecoder):
 
         # embed tokens and positions
         x = self.embed_tokens(prev_output_tokens) + positions
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         target_embedding = x.transpose(0, 1)
 
         # project to size of convolution
@@ -421,7 +431,7 @@ class FConvDecoder(FairseqDecoder):
         ):
             residual = x if proj is None else proj(x)
 
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             x = conv(x)
             x = F.glu(x, dim=2)
 
@@ -446,7 +456,7 @@ class FConvDecoder(FairseqDecoder):
 
         # project back to size of vocabulary
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         if not self.pretrained:
             x = self.fc3(x)
 
@@ -467,7 +477,7 @@ class FConvDecoder(FairseqDecoder):
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
-        return self.embed_positions.max_positions()
+        return self.embed_positions.max_positions
 
     def make_generation_fast_(self, need_attn=False, **kwargs):
         self.need_attn = need_attn
@@ -533,7 +543,7 @@ def LinearizedConv1d(in_channels, out_channels, kernel_size, dropout=0., **kwarg
     return m
 
 
-def ConvTBC(in_channels, out_channels, kernel_size, dropout=0, **kwargs):
+def ConvTBC(in_channels, out_channels, kernel_size, dropout=0., **kwargs):
     """Weight-normalized Conv1d layer"""
     from fairseq.modules import ConvTBC
     m = ConvTBC(in_channels, out_channels, kernel_size, **kwargs)

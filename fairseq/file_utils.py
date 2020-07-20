@@ -10,7 +10,7 @@ and `huggingface <https://github.com/huggingface>`_.
 """
 
 import fnmatch
-from functools import wraps
+from functools import wraps, partial
 from hashlib import sha256
 from io import open
 import json
@@ -54,7 +54,7 @@ def load_archive_file(archive_file):
     try:
         resolved_archive_file = cached_path(archive_file, cache_dir=None)
     except EnvironmentError:
-        print(
+        logger.info(
             "Archive name '{}' was not found in archive name list. "
             "We assumed '{}' was a path or URL but couldn't find any file "
             "associated to this path or URL.".format(
@@ -65,16 +65,16 @@ def load_archive_file(archive_file):
         return None
 
     if resolved_archive_file == archive_file:
-        print("loading archive file {}".format(archive_file))
+        logger.info("loading archive file {}".format(archive_file))
     else:
-        print("loading archive file {} from cache at {}".format(
+        logger.info("loading archive file {} from cache at {}".format(
             archive_file, resolved_archive_file))
 
     # Extract archive to temp dir and replace .tar.bz2 if necessary
     tempdir = None
     if not os.path.isdir(resolved_archive_file):
         tempdir = tempfile.mkdtemp()
-        print("extracting archive file {} to temp dir {}".format(
+        logger.info("extracting archive file {} to temp dir {}".format(
             resolved_archive_file, tempdir))
         ext = os.path.splitext(archive_file)[1][1:]
         with tarfile.open(resolved_archive_file, 'r:' + ext) as archive:
@@ -213,10 +213,23 @@ def s3_get(url, temp_file):
     s3_resource.Bucket(bucket_name).download_fileobj(s3_path, temp_file)
 
 
+def request_wrap_timeout(func, url):
+    import requests
+    for attempt, timeout in enumerate([10, 20, 40, 60, 60]):
+        try:
+            return func(timeout=timeout)
+        except requests.exceptions.Timeout as e:
+            logger.warning("Request for %s timed-out (attempt %d). Retrying with a timeout of %d secs",
+                           url, attempt, timeout, exc_info=e)
+            continue
+    raise RuntimeError(f"Unable to fetch file {url}")
+
+
 def http_get(url, temp_file):
     import requests
     from tqdm import tqdm
-    req = requests.get(url, stream=True)
+
+    req = request_wrap_timeout(partial(requests.get, url, stream=True), url)
     content_length = req.headers.get('Content-Length')
     total = int(content_length) if content_length is not None else None
     progress = tqdm(unit="B", total=total)
@@ -246,7 +259,7 @@ def get_from_cache(url, cache_dir=None):
     else:
         try:
             import requests
-            response = requests.head(url, allow_redirects=True)
+            response = request_wrap_timeout(partial(requests.head, url, allow_redirects=True), url)
             if response.status_code != 200:
                 etag = None
             else:

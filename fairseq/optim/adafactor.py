@@ -28,15 +28,15 @@ class FairseqAdafactor(FairseqOptimizer):
                             help='decay rate of the second moment estimator')
         parser.add_argument('--beta1', type=float, default=None, metavar="B",
                             help='beta for first moment estimator. Optional')
-        parser.add_argument('--scale-parameter', action='store_true',
-                            help='scale learning rate by root mean square of parameter.')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
+        parser.add_argument('--scale-parameter', action='store_true',
+                            help='scale learning rate by root mean square of parameter')
+        parser.add_argument('--relative-step', action='store_true',
+                            help='set learning rate to inverse square root of timestep,'
+                                 'otherwise use external learning rate')
         parser.add_argument('--warmup-init', action='store_true',
                             help='use relative step for warm-up learning rate schedule')
-        parser.add_argument('--relative-step', action='store_true',
-                            help='set learning rate to inverse square root of timestep.'
-                                 'If false, external learning rate applied')
         # fmt: on
 
     @property
@@ -53,11 +53,11 @@ class FairseqAdafactor(FairseqOptimizer):
             'lr': self.args.lr[0],
             'eps': eval(self.args.adafactor_eps),
             'clip_threshold': self.args.clip_threshold,
-            'beta1': self.args.beta1,
             'decay_rate': self.args.decay_rate,
-            'scale_parameter': self.args.scale_parameter,
+            'beta1': self.args.beta1,
             'weight_decay': self.args.weight_decay,
-            'relative_step': self.args.relative_step,
+            'scale_parameter': self.args.scale_parameter,  # defaults to False
+            'relative_step': self.args.relative_step,  # defaults to False
             'warmup_init': self.args.warmup_init,
         }
 
@@ -68,6 +68,12 @@ class Adafactor(torch.optim.Optimizer):
     This implementation is based on:
     `Adafactor: Adaptive Learning Rates with Sublinear Memory Cost`
     (see https://arxiv.org/abs/1804.04235)
+
+    Note that this optimizer internally adjusts the learning rate
+    depending on the *scale_parameter*, *relative_step* and
+    *warmup_init* options. To use a manual (external) learning rate
+    schedule you should set `scale_parameter=False` and
+    `relative_step=False`.
 
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
@@ -82,9 +88,9 @@ class Adafactor(torch.optim.Optimizer):
         beta1 (float): coefficient used for computing running averages of gradient
             (default: None)
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
-        scale_parameter (bool): if true, learning rate is scaled by root mean square of
+        scale_parameter (bool): if True, learning rate is scaled by root mean square of
             parameter (default: True)
-        relative_step (bool): if true, time-dependent learning rate is computed
+        relative_step (bool): if True, time-dependent learning rate is computed
             instead of external learning rate (default: True)
         warmup_init (bool): time-dependent learning rate computation depends on
             whether warm-up initialization is being used (default: False)
@@ -93,6 +99,11 @@ class Adafactor(torch.optim.Optimizer):
     def __init__(self, params, lr=None, eps=(1e-30, 1e-3), clip_threshold=1.0,
                  decay_rate=-0.8, beta1=None, weight_decay=0.0, scale_parameter=True,
                  relative_step=True, warmup_init=False):
+        if lr is not None and relative_step:
+            raise ValueError('Cannot combine manual lr and relative_step options')
+        if warmup_init and not relative_step:
+            raise ValueError('warmup_init requires relative_step=True')
+
         defaults = dict(lr=lr, eps=eps, clip_threshold=clip_threshold, decay_rate=decay_rate,
                         beta1=beta1, weight_decay=weight_decay, scale_parameter=scale_parameter,
                         relative_step=relative_step, warmup_init=warmup_init)
@@ -101,6 +112,10 @@ class Adafactor(torch.optim.Optimizer):
     @property
     def supports_memory_efficient_fp16(self):
         return True
+
+    @property
+    def supports_flat_params(self):
+        return False
 
     def _get_lr(self, param_group, param_state):
         rel_step_sz = param_group['lr']
@@ -120,10 +135,12 @@ class Adafactor(torch.optim.Optimizer):
     def _rms(self, tensor):
         return tensor.norm(2) / (tensor.numel() ** 0.5)
 
-    def _approx_sq_grad(self, exp_avg_sq_row, exp_avg_sq_col, output):
-        r_factor = (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1).unsqueeze(-1)).rsqrt_().unsqueeze(-1)
-        c_factor = exp_avg_sq_col.unsqueeze(-2).rsqrt()
-        torch.mul(r_factor, c_factor, out=output)
+    def _approx_sq_grad(self, exp_avg_sq_row, exp_avg_sq_col):
+        r_factor = (
+            exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1, keepdim=True)
+        ).rsqrt_()
+        c_factor = exp_avg_sq_col.rsqrt()
+        return torch.mm(r_factor.unsqueeze(-1), c_factor.unsqueeze(0))
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -140,7 +157,9 @@ class Adafactor(torch.optim.Optimizer):
             for p in group['params']:
                 if p.grad is None:
                     continue
-                grad = p.grad.data.float()
+                grad = p.grad.data
+                if grad.dtype in {torch.float16, torch.bfloat16}:
+                    grad = grad.float()
                 if grad.is_sparse:
                     raise RuntimeError('Adafactor does not support sparse gradients.')
 
@@ -156,22 +175,24 @@ class Adafactor(torch.optim.Optimizer):
                         # Exponential moving average of gradient values
                         state['exp_avg'] = torch.zeros_like(grad)
                     if factored:
-                        state['exp_avg_sq_row'] = torch.zeros(grad_shape[:-1]).type_as(grad)
-                        state['exp_avg_sq_col'] = torch.zeros(grad_shape[:-2] + grad_shape[-1:]).type_as(grad)
+                        state['exp_avg_sq_row'] = torch.zeros(grad_shape[:-1]).to(grad)
+                        state['exp_avg_sq_col'] = torch.zeros(grad_shape[:-2] + grad_shape[-1:]).to(grad)
                     else:
                         state['exp_avg_sq'] = torch.zeros_like(grad)
 
                     state['RMS'] = 0
                 else:
                     if use_first_moment:
-                        state['exp_avg'] = state['exp_avg'].type_as(grad)
+                        state['exp_avg'] = state['exp_avg'].to(grad)
                     if factored:
-                        state['exp_avg_sq_row'] = state['exp_avg_sq_row'].type_as(grad)
-                        state['exp_avg_sq_col'] = state['exp_avg_sq_col'].type_as(grad)
+                        state['exp_avg_sq_row'] = state['exp_avg_sq_row'].to(grad)
+                        state['exp_avg_sq_col'] = state['exp_avg_sq_col'].to(grad)
                     else:
-                        state['exp_avg_sq'] = state['exp_avg_sq'].type_as(grad)
+                        state['exp_avg_sq'] = state['exp_avg_sq'].to(grad)
 
-                p_data_fp32 = p.data.float()
+                p_data_fp32 = p.data
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
 
                 state['step'] += 1
                 state['RMS'] = self._rms(p_data_fp32)
@@ -187,15 +208,17 @@ class Adafactor(torch.optim.Optimizer):
                     exp_avg_sq_col.mul_(beta2t).add_(1.0 - beta2t, update.mean(dim=-2))
 
                     # Approximation of exponential moving average of square of gradient
-                    self._approx_sq_grad(exp_avg_sq_row, exp_avg_sq_col, update)
+                    update = self._approx_sq_grad(exp_avg_sq_row, exp_avg_sq_col)
                     update.mul_(grad)
                 else:
                     exp_avg_sq = state['exp_avg_sq']
 
                     exp_avg_sq.mul_(beta2t).add_(1.0 - beta2t, update)
-                    torch.rsqrt(exp_avg_sq, out=update).mul_(grad)
+                    update = exp_avg_sq.rsqrt().mul_(grad)
 
-                update.div_(max(1.0, self._rms(update) / group['clip_threshold']))
+                update.div_(
+                    (self._rms(update) / group['clip_threshold']).clamp_(min=1.0)
+                )
                 update.mul_(group['lr'])
 
                 if use_first_moment:
@@ -208,6 +231,7 @@ class Adafactor(torch.optim.Optimizer):
 
                 p_data_fp32.add_(-update)
 
-                p.data.copy_(p_data_fp32)
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p.data.copy_(p_data_fp32)
 
         return loss

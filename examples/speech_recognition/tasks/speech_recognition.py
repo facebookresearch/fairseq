@@ -6,6 +6,7 @@
 import json
 import os
 import re
+import sys
 
 import torch
 from fairseq.data import Dictionary
@@ -56,11 +57,11 @@ def get_asr_dataset_from_json(data_json_path, tgt_dict):
             speakers.append(m.group(1) + "_" + m.group(2))
         frame_sizes = [s[1]["input"]["length_ms"] for s in sorted_samples]
         tgt = [
-            torch.LongTensor([int(i) for i in s[1]["output"]["tokenid"].split(", ")])
+            [int(i) for i in s[1]["output"]["tokenid"].split(", ")]
             for s in sorted_samples
         ]
         # append eos
-        tgt = [torch.cat([t, torch.LongTensor([tgt_dict.eos()])]) for t in tgt]
+        tgt = [[*t, tgt_dict.eos()] for t in tgt]
         return AsrDataset(aud_paths, frame_sizes, tgt, tgt_dict, ids, speakers)
 
 
@@ -77,6 +78,10 @@ class SpeechRecognitionTask(FairseqTask):
         parser.add_argument(
             "--silence-token", default="\u2581", help="token for silence (used by w2l)"
         )
+        parser.add_argument('--max-source-positions', default=sys.maxsize, type=int, metavar='N',
+                            help='max number of frames in the source sequence')
+        parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
+                            help='max number of tokens in the target sequence')
 
     def __init__(self, args, tgt_dict):
         super().__init__(args)
@@ -108,7 +113,7 @@ class SpeechRecognitionTask(FairseqTask):
         data_json_path = os.path.join(self.args.data, "{}.json".format(split))
         self.datasets[split] = get_asr_dataset_from_json(data_json_path, self.tgt_dict)
 
-    def build_generator(self, args):
+    def build_generator(self, models, args):
         w2l_decoder = getattr(args, "w2l_decoder", None)
         if w2l_decoder == "viterbi":
             from examples.speech_recognition.w2l_decoder import W2lViterbiDecoder
@@ -119,7 +124,7 @@ class SpeechRecognitionTask(FairseqTask):
 
             return W2lKenLMDecoder(args, self.target_dictionary)
         else:
-            return super().build_generator(args)
+            return super().build_generator(models, args)
 
     @property
     def target_dictionary(self):
@@ -132,3 +137,7 @@ class SpeechRecognitionTask(FairseqTask):
         """Return the source :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
         return None
+
+    def max_positions(self):
+        """Return the max speech and sentence length allowed by the task."""
+        return (self.args.max_source_positions, self.args.max_target_positions)

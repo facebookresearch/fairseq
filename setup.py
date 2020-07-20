@@ -9,8 +9,8 @@ from setuptools import setup, find_packages, Extension
 import sys
 
 
-if sys.version_info < (3, 5):
-    sys.exit('Sorry, Python >=3.5 is required for fairseq.')
+if sys.version_info < (3, 6):
+    sys.exit('Sorry, Python >= 3.6 is required for fairseq.')
 
 
 with open('README.md') as f:
@@ -76,9 +76,20 @@ try:
             sources=[
                 'fairseq/clib/libnat/edit_dist.cpp',
             ],
-        ),
+        )
     ])
+
+    if 'CUDA_HOME' in os.environ:
+        extensions.extend([
+            cpp_extension.CppExtension(
+                'fairseq.libnat_cuda',
+                sources=[
+                    'fairseq/clib/libnat_cuda/edit_dist.cu',
+                    'fairseq/clib/libnat_cuda/binding.cpp'
+                ],
+            )])
     cmdclass['build_ext'] = cpp_extension.BuildExtension
+
 except ImportError:
     pass
 
@@ -101,17 +112,7 @@ if 'clean' in sys.argv[1:]:
     # Source: https://bit.ly/2NLVsgE
     print("deleting Cython files...")
     import subprocess
-    subprocess.run(['rm -f fairseq/*.so fairseq/**/*.so'], shell=True)
-
-
-if 'test' in sys.argv[1:]:
-    try:
-        import fairseq.data.token_block_utils_fast
-    except (ImportError, ModuleNotFoundError):
-        raise Exception(
-            'Please install Cython components with `python setup.py build_ext --inplace`'
-            'before running unit tests.'
-        )
+    subprocess.run(['rm -f fairseq/*.so fairseq/**/*.so fairseq/*.pyd fairseq/**/*.pyd'], shell=True)
 
 
 setup(
@@ -122,7 +123,6 @@ setup(
     classifiers=[
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
@@ -152,7 +152,7 @@ setup(
             'fairseq-generate = fairseq_cli.generate:cli_main',
             'fairseq-interactive = fairseq_cli.interactive:cli_main',
             'fairseq-preprocess = fairseq_cli.preprocess:cli_main',
-            'fairseq-score = fairseq_cli.score:main',
+            'fairseq-score = fairseq_cli.score:cli_main',
             'fairseq-train = fairseq_cli.train:cli_main',
             'fairseq-validate = fairseq_cli.validate:cli_main',
         ],

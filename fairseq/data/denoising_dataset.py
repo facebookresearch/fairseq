@@ -26,7 +26,10 @@ def collate(
     def merge(key, left_pad, move_eos_to_beginning=False):
         return data_utils.collate_tokens(
             [s[key] for s in samples],
-            pad_idx, eos_idx, left_pad, move_eos_to_beginning,
+            pad_idx,
+            eos_idx=None,  # use eos_idx of each sample instead of vocab.eos()
+            left_pad=left_pad,
+            move_eos_to_beginning=move_eos_to_beginning,
         )
 
     id = torch.LongTensor([s['id'] for s in samples])
@@ -99,7 +102,8 @@ class DenoisingDataset(FairseqDataset):
         mask_whole_words,
         shuffle,
         seed,
-        args
+        args,
+        eos=None
     ):
         self.dataset = dataset
 
@@ -115,20 +119,21 @@ class DenoisingDataset(FairseqDataset):
         self.insert_ratio = args.insert
         self.rotate_ratio = args.rotate
         self.permute_sentence_ratio = args.permute_sentences
+        self.eos = (eos if eos is not None else vocab.eos())
 
         if args.bpe != 'gpt2':
-            self.full_stop_index = self.vocab.index(".")
+            self.full_stop_index = self.vocab.eos()
         else:
             assert args.bpe == 'gpt2'
             self.full_stop_index = self.vocab.index('13')
 
         self.replace_length = args.replace_length
         if not self.replace_length in [-1, 0, 1]:
-            raise (f'invalid arg: replace_length={self.replace_length}')
+            raise ValueError(f'invalid arg: replace_length={self.replace_length}')
         if not args.mask_length in ['subword', 'word', 'span-poisson']:
-            raise (f'invalid arg: mask-length={args.mask_length}')
+            raise ValueError(f'invalid arg: mask-length={args.mask_length}')
         if args.mask_length == 'subword' and not args.replace_length in [0, 1]:
-            raise (f'if using subwords, use replace-length=1 or 0')
+            raise ValueError(f'if using subwords, use replace-length=1 or 0')
 
         self.mask_span_distribution = None
         if args.mask_length == 'span-poisson':
@@ -155,7 +160,7 @@ class DenoisingDataset(FairseqDataset):
     def __getitem__(self, index):
         with data_utils.numpy_seed(self.seed, self.epoch, index):
             tokens = self.dataset[index]
-            assert tokens[-1] == self.vocab.eos()
+            assert tokens[-1] == self.eos
             source, target = tokens, tokens.clone()
 
             if self.permute_sentence_ratio > 0.0:
@@ -174,7 +179,7 @@ class DenoisingDataset(FairseqDataset):
         assert (source[1:-1] >= 1).all()
         assert (source <= len(self.vocab)).all()
         assert source[0] == self.vocab.bos()
-        assert source[-1] == self.vocab.eos()
+        assert source[-1] == self.eos
         return {
             'id': index,
             'source': source,
@@ -350,7 +355,7 @@ class DenoisingDataset(FairseqDataset):
         Returns:
             dict: a mini-batch of data
         """
-        return collate(samples, self.vocab.pad(), self.vocab.eos(), self.vocab)
+        return collate(samples, self.vocab.pad(), self.eos, self.vocab)
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to

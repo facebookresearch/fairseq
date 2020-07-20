@@ -10,6 +10,8 @@ import torch.nn.functional as F
 
 import lightconv_cuda
 from fairseq import utils
+from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
 class lightconvFunction(Function):
@@ -27,11 +29,12 @@ class lightconvFunction(Function):
         outputs = lightconv_cuda.backward(
                 grad_output.contiguous(),
                 ctx.padding_l,
-                *ctx.saved_variables)
+                *ctx.saved_tensors)
         grad_input, grad_weights = outputs
         return grad_input, grad_weights, None
 
 
+@with_incremental_state
 class LightconvLayer(nn.Module):
     def __init__(
             self,
@@ -41,14 +44,15 @@ class LightconvLayer(nn.Module):
             weight_softmax=False,
             num_heads=1,
             weight_dropout=0.,
-            bias=False):
+            bias=False,
+    ):
         super(LightconvLayer, self).__init__()
         self.input_size = input_size
         self.kernel_size = kernel_size
         self.padding_l = padding_l
         self.num_heads = num_heads
         self.weight_softmax = weight_softmax
-        self.weight_dropout = weight_dropout
+        self.weight_dropout_module = FairseqDropout(weight_dropout, module_name=self.__class__.__name__)
 
         self.weight = nn.Parameter(torch.Tensor(num_heads, kernel_size))
         if bias:
@@ -56,6 +60,13 @@ class LightconvLayer(nn.Module):
         else:
             self.bias = None
         self.reset_parameters()
+
+    def upgrade_state_dict_named(self, state_dict, name):
+        prefix = name + '.' if name != '' else ''
+        for k, v in state_dict.items():
+            if k.endswith(prefix + 'weight'):
+                if v.dim() == 3 and v.size(1) == 1:
+                    state_dict[k] = v.squeeze(1)
 
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.weight)
@@ -87,7 +98,7 @@ class LightconvLayer(nn.Module):
 
             weight = weight.view(1, H, K).expand(T*B, H, K).contiguous().view(T*B*H, K, 1)
 
-            weight = F.dropout(weight, self.weight_dropout, training=self.training)
+            weight = self.weight_dropout_module(weight)
             output = torch.bmm(x_unfold, weight)  # T*B*H x R x 1
             output = output.view(T, B, C)
             return output
@@ -98,8 +109,8 @@ class LightconvLayer(nn.Module):
             weight = self.weight
             if self.weight_softmax:
                 weight = F.softmax(self.weight, -1)
-            if self.weight_dropout:
-                weight = F.dropout(weight, self.weight_dropout, training=self.training)
+            if self.weight_dropout_module.p:
+                weight = self.weight_dropout_module(weight)
             return lightconvFunction.apply(x, weight, self.padding_l).permute(2, 0, 1)
 
     def reorder_incremental_state(self, incremental_state, new_order):
@@ -115,5 +126,4 @@ class LightconvLayer(nn.Module):
         return utils.set_incremental_state(self, incremental_state, 'input_buffer', new_buffer)
 
     def half(self):
-        print("HALF")
         return self._apply(lambda t: t.half() if t.is_floating_point() else t)

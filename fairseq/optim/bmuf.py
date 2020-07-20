@@ -32,6 +32,7 @@ class FairseqBMUF(FairseqOptimizer):
         self.use_nbm = self.args.use_nbm
         self.initial_state = self._optimizer.state_dict()
         self.average_sync = self.args.average_sync
+        self.world_size = self.args.distributed_world_size
 
     @staticmethod
     def add_args(parser):
@@ -89,19 +90,22 @@ class FairseqBMUF(FairseqOptimizer):
 
     def load_state_dict(self, state_dict, optimizer_overrides=None):
         self._optimizer.load_state_dict(state_dict, optimizer_overrides)
+        self.initial_state = self._optimizer.state_dict()
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
         self._optimizer.multiply_grads(c)
 
-    def clip_grad_norm(self, max_norm):
+    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm."""
-        return self._optimizer.clip_grad_norm(max_norm)
+        return self._optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
 
     def average_params(self):
         self._optimizer.average_params()
 
     def _block_sync(self):
+        if self.world_size <= 1:
+            return
         # Update the global model using local models from all GPUs
         # (Step-1) Calculate grad between previously synced model and
         # currrent local model
@@ -134,6 +138,8 @@ class FairseqBMUF(FairseqOptimizer):
         return False
 
     def _warmup_sync(self, root_rank=0):
+        if self.world_size <= 1:
+            return
         # Broadcast the local model to all gpus
         for param in self.params:
             dist.broadcast(param.data, src=root_rank)

@@ -8,6 +8,7 @@ from collections import Counter
 from multiprocessing import Pool
 
 import torch
+from fairseq import utils
 from fairseq.binarizer import safe_readline
 from fairseq.data import data_utils
 from fairseq.file_io import PathManager
@@ -19,6 +20,7 @@ class Dictionary(object):
 
     def __init__(
         self,
+        *,  # begin keyword-only arguments
         pad="<pad>",
         eos="</s>",
         unk="<unk>",
@@ -60,28 +62,45 @@ class Dictionary(object):
             return self.indices[sym]
         return self.unk_index
 
-    def string(self, tensor, bpe_symbol=None, escape_unk=False):
+    def string(
+        self,
+        tensor,
+        bpe_symbol=None,
+        escape_unk=False,
+        extra_symbols_to_ignore=None,
+        unk_string=None,
+    ):
         """Helper for converting a tensor of token indices to a string.
 
         Can optionally remove BPE symbols or escape <unk> words.
         """
         if torch.is_tensor(tensor) and tensor.dim() == 2:
-            return "\n".join(self.string(t, bpe_symbol, escape_unk) for t in tensor)
+            return "\n".join(
+                self.string(t, bpe_symbol, escape_unk, extra_symbols_to_ignore)
+                for t in tensor
+            )
+
+        extra_symbols_to_ignore = set(extra_symbols_to_ignore or [])
+        extra_symbols_to_ignore.add(self.eos())
 
         def token_string(i):
             if i == self.unk():
-                return self.unk_string(escape_unk)
+                if unk_string is not None:
+                    return unk_string
+                else:
+                    return self.unk_string(escape_unk)
             else:
                 return self[i]
 
         if hasattr(self, "bos_index"):
-            sent = " ".join(
-                token_string(i)
-                for i in tensor
-                if (i != self.eos()) and (i != self.bos())
-            )
-        else:
-            sent = " ".join(token_string(i) for i in tensor if i != self.eos())
+            extra_symbols_to_ignore.add(self.bos())
+
+        sent = " ".join(
+            token_string(i)
+            for i in tensor
+            if utils.item(i) not in extra_symbols_to_ignore
+        )
+
         return data_utils.process_bpe_symbol(sent, bpe_symbol)
 
     def unk_string(self, escape=False):
@@ -91,9 +110,9 @@ class Dictionary(object):
         else:
             return self.unk_word
 
-    def add_symbol(self, word, n=1):
+    def add_symbol(self, word, n=1, overwrite=False):
         """Adds a word to the dictionary"""
-        if word in self.indices:
+        if word in self.indices and not overwrite:
             idx = self.indices[word]
             self.count[idx] = self.count[idx] + n
             return idx
@@ -148,23 +167,22 @@ class Dictionary(object):
             else:
                 break
 
-        threshold_nwords = len(new_symbols)
-        if padding_factor > 1:
-            i = 0
-            while threshold_nwords % padding_factor != 0:
-                symbol = "madeupword{:04d}".format(i)
-                new_indices[symbol] = len(new_symbols)
-                new_symbols.append(symbol)
-                new_count.append(0)
-                i += 1
-                threshold_nwords += 1
-
-        assert len(new_symbols) % padding_factor == 0
         assert len(new_symbols) == len(new_indices)
 
         self.count = list(new_count)
         self.symbols = list(new_symbols)
         self.indices = new_indices
+
+        self.pad_to_multiple_(padding_factor)
+
+    def pad_to_multiple_(self, padding_factor):
+        """Pad Dictionary size to be a multiple of *padding_factor*."""
+        if padding_factor > 1:
+            i = 0
+            while len(self) % padding_factor != 0:
+                symbol = "madeupword{:04d}".format(i)
+                self.add_symbol(symbol, n=0)
+                i += 1
 
     def bos(self):
         """Helper to get index of beginning-of-sentence symbol"""
@@ -216,17 +234,31 @@ class Dictionary(object):
 
         lines = f.readlines()
         indices_start_line = self._load_meta(lines)
+
         for line in lines[indices_start_line:]:
-            idx = line.rfind(" ")
-            if idx == -1:
+            try:
+                line, field = line.rstrip().rsplit(" ", 1)
+                if field == "#fairseq:overwrite":
+                    overwrite = True
+                    line, field = line.rsplit(" ", 1)
+                else:
+                    overwrite = False
+                count = int(field)
+                word = line
+                if word in self and not overwrite:
+                    raise RuntimeError(
+                        "Duplicate word found when loading Dictionary: '{}'. "
+                        "Duplicate words can overwrite earlier ones by adding the "
+                        "#fairseq:overwrite flag at the end of the corresponding row "
+                        "in the dictionary file. If using the Camembert model, please "
+                        "download an updated copy of the model file."
+                        .format(word)
+                    )
+                self.add_symbol(word, n=count, overwrite=overwrite)
+            except ValueError:
                 raise ValueError(
-                    "Incorrect dictionary format, expected '<token> <cnt>'"
+                    "Incorrect dictionary format, expected '<token> <cnt> [flags]'"
                 )
-            word = line[:idx]
-            count = int(line[idx + 1 :])
-            self.indices[word] = len(self.symbols)
-            self.symbols.append(word)
-            self.count.append(count)
 
     def _save(self, f, kv_iterator):
         if isinstance(f, str):

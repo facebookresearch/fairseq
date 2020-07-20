@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 import numpy as np
@@ -20,8 +21,13 @@ from fairseq.data import (
     SortDataset,
     TokenBlockDataset,
 )
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import FairseqTask, register_task
 from fairseq.data.encoders.utils import get_whole_word_mask
+from fairseq import utils
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('masked_lm')
@@ -53,6 +59,12 @@ class MaskedLMTask(FairseqTask):
                             help='sample random replacement words based on word frequencies')
         parser.add_argument('--mask-whole-words', default=False, action='store_true',
                             help='mask whole words; you may also want to set --bpe')
+        parser.add_argument('--shorten-method', default='none',
+                            choices=['none', 'truncate', 'random_crop'],
+                            help='if not none, shorten sequences that exceed --tokens-per-sample')
+        parser.add_argument('--shorten-data-split-list', default='',
+                            help='comma-separated list of dataset splits to apply shortening to, '
+                                 'e.g., "train,valid" (default: all dataset splits)')
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -64,21 +76,21 @@ class MaskedLMTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        paths = args.data.split(':')
+        paths = utils.split_paths(args.data)
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
-        print('| dictionary: {} types'.format(len(dictionary)))
+        logger.info('dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
-    def load_dataset(self, split, epoch=0, combine=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(':')
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
-        data_path = paths[epoch % len(paths)]
+        data_path = paths[(epoch - 1) % len(paths)]
         split_path = os.path.join(data_path, split)
 
         dataset = data_utils.load_indexed_dataset(
@@ -90,6 +102,15 @@ class MaskedLMTask(FairseqTask):
         if dataset is None:
             raise FileNotFoundError('Dataset not found: {} ({})'.format(split, split_path))
 
+        dataset = maybe_shorten_dataset(
+            dataset,
+            split,
+            self.args.shorten_data_split_list,
+            self.args.shorten_method,
+            self.args.tokens_per_sample,
+            self.args.seed,
+        )
+
         # create continuous blocks of tokens
         dataset = TokenBlockDataset(
             dataset,
@@ -99,7 +120,7 @@ class MaskedLMTask(FairseqTask):
             eos=self.source_dictionary.eos(),
             break_mode=self.args.sample_break_mode,
         )
-        print('| loaded {} blocks from: {}'.format(len(dataset), split_path))
+        logger.info('loaded {} blocks from: {}'.format(len(dataset), split_path))
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())

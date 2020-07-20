@@ -4,22 +4,23 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import sys
+from typing import Callable, List, Optional
 
 import torch
-import sys
 
 from fairseq import utils
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 
 
-def get_preprocessing_parser(default_task='translation'):
-    parser = get_parser('Preprocessing', default_task)
+def get_preprocessing_parser(default_task="translation"):
+    parser = get_parser("Preprocessing", default_task)
     add_preprocess_args(parser)
     return parser
 
 
-def get_training_parser(default_task='translation'):
-    parser = get_parser('Trainer', default_task)
+def get_training_parser(default_task="translation"):
+    parser = get_parser("Trainer", default_task)
     add_dataset_args(parser, train=True)
     add_distributed_training_args(parser)
     add_model_args(parser)
@@ -28,32 +29,39 @@ def get_training_parser(default_task='translation'):
     return parser
 
 
-def get_generation_parser(interactive=False, default_task='translation'):
-    parser = get_parser('Generation', default_task)
+def get_generation_parser(interactive=False, default_task="translation"):
+    parser = get_parser("Generation", default_task)
     add_dataset_args(parser, gen=True)
+    add_distributed_training_args(parser, default_world_size=1)
     add_generation_args(parser)
     if interactive:
         add_interactive_args(parser)
     return parser
 
 
-def get_interactive_generation_parser(default_task='translation'):
+def get_interactive_generation_parser(default_task="translation"):
     return get_generation_parser(interactive=True, default_task=default_task)
 
 
-def get_eval_lm_parser(default_task='language_modeling'):
-    parser = get_parser('Evaluate Language Model', default_task)
+def get_eval_lm_parser(default_task="language_modeling"):
+    parser = get_parser("Evaluate Language Model", default_task)
     add_dataset_args(parser, gen=True)
+    add_distributed_training_args(parser, default_world_size=1)
     add_eval_lm_args(parser)
     return parser
 
 
 def get_validation_parser(default_task=None):
-    parser = get_parser('Validation', default_task)
+    parser = get_parser("Validation", default_task)
     add_dataset_args(parser, train=True)
-    group = parser.add_argument_group('Evaluation')
+    add_distributed_training_args(parser, default_world_size=1)
+    group = parser.add_argument_group("Evaluation")
     add_common_eval_args(group)
     return parser
+
+
+def csv_str_list(x):
+    return x.split(',')
 
 
 def eval_str_list(x, type=float):
@@ -67,6 +75,14 @@ def eval_str_list(x, type=float):
         return [type(x)]
 
 
+def eval_str_dict(x, type=dict):
+    if x is None:
+        return None
+    if isinstance(x, str):
+        x = eval(x)
+    return x
+
+
 def eval_bool(x, default=False):
     if x is None:
         return default
@@ -76,7 +92,23 @@ def eval_bool(x, default=False):
         return default
 
 
-def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_defaults=False):
+def parse_args_and_arch(
+    parser: argparse.ArgumentParser,
+    input_args: List[str] = None,
+    parse_known: bool = False,
+    suppress_defaults: bool = False,
+    modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] = None,
+):
+    """
+    Args:
+        parser (ArgumentParser): the parser
+        input_args (List[str]): strings to parse, defaults to sys.argv
+        parse_known (bool): only parse known arguments, similar to
+            `ArgumentParser.parse_known_args`
+        suppress_defaults (bool): parse while ignoring all default values
+        modify_parser (Optional[Callable[[ArgumentParser], None]]):
+            function to modify the parser, e.g., to set default values
+    """
     if suppress_defaults:
         # Parse args without any default values. This requires us to parse
         # twice, once to identify all the necessary task/model args, and a second
@@ -90,13 +122,21 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
         suppressed_parser = argparse.ArgumentParser(add_help=False, parents=[parser])
         suppressed_parser.set_defaults(**{k: None for k, v in vars(args).items()})
         args = suppressed_parser.parse_args(input_args)
-        return argparse.Namespace(**{
-            k: v
-            for k, v in vars(args).items()
-            if v is not None
-        })
+        return argparse.Namespace(
+            **{k: v for k, v in vars(args).items() if v is not None}
+        )
 
     from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
+
+    # Before creating the true parser, we need to import optional user module
+    # in order to eagerly import custom tasks, optimizers, architectures, etc.
+    usr_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    usr_parser.add_argument("--user-dir", default=None)
+    usr_args, _ = usr_parser.parse_known_args(input_args)
+    utils.import_user_module(usr_args)
+
+    if modify_parser is not None:
+        modify_parser(parser)
 
     # The parser doesn't know about model/criterion/optimizer-specific args, so
     # we parse twice. First we parse the model/criterion/optimizer, then we
@@ -105,9 +145,9 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
     args, _ = parser.parse_known_args(input_args)
 
     # Add model-specific args to parser.
-    if hasattr(args, 'arch'):
+    if hasattr(args, "arch"):
         model_specific_group = parser.add_argument_group(
-            'Model-specific configuration',
+            "Model-specific configuration",
             # Only include attributes which are explicitly given as command-line
             # arguments or which have default values.
             argument_default=argparse.SUPPRESS,
@@ -116,19 +156,26 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
 
     # Add *-specific args to parser.
     from fairseq.registry import REGISTRIES
+
     for registry_name, REGISTRY in REGISTRIES.items():
         choice = getattr(args, registry_name, None)
         if choice is not None:
-            cls = REGISTRY['registry'][choice]
-            if hasattr(cls, 'add_args'):
+            cls = REGISTRY["registry"][choice]
+            if hasattr(cls, "add_args"):
                 cls.add_args(parser)
-    if hasattr(args, 'task'):
+    if hasattr(args, "task"):
         from fairseq.tasks import TASK_REGISTRY
+
         TASK_REGISTRY[args.task].add_args(parser)
-    if getattr(args, 'use_bmuf', False):
+    if getattr(args, "use_bmuf", False):
         # hack to support extra args for block distributed data parallelism
         from fairseq.optim.bmuf import FairseqBMUF
+
         FairseqBMUF.add_args(parser)
+
+    # Modify the parser a second time, since defaults may have been reset
+    if modify_parser is not None:
+        modify_parser(parser)
 
     # Parse a second time.
     if parse_known:
@@ -138,15 +185,29 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
         extra = None
 
     # Post-process args.
-    if hasattr(args, 'max_sentences_valid') and args.max_sentences_valid is None:
+    if hasattr(args, "max_sentences_valid") and args.max_sentences_valid is None:
         args.max_sentences_valid = args.max_sentences
-    if hasattr(args, 'max_tokens_valid') and args.max_tokens_valid is None:
+    if hasattr(args, "max_tokens_valid") and args.max_tokens_valid is None:
         args.max_tokens_valid = args.max_tokens
-    if getattr(args, 'memory_efficient_fp16', False):
+    if getattr(args, "memory_efficient_fp16", False):
         args.fp16 = True
+    if getattr(args, "memory_efficient_bf16", False):
+        args.bf16 = True
+    args.tpu = getattr(args, "tpu", False)
+    args.bf16 = getattr(args, "bf16", False)
+    if args.bf16:
+        args.tpu = True
+    if args.tpu and args.fp16:
+        raise ValueError("Cannot combine --fp16 and --tpu, use --bf16 on TPUs")
+
+    if getattr(args, "seed", None) is None:
+        args.seed = 1  # default seed for training
+        args.no_seed_provided = True
+    else:
+        args.no_seed_provided = False
 
     # Apply architecture configuration.
-    if hasattr(args, 'arch'):
+    if hasattr(args, "arch"):
         ARCH_CONFIG_REGISTRY[args.arch](args)
 
     if parse_known:
@@ -155,30 +216,36 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
         return args
 
 
-def get_parser(desc, default_task='translation'):
+def get_parser(desc, default_task="translation"):
     # Before creating the true parser, we need to import optional user module
     # in order to eagerly import custom tasks, optimizers, architectures, etc.
     usr_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
-    usr_parser.add_argument('--user-dir', default=None)
+    usr_parser.add_argument("--user-dir", default=None)
     usr_args, _ = usr_parser.parse_known_args()
     utils.import_user_module(usr_args)
 
     parser = argparse.ArgumentParser(allow_abbrev=False)
     # fmt: off
     parser.add_argument('--no-progress-bar', action='store_true', help='disable progress bar')
-    parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                         help='log progress every N batches (when progress bar is disabled)')
     parser.add_argument('--log-format', default=None, help='log format to use',
                         choices=['json', 'none', 'simple', 'tqdm'])
     parser.add_argument('--tensorboard-logdir', metavar='DIR', default='',
                         help='path to save logs for tensorboard, should match --logdir '
                              'of running tensorboard (default: no tensorboard logging)')
-    parser.add_argument('--seed', default=1, type=int, metavar='N',
+    parser.add_argument('--seed', default=None, type=int, metavar='N',
                         help='pseudo random number generator seed')
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
+    parser.add_argument('--tpu', action='store_true', help='use TPU instead of CUDA')
+    parser.add_argument('--bf16', action='store_true', help='use bfloat16; implies --tpu')
     parser.add_argument('--fp16', action='store_true', help='use FP16')
+    parser.add_argument('--memory-efficient-bf16', action='store_true',
+                        help='use a memory-efficient version of BF16 training; implies --bf16')
     parser.add_argument('--memory-efficient-fp16', action='store_true',
                         help='use a memory-efficient version of FP16 training; implies --fp16')
+    parser.add_argument('--fp16-no-flatten-grads', action='store_true',
+                        help='don\'t flatten FP16 grads tensor')
     parser.add_argument('--fp16-init-scale', default=2 ** 7, type=int,
                         help='default FP16 loss scale')
     parser.add_argument('--fp16-scale-window', type=int,
@@ -193,6 +260,16 @@ def get_parser(desc, default_task='translation'):
                         help='path to a python module containing custom extensions (tasks and/or architectures)')
     parser.add_argument('--empty-cache-freq', default=0, type=int,
                         help='how often to clear the PyTorch CUDA cache (0 to disable)')
+    parser.add_argument('--all-gather-list-size', default=16384, type=int,
+                        help='number of bytes reserved for gathering stats from workers')
+    parser.add_argument('--model-parallel-size', type=int, metavar='N',
+                        default=1,
+                        help='total number of GPUs to parallelize model over')
+    parser.add_argument('--checkpoint-suffix', default='',
+                        help='suffix to add to the checkpoint file name')
+    parser.add_argument('--quantization-config-path', default=None,
+                        help='path to quantization config file')
+    parser.add_argument('--profile', action='store_true', help='enable autograd profiler emit_nvtx')
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():
@@ -212,7 +289,7 @@ def get_parser(desc, default_task='translation'):
 
 
 def add_preprocess_args(parser):
-    group = parser.add_argument_group('Preprocessing')
+    group = parser.add_argument_group("Preprocessing")
     # fmt: off
     group.add_argument("-s", "--source-lang", default=None, metavar="SRC",
                        help="source language")
@@ -258,7 +335,7 @@ def add_preprocess_args(parser):
 
 
 def add_dataset_args(parser, train=False, gen=False):
-    group = parser.add_argument_group('Dataset and data loading')
+    group = parser.add_argument_group("Dataset and data loading")
     # fmt: off
     group.add_argument('--num-workers', default=1, type=int, metavar='N',
                        help='how many subprocesses to use for data loading')
@@ -269,17 +346,19 @@ def add_dataset_args(parser, train=False, gen=False):
     group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
                        help='maximum number of sentences in a batch')
     group.add_argument('--required-batch-size-multiple', default=8, type=int, metavar='N',
-                       help='batch size will be a multiplier of this value')
+                       help='batch size will either be less than this value, '
+                            'or a multiple of this value')
     parser.add_argument('--dataset-impl', metavar='FORMAT',
                         choices=get_available_dataset_impl(),
                         help='output dataset implementation')
+    group.add_argument('--data-buffer-size', default=10, type=int, metavar='N',
+                        help='number of batches to preload')
     if train:
         group.add_argument('--train-subset', default='train', metavar='SPLIT',
-                           choices=['train', 'valid', 'test'],
-                           help='data subset to use for training (train, valid, test)')
+                           help='data subset to use for training (e.g. train, valid, test)')
         group.add_argument('--valid-subset', default='valid', metavar='SPLIT',
                            help='comma separated list of data subsets to use for validation'
-                                ' (train, valid, valid1, test, test1)')
+                                ' (e.g. train, valid, test)')
         group.add_argument('--validate-interval', type=int, default=1, metavar='N',
                            help='validate every N epochs')
         group.add_argument('--fixed-validation-seed', default=None, type=int, metavar='N',
@@ -305,11 +384,13 @@ def add_dataset_args(parser, train=False, gen=False):
     return group
 
 
-def add_distributed_training_args(parser):
-    group = parser.add_argument_group('Distributed training')
+def add_distributed_training_args(parser, default_world_size=None):
+    group = parser.add_argument_group("Distributed training")
     # fmt: off
+    if default_world_size is None:
+        default_world_size = max(1, torch.cuda.device_count())
     group.add_argument('--distributed-world-size', type=int, metavar='N',
-                       default=max(1, torch.cuda.device_count()),
+                       default=default_world_size,
                        help='total number of GPUs across all nodes (default: all visible GPUs)')
     group.add_argument('--distributed-rank', default=0, type=int,
                        help='rank of the current worker')
@@ -324,6 +405,11 @@ def add_distributed_training_args(parser):
                        help='which GPU to use (usually configured automatically)')
     group.add_argument('--distributed-no-spawn', action='store_true',
                        help='do not spawn multiple processes even if multiple GPUs are visible')
+    # "c10d" is PyTorch's DDP implementation and provides the fastest
+    # training. "no_c10d" is a more robust, but slightly slower DDP
+    # implementation. Try this if you get warning messages about
+    # inconsistent gradients between workers, or if some of your model
+    # parameters are not always used.
     group.add_argument('--ddp-backend', default='c10d', type=str,
                        choices=['c10d', 'no_c10d'],
                        help='DistributedDataParallel backend')
@@ -337,20 +423,41 @@ def add_distributed_training_args(parser):
                        help='disable unused parameter detection (not applicable to '
                        'no_c10d ddp-backend')
     group.add_argument('--fast-stat-sync', default=False, action='store_true',
-                        help='Enable fast sync of stats between nodes, this hardcodes to '
-                        'sync only some default stats from logging_output.')
+                       help='[deprecated] this is now defined per Criterion')
+    group.add_argument('--broadcast-buffers', default=False, action='store_true',
+                       help='Copy non-trainable parameters between GPUs, such as '
+                      'batchnorm population statistics')
+
+    group.add_argument('--distributed-wrapper', default='DDP', type=str,
+                       choices=['DDP', 'SlowMo'],
+                       help='DistributedDataParallel backend')
+    # Add arguments for SlowMo - these will be used when SlowMo is enabled via above
+    group.add_argument('--slowmo-momentum', default=None, type=float,
+                       help='SlowMo momentum term; by default use 0.0 for 16 GPUs, '
+                            '0.2 for 32 GPUs; 0.5 for 64 GPUs, 0.6 for > 64 GPUs')
+    group.add_argument('--slowmo-algorithm', default='LocalSGD', choices=['LocalSGD', 'SGP'],
+                       help='whether to use LocalSGD or SGP')
+    group.add_argument('--localsgd-frequency', default=3, type=int,
+                       help='Local SGD allreduce frequency')
+    group.add_argument('--nprocs-per-node', type=int, metavar='N',
+                       default=max(1, torch.cuda.device_count()),
+                       help='number of GPUs in each node. An allreduce operation across GPUs in '
+                            'a node is very fast. Hence, we do allreduce across GPUs in a node, '
+                            'and gossip across different nodes')
     # fmt: on
     return group
 
 
 def add_optimization_args(parser):
-    group = parser.add_argument_group('Optimization')
+    group = parser.add_argument_group("Optimization")
     # fmt: off
     group.add_argument('--max-epoch', '--me', default=0, type=int, metavar='N',
                        help='force stop training at specified epoch')
     group.add_argument('--max-update', '--mu', default=0, type=int, metavar='N',
                        help='force stop training at specified update')
-    group.add_argument('--clip-norm', default=25, type=float, metavar='NORM',
+    group.add_argument('--stop-time-hours', default=0, type=float, metavar='N',
+                       help='force stop training after specified cumulative time (if >0)')
+    group.add_argument('--clip-norm', default=0.0, type=float, metavar='NORM',
                        help='clip threshold of gradients')
     group.add_argument('--sentence-avg', action='store_true',
                        help='normalize gradients by the number of sentences in a batch'
@@ -371,7 +478,7 @@ def add_optimization_args(parser):
 
 
 def add_checkpoint_args(parser):
-    group = parser.add_argument_group('Checkpointing')
+    group = parser.add_argument_group("Checkpointing")
     # fmt: off
     group.add_argument('--save-dir', metavar='DIR', default='checkpoints',
                        help='path to save checkpoints')
@@ -396,6 +503,8 @@ def add_checkpoint_args(parser):
                        help='keep the last N checkpoints saved with --save-interval-updates')
     group.add_argument('--keep-last-epochs', type=int, default=-1, metavar='N',
                        help='keep last N epoch checkpoints')
+    group.add_argument('--keep-best-checkpoints', type=int, default=-1, metavar='N',
+                       help='keep best N checkpoints based on scores')
     group.add_argument('--no-save', action='store_true',
                        help='don\'t save models or checkpoints')
     group.add_argument('--no-epoch-checkpoints', action='store_true',
@@ -408,6 +517,10 @@ def add_checkpoint_args(parser):
                        help='metric to use for saving "best" checkpoints')
     group.add_argument('--maximize-best-checkpoint-metric', action='store_true',
                        help='select the largest metric value for saving "best" checkpoints')
+    group.add_argument('--patience', type=int, default=-1, metavar='N',
+                       help=('early stop training if valid performance doesn\'t '
+                             'improve for N consecutive validation runs; note '
+                             'that this is influenced by --validate-interval'))
     # fmt: on
     return group
 
@@ -429,7 +542,7 @@ def add_common_eval_args(group):
 
 
 def add_eval_lm_args(parser):
-    group = parser.add_argument_group('LM Evaluation')
+    group = parser.add_argument_group("LM Evaluation")
     add_common_eval_args(group)
     # fmt: off
     group.add_argument('--output-word-probs', action='store_true',
@@ -446,7 +559,7 @@ def add_eval_lm_args(parser):
 
 
 def add_generation_args(parser):
-    group = parser.add_argument_group('Generation')
+    group = parser.add_argument_group("Generation")
     add_common_eval_args(group)
     # fmt: off
     group.add_argument('--beam', default=5, type=int, metavar='N',
@@ -495,6 +608,8 @@ def add_generation_args(parser):
                        help='number of groups for Diverse Beam Search')
     group.add_argument('--diverse-beam-strength', default=0.5, type=float, metavar='N',
                        help='strength of diversity penalty for Diverse Beam Search')
+    group.add_argument('--diversity-rate', default=-1.0, type=float, metavar='N',
+                       help='strength of diversity penalty for Diverse Siblings Search')
     group.add_argument('--print-alignment', action='store_true',
                        help='if set, uses attention feedback to compute and print alignment to source tokens')
     group.add_argument('--print-step', action='store_true')
@@ -512,6 +627,11 @@ def add_generation_args(parser):
                        help='if set, the last checkpoint are assumed to be a reranker to rescore the translations'),
     group.add_argument('--retain-iter-history', action='store_true',
                        help='if set, decoding returns the whole history of iterative refinement')
+    group.add_argument('--retain-dropout', action='store_true',
+                       help='Use dropout at inference time')
+    group.add_argument('--retain-dropout-modules', default=None, nargs='+', type=str,
+                       help='if set, only retain dropout for the specified modules; '
+                            'if not set, then dropout will be retained for all modules')
 
     # special decoding format for advanced decoding.
     group.add_argument('--decoding-format', default=None, type=str, choices=['unigram', 'ensemble', 'vote', 'dp', 'bs'])
@@ -520,7 +640,7 @@ def add_generation_args(parser):
 
 
 def add_interactive_args(parser):
-    group = parser.add_argument_group('Interactive')
+    group = parser.add_argument_group("Interactive")
     # fmt: off
     group.add_argument('--buffer-size', default=0, type=int, metavar='N',
                        help='read this many sentences into a buffer before processing them')
@@ -530,7 +650,7 @@ def add_interactive_args(parser):
 
 
 def add_model_args(parser):
-    group = parser.add_argument_group('Model configuration')
+    group = parser.add_argument_group("Model configuration")
     # fmt: off
 
     # Model definitions can be found under fairseq/models/
@@ -541,7 +661,7 @@ def add_model_args(parser):
     # 2) --arch argument
     # 3) --encoder/decoder-* arguments (highest priority)
     from fairseq.models import ARCH_MODEL_REGISTRY
-    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH', required=True,
+    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
                        choices=ARCH_MODEL_REGISTRY.keys(),
                        help='Model Architecture')
     # fmt: on

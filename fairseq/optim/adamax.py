@@ -88,6 +88,10 @@ class Adamax(torch.optim.Optimizer):
     def supports_memory_efficient_fp16(self):
         return True
 
+    @property
+    def supports_flat_params(self):
+        return True
+
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -107,7 +111,9 @@ class Adamax(torch.optim.Optimizer):
                 if grad.is_sparse:
                     raise RuntimeError('Adamax does not support sparse gradients')
 
-                p_data_fp32 = p.data.float()
+                p_data_fp32 = p.data
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
 
                 state = self.state[p]
 
@@ -117,8 +123,8 @@ class Adamax(torch.optim.Optimizer):
                     state['exp_avg'] = torch.zeros_like(p_data_fp32)
                     state['exp_inf'] = torch.zeros_like(p_data_fp32)
                 else:
-                    state['exp_avg'] = state['exp_avg'].type_as(p_data_fp32)
-                    state['exp_inf'] = state['exp_inf'].type_as(p_data_fp32)
+                    state['exp_avg'] = state['exp_avg'].to(p_data_fp32)
+                    state['exp_inf'] = state['exp_inf'].to(p_data_fp32)
 
                 exp_avg, exp_inf = state['exp_avg'], state['exp_inf']
                 beta1, beta2 = group['betas']
@@ -127,7 +133,7 @@ class Adamax(torch.optim.Optimizer):
                 state['step'] += 1
 
                 # Update biased first moment estimate.
-                exp_avg.mul_(beta1).add_(1 - beta1, grad)
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
 
                 # Update the exponentially weighted infinity norm.
                 torch.max(
@@ -142,10 +148,11 @@ class Adamax(torch.optim.Optimizer):
                     step_size /= bias_correction
 
                 if group['weight_decay'] != 0:
-                    p_data_fp32.add_(-group['weight_decay'] * group['lr'], p_data_fp32)
+                    p_data_fp32.add_(p_data_fp32, alpha=-group['weight_decay'] * group['lr'])
 
-                p_data_fp32.addcdiv_(-step_size, exp_avg, exp_inf.add(eps))
+                p_data_fp32.addcdiv_(exp_avg, exp_inf.add(eps), value=-step_size)
 
-                p.data.copy_(p_data_fp32)
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p.data.copy_(p_data_fp32)
 
         return loss

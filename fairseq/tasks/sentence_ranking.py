@@ -3,10 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 
 import numpy as np
 
+from fairseq import utils
 from fairseq.data import (
     ConcatSentencesDataset,
     data_utils,
@@ -19,10 +21,13 @@ from fairseq.data import (
     RawLabelDataset,
     RightPadDataset,
     SortDataset,
-    TruncateDataset,
+    TruncateDataset
 )
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
+from fairseq.tasks import FairseqTask, register_task
 
-from . import FairseqTask, register_task
+
+logger = logging.getLogger(__name__)
 
 
 @register_task('sentence_ranking')
@@ -46,8 +51,12 @@ class SentenceRankingTask(FairseqTask):
         parser.add_argument('--separator-token', type=int,
                             help='add separator token between inputs')
         parser.add_argument('--no-shuffle', action='store_true')
-        parser.add_argument('--truncate-sequence', action='store_true',
-                            help='Truncate sequence to max_positions')
+        parser.add_argument('--shorten-method', default='none',
+                            choices=['none', 'truncate', 'random_crop'],
+                            help='if not none, shorten sequences that exceed --tokens-per-sample')
+        parser.add_argument('--shorten-data-split-list', default='',
+                            help='comma-separated list of dataset splits to apply shortening to, '
+                                 'e.g., "train,valid" (default: all dataset splits)')
         parser.add_argument('--max-option-length', type=int,
                             help='max length for each option')
 
@@ -77,7 +86,7 @@ class SentenceRankingTask(FairseqTask):
             os.path.join(args.data, 'input0', 'dict.txt'),
             source=True,
         )
-        print('| [input] dictionary: {} types'.format(len(data_dict)))
+        logger.info('[input] dictionary: {} types'.format(len(data_dict)))
         return SentenceRankingTask(args, data_dict)
 
     def load_dataset(self, split, combine=False, **kwargs):
@@ -116,8 +125,14 @@ class SentenceRankingTask(FairseqTask):
             if self.args.max_option_length is not None:
                 input_option = TruncateDataset(input_option, self.args.max_option_length)
             src_token = ConcatSentencesDataset(input_option, input0)
-            if self.args.truncate_sequence:
-                src_token = TruncateDataset(src_token, self.args.max_positions)
+            src_token = maybe_shorten_dataset(
+                src_token,
+                split,
+                self.args.shorten_data_split_list,
+                self.args.shorten_method,
+                self.args.max_positions,
+                self.args.seed,
+            )
             src_tokens.append(src_token)
 
         with data_utils.numpy_seed(self.args.seed):
@@ -165,7 +180,7 @@ class SentenceRankingTask(FairseqTask):
                 sort_order=[shuffle],
             )
 
-        print("| Loaded {0} with #samples: {1}".format(split, len(dataset)))
+        logger.info("Loaded {0} with #samples: {1}".format(split, len(dataset)))
 
         self.datasets[split] = dataset
         return self.datasets[split]

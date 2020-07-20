@@ -70,16 +70,36 @@ good, but you may need to adjust this depending on how long you've trained:
 ```bash
 python scripts/average_checkpoints \
     --inputs /path/to/checkpoints \
-    --num-epoch-checkpoints 5 \
-    --output checkpoint.avg5.pt
+    --num-epoch-checkpoints 10 \
+    --output checkpoint.avg10.pt
 ```
 
 Next, generate translations using a beam width of 4 and length penalty of 0.6:
 ```bash
 fairseq-generate \
     data-bin/wmt16_en_de_bpe32k \
-    --path checkpoint.avg5.pt \
-    --beam 4 --lenpen 0.6 --remove-bpe
+    --path checkpoint.avg10.pt \
+    --beam 4 --lenpen 0.6 --remove-bpe > gen.out
+```
+
+Finally, we apply the ["compound splitting" script](/scripts/compound_split_bleu.sh) to
+add spaces around dashes. For example "Café-Liebhaber" would become three tokens:
+"Café - Liebhaber". This typically results in larger BLEU scores, but it is not
+appropriate to compare these inflated scores to work which does not include this trick.
+This trick was used in the [original AIAYN code](https://github.com/tensorflow/tensor2tensor/blob/fc9335c0203685cbbfe2b30c92db4352d8f60779/tensor2tensor/utils/get_ende_bleu.sh),
+so we used it in the Scaling NMT paper as well. That said, it's strongly advised to
+report [sacrebleu](https://github.com/mjpost/sacrebleu) scores instead.
+
+To compute "compound split" tokenized BLEU (not recommended!):
+```bash
+bash scripts/compound_split_bleu.sh gen.out
+# BLEU4 = 29.29, 60.3/35.0/22.8/15.3 (BP=1.000, ratio=1.004, syslen=64763, reflen=64496)
+```
+
+To compute detokenized BLEU with sacrebleu (preferred):
+```bash
+bash scripts/sacrebleu.sh wmt14/full en de gen.out
+# BLEU+case.mixed+lang.en-de+numrefs.1+smooth.exp+test.wmt14/full+tok.13a+version.1.4.3 = 28.6 59.3/34.3/22.1/14.9 (BP = 1.000 ratio = 1.016 hyp_len = 63666 ref_len = 62688)
 ```
 
 ## Citation

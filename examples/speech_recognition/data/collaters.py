@@ -76,6 +76,8 @@ class Seq2SeqCollater(object):
             target = s["data"][self.label_index]
             if isinstance(target, (np.ndarray, np.generic)):
                 target = torch.from_numpy(target).long()
+            elif isinstance(target, list):
+                target = torch.LongTensor(target)
 
             parsed_sample = {"id": s["id"], "source": source, "target": target}
             parsed_samples.append(parsed_sample)

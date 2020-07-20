@@ -49,6 +49,10 @@ class NAG(Optimizer):
     def supports_memory_efficient_fp16(self):
         return True
 
+    @property
+    def supports_flat_params(self):
+        return True
+
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -71,25 +75,28 @@ class NAG(Optimizer):
                 if p.grad is None:
                     continue
 
-                p_data_fp32 = p.data.float()
+                p_data_fp32 = p.data
+                if p_data_fp32.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
 
                 d_p = p.grad.data.float()
                 param_state = self.state[p]
                 if 'momentum_buffer' not in param_state:
                     param_state['momentum_buffer'] = torch.zeros_like(d_p)
                 else:
-                    param_state['momentum_buffer'] = param_state['momentum_buffer'].type_as(d_p)
+                    param_state['momentum_buffer'] = param_state['momentum_buffer'].to(d_p)
 
                 buf = param_state['momentum_buffer']
 
                 if weight_decay != 0:
                     p_data_fp32.mul_(1 - lr * weight_decay)
-                p_data_fp32.add_(momentum * momentum * lr_correct, buf)
-                p_data_fp32.add_(-(1 + momentum) * lr, d_p)
+                p_data_fp32.add_(buf, alpha=momentum * momentum * lr_correct)
+                p_data_fp32.add_(d_p, alpha=-(1 + momentum) * lr)
 
-                buf.mul_(momentum * lr_correct).add_(-lr, d_p)
+                buf.mul_(momentum * lr_correct).add_(d_p, alpha=-lr)
 
-                p.data.copy_(p_data_fp32)
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p.data.copy_(p_data_fp32)
 
             group['lr_old'] = lr
 

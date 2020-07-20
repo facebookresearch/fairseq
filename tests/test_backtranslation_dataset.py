@@ -42,12 +42,12 @@ class TestBacktranslationDataset(unittest.TestCase):
         )
 
         generator = SequenceGenerator(
+            [self.model],
             tgt_dict=self.tgt_dict,
             max_len_a=0,
             max_len_b=200,
             beam_size=2,
             unk_penalty=0,
-            sampling=False,
         )
 
         backtranslation_dataset = BacktranslationDataset(

@@ -279,7 +279,7 @@ class NATransformerDecoder(FairseqNATDecoder):
             if (early_exit is not None) and (i >= early_exit):
                 break
 
-            x, attn = layer(
+            x, attn, _ = layer(
                 x,
                 encoder_out.encoder_out if encoder_out is not None else None,
                 encoder_out.encoder_padding_mask if encoder_out is not None else None,
@@ -317,7 +317,7 @@ class NATransformerDecoder(FairseqNATDecoder):
 
         if positions is not None:
             x += positions
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         decoder_padding_mask = prev_output_tokens.eq(self.padding_idx)
         return x, decoder_padding_mask
 

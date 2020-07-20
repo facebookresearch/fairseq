@@ -3,13 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import utils
 from fairseq.models import (
-    BaseFairseqModel,
+    FairseqEncoderModel,
     FairseqEncoder,
     register_model,
     register_model_architecture,
@@ -22,16 +24,18 @@ from fairseq.modules import (
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 
+logger = logging.getLogger(__name__)
+
+
 @register_model('masked_lm')
-class MaskedLMModel(BaseFairseqModel):
+class MaskedLMModel(FairseqEncoderModel):
     """
     Class for training a Masked Language Model. It also supports an
     additional sentence level prediction if the sent-loss argument is set.
     """
     def __init__(self, args, encoder):
-        super().__init__()
+        super().__init__(encoder)
         self.args = args
-        self.encoder = encoder
 
         # if specified then apply bert initialization on the model. We need
         # to explictly call this to make sure that the output embeddings
@@ -59,10 +63,6 @@ class MaskedLMModel(BaseFairseqModel):
                             help='num encoder layers')
         parser.add_argument('--encoder-attention-heads', type=int, metavar='N',
                             help='num encoder attention heads')
-        parser.add_argument('--bias-kv', action='store_true',
-                            help='if set, adding a learnable bias kv')
-        parser.add_argument('--zero-attn', action='store_true',
-                            help='if set, pads attn with zero')
 
         # Arguments related to input and output embeddings
         parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
@@ -78,6 +78,8 @@ class MaskedLMModel(BaseFairseqModel):
                             ' (outside self attention)')
         parser.add_argument('--num-segment', type=int, metavar='N',
                             help='num segment in the input')
+        parser.add_argument('--max-positions', type=int,
+                            help='number of positional embeddings to learn')
 
         # Arguments related to sentence level prediction
         parser.add_argument('--sentence-class-num', type=int, metavar='N',
@@ -108,14 +110,13 @@ class MaskedLMModel(BaseFairseqModel):
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
-
         # make sure all arguments are present in older models
         base_architecture(args)
 
         if not hasattr(args, 'max_positions'):
             args.max_positions = args.tokens_per_sample
 
-        print("Model args: ", args)
+        logger.info(args)
 
         encoder = MaskedLMEncoder(args, task.dictionary)
         return cls(args, encoder)
@@ -150,8 +151,6 @@ class MaskedLMEncoder(FairseqEncoder):
             apply_bert_init=args.apply_bert_init,
             activation_fn=args.activation_fn,
             learned_pos_embedding=args.encoder_learned_pos,
-            add_bias_kv=args.bias_kv,
-            add_zero_attn=args.zero_attn,
         )
 
         self.share_input_output_embed = args.share_encoder_input_output_embed
@@ -190,7 +189,7 @@ class MaskedLMEncoder(FairseqEncoder):
                     bias=False
                 )
 
-    def forward(self, src_tokens, segment_labels=None, **unused):
+    def forward(self, src_tokens, segment_labels=None, masked_tokens=None, **unused):
         """
         Forward pass for Masked LM encoder. This first computes the token
         embedding using the token embedding matrix, position embeddings (if
@@ -220,6 +219,9 @@ class MaskedLMEncoder(FairseqEncoder):
         )
 
         x = inner_states[-1].transpose(0, 1)
+        # project masked tokens only
+        if masked_tokens is not None:
+            x = x[masked_tokens, :]
         x = self.layer_norm(self.activation_fn(self.lm_head_transform_weight(x)))
 
         pooled_output = self.pooler_activation(self.masked_lm_pooler(sentence_rep))
@@ -230,7 +232,6 @@ class MaskedLMEncoder(FairseqEncoder):
             x = F.linear(x, self.sentence_encoder.embed_tokens.weight)
         elif self.embed_out is not None:
             x = self.embed_out(x)
-
         if self.lm_output_learned_bias is not None:
             x = x + self.lm_output_learned_bias
         sentence_logits = None
@@ -275,8 +276,6 @@ def base_architecture(args):
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
     args.encoder_layers = getattr(args, 'encoder_layers', 6)
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 8)
-    args.bias_kv = getattr(args, 'bias_kv', False)
-    args.zero_attn = getattr(args, 'zero_attn', False)
 
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
     args.share_encoder_input_output_embed = getattr(args, 'share_encoder_input_output_embed', False)
@@ -308,8 +307,6 @@ def bert_base_architecture(args):
 
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 12)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 3072)
-    args.bias_kv = getattr(args, 'bias_kv', False)
-    args.zero_attn = getattr(args, 'zero_attn', False)
 
     args.sentence_class_num = getattr(args, 'sentence_class_num', 2)
     args.sent_loss = getattr(args, 'sent_loss', True)
@@ -345,8 +342,6 @@ def xlm_architecture(args):
 
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 8)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
-    args.bias_kv = getattr(args, 'bias_kv', False)
-    args.zero_attn = getattr(args, 'zero_attn', False)
 
     args.sent_loss = getattr(args, 'sent_loss', False)
 

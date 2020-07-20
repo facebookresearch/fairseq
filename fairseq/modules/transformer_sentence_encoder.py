@@ -7,14 +7,15 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from fairseq.modules import (
+    FairseqDropout,
+    LayerDropModuleList,
     LayerNorm,
     MultiheadAttention,
     PositionalEmbedding,
     TransformerSentenceEncoderLayer,
 )
-import random
+from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 
 
 def init_bert_params(module):
@@ -80,7 +81,7 @@ class TransformerSentenceEncoder(nn.Module):
         dropout: float = 0.1,
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
-        layerdrop : float = 0.0,
+        layerdrop: float = 0.0,
         max_seq_len: int = 256,
         num_segments: int = 2,
         use_position_embeddings: bool = True,
@@ -89,19 +90,19 @@ class TransformerSentenceEncoder(nn.Module):
         apply_bert_init: bool = False,
         activation_fn: str = "relu",
         learned_pos_embedding: bool = True,
-        add_bias_kv: bool = False,
-        add_zero_attn: bool = False,
         embed_scale: float = None,
         freeze_embeddings: bool = False,
         n_trans_layers_to_freeze: int = 0,
         export: bool = False,
         traceable: bool = False,
+        q_noise: float = 0.0,
+        qn_block_size: int = 8,
     ) -> None:
 
         super().__init__()
         self.padding_idx = padding_idx
         self.vocab_size = vocab_size
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
         self.layerdrop = layerdrop
         self.max_seq_len = max_seq_len
         self.embedding_dim = embedding_dim
@@ -110,11 +111,21 @@ class TransformerSentenceEncoder(nn.Module):
         self.apply_bert_init = apply_bert_init
         self.learned_pos_embedding = learned_pos_embedding
         self.traceable = traceable
+        self.tpu = False  # whether we're on TPU
 
-        self.embed_tokens = nn.Embedding(
+        self.embed_tokens = self.build_embedding(
             self.vocab_size, self.embedding_dim, self.padding_idx
         )
         self.embed_scale = embed_scale
+
+        if q_noise > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(self.embedding_dim, self.embedding_dim, bias=False),
+                q_noise,
+                qn_block_size,
+            )
+        else:
+            self.quant_noise = None
 
         self.segment_embeddings = (
             nn.Embedding(self.num_segments, self.embedding_dim, padding_idx=None)
@@ -133,23 +144,25 @@ class TransformerSentenceEncoder(nn.Module):
             else None
         )
 
-        self.layers = nn.ModuleList(
-            [
-                TransformerSentenceEncoderLayer(
-                    embedding_dim=self.embedding_dim,
-                    ffn_embedding_dim=ffn_embedding_dim,
-                    num_attention_heads=num_attention_heads,
-                    dropout=self.dropout,
-                    attention_dropout=attention_dropout,
-                    activation_dropout=activation_dropout,
-                    activation_fn=activation_fn,
-                    add_bias_kv=add_bias_kv,
-                    add_zero_attn=add_zero_attn,
-                    export=export,
-                )
-                for _ in range(num_encoder_layers)
-            ]
-        )
+        if self.layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+        self.layers.extend([
+            self.build_transformer_sentence_encoder_layer(
+                embedding_dim=self.embedding_dim,
+                ffn_embedding_dim=ffn_embedding_dim,
+                num_attention_heads=num_attention_heads,
+                dropout=self.dropout_module.p,
+                attention_dropout=attention_dropout,
+                activation_dropout=activation_dropout,
+                activation_fn=activation_fn,
+                export=export,
+                q_noise=q_noise,
+                qn_block_size=qn_block_size,
+            )
+            for _ in range(num_encoder_layers)
+        ])
 
         if encoder_normalize_before:
             self.emb_layer_norm = LayerNorm(self.embedding_dim, export=export)
@@ -174,6 +187,38 @@ class TransformerSentenceEncoder(nn.Module):
         for layer in range(n_trans_layers_to_freeze):
             freeze_module_params(self.layers[layer])
 
+    def build_embedding(self, vocab_size, embedding_dim, padding_idx):
+        return nn.Embedding(vocab_size, embedding_dim, padding_idx)
+
+    def build_transformer_sentence_encoder_layer(
+        self,
+        embedding_dim,
+        ffn_embedding_dim,
+        num_attention_heads,
+        dropout,
+        attention_dropout,
+        activation_dropout,
+        activation_fn,
+        export,
+        q_noise,
+        qn_block_size,
+    ):
+        return TransformerSentenceEncoderLayer(
+            embedding_dim=embedding_dim,
+            ffn_embedding_dim=ffn_embedding_dim,
+            num_attention_heads=num_attention_heads,
+            dropout=dropout,
+            attention_dropout=attention_dropout,
+            activation_dropout=activation_dropout,
+            activation_fn=activation_fn,
+            export=export,
+            q_noise=q_noise,
+            qn_block_size=qn_block_size,
+        )
+
+    def prepare_for_tpu_(self, **kwargs):
+        self.tpu = True
+
     def forward(
         self,
         tokens: torch.Tensor,
@@ -184,7 +229,7 @@ class TransformerSentenceEncoder(nn.Module):
 
         # compute padding mask. This is needed for multi-head attention
         padding_mask = tokens.eq(self.padding_idx)
-        if not self.traceable and not padding_mask.any():
+        if not self.traceable and not self.tpu and not padding_mask.any():
             padding_mask = None
 
         x = self.embed_tokens(tokens)
@@ -198,10 +243,13 @@ class TransformerSentenceEncoder(nn.Module):
         if self.segment_embeddings is not None and segment_labels is not None:
             x += self.segment_embeddings(segment_labels)
 
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
+
         if self.emb_layer_norm is not None:
             x = self.emb_layer_norm(x)
 
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
 
         # account for padding while computing the representation
         if padding_mask is not None:
@@ -215,12 +263,9 @@ class TransformerSentenceEncoder(nn.Module):
             inner_states.append(x)
 
         for layer in self.layers:
-            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
-            if not self.training or (dropout_probability > self.layerdrop):
-                x, _ = layer(x, self_attn_padding_mask=padding_mask)
-                if not last_state_only:
-                    inner_states.append(x)
+            x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            if not last_state_only:
+                inner_states.append(x)
 
         sentence_rep = x[0, :, :]
 

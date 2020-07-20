@@ -77,13 +77,13 @@ def get_dummy_input(T=100, D=80, B=5, K=100):
     # this (B, T, D) layout is just a convention, you can override it by
     # write your own _prepare_forward_input function
     src_lengths = torch.from_numpy(
-        np.random.randint(low=1, high=T, size=B).astype(np.int64)
+        np.random.randint(low=1, high=T, size=B, dtype=np.int64)
     )
     src_lengths[0] = T  # make sure the maximum length matches
     prev_output_tokens = []
     for b in range(B):
         token_length = np.random.randint(low=1, high=src_lengths[b].item() + 1)
-        tokens = np.random.randint(low=0, high=K, size=token_length)
+        tokens = np.random.randint(low=0, high=K, size=token_length, dtype=np.int64)
         prev_output_tokens.append(torch.from_numpy(tokens))
 
     prev_output_tokens = fairseq_data_utils.collate_tokens(
@@ -485,6 +485,11 @@ class DummyEncoderModel(FairseqEncoderModel):
             torch.div(net_output["encoder_out"], 1 - net_output["encoder_out"])
         )
 
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
+        lprobs = super().get_normalized_probs(net_output, log_probs, sample=sample)
+        lprobs.batch_first = True
+        return lprobs
+
 
 class DummyEncoder(FairseqEncoder):
     def __init__(self):
@@ -511,7 +516,7 @@ class CrossEntropyCriterionTestBase(unittest.TestCase):
     def setUp(self):
         args = self.setUpArgs()
         self.model = DummyEncoderModel(encoder=DummyEncoder())
-        self.criterion = self.criterion_cls(args=args, task=DummyTask(args))
+        self.criterion = self.criterion_cls.build_criterion(args=args, task=DummyTask(args))
 
     def get_src_tokens(self, correct_prediction, aggregate):
         """

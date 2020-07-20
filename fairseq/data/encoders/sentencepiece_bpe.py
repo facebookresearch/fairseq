@@ -13,16 +13,16 @@ class SentencepieceBPE(object):
     @staticmethod
     def add_args(parser):
         # fmt: off
-        parser.add_argument('--sentencepiece-vocab', type=str,
-                            help='path to sentencepiece vocab')
+        parser.add_argument('--sentencepiece-model', type=str,
+                            help='path to sentencepiece model')
         # fmt: on
 
     def __init__(self, args):
-        vocab = file_utils.cached_path(args.sentencepiece_vocab)
+        sentencepiece_model = file_utils.cached_path(args.sentencepiece_model)
         try:
             import sentencepiece as spm
             self.sp = spm.SentencePieceProcessor()
-            self.sp.Load(vocab)
+            self.sp.Load(sentencepiece_model)
         except ImportError:
             raise ImportError('Please install sentencepiece with: pip install sentencepiece')
 

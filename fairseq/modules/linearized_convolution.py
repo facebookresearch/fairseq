@@ -7,10 +7,11 @@ import torch
 import torch.nn.functional as F
 
 from fairseq import utils
-
 from .conv_tbc import ConvTBC
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 
+@with_incremental_state
 class LinearizedConvolution(ConvTBC):
     """An optimized version of nn.Conv1d.
 
@@ -24,6 +25,18 @@ class LinearizedConvolution(ConvTBC):
         super().__init__(in_channels, out_channels, kernel_size, **kwargs)
         self._linearized_weight = None
         self.register_backward_hook(self._clear_linearized_weight)
+
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        state = ConvTBC.state_dict(self, destination, prefix, keep_vars=keep_vars)
+        # don't store redundant _linearized_weight in checkpoints
+        if prefix + '_linearized_weight' in state:
+            del state[prefix + '_linearized_weight']
+        return state
+
+    def upgrade_state_dict_named(self, state_dict, name):
+        prefix = name + '.' if name != '' else ''
+        if prefix + '_linearized_weight' in state_dict:
+            del state_dict[prefix + '_linearized_weight']
 
     def forward(self, input, incremental_state=None):
         """

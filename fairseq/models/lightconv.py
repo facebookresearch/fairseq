@@ -20,6 +20,7 @@ from fairseq.models import (
 from fairseq.modules import (
     AdaptiveSoftmax,
     DynamicConv,
+    FairseqDropout,
     LayerNorm,
     PositionalEmbedding,
     LightweightConv,
@@ -32,8 +33,8 @@ class LightConvModel(FairseqEncoderDecoderModel):
     """
     LightConv and DynamicConv model from `"Pay Less Attention with Lightweight and Dynamic Convolutions" (Wu, et al, 2019)
     <https://openreview.net/pdf?id=SkVhlh09tX>`_.
-    To use LightConv please set --encoder-conv-type lightweight --decoder-conv-type lightweight
-    To use DynamicConv please set --encoder-conv-type dynamic --decoder-conv-type dynamic
+    To use LightConv please set ``--encoder-conv-type lightweight --decoder-conv-type lightweight``
+    To use DynamicConv please set ``--encoder-conv-type dynamic --decoder-conv-type dynamic``
 
     Args:
         encoder (LightConvEncoder): the encoder
@@ -46,6 +47,33 @@ class LightConvModel(FairseqEncoderDecoderModel):
         :ref: fairseq.models.lightconv_parser
         :prog:
     """
+
+    @classmethod
+    def hub_models(cls):
+        # fmt: off
+
+        def moses_subword(path):
+            return {
+                'path': path,
+                'tokenizer': 'moses',
+                'bpe': 'subword_nmt',
+            }
+
+        return {
+            'lightconv.no_glu.iwslt14.de-en': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/iwslt14.de-en.lightconv.tar.gz'),
+            'dynamicconv.no_glu.iwslt14.de-en': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/iwslt14.de-en.dynamicconv.tar.gz'),
+            'lightconv.no_glu.wmt16.en-de': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt16.en-de.joined-dict.lightconv.tar.gz'),
+            'dynamicconv.no_glu.wmt16.en-de': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt16.en-de.joined-dict.dynamicconv.tar.gz'),
+            'lightconv.glu.wmt16.en-de': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt16.en-de.joined-dict.lightconv-glu.tar.gz'),
+            'dynamicconv.glu.wmt16.en-de': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt16.en-de.joined-dict.dynamicconv-glu.tar.gz'),
+            'lightconv.glu.wmt17.en-de': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt16.en-de.joined-dict.lightconv-glu.tar.gz'),
+            'dynamicconv.glu.wmt17.en-de': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt16.en-de.joined-dict.dynamicconv-glu.tar.gz'),
+            'lightconv.glu.wmt14.en-fr': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt14.en-fr.joined-dict.lightconv-glu.tar.gz'),
+            'dynamicconv.glu.wmt14.en-fr': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt14.en-fr.joined-dict.dynamicconv-glu.tar.gz'),
+            'lightconv.glu.wmt17.zh-en': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.zh-en.lightconv-glu.tar.gz'),
+            'dynamicconv.glu.wmt17.zh-en': moses_subword('https://dl.fbaipublicfiles.com/fairseq/models/dynamicconv/wmt17.zh-en.dynamicconv-glu.tar.gz'),
+        }
+        # fmt: on
 
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
@@ -187,7 +215,7 @@ class LightConvEncoder(FairseqEncoder):
 
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(dictionary)
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(args.dropout, module_name=self.__class__.__name__)
 
         embed_dim = embed_tokens.embedding_dim
         self.padding_idx = embed_tokens.padding_idx
@@ -227,7 +255,7 @@ class LightConvEncoder(FairseqEncoder):
         x = self.embed_scale * self.embed_tokens(src_tokens)
         if self.embed_positions is not None:
             x += self.embed_positions(src_tokens)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
@@ -272,7 +300,7 @@ class LightConvEncoder(FairseqEncoder):
         """Maximum input length supported by the encoder."""
         if self.embed_positions is None:
             return self.max_source_positions
-        return min(self.max_source_positions, self.embed_positions.max_positions())
+        return min(self.max_source_positions, self.embed_positions.max_positions)
 
 
 class LightConvDecoder(FairseqIncrementalDecoder):
@@ -290,7 +318,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
 
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, final_norm=True):
         super().__init__(dictionary)
-        self.dropout = args.dropout
+        self.dropout_module = FairseqDropout(args.dropout, module_name=self.__class__.__name__)
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
         input_embed_dim = embed_tokens.embedding_dim
@@ -375,7 +403,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
 
         if positions is not None:
             x += positions
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
@@ -415,7 +443,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         """Maximum output length supported by the decoder."""
         if self.embed_positions is None:
             return self.max_target_positions
-        return min(self.max_target_positions, self.embed_positions.max_positions())
+        return min(self.max_target_positions, self.embed_positions.max_positions)
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
@@ -460,9 +488,9 @@ class LightConvEncoderLayer(nn.Module):
             raise NotImplementedError
         self.linear2 = Linear(self.conv_dim, self.embed_dim)
 
-        self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
-        self.input_dropout = args.input_dropout
+        self.dropout_module = FairseqDropout(args.dropout, module_name=self.__class__.__name__)
+        self.relu_dropout_module = FairseqDropout(args.relu_dropout, module_name=self.__class__.__name__)
+        self.input_dropout_module = FairseqDropout(args.input_dropout, module_name=self.__class__.__name__)
         self.normalize_before = args.encoder_normalize_before
         self.fc1 = Linear(self.embed_dim, args.encoder_ffn_embed_dim)
         self.fc2 = Linear(args.encoder_ffn_embed_dim, self.embed_dim)
@@ -480,7 +508,7 @@ class LightConvEncoderLayer(nn.Module):
         """
         residual = x
         x = self.maybe_layer_norm(0, x, before=True)
-        x = F.dropout(x, p=self.input_dropout, training=self.training)
+        x = self.input_dropout_module(x)
         x = self.linear1(x)
         if self.act is not None:
             x = self.act(x)
@@ -488,16 +516,16 @@ class LightConvEncoderLayer(nn.Module):
             x = x.masked_fill(encoder_padding_mask.transpose(0, 1).unsqueeze(2), 0)
         x = self.conv(x)
         x = self.linear2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.maybe_layer_norm(0, x, after=True)
 
         residual = x
         x = self.maybe_layer_norm(1, x, before=True)
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.relu_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.maybe_layer_norm(1, x, after=True)
         return x
@@ -511,7 +539,7 @@ class LightConvEncoderLayer(nn.Module):
 
     def extra_repr(self):
         return 'dropout={}, relu_dropout={}, input_dropout={}, normalize_before={}'.format(
-            self.dropout, self.relu_dropout, self.input_dropout, self.normalize_before)
+            self.dropout_module.p, self.relu_dropout_module.p, self.input_dropout_module.p, self.normalize_before)
 
 
 class LightConvDecoderLayer(nn.Module):
@@ -548,9 +576,9 @@ class LightConvDecoderLayer(nn.Module):
             raise NotImplementedError
         self.linear2 = Linear(self.conv_dim, self.embed_dim)
 
-        self.dropout = args.dropout
-        self.relu_dropout = args.relu_dropout
-        self.input_dropout = args.input_dropout
+        self.dropout_module = FairseqDropout(args.dropout, module_name=self.__class__.__name__)
+        self.relu_dropout_module = FairseqDropout(args.relu_dropout, module_name=self.__class__.__name__)
+        self.input_dropout_module = FairseqDropout(args.input_dropout, module_name=self.__class__.__name__)
         self.normalize_before = args.decoder_normalize_before
 
         self.conv_layer_norm = LayerNorm(self.embed_dim)
@@ -561,7 +589,7 @@ class LightConvDecoderLayer(nn.Module):
         else:
             self.encoder_attn = MultiheadAttention(
                 self.embed_dim, args.decoder_attention_heads,
-                dropout=args.attention_dropout, encoder_decoder_attention=True
+                dropout=args.attention_dropout, encoder_decoder_attention=True,
             )
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim)
 
@@ -589,13 +617,13 @@ class LightConvDecoderLayer(nn.Module):
             if incremental_state is None:
                 incremental_state = {}
             self.conv._set_input_buffer(incremental_state, prev_conv_state)
-        x = F.dropout(x, p=self.input_dropout, training=self.training)
+        x = self.input_dropout_module(x)
         x = self.linear1(x)
         if self.act is not None:
             x = self.act(x)
         x = self.conv(x, incremental_state=incremental_state)
         x = self.linear2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.maybe_layer_norm(self.conv_layer_norm, x, after=True)
 
@@ -618,16 +646,16 @@ class LightConvDecoderLayer(nn.Module):
                 static_kv=True,
                 need_weights=(not self.training and self.need_attn),
             )
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = self.dropout_module(x)
             x = residual + x
             x = self.maybe_layer_norm(self.encoder_attn_layer_norm, x, after=True)
 
         residual = x
         x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.relu_dropout, training=self.training)
+        x = self.relu_dropout_module(x)
         x = self.fc2(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x = residual + x
         x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
         return x, attn
@@ -644,7 +672,7 @@ class LightConvDecoderLayer(nn.Module):
 
     def extra_repr(self):
         return 'dropout={}, relu_dropout={}, input_dropout={}, normalize_before={}'.format(
-            self.dropout, self.relu_dropout, self.input_dropout, self.normalize_before)
+            self.dropout_module.p, self.relu_dropout_module.p, self.input_dropout_module.p, self.normalize_before)
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):

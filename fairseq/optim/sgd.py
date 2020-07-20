@@ -37,3 +37,7 @@ class SGD(FairseqOptimizer):
             'momentum': self.args.momentum,
             'weight_decay': self.args.weight_decay,
         }
+
+    @property
+    def supports_flat_params(self):
+        return True

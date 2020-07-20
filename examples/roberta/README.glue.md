@@ -24,7 +24,7 @@ NUM_CLASSES=2
 MAX_SENTENCES=16        # Batch size.
 ROBERTA_PATH=/path/to/roberta/model.pt
 
-CUDA_VISIBLE_DEVICES=0 python train.py RTE-bin/ \
+CUDA_VISIBLE_DEVICES=0 fairseq-train RTE-bin/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \
