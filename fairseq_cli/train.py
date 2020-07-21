@@ -128,7 +128,7 @@ def main(args):
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
-            load_dataset=task.has_sharded_data('train'),
+            load_dataset=task.has_sharded_data("train"),
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
@@ -210,7 +210,9 @@ def train(args, trainer, task, epoch_itr):
     valid_subsets = args.valid_subset.split(",")
     should_stop = False
     for i, samples in enumerate(progress):
-        with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function("train_step-%d" % i):
+        with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
+            "train_step-%d" % i
+        ):
             log_output = trainer.train_step(samples)
             if log_output is None:  # OOM, overflow, ...
                 continue
@@ -229,11 +231,6 @@ def train(args, trainer, task, epoch_itr):
         valid_losses, should_stop = validate_and_save(
             args, trainer, task, epoch_itr, valid_subsets, end_of_epoch
         )
-
-        if args.stop_time_hours > 0:
-            elapsed_hours = trainer.cumulative_training_time() / (60 * 60)
-            if elapsed_hours > args.stop_time_hours:
-                should_stop = True
 
         if should_stop:
             break
@@ -270,6 +267,10 @@ def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoc
     should_stop = (
         should_stop_early(args, valid_losses[0])
         or trainer.get_num_updates() >= max_update
+        or (
+            args.stop_time_hours > 0
+            and trainer.cumulative_training_time() / (60 * 60) > args.stop_time_hours
+        )
     )
 
     # Save checkpoint
@@ -294,7 +295,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
 
     valid_losses = []
     for subset in subsets:
-        logger.info("begin validation on \"{}\" subset".format(subset))
+        logger.info('begin validation on "{}" subset'.format(subset))
 
         # Initialize data iterator
         itr = trainer.get_valid_iterator(subset).next_epoch_itr(shuffle=False)
