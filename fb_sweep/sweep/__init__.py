@@ -4,7 +4,7 @@ import os
 import socket
 
 
-def get_args():
+def get_args(add_extra_options_func=None):
     parser = argparse.ArgumentParser('Script for launching hyperparameter sweeps ')
     parser.add_argument('--grid', help='grid function we used', default=None)
     parser.add_argument('--pair', help='language direction', default=None)
@@ -91,6 +91,8 @@ def get_args():
                         help='additional steps to execute after the primary job is complete. '
                             'this can be a file with the steps, or a string. some placeholders such as '
                             '{job_dir} will be replaced')
+    if add_extra_options_func is not None:
+        add_extra_options_func(parser)
     args = parser.parse_args()
     return args
 
@@ -141,8 +143,8 @@ class hyperparam(object):
         return self.save_dir_key(self.current_value)
 
 
-def main(get_grid, postprocess_hyperparams):
-    args = get_args()
+def main(get_grid, postprocess_hyperparams, add_extra_options_func=None):
+    args = get_args(add_extra_options_func)
 
     if args.backend == 'fblearner':
         from .fblearner import main as backend_main
