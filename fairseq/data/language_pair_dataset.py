@@ -92,7 +92,6 @@ def collate(
                 move_eos_to_beginning=True,
                 pad_to_length=pad_to_length['target'] if pad_to_length is not None else None,
             )
-            prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
         ntokens = src_lengths.sum().item()
 
@@ -107,7 +106,7 @@ def collate(
         'target': target,
     }
     if prev_output_tokens is not None:
-        batch['net_input']['prev_output_tokens'] = prev_output_tokens
+        batch['net_input']['prev_output_tokens'] = prev_output_tokens.index_select(0, sort_order)
 
     if samples[0].get('alignment', None) is not None:
         bsz, tgt_sz = batch['target'].shape
