@@ -6,6 +6,7 @@
 import torch
 
 from fairseq.data import LanguagePairDataset
+from fairseq import utils
 
 from .translation import load_langpair_dataset, TranslationTask
 from . import register_task
@@ -63,7 +64,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(':')
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[(epoch - 1) % len(paths)]
 
