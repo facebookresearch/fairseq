@@ -38,6 +38,13 @@ def main(args):
         return _main(args, sys.stdout)
 
 
+def get_symbols_to_strip_from_output(generator):
+    if hasattr(generator, 'symbols_to_strip_from_output'):
+        return generator.symbols_to_strip_from_output
+    else:
+        return {generator.eos}
+
+
 def _main(args, output_file):
     logging.basicConfig(
         format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -174,9 +181,7 @@ def _main(args, output_file):
                         target_tokens,
                         args.remove_bpe,
                         escape_unk=True,
-                        extra_symbols_to_ignore={
-                            generator.eos,
-                        }
+                        extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                     )
 
             src_str = decode_fn(src_str)
@@ -198,9 +203,7 @@ def _main(args, output_file):
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
-                    extra_symbols_to_ignore={
-                        generator.eos,
-                    }
+                    extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
                 detok_hypo_str = decode_fn(hypo_str)
                 if not args.quiet:

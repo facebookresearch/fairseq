@@ -20,6 +20,7 @@ import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import encoders
+from .generate import get_symbols_to_strip_from_output
 
 
 logging.basicConfig(
@@ -186,6 +187,7 @@ def main(args):
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
+                    extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
                 detok_hypo_str = decode_fn(hypo_str)
                 score = hypo['score'] / math.log(2)  # convert to base 2

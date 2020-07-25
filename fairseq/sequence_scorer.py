@@ -12,12 +12,18 @@ from fairseq import utils
 class SequenceScorer(object):
     """Scores the target for a given source sentence."""
 
-    def __init__(self, tgt_dict, softmax_batch=None, compute_alignment=False, eos=None):
+    def __init__(
+        self, tgt_dict, softmax_batch=None, compute_alignment=False, eos=None,
+        symbols_to_strip_from_output=None,
+    ):
         self.pad = tgt_dict.pad()
         self.eos = tgt_dict.eos() if eos is None else eos
         self.softmax_batch = softmax_batch or sys.maxsize
         assert self.softmax_batch > 0
         self.compute_alignment = compute_alignment
+        self.symbols_to_strip_from_output = (
+            symbols_to_strip_from_output.union({self.eos})
+            if symbols_to_strip_from_output is not None else {self.eos})
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):
