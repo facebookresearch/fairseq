@@ -232,7 +232,7 @@ class FairseqTask(object):
 
         return criterions.build_criterion(args, self)
 
-    def build_generator(self, models, args):
+    def build_generator(self, models, args, seq_gen_cls=None):
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
 
@@ -296,10 +296,11 @@ class FairseqTask(object):
         else:
             search_strategy = search.BeamSearch(self.target_dictionary)
 
-        if getattr(args, "print_alignment", False):
-            seq_gen_cls = SequenceGeneratorWithAlignment
-        else:
-            seq_gen_cls = SequenceGenerator
+        if seq_gen_cls is None:
+            if getattr(args, "print_alignment", False):
+                seq_gen_cls = SequenceGeneratorWithAlignment
+            else:
+                seq_gen_cls = SequenceGenerator
 
         return seq_gen_cls(
             models,
