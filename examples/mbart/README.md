@@ -63,7 +63,7 @@ fairseq-preprocess \
 Finetune on mbart CC25
 
 ```bash
-PRETRAIN=/path/to/model/mbart.cc25
+PRETRAIN=mbart.cc25 # fix if you moved the downloaded checkpoint
 langs=ar_AR,cs_CZ,de_DE,en_XX,es_XX,et_EE,fi_FI,fr_XX,gu_IN,hi_IN,it_IT,ja_XX,kk_KZ,ko_KR,lt_LT,lv_LV,my_MM,ne_NP,nl_XX,ro_RO,ru_RU,si_LK,tr_TR,vi_VN,zh_CN
 
 fairseq-train path_2_data \
@@ -87,19 +87,22 @@ fairseq-train path_2_data \
 ## Generate on EN-RO
 Get sacrebleu on finetuned en-ro model
 
-get tokenizer  [here](https://github.com/rsennrich/wmt16-scripts)  
+get tokenizer  [here](https://github.com/rsennrich/wmt16-scripts)
+```bash  
 wget https://dl.fbaipublicfiles.com/fairseq/models/mbart/mbart.cc25.ft.enro.tar.gz  
 tar -xzvf mbart.cc25.ft.enro.tar.gz
+```
 
 ```bash
-model=model.pt
+model_dir=MBART_finetuned_enro # fix if you moved the checkpoint
+
 fairseq-generate path_2_data \
-  --path $model \
+  --path $model_dir/model.pt \
   --task translation_from_pretrained_bart \
   --gen-subset test \
   -t ro_RO -s en_XX \
-  --bpe 'sentencepiece' --sentencepiece-model sentence.bpe.model \
-  --sacrebleu --remove-bpe 'sentencepiece'\
+  --bpe 'sentencepiece' --sentencepiece-model $model_dir/sentence.bpe.model \
+  --sacrebleu --remove-bpe 'sentencepiece' \
   --max-sentences 32 --langs $langs > en_ro
 
 cat en_ro | grep -P "^H" |sort -V |cut -f 3- | sed 's/\[ro_RO\]//g' |$TOKENIZER ro > en_ro.hyp
