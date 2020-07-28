@@ -237,3 +237,4 @@ class SampledMultiEpochDataset(SampledMultiDataset):
         self._epoch_sizes = None
         self._epoch_ordered_indices = None
         self._current_epoch_start_index = index
+        self._size_cache = {}
