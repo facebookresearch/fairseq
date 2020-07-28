@@ -93,7 +93,9 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        langs, dicts, training = MultilingualDatasetManager.prepare(args, **kwargs)
+        langs, dicts, training = MultilingualDatasetManager.prepare(
+            cls.load_dictionary, args, **kwargs
+        )
         return cls(args, langs, dicts, training)
 
     def has_sharded_data(self, split):

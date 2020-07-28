@@ -183,7 +183,7 @@ class MultilingualDatasetManager(object):
         )
 
     @classmethod
-    def prepare(cls, args, **kargs):
+    def prepare(cls, load_dictionary, args, **kargs):
         args.left_pad_source = options.eval_bool(args.left_pad_source)
         args.left_pad_target = options.eval_bool(args.left_pad_target)
 
@@ -235,7 +235,7 @@ class MultilingualDatasetManager(object):
         for lang in langs_to_load_dicts:
             paths = args.data.split(os.pathsep)
             assert len(paths) > 0
-            dicts[lang] = Dictionary.load(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
+            dicts[lang] = load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
             if len(dicts) > 0:
                 assert dicts[lang].pad() == dicts[langs_to_load_dicts[0]].pad()
                 assert dicts[lang].eos() == dicts[langs_to_load_dicts[0]].eos()
