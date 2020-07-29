@@ -21,7 +21,7 @@ Kyrgyz | Lao | Latin | Latvian | Lithuanian
 Macedonian | Malagasy | Malay | Malayalam | Marathi
 Mongolian | Nepali | Norwegian | Oriya | Oromo
 Pashto | Persian | Polish | Portuguese | Punjabi
-Romanian | Russian | Sanskri | Scottish Gaelic | Serbian
+Romanian | Russian | Sanskrit | Scottish Gaelic | Serbian
 Sindhi | Sinhala | Slovak | Slovenian | Somali
 Spanish | Sundanese | Swahili | Swedish | Tamil
 Tamil Romanize | Telugu | Telugu Romanize | Thai | Turkish
