@@ -77,13 +77,9 @@ def make_batches(lines, args, task, max_positions, encode_fn):
     else:
         batch_constraints = None
 
-    # TODO: die if UNK is found?
-    # if task.target_dictionary.unk_index in ...
-        # pass
-
     lengths = [t.numel() for t in tokens]
     itr = task.get_batch_iterator(
-        dataset=task.build_dataset_for_inference(tokens, lengths, batch_constraints),
+        dataset=task.build_dataset_for_inference(tokens, lengths, constraints=batch_constraints),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
         max_positions=max_positions,
@@ -94,6 +90,7 @@ def make_batches(lines, args, task, max_positions, encode_fn):
         src_tokens = batch['net_input']['src_tokens']
         src_lengths = batch['net_input']['src_lengths']
         constraints = batch.get("constraints", None)
+
         # Double the batch, decoding both with and without the constraints
         if args.constraints_both:
             ids = ids.repeat(2)
