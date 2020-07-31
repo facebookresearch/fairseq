@@ -205,6 +205,7 @@ class T5FinetuningTask(FairseqTask):
     .. argparse::
         :ref: fairseq.tasks.translation_parser
         :prog:
+
     """
 
     @staticmethod
