@@ -123,7 +123,10 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
             epoch=epoch, combine=combine, shard_epoch=shard_epoch, **kwargs
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
+        if constraints is not None:
+            raise NotImplementedError("Constrained decoding with the multilingual_translation task is not supported")
+
         src_data = ListDataset(src_tokens, src_lengths)
         dataset = LanguagePairDataset(src_data, src_lengths, self.source_dictionary)
         src_langtok_spec, tgt_langtok_spec = self.args.langtoks['main']

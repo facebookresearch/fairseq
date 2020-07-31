@@ -221,7 +221,10 @@ class MultilingualTranslationTask(FairseqTask):
             eval_key=None if self.training else "%s-%s" % (self.args.source_lang, self.args.target_lang),
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
+        if constraints is not None:
+            raise NotImplementedError("Constrained decoding with the multilingual_translation task is not supported")
+
         lang_pair = "%s-%s" % (self.args.source_lang, self.args.target_lang)
         return RoundRobinZipDatasets(
             OrderedDict([(

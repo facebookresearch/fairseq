@@ -141,10 +141,12 @@ class TranslationLevenshteinTask(TranslationTask):
             adaptive=not getattr(args, 'iter_decode_force_max_iter', False),
             retain_history=getattr(args, 'retain_iter_history', False))
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
+        if constraints is not None:
+            raise NotImplementedError("Constrained decoding with the translation_lev task is not supported")
+
         return LanguagePairDataset(
-            src_tokens, src_lengths, self.source_dictionary, append_bos=True
-        )
+            src_tokens, src_lengths, self.source_dictionary, append_bos=True)
 
     def train_step(self,
                    sample,
