@@ -55,7 +55,8 @@ def make_batches(lines, args, task, max_positions, encode_fn):
         return encode_fn(x)
 
     # Strip (tab-delimited) contraints, if present, from input lines
-    lines, batch_constraints = extract_constraints(lines)
+    if args.constraints:
+        lines, batch_constraints = extract_constraints(lines)
 
     tokens = [
         task.source_dictionary.encode_line(
@@ -73,6 +74,8 @@ def make_batches(lines, args, task, max_positions, encode_fn):
             ))) for constraint in sentence_constraints]
             for sentence_constraints in batch_constraints
         ]
+    else:
+        batch_constraints = None
 
     # TODO: die if UNK is found?
     # if task.target_dictionary.unk_index in ...
@@ -90,7 +93,7 @@ def make_batches(lines, args, task, max_positions, encode_fn):
         ids = batch['id']
         src_tokens = batch['net_input']['src_tokens']
         src_lengths = batch['net_input']['src_lengths']
-        constraints = batch.get("constraints", [])
+        constraints = batch.get("constraints", None)
         # Double the batch, decoding both with and without the constraints
         if args.constraints_both:
             ids = ids.repeat(2)
@@ -107,7 +110,6 @@ def make_batches(lines, args, task, max_positions, encode_fn):
 
 
 def main(args):
-    print(f"EXPERIMENTAL CONSTRAINTS IMPLEMENTATION {args.constraints}")
     start_time = time.time()
     total_translate_time = 0
 
@@ -208,16 +210,18 @@ def main(args):
                     'src_tokens': src_tokens,
                     'src_lengths': src_lengths,
                 },
-                "constraints": batch.constraints,
             }
+            if batch.constraints:
+                sample["constraints"] = batch.constraints
             translate_start_time = time.time()
             translations = task.inference_step(generator, models, sample)
             translate_time = time.time() - translate_start_time
             total_translate_time += translate_time
             for i, (id, hypos) in enumerate(zip(batch.ids.tolist(), translations)):
                 src_tokens_i = utils.strip_pad(src_tokens[i], tgt_dict.pad())
+                constraints = sample["constraints"][i] if args.constraints else []
                 results.append((start_id + id, src_tokens_i, hypos,
-                                { "constraints": sample["constraints"][i],
+                                { "constraints": constraints,
                                   "time": translate_time / len(translations) }
                             ))
 

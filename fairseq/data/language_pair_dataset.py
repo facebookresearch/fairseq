@@ -134,6 +134,10 @@ def collate(
             batch['alignments'] = alignments
             batch['align_weights'] = align_weights
 
+    if samples[0].get("constraints", None) is not None:
+        constraints = [sample["constraints"] for sample in samples]
+        batch["constraints"] = [constraints[x] for x in sort_order]
+
     return batch
 
 
@@ -162,6 +166,7 @@ class LanguagePairDataset(FairseqDataset):
             target if it's absent (default: False).
         align_dataset (torch.utils.data.Dataset, optional): dataset
             containing alignments.
+        constraints (List[List[str]], optional): list of lists of constraints.
         append_bos (bool, optional): if set, appends bos to the beginning of
             source/target sentence.
         num_buckets (int, optional): if set to a value greater than 0, then
@@ -181,6 +186,7 @@ class LanguagePairDataset(FairseqDataset):
         shuffle=True, input_feeding=True,
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
+        constraints=None,
         append_bos=False, eos=None,
         num_buckets=0,
         src_lang_id=None,
@@ -207,6 +213,7 @@ class LanguagePairDataset(FairseqDataset):
         self.align_dataset = align_dataset
         if self.align_dataset is not None:
             assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
+        self.constraints = constraints
         self.append_bos = append_bos
         self.eos = (eos if eos is not None else src_dict.eos())
         self.src_lang_id = src_lang_id
@@ -280,6 +287,8 @@ class LanguagePairDataset(FairseqDataset):
         }
         if self.align_dataset is not None:
             example['alignment'] = self.align_dataset[index]
+        if self.constraints is not None:
+            example["constraints"] = self.constraints[index]
         return example
 
     def __len__(self):

@@ -19,7 +19,6 @@ from fairseq.data import (
     encoders,
     indexed_dataset,
     LanguagePairDataset,
-    ConstrainedDataset,
     PrependTokenDataset,
     StripTokenDataset,
     TruncateDataset,
@@ -267,11 +266,9 @@ class TranslationTask(FairseqTask):
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
-        if constraints is not None:
-            return ConstrainedDataset(src_tokens, src_lengths, self.source_dictionary,
-                                      constraints, self.target_dictionary)
-        else:
-            return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary)
+        return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary,
+                                   tgt_dict=self.target_dictionary,
+                                   constraints=constraints)
 
     def build_model(self, args):
         model = super().build_model(args)
