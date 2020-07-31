@@ -431,7 +431,7 @@ class DiverseBeamSearch(Search):
             )
 
         # initialize diversity penalty
-        diversity_buf = torch.zeros(lprobs[:, 0, :].size(), device=device)
+        diversity_buf = torch.zeros(lprobs[:, 0, :].size()).to(lprobs)
 
         scores_G, indices_G, beams_G = [], [], []
         for g in range(self.num_groups):
