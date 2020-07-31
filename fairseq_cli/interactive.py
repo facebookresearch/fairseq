@@ -12,6 +12,7 @@ import fileinput
 import logging
 import math
 import sys
+import time
 import os
 
 import numpy as np
@@ -20,8 +21,8 @@ import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import encoders
+from fairseq.constraints import extract_constraints
 from .generate import get_symbols_to_strip_from_output
-
 
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -32,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger('fairseq_cli.interactive')
 
 
-Batch = namedtuple('Batch', 'ids src_tokens src_lengths')
+Batch = namedtuple('Batch', 'ids src_tokens src_lengths constraints')
 Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
 
 
@@ -50,28 +51,66 @@ def buffered_read(input, buffer_size):
 
 
 def make_batches(lines, args, task, max_positions, encode_fn):
+    def encode_fn_target(x):
+        return encode_fn(x)
+
+    # Strip (tab-delimited) contraints, if present, from input lines
+    lines, batch_constraints = extract_constraints(lines)
+
     tokens = [
         task.source_dictionary.encode_line(
             encode_fn(src_str), add_if_not_exist=False
         ).long()
         for src_str in lines
     ]
+
+    if args.constraints:
+        batch_constraints = [
+            [ list(map(int, task.target_dictionary.encode_line(
+                encode_fn_target(constraint),
+                append_eos=False,
+                add_if_not_exist=False,
+            ))) for constraint in sentence_constraints]
+            for sentence_constraints in batch_constraints
+        ]
+
+    # TODO: die if UNK is found?
+    # if task.target_dictionary.unk_index in ...
+        # pass
+
     lengths = [t.numel() for t in tokens]
     itr = task.get_batch_iterator(
-        dataset=task.build_dataset_for_inference(tokens, lengths),
+        dataset=task.build_dataset_for_inference(tokens, lengths, batch_constraints),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
         max_positions=max_positions,
         ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test
     ).next_epoch_itr(shuffle=False)
     for batch in itr:
+        ids = batch['id']
+        src_tokens = batch['net_input']['src_tokens']
+        src_lengths = batch['net_input']['src_lengths']
+        constraints = batch.get("constraints", [])
+        # Double the batch, decoding both with and without the constraints
+        if args.constraints_both:
+            ids = ids.repeat(2)
+            src_tokens = src_tokens.repeat(2, 1)
+            src_lengths = src_lengths.repeat(2, 1)
+            constraints.append([])
+
         yield Batch(
-            ids=batch['id'],
-            src_tokens=batch['net_input']['src_tokens'], src_lengths=batch['net_input']['src_lengths'],
+            ids=ids,
+            src_tokens=src_tokens,
+            src_lengths=src_lengths,
+            constraints=constraints,
         )
 
 
 def main(args):
+    print(f"EXPERIMENTAL CONSTRAINTS IMPLEMENTATION {args.constraints}")
+    start_time = time.time()
+    total_translate_time = 0
+
     utils.import_user_module(args)
 
     if args.buffer_size < 1:
@@ -147,6 +186,9 @@ def main(args):
         *[model.max_positions() for model in models]
     )
 
+    if args.constraints:
+        logger.warning("NOTE: Constrained decoding currently assumes a shared subword vocabulary.")
+
     if args.buffer_size > 1:
         logger.info('Sentence buffer size: %s', args.buffer_size)
     logger.info('NOTE: hypothesis and token scores are output in base 2')
@@ -166,17 +208,27 @@ def main(args):
                     'src_tokens': src_tokens,
                     'src_lengths': src_lengths,
                 },
+                "constraints": batch.constraints,
             }
+            translate_start_time = time.time()
             translations = task.inference_step(generator, models, sample)
+            translate_time = time.time() - translate_start_time
+            total_translate_time += translate_time
             for i, (id, hypos) in enumerate(zip(batch.ids.tolist(), translations)):
                 src_tokens_i = utils.strip_pad(src_tokens[i], tgt_dict.pad())
-                results.append((start_id + id, src_tokens_i, hypos))
+                results.append((start_id + id, src_tokens_i, hypos,
+                                { "constraints": sample["constraints"][i],
+                                  "time": translate_time / len(translations) }
+                            ))
 
         # sort output to match input order
-        for id, src_tokens, hypos in sorted(results, key=lambda x: x[0]):
+        for id, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
             if src_dict is not None:
                 src_str = src_dict.string(src_tokens, args.remove_bpe)
                 print('S-{}\t{}'.format(id, src_str))
+                print("W-{}\t{:.3f}\tseconds".format(id, info["time"]))
+                for constraint in info["constraints"]:
+                    print("C-{}\t{}".format(id, tgt_dict.string(torch.tensor(constraint), args.remove_bpe)))
 
             # Process top predictions
             for hypo in hypos[:min(len(hypos), args.nbest)]:
@@ -213,6 +265,7 @@ def main(args):
         # update running id counter
         start_id += len(inputs)
 
+    logger.info("Total time: {:.3f} seconds; translation time: {:.3f}".format(time.time() - start_time, total_translate_time))
 
 def cli_main():
     parser = options.get_interactive_generation_parser()
