@@ -219,7 +219,7 @@ fairseq-train --task language_modeling /path/to/wikitext-103/data \
 To **evaluate** this model, note you need to use the `eval.py` script. The following command can be used to evaluate:
 
 ```bash
-python eval_lm.py /path/to/wikitext-103/data --path /path/to/model/checkpoint \
+fairseq-eval-lm /path/to/wikitext-103/data --path /path/to/model/checkpoint \
     --sample-break-mode complete \
     --max-tokens 3072 \
     --context-window 2560 \

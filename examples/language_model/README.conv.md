@@ -2,8 +2,7 @@
 
 ## Example usage
 
-First download and preprocess the data following the main [language modeling
-README](../README.md).
+First download and preprocess the data following the main [language modeling README](README.md).
 
 Then to train a convolutional LM using the `fconv_lm_dauphin_wikitext103`
 architecture:

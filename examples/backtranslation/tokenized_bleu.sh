@@ -37,10 +37,10 @@ sacrebleu -t $DATASET -l $LANGPAIR --echo src -q \
 | sacremoses normalize -l $SRCLANG -q \
 | sacremoses tokenize -a -l $SRCLANG -q \
 | python $BPEROOT/apply_bpe.py -c $BPECODE \
-| python interactive.py $DATABIN --path $MODEL \
+| fairseq-interactive $DATABIN --path $MODEL \
     -s $SRCLANG -t $TGTLANG \
     --beam 5 --remove-bpe --buffer-size 1024 --max-tokens 8000 \
 | grep ^H- | cut -f 3- \
-| python score.py --ref $TMP_REF
+| fairseq-score --ref $TMP_REF
 
 rm -f $TMP_REF

@@ -30,15 +30,20 @@ def infer_language_pair(path):
     return src, dst
 
 
-def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False):
+def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False, pad_to_length=None):
     """Convert a list of 1d tensors into a padded 2d tensor."""
     size = max(v.size(0) for v in values)
+    size = size if pad_to_length is None else max(size, pad_to_length)
     res = values[0].new(len(values), size).fill_(pad_idx)
 
     def copy_tensor(src, dst):
         assert dst.numel() == src.numel()
         if move_eos_to_beginning:
-            dst[0] = eos_idx
+            if eos_idx is None:
+                # if no eos_idx is specified, then use the last token in src
+                dst[0] = src[-1]
+            else:
+                dst[0] = eos_idx
             dst[1:] = src[:-1]
         else:
             dst.copy_(src)
@@ -128,6 +133,9 @@ def collect_filtered(function, iterable, filtered):
 
 
 def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=False):
+    def compare_leq(a, b):
+        return a <= b if not isinstance(a, tuple) else max(a) <= b
+
     def check_size(idx):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
             return size_fn(idx) <= max_positions
@@ -144,7 +152,7 @@ def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=Fal
             # Hacky as heck, for the specific case of multilingual training with RoundRobin.
             if isinstance(size_fn(idx), dict) and isinstance(max_positions, tuple):
                 return all(
-                    a is None or b is None or a <= b
+                    a is None or b is None or compare_leq(a, b)
                     for a, b in zip(size_fn(idx).values(), max_positions)
                 )
             # For MultiCorpusSampledDataset, will generalize it later
@@ -199,7 +207,7 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
 
 def batch_by_size(
     indices, num_tokens_fn, max_tokens=None, max_sentences=None,
-    required_batch_size_multiple=1,
+    required_batch_size_multiple=1, fixed_shapes=None,
 ):
     """
     Yield mini-batches of indices bucketed by size. Batches may contain
@@ -214,10 +222,15 @@ def batch_by_size(
         max_sentences (int, optional): max number of sentences in each
             batch (default: None).
         required_batch_size_multiple (int, optional): require batch size to
-            be a multiple of N (default: 1).
+            be less than N or a multiple of N (default: 1).
+        fixed_shapes (List[Tuple[int, int]], optional): if given, batches will
+            only be created with the given shapes. *max_sentences* and
+            *required_batch_size_multiple* will be ignored (default: None).
     """
     try:
-        from fairseq.data.data_utils_fast import batch_by_size_fast
+        from fairseq.data.data_utils_fast import (
+            batch_by_size_fast, batch_fixed_shapes_fast,
+        )
     except ImportError:
         raise ImportError(
             'Please build Cython components with: `pip install --editable .` '
@@ -228,10 +241,21 @@ def batch_by_size(
     max_sentences = max_sentences if max_sentences is not None else -1
     bsz_mult = required_batch_size_multiple
 
-    if isinstance(indices, types.GeneratorType):
+    if not isinstance(indices, np.ndarray):
         indices = np.fromiter(indices, dtype=np.int64, count=-1)
 
-    return batch_by_size_fast(indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult)
+    if fixed_shapes is None:
+        return batch_by_size_fast(
+            indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult,
+        )
+    else:
+        fixed_shapes = np.array(fixed_shapes, dtype=np.int64)
+        sort_order = np.lexsort([
+            fixed_shapes[:, 1].argsort(),  # length
+            fixed_shapes[:, 0].argsort(),  # bsz
+        ])
+        fixed_shapes_sorted = fixed_shapes[sort_order]
+        return batch_fixed_shapes_fast(indices, num_tokens_fn, fixed_shapes_sorted)
 
 
 def process_bpe_symbol(sentence: str, bpe_symbol: str):

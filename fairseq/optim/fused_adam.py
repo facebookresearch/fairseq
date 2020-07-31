@@ -96,6 +96,10 @@ class FusedAdamV1(torch.optim.Optimizer):
     def supports_flat_params(self):
         return True
 
+    @property
+    def supports_step_with_scale(self):
+        return True
+
     def step(self, closure=None, grads=None, scale=1., grad_norms=None):
         """Performs a single optimization step.
         Arguments:

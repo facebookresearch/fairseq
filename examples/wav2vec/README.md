@@ -30,7 +30,7 @@ Given a directory containing wav files to be used for pretraining (we recommend 
 ### Prepare training data manifest:
 
 ```
-$ python scripts/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext wav
+$ python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext wav
 ```
 
 ### Train a wav2vec model:

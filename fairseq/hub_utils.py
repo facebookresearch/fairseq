@@ -59,7 +59,7 @@ def from_pretrained(
     for file, arg in {
         'code': 'bpe_codes',
         'bpecodes': 'bpe_codes',
-        'sentencepiece.bpe.model': 'sentencepiece_vocab',
+        'sentencepiece.bpe.model': 'sentencepiece_model',
     }.items():
         path = os.path.join(model_path, file)
         if os.path.exists(path):
@@ -96,13 +96,7 @@ class GeneratorHubInterface(nn.Module):
 
         # optimize model for generation
         for model in self.models:
-            model.make_generation_fast_(
-                beamable_mm_beam_size=(
-                    None if getattr(args, 'no_beamable_mm', False)
-                    else getattr(args, 'beam', 5)
-                ),
-                need_attn=getattr(args, 'print_alignment', False),
-            )
+            model.prepare_for_inference_(args)
 
         # Load alignment dictionary for unknown word replacement
         # (None if no unknown word replacement, empty if no path to align dictionary)
@@ -189,7 +183,7 @@ class GeneratorHubInterface(nn.Module):
                     ))
                     if hypo['alignment'] is not None and getarg('print_alignment', False):
                         logger.info('A\t{}'.format(
-                            ' '.join(map(lambda x: str(utils.item(x)), hypo['alignment'].int().cpu()))
+                            ' '.join(['{}-{}'.format(src_idx, tgt_idx) for src_idx, tgt_idx in hypo['alignment']])
                         ))
         return outputs
 

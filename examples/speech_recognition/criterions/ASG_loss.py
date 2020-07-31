@@ -70,7 +70,7 @@ class ASGCriterion(FairseqCriterion):
         self.linseg_maximum = linseg_updates
         self.linseg_message_state = "none" if hide_linseg_messages else "start"
 
-    @staticmethod
+    @classmethod
     def build_criterion(cls, args, task):
         return cls(
             task,

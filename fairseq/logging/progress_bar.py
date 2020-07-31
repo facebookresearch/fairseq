@@ -275,7 +275,12 @@ class TqdmProgressBar(BaseProgressBar):
     def __init__(self, iterable, epoch=None, prefix=None):
         super().__init__(iterable, epoch, prefix)
         from tqdm import tqdm
-        self.tqdm = tqdm(iterable, self.prefix, leave=False)
+        self.tqdm = tqdm(
+            iterable,
+            self.prefix,
+            leave=False,
+            disable=(logger.getEffectiveLevel() > logging.INFO),
+        )
 
     def __iter__(self):
         return iter(self.tqdm)
@@ -287,7 +292,8 @@ class TqdmProgressBar(BaseProgressBar):
     def print(self, stats, tag=None, step=None):
         """Print end-of-epoch stats."""
         postfix = self._str_pipes(self._format_stats(stats))
-        self.tqdm.write('{} | {}'.format(self.tqdm.desc, postfix))
+        with rename_logger(logger, tag):
+            logger.info('{} | {}'.format(self.prefix, postfix))
 
 
 try:

@@ -62,7 +62,7 @@ class MaskedLmLoss(FairseqCriterion):
         )
 
         logging_output = {
-            'loss': loss,
+            'loss': loss if self.tpu else loss.data,
             'ntokens': sample['ntokens'],
             'nsentences': sample['nsentences'],
             'sample_size': sample_size,

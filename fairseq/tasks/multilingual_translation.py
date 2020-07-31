@@ -7,6 +7,7 @@ from collections import OrderedDict
 import logging
 import os
 
+import contextlib
 import torch
 
 from fairseq import metrics, options
@@ -137,7 +138,7 @@ class MultilingualTranslationTask(FairseqTask):
         for lang in sorted_langs:
             paths = utils.split_paths(args.data)
             assert len(paths) > 0
-            dicts[lang] = Dictionary.load(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
+            dicts[lang] = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
             if len(dicts) > 0:
                 assert dicts[lang].pad() == dicts[sorted_langs[0]].pad()
                 assert dicts[lang].eos() == dicts[sorted_langs[0]].eos()
@@ -265,13 +266,27 @@ class MultilingualTranslationTask(FairseqTask):
         model.train()
         from collections import defaultdict
         agg_loss, agg_sample_size, agg_logging_output = 0., 0., defaultdict(float)
-        for lang_pair in self.model_lang_pairs:
-            if sample[lang_pair] is None or len(sample[lang_pair]) == 0:
-                continue
-            loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
-            if ignore_grad:
-                loss *= 0
-            optimizer.backward(loss)
+        curr_lang_pairs = [
+            lang_pair
+            for lang_pair in self.model_lang_pairs
+            if sample[lang_pair] is not None and len(sample[lang_pair]) != 0
+        ]
+
+        for idx, lang_pair in enumerate(curr_lang_pairs):
+            def maybe_no_sync():
+                if (
+                    self.args.distributed_world_size > 1
+                    and hasattr(model, 'no_sync')
+                    and idx < len(curr_lang_pairs) - 1
+                ):
+                    return model.no_sync()
+                else:
+                    return contextlib.ExitStack()  # dummy contextmanager
+            with maybe_no_sync():
+                loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
+                if ignore_grad:
+                    loss *= 0
+                optimizer.backward(loss)
             agg_loss += loss.detach().item()
             # TODO make summing of the sample sizes configurable
             agg_sample_size += sample_size
@@ -299,12 +314,15 @@ class MultilingualTranslationTask(FairseqTask):
 
     def inference_step(self, generator, models, sample, prefix_tokens=None):
         with torch.no_grad():
+            if self.args.decoder_langtok:
+                bos_token = _lang_token_index(self.target_dictionary, self.args.target_lang)
+            else:
+                bos_token = self.target_dictionary.eos()
             return generator.generate(
-                    models,
-                    sample,
-                    prefix_tokens=prefix_tokens,
-                    bos_token=_lang_token_index(self.target_dictionary, self.args.target_lang)
-                    if self.args.decoder_langtok else self.target_dictionary.eos(),
+                models,
+                sample,
+                prefix_tokens=prefix_tokens,
+                bos_token=bos_token,
             )
 
     def reduce_metrics(self, logging_outputs, criterion):

@@ -6,6 +6,7 @@
 import torch
 
 from fairseq.data import LanguagePairDataset
+from fairseq import utils
 
 from .translation import load_langpair_dataset, TranslationTask
 from . import register_task
@@ -39,10 +40,14 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         # fmt: off
         TranslationTask.add_args(parser)
         parser.add_argument('--langs', required=True, metavar='LANG',
-                            help='comma-separated list of monolingual language, for example, "en,de,fr"'
-                                 'be careful these langs are what you used for pretraining (the same order),'
-                                 'not for finetuning.'
-                                 'you should always add all pretraining language idx during finetuning.')
+                            help='comma-separated list of monolingual language, '
+                                 'for example, "en,de,fr". These should match the '
+                                 'langs from pretraining (and be in the same order). '
+                                 'You should always add all pretraining language idx '
+                                 'during finetuning.')
+        parser.add_argument('--prepend-bos', action='store_true',
+                            help='prepend bos token to each sentence, which matches '
+                                 'mBART pretraining')
         # fmt: on
 
     def __init__(self, args, src_dict, tgt_dict):
@@ -59,7 +64,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(':')
+        paths = utils.split_paths(self.args.data)
         assert len(paths) > 0
         data_path = paths[(epoch - 1) % len(paths)]
 
@@ -75,7 +80,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             max_source_positions=getattr(self.args, 'max_source_positions', 1024),
             max_target_positions=getattr(self.args, 'max_target_positions', 1024),
             load_alignments=self.args.load_alignments,
-            prepend_bos=getattr(self.args, 'preprend_bos', False),
+            prepend_bos=getattr(self.args, 'prepend_bos', False),
             append_source_id=True
             )
 

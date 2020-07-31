@@ -95,8 +95,8 @@ def _apply_bbpe(model_path: str, in_path: str, out_path: str):
 
 
 def _apply_bpe(model_path: str, in_path: str, out_path: str):
-    Args = namedtuple('Args', ['sentencepiece_vocab'])
-    args = Args(sentencepiece_vocab=model_path)
+    Args = namedtuple('Args', ['sentencepiece_model'])
+    args = Args(sentencepiece_model=model_path)
     tokenizer = SentencepieceBPE(args)
     with open(in_path) as f, open(out_path, 'w') as f_o:
         for s in f:

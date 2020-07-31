@@ -8,14 +8,23 @@ import logging
 import numpy as np
 import torch
 
-from . import data_utils, FairseqDataset
+from fairseq.data import data_utils, FairseqDataset
 
 
 logger = logging.getLogger(__name__)
 
-def collate_prev_tokens(values, pad_idx, bos_idx=None, left_pad=False, move_eos_to_beginning=False):
+
+def collate_prev_tokens(
+    values,
+    pad_idx,
+    bos_idx=None,
+    left_pad=False,
+    move_eos_to_beginning=False,
+    pad_to_length=None,
+):
     """Convert a list of 1d tensors into a padded 2d tensor."""
     size = max(v.size(0) for v in values)
+    size = size if pad_to_length is None else max(size, pad_to_length)
     res = values[0].new(len(values), size).fill_(pad_idx)
 
     def copy_tensor(src, dst):
@@ -31,16 +40,23 @@ def collate_prev_tokens(values, pad_idx, bos_idx=None, left_pad=False, move_eos_
     return res
 
 def collate(
-    samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
-    input_feeding=True, decoder_start_token_idx=None,
+    samples,
+    pad_idx,
+    eos_idx,
+    left_pad_source=True,
+    left_pad_target=False,
+    input_feeding=True,
+    pad_to_length=None,
+    decoder_start_token_idx=None,
 ):
     if len(samples) == 0:
         return {}
 
-    def merge(key, left_pad, move_eos_to_beginning=False):
+    def merge(key, left_pad, move_eos_to_beginning=False, pad_to_length=None):
         return data_utils.collate_tokens(
             [s[key] for s in samples],
             pad_idx, eos_idx, left_pad, move_eos_to_beginning,
+            pad_to_length=pad_to_length,
         )
 
     def check_alignment(alignment, src_len, tgt_len):
@@ -66,9 +82,14 @@ def collate(
         return 1. / align_weights.float()
 
     id = torch.LongTensor([s['id'] for s in samples])
-    src_tokens = merge('source', left_pad=left_pad_source)
+    src_tokens = merge(
+        'source', left_pad=left_pad_source,
+        pad_to_length=pad_to_length['source'] if pad_to_length is not None else None
+    )
     # sort by descending source length
-    src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
+    src_lengths = torch.LongTensor([
+        s['source'].ne(pad_idx).long().sum() for s in samples
+    ])
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
@@ -76,23 +97,34 @@ def collate(
     prev_output_tokens = None
     target = None
     if samples[0].get('target', None) is not None:
-        target = merge('target', left_pad=left_pad_target)
+        target = merge(
+            'target', left_pad=left_pad_target,
+            pad_to_length=pad_to_length['target'] if pad_to_length is not None else None,
+        )
         target = target.index_select(0, sort_order)
-        tgt_lengths = torch.LongTensor([s['target'].numel() for s in samples]).index_select(0, sort_order)
-        ntokens = sum(len(s['target']) for s in samples)
+        tgt_lengths = torch.LongTensor([
+            s['target'].ne(pad_idx).long().sum() for s in samples
+        ]).index_select(0, sort_order)
+        ntokens = tgt_lengths.sum().item()
 
-        if input_feeding:
+        if samples[0].get('prev_output_tokens', None) is not None:
+            prev_output_tokens = merge('prev_output_tokens', left_pad=left_pad_target)
+        elif input_feeding:
             # we create a shifted version of targets for feeding the
             # previous output token(s) into the next decoder step
             if decoder_start_token_idx is None:
                 decoder_start_token_idx = eos_idx
             prev_output_tokens = collate_prev_tokens(
                 [s['target'] for s in samples],
-                pad_idx, decoder_start_token_idx, False, True)
-
+                pad_idx,
+                decoder_start_token_idx,
+                left_pad=False,
+                pad_to_length=pad_to_length['target'] if pad_to_length is not None else None,
+                move_eos_to_beginning=True,
+            )
             prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
-        ntokens = sum(len(s['source']) for s in samples)
+        ntokens = src_lengths.sum().item()
 
     batch = {
         'id': id,
@@ -150,10 +182,6 @@ class LanguagePairDataset(FairseqDataset):
             (default: True).
         left_pad_target (bool, optional): pad target tensors on the left side
             (default: False).
-        max_source_positions (int, optional): max number of tokens in the
-            source sentence (default: 1024).
-        max_target_positions (int, optional): max number of tokens in the
-            target sentence (default: 1024).
         shuffle (bool, optional): shuffle dataset elements before batching
             (default: True).
         input_feeding (bool, optional): create a shifted version of the targets
@@ -166,6 +194,14 @@ class LanguagePairDataset(FairseqDataset):
             containing alignments.
         append_bos (bool, optional): if set, appends bos to the beginning of
             source/target sentence.
+        num_buckets (int, optional): if set to a value greater than 0, then
+            batches will be bucketed into the given number of batch shapes.
+        src_lang_id (int, optional): source language ID, if set, the collated batch
+            will contain a field 'src_lang_id' in 'net_input' which indicates the
+            source language of the samples.
+        tgt_lang_id (int, optional): target language ID, if set, the collated batch
+            will contain a field 'tgt_lang_id' which indicates the target language
+             of the samples.
         decoder_start_token_idx (integer, optional), if set, put this token to the
             beggining of previous token list in the decoder.
     """
@@ -174,11 +210,14 @@ class LanguagePairDataset(FairseqDataset):
         self, src, src_sizes, src_dict,
         tgt=None, tgt_sizes=None, tgt_dict=None,
         left_pad_source=True, left_pad_target=False,
-        max_source_positions=1024, max_target_positions=1024,
         shuffle=True, input_feeding=True,
         remove_eos_from_source=False, append_eos_to_target=False,
         align_dataset=None,
-        append_bos=False, eos=None, decoder_start_token_idx=None
+        append_bos=False, eos=None,
+        num_buckets=0,
+        src_lang_id=None,
+        tgt_lang_id=None,
+        decoder_start_token_idx=None,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -194,8 +233,6 @@ class LanguagePairDataset(FairseqDataset):
         self.tgt_dict = tgt_dict
         self.left_pad_source = left_pad_source
         self.left_pad_target = left_pad_target
-        self.max_source_positions = max_source_positions
-        self.max_target_positions = max_target_positions
         self.shuffle = shuffle
         self.input_feeding = input_feeding
         self.remove_eos_from_source = remove_eos_from_source
@@ -205,6 +242,40 @@ class LanguagePairDataset(FairseqDataset):
             assert self.tgt_sizes is not None, "Both source and target needed when alignments are provided"
         self.append_bos = append_bos
         self.eos = (eos if eos is not None else src_dict.eos())
+        self.src_lang_id = src_lang_id
+        self.tgt_lang_id = tgt_lang_id
+        if num_buckets > 0:
+            from fairseq.data import BucketPadLengthDataset
+            self.src = BucketPadLengthDataset(
+                self.src,
+                sizes=self.src_sizes,
+                num_buckets=num_buckets,
+                pad_idx=self.src_dict.pad(),
+                left_pad=self.left_pad_source,
+            )
+            self.src_sizes = self.src.sizes
+            logger.info('bucketing source lengths: {}'.format(list(self.src.buckets)))
+            if self.tgt is not None:
+                self.tgt = BucketPadLengthDataset(
+                    self.tgt,
+                    sizes=self.tgt_sizes,
+                    num_buckets=num_buckets,
+                    pad_idx=self.tgt_dict.pad(),
+                    left_pad=self.left_pad_target,
+                )
+                self.tgt_sizes = self.tgt.sizes
+                logger.info('bucketing target lengths: {}'.format(list(self.tgt.buckets)))
+
+            # determine bucket sizes using self.num_tokens, which will return
+            # the padded lengths (thanks to BucketPadLengthDataset)
+            num_tokens = np.vectorize(self.num_tokens, otypes=[np.long])
+            self.bucketed_num_tokens = num_tokens(np.arange(len(self.src)))
+            self.buckets = [
+                (None, num_tokens)
+                for num_tokens in np.unique(self.bucketed_num_tokens)
+            ]
+        else:
+            self.buckets = None
 
         if decoder_start_token_idx is not None:
             self.decoder_start_token_idx = decoder_start_token_idx
@@ -213,6 +284,10 @@ class LanguagePairDataset(FairseqDataset):
                 self.decoder_start_token_idx = self.tgt_dict.eos()
             else:
                 self.decoder_start_token_idx = self.src_dict.eos()
+
+    def get_batch_shapes(self):
+        return self.buckets
+
 
     def __getitem__(self, index):
         tgt_item = self.tgt[index] if self.tgt is not None else None
@@ -252,11 +327,14 @@ class LanguagePairDataset(FairseqDataset):
     def __len__(self):
         return len(self.src)
 
-    def collater(self, samples):
+    def collater(self, samples, pad_to_length=None):
         """Merge a list of samples to form a mini-batch.
 
         Args:
             samples (List[dict]): samples to collate
+            pad_to_length (dict, optional): a dictionary of
+                {'source': source_pad_to_length, 'target': target_pad_to_length}
+                to indicate the max length to pad to in source and target respectively.
 
         Returns:
             dict: a mini-batch with the following keys:
@@ -276,16 +354,37 @@ class LanguagePairDataset(FairseqDataset):
                     This key will not be present if *input_feeding* is
                     ``False``.  Padding will appear on the left if
                     *left_pad_target* is ``True``.
+                  - `src_lang_id` (LongTensor): a long Tensor which contains source
+                    language IDs of each sample in the batch
 
                 - `target` (LongTensor): a padded 2D Tensor of tokens in the
                   target sentence of shape `(bsz, tgt_len)`. Padding will appear
                   on the left if *left_pad_target* is ``True``.
+                - `tgt_lang_id` (LongTensor): a long Tensor which contains target language
+                   IDs of each sample in the batch
         """
-        return collate(
-            samples, pad_idx=self.src_dict.pad(), eos_idx=self.eos,
-            left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
-            input_feeding=self.input_feeding, decoder_start_token_idx=self.decoder_start_token_idx
+        res = collate(
+            samples,
+            pad_idx=self.src_dict.pad(),
+            eos_idx=self.eos,
+            left_pad_source=self.left_pad_source,
+            left_pad_target=self.left_pad_target,
+            input_feeding=self.input_feeding,
+            pad_to_length=pad_to_length,
+            decoder_start_token_idx=self.decoder_start_token_idx,
         )
+        if self.src_lang_id is not None or self.tgt_lang_id is not None:
+            src_tokens = res['net_input']['src_tokens']
+            bsz = src_tokens.size(0)
+            if self.src_lang_id is not None:
+                res['net_input']['src_lang_id'] = torch.LongTensor(
+                            [[self.src_lang_id]]
+                            ).expand(bsz, 1).to(src_tokens)
+            if self.tgt_lang_id is not None:
+                res['tgt_lang_id'] = torch.LongTensor(
+                            [[self.tgt_lang_id]]
+                            ).expand(bsz, 1).to(src_tokens)
+        return res
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
@@ -304,9 +403,19 @@ class LanguagePairDataset(FairseqDataset):
             indices = np.random.permutation(len(self))
         else:
             indices = np.arange(len(self))
-        if self.tgt_sizes is not None:
-            indices = indices[np.argsort(self.tgt_sizes[indices], kind='mergesort')]
-        return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
+        if self.buckets is None:
+            # sort by target length, then source length
+            if self.tgt_sizes is not None:
+                indices = indices[
+                    np.argsort(self.tgt_sizes[indices], kind='mergesort')
+                ]
+            return indices[np.argsort(self.src_sizes[indices], kind='mergesort')]
+        else:
+            # sort by bucketed_num_tokens, which is:
+            #   max(padded_src_len, padded_tgt_len)
+            return indices[
+                np.argsort(self.bucketed_num_tokens[indices], kind='mergesort')
+            ]
 
     @property
     def supports_prefetch(self):

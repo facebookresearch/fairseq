@@ -175,7 +175,7 @@ class WordShuffle(WordNoising):
             # generate a random permutation
             scores = word_idx[:length_no_eos, i] + noise[word_idx[:length_no_eos, i], i]
             # ensure no reordering inside a word
-            scores += 1e-6 * np.arange(length_no_eos)
+            scores += 1e-6 * np.arange(length_no_eos.item())
             permutation = scores.argsort()
             # shuffle words
             x2[:length_no_eos, i].copy_(

@@ -64,7 +64,10 @@ class TriStageLRSchedule(FairseqLRScheduler):
         self.hold_steps = args.hold_steps
         self.decay_steps = args.decay_steps
 
-        self.warmup_rate = (self.peak_lr - self.init_lr) / self.warmup_steps
+        self.warmup_rate = (
+            (self.peak_lr - self.init_lr) / self.warmup_steps if self.warmup_steps != 0
+            else 0
+        )
         self.decay_factor = -math.log(args.final_lr_scale) / args.decay_steps
 
         # initial learning rate

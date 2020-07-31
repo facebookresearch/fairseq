@@ -75,10 +75,7 @@ class BeamSearch(Search):
         )
         scores_buf = top_prediction[0]
         indices_buf = top_prediction[1]
-        if torch.__version__ < '1.6.0':
-            beams_buf = torch.div(indices_buf, vocab_size)
-        else:
-            beams_buf = torch.floor_divide(indices_buf, vocab_size)
+        beams_buf = indices_buf // vocab_size
         indices_buf = indices_buf.fmod(vocab_size)
         return scores_buf, indices_buf, beams_buf
 
@@ -91,6 +88,7 @@ class LengthConstrainedBeamSearch(Search):
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
         self.beam = BeamSearch(tgt_dict)
+        self.needs_src_lengths = True
 
     def step(self, step: int, lprobs, scores):
         min_lens = self.min_len_a * self.src_lengths + self.min_len_b
@@ -335,7 +333,7 @@ class DiverseSiblingsSearch(Search):
             k,
         )
 
-        final_beams = torch.div(final_indices, k)
+        final_beams = final_indices // k
 
         for i in range(bsz):
             final_indices[i] = indices[i][final_indices[i]]

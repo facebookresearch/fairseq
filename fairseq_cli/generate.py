@@ -12,6 +12,8 @@ import math
 import os
 import sys
 
+import numpy as np
+
 import torch
 
 from fairseq import bleu, checkpoint_utils, options, tasks, utils
@@ -30,10 +32,17 @@ def main(args):
     if args.results_path is not None:
         os.makedirs(args.results_path, exist_ok=True)
         output_path = os.path.join(args.results_path, 'generate-{}.txt'.format(args.gen_subset))
-        with open(output_path, 'w', buffering=1) as h:
+        with open(output_path, 'w', buffering=1, encoding='utf-8') as h:
             return _main(args, h)
     else:
         return _main(args, sys.stdout)
+
+
+def get_symbols_to_strip_from_output(generator):
+    if hasattr(generator, 'symbols_to_strip_from_output'):
+        return generator.symbols_to_strip_from_output
+    else:
+        return {generator.eos}
 
 
 def _main(args, output_file):
@@ -50,6 +59,11 @@ def _main(args, output_file):
     if args.max_tokens is None and args.max_sentences is None:
         args.max_tokens = 12000
     logger.info(args)
+
+    # Fix seed for stochastic decoding
+    if args.seed is not None and not args.no_seed_provided:
+        np.random.seed(args.seed)
+        utils.set_torch_seed(args.seed)
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
@@ -70,14 +84,12 @@ def _main(args, output_file):
         utils.split_paths(args.path),
         arg_overrides=eval(args.model_overrides),
         task=task,
+        suffix=getattr(args, "checkpoint_suffix", ""),
     )
 
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
-            need_attn=args.print_alignment,
-        )
+        model.prepare_for_inference_(args)
         if args.fp16:
             model.half()
         if use_cuda:
@@ -169,9 +181,7 @@ def _main(args, output_file):
                         target_tokens,
                         args.remove_bpe,
                         escape_unk=True,
-                        extra_symbols_to_ignore={
-                            generator.eos,
-                        }
+                        extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                     )
 
             src_str = decode_fn(src_str)
@@ -193,9 +203,7 @@ def _main(args, output_file):
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=args.remove_bpe,
-                    extra_symbols_to_ignore={
-                        generator.eos,
-                    }
+                    extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
                 detok_hypo_str = decode_fn(hypo_str)
                 if not args.quiet:

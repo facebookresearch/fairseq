@@ -180,8 +180,6 @@ def load_langpair_dataset(
         tgt_dataset, tgt_dataset_sizes, tgt_dict,
         left_pad_source=left_pad_source,
         left_pad_target=left_pad_target,
-        max_source_positions=max_source_positions,
-        max_target_positions=max_target_positions,
         align_dataset=align_dataset, eos=eos,
         decoder_start_token_idx=0
     )

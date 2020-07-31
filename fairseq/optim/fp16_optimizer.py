@@ -9,49 +9,7 @@ import torch
 
 from fairseq import optim, utils
 
-
-class DynamicLossScaler(object):
-
-    def __init__(
-        self, init_scale=2.**15, scale_factor=2., scale_window=2000,
-        tolerance=0.05, threshold=None,
-    ):
-        self.loss_scale = init_scale
-        self.scale_factor = scale_factor
-        self.scale_window = scale_window
-        self.tolerance = tolerance
-        self.threshold = threshold
-        self._iter = 0
-        self._last_overflow_iter = -1
-        self._last_rescale_iter = -1
-        self._overflows_since_rescale = 0
-
-    def update_scale(self, overflow):
-        iter_since_rescale = self._iter - self._last_rescale_iter
-        if overflow:
-            self._last_overflow_iter = self._iter
-            self._overflows_since_rescale += 1
-            pct_overflow = self._overflows_since_rescale / float(iter_since_rescale)
-            if pct_overflow >= self.tolerance:
-                self._decrease_loss_scale()
-                self._last_rescale_iter = self._iter
-                self._overflows_since_rescale = 0
-        elif (self._iter - self._last_overflow_iter) % self.scale_window == 0:
-            self.loss_scale *= self.scale_factor
-            self._last_rescale_iter = self._iter
-        self._iter += 1
-
-    def _decrease_loss_scale(self):
-        self.loss_scale /= self.scale_factor
-        if self.threshold is not None:
-            self.loss_scale = max(self.loss_scale, self.threshold)
-
-    @staticmethod
-    def has_overflow(grad_norm):
-        # detect inf and nan
-        if grad_norm == float('inf') or grad_norm != grad_norm:
-            return True
-        return False
+from .dynamic_loss_scaler import DynamicLossScaler
 
 
 class _FP16OptimizerMixin(object):
@@ -113,7 +71,7 @@ class _FP16OptimizerMixin(object):
         underflow.
         """
         if self.scaler is not None:
-            loss = loss * self.scaler.loss_scale
+            loss = self.scaler.scale(loss)
         loss.backward()
         self._needs_sync = True
 
@@ -146,6 +104,22 @@ class _FP16OptimizerMixin(object):
 
             self._needs_sync = False
 
+    def _sync_fp32_grads_to_fp16(self):
+        # copy FP32 params back into FP16 model
+        if self.has_flat_params:
+            offset = 0
+            for p in self.fp16_params:
+                if not p.requires_grad:
+                    continue
+                numel = p.data.numel()
+                p.data.copy_(self.fp32_params.data[offset:offset+numel].view_as(p.data))
+                offset += numel
+        else:
+            for p, p32 in zip(self.fp16_params, self.fp32_params):
+                if not p.requires_grad:
+                    continue
+                p.data.copy_(p32.data)
+
     def multiply_grads(self, c):
         """Multiplies grads by a constant ``c``."""
         if self._needs_sync:
@@ -163,20 +137,7 @@ class _FP16OptimizerMixin(object):
 
         # detect overflow and adjust loss scale
         if self.scaler is not None:
-            overflow = DynamicLossScaler.has_overflow(grad_norm)
-            prev_scale = self.scaler.loss_scale
-            self.scaler.update_scale(overflow)
-            if overflow:
-                if self.scaler.loss_scale <= self.min_loss_scale:
-                    # Use FloatingPointError as an uncommon error that parent
-                    # functions can safely catch to stop training.
-                    self.scaler.loss_scale = prev_scale
-                    raise FloatingPointError((
-                        'Minimum loss scale reached ({}). Your loss is probably exploding. '
-                        'Try lowering the learning rate, using gradient clipping or '
-                        'increasing the batch size.'
-                    ).format(self.min_loss_scale))
-                raise OverflowError('setting loss scale to: ' + str(self.scaler.loss_scale))
+            self.scaler.check_overflow(grad_norm)
 
         return grad_norm
 
@@ -185,20 +146,10 @@ class _FP16OptimizerMixin(object):
         self._sync_fp16_grads_to_fp32()
         self.fp32_optimizer.step(closure)
 
-        # copy FP32 params back into FP16 model
-        if self.has_flat_params:
-            offset = 0
-            for p in self.fp16_params:
-                if not p.requires_grad:
-                    continue
-                numel = p.data.numel()
-                p.data.copy_(self.fp32_params.data[offset:offset+numel].view_as(p.data))
-                offset += numel
-        else:
-            for p, p32 in zip(self.fp16_params, self.fp32_params):
-                if not p.requires_grad:
-                    continue
-                p.data.copy_(p32.data)
+        if self.scaler is not None:
+            self.scaler.update()
+
+        self._sync_fp32_grads_to_fp16()
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
@@ -240,8 +191,8 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
                 scale_window=scale_window,
                 tolerance=args.fp16_scale_tolerance,
                 threshold=args.threshold_loss_scale,
+                min_loss_scale=args.min_loss_scale
             )
-            self.min_loss_scale = self.args.min_loss_scale
         else:
             # disable loss scaling for bfloat16
             self.scaler = None
@@ -286,7 +237,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
 class _MemoryEfficientFP16OptimizerMixin(object):
 
     def __init__(self, *args, **kwargs):
-        # forward __init__ call to the next class in mro(method resolution order)
+        # forward __init__ call to the next class in MRO (method resolution order)
         super().__init__(*args, **kwargs)
 
     @property
@@ -340,59 +291,53 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         underflow.
         """
         if self.scaler is not None:
-            loss = loss * self.scaler.loss_scale
-            self._grads_are_scaled = True
+            loss = self.scaler.scale(loss)
         loss.backward()
 
-    def _unscale_grads(self, multiply_grads=1.):
-        if self._grads_are_scaled:
-            self._grads_are_scaled = False
-
-            # correct for dynamic loss scaler
-            self.wrapped_optimizer.multiply_grads(multiply_grads / self.scaler.loss_scale)
-        else:
-            assert multiply_grads == 1.
+    def _unscale_grads(self):
+        if self._multiply_factor != 1.:
+            self.wrapped_optimizer.multiply_grads(self._multiply_factor)
+            self._multiply_factor = 1.
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
-        if self._grads_are_scaled:
-            self._unscale_grads(c)
-        else:
-            self.wrapped_optimizer.multiply_grads(c)
+        self._multiply_factor *= c
 
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
-        self._unscale_grads()
-        grad_norm = self.wrapped_optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
+        max_norm = float(max_norm)
+        grad_norm = self._multiply_factor * self.wrapped_optimizer.clip_grad_norm(0, aggregate_norm_fn)
 
-        # detect overflow and adjust loss scale
         if self.scaler is not None:
-            overflow = DynamicLossScaler.has_overflow(grad_norm)
-            prev_scale = self.scaler.loss_scale
-            self.scaler.update_scale(overflow)
-            if overflow:
-                if self.scaler.loss_scale <= self.min_loss_scale:
-                    # Use FloatingPointError as an uncommon error that parent
-                    # functions can safely catch to stop training.
-                    self.scaler.loss_scale = prev_scale
-                    raise FloatingPointError((
-                        'Minimum loss scale reached ({}). Your loss is probably exploding. '
-                        'Try lowering the learning rate, using gradient clipping or '
-                        'increasing the batch size.'
-                    ).format(self.min_loss_scale))
-                raise OverflowError('setting loss scale to: ' + str(self.scaler.loss_scale))
+            grad_norm_cpu = float(grad_norm)
+            if grad_norm_cpu > max_norm > 0.:
+                self._multiply_factor *= max_norm / grad_norm_cpu
+
+            # detect overflow and adjust loss scale
+            self.scaler.check_overflow(grad_norm_cpu)
+        else:
+            clip_coef = (max_norm / (grad_norm + 1e-6)).clamp_(max=1)
+            self._multiply_factor *= clip_coef
 
         return grad_norm
 
     def step(self, closure=None):
         """Performs a single optimization step."""
-        self._unscale_grads()
-        self.wrapped_optimizer.step(closure)
+        if self.supports_step_with_scale:
+            # NOTE(msb) optimizer divides by scale factor
+            self.wrapped_optimizer.step(closure, scale=(1. / self._multiply_factor))
+        else:
+            self._unscale_grads()
+            self.wrapped_optimizer.step(closure)
+
+        if self.scaler is not None:
+            self.scaler.update()
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
         self.wrapped_optimizer.zero_grad()
-        self._grads_are_scaled = False
+        if self.scaler is not None:
+            self._multiply_factor = 1. / float(self.scaler.loss_scale)
 
 
 class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.FairseqOptimizer):
@@ -437,8 +382,8 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
                 scale_window=scale_window,
                 tolerance=args.fp16_scale_tolerance,
                 threshold=args.threshold_loss_scale,
+                min_loss_scale=args.min_loss_scale
             )
-            self.min_loss_scale = self.args.min_loss_scale
         else:
             # disable loss scaling for bfloat16
             self.scaler = None

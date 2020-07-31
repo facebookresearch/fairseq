@@ -36,13 +36,13 @@ class GRUTransformerEncoder(TransformerEncoder):
 
         # contextualize embeddings
         x = x.transpose(0, 1)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         x, _ = self.emb_ctx.forward(x)
         x = x.transpose(0, 1)
 
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.dropout_module(x)
         return x, embed
 
 

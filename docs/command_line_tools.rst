@@ -17,7 +17,7 @@ Fairseq provides several command-line tools for training and evaluating models:
 
 fairseq-preprocess
 ~~~~~~~~~~~~~~~~~~
-.. automodule:: preprocess
+.. automodule:: fairseq_cli.preprocess
 
     .. argparse::
         :module: fairseq.options
@@ -29,7 +29,7 @@ fairseq-preprocess
 
 fairseq-train
 ~~~~~~~~~~~~~
-.. automodule:: train
+.. automodule:: fairseq_cli.train
 
     .. argparse::
         :module: fairseq.options
@@ -41,7 +41,7 @@ fairseq-train
 
 fairseq-generate
 ~~~~~~~~~~~~~~~~
-.. automodule:: generate
+.. automodule:: fairseq_cli.generate
 
     .. argparse::
         :module: fairseq.options
@@ -53,7 +53,7 @@ fairseq-generate
 
 fairseq-interactive
 ~~~~~~~~~~~~~~~~~~~
-.. automodule:: interactive
+.. automodule:: fairseq_cli.interactive
 
     .. argparse::
         :module: fairseq.options
@@ -65,7 +65,7 @@ fairseq-interactive
 
 fairseq-score
 ~~~~~~~~~~~~~
-.. automodule:: score
+.. automodule:: fairseq_cli.score
 
     .. argparse::
         :module: fairseq_cli.score
@@ -77,7 +77,7 @@ fairseq-score
 
 fairseq-eval-lm
 ~~~~~~~~~~~~~~~
-.. automodule:: eval_lm
+.. automodule:: fairseq_cli.eval_lm
 
     .. argparse::
         :module: fairseq.options

@@ -5,22 +5,18 @@
 
 import torch.nn as nn
 
-from fairseq.models import (
-    register_model,
-    register_model_architecture,
-)
+from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer_lm import (
     base_lm_architecture,
     TransformerLanguageModel,
 )
-from fairseq.model_parallel.models.transformer import (
-    ModelParallelTransformerDecoder,
-)
+from fairseq.model_parallel.models.transformer import ModelParallelTransformerDecoder
 try:
     from fairseq.model_parallel.megatron.mpu import VocabParallelEmbedding
     has_megatron_submodule = True
 except (ImportError, ModuleNotFoundError):
     has_megatron_submodule = False
+
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 

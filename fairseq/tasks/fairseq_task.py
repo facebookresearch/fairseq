@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import warnings
+import os
 
 import torch
 
@@ -77,6 +78,9 @@ class FairseqTask(object):
             args (argparse.Namespace): parsed command-line arguments
         """
         return cls(args, **kwargs)
+
+    def has_sharded_data(self, split):
+        return (os.pathsep in getattr(self.args, 'data', ''))
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
@@ -173,9 +177,8 @@ class FairseqTask(object):
             )
 
         # create mini-batches with given size constraints
-        batch_sampler = data_utils.batch_by_size(
+        batch_sampler = dataset.batch_by_size(
             indices,
-            dataset.num_tokens,
             max_tokens=max_tokens,
             max_sentences=max_sentences,
             required_batch_size_multiple=required_batch_size_multiple,
@@ -229,7 +232,7 @@ class FairseqTask(object):
 
         return criterions.build_criterion(args, self)
 
-    def build_generator(self, models, args):
+    def build_generator(self, models, args, seq_gen_cls=None):
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
 
@@ -293,10 +296,11 @@ class FairseqTask(object):
         else:
             search_strategy = search.BeamSearch(self.target_dictionary)
 
-        if getattr(args, "print_alignment", False):
-            seq_gen_cls = SequenceGeneratorWithAlignment
-        else:
-            seq_gen_cls = SequenceGenerator
+        if seq_gen_cls is None:
+            if getattr(args, "print_alignment", False):
+                seq_gen_cls = SequenceGeneratorWithAlignment
+            else:
+                seq_gen_cls = SequenceGenerator
 
         return seq_gen_cls(
             models,
@@ -339,10 +343,12 @@ class FairseqTask(object):
         """
         model.train()
         model.set_num_updates(update_num)
-        loss, sample_size, logging_output = criterion(model, sample)
+        with torch.autograd.profiler.record_function("forward"):
+            loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
-        optimizer.backward(loss)
+        with torch.autograd.profiler.record_function("backward"):
+            optimizer.backward(loss)
         return loss, sample_size, logging_output
 
     def valid_step(self, sample, model, criterion):

@@ -26,7 +26,10 @@ def collate(
     def merge(key, left_pad, move_eos_to_beginning=False):
         return data_utils.collate_tokens(
             [s[key] for s in samples],
-            pad_idx, eos_idx, left_pad, move_eos_to_beginning,
+            pad_idx,
+            eos_idx=None,  # use eos_idx of each sample instead of vocab.eos()
+            left_pad=left_pad,
+            move_eos_to_beginning=move_eos_to_beginning,
         )
 
     id = torch.LongTensor([s['id'] for s in samples])
@@ -126,11 +129,11 @@ class DenoisingDataset(FairseqDataset):
 
         self.replace_length = args.replace_length
         if not self.replace_length in [-1, 0, 1]:
-            raise (f'invalid arg: replace_length={self.replace_length}')
+            raise ValueError(f'invalid arg: replace_length={self.replace_length}')
         if not args.mask_length in ['subword', 'word', 'span-poisson']:
-            raise (f'invalid arg: mask-length={args.mask_length}')
+            raise ValueError(f'invalid arg: mask-length={args.mask_length}')
         if args.mask_length == 'subword' and not args.replace_length in [0, 1]:
-            raise (f'if using subwords, use replace-length=1 or 0')
+            raise ValueError(f'if using subwords, use replace-length=1 or 0')
 
         self.mask_span_distribution = None
         if args.mask_length == 'span-poisson':
@@ -352,7 +355,7 @@ class DenoisingDataset(FairseqDataset):
         Returns:
             dict: a mini-batch of data
         """
-        return collate(samples, self.vocab.pad(), self.vocab.eos(), self.vocab)
+        return collate(samples, self.vocab.pad(), self.eos, self.vocab)
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to

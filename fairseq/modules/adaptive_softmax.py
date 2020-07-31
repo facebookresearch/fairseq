@@ -9,6 +9,7 @@ import functools
 import torch
 import torch.nn.functional as F
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.fairseq_dropout import FairseqDropout
 from torch import nn
 
 
@@ -55,7 +56,8 @@ class AdaptiveSoftmax(nn.Module):
     approximation for GPUs" (http://arxiv.org/abs/1609.04309).
     """
 
-    def __init__(self, vocab_size, input_dim, cutoff, dropout, factor=4., adaptive_inputs=None, tie_proj=False, q_noise=0, qn_block_size=8):
+    def __init__(self, vocab_size, input_dim, cutoff, dropout, factor=4., adaptive_inputs=None, tie_proj=False,
+                 q_noise=0, qn_block_size=8):
         super().__init__()
 
         if vocab_size > cutoff[-1]:
@@ -68,7 +70,7 @@ class AdaptiveSoftmax(nn.Module):
 
         self.vocab_size = vocab_size
         self.cutoff = cutoff
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
         self.input_dim = input_dim
         self.factor = factor
         self.q_noise = q_noise
@@ -114,7 +116,7 @@ class AdaptiveSoftmax(nn.Module):
 
             m = nn.Sequential(
                 proj,
-                nn.Dropout(self.dropout),
+                nn.Dropout(self.dropout_module.p),
                 quant_noise(out_proj, self.q_noise, self.qn_block_size),
             )
 
@@ -160,7 +162,7 @@ class AdaptiveSoftmax(nn.Module):
         """
 
         input = input.contiguous().view(-1, input.size(-1))
-        input = F.dropout(input, p=self.dropout, training=self.training)
+        input = self.dropout_module(input)
 
         new_target, target_idxs = self.adapt_target(target)
         output = [self.head(input)]

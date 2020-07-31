@@ -42,7 +42,7 @@ class BertDictionary(MaskedLMDictionary):
         cls='<cls>',
         sep='<sep>'
     ):
-        super().__init__(pad=pad, eos=eos, unk=unk)
+        super().__init__(pad=pad, eos=eos, unk=unk, mask=mask)
         self.cls_word = cls
         self.sep_word = sep
         self.cls_index = self.add_symbol(cls)

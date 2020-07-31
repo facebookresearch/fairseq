@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq.modules.scalar_bias import scalar_bias
+from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
 class SingleHeadAttention(nn.Module):
@@ -23,7 +24,7 @@ class SingleHeadAttention(nn.Module):
     ):
         super().__init__()
         self.embed_dim = embed_dim
-        self.dropout = dropout
+        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
         self.head_index = head_index
         self.head_dim = head_dim
         self.project_input = project_input
@@ -134,7 +135,7 @@ class SingleHeadAttention(nn.Module):
                 )
                 attn_weights = attn_weights.view(size, tgt_len, src_len)
         attn_weights = F.softmax(attn_weights, dim=-1)
-        attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
+        attn_weights = self.dropout_module(attn_weights)
 
         attn = torch.bmm(attn_weights, v)
         if self.downsample:
@@ -157,7 +158,6 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
     ):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
-        self.dropout = dropout
         self.head_dim = embed_dim // num_heads
         self.downsample = downsample
         self.gated = gated
@@ -170,7 +170,7 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
                 attention_heads.append(
                     SingleHeadAttention(
                         out_channels, self.embed_dim, self.head_dim, index,
-                        self.dropout, bias, self.project_input, self.gated,
+                        dropout, bias, self.project_input, self.gated,
                         self.downsample, self.num_heads,
                     )
                 )
@@ -181,7 +181,7 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
             # if not being downsampled, we can do the heads with one linear layer instead of separate ones
             super().__init__()
             self.attention_module = SingleHeadAttention(
-                out_channels, self.embed_dim, self.head_dim, 1, self.dropout,
+                out_channels, self.embed_dim, self.head_dim, 1, dropout,
                 bias, self.project_input, self.gated, self.downsample, self.num_heads,
             )
 

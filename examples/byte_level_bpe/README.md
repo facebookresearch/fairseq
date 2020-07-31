@@ -38,10 +38,10 @@ fairseq-train "data/bin_${VOCAB}" --task translation --user-dir examples/byte_le
 # BPE=--bpe bytes
 # BPE=--bpe characters
 BPE=--bpe byte_bpe --sentencepiece-model-path data/spm_bbpe2048.model
-# BPE=--bpe sentencepiece --sentencepiece-vocab data/spm_bpe2048.model
+# BPE=--bpe sentencepiece --sentencepiece-model data/spm_bpe2048.model
 # BPE=--bpe byte_bpe --sentencepiece-model-path data/spm_bbpe4096.model
-# BPE=--bpe sentencepiece --sentencepiece-vocab data/spm_bpe4096.model
-# BPE=--bpe sentencepiece --sentencepiece-vocab data/spm_bpe16384.model
+# BPE=--bpe sentencepiece --sentencepiece-model data/spm_bpe4096.model
+# BPE=--bpe sentencepiece --sentencepiece-model data/spm_bpe16384.model
 ```
 
 ```bash

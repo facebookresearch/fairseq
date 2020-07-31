@@ -81,7 +81,7 @@ class CTCCriterion(FairseqCriterion):
         super().__init__(task)
         self.blank_idx = task.target_dictionary.index("<ctc_blank>")
 
-    @staticmethod
+    @classmethod
     def build_criterion(cls, args, task):
         return cls(task)
 
