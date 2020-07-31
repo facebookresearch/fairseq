@@ -190,7 +190,7 @@ class SequenceGenerator(nn.Module):
         bsz, src_len = src_tokens.size()
         beam_size = self.beam_size
 
-        constraints_active = type(self.search) is LexicallyConstrainedBeamSearch
+        constraints_active = isinstance(self.search, LexicallyConstrainedBeamSearch)
         if constraints_active:
             self.search.init_constraints(sample["constraints"], beam_size)
 
