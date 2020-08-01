@@ -7,9 +7,15 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+from fairseq.file_io import PathManager
 
 
 def main(get_grid, postprocess_hyperparams, args):
+    try:
+        from fvcore.fb.manifold import ManifoldPathHandler
+        PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800, has_user_data=False))
+    except KeyError:
+        print("| ManifoldPathHandler already registered.")
     # compute all possible hyperparameter configurations
     grid = get_grid(args)
     grid_product = list(itertools.product(*[hp.values for hp in grid]))
@@ -109,8 +115,8 @@ def setup_train(args, config):
     # create save directory if it doesn't exist
     if not os.path.exists(save_dir):
         if not dry_run(f'create directory: {save_dir}'):
-            os.makedirs(save_dir)
-            os.chmod(save_dir, 0o777)
+            PathManager.mkdirs(save_dir)
+            PathManager.chmod(save_dir, 0o777)
 
         # copy baseline model
         checkpoint_last = os.path.join(save_dir, 'checkpoint_last.pt')
@@ -151,11 +157,11 @@ def setup_train(args, config):
     # initialize train log
     train_log = os.path.join(log_dir, 'train.log')
     if not dry_run(f'create train.log at: {train_log}'):
-        os.makedirs(log_dir, exist_ok=True)
-        os.chmod(log_dir, 0o777)
-        with open(train_log, 'a') as train_log_h:
+        PathManager.mkdirs(log_dir)
+        PathManager.chmod(log_dir, 0o777)
+        with PathManager.open(train_log, 'a') as train_log_h:
             train_log_h.write('')
-        os.chmod(train_log, 0o777)
+        PathManager.chmod(train_log, 0o777)
 
     return {
         'cmd_args': cmd_args,

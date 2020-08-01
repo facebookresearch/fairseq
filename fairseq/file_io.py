@@ -96,6 +96,11 @@ class PathManager:
         os.remove(path)
 
     @staticmethod
+    def chmod(path: str, mode: int) -> None:
+        if "manifold" not in path:
+            os.chmod(path, mode)
+
+    @staticmethod
     def register_handler(handler) -> None:
         if FVCorePathManager:
             return FVCorePathManager.register_handler(handler=handler)

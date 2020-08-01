@@ -70,7 +70,11 @@ def fb_main(
     # https://fburl.com/wurd7t70. So if parameters need to be updated the right place
     # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
     try:
-        PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
+        PathManager.register_handler(ManifoldPathHandler(
+            max_parallel=16, timeout_sec=1800,
+            # fairseq checkpoints and logs do not contain user data
+            has_user_data=False,
+            ))
     except KeyError:
         logging.warning("ManifoldPathHandler already registered.")
 
