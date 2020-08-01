@@ -4,6 +4,10 @@ import os
 import socket
 
 
+def csv_str_list(x):
+    return [y.strip() for y in x.split(',')]
+
+
 def get_args(add_extra_options_func=None):
     parser = argparse.ArgumentParser('Script for launching hyperparameter sweeps ')
     parser.add_argument('--grid', help='grid function we used', default=None)
@@ -53,6 +57,11 @@ def get_args(add_extra_options_func=None):
     # FBLearner params
     parser.add_argument('--entitlement', help='entitlement to use', default='gpu_fair')
     parser.add_argument('--run-as-secure-group', help='secure group to use', default='oncall_fairseq')
+    parser.add_argument(
+        '--capabilities',
+        help='capabilities: e.g. GPU_V100_HOST,GPU_V100_32G_HOST',
+        type=csv_str_list,
+        default=None)
 
     # Chronos params
     parser.add_argument('--hostgroup', help='hostgroup to use')

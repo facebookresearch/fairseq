@@ -52,6 +52,8 @@ def main(get_grid, postprocess_hyperparams, args):
             ),
             "sweep_config": sweep_config,
             "gang_affinity": False,
+            "capabilities": getattr(args, "capabilities", None),
+            "memory": int(args.mem) if args.mem is not None else None,
         }
         h.write(json.dumps(config))
         h.flush()
@@ -133,7 +135,8 @@ def setup_train(args, config):
     #        print(f'skip failed run (override with --resume-failed): {save_dir}')
     #        return
     #elif has_started(save_dir):
-    if has_started(log_dir):
+    if has_started(log_dir) and not (args.resume_finished or args.resume_failed):
+        # if not resume previous runs explicitly, take it as started
         print(f'skip in progress run: {log_dir}')
         return
 
