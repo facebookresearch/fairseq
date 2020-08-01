@@ -117,6 +117,7 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
                 return
         else:
             shard_epoch = None
+        logger.info(f'loading data for {split} epoch={epoch}/{shard_epoch}')
         self.datasets[split] = self.data_manager.load_sampled_multi_epoch_dataset(
             split,
             self.training,

@@ -11,7 +11,7 @@ import numpy as np
 from collections import OrderedDict
 
 import json
-from fairseq import options
+from fairseq import options, utils
 from fairseq.options import eval_str_dict, csv_str_list
 
 from fairseq.data import (
@@ -174,7 +174,7 @@ class MultilingualDatasetManager(object):
         return langs
 
     def has_sharded_data(self, split):
-        return split == 'train' and self._has_sharded_data
+        return self._has_sharded_data and split == getattr(self.args, "train_subset", None)
 
     def _shared_collater(self):
         return (
@@ -426,7 +426,7 @@ class MultilingualDatasetManager(object):
             or src_dataset == 'NotInCache'
             or tgt_dataset == 'NotInCache'
             or align_dataset == 'NotInCache'
-            or split != 'train'
+            or split != getattr(self.args, "train_subset", None)
         ):
             # source and target datasets can be reused in reversed directions to save memory
             # reversed directions of valid and test data will not share source and target datasets
@@ -597,7 +597,7 @@ class MultilingualDatasetManager(object):
         lang_pairs = {
             'main': self.lang_pairs
         }
-        if split == 'train':
+        if split == getattr(self.args, "train_subset", None):
             # only training data can have extra data and extra language pairs
             if self.args.extra_data:
                 extra_datapaths = self.args.extra_data
@@ -617,8 +617,7 @@ class MultilingualDatasetManager(object):
         for data_category, paths in data_paths.items():
             if data_category not in lang_pairs:
                 continue
-            # paths = self.args.data.split(os.pathsep)
-            paths = paths.split(os.pathsep)
+            paths = utils.split_paths(paths)
             assert len(paths) > 0
             if len(paths) > 1:
                 self._has_sharded_data = True
@@ -746,7 +745,7 @@ class MultilingualDatasetManager(object):
                 split, training,
                 epoch, combine, shard_epoch=shard_epoch, **kwargs
          )
-        if training and split == 'train':
+        if training and split == getattr(self.args, "train_subset", None):
             return self.load_into_sampled_multi_epoch_dataset(
                 split, datasets, data_param_list, epoch, shard_epoch=shard_epoch)
         else:
