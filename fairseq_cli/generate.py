@@ -266,7 +266,10 @@ def _main(args, output_file):
                 logger.warning("BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization")
             else:
                 logger.warning("If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --sacrebleu for standard 13a BLEU tokenization")
-        logger.info('Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
+        # use print to be consistent with other main outputs: S-, H-, T-, D- and so on
+        print(
+            'Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()),
+            file=output_file)
 
     return scorer
 
