@@ -63,6 +63,8 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
                             help='inference target language')
         parser.add_argument('--lang-pairs', default=None, metavar='PAIRS',
                             help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr')
+        parser.add_argument('--keep-inference-langtok', action='store_true',
+                            help='keep language tokens in inference output (e.g. for analysis or debugging)')
 
         SamplingMethod.add_arguments(parser)
         MultilingualDatasetManager.add_args(parser)
@@ -146,6 +148,23 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
                 spec=src_langtok_spec,
                 )
         return dataset
+
+    def build_generator(
+        self, models, args,
+        seq_gen_cls=None, extra_gen_cls_kwargs=None,
+    ):
+        if not getattr(args, 'keep_inference_langtok', False):
+            _, tgt_langtok_spec = self.args.langtoks['main']
+            if tgt_langtok_spec:
+                tgt_lang_tok = self.data_manager.get_decoder_langtok(self.args.target_lang, tgt_langtok_spec)
+                extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
+                extra_gen_cls_kwargs['symbols_to_strip_from_output'] = {tgt_lang_tok}
+
+        return super().build_generator(
+            models, args,
+            seq_gen_cls=None,
+            extra_gen_cls_kwargs=extra_gen_cls_kwargs
+        )
 
     def build_model(self, args):
         return super().build_model(args)

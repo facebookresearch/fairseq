@@ -232,7 +232,10 @@ class FairseqTask(object):
 
         return criterions.build_criterion(args, self)
 
-    def build_generator(self, models, args, seq_gen_cls=None):
+    def build_generator(
+        self, models, args,
+        seq_gen_cls=None, extra_gen_cls_kwargs=None
+    ):
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
 
@@ -301,7 +304,7 @@ class FairseqTask(object):
                 seq_gen_cls = SequenceGeneratorWithAlignment
             else:
                 seq_gen_cls = SequenceGenerator
-
+        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
         return seq_gen_cls(
             models,
             self.target_dictionary,
@@ -316,6 +319,7 @@ class FairseqTask(object):
             match_source_len=getattr(args, "match_source_len", False),
             no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
             search_strategy=search_strategy,
+            **extra_gen_cls_kwargs,
         )
 
     def train_step(
