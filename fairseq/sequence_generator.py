@@ -96,6 +96,9 @@ class SequenceGenerator(nn.Module):
         # settings when the model is shared.
         self.should_set_src_lengths = hasattr(self.search, 'needs_src_lengths') and self.search.needs_src_lengths
 
+        # Constrained decoding is enabled
+        self.constraints_active = hasattr(self.search, "constraint_states")
+
         self.model.eval()
 
     def cuda(self):
@@ -190,8 +193,7 @@ class SequenceGenerator(nn.Module):
         bsz, src_len = src_tokens.size()
         beam_size = self.beam_size
 
-        constraints_active = isinstance(self.search, LexicallyConstrainedBeamSearch)
-        if constraints_active:
+        if self.constraints_active:
             self.search.init_constraints(sample["constraints"], beam_size)
 
         max_len: int = -1
@@ -387,7 +389,7 @@ class SequenceGenerator(nn.Module):
                 ] = torch.tensor(0).to(batch_mask)
                 batch_idxs = batch_mask.nonzero().squeeze(-1)
 
-                if constraints_active:
+                if self.constraints_active:
                     # Choose the subset of the hypothesized constraints that will continue
                     self.search.prune_sentences(batch_idxs)
 
@@ -468,7 +470,7 @@ class SequenceGenerator(nn.Module):
             )
 
             # Update constraints based on which candidates were selected for the next beam
-            if constraints_active:
+            if self.constraints_active:
                 # Choose the subset of the hypothesized constraints that will continue
                 self.search.update_constraints(active_hypos)
 
