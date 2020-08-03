@@ -97,7 +97,7 @@ class SequenceGenerator(nn.Module):
         self.should_set_src_lengths = hasattr(self.search, 'needs_src_lengths') and self.search.needs_src_lengths
 
         # Constrained decoding is enabled
-        self.constraints_active = hasattr(self.search, "constraint_states")
+        self.constraints_active = hasattr(self.search, "constraints_active") and self.search.constraints_active
 
         self.model.eval()
 

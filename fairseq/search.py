@@ -94,6 +94,7 @@ class LexicallyConstrainedBeamSearch(Search):
 
     def __init__(self, tgt_dict, representation):
         super().__init__(tgt_dict)
+        self.constraints_active = True
         self.constraint_states = None
         self.representation = representation
         self.vocab_size = len(tgt_dict)
