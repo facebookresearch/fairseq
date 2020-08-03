@@ -96,8 +96,10 @@ class SequenceGenerator(nn.Module):
         # settings when the model is shared.
         self.should_set_src_lengths = hasattr(self.search, 'needs_src_lengths') and self.search.needs_src_lengths
 
-        # Constrained decoding is enabled
+        # We only need to manage constraint states in
+        # LexicallyConstrainedBeamSearch.
         self.constraints_active = hasattr(self.search, "constraints_active") and self.search.constraints_active
+        print("CONSTRAINTS ACTIVE FOR", self.search, "IS", self.constraints_active)
 
         self.model.eval()
 

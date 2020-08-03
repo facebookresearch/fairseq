@@ -92,7 +92,7 @@ def make_batches(lines, args, task, max_positions, encode_fn):
         constraints = batch.get("constraints", None)
 
         # Double the batch, decoding both with and without the constraints
-        if args.constraints_both:
+        if args.constraints and args.constraints_both:
             ids = ids.repeat(2)
             src_tokens = src_tokens.repeat(2, 1)
             src_lengths = src_lengths.repeat(2, 1)
