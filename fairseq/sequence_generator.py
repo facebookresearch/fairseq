@@ -122,7 +122,7 @@ class SequenceGenerator(nn.Module):
             bos_token (int, optional): beginning of sentence token
                 (default: self.eos)
         """
-        return self._generate(sample, prefix_tokens, bos_token)
+        return self._generate(sample, prefix_tokens, bos_token=bos_token)
 
     # TODO(myleott): unused, deprecate after pytorch-translate migration
     def generate_batched_itr(self, data_itr, beam_size=None, cuda=False, timer=None):
