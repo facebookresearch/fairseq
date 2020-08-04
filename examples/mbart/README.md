@@ -72,7 +72,6 @@ fairseq-train path_2_data \
   --task translation_from_pretrained_bart \
   --source-lang en_XX --target-lang ro_RO \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.2 \
-  --dataset-impl mmap \
   --optimizer adam --adam-eps 1e-06 --adam-betas '(0.9, 0.98)' \
   --lr-scheduler polynomial_decay --lr 3e-05 --min-lr -1 --warmup-updates 2500 --total-num-update 40000 \
   --dropout 0.3 --attention-dropout 0.1 --weight-decay 0.0 \
