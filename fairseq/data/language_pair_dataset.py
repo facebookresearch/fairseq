@@ -264,7 +264,7 @@ class LanguagePairDataset(FairseqDataset):
                 tgt_item = torch.cat([torch.LongTensor([bos]), self.tgt[index]])
 
             bos = self.src_dict.bos()
-            if self.src[index][-1] != bos:
+            if self.src[index][0] != bos:
                 src_item = torch.cat([torch.LongTensor([bos]), self.src[index]])
 
         if self.remove_eos_from_source:
