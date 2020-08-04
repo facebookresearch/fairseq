@@ -9,7 +9,7 @@ from typing import Callable, List, Optional
 
 import torch
 
-from fairseq import utils
+from fairseq import scoring, utils
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 
 
@@ -361,6 +361,10 @@ def add_dataset_args(parser, train=False, gen=False):
                                 ' (e.g. train, valid, test)')
         group.add_argument('--validate-interval', type=int, default=1, metavar='N',
                            help='validate every N epochs')
+        group.add_argument('--validate-interval-updates', type=int, default=0, metavar='N',
+                           help='validate every N updates')
+        group.add_argument('--validate-after-updates', type=int, default=0, metavar='N',
+                           help='dont validate until reaching this many updates')
         group.add_argument('--fixed-validation-seed', default=None, type=int, metavar='N',
                            help='specified random seed for validation')
         group.add_argument('--disable-validation', action='store_true',
@@ -529,7 +533,7 @@ def add_common_eval_args(group):
     # fmt: off
     group.add_argument('--path', metavar='FILE',
                        help='path(s) to model file(s), colon separated')
-    group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
+    group.add_argument('--remove-bpe', '--post-process', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring (can be set to sentencepiece)')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')

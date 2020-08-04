@@ -38,6 +38,7 @@ We provide reference implementations of various sequence modeling papers:
   - [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
   - [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
   - [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
+  - [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2019)](examples/wav2vec/README.md)
 - **Non-autoregressive Transformers**
   - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -49,6 +50,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+- August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
 - May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
 - April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
 - April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
@@ -142,6 +144,7 @@ We also have more detailed READMEs to reproduce results from specific papers:
 - [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
 - [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
 - [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
+- [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2019)](examples/wav2vec/README.md)
 - [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
 - [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
 - [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)

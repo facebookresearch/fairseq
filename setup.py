@@ -136,6 +136,7 @@ setup(
     install_requires=[
         'cffi',
         'cython',
+        'editdistance',
         'numpy',
         'regex',
         'sacrebleu',
