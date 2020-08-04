@@ -156,7 +156,7 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         return loss, sample_size, logging_output
 
-    def inference_step(self, generator, models, sample, prefix_tokens=None):
+    def inference_step(self, generator, models, sample, prefix_tokens=None, constraints=None):
         with torch.no_grad():
             _, tgt_langtok_spec = self.args.langtoks['main']
             if not self.args.lang_tok_replacing_bos_eos:
@@ -171,6 +171,7 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
                         models,
                         sample,
                         prefix_tokens=prefix_tokens,
+                        constraints=constraints,
                 )
             else:
                 return generator.generate(

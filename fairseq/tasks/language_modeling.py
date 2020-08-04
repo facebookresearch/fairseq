@@ -258,13 +258,16 @@ class LanguageModelingTask(FairseqTask):
             sizes=[np.array(src_lengths)],
         )
 
-    def inference_step(self, generator, models, sample, prefix_tokens=None):
+    def inference_step(self, generator, models, sample, prefix_tokens=None, constraints=None):
         with torch.no_grad():
             # Generation will always be conditioned on bos_token
             if getattr(self.args, "add_bos_token", False):
                 bos_token = self.source_dictionary.bos()
             else:
                 bos_token = self.source_dictionary.eos()
+
+            if constraints is not None:
+                raise NotImplementedError("Constrained decoding with the language_modeling task is not supported")
 
             # SequenceGenerator doesn't use src_tokens directly, we need to
             # pass the `prefix_tokens` argument instead

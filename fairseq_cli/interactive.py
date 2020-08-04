@@ -219,7 +219,8 @@ def main(args):
             if use_cuda:
                 src_tokens = src_tokens.cuda()
                 src_lengths = src_lengths.cuda()
-                constraints = constraints.cuda()
+                if constraints is not None:
+                    constraints = constraints.cuda()
 
             sample = {
                 'net_input': {
