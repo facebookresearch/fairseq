@@ -126,6 +126,8 @@ def load_checkpoint(args, trainer, **passthrough_args):
     suffix = getattr(args, "checkpoint_suffix", "")
     if args.restore_file == "checkpoint_last.pt":
         checkpoint_path = os.path.join(args.save_dir, "checkpoint_last{}.pt".format(suffix))
+    elif getattr(args, "model_parallel_size", 1) > 1:
+        checkpoint_path = args.restore_file.replace(".pt", suffix + ".pt")
     else:
         checkpoint_path = args.restore_file
 

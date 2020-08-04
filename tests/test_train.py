@@ -57,6 +57,7 @@ class TestLoadCheckpoint(unittest.TestCase):
         self.args_mock.reset_dataloader = False
         self.args_mock.reset_meters = False
         self.args_mock.reset_optimizer = False
+        self.args_mock.model_parallel_size = 1
         self.patches = {
             'os.makedirs': MagicMock(),
             'os.path.join': MagicMock(),
