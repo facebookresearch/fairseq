@@ -21,7 +21,7 @@ import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import encoders
-from fairseq.constraints import extract_constraints
+from fairseq.constraints import extract_constraints, unpack_constraints
 from .generate import get_symbols_to_strip_from_output
 
 logging.basicConfig(
@@ -66,20 +66,34 @@ def make_batches(lines, args, task, max_positions, encode_fn):
     ]
 
     if args.constraints:
-        batch_constraints = [
-            [ list(map(int, task.target_dictionary.encode_line(
-                encode_fn_target(constraint),
-                append_eos=False,
-                add_if_not_exist=False,
-            ))) for constraint in sentence_constraints]
-            for sentence_constraints in batch_constraints
-        ]
+        # The maximum word length of concatenated constraints for any sentence
+        max_constraints_len = 0
+        for sentence_constraints in batch_constraints:
+            constraints_len = 0
+            if any(sentence_constraints):
+                # sum of constrain lens, plus a zero after each
+                constraints_len = sum([len(c.split()) for c in sentence_constraints]) + len(sentence_constraints)
+                max_constraints_len = max(max_constraints_len, constraints_len)
+
+        constraints_tensor = torch.zeros((len(lines), max_constraints_len)).long()
+        for i, sentence_constraints in enumerate(batch_constraints):
+            offset = 0
+            for j, constraint in enumerate(sentence_constraints):
+                this_len = len(constraint.split())
+                this_constraint = task.target_dictionary.encode_line(
+                    encode_fn_target(constraint),
+                    append_eos=False,
+                    add_if_not_exist=False,
+                )
+                constraints_tensor[i, offset:offset+this_len] = this_constraint
+                offset += this_len + 1
+        constraints_tensor = constraints_tensor.long()
     else:
-        batch_constraints = None
+        constraints_tensor = None
 
     lengths = [t.numel() for t in tokens]
     itr = task.get_batch_iterator(
-        dataset=task.build_dataset_for_inference(tokens, lengths, constraints=batch_constraints),
+        dataset=task.build_dataset_for_inference(tokens, lengths, constraints=constraints_tensor),
         max_tokens=args.max_tokens,
         max_sentences=args.max_sentences,
         max_positions=max_positions,
@@ -96,7 +110,9 @@ def make_batches(lines, args, task, max_positions, encode_fn):
             ids = ids.repeat(2)
             src_tokens = src_tokens.repeat(2, 1)
             src_lengths = src_lengths.repeat(2, 1)
-            constraints.append([])
+            doubled_constraints = torch.zeros_like(constraints).repeat((2,1)).long()
+            doubled_constraints[0] = constraints
+            constraints = doubled_constraints
 
         yield Batch(
             ids=ids,
@@ -196,11 +212,14 @@ def main(args):
     for inputs in buffered_read(args.input, args.buffer_size):
         results = []
         for batch in make_batches(inputs, args, task, max_positions, encode_fn):
+            bsz = batch.src_tokens.size(0)
             src_tokens = batch.src_tokens
             src_lengths = batch.src_lengths
+            constraints = batch.constraints
             if use_cuda:
                 src_tokens = src_tokens.cuda()
                 src_lengths = src_lengths.cuda()
+                constraints = constraints.cuda()
 
             sample = {
                 'net_input': {
@@ -208,28 +227,29 @@ def main(args):
                     'src_lengths': src_lengths,
                 },
             }
-            if batch.constraints:
-                sample["constraints"] = batch.constraints
             translate_start_time = time.time()
-            translations = task.inference_step(generator, models, sample)
+            translations = task.inference_step(generator, models, sample, constraints=constraints)
             translate_time = time.time() - translate_start_time
             total_translate_time += translate_time
+            list_constraints = [[] for _ in range(bsz)]
+            if args.constraints:
+                list_constraints = [unpack_constraints(c) for c in constraints]
             for i, (id, hypos) in enumerate(zip(batch.ids.tolist(), translations)):
                 src_tokens_i = utils.strip_pad(src_tokens[i], tgt_dict.pad())
-                constraints = sample["constraints"][i] if args.constraints else []
+                constraints = list_constraints[i]
                 results.append((start_id + id, src_tokens_i, hypos,
                                 { "constraints": constraints,
                                   "time": translate_time / len(translations) }
                             ))
 
         # sort output to match input order
-        for id, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
+        for id_, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
             if src_dict is not None:
                 src_str = src_dict.string(src_tokens, args.remove_bpe)
                 print('S-{}\t{}'.format(id, src_str))
                 print("W-{}\t{:.3f}\tseconds".format(id, info["time"]))
                 for constraint in info["constraints"]:
-                    print("C-{}\t{}".format(id, tgt_dict.string(torch.tensor(constraint), args.remove_bpe)))
+                    print("C-{}\t{}".format(id_, tgt_dict.string(constraint, args.remove_bpe)))
 
             # Process top predictions
             for hypo in hypos[:min(len(hypos), args.nbest)]:

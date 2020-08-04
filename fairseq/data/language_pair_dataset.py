@@ -135,8 +135,12 @@ def collate(
             batch['align_weights'] = align_weights
 
     if samples[0].get("constraints", None) is not None:
-        constraints = [sample["constraints"] for sample in samples]
-        batch["constraints"] = [constraints[x] for x in sort_order]
+        lens = [sample.get("constraints").size(0) for sample in samples]
+        max_len = max(lens)
+        constraints = torch.zeros((len(samples), max(lens))).long()
+        for i, sample in enumerate(samples):
+            constraints[i, 0:lens[i]] = samples[i].get("constraints")
+        batch["constraints"] = constraints
 
     return batch
 
@@ -166,7 +170,8 @@ class LanguagePairDataset(FairseqDataset):
             target if it's absent (default: False).
         align_dataset (torch.utils.data.Dataset, optional): dataset
             containing alignments.
-        constraints (List[List[str]], optional): list of lists of constraints.
+        constraints (Tensor, optional): 2d tensor with a concatenated, zero-
+            delimited list of constraints for each sentence.
         append_bos (bool, optional): if set, appends bos to the beginning of
             source/target sentence.
         num_buckets (int, optional): if set to a value greater than 0, then

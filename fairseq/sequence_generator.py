@@ -5,7 +5,7 @@
 
 import logging
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -99,7 +99,6 @@ class SequenceGenerator(nn.Module):
         # We only need to manage constraint states in
         # LexicallyConstrainedBeamSearch.
         self.constraints_active = hasattr(self.search, "constraints_active") and self.search.constraints_active
-        print("CONSTRAINTS ACTIVE FOR", self.search, "IS", self.constraints_active)
 
         self.model.eval()
 
@@ -167,6 +166,8 @@ class SequenceGenerator(nn.Module):
             sample (dict): batch
             prefix_tokens (torch.LongTensor, optional): force decoder to begin
                 with these tokens
+            constraints (torch.LongTensor, optional): force decoder to include
+                the list of constraints
             bos_token (int, optional): beginning of sentence token
                 (default: self.eos)
         """
@@ -176,6 +177,7 @@ class SequenceGenerator(nn.Module):
         self,
         sample: Dict[str, Dict[str, Tensor]],
         prefix_tokens: Optional[Tensor] = None,
+        constraints: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
         incremental_states = torch.jit.annotate(
@@ -196,7 +198,7 @@ class SequenceGenerator(nn.Module):
         beam_size = self.beam_size
 
         if self.constraints_active:
-            self.search.init_constraints(sample["constraints"], beam_size)
+            self.search.init_constraints(constraints, beam_size)
 
         max_len: int = -1
         if self.match_source_len:

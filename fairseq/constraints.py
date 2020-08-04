@@ -29,6 +29,7 @@ that many times in the output.
 
 from collections import Counter
 from typing import Tuple, List, Optional, Set
+from torch import Tensor
 
 CONSTRAINT_SEP = "\t"
 
@@ -56,6 +57,21 @@ def extract_constraints(lines: List[str]) -> Tuple[List[str], List[List[str]]]:
         new_lines.append(new_line)
         constraint_sets.append(constraints)
     return new_lines, constraint_sets
+
+
+def unpack_constraints(constraint_tensor: Tensor) -> List[List[int]]:
+    """
+    Transforms a 1d packed constraint tensor into a list of integer constraints.
+    """
+    constraint_list = []
+    constraints = constraint_tensor.tolist()
+    if any(constraints):
+        while 0 in constraints:
+            where = constraints.index(0)
+            constraint_list.append(constraints[0:where])
+            constraints = constraints[where+1:]
+
+    return constraint_list
 
 
 class ConstraintNode:
@@ -177,8 +193,9 @@ class UnorderedConstraintState:
             self.generated[node] += 1
 
     @staticmethod
-    def create(constraints: List[List[int]]):
-        constraint_trie_root = ConstraintNode.create(constraints)
+    def create(constraint_tensor: Tensor):
+        constraint_list = unpack_constraints(constraint_tensor)
+        constraint_trie_root = ConstraintNode.create(constraint_list)
         return UnorderedConstraintState(constraint_trie_root)
 
     def __str__(self):
@@ -344,8 +361,9 @@ class OrderedConstraintState:
         self.state = state
 
     @staticmethod
-    def create(constraints: List[List[int]]):
-        return OrderedConstraintState(ConstraintSequence(constraints), -1)
+    def create(constraint_tensor: Tensor):
+        constraint_list = unpack_constraints(constraint_tensor)
+        return OrderedConstraintState(ConstraintSequence(constraint_list), -1)
 
     def __str__(self):
         return f"{self.state}/{self.bank}x{self.num_completed}"

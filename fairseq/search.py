@@ -21,6 +21,9 @@ class Search(nn.Module):
         self.eos = tgt_dict.eos()
         self.vocab_size = len(tgt_dict)
         self.src_lengths = torch.tensor(-1)
+        # this test in SequenceGenerator._generate() fails if this isn't here:
+        # self.constraints_active = hasattr(self.search, "constraints_active") and self.search.constraints_active
+        self.constraints_active = False
 
     def step(self, step, lprobs, scores):
         """Take a single search step.
@@ -47,6 +50,25 @@ class Search(nn.Module):
     @torch.jit.export
     def set_src_lengths(self, src_lengths):
         self.src_lengths = src_lengths
+
+    @torch.jit.export
+    def init_constraints(self, batch_constraints: Optional[Tensor], beam_size: int):
+        """
+        Used only in LexicallyConstrainedBeamSearch, but needs to exist here to pass torchscript tests.
+        """
+        raise NotImplementedError
+
+    def prune_sentences(self, batch_idxs):
+        """
+        Used only in LexicallyConstrainedBeamSearch, but needs to exist here to pass torchscript tests.
+        """
+        raise NotImplementedError
+
+    def update_constraints(self, active_hypos):
+        """
+        Used only in LexicallyConstrainedBeamSearch, but needs to exist here to pass torchscript tests.
+        """
+        raise NotImplementedError
 
 
 class BeamSearch(Search):
@@ -101,24 +123,22 @@ class LexicallyConstrainedBeamSearch(Search):
         self.num_cands = 0
 
     @torch.jit.export
-    def init_constraints(self, batch_constraints: Optional[List[List[List[int]]]], beam_size: int):
+    def init_constraints(self, batch_constraints: Optional[Tensor], beam_size: int):
         """
         For each sentence in the batch, creates a ConstraintState item for each item in the beam.
 
-        :param constraints: For each sentence in the batch, a list of constraints (each a list of tokens).
+        :param batch_constraints: For each sentence in the batch, a concatenated list of constraints,
+           each ending with 0.
         :param beam_size: The beam size.
         """
-        if not batch_constraints or len(batch_constraints) == 0:
-            self.constraint_states = None
-        else:
-            self.constraint_states = []
-            for constraint_list in batch_constraints:
-                if self.representation == "ordered":
-                    constraint_state = OrderedConstraintState.create(constraint_list)
-                elif self.representation == "unordered":
-                    constraint_state = UnorderedConstraintState.create(constraint_list)
+        self.constraint_states = []
+        for constraint_tensor in batch_constraints:
+            if self.representation == "ordered":
+                constraint_state = OrderedConstraintState.create(constraint_tensor)
+            elif self.representation == "unordered":
+                constraint_state = UnorderedConstraintState.create(constraint_tensor)
 
-                self.constraint_states.append([constraint_state for i in range(beam_size)])
+            self.constraint_states.append([constraint_state for i in range(beam_size)])
 
     @torch.jit.export
     def prune_sentences(self, batch_idxs):
@@ -207,6 +227,7 @@ class LexicallyConstrainedBeamSearch(Search):
         indices_buf = indices_buf.fmod(vocab_size)
 
         # Short circuit if there are no constraints in this batch
+        print(step, "search CONSTRAINT STATES", len(constraint_states), constraint_states)
         if not constraint_states:
             return scores_buf, indices_buf, beams_buf
 
