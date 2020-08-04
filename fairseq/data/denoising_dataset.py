@@ -128,11 +128,11 @@ class DenoisingDataset(FairseqDataset):
             self.full_stop_index = self.vocab.index('13')
 
         self.replace_length = args.replace_length
-        if not self.replace_length in [-1, 0, 1]:
+        if self.replace_length not in [-1, 0, 1]:
             raise ValueError(f'invalid arg: replace_length={self.replace_length}')
-        if not args.mask_length in ['subword', 'word', 'span-poisson']:
+        if args.mask_length not in ['subword', 'word', 'span-poisson']:
             raise ValueError(f'invalid arg: mask-length={args.mask_length}')
-        if args.mask_length == 'subword' and not args.replace_length in [0, 1]:
+        if args.mask_length == 'subword' and args.replace_length not in [0, 1]:
             raise ValueError(f'if using subwords, use replace-length=1 or 0')
 
         self.mask_span_distribution = None
