@@ -227,8 +227,6 @@ class LexicallyConstrainedBeamSearch(Search):
         indices_buf = indices_buf.fmod(vocab_size)
 
         # Short circuit if there are no constraints in this batch
-        # MJP: is only size 1 if doubled and constraint is first!
-        print(step, "search CONSTRAINT STATES", len(constraint_states), constraint_states)
         if not constraint_states:
             return scores_buf, indices_buf, beams_buf
 
