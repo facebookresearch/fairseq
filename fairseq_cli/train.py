@@ -252,10 +252,12 @@ def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoc
         args.save_interval_updates > 0
         and num_updates > 0
         and num_updates % args.save_interval_updates == 0
+        and num_updates >= args.validate_after_updates
     ) or (end_of_epoch and epoch_itr.epoch % args.save_interval == 0)
     do_validate = (
         (not end_of_epoch and do_save)  # validate during mid-epoch saves
         or (end_of_epoch and epoch_itr.epoch % args.validate_interval == 0)
+        or (args.validate_interval_updates > 0 and num_updates % args.validate_interval_updates == 0)
     ) and not args.disable_validation
 
     # Validate

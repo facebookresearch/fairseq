@@ -20,7 +20,7 @@ import torch
 from torch import nn
 import tqdm
 
-from fairseq.models.wav2vec import Wav2VecModel
+from fairseq.models.wav2vec.wav2vec import Wav2VecModel
 
 
 def read_audio(fname):

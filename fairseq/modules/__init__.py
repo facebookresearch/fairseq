@@ -25,10 +25,12 @@ from .lightweight_convolution import LightweightConv, LightweightConv1dTBC
 from .linearized_convolution import LinearizedConvolution
 from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
+from .same_pad import SamePad
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 from .transformer_sentence_encoder_layer import TransformerSentenceEncoderLayer
 from .transformer_sentence_encoder import TransformerSentenceEncoder
+from .transpose_last import TransposeLast
 from .unfold import unfold1d
 from .transformer_layer import TransformerDecoderLayer, TransformerEncoderLayer
 from .vggblock import VGGBlock
@@ -60,12 +62,14 @@ __all__ = [
     'LinearizedConvolution',
     'MultiheadAttention',
     'PositionalEmbedding',
+    'SamePad',
     'ScalarBias',
     'SinusoidalPositionalEmbedding',
     'TransformerSentenceEncoderLayer',
     'TransformerSentenceEncoder',
     'TransformerDecoderLayer',
     'TransformerEncoderLayer',
+    'TransposeLast',
     'VGGBlock',
     'unfold1d',
 ]

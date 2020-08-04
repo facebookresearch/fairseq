@@ -8,12 +8,12 @@ import math
 import torch
 import torch.nn.functional as F
 
-from fairseq import utils
+from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
 
-@register_criterion('binary_cross_entropy')
-class BinaryCrossEntropyCriterion(FairseqCriterion):
+@register_criterion('wav2vec')
+class Wav2vecCriterion(FairseqCriterion):
 
     def __init__(self, task, infonce=False, loss_weights=None, log_keys=None):
         super().__init__(task)
@@ -60,7 +60,8 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         sample_size = target.numel() if self.infonce else target.long().sum().item()
         losses.append(loss)
 
-        if self.loss_weights is not None and hasattr(model, "get_extra_losses"):
+        if self.loss_weights is not None:
+            assert hasattr(model, "get_extra_losses")
             extra_losses = model.get_extra_losses(net_output)
             if torch.is_tensor(extra_losses):
                 extra_losses = [extra_losses]
@@ -76,7 +77,7 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         logging_output = {
             'loss': loss.item() if reduce else loss,
             'ntokens': sample_size,
-            'nsentences': logits.size(0),
+            'nsentences': sample['id'].numel(),
             'sample_size': sample_size,
         }
 
@@ -110,25 +111,31 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
         return loss, sample_size, logging_output
 
     @staticmethod
-    def aggregate_logging_outputs(logging_outputs):
+    def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
         loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
         ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
         nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
         sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
-        agg_output = {
-            'loss': loss_sum / sample_size / math.log(2),
-            'ntokens': ntokens,
-            'nsentences': nsentences,
-            'sample_size': sample_size,
-        }
-        if sample_size != ntokens:
-            agg_output['nll_loss'] = loss_sum / ntokens / math.log(2)
+
+        metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_scalar('ntokens', ntokens)
+        metrics.log_scalar('nsentences', nsentences)
 
         correct = sum(log.get("correct", 0) for log in logging_outputs)
+        metrics.log_scalar("_correct", correct)
+
         total = sum(log.get("count", 0) for log in logging_outputs)
+        metrics.log_scalar("_total", total)
+
+
         if total > 0:
-            agg_output['accuracy'] = correct / total
+            metrics.log_derived(
+                "accuracy",
+                lambda meters: round(meters["_correct"].sum / meters["_total"].sum, 5)
+                if meters["_total"].sum > 0
+                else float("nan"),
+            )
 
         builtin_keys = {'loss', 'ntokens', 'nsentences', 'sample_size', 'correct', 'count'}
 
@@ -136,7 +143,15 @@ class BinaryCrossEntropyCriterion(FairseqCriterion):
             if k not in builtin_keys:
                 val = sum(log.get(k, 0) for log in logging_outputs) / len(logging_outputs)
                 if k.startswith('loss'):
-                    val = val / ntokens if ntokens > 0 else float('nan')
-                agg_output[k] = val
+                    metrics.log_scalar(k, val / sample_size / math.log(2), sample_size)
+                else:
+                    metrics.log_scalar(k, val, round=3)
 
-        return agg_output
+    @staticmethod
+    def logging_outputs_can_be_summed() -> bool:
+        """
+        Whether the logging outputs returned by `forward` can be summed
+        across workers prior to calling `reduce_metrics`. Setting this
+        to True will improves distributed training speed.
+        """
+        return False

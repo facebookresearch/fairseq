@@ -17,6 +17,7 @@ from fairseq.modules import (
     Fp32LayerNorm,
     GumbelVectorQuantizer,
     KmeansVectorQuantizer,
+    TransposeLast,
 )
 from fairseq.utils import buffered_arange
 
@@ -401,16 +402,6 @@ class Wav2VecModel(BaseFairseqModel):
 
         return loss
 
-
-class TransposeLast(nn.Module):
-    def __init__(self, deconstruct_idx=None):
-        super().__init__()
-        self.deconstruct_idx = deconstruct_idx
-
-    def forward(self, x):
-        if self.deconstruct_idx is not None:
-            x = x[self.deconstruct_idx]
-        return x.transpose(-2, -1)
 
 def norm_block(is_layer_norm, dim, affine=True):
     if is_layer_norm:

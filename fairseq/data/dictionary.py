@@ -101,7 +101,7 @@ class Dictionary(object):
             if utils.item(i) not in extra_symbols_to_ignore
         )
 
-        return data_utils.process_bpe_symbol(sent, bpe_symbol)
+        return data_utils.post_process(sent, bpe_symbol)
 
     def unk_string(self, escape=False):
         """Return unknown string, optionally escaped as: <<unk>>"""
