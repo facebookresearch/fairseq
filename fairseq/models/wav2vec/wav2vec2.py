@@ -532,7 +532,7 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         features = features.transpose(1, 2)
         features = self.layer_norm(features)
-        unmasked_features = features
+        unmasked_features = features.clone()
 
         if padding_mask is not None:
             extra = padding_mask.size(1) % features.size(1)
