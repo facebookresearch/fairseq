@@ -27,49 +27,76 @@ The same sequence can be present any number of times, and will appear
 that many times in the output.
 """
 
+import torch
+
 from collections import Counter
 from typing import Tuple, List, Optional, Set
-from torch import Tensor
 
-CONSTRAINT_SEP = "\t"
+class ConstraintState:
+    def __init__(self):
+        pass
 
 
-def extract_constraints(lines: List[str]) -> Tuple[List[str], List[List[str]]]:
-    """Takes a list of input lines, each of which contains an input
-    sentence and zero or more constraints, separated by tabs. For
-    example:
+def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tensor:
+    """Takes a list of list of constraints in tensor form (a list of
+    tensor constraints for each sentence) and transforms it into a
+    packed Tensor. The input form is, for example:
 
-        input sentence [TAB] constraint [TAB] another constraint
-        another sentence
-        yet a third [TAB] and another constraint
+        [ [3 1 2], [3], [4 5 6 7],
+          [],
+          [1 8 9 10 1 4 11 12], ]
 
-    and returns a tuple containing the list of input sentences and a
-    list of lists of constraints.
+    and the packed tensor is:
+
+        [ [ 3 1  2  0  3  0  4  5  6  7  0],
+          [ 0 0  0  0  0  0  0  0  0  0  0],
+          [ 1 8  9 10  1  4 11 12  0  0  0] ]
+
+    The packed tensor has shape (batch size, maxlen), where
+    maxlen is defined below. Each row contains concatenated
+    constraint tokens for that sentence, with 0 appended after
+    each constraint. The first item in each row is the number
+    of constraints for that sentence. So maxlen is the maximum
+    of
+
+    (number of constraints) + (sum length of constraints) + 1.
+
+    across all sentences in the batch.
+
     """
-    new_lines = []
-    constraint_sets = []
-    for line in lines:
-        if CONSTRAINT_SEP in line:
-            new_line, *constraints = line.split(CONSTRAINT_SEP)
-        else:
-            new_line = line
-            constraints = []
-        new_lines.append(new_line)
-        constraint_sets.append(constraints)
-    return new_lines, constraint_sets
+    # The maximum word length of concatenated constraints for any sentence
+    max_constraints_len = 0
+    for sentence_constraints in batch_constraints:
+        if len(sentence_constraints):
+            # number of constraints, plus sum of constrain lens, plus a zero after each
+            constraints_len = 1 + sum([c.size(0) for c in sentence_constraints]) + len(sentence_constraints)
+            max_constraints_len = max(max_constraints_len, constraints_len)
+
+    batch_size = len(sentence_constraints)
+    constraints_tensor = torch.zeros((batch_size, max_constraints_len)).long()
+    for i, sentence_constraints in enumerate(batch_constraints):
+        constraints_tensor[i, 0] = len(sentence_constraints)
+        offset = 1
+        for j, constraint in enumerate(sentence_constraints):
+            this_len = constraint.size(0)
+            constraints_tensor[i, offset:offset+this_len] = constraint
+            offset += this_len + 1
+
+    return constraints_tensor.long()
 
 
-def unpack_constraints(constraint_tensor: Tensor) -> List[List[int]]:
+def unpack_constraints(constraint_tensor: torch.Tensor) -> List[List[int]]:
     """
-    Transforms a 1d packed constraint tensor into a list of integer constraints.
+    Transforms a 1d packed constraint tensor (i.e., for a single sentence,
+    not for the whole batch) into a list of integer constraints.
     """
     constraint_list = []
     constraints = constraint_tensor.tolist()
-    if any(constraints):
-        while 0 in constraints:
-            where = constraints.index(0)
-            constraint_list.append(constraints[0:where])
-            constraints = constraints[where+1:]
+    num_constraints = constraints.pop(0)
+    for i in range(num_constraints):
+        where = constraints.index(0)
+        constraint_list.append(constraints[0:where])
+        constraints = constraints[where+1:]
 
     return constraint_list
 
@@ -164,7 +191,7 @@ class ConstraintNode:
             node.add_sequence(sequence[1:])
 
 
-class UnorderedConstraintState:
+class UnorderedConstraintState(ConstraintState):
     """
     Records progress through the set of constraints for each item in the beam
     using a trie.
@@ -193,7 +220,7 @@ class UnorderedConstraintState:
             self.generated[node] += 1
 
     @staticmethod
-    def create(constraint_tensor: Tensor):
+    def create(constraint_tensor: torch.Tensor):
         constraint_list = unpack_constraints(constraint_tensor)
         constraint_trie_root = ConstraintNode.create(constraint_list)
         return UnorderedConstraintState(constraint_trie_root)
@@ -350,7 +377,7 @@ class ConstraintSequence:
         return str(self.sequences)
 
 
-class OrderedConstraintState:
+class OrderedConstraintState(ConstraintState):
     """
     Records progress through the set of linear nonbranching constraints with gaps.
     """
@@ -361,7 +388,7 @@ class OrderedConstraintState:
         self.state = state
 
     @staticmethod
-    def create(constraint_tensor: Tensor):
+    def create(constraint_tensor: torch.Tensor):
         constraint_list = unpack_constraints(constraint_tensor)
         return OrderedConstraintState(ConstraintSequence(constraint_list), -1)
 

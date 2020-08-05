@@ -21,7 +21,7 @@ import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import encoders
-from fairseq.constraints import extract_constraints, unpack_constraints
+from fairseq.constraints import pack_constraints, unpack_constraints
 from .generate import get_symbols_to_strip_from_output
 
 logging.basicConfig(
@@ -54,9 +54,21 @@ def make_batches(lines, args, task, max_positions, encode_fn):
     def encode_fn_target(x):
         return encode_fn(x)
 
-    # Strip (tab-delimited) contraints, if present, from input lines
     if args.constraints:
-        lines, batch_constraints = extract_constraints(lines)
+        # Strip (tab-delimited) contraints, if present, from input lines,
+        # store them in batch_constraints
+        batch_constraints = [list() for _ in lines]
+        for i, line in enumerate(lines):
+            if "\t" in line:
+                lines[i], *batch_constraints[i] = line.split("\t")
+
+        # Convert each List[str] to List[Tensor]
+        for i, constraint_list in enumerate(batch_constraints):
+            batch_constraints[i] = [task.target_dictionary.encode_line(
+                encode_fn_target(constraint),
+                append_eos=False,
+                add_if_not_exist=False,
+            ) for constraint in constraint_list]
 
     tokens = [
         task.source_dictionary.encode_line(
@@ -66,28 +78,7 @@ def make_batches(lines, args, task, max_positions, encode_fn):
     ]
 
     if args.constraints:
-        # The maximum word length of concatenated constraints for any sentence
-        max_constraints_len = 0
-        for sentence_constraints in batch_constraints:
-            constraints_len = 0
-            if any(sentence_constraints):
-                # sum of constrain lens, plus a zero after each
-                constraints_len = sum([len(c.split()) for c in sentence_constraints]) + len(sentence_constraints)
-                max_constraints_len = max(max_constraints_len, constraints_len)
-
-        constraints_tensor = torch.zeros((len(lines), max_constraints_len)).long()
-        for i, sentence_constraints in enumerate(batch_constraints):
-            offset = 0
-            for j, constraint in enumerate(sentence_constraints):
-                this_len = len(constraint.split())
-                this_constraint = task.target_dictionary.encode_line(
-                    encode_fn_target(constraint),
-                    append_eos=False,
-                    add_if_not_exist=False,
-                )
-                constraints_tensor[i, offset:offset+this_len] = this_constraint
-                offset += this_len + 1
-        constraints_tensor = constraints_tensor.long()
+        constraints_tensor = pack_constraints(batch_constraints)
     else:
         constraints_tensor = None
 
