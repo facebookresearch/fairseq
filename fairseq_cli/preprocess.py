@@ -107,10 +107,11 @@ def main(args):
     if target and tgt_dict is not None:
         tgt_dict.save(dict_path(args.target_lang))
 
-    def make_binary_dataset(vocab, input_prefix, output_prefix, lang, num_workers):
+    def make_binary_dataset(vocab, input_prefix, output_prefix, lang, num_workers, already_numberized=False):
         logger.info("[{}] Dictionary: {} types".format(lang, len(vocab)))
         n_seq_tok = [0, 0]
         replaced = Counter()
+        append_eos = not already_numberized
 
         def merge_result(worker_result):
             replaced.update(worker_result["replaced"])
@@ -135,7 +136,9 @@ def main(args):
                         prefix,
                         lang,
                         offsets[worker_id],
-                        offsets[worker_id + 1]
+                        offsets[worker_id + 1],
+                        append_eos,
+                        already_numberized,
                     ),
                     callback=merge_result
                 )
@@ -146,7 +149,7 @@ def main(args):
         merge_result(
             Binarizer.binarize(
                 input_file, vocab, lambda t: ds.add_item(t),
-                offset=0, end=offsets[1]
+                offset=0, end=offsets[1], append_eos=append_eos, already_numberized=already_numberized
             )
         )
         if num_workers > 1:
@@ -225,7 +228,7 @@ def main(args):
             )
         )
 
-    def make_dataset(vocab, input_prefix, output_prefix, lang, num_workers=1):
+    def make_dataset(vocab, input_prefix, output_prefix, lang, num_workers=1, already_numberized=False):
         if args.dataset_impl == "raw":
             # Copy original text file to destination folder
             output_text_file = dest_path(
@@ -234,19 +237,19 @@ def main(args):
             )
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
         else:
-            make_binary_dataset(vocab, input_prefix, output_prefix, lang, num_workers)
+            make_binary_dataset(vocab, input_prefix, output_prefix, lang, num_workers, already_numberized=already_numberized)
 
     def make_all(lang, vocab):
         if args.trainpref:
-            make_dataset(vocab, args.trainpref, "train", lang, num_workers=args.workers)
+            make_dataset(vocab, args.trainpref, "train", lang, num_workers=args.workers, already_numberized=args.already_numberized)
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(",")):
                 outprefix = "valid{}".format(k) if k > 0 else "valid"
-                make_dataset(vocab, validpref, outprefix, lang, num_workers=args.workers)
+                make_dataset(vocab, validpref, outprefix, lang, num_workers=args.workers, already_numberized=args.already_numberized)
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(",")):
                 outprefix = "test{}".format(k) if k > 0 else "test"
-                make_dataset(vocab, testpref, outprefix, lang, num_workers=args.workers)
+                make_dataset(vocab, testpref, outprefix, lang, num_workers=args.workers, already_numberized=args.already_numberized)
 
     def make_all_alignments():
         if args.trainpref and os.path.exists(args.trainpref + "." + args.align_suffix):
@@ -307,7 +310,7 @@ def main(args):
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
 
 
-def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos=True):
+def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos=True, already_numberized=False):
     ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"),
                                       impl=args.dataset_impl, vocab_size=len(vocab))
 
@@ -315,7 +318,7 @@ def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos
         ds.add_item(tensor)
 
     res = Binarizer.binarize(filename, vocab, consumer, append_eos=append_eos,
-                             offset=offset, end=end)
+                             offset=offset, end=end, already_numberized=already_numberized)
     ds.finalize(dataset_dest_file(args, output_prefix, lang, "idx"))
     return res
 
@@ -335,13 +338,12 @@ def binarize_alignments(args, filename, parse_alignment, output_prefix, offset, 
 
 def dataset_dest_prefix(args, output_prefix, lang):
     base = "{}/{}".format(args.destdir, output_prefix)
-    if lang is not None:
+    if args.only_source:
+        lang_part = ".{}".format(lang) if lang is not None else ""
+    elif lang is not None:
         lang_part = ".{}-{}.{}".format(args.source_lang, args.target_lang, lang)
-    elif args.only_source:
-        lang_part = ""
     else:
         lang_part = ".{}-{}".format(args.source_lang, args.target_lang)
-
     return "{}{}".format(base, lang_part)
 
 
