@@ -484,6 +484,9 @@ class Trainer(object):
             )
             self._cumulative_training_time = total_train_time / self.data_parallel_world_size
 
+        if hasattr(self.model, 'all_reduce'):
+            self.model.all_reduce()
+
         overflow = False
         try:
             if self.tpu and self.data_parallel_world_size > 1:
