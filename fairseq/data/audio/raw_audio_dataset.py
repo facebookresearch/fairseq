@@ -172,10 +172,15 @@ class FileAudioDataset(RawAudioDataset):
         logger.info(f"loaded {len(self.fnames)}, skipped {skipped} samples")
 
     def __getitem__(self, index):
-        import soundfile as sf
+        # import soundfile as sf
+        import librosa
+
+        import warnings
+        warnings.filterwarnings("ignore")
 
         fname = os.path.join(self.root_dir, self.fnames[index])
-        wav, curr_sample_rate = sf.read(fname)
+        # wav, curr_sample_rate = sf.read(fname)
+        wav, curr_sample_rate = librosa.load(fname, sr=None)
         feats = torch.from_numpy(wav).float()
         feats = self.postprocess(feats, curr_sample_rate)
         return {"id": index, "source": feats}

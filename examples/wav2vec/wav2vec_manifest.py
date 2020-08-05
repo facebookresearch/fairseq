@@ -10,7 +10,8 @@ Data pre-processing: build vocabularies and binarize training data.
 import argparse
 import glob
 import os
-import soundfile
+# import soundfile
+import librosa
 import random
 
 
@@ -45,7 +46,8 @@ def main(args):
             if args.path_must_contain and args.path_must_contain not in file_path:
                 continue
 
-            frames = soundfile.info(fname).frames
+            # frames = soundfile.info(fname).frames
+            frames = librosa.load(fname, sr=None)[0].shape[0]
             dest = train_f if rand.random() > args.valid_percent else valid_f
             print('{}\t{}'.format(os.path.relpath(file_path, dir_path), frames), file=dest)
 

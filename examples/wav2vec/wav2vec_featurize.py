@@ -14,7 +14,8 @@ import os
 from shutil import copy
 
 import h5py
-import soundfile as sf
+# import soundfile as sf
+import librosa
 import numpy as np
 import torch
 from torch import nn
@@ -22,11 +23,14 @@ import tqdm
 
 from fairseq.models.wav2vec.wav2vec import Wav2VecModel
 
+import warnings
+warnings.filterwarnings("ignore")
 
 def read_audio(fname):
     """ Load an audio file and return PCM along with the sample rate """
 
-    wav, sr = sf.read(fname)
+    # wav, sr = sf.read(fname)
+    wav, sr = librosa.load(fname, sr=16000)
     assert sr == 16e3
 
     return wav, 16e3

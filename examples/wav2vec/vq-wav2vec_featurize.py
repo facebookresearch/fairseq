@@ -22,10 +22,13 @@ except:
 from fairseq.models.wav2vec.wav2vec import Wav2VecModel
 
 import tqdm
-import soundfile as sf
+# import soundfile as sf
+import librosa
 from torch.utils.data import DataLoader
 import os.path as osp
 
+import warnings
+warnings.filterwarnings("ignore")
 
 class FilesDataset:
     def __init__(self, files, labels):
@@ -42,7 +45,8 @@ class FilesDataset:
     def __getitem__(self, index):
         fname = self.files[index]
 
-        wav, sr = sf.read(fname)
+        # wav, sr = sf.read(fname)
+        wav, sr = librosa.load(fname, sr=16000)
         assert sr == 16000
 
         wav = torch.from_numpy(wav).float()
