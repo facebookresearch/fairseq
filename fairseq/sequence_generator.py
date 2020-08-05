@@ -5,7 +5,7 @@
 
 import logging
 import math
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -15,8 +15,6 @@ from fairseq.models import FairseqIncrementalDecoder
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.search import LexicallyConstrainedBeamSearch
 from torch import Tensor
-
-logger = logging.getLogger('fairseq.sequence_generator')
 
 
 class SequenceGenerator(nn.Module):
@@ -486,16 +484,6 @@ class SequenceGenerator(nn.Module):
 
             # reorder incremental state in decoder
             reorder_state = active_bbsz_idx
-
-            # print(f"HYPS at step {step} / {max_len}")
-            # idx = 0
-            # for i in range(bsz):
-            #     constraints = self.search.constraint_states
-            #     for j in range(beam_size):
-            #         constraint = str(constraints[i][j].bank) if constraints else ""
-            #         score = torch.sum(scores.view(bsz, beam_size, -1)[i, j, :step+1]) / (step + 1) / math.log(2)
-            #         print(f"  {idx:<3}[{i}]", constraint, f"{score:.3f}", self.tgt_dict.string(tokens.view(bsz, beam_size, -1)[i, j, 0:step+2]))
-            #         idx += 1
 
         # sort by score descending
         for sent in range(len(finalized)):

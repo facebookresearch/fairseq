@@ -135,6 +135,8 @@ def collate(
             batch['align_weights'] = align_weights
 
     if samples[0].get("constraints", None) is not None:
+        # Collate the packed constraints across the samples, padding to
+        # the length of the longest sample.
         lens = [sample.get("constraints").size(0) for sample in samples]
         max_len = max(lens)
         constraints = torch.zeros((len(samples), max(lens))).long()

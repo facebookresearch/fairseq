@@ -40,13 +40,14 @@ class ConstraintState:
 def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tensor:
     """Takes a list of list of constraints in tensor form (a list of
     tensor constraints for each sentence) and transforms it into a
-    packed Tensor. The input form is, for example:
+    packed Tensor. For example, here is a batch of size 3 with 3, 0,
+    and 1 constraints:
 
         [ [3 1 2], [3], [4 5 6 7],
           [],
           [1 8 9 10 1 4 11 12], ]
 
-    and the packed tensor is:
+    Its corresponding packed structure is:
 
         [ [ 3 1  2  0  3  0  4  5  6  7  0],
           [ 0 0  0  0  0  0  0  0  0  0  0],
@@ -62,7 +63,6 @@ def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tenso
     (number of constraints) + (sum length of constraints) + 1.
 
     across all sentences in the batch.
-
     """
     # The maximum word length of concatenated constraints for any sentence
     max_constraints_len = 0
