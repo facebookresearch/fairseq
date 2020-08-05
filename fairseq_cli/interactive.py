@@ -238,8 +238,8 @@ def main(args):
         for id_, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
             if src_dict is not None:
                 src_str = src_dict.string(src_tokens, args.remove_bpe)
-                print('S-{}\t{}'.format(id, src_str))
-                print("W-{}\t{:.3f}\tseconds".format(id, info["time"]))
+                print('S-{}\t{}'.format(id_, src_str))
+                print("W-{}\t{:.3f}\tseconds".format(id_, info["time"]))
                 for constraint in info["constraints"]:
                     print("C-{}\t{}".format(id_, tgt_dict.string(constraint, args.remove_bpe)))
 
@@ -257,11 +257,11 @@ def main(args):
                 detok_hypo_str = decode_fn(hypo_str)
                 score = hypo['score'] / math.log(2)  # convert to base 2
                 # original hypothesis (after tokenization and BPE)
-                print('H-{}\t{}\t{}'.format(id, score, hypo_str))
+                print('H-{}\t{}\t{}'.format(id_, score, hypo_str))
                 # detokenized hypothesis
-                print('D-{}\t{}\t{}'.format(id, score, detok_hypo_str))
+                print('D-{}\t{}\t{}'.format(id_, score, detok_hypo_str))
                 print('P-{}\t{}'.format(
-                    id,
+                    id_,
                     ' '.join(map(
                         lambda x: '{:.4f}'.format(x),
                         # convert from base e to base 2
@@ -271,11 +271,11 @@ def main(args):
                 if args.print_alignment:
                     alignment_str = " ".join(["{}-{}".format(src, tgt) for src, tgt in alignment])
                     print('A-{}\t{}'.format(
-                        id,
+                        id_,
                         alignment_str
                     ))
 
-        # update running id counter
+        # update running id_ counter
         start_id += len(inputs)
 
     logger.info("Total time: {:.3f} seconds; translation time: {:.3f}".format(time.time() - start_time, total_translate_time))
