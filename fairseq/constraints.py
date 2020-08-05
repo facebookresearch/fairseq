@@ -72,7 +72,7 @@ def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tenso
             constraints_len = 1 + sum([c.size(0) for c in sentence_constraints]) + len(sentence_constraints)
             max_constraints_len = max(max_constraints_len, constraints_len)
 
-    batch_size = len(sentence_constraints)
+    batch_size = len(batch_constraints)
     constraints_tensor = torch.zeros((batch_size, max_constraints_len)).long()
     for i, sentence_constraints in enumerate(batch_constraints):
         constraints_tensor[i, 0] = len(sentence_constraints)
@@ -85,18 +85,19 @@ def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tenso
     return constraints_tensor.long()
 
 
-def unpack_constraints(constraint_tensor: torch.Tensor) -> List[List[int]]:
+def unpack_constraints(constraint_tensor: torch.Tensor) -> List[torch.Tensor]:
     """
-    Transforms a 1d packed constraint tensor (i.e., for a single sentence,
-    not for the whole batch) into a list of integer constraints.
+    Transforms *one row* of a packed constraint tensor (e.g., for one
+    sentence in the batch) into a list of constraint tensors.
     """
     constraint_list = []
+    num_constraints = constraint_tensor[0]
     constraints = constraint_tensor.tolist()
-    num_constraints = constraints.pop(0)
+    offset = 1
     for i in range(num_constraints):
-        where = constraints.index(0)
-        constraint_list.append(constraints[0:where])
-        constraints = constraints[where+1:]
+        where = constraints.index(0, offset)
+        constraint_list.append(constraint_tensor[offset:where])
+        offset = where + 1
 
     return constraint_list
 
