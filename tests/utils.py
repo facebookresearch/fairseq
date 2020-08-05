@@ -127,7 +127,7 @@ def sequence_generator_setup():
     return tgt_dict, w1, w2, src_tokens, src_lengths, model
 
 
-def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
+def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False, numberized=False):
     def _create_dummy_data(filename):
         data = torch.rand(num_examples * maxlen)
         data = 97 + torch.floor(26 * data).int()
@@ -153,6 +153,16 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
                 ex_str = ' '.join(["{}-{}".format(src, tgt) for src, tgt in zip(src_indices, tgt_indices)])
                 print(ex_str, file=h)
 
+    def _create_dummy_numberized_data(filename):
+        data = [str(random.randint(0, 100)) for i in range(num_examples * maxlen)]
+        with open(os.path.join(data_dir, filename), 'w') as h:
+            offset = 0
+            for _ in range(num_examples):
+                ex_len = random.randint(1, maxlen)
+                ex_str = ' '.join(data[offset:offset+ex_len])
+                print(ex_str, file=h)
+                offset += ex_len
+
     _create_dummy_data('train.in')
     _create_dummy_data('train.out')
     _create_dummy_data('valid.in')
@@ -164,6 +174,14 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
         _create_dummy_alignment_data('train.in', 'train.out', 'train.align')
         _create_dummy_alignment_data('valid.in', 'valid.out', 'valid.align')
         _create_dummy_alignment_data('test.in', 'test.out', 'test.align')
+
+    if numberized:
+        _create_dummy_numberized_data('train.in')
+        _create_dummy_numberized_data('train.out')
+        _create_dummy_numberized_data('valid.in')
+        _create_dummy_numberized_data('valid.out')
+        _create_dummy_numberized_data('test.in')
+        _create_dummy_numberized_data('test.out')
 
 
 def preprocess_lm_data(data_dir):
@@ -192,6 +210,19 @@ def preprocess_translation_data(data_dir, extra_flags=None):
             '--destdir', data_dir,
         ] + (extra_flags or []),
     )
+    preprocess.main(preprocess_args)
+
+
+def preprocess_numberized_lm_data(data_dir):
+    preprocess_parser = options.get_preprocessing_parser()
+    preprocess_args = preprocess_parser.parse_args([
+        '--only-source',
+        '--already-numberized',
+        '--trainpref', os.path.join(data_dir, 'train.out'),
+        '--validpref', os.path.join(data_dir, 'valid.out'),
+        '--testpref', os.path.join(data_dir, 'test.out'),
+        '--destdir', data_dir,
+    ])
     preprocess.main(preprocess_args)
 
 
