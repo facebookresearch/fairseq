@@ -6,15 +6,15 @@ wav2vec 2.0 learns speech representations on unlabeled data as described in [wav
 
 Model | Finetuning split | Dataset | Model
 |---|---|---|---
-Wav2Vec 2.0 Base | - | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small.pt)
+Wav2Vec 2.0 Base | No finetuning | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small.pt)
 Wav2Vec 2.0 Base | 10 minutes | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small_10m.pt)
 Wav2Vec 2.0 Base | 100 hours | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small_100h.pt)
 Wav2Vec 2.0 Base | 960 hours | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small_960h.pt)
-Wav2Vec 2.0 Large | - | [Librispeech](http://www.openslr.org/12)  | [download](https//dl.fbaipublicfiles.com/fairseq/wav2vec/libri960_big.pt)
+Wav2Vec 2.0 Large | No finetuning | [Librispeech](http://www.openslr.org/12)  | [download](https//dl.fbaipublicfiles.com/fairseq/wav2vec/libri960_big.pt)
 Wav2Vec 2.0 Large | 10 minutes | [Librispeech](http://www.openslr.org/12)  | [download](https//dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_big_10m.pt)
 Wav2Vec 2.0 Large | 100 hours | [Librispeech](http://www.openslr.org/12)  | [download](https//dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_big_100h.pt)
 Wav2Vec 2.0 Large | 960 hours | [Librispeech](http://www.openslr.org/12)  | [download](https//dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_big_960h.pt)
-Wav2Vec 2.0 Large (LV-60) | - | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox.pt)
+Wav2Vec 2.0 Large (LV-60) | No finetuning | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox.pt)
 Wav2Vec 2.0 Large (LV-60) | 10 minutes | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_10m.pt)
 Wav2Vec 2.0 Large (LV-60) | 100 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_100h.pt)
 Wav2Vec 2.0 Large (LV-60) | 960 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec2_vox_960h.pt)
@@ -25,7 +25,7 @@ Given a directory containing wav files to be used for pretraining (we recommend 
 
 ### Prepare training data manifest:
 
-$ext should be set t flac or wav, or whatever format your dataset happens to use that soundfile can read
+$ext should be set to flac, wav, or whatever format your dataset happens to use that soundfile can read.
 
 $valid should be set to some reasonable percentage (like 0.01) of training data to use for validation.
 To use a pre-defined validation set (like dev-other from librispeech), set to it 0 and then overwrite valid.tsv with a
@@ -36,6 +36,8 @@ $ python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/pa
 ```
 
 ### Train a wav2vec 2.0 base model:
+
+This configuration was used for the base model trained on the Librispeech dataset in the wav2vec 2.0 paper
 
 Note that this was tested with pytorch 1.4.0 and the input is expected to be single channel, sampled at 16 kHz
 
@@ -57,7 +59,7 @@ Note: you can simulate 64 GPUs by using k GPUs and setting --update-freq 64/k
 
 ### Train a wav2vec 2.0 large model:
 
-This configuration was used for model trained on the Libri-light dataset in the paper wav2vec 2.0 paper
+This configuration was used for the large model trained on the Libri-light dataset in the wav2vec 2.0 paper
 
 ```shell script
 $ python train.py --distributed-world-size 128 --distributed-port $PORT /manifest/path \
@@ -79,8 +81,8 @@ Note: you can simulate 128 GPUs by using k GPUs and setting --update-freq 128/k
 ### Fine-tune a pre-trained model with CTC:
 
 Fine-tuning a model requires parallel audio and labels file, as well as a vocabulary file in fairseq format.
-A letter vocabulary is can be downloaded [here](https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt).
-An example script that generates labels for the Librispeech dataset from the tsv file produced by wav2vec_manifest.py can be used as follows:
+A letter vocabulary can be downloaded [here](https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt).
+An example [script](libri_labels.py) that generates labels for the Librispeech dataset from the tsv file produced by wav2vec_manifest.py can be used as follows:
 
 ```shell script
 split=train
@@ -104,7 +106,7 @@ python train.py --distributed-world-size 24 --distributed-port $PORT /path/to/tr
 
 Note: you can simulate 24 GPUs by using k GPUs and setting --update-freq 24/k
 
-Note that decoding with a language model during training requires wav2letter [python bindings](https://github.com/facebookresearch/wav2letter/wiki/Building-Python-bindings).
+Decoding with a language model during training requires wav2letter [python bindings](https://github.com/facebookresearch/wav2letter/wiki/Building-Python-bindings).
 Alternatively, simply omit the --wer-args flag.
 
 ### Evaluating a CTC model:
@@ -116,13 +118,14 @@ Be sure to upper-case the language model vocab after downloading it.
 
 Letter dictionary for pre-trained models can be found [here](https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt).
 
-Next run the evaluation command:
+Next, run the evaluation command:
 
 ```shell script
 $subset=dev_other
 python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw --task audio_pretraining \
 --nbest 1 --path /path/to/model --gen-subset $subset --results-path /path/to/save/results/for/sclite --w2l-decoder kenlm \
---lm-weight 2 --word-score -1 --sil-weight 0 --criterion ctc --labels ltr --max-tokens 4000000 --post-process letter
+--lm-model /path/to/kenlm.bin --lm-weight 2 --word-score -1 --sil-weight 0 --criterion ctc --labels ltr --max-tokens 4000000 \
+--post-process letter
 ```
 
 To get raw numbers, use --w2l-decoder viterbi and omit the lexicon. To use the transformer language model, use --w2l-decoder fairseqlm.
@@ -170,7 +173,7 @@ $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 -
 --conv-feature-layers [(512, 10, 5), (512, 8, 4), (512, 4, 2), (512, 4, 2), (512, 4, 2), (512, 1, 1), (512, 1, 1)] \
 --conv-aggregator-layers [(512, 2, 1), (512, 3, 1), (512, 4, 1), (512, 5, 1), (512, 6, 1), (512, 7, 1), (512, 8, 1), (512, 9, 1), (512, 10, 1), (512, 11, 1), (512, 12, 1), (512, 13, 1)] \
 --skip-connections-agg --residual-scale 0.5 --log-compression --warmup-updates 500 --warmup-init-lr 1e-07 --criterion binary_cross_entropy --num-negatives 10 \
---max-sample-size 150000 --max-tokens 1500000 ---skip-invalid-size-inputs-valid-test
+--max-sample-size 150000 --max-tokens 1500000 --skip-invalid-size-inputs-valid-test
 ```
 
 ### Extract embeddings from the downstream task data:
