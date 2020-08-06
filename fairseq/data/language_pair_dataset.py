@@ -22,6 +22,7 @@ def collate(
     left_pad_target=False,
     input_feeding=True,
     pad_to_length=None,
+    more_input_keys=[],
 ):
     if len(samples) == 0:
         return {}
@@ -107,6 +108,10 @@ def collate(
     }
     if prev_output_tokens is not None:
         batch['net_input']['prev_output_tokens'] = prev_output_tokens.index_select(0, sort_order)
+
+    # collate more input datas into batches
+    for key in more_input_keys:
+        batch['net_input'][key] = merge(key, left_pad=False).index_select(0, sort_order)
 
     if samples[0].get('alignment', None) is not None:
         bsz, tgt_sz = batch['target'].shape
