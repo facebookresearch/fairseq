@@ -122,32 +122,61 @@ def load_checkpoint(args, trainer, **passthrough_args):
     *passthrough_args* will be passed through to
     ``trainer.get_train_iterator``.
     """
+    reset_optimizer = args.reset_optimizer
+    reset_lr_scheduler = args.reset_lr_scheduler
+    optimizer_overrides = eval(args.optimizer_overrides)
+    reset_meters = args.reset_meters
+    reset_dataloader = args.reset_dataloader
+
+    if getattr(args, 'finetune_from_model', None) is not None \
+       and (reset_optimizer or reset_lr_scheduler or reset_meters or reset_dataloader):
+        raise ValueError("--finetune-from-model can not be set together with either --reset-optimizer"
+                         " or reset_lr_scheduler or reset_meters or reset_dataloader")
 
     suffix = getattr(args, "checkpoint_suffix", "")
-    if args.restore_file == "checkpoint_last.pt":
+    if args.restore_file == "checkpoint_last.pt":  # default value of restore_file is 'checkpoint_last.pt'
         checkpoint_path = os.path.join(args.save_dir, "checkpoint_last{}.pt".format(suffix))
+        first_launch = not PathManager.exists(checkpoint_path)
+        if getattr(args, 'finetune_from_model', None) is not None and first_launch:
+            # if there is no last checkpoint to restore, start the finetune from pretrained model
+            # else just use usual logic to load checkpoint, e.g. restart from last checkpoint and etc.
+            if PathManager.exists(args.finetune_from_model):
+                checkpoint_path = args.finetune_from_model
+                reset_optimizer = True
+                reset_lr_scheduler = True
+                reset_meters = True
+                reset_dataloader = True
+                logger.info(f'loading pretrained model from {checkpoint_path}: '
+                            'optimizer, lr scheduler, meters, dataloader will be reset')
+            else:
+                raise ValueError(f'--funetune-from-model {args.finetune_from_model} does not exist')
     elif getattr(args, "model_parallel_size", 1) > 1:
         checkpoint_path = args.restore_file.replace(".pt", suffix + ".pt")
     else:
         checkpoint_path = args.restore_file
 
+    if args.restore_file != "checkpoint_last.pt" and getattr(args, 'finetune_from_model', None):
+        raise ValueError(
+            '--finetune-from-model and --restore-file (non-default value) '
+            'can not be specified together: ' + str(args))
+
     extra_state = trainer.load_checkpoint(
         checkpoint_path,
-        args.reset_optimizer,
-        args.reset_lr_scheduler,
-        eval(args.optimizer_overrides),
-        reset_meters=args.reset_meters,
+        reset_optimizer,
+        reset_lr_scheduler,
+        optimizer_overrides,
+        reset_meters=reset_meters,
     )
 
     if (
         extra_state is not None
         and "best" in extra_state
-        and not args.reset_optimizer
-        and not args.reset_meters
+        and not reset_optimizer
+        and not reset_meters
     ):
         save_checkpoint.best = extra_state["best"]
 
-    if extra_state is not None and not args.reset_dataloader:
+    if extra_state is not None and not reset_dataloader:
         # restore iterator from checkpoint
         itr_state = extra_state["train_iterator"]
         epoch_itr = trainer.get_train_iterator(

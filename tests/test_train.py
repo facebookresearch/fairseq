@@ -49,20 +49,28 @@ def get_trainer_and_epoch_itr(epoch, epoch_size, num_updates, iterations_in_epoc
     return trainer, epoch_itr
 
 
+def get_mock_args(finetune_from_model=None):
+    args_mock = MagicMock()
+    args_mock.optimizer_overrides = '{}'
+    args_mock.reset_dataloader = False
+    args_mock.reset_meters = False
+    args_mock.reset_optimizer = False
+    args_mock.reset_lr_scheduler = False
+    args_mock.finetune_from_model = finetune_from_model
+    args_mock.model_parallel_size = 1
+    return args_mock
+
+
 class TestLoadCheckpoint(unittest.TestCase):
 
     def setUp(self):
-        self.args_mock = MagicMock()
-        self.args_mock.optimizer_overrides = '{}'
-        self.args_mock.reset_dataloader = False
-        self.args_mock.reset_meters = False
-        self.args_mock.reset_optimizer = False
-        self.args_mock.model_parallel_size = 1
+        self.args_mock = get_mock_args()
         self.patches = {
             'os.makedirs': MagicMock(),
             'os.path.join': MagicMock(),
             'os.path.isfile': MagicMock(return_value=True),
             'os.path.isabs': MagicMock(return_value=False),
+            'fairseq.file_io.PathManager.exists': MagicMock(return_value=False),
         }
         self.applied_patches = [patch(p, d) for p, d in self.patches.items()]
         [p.start() for p in self.applied_patches]
@@ -120,6 +128,69 @@ class TestLoadCheckpoint(unittest.TestCase):
             self.assertEqual(epoch_itr.epoch, 1)
             self.assertEqual(epoch_itr.iterations_in_epoch, 0)
             self.assertEqual(next(itr)['net_input']['src_tokens'][0].item(), 0)
+
+    def test_finetune_from_model_args_conflict(self):
+        with contextlib.redirect_stdout(StringIO()):
+            trainer, epoch_itr = get_trainer_and_epoch_itr(1, 150, 0, 0)
+            trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
+
+            for arg in ['reset_optimizer', 'reset_lr_scheduler', 'reset_meters', 'reset_dataloader']:
+                with self.subTest(arg=arg):
+                    args_mock = get_mock_args("/temp/checkpoint_pretrained.pt")
+                    setattr(args_mock, arg, True)
+                    with self.assertRaises(Exception) as context:
+                        _, _ = checkpoint_utils.load_checkpoint(args_mock, trainer)
+
+                    self.assertTrue(
+                        "--finetune-from-model can not be set together with either --reset-optimizer"
+                        " or reset_lr_scheduler or reset_meters or reset_dataloader" in str(context.exception)
+                    )
+
+    def test_finetune_from_model(self):
+        with contextlib.redirect_stdout(StringIO()):
+            trainer, epoch_itr = get_trainer_and_epoch_itr(1, 150, 0, 0)
+            trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
+            from_model_path = "/temp/checkpoint_pretrained.pt"
+            args_mock = get_mock_args(from_model_path)
+            args_mock.restore_file = "checkpoint_last.pt"
+
+            def mock_finetune_exist(path):
+                if path == from_model_path:
+                    return True
+                else:
+                    return False
+            self.patches['fairseq.file_io.PathManager.exists'].side_effect = mock_finetune_exist
+            _, _ = checkpoint_utils.load_checkpoint(args_mock, trainer)
+            checkpoint_path, reset_optimizer, reset_lr_scheduler, \
+                optimizer_overrides = trainer.load_checkpoint.call_args[0]
+            reset_meters = trainer.load_checkpoint.call_args[1]['reset_meters']
+            self.assertTrue(reset_optimizer)
+            self.assertTrue(reset_lr_scheduler)
+            self.assertTrue(reset_meters)
+
+    def test_finetune_from_model_resume(self):
+        with contextlib.redirect_stdout(StringIO()):
+            trainer, epoch_itr = get_trainer_and_epoch_itr(1, 150, 0, 0)
+            trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
+            from_model_path = "/temp/checkpoint_pretrained.pt"
+            args_mock = get_mock_args(from_model_path)
+            args_mock.restore_file = "checkpoint_last.pt"
+
+            # launch second time
+            # both restore_file=checkpoint_last.pt and finetune_from_model are set
+            def mock_finetune_exist(path):
+                if path == from_model_path or path.endsWith('checkpoint_last.pt'):
+                    return True
+                else:
+                    return False
+            self.patches['fairseq.file_io.PathManager.exists'].side_effect = mock_finetune_exist
+            _, _ = checkpoint_utils.load_checkpoint(args_mock, trainer)
+            checkpoint_path, reset_optimizer, reset_lr_scheduler, \
+                optimizer_overrides = trainer.load_checkpoint.call_args[0]
+            reset_meters = trainer.load_checkpoint.call_args[1]['reset_meters']
+            self.assertFalse(reset_optimizer)
+            self.assertFalse(reset_lr_scheduler)
+            self.assertFalse(reset_meters)
 
     def tearDown(self):
         patch.stopall()

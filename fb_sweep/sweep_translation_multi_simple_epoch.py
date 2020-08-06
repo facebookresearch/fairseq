@@ -27,6 +27,9 @@ def get_predefined_grid(name):
 
 def add_extra_options_func(parser):
     parser.add_argument('--max-update', help='max update', default=40000)
+    parser.add_argument('--finetune-from-model',
+                        help='finetune from a pretrained model',
+                        type=str, default=None)
 
     parser.add_argument('--lang-dict', help='a file containing a list of languages to support', type=str, default=None)
     parser.add_argument('--max-tokens', help='max tokens per batch', type=int, default=None)
@@ -176,6 +179,10 @@ def get_grid(args):
     if args.max_tokens:
         grids.append(
             hyperparam('--max-tokens', args.max_tokens)
+        )
+    if args.finetune_from_model:
+        grids.append(
+            hyperparam('--finetune-from-model', args.finetune_from_model)
         )
 
     return grids
