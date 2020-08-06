@@ -43,15 +43,16 @@ def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tenso
     packed Tensor. For example, here is a batch of size 3 with 3, 0,
     and 1 constraints:
 
-        [ [3 1 2], [3], [4 5 6 7],
+        [ [ [3 1 2], [3], [4 5 6 7], ]
           [],
-          [1 8 9 10 1 4 11 12], ]
+          [ [1 8 9 10 1 4 11 12], ]
+        ]
 
     Its corresponding packed structure is:
 
-        [ [ 3 1  2  0  3  0  4  5  6  7  0],
-          [ 0 0  0  0  0  0  0  0  0  0  0],
-          [ 1 8  9 10  1  4 11 12  0  0  0] ]
+        [ [ 3  3  1  2  0  3  0  4  5  6  7  0],
+          [ 0  0  0  0  0  0  0  0  0  0  0  0],
+          [ 1  1  8  9 10  1  4 11 12  0  0  0] ]
 
     The packed tensor has shape (batch size, maxlen), where
     maxlen is defined below. Each row contains concatenated
@@ -65,7 +66,7 @@ def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tenso
     across all sentences in the batch.
     """
     # The maximum word length of concatenated constraints for any sentence
-    max_constraints_len = 0
+    max_constraints_len = 1
     for sentence_constraints in batch_constraints:
         if len(sentence_constraints):
             # number of constraints, plus sum of constrain lens, plus a zero after each

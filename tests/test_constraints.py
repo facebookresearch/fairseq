@@ -14,6 +14,38 @@ def tensorize(constraints: List[List[int]]) -> torch.Tensor:
     return [torch.tensor(x) for x in constraints]
 
 
+class TestHelperRoutines(unittest.TestCase):
+    def setUp(self):
+        self.examples = [
+            (
+                [[]],
+                torch.tensor([[0]])
+            ),
+            (
+                [[], []],
+                torch.tensor([[0], [0]])
+            ),
+            (
+                [[torch.tensor([1, 2])], []],
+                torch.tensor([[1, 1, 2, 0], [0, 0, 0, 0]])
+            ),
+            (
+                [[torch.tensor([3, 1, 2]), torch.tensor([3]), torch.tensor([4, 5, 6, 7])],
+                 [],
+                 [ torch.tensor([1, 8, 9, 10, 1, 4, 11, 12]) ]],
+                torch.tensor([[3, 3, 1, 2, 0, 3, 0, 4, 5, 6, 7, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [1, 1, 8, 9, 10, 1, 4, 11, 12, 0, 0, 0]])
+            )
+        ]
+
+    def test_packing(self):
+        """Ensures the list of lists of tensors gets packed correctly."""
+        for batch_constraints, expected_tensor in self.examples:
+            packed = pack_constraints(batch_constraints)
+            assert torch.equal(packed, expected_tensor)
+
+
 class TestUnorderedConstraintState(unittest.TestCase):
     def setUp(self):
         # Tuples of (contraint set, expected printed graph, token counts per node)
