@@ -72,7 +72,7 @@ class MultilingualDatasetManager(object):
         self.sampling_method = sampling_method
         self.sampling_scheduler = None
         self._has_sharded_data = False
-        self._num_shards = {}
+        self._num_shards_dict = {}
 
     @classmethod
     def setup_data_manager(cls, args, lang_pairs, langs, dicts, sampling_method):
@@ -233,7 +233,7 @@ class MultilingualDatasetManager(object):
         dicts = OrderedDict()
         supported_langtok_specs = args.langtoks_specs
         for lang in langs_to_load_dicts:
-            paths = args.data.split(os.pathsep)
+            paths = utils.split_paths(args.data)
             assert len(paths) > 0
             dicts[lang] = load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(lang)))
             if len(dicts) > 0:
@@ -326,6 +326,29 @@ class MultilingualDatasetManager(object):
     def mono_split_exists(cls, split, lang, data_path, dataset_impl):
         filename = os.path.join(data_path, '{}.{}'.format(split, lang))
         return indexed_dataset.dataset_exists(filename, impl=dataset_impl)
+
+    @classmethod
+    def bitext_split_exists(cls, split, src, tgt, data_path, dataset_impl):
+        src_exists = cls.split_exists(split, src, tgt, lang=src, data_path=data_path, dataset_impl=dataset_impl) \
+            or cls.split_exists(split, tgt, src, lang=src, data_path=data_path, dataset_impl=dataset_impl)
+
+        tgt_exists = cls.split_exists(split, src, tgt, lang=tgt, data_path=data_path, dataset_impl=dataset_impl) \
+            or cls.split_exists(split, tgt, src, lang=tgt, data_path=data_path, dataset_impl=dataset_impl)
+        return src_exists and tgt_exists
+
+    @classmethod
+    def get_split_num_shards(cls, split, src, tgt, data_paths, dataset_impl):
+        return sum(
+            1 for path in data_paths
+            if cls.bitext_split_exists(split, src, tgt, path, dataset_impl)
+        )
+
+    @classmethod
+    def get_mono_split_num_shards(cls, split, lang, data_paths, dataset_impl):
+        return sum(
+            1 for path in data_paths
+            if cls.mono_split_exists(split, lang, path, dataset_impl)
+        )
 
     def load_lang_dataset(
             self,
@@ -607,13 +630,49 @@ class MultilingualDatasetManager(object):
                 lang_pairs.update(extra_lang_pairs)
         return datapaths, lang_pairs
 
+    @classmethod
+    def get_dataset_key(cls, data_category, src, tgt):
+        return f'{data_category}:{src}-{tgt}'
+
+    def get_split_num_data_shards(self, split):
+        if split in self._num_shards_dict:
+            return self._num_shards_dict[split]
+        num_shards_dict = {}
+        data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
+
+        for data_category, paths in data_paths.items():
+            if data_category not in lang_pairs:
+                continue
+            paths = utils.split_paths(paths)
+            lang_dirs = [lang_pair.split('-') for lang_pair in lang_pairs[data_category]]
+            lang_dirs = [x if len(x) > 1 else (x[0], x[0]) for x in lang_dirs]
+            for src, tgt in lang_dirs:
+                # monolingual data ruqires tgt only
+                assert src is not None or 'mono_' in data_category, (f'error: src={src}, '
+                                                                     'tgt={tgt} for data_category={data_category}')
+                key = self.get_dataset_key(data_category, src, tgt)
+                if 'mono_' in data_category:
+                    num_shards_dict[key] = self.get_mono_split_num_shards(
+                        split, tgt, paths, self.args.dataset_impl)
+                else:
+                    num_shards_dict[key] = self.get_split_num_shards(
+                        split, src, tgt, paths, self.args.dataset_impl)
+        self._num_shards_dict[split] = num_shards_dict
+        logger.info(f"[{split}] num of shards: {num_shards_dict}")
+        return num_shards_dict
+
+    def get_split_data_path(self, paths, epoch, shard_epoch, num_shards):
+        shard = epoch if shard_epoch is None else shard_epoch
+        shard = (shard - 1) % num_shards
+        path = paths[shard]
+        return path
+
     def get_split_data_param_list(self, split, epoch, shard_epoch=None):
-        def get_epoch(epoch, shard_epoch):
-            return epoch if shard_epoch is None else shard_epoch
         # TODO: to extend with extra datasets and keys and loop over different shard data paths
         param_list = []
         data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
         logger.info(f'langtoks settings: {self.args.langtoks}')
+        split_num_shards_dict = self.get_split_num_data_shards(split)
         for data_category, paths in data_paths.items():
             if data_category not in lang_pairs:
                 continue
@@ -621,9 +680,7 @@ class MultilingualDatasetManager(object):
             assert len(paths) > 0
             if len(paths) > 1:
                 self._has_sharded_data = True
-            self._num_shards[data_category] = len(paths)
-            # epoch starts with 1 now:
-            data_path = paths[(get_epoch(epoch, shard_epoch) - 1) % len(paths)]
+
             if data_category in self.args.langtoks:
                 lang_tok_spec = self.args.langtoks[data_category]
             else:
@@ -637,9 +694,12 @@ class MultilingualDatasetManager(object):
                 assert src is not None or data_category == 'mono_dae', (f'error: src={src}, '
                                                                         'tgt={tgt} for data_category={data_category}')
                 # logger.info(f"preparing param for {data_category}: {src} - {tgt}")
+                key = self.get_dataset_key(data_category, src, tgt)
+                data_path = self.get_split_data_path(
+                    paths, epoch, shard_epoch, split_num_shards_dict[key])
                 param_list.append(
                         {
-                            'key': f'{data_category}:{src}-{tgt}',
+                            'key': key,
                             'data_path': data_path,
                             'split': split,
                             'src': src,
@@ -652,8 +712,15 @@ class MultilingualDatasetManager(object):
                 )
         return param_list
 
-    def get_train_sampling_ratios(self, datasets, epoch=1):
-        data_sizes = [len(d) for _, d in datasets]
+    def get_train_dataset_sizes(self, data_param_list, datasets):
+        num_shards = [
+            self.get_split_num_data_shards(param['split'])[param['key']] for param in data_param_list]
+        data_sizes = [(key, len(d) * num_shard) for (key, d), num_shard in zip(datasets, num_shards)]
+        logger.info(f'data sizes multiplied by num_shards used in sampling ratios: {data_sizes}')
+        return [s for _, s in data_sizes]
+
+    def get_train_sampling_ratios(self, data_param_list, datasets, epoch=1):
+        data_sizes = self.get_train_dataset_sizes(data_param_list, datasets)
         sampling_func = self.sampling_method.sampling_method_selector()
         sample_ratios = sampling_func(data_sizes) if sampling_func is not None else None
         return sample_ratios
@@ -667,8 +734,7 @@ class MultilingualDatasetManager(object):
         elif self.args.sampling_weights:
             sample_ratios = [self.args.sampling_weights[k] for k, _ in datasets]
         else:
-            # TODO: modify to provide sampling function more information other than sizes
-            sample_ratios = self.get_train_sampling_ratios(datasets, epoch)
+            sample_ratios = self.get_train_sampling_ratios(data_param_list, datasets, epoch)
 
         if sample_ratios is not None:
             logger.info('| Upsample ratios: {}'.format(
