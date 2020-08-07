@@ -53,10 +53,6 @@ class LegacyDistributedDataParallel(nn.Module):
         self.buffer_size = min(buffer_size, sum(p.numel() for p in module.parameters()))
         self.buffer = None
 
-        # Flag used by the NCCL backend to make sure we only reduce gradients
-        # one time in the execution engine
-        self.need_reduction = False
-
         # We can also forcibly accumulate grads locally and only do the
         # all-reduce at some later time
         self.accumulate_grads = False
@@ -87,13 +83,6 @@ class LegacyDistributedDataParallel(nn.Module):
         self.accumulate_grads = old_accumulate_grads
 
     def forward(self, *inputs, **kwargs):
-        if self.need_reduction:
-            raise RuntimeError(
-                'LegacyDistributedDataParallel requires explicit reduction, '
-                'must call LegacyDistributedDataParallel.all_reduce'
-            )
-        if not self.accumulate_grads:
-            self.need_reduction = True
         return self.module(*inputs, **kwargs)
 
     def all_reduce(self):
@@ -144,9 +133,8 @@ class LegacyDistributedDataParallel(nn.Module):
 
         def reduction_fn():
             # This function only needs to be called once
-            if not self.need_reduction or self.accumulate_grads:
+            if self.accumulate_grads:
                 return
-            self.need_reduction = False
 
             if self.buffer is None:
                 self.buffer = next(self.module.parameters()).new(self.buffer_size)
