@@ -10,9 +10,24 @@ import os
 from fairseq import registry
 
 
-build_scoring, register_scoring, SCORING_REGISTRY = registry.setup_registry(
+_build_scoring, register_scoring, SCORING_REGISTRY = registry.setup_registry(
     "--scoring", default="bleu"
 )
+
+
+def build_scorer(args, tgt_dict):
+    from fairseq import utils
+
+    if args.sacrebleu:
+        utils.deprecation_warning(
+            "--sacrebleu is deprecated. Please use --scoring sacrebleu instead."
+        )
+        args.scoring = "sacrebleu"
+    if args.scoring == "bleu":
+        from fairseq.scoring import bleu
+        return bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
+    else:
+        return _build_scoring(args)
 
 
 # automatically import any Python files in the current directory

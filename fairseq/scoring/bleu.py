@@ -5,6 +5,8 @@
 
 import ctypes
 import math
+import sys
+
 import torch
 
 from fairseq.scoring import register_scoring
@@ -12,8 +14,6 @@ from fairseq.scoring import register_scoring
 try:
     from fairseq import libbleu
 except ImportError as e:
-    import sys
-
     sys.stderr.write("ERROR: missing libbleu.so. run `pip install --editable .`\n")
     raise e
 
