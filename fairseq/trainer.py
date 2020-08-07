@@ -643,6 +643,9 @@ class Trainer(object):
                 logging_outputs, sample_size, ignore=is_dummy_batch,
             )
 
+        if hasattr(self.model, 'all_reduce'):
+            self.model.all_reduce()
+
         # log validation stats
         logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
 
