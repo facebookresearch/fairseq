@@ -33,8 +33,24 @@ from collections import Counter
 from typing import Tuple, List, Optional, Set
 
 class ConstraintState:
-    def __init__(self):
-        pass
+    def advance(self, token: int):
+        raise NotImplementedError
+
+    def finished(self):
+        """Returns True iff all constraints have been generated."""
+        raise NotImplementedError
+
+    def next_tokens(self):
+        """Returns the set of ungenerated constraint tokens."""
+        raise NotImplementedError
+
+    def tokens(self):
+        """Stateless. Returns the set of tokens across all the sentence's constraints."""
+        raise NotImplementedError
+
+    def bank(self):
+        """Returns the number of constraint tokens that have been generated."""
+        raise NotImplementedError
 
 
 def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tensor:
@@ -206,9 +222,9 @@ class UnorderedConstraintState(ConstraintState):
         if copy_from is None:
             # The root node
             self.root = node
-            # The set of states in the graph that have been completed
+            # Records constraints (multi-token sequences) that have been generated
             self.completed = Counter()
-            # The...
+            # Records constraint tokens that have been generated
             self.generated = Counter()
             # The list of tokens we need to generate
             self.needed_tokens = self.root.tokens()

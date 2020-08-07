@@ -109,11 +109,23 @@ class BeamSearch(Search):
 
 
 class LexicallyConstrainedBeamSearch(Search):
-    """Implements lexically constrained beam search by maintaining, for
-    each beam hypothesis, an object to track which of the constraints
-    have been met by that hypothesis.
-    """
+    """Implements lexically constrained beam search as described in
 
+        Fast Lexically Constrained Decoding with Dynamic Beam
+        Allocation for Neural Machine Translation.  Post & Vilar,
+        NAACL 2018.  https://www.aclweb.org/anthology/N18-1119/
+
+    and
+
+        Improved Lexically Constrained Decoding for Translation and
+        Monolingual Rewriting. Hu et al, NAACL
+        2019. https://www.aclweb.org/anthology/N19-1090/
+
+    This is accomplished by maintaining, for each beam hypothesis, a
+    ConstraintState object (see constraints.py) that tracks which
+    constraints have been generated and using this information to
+    shape the beam for each input sentence.
+    """
     def __init__(self, tgt_dict, representation):
         super().__init__(tgt_dict)
         self.constraints_active = True
