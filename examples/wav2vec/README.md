@@ -1,6 +1,6 @@
 # wav2vec 2.0
 
-wav2vec 2.0 learns speech representations on unlabeled data as described in [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2019)](https://arxiv.org/abs/2006.11477).
+wav2vec 2.0 learns speech representations on unlabeled data as described in [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](https://arxiv.org/abs/2006.11477).
 
 ## Pre-trained models
 

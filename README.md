@@ -38,7 +38,8 @@ We provide reference implementations of various sequence modeling papers:
   - [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
   - [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
   - [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
-  - [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2019)](examples/wav2vec/README.md)
+  - [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)
+  - [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
 - **Non-autoregressive Transformers**
   - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -51,13 +52,14 @@ We provide reference implementations of various sequence modeling papers:
 ### What's New:
 
 - August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
+- July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)
 - May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
 - April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
 - April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
 - April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
-- March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
 <details><summary>Previous updates</summary><p>
 
+- March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
 - February 2020: [mBART model and code released](examples/mbart/README.md)
 - February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/master/examples/backtranslation#training-your-own-model-wmt18-english-german)
 - December 2019: [fairseq 0.9.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.9.0)
@@ -136,15 +138,17 @@ as well as example training and evaluation commands.
 - [Language Modeling](examples/language_model/README.md): convolutional and transformer models are available
 
 We also have more detailed READMEs to reproduce results from specific papers:
-- [Training with Quantization Noise for Extreme Model Compression](examples/quant_noise/README.md)
+- [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
+- [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)
+- [Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)](examples/quant_noise/README.md)
 - [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
 - [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
-- [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
+- [Reducing Transformer Depth on Demand with Structured Dropout (Fan et al., 2019)](examples/layerdrop/README.md)
+- [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md)
 - [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
 - [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
 - [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
 - [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
-- [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2019)](examples/wav2vec/README.md)
 - [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
 - [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
 - [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
