@@ -119,7 +119,15 @@ class SampledMultiDataset(FairseqDataset):
         self._size_cache = {}
         self.set_epoch(epoch)
 
+    def _clean_if_not_none(self, var_list):
+        for v in var_list:
+            if v is not None:
+                del v
+
     def _reset_cached_properties(self):
+        self._clean_if_not_none([
+            self._sizes, self._ordered_indices, self._cur_indices
+        ])
         self._sizes = None
         self._ordered_indices = None
         self._cur_indices = None
@@ -212,7 +220,8 @@ class SampledMultiDataset(FairseqDataset):
 
     def __getitem__(self, index):
         ds_idx, ds_sample_idx = self._get_dataset_and_index(index)
-        return (ds_idx, self.datasets[ds_idx][ds_sample_idx])
+        ret = (ds_idx, self.datasets[ds_idx][ds_sample_idx])
+        return ret
 
     def num_tokens(self, index):
         ds_idx, ds_sample_idx = self._get_dataset_and_index(index)
@@ -366,6 +375,10 @@ class SampledMultiDataset(FairseqDataset):
         )
         indices, cumulated_sizes, virtual_size_per_dataset = self.get_virtual_indices(
             rng, self.datasets, self.sample_ratios, self.virtual_size)
+
+        self._clean_if_not_none([
+            self.cumulated_sizes, self.virtual_size_per_dataset
+        ])
         self._cur_indices = plasma_utils.PlasmaArray(indices)
         self.cumulated_sizes = plasma_utils.PlasmaArray(cumulated_sizes)
         self.virtual_size_per_dataset = plasma_utils.PlasmaArray(virtual_size_per_dataset)
