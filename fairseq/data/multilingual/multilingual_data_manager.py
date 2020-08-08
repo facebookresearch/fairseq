@@ -82,9 +82,15 @@ class MultilingualDatasetManager(object):
     def add_args(parser):
         parser.add_argument('data', help='colon separated path to data directories list, \
                             will be iterated upon during epochs in round-robin manner')
+        parser.add_argument('--langs', default=None, type=csv_str_list,
+                            help='a list of languages comma sperated languages which can appear in lang-pairs; '
+                                 'note that the ordering determines language token IDs',
+                            )
         parser.add_argument('--lang-dict', default=None, type=str,
-                            help='language dictionary path with a list of '
-                                 'languages which can appear in lang-pairs')
+                            help='an external file which contains a list of '
+                                 'languages which can appear in lang-pairs; '
+                                 'note that the ordering determines language token IDs; '
+                                 '--langs and --lang-dict are two exclusive options')
         parser.add_argument('--lang-tok-style', default='multilingual',
                             type=str, choices=['multilingual', 'mbart'],
                             help='language token styles')
@@ -157,7 +163,9 @@ class MultilingualDatasetManager(object):
 
     @classmethod
     def load_langs(cls, args, **kwargs):
-        if args.lang_dict is None:
+        if args.lang_dict and args.langs:
+            raise ValueError('--langs and --lang-dict can not both be specified')
+        if args.lang_dict is None and args.langs is None:
             logger.warning(
                 'External language dictionary is not provided; '
                 'use lang-pairs to infer the set of supported languages. '
@@ -167,10 +175,13 @@ class MultilingualDatasetManager(object):
             langs = list({x for lang_pair in args.lang_pairs for x in lang_pair.split('-')})
             langs = sorted(langs)
             logger.info(f'inferred language list: {langs}')
-        else:
+        elif args.lang_dict:
             with PathManager.open(args.lang_dict, "r", encoding="utf-8") as f:
                 langs = [lang.strip() for lang in f.readlines() if lang.strip()]
                 logger.info(f'loaded language list from {args.lang_dict} as they are ordered in file')
+        elif args.langs:
+            langs = args.langs
+            logger.info(f'parsed the language list as they are ordered in the option: {langs}')
         return langs
 
     def has_sharded_data(self, split):
