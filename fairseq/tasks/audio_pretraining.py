@@ -63,10 +63,6 @@ class AudioPretrainingTask(FairseqTask):
         )
 
         parser.add_argument(
-            "--no-min-cropping", action="store_true", help="always crop to max sample size or smallest length"
-        )
-
-        parser.add_argument(
             "--labels",
             type=str,
             default=None,
@@ -99,7 +95,7 @@ class AudioPretrainingTask(FairseqTask):
             manifest,
             sample_rate=self.args.sample_rate,
             max_sample_size=self.args.max_sample_size,
-            min_sample_size=self.args.min_sample_size if not self.args.no_min_cropping else self.args.max_sample_size,
+            min_sample_size=self.args.max_sample_size,
             min_length=self.args.min_sample_size,
             pad=self.args.labels is not None or self.args.enable_padding,
             normalize=self.args.normalize,

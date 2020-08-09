@@ -993,7 +993,7 @@ def base_architecture(args):
     args.mask_min_space = getattr(args, "mask_min_space", 1)
 
     args.mask_channel_length = getattr(args, "mask_channel_length", 10)
-    args.mask_channel_prob = getattr(args, "mask_channel_prob", 0.65)
+    args.mask_channel_prob = getattr(args, "mask_channel_prob", 0)
     args.mask_channel_selection = getattr(args, "mask_channel_selection", "static")
     args.mask_channel_other = getattr(args, "mask_channel_other", 0)
     args.no_mask_channel_overlap = getattr(args, "no_mask_channel_overlap", False)
