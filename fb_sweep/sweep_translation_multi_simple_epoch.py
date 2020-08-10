@@ -50,6 +50,7 @@ def add_extra_options_func(parser):
     # ideally momentent and 2nd momentent of adam should be adjusted accordingly but less important
     parser.add_argument('--lr', default=10e-4)
     parser.add_argument('--ddp-backend', default=None, )
+    parser.add_argument('--enable-reservsed-directions-shared-datasets', default=False, action='store_true')
 
 
 @register_grid('transformer_16_16')
@@ -183,6 +184,10 @@ def get_grid(args):
     if args.finetune_from_model:
         grids.append(
             hyperparam('--finetune-from-model', args.finetune_from_model)
+        )
+    if args.enable_reservsed_directions_shared_datasets:
+        grids.append(
+            hyperparam('--enable-reservsed-directions-shared-datasets', [True], binary_flag=True)
         )
 
     return grids

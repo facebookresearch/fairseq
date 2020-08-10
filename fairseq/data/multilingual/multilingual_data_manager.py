@@ -449,10 +449,11 @@ class MultilingualDatasetManager(object):
         tgt_lang_id=None,
         langpairs_sharing_datasets=None,
     ):
+        norm_direction = "-".join(sorted([src, tgt]))
         if langpairs_sharing_datasets is not None:
-            src_dataset = langpairs_sharing_datasets.get((data_path, split, src), 'NotInCache')
-            tgt_dataset = langpairs_sharing_datasets.get((data_path, split, tgt), 'NotInCache')
-            align_dataset = langpairs_sharing_datasets.get((data_path, split, src, tgt), 'NotInCache')
+            src_dataset = langpairs_sharing_datasets.get((data_path, split, norm_direction, src), 'NotInCache')
+            tgt_dataset = langpairs_sharing_datasets.get((data_path, split, norm_direction, tgt), 'NotInCache')
+            align_dataset = langpairs_sharing_datasets.get((data_path, split, norm_direction, src, tgt), 'NotInCache')
 
         # a hack: any one is not in cache, we need to reload them
         if (
@@ -476,9 +477,15 @@ class MultilingualDatasetManager(object):
             src_dataset = src_dataset_transform_func(src_dataset)
             tgt_dataset = tgt_dataset_transform_func(tgt_dataset)
             if langpairs_sharing_datasets is not None:
-                langpairs_sharing_datasets[(data_path, split, src)] = src_dataset
-                langpairs_sharing_datasets[(data_path, split, tgt)] = tgt_dataset
-                langpairs_sharing_datasets[(data_path, split, src, tgt)] = align_dataset
+                langpairs_sharing_datasets[(data_path, split, norm_direction, src)] = src_dataset
+                langpairs_sharing_datasets[(data_path, split, norm_direction, tgt)] = tgt_dataset
+                langpairs_sharing_datasets[(data_path, split, norm_direction, src, tgt)] = align_dataset
+                if align_dataset is None:
+                    # no align data so flag the reverse direction as well in sharing
+                    langpairs_sharing_datasets[(data_path, split, norm_direction, tgt, src)] = align_dataset
+        else:
+            logger.info(f"Reusing source and target datasets of [{split}] {tgt}-{src} for reversed direction: "
+                        f"[{split}] {src}-{tgt}: src length={len(src_dataset)}; tgt length={len(tgt_dataset)}")
 
         return LanguagePairDataset(
             src_dataset, src_dataset.sizes, src_dict,
