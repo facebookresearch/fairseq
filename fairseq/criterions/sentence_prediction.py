@@ -114,7 +114,7 @@ class SentencePredictionR3F(FairseqCriterion):
         self,
         task,
         eps,
-        smart_lambda,
+        r3f_lambda,
         noise_type,
         classification_head_name,
         regression_target,
@@ -122,7 +122,7 @@ class SentencePredictionR3F(FairseqCriterion):
     ):
         super().__init__(task)
         self.eps = eps
-        self.smart_lambda = smart_lambda
+        self.r3f_lambda = r3f_lambda
         self.noise_type = noise_type
         self.classification_head_name = classification_head_name
         self.regression_target = regression_target
@@ -143,7 +143,7 @@ class SentencePredictionR3F(FairseqCriterion):
         # fmt: off
         parser.add_argument('--eps', type=float, default=1e-5,
                             help='noise eps')
-        parser.add_argument('--smart-lambda', type=float, default=1.0,
+        parser.add_argument('--r3f-lambda', type=float, default=1.0,
                             help='lambda for combining logistic loss and adversarial KL loss')
         parser.add_argument('--noise-type', type=str, default='uniform',
                             choices=['normal', 'uniform'],
@@ -224,7 +224,7 @@ class SentencePredictionR3F(FairseqCriterion):
             )
             if model.training:
                 symm_kl = symm_kl * sample_size
-                loss = loss + self.smart_lambda * symm_kl
+                loss = loss + self.r3f_lambda * symm_kl
         else:
             logits = input_logits.squeeze().float()
             targets = targets.float()

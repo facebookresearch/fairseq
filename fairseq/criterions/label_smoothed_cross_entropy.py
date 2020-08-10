@@ -105,14 +105,14 @@ class LabelSmoothedCrossEntropyR3FCriterion(FairseqCriterion):
         sentence_avg,
         label_smoothing,
         eps,
-        smart_lambda,
+        r3f_lambda,
         noise_type,
     ):
         super().__init__(task)
         self.sentence_avg = sentence_avg
         self.label_smoothing = label_smoothing
         self.eps = eps
-        self.smart_lambda = smart_lambda
+        self.r3f_lambda = r3f_lambda
         self.noise_type = noise_type
         if self.noise_type in {"normal"}:
             self.noise_sampler = torch.distributions.normal.Normal(
@@ -133,7 +133,7 @@ class LabelSmoothedCrossEntropyR3FCriterion(FairseqCriterion):
                             help='epsilon for label smoothing, 0 means no label smoothing')
         parser.add_argument('--eps', type=float, default=1e-5,
                             help='noise eps')
-        parser.add_argument('--smart-lambda', type=float, default=1.0,
+        parser.add_argument('--r3f-lambda', type=float, default=1.0,
                             help='lambda for combining logistic loss and adversarial KL loss')
         parser.add_argument('--noise-type', type=str, default='normal',
                             choices=['normal', 'uniform', 'adversarial'],
@@ -188,7 +188,7 @@ class LabelSmoothedCrossEntropyR3FCriterion(FairseqCriterion):
 
         if model.training:
             symm_kl = symm_kl * sample_size
-            loss = loss + self.smart_lambda * symm_kl
+            loss = loss + self.r3f_lambda * symm_kl
 
         logging_output = {
             "loss": loss.data,
