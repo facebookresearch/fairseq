@@ -362,9 +362,13 @@ class TransformerEncoder(FairseqEncoder):
     def build_encoder_layer(self, args):
         return TransformerEncoderLayer(args)
 
-    def forward_embedding(self, src_tokens):
+    def forward_embedding(
+        self, src_tokens, encoder_embedding: Optional[torch.Tensor] = None
+    ):
         # embed tokens and positions
-        x = embed = self.embed_scale * self.embed_tokens(src_tokens)
+        if encoder_embedding is None:
+            encoder_embedding = self.embed_tokens(src_tokens)
+        x = embed = self.embed_scale * encoder_embedding
         if self.embed_positions is not None:
             x = embed + self.embed_positions(src_tokens)
         if self.layernorm_embedding is not None:
@@ -374,7 +378,7 @@ class TransformerEncoder(FairseqEncoder):
             x = self.quant_noise(x)
         return x, embed
 
-    def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False):
+    def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False, token_embeddings: Optional[torch.Tensor] = None):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -396,7 +400,7 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
-        x, encoder_embedding = self.forward_embedding(src_tokens)
+        x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
