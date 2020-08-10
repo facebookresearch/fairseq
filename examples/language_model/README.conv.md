@@ -11,7 +11,7 @@ fairseq-train --task language_modeling \
     data-bin/wikitext-103 \
     --save-dir checkpoints/fconv_wikitext-103 \
     --arch fconv_lm_dauphin_wikitext103 \
-    --max-epoch 35 \ --optimizer nag \
+    --max-epoch 35 --optimizer nag \
     --lr 1.0 --lr-scheduler reduce_lr_on_plateau --lr-shrink 0.5 \
     --clip-norm 0.1 --dropout 0.2 --weight-decay 5e-06 --criterion adaptive_loss \
     --adaptive-softmax-cutoff 10000,20000,200000 --max-tokens 1024 --tokens-per-sample 1024 \
