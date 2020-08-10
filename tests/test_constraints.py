@@ -7,7 +7,7 @@ import sys
 import torch
 import unittest
 
-from fairseq.constraints import *
+from fairseq.token_generation_constraints import *
 
 
 def tensorize(constraints: List[List[int]]) -> torch.Tensor:

@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from fairseq.constraints import UnorderedConstraintState, OrderedConstraintState
+from fairseq.token_generation_constraints import ConstraintState, UnorderedConstraintState, OrderedConstraintState
 
 
 class Search(nn.Module):
@@ -21,9 +21,7 @@ class Search(nn.Module):
         self.eos = tgt_dict.eos()
         self.vocab_size = len(tgt_dict)
         self.src_lengths = torch.tensor(-1)
-        # this test in SequenceGenerator._generate() fails if this isn't here:
-        # self.constraints_active = hasattr(self.search, "constraints_active") and self.search.constraints_active
-        self.constraints_active = False
+        self.supports_constraints = False
 
     def step(self, step, lprobs, scores):
         """Take a single search step.
@@ -53,22 +51,27 @@ class Search(nn.Module):
 
     @torch.jit.export
     def init_constraints(self, batch_constraints: Optional[Tensor], beam_size: int):
-        """
-        Used only in LexicallyConstrainedBeamSearch, but needs to exist here to pass torchscript tests.
-        """
-        raise NotImplementedError
+        """Initialize constraint states for constrained decoding (if supported).
 
-    def prune_sentences(self, batch_idxs):
+        :param batch_constraints:
+        :param beam_size:
         """
-        Used only in LexicallyConstrainedBeamSearch, but needs to exist here to pass torchscript tests.
-        """
-        raise NotImplementedError
+        pass
 
-    def update_constraints(self, active_hypos):
+    def prune_sentences(self, batch_idxs: Tensor):
+        """Remove completed sentences from constrained decoding states (if supported).
+
+        :param batch_idxs: A 1d tensor of sentence indices to *keep*.
         """
-        Used only in LexicallyConstrainedBeamSearch, but needs to exist here to pass torchscript tests.
+        pass
+
+    def update_constraints(self, active_hypos: Tensor):
+        """Initialize constraint states for constrained decoding (if supported).
+
+        :param active_hypos: A 2d Tensor of shape (batch size, beam_size), denoting for
+           each sentence which of the (2 * beam_size) items should be retained.
         """
-        raise NotImplementedError
+        pass
 
 
 class BeamSearch(Search):
@@ -128,11 +131,10 @@ class LexicallyConstrainedBeamSearch(Search):
     """
     def __init__(self, tgt_dict, representation):
         super().__init__(tgt_dict)
-        self.constraints_active = True
-        self.constraint_states = None
         self.representation = representation
         self.vocab_size = len(tgt_dict)
         self.num_cands = 0
+        self.supports_constraints = True
 
     @torch.jit.export
     def init_constraints(self, batch_constraints: Optional[Tensor], beam_size: int):
@@ -153,7 +155,7 @@ class LexicallyConstrainedBeamSearch(Search):
             self.constraint_states.append([constraint_state for i in range(beam_size)])
 
     @torch.jit.export
-    def prune_sentences(self, batch_idxs):
+    def prune_sentences(self, batch_idxs: Tensor):
         """
         Removes constraint states for completed sentences.
         This is called from sequence_generator._generate() when sentences are
@@ -164,7 +166,7 @@ class LexicallyConstrainedBeamSearch(Search):
         self.constraint_states = [self.constraint_states[i] for i in batch_idxs.tolist()]
 
     @torch.jit.export
-    def update_constraints(self, active_hypos):
+    def update_constraints(self, active_hypos: Tensor):
         """
         Updates the constraint states by selecting the beam items that are retained.
         This is called at each time step of sequence_generator._generate() when
@@ -178,7 +180,7 @@ class LexicallyConstrainedBeamSearch(Search):
                 self.constraint_states[sentid] = [self.constraint_states[sentid][i] for i in active_hypos[sentid]]
 
     @torch.jit.export
-    def step(self, step: int, lprobs, scores: Optional[Tensor]):
+    def step(self, step: int, lprobs: Tensor, scores: Optional[Tensor]):
         """
         A constrained step builds a large candidates list from the following:
         - the top 2 * {beam_size} items over the whole beam
@@ -279,11 +281,11 @@ class LexicallyConstrainedBeamSearch(Search):
     def step_sentence(self,
                       step: int,
                       sentno: int,
-                      lprobs,
-                      constraint_states,
-                      beams_buf,
-                      indices_buf,
-                      scores_buf):
+                      lprobs: Tensor,
+                      constraint_states: List[List[ConstraintState]],
+                      beams_buf: Tensor,
+                      indices_buf: Tensor,
+                      scores_buf: Tensor):
         """Does per-sentence processing. Adds all constraints for each
         hypothesis to the list of candidates; then removes duplicates,
         sorts, and dynamically stripes across the banks.

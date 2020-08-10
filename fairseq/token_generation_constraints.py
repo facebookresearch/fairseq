@@ -33,24 +33,8 @@ from collections import Counter
 from typing import Tuple, List, Optional, Set
 
 class ConstraintState:
-    def advance(self, token: int):
-        raise NotImplementedError
-
-    def finished(self):
-        """Returns True iff all constraints have been generated."""
-        raise NotImplementedError
-
-    def next_tokens(self):
-        """Returns the set of ungenerated constraint tokens."""
-        raise NotImplementedError
-
-    def tokens(self):
-        """Stateless. Returns the set of tokens across all the sentence's constraints."""
-        raise NotImplementedError
-
-    def bank(self):
-        """Returns the number of constraint tokens that have been generated."""
-        raise NotImplementedError
+    def __init__(self):
+        pass
 
 
 def pack_constraints(batch_constraints: List[List[torch.Tensor]]) -> torch.Tensor:
@@ -161,7 +145,7 @@ class ConstraintNode:
         return root
 
     @staticmethod
-    def print_graph(node):
+    def print_graph(node: "ConstraintNode"):
         if len(node.children) == 0:
             return str(node)
         else:
@@ -216,15 +200,15 @@ class UnorderedConstraintState(ConstraintState):
     """
     def __init__(self,
                  node: ConstraintNode,
-                 copy_from = None):
+                 copy_from: "ConstraintState" = None):
         self.node = node
 
         if copy_from is None:
             # The root node
             self.root = node
-            # Records constraints (multi-token sequences) that have been generated
+            # The set of states in the graph that have been completed
             self.completed = Counter()
-            # Records constraint tokens that have been generated
+            # The...
             self.generated = Counter()
             # The list of tokens we need to generate
             self.needed_tokens = self.root.tokens()
@@ -385,7 +369,7 @@ class ConstraintSequence:
             self.endpoints += [False for x in range(len(sequence) - 1)] + [True]
             self.sequences += sequence
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: int):
         return self.sequences[key]
 
     def __len__(self):

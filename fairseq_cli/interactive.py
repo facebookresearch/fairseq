@@ -21,7 +21,7 @@ import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import encoders
-from fairseq.constraints import pack_constraints, unpack_constraints
+from fairseq.token_generation_constraints import pack_constraints, unpack_constraints
 from .generate import get_symbols_to_strip_from_output
 
 logging.basicConfig(

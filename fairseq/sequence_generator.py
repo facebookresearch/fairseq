@@ -13,7 +13,6 @@ from fairseq import search, utils
 from fairseq.data import data_utils
 from fairseq.models import FairseqIncrementalDecoder
 from fairseq.models.fairseq_encoder import EncoderOut
-from fairseq.search import LexicallyConstrainedBeamSearch
 from torch import Tensor
 
 
@@ -93,10 +92,6 @@ class SequenceGenerator(nn.Module):
         # As a module attribute, setting it would break in multithread
         # settings when the model is shared.
         self.should_set_src_lengths = hasattr(self.search, 'needs_src_lengths') and self.search.needs_src_lengths
-
-        # We only need to manage constraint states in
-        # LexicallyConstrainedBeamSearch.
-        self.constraints_active = hasattr(self.search, "constraints_active") and self.search.constraints_active
 
         self.model.eval()
 
@@ -195,8 +190,11 @@ class SequenceGenerator(nn.Module):
         bsz, src_len = src_tokens.size()
         beam_size = self.beam_size
 
-        if self.constraints_active:
-            self.search.init_constraints(constraints, beam_size)
+        if constraints is not None and not self.search.supports_constraints:
+            raise NotImplementedError("Target-side constraints were provided, but search method doesn't support them")
+
+        # Initialize constraints, when active
+        self.search.init_constraints(constraints, beam_size)
 
         max_len: int = -1
         if self.match_source_len:
@@ -391,9 +389,8 @@ class SequenceGenerator(nn.Module):
                 ] = torch.tensor(0).to(batch_mask)
                 batch_idxs = batch_mask.nonzero().squeeze(-1)
 
-                if self.constraints_active:
-                    # Choose the subset of the hypothesized constraints that will continue
-                    self.search.prune_sentences(batch_idxs)
+                # Choose the subset of the hypothesized constraints that will continue
+                self.search.prune_sentences(batch_idxs)
 
                 eos_mask = eos_mask[batch_idxs]
                 cand_beams = cand_beams[batch_idxs]
@@ -472,9 +469,7 @@ class SequenceGenerator(nn.Module):
             )
 
             # Update constraints based on which candidates were selected for the next beam
-            if self.constraints_active:
-                # Choose the subset of the hypothesized constraints that will continue
-                self.search.update_constraints(active_hypos)
+            self.search.update_constraints(active_hypos)
 
             # copy attention for active hypotheses
             if attn is not None:
