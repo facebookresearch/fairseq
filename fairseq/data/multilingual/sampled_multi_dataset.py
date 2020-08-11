@@ -255,14 +255,14 @@ class SampledMultiDataset(FairseqDataset):
             )
         else:
             samples_dict = defaultdict(list)
-            max_size = defaultdict(int)
+            pad_to_length = defaultdict(int) if 'pad_to_length' not in extra_args else extra_args['pad_to_length']
             for ds_idx, s in samples:
-                max_size['source'] = max(max_size['source'], s['source'].size(0))
+                pad_to_length['source'] = max(pad_to_length['source'], s['source'].size(0))
                 if s['target'] is not None:
-                    max_size['target'] = max(max_size['target'], s['target'].size(0))
+                    pad_to_length['target'] = max(pad_to_length['target'], s['target'].size(0))
                 samples_dict[ds_idx].append(s)
             batches = [
-                self.datasets[i].collater(samples_dict[i], max_size=max_size)
+                self.datasets[i].collater(samples_dict[i], pad_to_length=pad_to_length)
                 for i in range(len(self.datasets))
                 if len(samples_dict[i]) > 0
             ]
