@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
+from fairseq.data import iterators
 from fairseq.logging.meters import safe_round
 from fairseq.modules import gelu, gelu_accurate
 from fairseq.modules.multihead_attention import MultiheadAttention
@@ -558,6 +559,20 @@ def new_arange(x, *size):
 def get_tpu_device(args):
     import torch_xla.core.xla_model as xm
     return xm.xla_device()
+
+
+def tpu_data_loader(itr):
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.parallel_loader as pl
+
+    xm.rendezvous("tpu_data_loader")  # wait for all workers
+    xm.mark_step()
+    device = xm.xla_device()
+    return iterators.CountingIterator(
+        pl.ParallelLoader(itr, [device]).per_device_loader(device),
+        start=getattr(itr, "n", 0),
+        total=len(itr),
+    )
 
 
 class CudaEnvironment(object):
