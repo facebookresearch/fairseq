@@ -3,13 +3,17 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import warnings
+import logging
 import os
+import warnings
+
 
 import torch
 
 from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import data_utils, FairseqDataset, iterators, Dictionary
+
+logger = logging.getLogger(__name__)
 
 
 class FairseqTask(object):
@@ -108,6 +112,37 @@ class FairseqTask(object):
             raise TypeError("Datasets are expected to be of type FairseqDataset")
         return self.datasets[split]
 
+    def filter_indices_by_size(self,
+                               indices,
+                               dataset,
+                               max_positions,
+                               ignore_invalid_inputs):
+        """
+        Filter examples that are too large
+
+        Args:
+            indices (np.array): original array of sample indices
+            dataset (~fairseq.data.FairseqDataset): dataset to batch
+            max_positions (optional): max sentence length supported by the
+                model (default: None).
+            ignore_invalid_inputs (bool, optional): don't raise Exception for
+                sentences that are too long (default: False).
+        Returns:
+            np.array: array of filtered sample indices
+        """
+        indices, ignored = dataset.filter_indices_by_size(indices, max_positions)
+        if len(ignored) > 0:
+            if not ignore_invalid_inputs:
+                raise Exception((
+                    'Size of sample #{} is invalid (={}) since max_positions={}, '
+                    'skip this example with --skip-invalid-size-inputs-valid-test'
+                ).format(ignored[0], dataset.size(ignored[0]), max_positions))
+            logger.warning((
+                '{} samples have invalid sizes and will be skipped, '
+                'max_positions={}, first few sample ids={}'
+            ).format(len(ignored), max_positions, ignored[:10]))
+        return indices
+
     def get_batch_iterator(
         self,
         dataset,
@@ -169,12 +204,10 @@ class FairseqTask(object):
 
         # filter examples that are too large
         if max_positions is not None:
-            indices = data_utils.filter_by_size(
-                indices,
-                dataset,
-                max_positions,
-                raise_exception=(not ignore_invalid_inputs),
-            )
+            indices = self.filter_indices_by_size(indices,
+                                                  dataset,
+                                                  max_positions,
+                                                  ignore_invalid_inputs)
 
         # create mini-batches with given size constraints
         batch_sampler = dataset.batch_by_size(

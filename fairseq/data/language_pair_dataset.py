@@ -386,3 +386,35 @@ class LanguagePairDataset(FairseqDataset):
             self.tgt.prefetch(indices)
         if self.align_dataset is not None:
             self.align_dataset.prefetch(indices)
+
+    def filter_indices_by_size(self, indices, max_sizes):
+        """ Filter a list of sample indices. Remove those that are longer
+            than specified in max_sizes.
+
+        Args:
+            indices (np.array): original array of sample indices
+            max_sizes (int or list[int] or tuple[int]): max sample size,
+                can be defined separately for src and tgt (then list or tuple)
+
+        Returns:
+            np.array: filtered sample array
+            list: list of removed indices
+        """
+        if max_sizes is None:
+            return indices, []
+        if type(max_sizes) in (int, float):
+            max_src_size, max_tgt_size = max_sizes, max_sizes
+        else:
+            max_src_size, max_tgt_size = max_sizes
+        if self.tgt_sizes is None:
+            ignored = indices[self.src_sizes[indices] > max_src_size]
+        else:
+            ignored = indices[(self.src_sizes[indices] > max_src_size) |
+                              (self.tgt_sizes[indices] > max_tgt_size)]
+        if len(ignored) > 0:
+            if self.tgt_sizes is None:
+                indices = indices[self.src_sizes[indices] <= max_src_size]
+            else:
+                indices = indices[(self.src_sizes[indices] <= max_src_size) &
+                                  (self.tgt_sizes[indices] <= max_tgt_size)]
+        return indices, ignored.tolist()
