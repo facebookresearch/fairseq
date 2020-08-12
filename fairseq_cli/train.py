@@ -44,6 +44,7 @@ def main(args):
     assert (
         args.max_tokens is not None or args.max_sentences is not None
     ), "Must specify batch size either with --max-tokens or --max-sentences"
+
     metrics.reset()
 
     np.random.seed(args.seed)
