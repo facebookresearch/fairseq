@@ -263,10 +263,14 @@ def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
     return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
 
 
-def torch_persistent_save(*args, **kwargs):
+def torch_persistent_save(obj, f):
+    if isinstance(f, str):
+        with PathManager.open(f, "wb") as h:
+            torch_persistent_save(obj, h)
+        return
     for i in range(3):
         try:
-            return torch.save(*args, **kwargs)
+            return torch.save(obj, f)
         except Exception:
             if i == 2:
                 logger.error(traceback.format_exc())
