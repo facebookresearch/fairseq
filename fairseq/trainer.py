@@ -347,7 +347,7 @@ class Trainer(object):
             num_shards=self.data_parallel_world_size if shard_batch_itr else 1,
             shard_id=self.data_parallel_rank if shard_batch_itr else 0,
             num_workers=self.args.num_workers,
-            epoch=epoch
+            epoch=epoch,
         )
 
     def get_valid_iterator(
@@ -368,7 +368,7 @@ class Trainer(object):
             seed=self.args.seed,
             num_shards=self.data_parallel_world_size,
             shard_id=self.data_parallel_rank,
-            num_workers=self.args.num_workers
+            num_workers=self.args.num_workers,
         )
 
     def begin_epoch(self, epoch):
