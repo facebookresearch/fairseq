@@ -66,8 +66,10 @@ def main(args):
     model = task.build_model(args)
     criterion = task.build_criterion(args)
     logger.info(model)
+    logger.info("task: {} ({})".format(args.task, task.__class__.__name__))
+    logger.info("model: {} ({})".format(args.arch, model.__class__.__name__))
     logger.info(
-        "model {}, criterion {}".format(args.arch, criterion.__class__.__name__)
+        "criterion: {} ({})".format(args.criterion, criterion.__class__.__name__)
     )
     logger.info(
         "num. model params: {} (num. trained: {})".format(
