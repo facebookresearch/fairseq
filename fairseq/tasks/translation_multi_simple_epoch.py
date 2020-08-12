@@ -239,8 +239,11 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
             # filter examples that are too large
             if max_positions is not None:
                 my_time = time.time()
-                indices = data_utils.filter_by_size(
-                    indices, dataset, max_positions, raise_exception=(not ignore_invalid_inputs),
+                indices = self.filter_indices_by_size(
+                    indices,
+                    dataset,
+                    max_positions,
+                    ignore_invalid_inputs=ignore_invalid_inputs,
                 )
                 logger.debug(f'[{split}] @batch_sampler filter_by_size time: {get_time_gap(my_time, time.time())}')
 

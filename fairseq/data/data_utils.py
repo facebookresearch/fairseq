@@ -11,6 +11,7 @@ import contextlib
 import itertools
 import logging
 import os
+import warnings
 
 from typing import Tuple, Optional
 
@@ -182,6 +183,11 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
         raise_exception (bool, optional): if ``True``, raise an exception if
             any elements are filtered (default: False).
     """
+    warnings.warn(
+        'data_utils.filter_by_size is deprecated. '
+        'Use `FairseqDataset::filter_indices_by_size` instead.',
+        stacklevel=2
+    )
     if isinstance(max_positions, float) or isinstance(max_positions, int):
         if hasattr(dataset, 'sizes') and isinstance(dataset.sizes, np.ndarray):
             ignored = indices[dataset.sizes[indices] > max_positions].tolist()
