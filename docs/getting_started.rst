@@ -182,3 +182,22 @@ replacing ``node_rank=0`` with ``node_rank=1`` on the second node:
         --dropout 0.3 --weight-decay 0.0 --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
         --max-tokens 3584 \
         --fp16  --distributed-no-spawn 
+
+Sharding very large datasets
+----------------------------
+
+It can be challenging to train over very large datasets, particularly if your
+machine does not have much system RAM. Most tasks in fairseq support training
+over "sharded" datasets, in which the original dataset has been preprocessed
+into non-overlapping chunks (or "shards").
+
+For example, instead of preprocessing all your data into a single "data-bin"
+directory, you can split the data and create "data-bin1", "data-bin2", etc.
+Then you can adapt your training command like so:
+
+.. code-block:: console
+
+    > fairseq-train data-bin1:data-bin2:data-bin3 (...)
+
+Training will now iterate over each shard, one by one, with each shard
+corresponding to an "epoch", thus reducing system memory usage.
