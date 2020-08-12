@@ -896,7 +896,10 @@ class Trainer(object):
 
             def is_consistent(tensor):
                 max_abs_diff = torch.max(torch.abs(tensor - tensor[0]))
-                return (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+                return (
+                    not torch.isfinite(tensor).any()
+                    or (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+                )
 
             if not is_consistent(self._grad_norm_buf):
                 pretty_detail = "\n".join(
