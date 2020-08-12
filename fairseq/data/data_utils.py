@@ -171,7 +171,8 @@ def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=Fal
 
 def filter_by_size(indices, dataset, max_positions, raise_exception=False):
     """
-    Filter indices based on their size.
+    [deprecated] Filter indices based on their size.
+    Use `FairseqDataset::filter_indices_by_size` instead.
 
     Args:
         indices (List[int]): ordered list of dataset indices
