@@ -44,8 +44,10 @@ class NanDetector:
     def _detect(self, tensor, name, backward):
         err = None
         if (
-            tensor.numel() >= 2
-        ):  # single value tensors (like the loss) will not provide much info
+            torch.is_floating_point(tensor)
+            # single value tensors (like the loss) will not provide much info
+            and tensor.numel() >= 2
+        ):
             with torch.no_grad():
                 if torch.isnan(tensor).any():
                     err = "NaN"
