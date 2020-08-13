@@ -38,12 +38,19 @@ class AddTargetDataset(BaseWrapperDataset):
             return collated
         indices = set(collated["id"].tolist())
         target = [s["label"] for s in samples if s["id"] in indices]
+
         if self.batch_targets:
             collated["target_lengths"] = torch.LongTensor([len(t) for t in target])
             target = data_utils.collate_tokens(target, pad_idx=self.pad, left_pad=False)
+            collated["ntokens"] = collated["target_lengths"].sum().item()
+        else:
+            collated["ntokens"] = sum([len(t) for t in target])
+
         collated["target"] = target
+
         if self.add_to_input:
             eos = target.new_full((target.size(0), 1), self.eos)
-            collated["target"] = torch.cat([target, eos], dim=-1)
-            collated["net_input"]["prev_output_tokens"] = torch.cat([eos, target], dim=-1)
+            collated["target"] = torch.cat([target, eos], dim=-1).long()
+            collated["net_input"]["prev_output_tokens"] = torch.cat([eos, target], dim=-1).long()
+            collated["ntokens"] += target.size(0)
         return collated
