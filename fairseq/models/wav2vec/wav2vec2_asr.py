@@ -358,6 +358,8 @@ class Wav2VecEncoder(FairseqEncoder):
 
         if tgt_dict is not None:
             self.proj = Linear(d, len(tgt_dict))
+        elif getattr(args, 'decoder_embed_dim', d) != d:
+            self.proj = Linear(d, args.decoder_embed_dim)
         else:
             self.proj = None
 
@@ -434,7 +436,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         input_embed_dim = embed_tokens.embedding_dim
         embed_dim = args.decoder_embed_dim
-        self.output_embed_dim = args.decoder_output_dim
+        self.output_embed_dim = args.decoder_embed_dim
         args.encoder_embed_dim = embed_dim
 
         self.layerdrop = args.decoder_layerdrop
@@ -473,12 +475,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 TransformerDecoderLayer(args, no_encoder_attn)
                 for _ in range(args.decoder_layers)
             ]
-        )
-
-        self.project_out_dim = (
-            Linear(embed_dim, self.output_embed_dim, bias=False)
-            if embed_dim != self.output_embed_dim and not args.tie_adaptive_weights
-            else None
         )
 
         if not self.share_input_output_embed:
@@ -583,9 +579,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
 
-        if self.project_out_dim is not None:
-            x = self.project_out_dim(x)
-
         return x, {"attn": attn, "inner_states": inner_states}
 
     def output_layer(self, features, **kwargs):
@@ -675,5 +668,6 @@ def seq2seq_architecture(args):
     args.decoder_dropout = getattr(args, "decoder_dropout", 0)
     args.decoder_attention_dropout = getattr(args, "decoder_attention_dropout", 0)
     args.decoder_activation_dropout = getattr(args, "decoder_activation_dropout", 0)
+    args.share_decoder_input_output_embed = getattr(args, "share_decoder_input_output_embed", False)
 
     base_architecture(args)
