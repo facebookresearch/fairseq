@@ -698,6 +698,9 @@ class MultilingualDatasetManager(object):
             assert len(paths) > 0
             if len(paths) > 1:
                 self._has_sharded_data = True
+            if split != getattr(self.args, "train_subset", None):
+                # if not training data set, use the first shard for valid and test
+                paths = paths[:1]
 
             if data_category in self.args.langtoks:
                 lang_tok_spec = self.args.langtoks[data_category]
