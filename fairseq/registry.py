@@ -13,6 +13,7 @@ def setup_registry(
     registry_name: str,
     base_class=None,
     default=None,
+    required=False,
 ):
     assert registry_name.startswith('--')
     registry_name = registry_name[2:].replace('-', '_')
@@ -31,6 +32,8 @@ def setup_registry(
     def build_x(args, *extra_args, **extra_kwargs):
         choice = getattr(args, registry_name, None)
         if choice is None:
+            if required:
+                raise ValueError('--{} is required!'.format(registry_name))
             return None
         cls = REGISTRY[choice]
         if hasattr(cls, 'build_' + registry_name):

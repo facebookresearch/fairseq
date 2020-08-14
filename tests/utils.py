@@ -210,6 +210,7 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
             data_dir,
             '--save-dir', data_dir,
             '--arch', arch,
+            '--optimizer', 'nag',
             '--lr', '0.05',
             '--max-tokens', '500',
             '--max-epoch', '1',

@@ -61,6 +61,7 @@ save the following in a new file named :file:`fairseq/models/simple_lstm.py`::
               hidden_size=hidden_dim,
               num_layers=1,
               bidirectional=False,
+              batch_first=True,
           )
 
       def forward(self, src_tokens, src_lengths):

@@ -239,6 +239,7 @@ class _MemoryEfficientFP16OptimizerMixin(object):
     def __init__(self, *args, **kwargs):
         # forward __init__ call to the next class in MRO (method resolution order)
         super().__init__(*args, **kwargs)
+        self._multiply_factor = 1.
 
     @property
     def has_flat_params(self):
