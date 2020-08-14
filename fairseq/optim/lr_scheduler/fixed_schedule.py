@@ -34,6 +34,13 @@ class FixedSchedule(FairseqLRScheduler):
                             help='warmup the learning rate linearly for the first N updates')
         # fmt: on
 
+    def state_dict(self):
+        return {'lr': self.lr}
+
+    def load_state_dict(self, state_dict):
+        if 'lr' in state_dict:
+            self.lr = state_dict['lr']
+
     def get_next_lr(self, epoch):
         lrs = self.args.lr
         if self.args.force_anneal is None or epoch < self.args.force_anneal:

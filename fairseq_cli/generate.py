@@ -136,7 +136,7 @@ def _main(args, output_file):
             x = tokenizer.decode(x)
         return x
 
-    scorer = scoring.scoring_utils.build_scorer(args, tgt_dict)
+    scorer = scoring.build_scorer(args, tgt_dict)
 
     num_sentences = 0
     has_target = True

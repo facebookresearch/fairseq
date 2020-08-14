@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.logging.meters import safe_round
 
 
 @register_criterion('wav2vec')
@@ -132,7 +133,7 @@ class Wav2vecCriterion(FairseqCriterion):
         if total > 0:
             metrics.log_derived(
                 "accuracy",
-                lambda meters: round(meters["_correct"].sum / meters["_total"].sum, 5)
+                lambda meters: safe_round(meters["_correct"].sum / meters["_total"].sum, 5)
                 if meters["_total"].sum > 0
                 else float("nan"),
             )
