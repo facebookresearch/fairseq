@@ -33,10 +33,16 @@ class MultiCorpusDataset(FairseqDataset):
         datasets: a OrderedDict of FairseqDataset instances.
         distribution: a List containing the probability of getting an utterance from
                         corresponding dataset
+        seed: random seed for sampling the datsets
+        sort_indices: if true, will sort the ordered indices by size
     """
 
     def __init__(
-        self, datasets: Dict[str, FairseqDataset], distribution: List[float], seed: int
+        self,
+        datasets: Dict[str, FairseqDataset],
+        distribution: List[float],
+        seed: int,
+        sort_indices: bool = False,
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
@@ -44,6 +50,7 @@ class MultiCorpusDataset(FairseqDataset):
         self.datasets = datasets
         self.distribution = distribution
         self.seed = seed
+        self.sort_indices = sort_indices
 
         # Avoid repeated conversions to list later
         self.dataset_list = list(datasets.values())
@@ -68,13 +75,12 @@ class MultiCorpusDataset(FairseqDataset):
             # Keep track of which samples we've  used for each dataset
             counters = [0 for _ in self.datasets]
 
-            return np.array(
-                [
-                    self._sample(indices, counters)
-                    for _ in range(self.total_num_instances)
-                ],
-                dtype=np.int64,
-            )
+            sampled_indices = [
+                self._sample(indices, counters) for _ in range(self.total_num_instances)
+            ]
+            if self.sort_indices:
+                sampled_indices.sort(key=lambda i: self.num_tokens(i))
+            return np.array(sampled_indices, dtype=np.int64)
 
     def _sample(self, indices, counters):
         # First pick dataset
