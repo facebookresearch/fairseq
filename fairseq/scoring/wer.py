@@ -15,18 +15,18 @@ class WerScorer(object):
 
     def reset(self):
         self.distance = 0
-        self.target_length = 0
+        self.ref_length = 0
 
     def add_string(self, ref, pred):
-        pred_items = ref.split()
-        targ_items = pred.split()
-        self.distance += editdistance.eval(pred_items, targ_items)
-        self.target_length += len(targ_items)
+        ref_items = ref.split()
+        pred_items = pred.split()
+        self.distance += editdistance.eval(ref_items, pred_items)
+        self.ref_length += len(ref_items)
 
     def result_string(self):
         return f"WER: {self.score()}"
 
     def score(self):
         return (
-            100.0 * self.distance / self.target_length if self.target_length > 0 else 0
+            100.0 * self.distance / self.ref_length if self.ref_length > 0 else 0
         )
