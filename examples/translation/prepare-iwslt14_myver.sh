@@ -69,7 +69,8 @@ done
 
 echo "pre-processing valid/test data..."
 for l in $src $tgt; do
-    for o in `ls $orig/$lang/IWSLT14.TED*.$l.xml`; do
+    #for o in `ls $orig/$lang/IWSLT14.TED*.$l.xml`; do
+    for o in `ls $orig/commoncrawl.de-en.$l`; do
     fname=${o##*/}
     f=$tmp/${fname%.*}
     echo $o $f
