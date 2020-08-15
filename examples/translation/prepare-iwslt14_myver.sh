@@ -90,11 +90,8 @@ for l in $src $tgt; do
     awk '{if (NR%23 == 0)  print $0; }' $tmp/train.tags.de-en.$l > $tmp/valid.$l
     awk '{if (NR%23 != 0)  print $0; }' $tmp/train.tags.de-en.$l > $tmp/train.$l
 
-    cat $tmp/IWSLT14.TED.dev2010.de-en.$l \
-        $tmp/IWSLT14.TEDX.dev2012.de-en.$l \
-        $tmp/IWSLT14.TED.tst2010.de-en.$l \
-        $tmp/IWSLT14.TED.tst2011.de-en.$l \
-        $tmp/IWSLT14.TED.tst2012.de-en.$l \
+    cat $tmp/commoncrawl.de-en.$l \
+        $tmp/commoncrawl.de-en.$l \
         > $tmp/test.$l
 done
 
