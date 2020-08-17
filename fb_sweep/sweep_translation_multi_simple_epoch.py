@@ -79,6 +79,25 @@ def get_transformer_16_16_grid():
     ]
 
 
+@register_grid('mbart_large')
+def get_transformer_mbart_large_grid():
+    return [
+        hyperparam('--arch', "mbart_large", save_dir_key=lambda val: val),
+        hyperparam('--lang-tok-style', 'mbart'),
+
+        hyperparam("--layernorm-embedding", binary_flag=True, save_dir_key=lambda val: "lnemb"),
+        hyperparam('--encoder-learned-pos'),
+        hyperparam('--decoder-learned-pos'),
+        hyperparam('--encoder-normalize-before'),
+        hyperparam('--decoder-normalize-before'),
+        hyperparam('--share-all-embeddings'),
+        hyperparam('--share-decoder-input-output-embed'),
+
+        hyperparam('--attention-dropout', 0.1, save_dir_key=lambda val: f'ATTDRP{val}'),
+        hyperparam('--relu-dropout', 0.0, save_dir_key=lambda val: f'RELDRP{val}'),
+    ]
+
+
 @register_grid('transformer_12_12')
 def get_transformer_12_12_grid():
     return [
@@ -150,12 +169,6 @@ def get_grid(args):
         hyperparam('--log-interval', 100 if not args.local else 10),
     ]
 
-    arch_grid = get_predefined_grid(args.arch)
-    arch_grid = arch_grid if arch_grid else [
-        hyperparam('--arch', args.arch, save_dir_key=lambda val: val),
-    ]
-
-    grids += arch_grid
     if args.ddp_backend:
         grids.append(
             hyperparam('--ddp-backend', args.ddp_backend, save_dir_key=lambda val: f'{val}')
@@ -189,6 +202,12 @@ def get_grid(args):
         grids.append(
             hyperparam('--enable-reservsed-directions-shared-datasets', [True], binary_flag=True)
         )
+    arch_grid = get_predefined_grid(args.arch)
+    arch_grid = arch_grid if arch_grid else [
+        hyperparam('--arch', args.arch, save_dir_key=lambda val: val),
+    ]
+
+    grids += arch_grid
 
     return grids
 
