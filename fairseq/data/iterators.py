@@ -53,13 +53,20 @@ class CountingIterator(object):
         else:
             self.total = total
 
+        self.early_stop = self.total
+
     def __len__(self):
         return self.total
 
     def __iter__(self):
         for x in self.iterable:
             if self.n >= self.total:
-                return
+                raise RuntimeError(
+                    'Mismatch between actual and expected iterable length. '
+                    'Please report this to the fairseq developers.'
+                )
+            elif self.n >= self.early_stop:
+                return  # early stop based on take()
             self.n += 1
             yield x
 
@@ -79,7 +86,7 @@ class CountingIterator(object):
         """
         Truncates the iterator to n elements at most.
         """
-        self.total = min(self.total, n)
+        self.early_stop = min(self.early_stop, n)
 
         # Propagate this change to the underlying iterator
         if hasattr(self.iterable, "take"):
