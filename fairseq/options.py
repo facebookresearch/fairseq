@@ -361,6 +361,10 @@ def add_dataset_args(parser, train=False, gen=False):
                                 ' (e.g. train, valid, test)')
         group.add_argument('--validate-interval', type=int, default=1, metavar='N',
                            help='validate every N epochs')
+        group.add_argument('--validate-interval-updates', type=int, default=0, metavar='N',
+                           help='validate every N updates')
+        group.add_argument('--validate-after-updates', type=int, default=0, metavar='N',
+                           help='dont validate until reaching this many updates')
         group.add_argument('--fixed-validation-seed', default=None, type=int, metavar='N',
                            help='specified random seed for validation')
         group.add_argument('--disable-validation', action='store_true',
@@ -485,6 +489,9 @@ def add_checkpoint_args(parser):
     group.add_argument('--restore-file', default='checkpoint_last.pt',
                        help='filename from which to load checkpoint '
                             '(default: <save-dir>/checkpoint_last.pt')
+    group.add_argument('--finetune-from-model', default=None, type=str,
+                       help='finetune from a pretrained model; '
+                            'note that meters and lr scheduler will be reset')
     group.add_argument('--reset-dataloader', action='store_true',
                        help='if set, does not reload dataloader state from the checkpoint')
     group.add_argument('--reset-lr-scheduler', action='store_true',
@@ -529,7 +536,7 @@ def add_common_eval_args(group):
     # fmt: off
     group.add_argument('--path', metavar='FILE',
                        help='path(s) to model file(s), colon separated')
-    group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
+    group.add_argument('--remove-bpe', '--post-process', nargs='?', const='@@ ', default=None,
                        help='remove BPE tokens before scoring (can be set to sentencepiece)')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
@@ -665,8 +672,8 @@ def add_model_args(parser):
     # 2) --arch argument
     # 3) --encoder/decoder-* arguments (highest priority)
     from fairseq.models import ARCH_MODEL_REGISTRY
-    group.add_argument('--arch', '-a', default='fconv', metavar='ARCH',
+    group.add_argument('--arch', '-a', metavar='ARCH',
                        choices=ARCH_MODEL_REGISTRY.keys(),
-                       help='Model Architecture')
+                       help='model architecture')
     # fmt: on
     return group

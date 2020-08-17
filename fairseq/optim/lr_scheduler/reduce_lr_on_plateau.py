@@ -35,6 +35,7 @@ class ReduceLROnPlateau(FairseqLRScheduler):
             )
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer.optimizer, patience=args.lr_patience, factor=args.lr_shrink,
+            mode='max' if args.maximize_best_checkpoint_metric else 'min',
             threshold=args.lr_threshold)
         warmup_end_lr = args.lr[0]
         # if no warm up, sets initial lr to be args.lr[0]
@@ -44,9 +45,11 @@ class ReduceLROnPlateau(FairseqLRScheduler):
         # linearly warmup for the first args.warmup_updates
         if args.warmup_updates > 0:
             self.lr_step = (warmup_end_lr - args.warmup_init_lr) / args.warmup_updates
+
         # this flag is either set from arg when no warm up, or set by
         # step_update() when warmup finishes
         self.warmup_end = True if args.warmup_updates <= 0 else False
+
         # initial learning rate
         # this self.lr is used only during init and/or warm up period
         self.lr = args.warmup_init_lr

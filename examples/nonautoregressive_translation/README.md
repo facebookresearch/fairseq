@@ -13,7 +13,7 @@ We also provided our own implementations for several popular non-autoregressive-
 
 ## Dataset
 
-First, follow the [instructions to download and preprocess the WMT'14 En-De dataset](../translation#prepare-wmt14en2desh).
+First, follow the [instructions to download and preprocess the WMT'14 En-De dataset](../translation#wmt14-english-to-german-convolutional).
 Make sure to learn a joint vocabulary by passing the `--joined-dictionary` option to `fairseq-preprocess`.
 
 ### Knowledge Distillation

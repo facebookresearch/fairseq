@@ -19,7 +19,6 @@ from fairseq.data import data_utils
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 # Object used by _background_consumer to signal the source is exhausted
 # to the main thread.
@@ -504,7 +503,7 @@ class BufferedIterator(object):
         if self._queue.qsize() < min(2, max(1, self._queue.maxsize // 2)):
             if time.time() - self.start_time > 5 * 60:
                 if self.warning_time is None or time.time() - self.warning_time > 15 * 60:
-                    logger.info(
+                    logger.debug(
                         "Data loading buffer is empty or nearly empty. This may "
                         "indicate a data loading bottleneck, and increasing the "
                         "number of workers (--num-workers) may help."

@@ -1,4 +1,4 @@
-# Training with Quantization Noise for Extreme Model Compression ({Fan\*, Stock\*} *et al.*, 2019)
+# Training with Quantization Noise for Extreme Model Compression ({Fan\*, Stock\*} *et al.*, 2020)
 This page contains information for how to train and quantize models with Quantization Noise, for both scalar quantization like `int8` and Iterative Product Quantization.
 Check out our paper [here](https://arxiv.org/abs/2004.07320).
 

@@ -16,7 +16,7 @@ import numpy as np
 
 import torch
 
-from fairseq import bleu, checkpoint_utils, options, tasks, utils
+from fairseq import checkpoint_utils, options, scoring, tasks, utils
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.data import encoders
@@ -136,11 +136,8 @@ def _main(args, output_file):
             x = tokenizer.decode(x)
         return x
 
-    # Generate and compute BLEU score
-    if args.sacrebleu:
-        scorer = bleu.SacrebleuScorer()
-    else:
-        scorer = bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
+    scorer = scoring.build_scorer(args, tgt_dict)
+
     num_sentences = 0
     has_target = True
     wps_meter = TimeMeter()
@@ -166,7 +163,11 @@ def _main(args, output_file):
             has_target = sample['target'] is not None
 
             # Remove padding
-            src_tokens = utils.strip_pad(sample['net_input']['src_tokens'][i, :], tgt_dict.pad())
+            if 'src_tokens' in sample['net_input']:
+                src_tokens = utils.strip_pad(sample['net_input']['src_tokens'][i, :], tgt_dict.pad())
+            else:
+                src_tokens = None
+
             target_tokens = None
             if has_target:
                 target_tokens = utils.strip_pad(sample['target'][i, :], tgt_dict.pad()).int().cpu()
@@ -259,7 +260,7 @@ def _main(args, output_file):
 
         wps_meter.update(num_generated_tokens)
         progress.log({'wps': round(wps_meter.avg)})
-        num_sentences += sample['nsentences']
+        num_sentences += sample["nsentences"] if "nsentences" in sample else sample['id'].numel()
 
     logger.info('NOTE: hypothesis and token scores are output in base 2')
     logger.info('Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)'.format(
@@ -270,7 +271,10 @@ def _main(args, output_file):
                 logger.warning("BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization")
             else:
                 logger.warning("If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --sacrebleu for standard 13a BLEU tokenization")
-        logger.info('Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()))
+        # use print to be consistent with other main outputs: S-, H-, T-, D- and so on
+        print(
+            'Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()),
+            file=output_file)
 
     return scorer
 

@@ -19,7 +19,7 @@ try:
 except:
     print("Install tqdm to use --log-format=tqdm")
 
-from fairseq.models.wav2vec import Wav2VecModel
+from fairseq.models.wav2vec.wav2vec import Wav2VecModel
 
 import tqdm
 import soundfile as sf

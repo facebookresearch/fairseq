@@ -373,11 +373,19 @@ class Trainer(object):
 
     def begin_epoch(self, epoch):
         """Called at the beginning of each epoch."""
+        logger.info("begin training epoch {}".format(epoch))
+
         if self.quantizer is not None:
             self.quantizer.begin_epoch(epoch)
 
         # task specific setup per epoch
         self.task.begin_epoch(epoch, self.get_model())
+
+        if self.tpu:
+            import torch_xla.core.xla_model as xm
+
+            xm.rendezvous('begin_epoch')  # wait for all workers
+            xm.mark_step()
 
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
@@ -483,6 +491,9 @@ class Trainer(object):
                 logging_outputs, sample_size, ooms, train_time, ignore=is_dummy_batch,
             )
             self._cumulative_training_time = total_train_time / self.data_parallel_world_size
+
+        if hasattr(self.model, 'all_reduce'):
+            self.model.all_reduce()
 
         overflow = False
         try:
@@ -893,7 +904,10 @@ class Trainer(object):
 
             def is_consistent(tensor):
                 max_abs_diff = torch.max(torch.abs(tensor - tensor[0]))
-                return (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+                return (
+                    not torch.isfinite(tensor).any()
+                    or (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+                )
 
             if not is_consistent(self._grad_norm_buf):
                 pretty_detail = "\n".join(

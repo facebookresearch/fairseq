@@ -45,8 +45,8 @@ class TransformEosLangPairDataset(FairseqDataset):
     def __len__(self):
         return len(self.dataset)
 
-    def collater(self, samples):
-        samples = self.dataset.collater(samples)
+    def collater(self, samples, **extra_args):
+        samples = self.dataset.collater(samples, **extra_args)
 
         if self.new_src_eos is not None:
             if self.dataset.left_pad_source:
