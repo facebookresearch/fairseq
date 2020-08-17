@@ -38,11 +38,6 @@ This will generate the following output:
     D-0     -1.5333266258239746     Machine translation is hard to influence .
     P-0     -0.5434 -0.1423 -0.1930 -0.1415 -0.2346 -1.8031 -0.1701 -11.7727 -0.1815 -0.1511
 
-You can also provide the `--constraints-both` flag, which will decode the sentence in the same
-batch, but unconstrained, outputting both results.
-
-    echo https://awslabs.github.io/sockeye/inference.html#lexical-constraints
-
 By default, constraints are generated in the order supplied, with any number (zero or more) of tokens generated
 between constraints. If you wish for the decoder to order the constraints, then use `--constraints unordered`.
 Note that you may want to use a larger beam.
@@ -60,9 +55,9 @@ provided for each input sentence. It does this using one of two classes, both fo
 
 There are a number of [differences from Sockeye's implementation](https://awslabs.github.io/sockeye/inference.html#lexical-constraints).
 
-* Generating constraints in the order supplied was not supported by Sockeye.
+* Generating constraints in the order supplied (the default option here) is not available in Sockeye.
 * Due to an improved beam allocation method, there is no need to prune the beam.
-* Again to better allocation, beam sizes as low as 10 or even 5 are often sufficient.
+* Again due to better allocation, beam sizes as low as 10 or even 5 are often sufficient.
 * [The extensions described in Hu et al.](https://github.com/edwardjhu/sockeye/tree/trie_constraints) (NAACL 2019) were never merged
   into the main branch.
 * Sockeye 2, released in July 2020, no longer supports constrained decoding.

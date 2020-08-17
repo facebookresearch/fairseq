@@ -96,15 +96,6 @@ def make_batches(lines, args, task, max_positions, encode_fn):
         src_lengths = batch['net_input']['src_lengths']
         constraints = batch.get("constraints", None)
 
-        # Double the batch, decoding both with and without the constraints
-        if args.constraints and args.constraints_both:
-            ids = ids.repeat(2)
-            src_tokens = src_tokens.repeat(2, 1)
-            src_lengths = src_lengths.repeat(2, 1)
-            doubled_constraints = torch.zeros_like(constraints).repeat((2,1)).long()
-            doubled_constraints[0] = constraints
-            constraints = doubled_constraints
-
         yield Batch(
             ids=ids,
             src_tokens=src_tokens,
