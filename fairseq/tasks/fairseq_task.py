@@ -157,7 +157,7 @@ class FairseqTask(object):
         num_shards=1,
         shard_id=0,
         num_workers=0,
-        epoch=1
+        epoch=1,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -228,7 +228,7 @@ class FairseqTask(object):
             shard_id=shard_id,
             num_workers=num_workers,
             epoch=epoch,
-            buffer_size=getattr(self.args, 'data_buffer_size', 0)
+            buffer_size=getattr(self.args, 'data_buffer_size', 0),
         )
         self.dataset_to_epoch_iter[dataset] = epoch_iter
         return epoch_iter
