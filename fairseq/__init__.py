@@ -20,6 +20,7 @@ import fairseq.modules  # noqa
 import fairseq.optim  # noqa
 import fairseq.optim.lr_scheduler  # noqa
 import fairseq.pdb  # noqa
+import fairseq.scoring  # noqa
 import fairseq.tasks  # noqa
 
 import fairseq.benchmark  # noqa
