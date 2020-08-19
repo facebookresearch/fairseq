@@ -104,3 +104,13 @@ class PathManager:
     def register_handler(handler) -> None:
         if FVCorePathManager:
             return FVCorePathManager.register_handler(handler=handler)
+
+    @staticmethod
+    def copy_from_local(
+        local_path: str, dst_path: str, overwrite: bool = False, **kwargs
+    ) -> None:
+        if FVCorePathManager:
+            return FVCorePathManager.copy_from_local(
+                local_path=local_path, dst_path=dst_path, overwrite=overwrite, **kwargs
+            )
+        return shutil.copyfile(local_path, dst_path)
