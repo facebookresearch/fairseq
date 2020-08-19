@@ -8,6 +8,7 @@ import contextlib
 import logging
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -41,6 +42,7 @@ def fb_main(
     args,
     start_rank,
     log_path=None,
+    manifold_log_uri=None,
     after_distributed_init_fn: Optional[
         Callable[[argparse.Namespace], argparse.Namespace]
     ] = None,
@@ -88,6 +90,9 @@ def fb_main(
             },
         )
 
+    if manifold_log_uri is not None and log_path is None:
+        log_path = tempfile.mktemp()
+
     if log_path is not None and args.distributed_rank == 0:
         # write logs from worker 0 to train.log
         PathManager.mkdirs(args.save_dir)
@@ -95,6 +100,10 @@ def fb_main(
         Path(log_path).touch(0o777, exist_ok=True)
         add_handler(logging.FileHandler(log_path))
         train_main()
+        if manifold_log_uri is not None:
+            PathManager.copy_from_local(
+                local_path=log_path, dst_path=manifold_log_uri, overwrite=True
+            )
     else:
         train_main()
 
