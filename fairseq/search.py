@@ -133,7 +133,9 @@ class DiverseBeamSearch(Search):
             # apply diversity penalty
             if g > 0:
                 lprobs_g = torch.add(
-                    lprobs_g, self.diversity_strength, diversity_buf.unsqueeze(1)
+                    lprobs_g,
+                    other=diversity_buf.unsqueeze(1),
+                    alpha=self.diversity_strength,
                 )
             else:
                 lprobs_g = lprobs_g.contiguous()

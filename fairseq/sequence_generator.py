@@ -372,11 +372,10 @@ class SequenceGenerator(nn.Module):
                 new_bsz = bsz - len(finalized_sents)
 
                 # construct batch_idxs which holds indices of batches to keep for the next pass
-                batch_mask = torch.ones(bsz).to(cand_indices)
-                batch_mask[
-                    torch.tensor(finalized_sents).to(cand_indices)
-                ] = torch.tensor(0).to(batch_mask)
-                batch_idxs = batch_mask.nonzero().squeeze(-1)
+                batch_mask = torch.ones(bsz, dtype=torch.bool, device=cand_indices.device)
+                batch_mask[finalized_sents] = False
+                # TODO replace `nonzero(as_tuple=False)` after TorchScript supports it
+                batch_idxs = torch.arange(bsz, device=cand_indices.device).masked_select(batch_mask)
 
                 eos_mask = eos_mask[batch_idxs]
                 cand_beams = cand_beams[batch_idxs]

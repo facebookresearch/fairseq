@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import unittest
 
 from tests.test_sequence_generator import get_dummy_task_and_parser
@@ -17,6 +18,10 @@ class TestInferenceDropout(unittest.TestCase):
         self.args = self.parser.parse_args([])
         self.args.encoder_layers = 2
         self.args.decoder_layers = 1
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def test_sets_inference_dropout_to_true(self):
         self.args.retain_dropout = True
