@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+#
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import sys
 
@@ -24,4 +29,5 @@ for line in sys.stdin:
                 print(f"No {constraint} in {text}", file=sys.stderr)
 
         constraints = []
+
 print(f"Found {found} / {total} = {100 * found / total:.1f}%")

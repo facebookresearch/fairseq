@@ -52,6 +52,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+- August 2020: [Lexically constrained decoding(examples/constrained_decoding/README.md)
 - August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
 - July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)
 - May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)

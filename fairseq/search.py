@@ -53,23 +53,37 @@ class Search(nn.Module):
     def init_constraints(self, batch_constraints: Optional[Tensor], beam_size: int):
         """Initialize constraint states for constrained decoding (if supported).
 
-        :param batch_constraints:
-        :param beam_size:
+        Args:
+            batch_constraints: (torch.Tensor, optional)
+                the list of constraints, in packed form
+            beam_size: (int)
+                the beam size
+        Returns:
+            *encoder_out* rearranged according to *new_order*
         """
         pass
 
     def prune_sentences(self, batch_idxs: Tensor):
-        """Remove completed sentences from constrained decoding states (if supported).
+        """
+        Removes constraint states for completed sentences (if supported).
+        This is called from sequence_generator._generate() when sentences are
+        deleted from the batch.
 
-        :param batch_idxs: A 1d tensor of sentence indices to *keep*.
+        Args:
+            batch_idxs: Indices of *sentences* whose constraint state should be *kept*.
         """
         pass
 
     def update_constraints(self, active_hypos: Tensor):
-        """Initialize constraint states for constrained decoding (if supported).
+        """
+        Updates the constraint states by selecting the beam items that are retained.
+        This is called at each time step of sequence_generator._generate() when
+        the set of 2 * {beam_size} candidate hypotheses are reduced to the beam size.
 
-        :param active_hypos: A 2d Tensor of shape (batch size, beam_size), denoting for
-           each sentence which of the (2 * beam_size) items should be retained.
+        Args:
+            active_hypos: (batch size, beam size)
+              list of integers denoting, for each sentence, which beam candidate items
+              should be kept.
         """
         pass
 
@@ -138,13 +152,6 @@ class LexicallyConstrainedBeamSearch(Search):
 
     @torch.jit.export
     def init_constraints(self, batch_constraints: Optional[Tensor], beam_size: int):
-        """
-        For each sentence in the batch, creates a ConstraintState item for each item in the beam.
-
-        :param batch_constraints: For each sentence in the batch, a concatenated list of constraints,
-           each ending with 0.
-        :param beam_size: The beam size.
-        """
         self.constraint_states = []
         for constraint_tensor in batch_constraints:
             if self.representation == "ordered":
@@ -156,24 +163,10 @@ class LexicallyConstrainedBeamSearch(Search):
 
     @torch.jit.export
     def prune_sentences(self, batch_idxs: Tensor):
-        """
-        Removes constraint states for completed sentences.
-        This is called from sequence_generator._generate() when sentences are
-        deleted from the batch.
-
-        :param batch_idxs: Indices of *sentences* whose constraint state should be *kept*.
-        """
         self.constraint_states = [self.constraint_states[i] for i in batch_idxs.tolist()]
 
     @torch.jit.export
     def update_constraints(self, active_hypos: Tensor):
-        """
-        Updates the constraint states by selecting the beam items that are retained.
-        This is called at each time step of sequence_generator._generate() when
-        the set of 2 * {beam_size} candidate hypotheses are reduced to the beam size.
-
-        :param active_hypos: Size (batch size, beam size) denoting which of candidate beam items are being kept
-        """
         if self.constraint_states:
             batch_size = active_hypos.size(0)
             for sentid in range(batch_size):
@@ -192,10 +185,19 @@ class LexicallyConstrainedBeamSearch(Search):
         on. We then sort by (stripe, score), and truncate the list at
         2 * beam size.
 
-        :return: scores_buf (batch, 2 * beam)
-        :return: indices_buf (batch, 2 * beam)
-        :return: beams_buf (batch, 2 * beam)
-        :return: new constraint states
+        Args:
+            step: the decoder step
+            lprobs: (batch size, beam size, target vocab)
+                the target-vocab distributions for each item in the beam.
+        Retrun: A tuple of (scores, indices, beams, constraints) where:
+            scores: (batch, output beam size)
+                the scores of the chosen elements
+            indices: (batch, output beam size)
+                the target vocab indices of the chosen elements
+            beams: (batch, output beam size)
+                the 0-indexed hypothesis ids of the chosen elements
+            constraints: (batch, output beam size)
+                the new constraint states
         """
         each_k = 1
         device = lprobs.device
@@ -288,17 +290,9 @@ class LexicallyConstrainedBeamSearch(Search):
                       scores_buf: Tensor):
         """Does per-sentence processing. Adds all constraints for each
         hypothesis to the list of candidates; then removes duplicates,
-        sorts, and dynamically stripes across the banks.
-
-        :param step: The decoder timestep.
-        :param sentno: The sentence number in the batch.
-        :param lprobs: The target-vocab distributions for each item in the beam. Shape: (beam size, target vocab).
-        :param constraint_states: What constrained words have been generated by each item in the beam.
-        :param beams_buf: Beam numbers for each candidate. Shape: 1d list of cands.
-        :param indices_buf: Target vocab IDs for each candidate. Shape: 1d list of cands.
-        :param scores_buf: The score for each candidate. Shape: 1d list of scores.
+        sorts, and dynamically stripes across the banks. All tensor inputs
+        are collapsed to those pertaining to a single input sentence.
         """
-
         device = lprobs.device
 
         # STEP 2: Add all constraints for each beam item
