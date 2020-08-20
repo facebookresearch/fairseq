@@ -176,7 +176,7 @@ def main(parsed_args, **unused_kwargs):
             tgt_len = tokens.numel()
             pos_scores = hypo['positional_scores'].float()
 
-            if args.add_bos_token:
+            if getattr(args, 'add_bos_token', False):
                 assert hypo['tokens'][0].item() == task.target_dictionary.bos()
                 tokens = tokens[1:]
                 pos_scores = pos_scores[1:]
