@@ -52,7 +52,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
-- August 2020: [Lexically constrained decoding(examples/constrained_decoding/README.md)
+- August 2020: [Added lexically constrained decoding](examples/constrained_decoding/README.md)
 - August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
 - July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)
 - May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
@@ -84,6 +84,7 @@ We provide reference implementations of various sequence modeling papers:
   - beam search
   - Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
   - sampling (unconstrained, top-k and top-p/nucleus)
+  - lexically constrained decoding ([Post & Vilar, 2018](examples/constrained_decoding/README.md))
 - large mini-batch training even on a single GPU via delayed updates
 - mixed precision training (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
 - extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
