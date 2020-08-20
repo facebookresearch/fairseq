@@ -18,7 +18,7 @@ class MaskedLmLoss(FairseqCriterion):
     Implementation for the loss used in masked language model (MLM) training.
     """
 
-    def __init__(self, task, tpu):
+    def __init__(self, task, tpu=False):
         super().__init__(task)
         self.tpu = tpu
 
