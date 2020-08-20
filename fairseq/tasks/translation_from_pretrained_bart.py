@@ -109,11 +109,13 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
                 eos=self.tgt_dict.index('[{}]'.format(self.args.target_lang))
             )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
         src_lang_id = self.source_dictionary.index('[{}]'.format(self.args.source_lang))
         source_tokens = []
         for s_t in src_tokens:
             s_t = torch.cat([s_t, s_t.new(1).fill_(src_lang_id)])
             source_tokens.append(s_t)
-        dataset = LanguagePairDataset(source_tokens, src_lengths, self.source_dictionary)
+        dataset = LanguagePairDataset(source_tokens, src_lengths, self.source_dictionary,
+                                      tgt_dict=self.target_dictionary,
+                                      constraints=constraints)
         return dataset

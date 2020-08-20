@@ -141,7 +141,11 @@ class TranslationLevenshteinTask(TranslationTask):
             adaptive=not getattr(args, 'iter_decode_force_max_iter', False),
             retain_history=getattr(args, 'retain_iter_history', False))
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
+        if constraints is not None:
+            # Though see Susanto et al. (ACL 2020): https://www.aclweb.org/anthology/2020.acl-main.325/
+            raise NotImplementedError("Constrained decoding with the translation_lev task is not supported")
+
         return LanguagePairDataset(
             src_tokens, src_lengths, self.source_dictionary, append_bos=True
         )

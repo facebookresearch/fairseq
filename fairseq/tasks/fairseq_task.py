@@ -291,6 +291,7 @@ class FairseqTask(object):
         diverse_beam_strength = getattr(args, "diverse_beam_strength", 0.5)
         match_source_len = getattr(args, "match_source_len", False)
         diversity_rate = getattr(args, "diversity_rate", -1)
+        constrained = getattr(args, "constraints", False)
         if (
             sum(
                 int(cond)
@@ -330,6 +331,8 @@ class FairseqTask(object):
             search_strategy = search.DiverseSiblingsSearch(
                 self.target_dictionary, diversity_rate
             )
+        elif constrained:
+            search_strategy = search.LexicallyConstrainedBeamSearch(self.target_dictionary, args.constraints)
         else:
             search_strategy = search.BeamSearch(self.target_dictionary)
 
@@ -395,9 +398,9 @@ class FairseqTask(object):
             loss, sample_size, logging_output = criterion(model, sample)
         return loss, sample_size, logging_output
 
-    def inference_step(self, generator, models, sample, prefix_tokens=None):
+    def inference_step(self, generator, models, sample, prefix_tokens=None, constraints=None):
         with torch.no_grad():
-            return generator.generate(models, sample, prefix_tokens=prefix_tokens)
+            return generator.generate(models, sample, prefix_tokens=prefix_tokens, constraints=constraints)
 
     def begin_epoch(self, epoch, model):
         """Hook function called before the start of each epoch."""
