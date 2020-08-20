@@ -88,7 +88,7 @@ class RawAudioDataset(FairseqDataset):
         else:
             target_size = min(min(sizes), self.max_sample_size)
 
-        collated_sources = sources[0].new(len(sources), target_size)
+        collated_sources = sources[0].new_zeros(len(sources), target_size)
         padding_mask = (
             torch.BoolTensor(collated_sources.shape).fill_(False) if self.pad else None
         )

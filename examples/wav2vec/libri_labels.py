@@ -24,9 +24,9 @@ def main():
     transcriptions = {}
 
     with open(args.tsv, "r") as tsv, open(
-        os.path.join(args.output_dir, args.output_name + ".ltr.txt"), "w"
+        os.path.join(args.output_dir, args.output_name + ".ltr"), "w"
     ) as ltr_out, open(
-        os.path.join(args.output_dir, args.output_name + ".wrd.txt"), "w"
+        os.path.join(args.output_dir, args.output_name + ".wrd"), "w"
     ) as wrd_out:
         root = next(tsv).strip()
         for line in tsv:
