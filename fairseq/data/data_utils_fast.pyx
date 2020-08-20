@@ -9,11 +9,12 @@ import numpy as np
 cimport cython
 cimport numpy as np
 
-DTYPE = np.int64
-ctypedef np.int64_t DTYPE_t
+from libc.stdint cimport int32_t, int64_t
+
+ctypedef int64_t DTYPE_t
 
 
-cdef _is_batch_full(long num_sentences, long num_tokens, long max_tokens, long max_sentences):
+cdef _is_batch_full(int64_t num_sentences, int64_t num_tokens, int64_t max_tokens, int64_t max_sentences):
     if num_sentences == 0:
         return 0
     if max_sentences > 0 and num_sentences == max_sentences:
@@ -27,18 +28,18 @@ cdef _is_batch_full(long num_sentences, long num_tokens, long max_tokens, long m
 cpdef list batch_by_size_fast(
     np.ndarray[DTYPE_t, ndim=1] indices,
     num_tokens_fn,
-    long max_tokens,
-    long max_sentences,
-    int bsz_mult,
+    int64_t max_tokens,
+    int64_t max_sentences,
+    int32_t bsz_mult,
 ):
-    cdef long sample_len = 0
+    cdef int64_t sample_len = 0
     cdef list sample_lens = []
     cdef list batch = []
     cdef list batches = []
-    cdef long mod_len
-    cdef long i
-    cdef long idx
-    cdef long num_tokens
+    cdef int64_t mod_len
+    cdef int64_t i
+    cdef int64_t idx
+    cdef int64_t num_tokens
     cdef DTYPE_t[:] indices_view = indices
 
     for i in range(len(indices_view)):
@@ -70,8 +71,8 @@ cpdef list batch_by_size_fast(
 
 cdef _find_valid_shape(
     DTYPE_t[:, :] shapes_view,
-    long num_sentences,
-    long num_tokens,
+    int64_t num_sentences,
+    int64_t num_tokens,
 ):
     """Return index of first valid shape of -1 if none is found."""
     for i in range(shapes_view.shape[0]):
@@ -86,14 +87,14 @@ cpdef list batch_fixed_shapes_fast(
     num_tokens_fn,
     np.ndarray[DTYPE_t, ndim=2] fixed_shapes_sorted,
 ):
-    cdef long sample_len = 0
+    cdef int64_t sample_len = 0
     cdef list sample_lens = []
     cdef list batch = []
     cdef list batches = []
-    cdef long mod_len
-    cdef long i
-    cdef long idx
-    cdef long num_tokens
+    cdef int64_t mod_len
+    cdef int64_t i
+    cdef int64_t idx
+    cdef int64_t num_tokens
     cdef DTYPE_t[:] indices_view = indices
     cdef DTYPE_t[:, :] shapes_view = fixed_shapes_sorted
 

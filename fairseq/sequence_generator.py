@@ -183,7 +183,11 @@ class SequenceGenerator(nn.Module):
             src_lengths = (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
         elif 'source' in net_input:
             src_tokens = net_input['source']
-            src_lengths = net_input['padding_mask'].size(-1) - net_input['padding_mask'].sum(-1) if net_input['padding_mask'] is not None else torch.tensor(src_tokens.size(-1))
+            src_lengths = (
+                net_input['padding_mask'].size(-1) - net_input['padding_mask'].sum(-1)
+                if net_input['padding_mask'] is not None
+                else torch.tensor(src_tokens.size(-1)).to(src_tokens)
+            )
         else:
             raise Exception('expected src_tokens or source in net input')
 
@@ -372,11 +376,10 @@ class SequenceGenerator(nn.Module):
                 new_bsz = bsz - len(finalized_sents)
 
                 # construct batch_idxs which holds indices of batches to keep for the next pass
-                batch_mask = torch.ones(bsz).to(cand_indices)
-                batch_mask[
-                    torch.tensor(finalized_sents).to(cand_indices)
-                ] = torch.tensor(0).to(batch_mask)
-                batch_idxs = batch_mask.nonzero().squeeze(-1)
+                batch_mask = torch.ones(bsz, dtype=torch.bool, device=cand_indices.device)
+                batch_mask[finalized_sents] = False
+                # TODO replace `nonzero(as_tuple=False)` after TorchScript supports it
+                batch_idxs = torch.arange(bsz, device=cand_indices.device).masked_select(batch_mask)
 
                 eos_mask = eos_mask[batch_idxs]
                 cand_beams = cand_beams[batch_idxs]
@@ -665,7 +668,7 @@ class SequenceGenerator(nn.Module):
         for bbsz_idx in range(bsz * beam_size):
             lprobs[bbsz_idx][
                 torch.tensor(banned_tokens[bbsz_idx]).long()
-            ] = torch.tensor(-math.inf, dtype=torch.float)
+            ] = torch.tensor(-math.inf).to(lprobs)
         return lprobs
 
 

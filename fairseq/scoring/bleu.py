@@ -11,15 +11,6 @@ import torch
 
 from fairseq.scoring import register_scoring
 
-try:
-    from fairseq import libbleu
-except ImportError as e:
-    sys.stderr.write("ERROR: missing libbleu.so. run `pip install --editable .`\n")
-    raise e
-
-
-C = ctypes.cdll.LoadLibrary(libbleu.__file__)
-
 
 class BleuStat(ctypes.Structure):
     _fields_ = [
@@ -70,13 +61,22 @@ class Scorer(object):
         self.pad = pad
         self.eos = eos
         self.unk = unk
+
+        try:
+            from fairseq import libbleu
+        except ImportError as e:
+            sys.stderr.write("ERROR: missing libbleu.so. run `pip install --editable .`\n")
+            raise e
+
+        self.C = ctypes.cdll.LoadLibrary(libbleu.__file__)
+
         self.reset()
 
     def reset(self, one_init=False):
         if one_init:
-            C.bleu_one_init(ctypes.byref(self.stat))
+            self.C.bleu_one_init(ctypes.byref(self.stat))
         else:
-            C.bleu_zero_init(ctypes.byref(self.stat))
+            self.C.bleu_zero_init(ctypes.byref(self.stat))
 
     def add(self, ref, pred):
         if not isinstance(ref, torch.IntTensor):
@@ -92,7 +92,7 @@ class Scorer(object):
         rref = rref.contiguous().view(-1)
         pred = pred.contiguous().view(-1)
 
-        C.bleu_add(
+        self.C.bleu_add(
             ctypes.byref(self.stat),
             ctypes.c_size_t(rref.size(0)),
             ctypes.c_void_p(rref.data_ptr()),

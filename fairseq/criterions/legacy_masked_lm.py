@@ -8,7 +8,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from fairseq import utils
+from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
 
@@ -127,7 +127,7 @@ class LegacyMaskedLmLoss(FairseqCriterion):
         return loss, sample_size, logging_output
 
     @staticmethod
-    def aggregate_logging_outputs(logging_outputs):
+    def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
         lm_loss_sum = sum(log.get('lm_loss', 0) for log in logging_outputs)
         sentence_loss_sum = sum(
@@ -137,16 +137,10 @@ class LegacyMaskedLmLoss(FairseqCriterion):
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         agg_loss = sum(log.get('loss', 0) for log in logging_outputs)
 
-        agg_output = {
-            'loss': agg_loss / sample_size / math.log(2) if sample_size > 0 else 0.,
-            'lm_loss': lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.,
-            'sentence_loss': sentence_loss_sum / nsentences / math.log(2) if nsentences > 0 else 0.,
-            'nll_loss': lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.,
-            'ntokens': ntokens,
-            'nsentences': nsentences,
-            'sample_size': sample_size,
-        }
-        return agg_output
+        metrics.log_scalar('loss', agg_loss / sample_size / math.log(2) if sample_size > 0 else 0., sample_size, round=3)
+        metrics.log_scalar('lm_loss', lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0., ntokens, round=3)
+        metrics.log_scalar('sentence_loss', sentence_loss_sum / nsentences / math.log(2) if nsentences > 0 else 0., nsentences, round=3)
+        metrics.log_scalar('nll_loss', lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0., ntokens, round=3)
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:

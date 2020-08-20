@@ -144,7 +144,7 @@ class AdaptiveSoftmax(nn.Module):
             new_target[0][mask] = self.cutoff[0] + i
 
             if mask.any():
-                target_idxs.append(mask.nonzero().squeeze(1))
+                target_idxs.append(mask.nonzero(as_tuple=False).squeeze(1))
                 new_target.append(target[mask].add(-self.cutoff[i]))
             else:
                 target_idxs.append(None)

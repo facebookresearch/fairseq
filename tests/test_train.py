@@ -4,8 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
-from io import StringIO
+import logging
 import unittest
+from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import torch
@@ -74,6 +75,11 @@ class TestLoadCheckpoint(unittest.TestCase):
         }
         self.applied_patches = [patch(p, d) for p, d in self.patches.items()]
         [p.start() for p in self.applied_patches]
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        patch.stopall()
+        logging.disable(logging.NOTSET)
 
     def test_load_partial_checkpoint(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -191,9 +197,6 @@ class TestLoadCheckpoint(unittest.TestCase):
             self.assertFalse(reset_optimizer)
             self.assertFalse(reset_lr_scheduler)
             self.assertFalse(reset_meters)
-
-    def tearDown(self):
-        patch.stopall()
 
 
 if __name__ == '__main__':

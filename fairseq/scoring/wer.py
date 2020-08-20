@@ -3,8 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import editdistance
-
 from fairseq.scoring import register_scoring
 
 
@@ -18,6 +16,7 @@ class WerScorer(object):
         self.ref_length = 0
 
     def add_string(self, ref, pred):
+        import editdistance
         ref_items = ref.split()
         pred_items = pred.split()
         self.distance += editdistance.eval(ref_items, pred_items)
