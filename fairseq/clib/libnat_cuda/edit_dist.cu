@@ -253,11 +253,11 @@ torch::Tensor GenerateDeletionLabelCuda(
 
     AT_DISPATCH_ALL_TYPES(source.scalar_type(), "generate_deletion_labels", ([&] {
         generate_deletion_label_kernel<scalar_t><<<batch_size, 1, 0, stream>>>(
-            source.data<scalar_t>(),
+            source.data_ptr<scalar_t>(),
             source.size(1),
             operations.size(1),
-            operations.data<int>(),
-            labels.data<int>());
+            operations.data_ptr<int>(),
+            labels.data_ptr<int>());
     }));
 
     return labels;
@@ -276,12 +276,12 @@ auto stream = at::cuda::getCurrentCUDAStream(target.device().index());
 
 AT_DISPATCH_ALL_TYPES(target.scalar_type(), "generate_insertion_labels", ([&] {
     generate_insertion_label_kernel<scalar_t><<<batch_size, 1, 0, stream>>>(
-        target.data<scalar_t>(),
+        target.data_ptr<scalar_t>(),
         target.size(1),
         operations.size(1),
-        operations.data<int>(),
-        labels.data<int>(),
-        masks.data<int>());
+        operations.data_ptr<int>(),
+        labels.data_ptr<int>(),
+        masks.data_ptr<int>());
 }));
 
 return std::make_pair(labels, masks);
@@ -306,25 +306,25 @@ torch::Tensor LevenshteinDistanceCuda(
         auto distances = torch::empty({batch_size, (source.size(1) + 1) * (target.size(1) + 1)}, options);
         AT_DISPATCH_ALL_TYPES(source.scalar_type(), "levenshtein_distance", ([&] {
             levenshtein_distance_kernel<scalar_t><<<batch_size, 1, 0, stream>>>(
-                source.data<scalar_t>(),
-                target.data<scalar_t>(),
-                source_length.data<int>(),
-                target_length.data<int>(),
+                source.data_ptr<scalar_t>(),
+                target.data_ptr<scalar_t>(),
+                source_length.data_ptr<int>(),
+                target_length.data_ptr<int>(),
                 source.size(1),
                 target.size(1),
-                operations.data<int>(),
-                distances.data<int>());
+                operations.data_ptr<int>(),
+                distances.data_ptr<int>());
         }));
     } else {
         AT_DISPATCH_ALL_TYPES(source.scalar_type(), "faster_levenshtein_distance", ([&] {
             faster_levenshtein_distance_kernel<scalar_t><<<batch_size, 1, shared_size, stream>>>(
-                source.data<scalar_t>(),
-                target.data<scalar_t>(),
-                source_length.data<int>(),
-                target_length.data<int>(),
+                source.data_ptr<scalar_t>(),
+                target.data_ptr<scalar_t>(),
+                source_length.data_ptr<int>(),
+                target_length.data_ptr<int>(),
                 source.size(1),
                 target.size(1),
-                operations.data<int>());
+                operations.data_ptr<int>());
         }));
     }
 

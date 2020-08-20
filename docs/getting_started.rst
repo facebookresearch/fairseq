@@ -47,6 +47,9 @@ hypothesis along with an average log-likelihood; and *P* is the
 positional score per token position, including the
 end-of-sentence marker which is omitted from the text.
 
+Other types of output lines you might see are *D*, the detokenized hypothesis,
+*T*, the reference target, *A*, alignment info, *E* the history of generation steps.
+
 See the `README <https://github.com/pytorch/fairseq#pre-trained-models>`__ for a
 full list of pre-trained models available.
 

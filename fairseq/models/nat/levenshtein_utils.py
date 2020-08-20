@@ -250,7 +250,7 @@ def _skip_encoder_out(encoder, encoder_out, mask):
     if not mask.any():
         return encoder_out
     else:
-        return encoder.reorder_encoder_out(encoder_out, mask.nonzero().squeeze())
+        return encoder.reorder_encoder_out(encoder_out, mask.nonzero(as_tuple=False).squeeze())
 
 
 def _fill(x, mask, y, padding_idx):

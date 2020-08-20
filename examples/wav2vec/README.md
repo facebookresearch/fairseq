@@ -25,15 +25,22 @@ Given a directory containing wav files to be used for pretraining (we recommend 
 
 ### Prepare training data manifest:
 
+First, install the `soundfile` library:
+```shell script
+pip install soundfile
+```
+
+Next, run:
+
+```shell script
+$ python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext $ext --valid-percent $valid
+```
+
 $ext should be set to flac, wav, or whatever format your dataset happens to use that soundfile can read.
 
 $valid should be set to some reasonable percentage (like 0.01) of training data to use for validation.
 To use a pre-defined validation set (like dev-other from librispeech), set to it 0 and then overwrite valid.tsv with a
 separately pre-processed manifest file.
-
-```shell script
-$ python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext $ext --valid-percent $valid
-```
 
 ### Train a wav2vec 2.0 base model:
 
@@ -43,7 +50,7 @@ Note that this was tested with pytorch 1.4.0 and the input is expected to be sin
 
 ```shell script
 $ python train.py --distributed-world-size 64 --distributed-port $PORT /manifest/path \
---save-dir /model/path fp16 --num-workers 6 --task audio_pretraining --criterion wav2vec --arch wav2vec2 \
+--save-dir /model/path --fp16 --num-workers 6 --task audio_pretraining --criterion wav2vec --arch wav2vec2 \
 --log-keys '["prob_perplexity","code_perplexity","temp"]' --quantize-targets --extractor-mode default \
 --conv-feature-layers '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] * 2' --final-dim 256 --latent-vars 320 \
 --latent-groups 2 --latent-temp '(2,0.5,0.999995)' --infonce --optimizer adam \
