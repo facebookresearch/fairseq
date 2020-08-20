@@ -126,7 +126,10 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
             epoch=epoch, combine=combine, shard_epoch=shard_epoch, **kwargs
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
+        if constraints is not None:
+            raise NotImplementedError("Constrained decoding with the multilingual_translation task is not supported")
+
         src_data = ListDataset(src_tokens, src_lengths)
         dataset = LanguagePairDataset(src_data, src_lengths, self.source_dictionary)
         src_langtok_spec, tgt_langtok_spec = self.args.langtoks['main']
@@ -173,7 +176,7 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         return loss, sample_size, logging_output
 
-    def inference_step(self, generator, models, sample, prefix_tokens=None):
+    def inference_step(self, generator, models, sample, prefix_tokens=None, constraints=None):
         with torch.no_grad():
             _, tgt_langtok_spec = self.args.langtoks['main']
             if not self.args.lang_tok_replacing_bos_eos:
@@ -188,6 +191,7 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
                         models,
                         sample,
                         prefix_tokens=prefix_tokens,
+                        constraints=constraints,
                 )
             else:
                 return generator.generate(

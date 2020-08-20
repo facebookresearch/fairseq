@@ -609,6 +609,8 @@ def add_generation_args(parser):
                        help='sample from top K likely next words instead of all words')
     group.add_argument('--sampling-topp', default=-1.0, type=float, metavar='PS',
                        help='sample from the smallest set whose cumulative probability mass exceeds p for next words')
+    group.add_argument('--constraints', const="ordered", nargs="?", choices=["ordered", "unordered"],
+                       help='enables lexically constrained decoding')
     group.add_argument('--temperature', default=1., type=float, metavar='N',
                        help='temperature for generation')
     group.add_argument('--diverse-beam-groups', default=-1, type=int, metavar='N',
