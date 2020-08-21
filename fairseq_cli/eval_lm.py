@@ -25,7 +25,7 @@ from fairseq import distributed_utils
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO,
+    level=os.environ.get('LOGLEVEL', 'INFO').upper(),
 )
 logger = logging.getLogger('fairseq_cli.eval_lm')
 

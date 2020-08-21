@@ -10,6 +10,7 @@ Train a new model on one or across multiple GPUs.
 import argparse
 import logging
 import math
+import os
 import random
 import sys
 
@@ -32,7 +33,7 @@ from fairseq.trainer import Trainer
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
+    level=os.environ.get("LOGLEVEL", "INFO").upper(),
     stream=sys.stdout,
 )
 logger = logging.getLogger("fairseq_cli.train")

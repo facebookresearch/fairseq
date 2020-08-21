@@ -49,7 +49,7 @@ def _main(args, output_file):
     logging.basicConfig(
         format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
-        level=logging.INFO,
+        level=os.environ.get('LOGLEVEL', 'INFO').upper(),
         stream=output_file,
     )
     logger = logging.getLogger('fairseq_cli.generate')
