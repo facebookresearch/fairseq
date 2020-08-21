@@ -146,6 +146,10 @@ class MultiCorpusDataset(FairseqDataset):
         index, key = self._map_index(index)
         return self.datasets[key].size(index)
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return False
+
     def set_epoch(self, epoch, **unused):
         super().set_epoch(epoch)
         self.epoch = epoch

@@ -98,6 +98,10 @@ class ConcatDataset(FairseqDataset):
                 ds.prefetch([(i - frm) % real_size for i in indices if frm <= i < to])
             frm = to
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return all(d.can_reuse_epoch_itr_across_epochs for d in self.datasets)
+
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
         for ds in self.datasets:

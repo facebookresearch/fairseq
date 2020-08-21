@@ -12,6 +12,19 @@ from fairseq.data import data_utils
 class EpochListening:
     """Mixin for receiving updates whenever the epoch increments."""
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        """
+        Whether we can reuse the :class:`fairseq.data.EpochBatchIterator` for
+        this dataset across epochs.
+
+        This needs to return ``False`` if the sample sizes can change across
+        epochs, in which case we may need to regenerate batches at each epoch.
+        If your dataset relies in ``set_epoch`` then you should consider setting
+        this to ``False``.
+        """
+        return True
+
     def set_epoch(self, epoch):
         """Will receive the updated epoch number at the beginning of the epoch."""
         pass

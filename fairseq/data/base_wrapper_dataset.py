@@ -43,6 +43,9 @@ class BaseWrapperDataset(FairseqDataset):
     def supports_prefetch(self):
         return getattr(self.dataset, 'supports_prefetch', False)
 
+    def attr(self, attr: str, index: int):
+        return self.dataset.attr(attr, index)
+
     def prefetch(self, indices):
         self.dataset.prefetch(indices)
 
@@ -62,6 +65,13 @@ class BaseWrapperDataset(FairseqDataset):
             max_sentences=max_sentences,
             required_batch_size_multiple=required_batch_size_multiple,
         )
+
+    def filter_indices_by_size(self, indices, max_sizes):
+        return self.dataset.filter_indices_by_size(indices, max_sizes)
+
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return self.dataset.can_reuse_epoch_itr_across_epochs
 
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
