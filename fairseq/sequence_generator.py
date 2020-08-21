@@ -196,7 +196,8 @@ class SequenceGenerator(nn.Module):
             raise Exception('expected src_tokens or source in net input')
 
         # bsz: total number of sentences in beam
-        bsz, src_len = src_tokens.size()
+        input_size = src_tokens.size()
+        bsz, src_len = input_size[0], input_size[1]
         beam_size = self.beam_size
 
         if constraints is not None and not self.search.supports_constraints:
