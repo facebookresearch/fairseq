@@ -70,6 +70,21 @@ class TestIterators(unittest.TestCase):
         itr = iterators.ShardedIterator(x, num_shards=3, shard_id=0)
         self.test_counting_iterator(ref, itr)
 
+    def test_counting_iterator_take(self):
+        ref = list(range(10))
+        itr = iterators.CountingIterator(ref)
+        itr.take(5)
+        self.assertEqual(len(itr), len(list(iter(itr))))
+        self.assertEqual(len(itr), 5)
+
+        itr = iterators.CountingIterator(ref)
+        itr.take(5)
+        self.assertEqual(next(itr), ref[0])
+        self.assertEqual(next(itr), ref[1])
+        itr.skip(2)
+        self.assertEqual(next(itr), ref[4])
+        self.assertFalse(itr.has_next())
+
 
 if __name__ == '__main__':
     unittest.main()
