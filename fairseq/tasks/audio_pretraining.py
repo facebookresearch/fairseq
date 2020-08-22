@@ -135,3 +135,13 @@ class AudioPretrainingTask(FairseqTask):
     def max_positions(self):
         """Maximum input length supported by the encoder."""
         return (sys.maxsize, sys.maxsize)
+
+    def filter_indices_by_size(
+            self,
+            indices,
+            dataset,
+            max_positions=None,
+            ignore_invalid_inputs=False,
+    ):
+        # we do not need to filter by size in this task as dataloaders take care of this
+        return indices
