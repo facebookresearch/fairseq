@@ -342,10 +342,10 @@ class MultilingualDatasetManager(object):
     def bitext_split_exists(cls, split, src, tgt, data_path, dataset_impl):
         src_exists = cls.split_exists(split, src, tgt, lang=src, data_path=data_path, dataset_impl=dataset_impl) \
             or cls.split_exists(split, tgt, src, lang=src, data_path=data_path, dataset_impl=dataset_impl)
-
-        tgt_exists = cls.split_exists(split, src, tgt, lang=tgt, data_path=data_path, dataset_impl=dataset_impl) \
-            or cls.split_exists(split, tgt, src, lang=tgt, data_path=data_path, dataset_impl=dataset_impl)
-        return src_exists and tgt_exists
+        # check source exists to determine shard number
+        # also note that during inference time target is not required
+        # so checking target will fail inference time data loading
+        return src_exists
 
     @classmethod
     def get_split_num_shards(cls, split, src, tgt, data_paths, dataset_impl):
@@ -488,8 +488,10 @@ class MultilingualDatasetManager(object):
                         f"[{split}] {src}-{tgt}: src length={len(src_dataset)}; tgt length={len(tgt_dataset)}")
 
         return LanguagePairDataset(
-            src_dataset, src_dataset.sizes, src_dict,
-            tgt_dataset, tgt_dataset.sizes, tgt_dict,
+            src_dataset, src_dataset.sizes,
+            src_dict,
+            tgt_dataset, tgt_dataset.sizes if tgt_dataset is not None else None,
+            tgt_dict,
             left_pad_source=left_pad_source,
             left_pad_target=left_pad_target,
             align_dataset=align_dataset,
@@ -510,6 +512,9 @@ class MultilingualDatasetManager(object):
         return dataset
 
     def tgt_dataset_tranform_func(self, source_lang, target_lang, dataset, spec=None):
+        if dataset is None:
+            # note that target dataset can be None during inference time
+            return None
         if self.args.lang_tok_replacing_bos_eos:
             # TODO: Unifiy with alter_dataset_langtok
             # It is handled by self.alter_dataset_langtok.
