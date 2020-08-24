@@ -219,7 +219,7 @@ class ExistingEmissionsDecoder(object):
         self.decoder = decoder
         self.emissions = emissions
 
-    def generate(self, models, sample, prefix_tokens=None):
+    def generate(self, models, sample, **unused):
         ids = sample["id"].cpu().numpy()
         try:
             emissions = np.stack(self.emissions[ids])
