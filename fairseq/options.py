@@ -352,7 +352,23 @@ def add_comparable_args(parser, train=True, gen=False):
                        help="""Path to list of vocabulary files used for substitution.""")
     group.add_argument('--modeltype', '-modeltype', default='transformer',
                        help="""Set the model type. Options: [transformer|lstm]""")
-
+    group.add_argument('--use_phrase', '-use_phrase', action="store_true",
+                       help="""Apply Phrase extraction on rejected sentences.""")
+    group.add_argument('--phrase_method', '-phrase_method', default="stanford",
+                       help="""Method for extracting phrases. Options: [stanford|ngram]
+                               """)
+    group.add_argument('--phrase_length', '-phrase_length', type=int, default=5,
+                       help="""Length of Phrases to extract.""")
+    group.add_argument('--bpecodes', '-c', type=str, metavar = 'DIR',
+                        required = False, help = "File with BPE codes (created by learn_bpe.py).")
+    group.add_argument('--src_vocab', '-src_vocab', type=str, default=None,
+        metavar="DIR", help="Vocabulary file (built with get_vocab.py). If provided, this script reverts any merge operations that produce an OOV.")
+    group.add_argument('--tgt_vocab', '-tgt_vocab', type=str, default=None, metavar="DIR",
+                       help="Vocabulary file (built with get_vocab.py). If provided, this script reverts any merge operations that produce an OOV.")
+    group.add_argument('--write_phrase','-write_phrase', default=False, action='store_true',
+                       help='Write phrase to file separately.')
+    group.add_argument('--usepos', '-usepos', action="store_true",
+                       help="""Use positional encoding for extracting possible sentence pairs""")
     return group
 
 def add_dataset_args(parser, train=False, gen=False):
@@ -515,6 +531,7 @@ def add_checkpoint_args(parser):
                        help=('early stop training if valid performance doesn\'t '
                              'improve for N consecutive validation runs; note '
                              'that this is influenced by --validate-interval'))
+    group.add_argument('--model_name', default="model", type=str, help='a custom checkpoint name')
     # fmt: on
     return group
 

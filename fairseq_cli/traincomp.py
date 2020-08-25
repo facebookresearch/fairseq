@@ -21,7 +21,7 @@ from fairseq import (
 from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import StopwatchMeter
-from fairseq_cli.Comparable2 import Comparable
+from fairseq_cli.Comparable4 import Comparable
 
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -104,6 +104,7 @@ def main(args, init_distributed=False):
             '''if args.threshold_dynamics != 'static' and epoch != 0:
                 comp.update_threshold(args.threshold_dynamics, args.infer_threshold)
             '''
+            comp.task.begin_epoch(epoch, comp.trainer.get_model())
             # 3. Extract parallel data and train
             comp.extract_and_train(args.comparable_data, epoch)
 
@@ -114,6 +115,7 @@ def main(args, init_distributed=False):
 
             # only use first validation loss to update the learning rate
             lr = comp.trainer.lr_step(epoch, valid_losses[0])
+            #print('learning rate = ','{:.10f}'.format(lr), ' validation loss = ', '{:.10f}'.format(valid_losses[0] ))
 
             # 4.  save checkpoint
             comp.save_comp_chkp(epoch)

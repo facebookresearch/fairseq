@@ -244,6 +244,8 @@ class IndexedRawTextDataset(FairseqDataset):
         with open(path, 'r', encoding='utf-8') as f:
             for line in f:
                 #self.lines.append(line.strip('\n'))
+                '''if len(line.strip()) == 0 :
+                    continue'''
                 tokens = dictionary.encode_line(
                     line, add_if_not_exist=False,
                     append_eos=self.append_eos, reverse_order=self.reverse_order,
