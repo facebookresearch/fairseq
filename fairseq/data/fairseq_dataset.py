@@ -50,7 +50,7 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
     def ordered_indices(self):
         """Return an ordered list of indices. Batches will be constructed based
         on this order."""
-        return np.arange(len(self))
+        return np.arange(len(self), dtype=np.int64)
 
     @property
     def supports_prefetch(self):
