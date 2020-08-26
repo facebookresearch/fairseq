@@ -299,9 +299,6 @@ class TransformerPointerGeneratorDecoder(TransformerDecoder):
         """
         if self.force_p_gen is not None:
             p_gens = self.force_p_gen
-        else:
-            metrics.log_scalar('ptr', (p_gens < 0.5).sum())
-            metrics.log_scalar('gen', (p_gens > 0.5).sum())
 
         # project back to size of vocabulary
         logits = super().output_layer(features, **kwargs)
