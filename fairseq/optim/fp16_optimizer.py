@@ -145,7 +145,7 @@ class _FP16OptimizerMixin(object):
         """Performs a single optimization step."""
         self._sync_fp16_grads_to_fp32()
 
-        if self.supports_step_with_scale:
+        if getattr(self, 'supports_step_with_scale', False):
             self.fp32_optimizer.step(closure, scale=(1. / self._multiply_factor))
         else:
             self._unscale_grads()
@@ -332,7 +332,7 @@ class _MemoryEfficientFP16OptimizerMixin(object):
 
     def step(self, closure=None):
         """Performs a single optimization step."""
-        if self.supports_step_with_scale:
+        if getattr(self, 'supports_step_with_scale', False):
             # NOTE(msb) optimizer divides by scale factor
             self.wrapped_optimizer.step(closure, scale=(1. / self._multiply_factor))
         else:
