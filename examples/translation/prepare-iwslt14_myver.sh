@@ -52,13 +52,6 @@ for l in $src $tgt; do
     tok=train.tags.$lang.tok.$l
 
     cat $orig/$lang/$f | \
-    grep -v '<url>' | \
-    grep -v '<talkid>' | \
-    grep -v '<keywords>' | \
-    sed -e 's/<title>//g' | \
-    sed -e 's/<\/title>//g' | \
-    sed -e 's/<description>//g' | \
-    sed -e 's/<\/description>//g' | \
     perl $TOKENIZER -threads 8 -l $l > $tmp/$tok
     echo ""
 done
