@@ -59,7 +59,7 @@ class BARTModel(TransformerModel):
             choices=utils.get_available_activation_fns(),
             help='activation function to use for pooler layer'
         )
-        parser.add_argument('--do-r4f', action='store_true', 
+        parser.add_argument('--spectral-norm-classification-head', action='store_true', 
             help='Apply spectral normalization on the classification head')
 
     @property
@@ -136,7 +136,7 @@ class BARTModel(TransformerModel):
             num_classes,
             self.args.pooler_activation_fn,
             self.args.pooler_dropout,
-            self.args.do_r4f
+            self.args.spectral_norm_classification_head
         )
 
     def upgrade_state_dict_named(self, state_dict, name):

@@ -98,7 +98,7 @@ class RobertaModel(FairseqEncoderModel):
                             help='scalar quantization noise and scalar quantization at training time')
         parser.add_argument('--untie-weights-roberta', action='store_true',
                             help='Untie weights between embeddings and classifiers in RoBERTa')
-        parser.add_argument('--do-r4f', action='store_true',
+        parser.add_argument('--spectral-norm-classification-head', action='store_true',
                             help='Apply spectral normalization on the classification head')
 
     @classmethod
