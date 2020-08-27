@@ -10,8 +10,8 @@ def text2arr(text_path):
     return arr_from_text
 
 
-def arr2txt(arr, file_name):
-    with open("custom_split_data/"+file_name+".txt" , "w") as txt_file:
+def arr2txt(arr, file_name)
+    with open("custom_split_data/"+file_name, "w") as txt_file:
         for line in arr:
             txt_file.write("".join(line) + "\n")
 
