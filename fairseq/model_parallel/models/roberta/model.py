@@ -69,6 +69,11 @@ class ModelParallelRobertaModel(RobertaModel):
         if not hasattr(args, 'max_positions'):
             args.max_positions = args.tokens_per_sample
 
+        if getattr(args, 'untie_weights_roberta', False):
+            raise NotImplementedError(
+                '--untie-weights-roberta is not supported in model parallel mode'
+            )
+
         encoder = ModelParallelRobertaEncoder(args, task.source_dictionary)
         return cls(args, encoder)
 
