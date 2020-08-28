@@ -12,6 +12,7 @@ import numpy as np
 import torch
 
 from . import FairseqDataset
+from fairseq.data.fasta_dataset import FastaDataset
 
 
 def __best_fitting_dtype(vocab_size=None):
@@ -22,7 +23,7 @@ def __best_fitting_dtype(vocab_size=None):
 
 
 def get_available_dataset_impl():
-    return ['raw', 'lazy', 'cached', 'mmap']
+    return ['raw', 'lazy', 'cached', 'mmap', 'fasta']
 
 
 def infer_dataset_impl(path):
@@ -37,6 +38,8 @@ def infer_dataset_impl(path):
                 return 'mmap'
             else:
                 return None
+    elif FastaDataset.exists(path):
+        return 'fasta'
     else:
         return None
 
@@ -44,6 +47,8 @@ def infer_dataset_impl(path):
 def make_builder(out_file, impl, vocab_size=None):
     if impl == 'mmap':
         return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
+    elif impl == 'fasta':
+        raise NotImplementedError
     else:
         return IndexedDatasetBuilder(out_file)
 
@@ -58,6 +63,9 @@ def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
         return IndexedCachedDataset(path, fix_lua_indexing=fix_lua_indexing)
     elif impl == 'mmap' and MMapIndexedDataset.exists(path):
         return MMapIndexedDataset(path)
+    elif impl == 'fasta' and FastaDataset.exists(path):
+        from fairseq.data.fasta_dataset import EncodedFastaDataset
+        return EncodedFastaDataset(path, dictionary)
     return None
 
 
