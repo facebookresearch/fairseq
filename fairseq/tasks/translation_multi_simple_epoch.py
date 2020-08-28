@@ -98,6 +98,15 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
         langs, dicts, training = MultilingualDatasetManager.prepare(
             cls.load_dictionary, args, **kwargs
         )
+        dict0 = None
+        for _, lang_dict in dicts.items():
+            if dict0 is None:
+                dict0 = lang_dict
+            else:
+                assert (
+                    dict0 == lang_dict
+                ), "Diffrent dictionary are specified for different languages; "
+                "TranslationMultiSimpleEpochTask only supports one shared dictionary across all languages"
         return cls(args, langs, dicts, training)
 
     def has_sharded_data(self, split):
@@ -211,17 +220,11 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
 
     @property
     def source_dictionary(self):
-        if self.training:
-            return next(iter(self.dicts.values()))
-        else:
-            return self.dicts[self.args.source_lang]
+        return next(iter(self.dicts.values()))
 
     @property
     def target_dictionary(self):
-        if self.training:
-            return next(iter(self.dicts.values()))
-        else:
-            return self.dicts[self.args.target_lang]
+        return next(iter(self.dicts.values()))
 
     def create_batch_sampler_func(
         self, max_positions, ignore_invalid_inputs,
