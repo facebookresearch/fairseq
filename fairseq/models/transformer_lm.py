@@ -111,16 +111,16 @@ class TransformerLanguageModel(FairseqLanguageModel):
         parser.add_argument('--no-scale-embedding', action='store_true',
                             help='if True, dont scale embeddings')
         # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
-        parser.add_argument('--decoder-layerdrop', type=float, metavar='D', default=0,
+        parser.add_argument('--decoder-layerdrop', type=float, metavar='D',
                             help='LayerDrop probability for decoder')
-        parser.add_argument('--decoder-layers-to-keep', default=None,
+        parser.add_argument('--decoder-layers-to-keep',
                             help='which layers to *keep* when pruning as a comma-separated list')
         # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D',
                             help='iterative PQ quantization noise at training time')
-        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D',
                             help='block size of quantization noise at training time')
-        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D',
                             help='scalar quantization noise and scalar quantization at training time')
         # fmt: on
 
@@ -195,6 +195,12 @@ def base_lm_architecture(args):
     args.adaptive_softmax_factor = getattr(args, 'adaptive_softmax_factor', 4)
     args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
     args.activation_fn = getattr(args, 'activation_fn', 'relu')
+
+    args.decoder_layerdrop = getattr(args, 'decoder_layerdrop', 0)
+    args.decoder_layers_to_keep = getattr(args, 'decoder_layers_to_keep', None)
+    args.quant_noise_pq = getattr(args, 'quant_noise_pq', 0)
+    args.quant_noise_pq_block_size = getattr(args, 'quant_noise_pq_block_size', 8)
+    args.quant_noise_scalar = getattr(args, 'quant_noise_scalar', 0)
 
     args.add_bos_token = getattr(args, 'add_bos_token', False)
     args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
