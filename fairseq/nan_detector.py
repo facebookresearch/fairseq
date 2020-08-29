@@ -19,6 +19,7 @@ class NanDetector:
         self.fhooks = []
         self.forward = forward
         self.backward = backward
+        self.model = model
         self.reset()
 
         for name, mod in model.named_modules():
@@ -29,6 +30,19 @@ class NanDetector:
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
+        # Dump out all model gnorms to enable better debugging
+        norm = {}
+        gradients = {}
+        for name, param in self.model.named_parameters():
+            grad_norm = torch.norm(param.grad.data, p=2, dtype=torch.float32)
+            norm[name] = grad_norm.item()
+            if torch.isnan(grad_norm).any() or torch.isinf(grad_norm).any():
+                gradients[name] = param.grad.data
+        if len(gradients) > 0:
+            logger.info("Detected nan/inf grad norm, dumping norms...")
+            logger.info(f"norms: {norm}")
+            logger.info(f"gradients: {gradients}")
+
         self.close()
 
     def add_hooks(self, module):
