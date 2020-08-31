@@ -69,6 +69,11 @@ class ModelParallelRobertaModel(RobertaModel):
         if not hasattr(args, 'max_positions'):
             args.max_positions = args.tokens_per_sample
 
+        if getattr(args, 'untie_weights_roberta', False):
+            raise NotImplementedError(
+                '--untie-weights-roberta is not supported in model parallel mode'
+            )
+
         encoder = ModelParallelRobertaEncoder(args, task.source_dictionary)
         return cls(args, encoder)
 
@@ -127,7 +132,7 @@ class ModelParallelRobertaLMHead(nn.Module):
         x = self.activation_fn(x)
         x = self.layer_norm(x)
 
-        features = copy_to_model_parallel_region(features)
+        x = copy_to_model_parallel_region(x)
         # project back to size of vocabulary with bias
         x = F.linear(x, self.weight)
         x = gather_from_model_parallel_region(x).contiguous()

@@ -10,6 +10,7 @@ Train a new model on one or across multiple GPUs.
 import argparse
 import logging
 import math
+import os
 import random
 import sys
 
@@ -32,7 +33,7 @@ from fairseq.trainer import Trainer
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
+    level=os.environ.get("LOGLEVEL", "INFO").upper(),
     stream=sys.stdout,
 )
 logger = logging.getLogger("fairseq_cli.train")
@@ -229,16 +230,26 @@ def train(args, trainer, task, epoch_itr):
 
 def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoch):
     num_updates = trainer.get_num_updates()
+    max_update = args.max_update or math.inf
     do_save = (
-        args.save_interval_updates > 0
-        and num_updates > 0
-        and num_updates % args.save_interval_updates == 0
-        and num_updates >= args.validate_after_updates
-    ) or (end_of_epoch and epoch_itr.epoch % args.save_interval == 0)
+        (end_of_epoch and epoch_itr.epoch % args.save_interval == 0)
+        or num_updates >= max_update
+        or (
+            args.save_interval_updates > 0
+            and num_updates > 0
+            and num_updates % args.save_interval_updates == 0
+            and num_updates >= args.validate_after_updates
+        )
+    )
     do_validate = (
         (not end_of_epoch and do_save)  # validate during mid-epoch saves
         or (end_of_epoch and epoch_itr.epoch % args.validate_interval == 0)
-        or (args.validate_interval_updates > 0 and num_updates > 0 and num_updates % args.validate_interval_updates == 0)
+        or num_updates >= max_update
+        or (
+            args.validate_interval_updates > 0
+            and num_updates > 0
+            and num_updates % args.validate_interval_updates == 0
+        )
     ) and not args.disable_validation
 
     # Validate
@@ -247,10 +258,9 @@ def validate_and_save(args, trainer, task, epoch_itr, valid_subsets, end_of_epoc
         valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
 
     # Stopping conditions
-    max_update = args.max_update or math.inf
     should_stop = (
         should_stop_early(args, valid_losses[0])
-        or trainer.get_num_updates() >= max_update
+        or num_updates >= max_update
         or (
             args.stop_time_hours > 0
             and trainer.cumulative_training_time() / (60 * 60) > args.stop_time_hours
