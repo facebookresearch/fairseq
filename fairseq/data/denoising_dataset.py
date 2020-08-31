@@ -210,7 +210,7 @@ class DenoisingDataset(FairseqDataset):
         full_stops[-2] = 1
 
         # Tokens that are full stops, where the previous token is not
-        sentence_ends = (full_stops[1:] * ~full_stops[:-1]).nonzero() + 2
+        sentence_ends = (full_stops[1:] * ~full_stops[:-1]).nonzero(as_tuple=False) + 2
         result = source.clone()
 
         num_sentences = sentence_ends.size(0)
@@ -271,7 +271,7 @@ class DenoisingDataset(FairseqDataset):
         else:
             lengths = torch.ones((num_to_mask,)).long()
         assert is_word_start[-1] == 0
-        word_starts = is_word_start.nonzero()
+        word_starts = is_word_start.nonzero(as_tuple=False)
         indices = word_starts[torch.randperm(word_starts.size(0))[:num_to_mask]].squeeze(1)
         mask_random = torch.FloatTensor(num_to_mask).uniform_() < self.random_ratio
 

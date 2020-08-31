@@ -23,7 +23,7 @@ from fairseq.binarizer import Binarizer
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO,
+    level=os.environ.get('LOGLEVEL', 'INFO').upper(),
     stream=sys.stdout,
 )
 logger = logging.getLogger('fairseq_cli.preprocess')

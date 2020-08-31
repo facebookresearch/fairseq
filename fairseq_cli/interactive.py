@@ -27,7 +27,7 @@ from .generate import get_symbols_to_strip_from_output
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO,
+    level=os.environ.get('LOGLEVEL', 'INFO').upper(),
     stream=sys.stdout,
 )
 logger = logging.getLogger('fairseq_cli.interactive')

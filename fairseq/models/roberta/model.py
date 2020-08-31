@@ -314,7 +314,11 @@ class RobertaEncoder(FairseqEncoder):
             embed_dim=args.encoder_embed_dim,
             output_dim=len(dictionary),
             activation_fn=args.activation_fn,
-            weight=self.sentence_encoder.embed_tokens.weight if not args.untie_weights_roberta else None,
+            weight=(
+                self.sentence_encoder.embed_tokens.weight
+                if not args.untie_weights_roberta
+                else None
+            ),
         )
 
     def forward(self, src_tokens, features_only=False, return_all_hiddens=False, masked_tokens=None, **unused):

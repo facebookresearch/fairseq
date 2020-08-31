@@ -268,7 +268,7 @@ class LSTMEncoder(FairseqEncoder):
 
         # pack embedded source tokens into a PackedSequence
         packed_x = nn.utils.rnn.pack_padded_sequence(
-            x, src_lengths.data, enforce_sorted=enforce_sorted
+            x, src_lengths.cpu(), enforce_sorted=enforce_sorted
         )
 
         # apply LSTM
