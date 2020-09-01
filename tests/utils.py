@@ -445,6 +445,7 @@ class TestEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            encoder_attn=None,
             src_tokens=None,
             src_lengths=None,
         )
@@ -455,6 +456,7 @@ class TestEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            encoder_attn=None,
             src_tokens=None,
             src_lengths=None,
         )
@@ -538,6 +540,7 @@ class TestReshapingEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            encoder_attn=None,
             src_tokens=None,
             src_lengths=None,
         )
@@ -548,6 +551,7 @@ class TestReshapingEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            encoder_attn=None,
             src_tokens=None,
             src_lengths=None,
         )
@@ -577,6 +581,7 @@ class TestAdditionalInputEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            encoder_attn=None,
             src_tokens=None,
             src_lengths=None,
         )
@@ -587,6 +592,7 @@ class TestAdditionalInputEncoder(FairseqEncoder):
             encoder_padding_mask=None,
             encoder_embedding=None,
             encoder_states=None,
+            encoder_attn=None,
             src_tokens=None,
             src_lengths=None,
         )

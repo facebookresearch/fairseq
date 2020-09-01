@@ -404,6 +404,7 @@ class TransformerEncoder(FairseqEncoder):
         src_tokens,
         src_lengths,
         return_all_hiddens: bool = False,
+        return_all_attn: bool = False,
         token_embeddings: Optional[torch.Tensor] = None,
     ):
         """
@@ -414,6 +415,8 @@ class TransformerEncoder(FairseqEncoder):
                 shape `(batch)`
             return_all_hiddens (bool, optional): also return all of the
                 intermediate hidden states (default: False).
+            return_all_attn (bool, optional): also return all of the
+                intermediate layers' attention weights (default: False).
             token_embeddings (torch.Tensor, optional): precomputed embeddings
                 default `None` will recompute embeddings
 
@@ -428,6 +431,9 @@ class TransformerEncoder(FairseqEncoder):
                 - **encoder_states** (List[Tensor]): all intermediate
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
+                - **encoder_attn** (List[Tensor]): all intermediate
+                  layers' attention weights of shape `(num_heads, batch, src_len, src_len)`.
+                  Only populated if *return_all_attn* is True.
         """
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
@@ -438,13 +444,17 @@ class TransformerEncoder(FairseqEncoder):
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
 
         encoder_states = []
+        encoder_attn = []
 
         # encoder layers
         for layer in self.layers:
-            x = layer(x, encoder_padding_mask)
+            x, attn = layer(x, encoder_padding_mask, need_head_weights=return_all_attn)
             if return_all_hiddens:
                 assert encoder_states is not None
                 encoder_states.append(x)
+            if return_all_attn and attn is not None:
+                assert encoder_attn is not None
+                encoder_attn.append(attn)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
@@ -458,6 +468,7 @@ class TransformerEncoder(FairseqEncoder):
             "encoder_padding_mask": [encoder_padding_mask],  # B x T
             "encoder_embedding": [encoder_embedding],  # B x T x C
             "encoder_states": encoder_states,  # List[T x B x C]
+            "encoder_attn": encoder_attn,  # List[N x B x T x T]
             "src_tokens": [],
             "src_lengths": [],
         }
@@ -506,11 +517,17 @@ class TransformerEncoder(FairseqEncoder):
             for idx, state in enumerate(encoder_states):
                 encoder_states[idx] = state.index_select(1, new_order)
 
+        encoder_attn = encoder_out["encoder_attn"]
+        if len(encoder_attn) > 0:
+            for idx, state in enumerate(encoder_attn):
+                encoder_attn[idx] = state.index_select(1, new_order)
+
         return {
             "encoder_out": new_encoder_out,  # T x B x C
             "encoder_padding_mask": new_encoder_padding_mask,  # B x T
             "encoder_embedding": new_encoder_embedding,  # B x T x C
             "encoder_states": encoder_states,  # List[T x B x C]
+            "encoder_attn": encoder_attn,  # List[N x B x T x T]
             "src_tokens": src_tokens,  # B x T
             "src_lengths": src_lengths,  # B x 1
         }

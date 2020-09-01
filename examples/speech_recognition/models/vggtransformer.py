@@ -361,7 +361,7 @@ class VGGTransformerEncoder(FairseqEncoder):
         for layer_idx in range(len(self.transformer_layers)):
 
             if isinstance(self.transformer_layers[layer_idx], TransformerEncoderLayer):
-                x = self.transformer_layers[layer_idx](
+                x, _ = self.transformer_layers[layer_idx](
                     x, encoder_padding_mask, attn_mask
                 )
 

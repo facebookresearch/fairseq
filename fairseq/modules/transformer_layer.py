@@ -102,7 +102,14 @@ class TransformerEncoderLayer(nn.Module):
                     state_dict["{}.{}.{}".format(name, new, m)] = state_dict[k]
                     del state_dict[k]
 
-    def forward(self, x, encoder_padding_mask, attn_mask: Optional[Tensor] = None):
+    def forward(
+        self,
+        x,
+        encoder_padding_mask,
+        attn_mask: Optional[Tensor] = None,
+        need_attn: bool = False,
+        need_head_weights: bool = False,
+    ):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
@@ -114,6 +121,9 @@ class TransformerEncoderLayer(nn.Module):
                 `attn_mask[tgt_i, src_j] = 1` means that when calculating the
                 embedding for `tgt_i`, we exclude (mask out) `src_j`. This is
                 useful for strided self-attention.
+            need_attn (bool, optional): return attention weights.
+            need_head_weights (bool, optional): return attention weights
+                for each head (default: return average over heads).
 
         Returns:
             encoded output of shape `(seq_len, batch, embed_dim)`
@@ -126,15 +136,20 @@ class TransformerEncoderLayer(nn.Module):
         if attn_mask is not None:
             attn_mask = attn_mask.masked_fill(attn_mask.to(torch.bool), -1e8)
 
+        if need_head_weights:
+            need_attn = True
+
         residual = x
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
-        x, _ = self.self_attn(
+        x, attn = self.self_attn(
             query=x,
             key=x,
             value=x,
             key_padding_mask=encoder_padding_mask,
             attn_mask=attn_mask,
+            need_weights=need_attn,
+            need_head_weights=need_head_weights,
         )
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
@@ -151,7 +166,9 @@ class TransformerEncoderLayer(nn.Module):
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
-        return x
+        if need_attn:
+            return x, attn
+        return x, None
 
 
 class TransformerDecoderLayer(nn.Module):
