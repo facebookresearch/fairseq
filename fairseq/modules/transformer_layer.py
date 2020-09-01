@@ -286,6 +286,7 @@ class TransformerDecoderLayer(nn.Module):
         self_attn_padding_mask: Optional[torch.Tensor] = None,
         need_attn: bool = False,
         need_head_weights: bool = False,
+        need_self_attn: bool = False,
     ):
         """
         Args:
@@ -296,6 +297,7 @@ class TransformerDecoderLayer(nn.Module):
             need_attn (bool, optional): return attention weights
             need_head_weights (bool, optional): return attention weights
                 for each head (default: return average over heads).
+            need_self_attn (bool, optional): return self-attention weights.
 
         Returns:
             encoded output of shape `(seq_len, batch, embed_dim)`
@@ -341,13 +343,14 @@ class TransformerDecoderLayer(nn.Module):
         else:
             y = x
 
-        x, attn = self.self_attn(
+        x, self_attn = self.self_attn(
             query=x,
             key=y,
             value=y,
             key_padding_mask=self_attn_padding_mask,
             incremental_state=incremental_state,
-            need_weights=False,
+            need_weights=need_self_attn,
+            need_head_weights=need_self_attn,
             attn_mask=self_attn_mask,
         )
         x = self.dropout_module(x)
@@ -355,6 +358,7 @@ class TransformerDecoderLayer(nn.Module):
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
 
+        attn = self_attn
         if self.encoder_attn is not None and encoder_out is not None:
             residual = x
             if self.normalize_before:
@@ -407,8 +411,8 @@ class TransformerDecoderLayer(nn.Module):
                 ]
             else:
                 self_attn_state = [saved_state["prev_key"], saved_state["prev_value"]]
-            return x, attn, self_attn_state
-        return x, attn, None
+            return x, attn, self_attn, self_attn_state
+        return x, attn, self_attn, None
 
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn

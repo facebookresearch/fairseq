@@ -301,7 +301,7 @@ class NATransformerDecoder(FairseqNATDecoder):
             if (early_exit is not None) and (i >= early_exit):
                 break
 
-            x, attn, _ = layer(
+            x, attn, _, _ = layer(
                 x,
                 encoder_out["encoder_out"][0]
                 if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)

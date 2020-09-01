@@ -526,7 +526,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         for layer in self.layers:
             dropout_probability = np.random.random()
             if not self.training or (dropout_probability > self.layerdrop):
-                x, attn, _ = layer(
+                x, attn, _, _ = layer(
                     x,
                     encoder_out["encoder_out"] if encoder_out is not None else None,
                     encoder_out["encoder_padding_mask"]

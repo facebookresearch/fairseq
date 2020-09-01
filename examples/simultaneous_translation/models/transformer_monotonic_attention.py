@@ -222,7 +222,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
         for i, layer in enumerate(self.layers):
 
-            x, attn, _ = layer(
+            x, attn, _, _ = layer(
                 x=x,
                 encoder_out=encoder_outs,
                 encoder_padding_mask=encoder_padding_mask,

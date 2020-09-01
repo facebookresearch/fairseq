@@ -355,7 +355,7 @@ class LevenshteinTransformerDecoder(FairseqNATDecoder):
         layers = self.layers if layers is None else layers
         early_exit = len(layers) if early_exit is None else early_exit
         for _, layer in enumerate(layers[:early_exit]):
-            x, attn, _ = layer(
+            x, attn, _, _ = layer(
                 x,
                 encoder_out["encoder_out"][0]
                 if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)

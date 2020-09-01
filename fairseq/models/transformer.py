@@ -684,6 +684,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         alignment_heads: Optional[int] = None,
         src_lengths: Optional[Any] = None,
         return_all_hiddens: bool = False,
+        return_all_self_attn: bool = False,
     ):
         """
         Args:
@@ -710,6 +711,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             full_context_alignment=full_context_alignment,
             alignment_layer=alignment_layer,
             alignment_heads=alignment_heads,
+            return_all_self_attn=return_all_self_attn,
         )
         if not features_only:
             x = self.output_layer(x)
@@ -723,6 +725,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
+        return_all_self_attn: bool = False,
     ):
         return self.extract_features_scriptable(
             prev_output_tokens,
@@ -731,6 +734,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             full_context_alignment,
             alignment_layer,
             alignment_heads,
+            return_all_self_attn,
         )
 
     """
@@ -747,6 +751,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
+        return_all_self_attn: bool = False,
     ):
         """
         Similar to *forward* but only return features.
@@ -761,6 +766,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 heads at this layer (default: last layer).
             alignment_heads (int, optional): only average alignment over
                 this many heads (default: all heads).
+            return_all_self_attn (bool, optional): also return all of
+                the intermediate layers' self-attention weights
+                (default: False).
 
         Returns:
             tuple:
@@ -810,6 +818,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         # decoder layers
         attn: Optional[Tensor] = None
+        self_attn: List[Optional[Tensor]] = []
         inner_states: List[Optional[Tensor]] = [x]
         for idx, layer in enumerate(self.layers):
             if incremental_state is None and not full_context_alignment:
@@ -817,7 +826,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             else:
                 self_attn_mask = None
 
-            x, layer_attn, _ = layer(
+            x, layer_attn, layer_self_attn, _ = layer(
                 x,
                 encoder_out["encoder_out"][0]
                 if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
@@ -833,10 +842,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 self_attn_padding_mask=self_attn_padding_mask,
                 need_attn=bool((idx == alignment_layer)),
                 need_head_weights=bool((idx == alignment_layer)),
+                need_self_attn=return_all_self_attn,
             )
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
+            if return_all_self_attn and layer_self_attn is not None:
+                self_attn.append(layer_self_attn.float().to(x))
 
         if attn is not None:
             if alignment_heads is not None:
@@ -854,7 +866,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        return x, {"attn": [attn], "inner_states": inner_states}
+        return x, {"attn": [attn], "self_attn": self_attn, "inner_states": inner_states}
 
     def output_layer(self, features):
         """Project features to the vocabulary size."""
