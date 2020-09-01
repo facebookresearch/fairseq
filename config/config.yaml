@@ -1,0 +1,7 @@
+defaults:
+  - params: training_params
+  - task: language_modeling
+  - model: transformer_lm
+  - criterion: cross_entropy
+  - optimizer: adam
+  - lr_scheduler: inverse_sqrt

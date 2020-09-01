@@ -1,0 +1,10 @@
+# @package _group_
+data: ???
+sample_break_mode: "none"
+tokens_per_sample: 1024
+output_dictionary_size: -1
+self_target: false
+future_target: false
+past_target: false
+add_bos_token: false
+max_target_positions: null

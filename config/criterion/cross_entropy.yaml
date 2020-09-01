@@ -1,0 +1,3 @@
+# @package _group_
+sentence_avg: ${params.optimization.sentence_avg}
+ddp_backend: ${params.distributed_training.ddp_backend}
