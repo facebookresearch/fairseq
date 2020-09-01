@@ -40,3 +40,13 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train RTE-bin \
     --noise-type uniform --r3f-lambda 0.7 \
     --user-dir examples/rxf;
 ```
+
+## Citation
+```bibtex
+@article{aghajanyan2020better,
+  title={Better Fine-Tuning by Reducing Representational Collapse},
+  author={Aghajanyan, Armen and Shrivastava, Akshat and Gupta, Anchit and Goyal, Naman and Zettlemoyer, Luke and Gupta, Sonal},
+  journal={arXiv preprint arXiv:2008.03156},
+  year={2020}
+}
+```
