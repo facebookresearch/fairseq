@@ -448,6 +448,10 @@ def add_distributed_training_args(parser, default_world_size=None):
                        help='number of GPUs in each node. An allreduce operation across GPUs in '
                             'a node is very fast. Hence, we do allreduce across GPUs in a node, '
                             'and gossip across different nodes')
+    # Add argument for ZeRO sharding of OptimizerState(os), gradients(g) and parameters(p)
+    group.add_argument('--zero-sharding', default='none', type=str,
+                       choices=['none', 'os'],
+                       help='ZeRO sharding')
     # fmt: on
     return group
 

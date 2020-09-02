@@ -32,7 +32,12 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         best_function = max if args.maximize_best_checkpoint_metric else min
         save_checkpoint.best = best_function(val_loss, prev_best)
 
-    if args.no_save or not trainer.is_data_parallel_master:
+    if args.no_save:
+        return
+
+    trainer.consolidate_optimizer()
+
+    if not trainer.is_data_parallel_master:
         return
 
     def is_better(a, b):
