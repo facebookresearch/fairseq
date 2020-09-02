@@ -28,6 +28,15 @@ class FairseqOptimizer(object):
             raise ValueError('_optimizer must be an instance of torch.optim.Optimizer')
         return self._optimizer
 
+    @optimizer.setter
+    def optimizer(self, optimizer):
+        """Reset optimizer instance."""
+        if not hasattr(self, '_optimizer'):
+            raise NotImplementedError
+        if not isinstance(self._optimizer, torch.optim.Optimizer):
+            raise ValueError('_optimizer must be an instance of torch.optim.Optimizer')
+        self._optimizer = optimizer
+
     @property
     def optimizer_config(self):
         """

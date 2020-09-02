@@ -214,10 +214,27 @@ class Trainer(object):
         if self.args.use_bmuf:
             self._optimizer = optim.FairseqBMUF(self.args, self._optimizer)
 
+        if self.args.zero_sharding == 'os':
+            if (self.args.fp16
+                    and not self.args.memory_efficient_fp16
+                    and not self.args.memory_efficient_bf16
+            ) and not self.args.fp16_no_flatten_grads:
+                raise ValueError(
+                        "ZeRO is incomptabile with fp16 and flattened grads. "
+                        "Please use --fp16-no-flatten-grads"
+                )
+            else:
+                optim.shard_(self.args, self._optimizer)
+
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(self.args, self.optimizer)
         self._lr_scheduler.step_update(0)
+
+    def consolidate_optimizer(self):
+        """For OSS, we need to consolidate the state dict."""
+        if hasattr(self.optimizer.optimizer, "consolidate_state_dict"):
+            self.optimizer.optimizer.consolidate_state_dict()
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""

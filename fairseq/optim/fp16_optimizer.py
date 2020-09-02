@@ -232,6 +232,10 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
     def optimizer(self):
         return self.fp32_optimizer.optimizer
 
+    @optimizer.setter
+    def optimizer(self, optimizer):
+        self.fp32_optimizer.optimizer = optimizer
+
     @property
     def optimizer_config(self):
         return self.fp32_optimizer.optimizer_config
@@ -279,19 +283,20 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         # params are FP16 while the optimizer state is FP32 and we don't want
         # to cast. A workaround is to manually copy back the original state
         # after the optimizer has been loaded.
-        groups = self.optimizer.param_groups
-        saved_groups = state_dict['param_groups']
-        id_map = {
-            old_id: p
-            for old_id, p in zip(
-                chain(*(g['params'] for g in saved_groups)),
-                chain(*(g['params'] for g in groups))
-            )
-        }
-        for k, v in state_dict['state'].items():
-            if k in id_map:
-                param = id_map[k]
-                self.optimizer.state[param] = v
+        if not getattr(self.optimizer, 'disable_mem_eff_fp16_loading_hack', False):
+            groups = self.optimizer.param_groups
+            saved_groups = state_dict['param_groups']
+            id_map = {
+                old_id: p
+                for old_id, p in zip(
+                    chain(*(g['params'] for g in saved_groups)),
+                    chain(*(g['params'] for g in groups))
+                )
+            }
+            for k, v in state_dict['state'].items():
+                if k in id_map:
+                    param = id_map[k]
+                    self.optimizer.state[param] = v
 
     def backward(self, loss):
         """Computes the sum of gradients of the given tensor w.r.t. graph leaves.
@@ -411,6 +416,10 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
     @property
     def optimizer(self):
         return self.wrapped_optimizer.optimizer
+
+    @optimizer.setter
+    def optimizer(self, optimizer):
+        self.wrapped_optimizer.optimizer = optimizer
 
     @property
     def optimizer_config(self):
