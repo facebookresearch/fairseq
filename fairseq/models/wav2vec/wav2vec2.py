@@ -342,23 +342,6 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         self.logit_temp = args.logit_temp
 
-        if args.quantize_input:
-            vq_dim = args.latent_dim if args.latent_dim > 0 else args.encoder_embed_dim
-            self.input_quantizer = (
-                GumbelVectorQuantizer(
-                    dim=args.encoder_embed_dim,
-                    num_vars=args.latent_vars,
-                    temp=eval(args.latent_temp),
-                    groups=args.latent_groups,
-                    combine_groups=False,
-                    vq_dim=vq_dim,
-                    time_first=True,
-                )
-                if not args.same_quantizer
-                else self.quantizer
-            )
-            self.project_inp = nn.Linear(vq_dim, args.encoder_embed_dim)
-
         final_dim = args.final_dim if args.final_dim > 0 else args.encoder_embed_dim
 
         if args.quantize_targets:
@@ -375,6 +358,23 @@ class Wav2Vec2Model(BaseFairseqModel):
             self.project_q = nn.Linear(vq_dim, final_dim)
         else:
             self.project_q = nn.Linear(self.embed, final_dim)
+
+        if args.quantize_input:
+            vq_dim = args.latent_dim if args.latent_dim > 0 else args.encoder_embed_dim
+            self.input_quantizer = (
+                GumbelVectorQuantizer(
+                    dim=args.encoder_embed_dim,
+                    num_vars=args.latent_vars,
+                    temp=eval(args.latent_temp),
+                    groups=args.latent_groups,
+                    combine_groups=False,
+                    vq_dim=vq_dim,
+                    time_first=True,
+                )
+                if not args.same_quantizer
+                else self.quantizer
+            )
+            self.project_inp = nn.Linear(vq_dim, args.encoder_embed_dim)
 
         self.mask_emb = nn.Parameter(
             torch.FloatTensor(args.encoder_embed_dim).uniform_()
