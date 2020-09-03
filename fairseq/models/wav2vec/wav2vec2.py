@@ -132,6 +132,10 @@ class Wav2Vec2Model(BaseFairseqModel):
         )
 
         parser.add_argument(
+            "--same-quantizer", action="store_true", help="use quantized inputs"
+        )
+
+        parser.add_argument(
             "--feature-grad-mult",
             type=float,
             help="multiply feature extractor var grads by this",
@@ -981,6 +985,7 @@ def base_architecture(args):
 
     args.quantize_targets = getattr(args, "quantize_targets", False)
     args.quantize_input = getattr(args, "quantize_input", False)
+    args.quantize_input = getattr(args, "same_quantizer", False)
 
     args.feature_grad_mult = getattr(args, "feature_grad_mult", 1.0)
 
