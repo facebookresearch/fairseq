@@ -20,7 +20,7 @@ fi
 grep ^H $GEN \
 | sed 's/^H\-//' \
 | sort -n -k 1 \
-| cut -f 3 \
+| awk -F '\t' '{print $NF}' \
 | sacremoses detokenize \
 > $GEN.sorted.detok
 
