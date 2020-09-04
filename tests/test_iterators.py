@@ -85,6 +85,40 @@ class TestIterators(unittest.TestCase):
         self.assertEqual(next(itr), ref[4])
         self.assertFalse(itr.has_next())
 
+    def test_counting_iterator_buffered_iterator_take(self):
+        ref = list(range(10))
+        buffered_itr = iterators.BufferedIterator(2, ref)
+        itr = iterators.CountingIterator(buffered_itr)
+        itr.take(5)
+        self.assertEqual(len(itr), len(list(iter(itr))))
+        self.assertEqual(len(itr), 5)
+
+        buffered_itr = iterators.BufferedIterator(2, ref)
+        itr = iterators.CountingIterator(buffered_itr)
+        itr.take(5)
+        self.assertEqual(len(buffered_itr), 5)
+        self.assertEqual(len(list(iter(buffered_itr))), 5)
+
+        buffered_itr = iterators.BufferedIterator(2, ref)
+        itr = iterators.CountingIterator(buffered_itr)
+        itr.take(5)
+        self.assertEqual(next(itr), ref[0])
+        self.assertEqual(next(itr), ref[1])
+        itr.skip(2)
+        self.assertEqual(next(itr), ref[4])
+        self.assertFalse(itr.has_next())
+        self.assertRaises(StopIteration, next, buffered_itr)
+
+        ref = list(range(4,10))
+        buffered_itr = iterators.BufferedIterator(2, ref)
+        itr = iterators.CountingIterator(buffered_itr, start=4)
+        itr.take(5)
+        self.assertEqual(len(itr), 5)
+        self.assertEqual(len(buffered_itr), 1)
+        self.assertEqual(next(itr), ref[0])
+        self.assertFalse(itr.has_next())
+        self.assertRaises(StopIteration, next, buffered_itr)
+
 
 if __name__ == '__main__':
     unittest.main()
