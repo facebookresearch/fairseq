@@ -1,7 +1,7 @@
 import argparse
 from collections import OrderedDict
 import datetime
-from glob import glob
+from glob import iglob
 import itertools
 import os
 import random
@@ -42,22 +42,24 @@ def main(get_grid, postprocess_hyperparams, args):
         if i == args.num_trials - 1:
             break
 
-def copy_all_python_files(source, snapshot_main_dir, code_snapshot_hash):
+def copy_all_python_files(source, snapshot_main_dir, code_snapshot_hash, recurse_dirs='fairseq'):
     """
     Copies following files from source to destination:
         a) all *.py files at direct source location.
-        b) all fairseq/*.py recursively.
+        b) all fairseq/*.py recursively (default); recurse through comma-separated recurse_dirs
     """
     os.makedirs(snapshot_main_dir, exist_ok=True)
     destination = os.path.join(snapshot_main_dir, code_snapshot_hash)
     assert not os.path.exists(destination), \
         'Code snapshot: {0} alredy exists'.format(code_snapshot_hash)
     os.makedirs(destination)
-    all_pys = glob(os.path.join(source, 'fairseq/**/*.py'), recursive=True) + \
-            glob(os.path.join(source, 'fairseq/**/*.so'), recursive=True) + \
-            glob(os.path.join(source, '*.py'))
+    def all_pys(recurse_dirs):
+        yield from iglob(os.path.join(source, '*.py'))
+        for d in recurse_dirs.split(','):
+            yield from iglob(os.path.join(source, d, '**/*.py'), recursive=True)
+            yield from iglob(os.path.join(source, d, '**/*.so'), recursive=True)
 
-    for filepath in all_pys:
+    for filepath in all_pys(recurse_dirs):
         directory, filename = os.path.split(filepath)
         if directory:
             os.makedirs(os.path.join(destination, directory), exist_ok=True)
@@ -73,9 +75,14 @@ def launch_train(args, config):
     destination = ''
     if args.snapshot_code:
         # Currently hash is just the current time in ISO format.
-        code_snapshot_hash = datetime.datetime.now().isoformat()
+        # Remove colons since they cannot be escaped in POSIX PATH env vars.
+        code_snapshot_hash = datetime.datetime.now().isoformat().replace(':', '_')
         destination = copy_all_python_files(
-            '.', os.path.join(args.snapshot_root, 'slurm_snapshot_code'), code_snapshot_hash)
+            '.',
+            os.path.join(args.snapshot_root, 'slurm_snapshot_code'),
+            code_snapshot_hash,
+            args.snapshot_recurse_dirs
+        )
 
     # compute save_dir
     save_dir_key = '.'.join(filter(

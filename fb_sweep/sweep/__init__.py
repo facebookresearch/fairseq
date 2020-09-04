@@ -2,13 +2,17 @@ import argparse
 import datetime
 import os
 import socket
+from typing import Optional, List
 
 
 def csv_str_list(x):
     return [y.strip() for y in x.split(',')]
 
 
-def get_args(add_extra_options_func=None):
+def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None):
+    """
+    input_args (List[str]): strings to parse, defaults to sys.argv
+    """
     parser = argparse.ArgumentParser('Script for launching hyperparameter sweeps ')
     parser.add_argument('--grid', help='grid function we used', default=None)
     parser.add_argument('--pair', help='language direction', default=None)
@@ -91,6 +95,8 @@ def get_args(add_extra_options_func=None):
                             ' path is "./slurm_snapshot_code/<TIME_ISO_FORMAT/>:", '
                             'can find time from comment of slurm job.')
     parser.add_argument('--snapshot-root', type=str, default='.', help='root path for saving the snapshot code.')
+    parser.add_argument('--snapshot-recurse-dirs', default='fairseq',
+                        help='comma-separated directories from where to recursively copy *.py and *.so files')
     parser.add_argument('--tensorboard-logdir',
                         default=os.path.join('/checkpoint', os.environ['USER'], 'tensorboard_logs', str(datetime.date.today())),
                         help='save tensorboard logs in <tensorboard-logdir>/<prefix>.<save_dir_key>')
@@ -102,7 +108,7 @@ def get_args(add_extra_options_func=None):
                             '{job_dir} will be replaced')
     if add_extra_options_func is not None:
         add_extra_options_func(parser)
-    args = parser.parse_args()
+    args = parser.parse_args(input_args)
     return args
 
 
@@ -152,8 +158,13 @@ class hyperparam(object):
         return self.save_dir_key(self.current_value)
 
 
-def main(get_grid, postprocess_hyperparams, add_extra_options_func=None):
-    args = get_args(add_extra_options_func)
+def main(
+    get_grid,
+    postprocess_hyperparams,
+    add_extra_options_func=None,
+    scheduler_args: Optional[List[str]] = None,
+):
+    args = get_args(add_extra_options_func, scheduler_args)
 
     if args.backend == 'fblearner':
         from .fblearner import main as backend_main
