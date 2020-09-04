@@ -116,6 +116,11 @@ Note: you can simulate 24 GPUs by using k GPUs and setting --update-freq 24/k
 Decoding with a language model during training requires wav2letter [python bindings](https://github.com/facebookresearch/wav2letter/wiki/Building-Python-bindings).
 Alternatively, simply omit the --wer-args flag.
 
+For hyper-parameters to fine-tune other Librispeech splits (10 minutes, 1 hour, etc) please refer to the table in Appendix B in the wav2vec 2.0 paper.
+The main changes to make are adjusting --max-update, and then adjusting --warmup-steps, --hold-steps, and --decay steps so that they use 0.1/0.4/0.5 of max-update respectively. You then need to adjust --mask-prob and --mask-channel-prob. This should be set to the mask-length * x where x is the number in the table and mask-length is what you use for --mask-length (10 in this example. Use --mask-channel-length value for --mask-channel-prob).
+
+For example, for 10 hours, we see in the paper that timestep mask prob should be 0.065, so we set --mask-prob to 10* 0.065 = 0.65. channel mask prob is 0.004, so we set it to 64 * 0.004 = 0.256. then we set --max-updates to 20000 and change --warmup-steps to 20000 * 0.1 = 2000, --hold-steps to 8000 and --decay-steps to 10000.
+
 ### Evaluating a CTC model:
 
 Evaluating a CTC model with a language model requires wav2letter [python bindings](https://github.com/facebookresearch/wav2letter/wiki/Building-Python-bindings) to be installed.

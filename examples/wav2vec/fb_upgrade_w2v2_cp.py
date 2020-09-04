@@ -31,6 +31,7 @@ def upgrade_bert_args(args):
     args.arch = "wav2vec2"
     args.final_dim = args.mlp_mi
     args.latent_groups = args.latent_var_banks
+    args.extractor_mode = 'layer_norm' if args.normalize else 'default'
     del args.latent_dim
 
 
@@ -56,6 +57,8 @@ def update_checkpoint(model_dict, prefix=""):
         "encoder.quantizer.weight_proj.bias": "quantizer.weight_proj.bias",
         "encoder.project_q.weight": "project_q.weight",
         "encoder.project_q.bias": "project_q.bias",
+        "encoder.layer_norm_repr.weight": "encoder.layer_norm.weight",
+        "encoder.layer_norm_repr.bias": "encoder.layer_norm.bias",
     }
 
     if prefix:
