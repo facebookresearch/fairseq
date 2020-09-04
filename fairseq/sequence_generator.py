@@ -491,16 +491,10 @@ class SequenceGenerator(nn.Module):
 
         # sort by score descending
         for sent in range(len(finalized)):
-            # make into beam container
-            BCList = [
-                BeamContainer(elem["score"].item(), elem) for elem in finalized[sent]
-            ]
-            BCList.sort()
-            BCList.reverse()
-            finalized[sent] = torch.jit.annotate(
-                List[Dict[str, Tensor]], [x.elem for x in BCList]
-            )
-
+            scores = torch.tensor([float(elem["score"].item()) for elem in finalized[sent]])
+            _, sorted_scores_indices = torch.sort(scores, descending=True)
+            finalized[sent] = [finalized[sent][ssi] for ssi in sorted_scores_indices]
+            finalized[sent] = torch.jit.annotate(List[Dict[str, Tensor]], finalized[sent])
         return finalized
 
     def _prefix_tokens(
@@ -966,17 +960,3 @@ class EnsembleModelWithAlignment(EnsembleModel):
         if len(self.models) > 1:
             avg_attn.div_(len(self.models))
         return avg_attn
-
-
-@torch.jit.script
-class BeamContainer(object):
-    def __init__(self, score: float, elem: Dict[str, Tensor]):
-        self.score = score
-        self.elem = elem
-
-    def __lt__(self, other):
-        # type: (BeamContainer) -> bool
-        # Due to https://github.com/pytorch/pytorch/issues/20388,
-        # this has to use old style type annotations
-        # Match original behavior of sorted function when two scores are equal.
-        return self.score <= other.score
