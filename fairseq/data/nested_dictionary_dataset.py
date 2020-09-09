@@ -110,6 +110,10 @@ class NestedDictionaryDataset(FairseqDataset):
             if getattr(ds, 'supports_prefetch', False):
                 ds.prefetch(indices)
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return all(ds.can_reuse_epoch_itr_across_epochs for ds in self.defn.values())
+
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
         for ds in self.defn.values():

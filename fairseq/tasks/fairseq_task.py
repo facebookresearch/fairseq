@@ -145,6 +145,13 @@ class FairseqTask(object):
             ).format(len(ignored), max_positions, ignored[:10]))
         return indices
 
+    def can_reuse_epoch_itr(self, dataset):
+        # We can reuse the epoch iterator across epochs as long as the dataset
+        # hasn't disabled it. We default to ``False`` here, although in practice
+        # this will be ``True`` for most datasets that inherit from
+        # ``FairseqDataset`` due to the base implementation there.
+        return getattr(dataset, 'can_reuse_epoch_itr_across_epochs', False)
+
     def get_batch_iterator(
         self,
         dataset,
@@ -189,10 +196,9 @@ class FairseqTask(object):
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
         """
-        # For default fairseq task, return same iterator across epochs
-        # as datasets are not dynamic, can be overridden in task specific
-        # setting.
-        if dataset in self.dataset_to_epoch_iter:
+        can_reuse_epoch_itr = self.can_reuse_epoch_itr(dataset)
+        if can_reuse_epoch_itr and dataset in self.dataset_to_epoch_iter:
+            logger.debug('reusing EpochBatchIterator for epoch {}'.format(epoch))
             return self.dataset_to_epoch_iter[dataset]
 
         assert isinstance(dataset, FairseqDataset)
@@ -230,7 +236,10 @@ class FairseqTask(object):
             epoch=epoch,
             buffer_size=getattr(self.args, 'data_buffer_size', 0),
         )
-        self.dataset_to_epoch_iter[dataset] = epoch_iter
+
+        if can_reuse_epoch_itr:
+            self.dataset_to_epoch_iter[dataset] = epoch_iter
+
         return epoch_iter
 
     def build_model(self, args):
