@@ -19,6 +19,11 @@ from hydra.core.config_store import ConfigStore
 from argparse import Namespace
 
 
+LOG_FORMAT_CHOICES = ChoiceEnum(["json", "none", "simple", "tqdm"])
+DDP_BACKEND_CHOICES = ChoiceEnum(["c10d", "no_c10d"])
+DISTRIBUTED_WRAPPER_CHOICES = ChoiceEnum(["DDP", "SlowMo"])
+
+
 @dataclass
 class CommonParams(FairseqDataclass):
     # This is the core dataclass including common parameters shared by all different jobs. Please append your params to other dataclasses if they were
@@ -32,7 +37,7 @@ class CommonParams(FairseqDataclass):
             "help": "log progress every N batches (when progress bar is disabled)"
         },
     )
-    log_format: Optional[ChoiceEnum(["json", "none", "simple", "tqdm"])] = field(
+    log_format: Optional[LOG_FORMAT_CHOICES] = field(
         default=None, metadata={"help": "log format to use"}
     )
     tensorboard_logdir: Optional[str] = field(
@@ -153,7 +158,7 @@ class DistributedTrainingParams(FairseqDataclass):
             "help": "do not spawn multiple processes even if multiple GPUs are visible"
         },
     )
-    ddp_backend: ChoiceEnum(["c10d", "no_c10d"]) = field(
+    ddp_backend: DDP_BACKEND_CHOICES = field(
         default="c10d", metadata={"help": "DistributedDataParallel backend"}
     )
     bucket_cap_mb: int = field(
@@ -184,7 +189,7 @@ class DistributedTrainingParams(FairseqDataclass):
             "batchnorm population statistics"
         },
     )
-    distributed_wrapper: ChoiceEnum(["DDP", "SlowMo"]) = field(
+    distributed_wrapper: DISTRIBUTED_WRAPPER_CHOICES = field(
         default="DDP", metadata={"help": "DistributedDataParallel backend"}
     )
     slowmo_momentum: Optional[float] = field(
