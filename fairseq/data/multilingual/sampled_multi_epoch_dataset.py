@@ -174,6 +174,10 @@ class SampledMultiEpochDataset(SampledMultiDataset):
         for i in range(len(prefetch_indices)):
             self.datasets[i].prefetch(prefetch_indices[i])
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return False
+
     def set_epoch(self, epoch):
         if self._current_epoch_start_index is None:
             self._setup(epoch)

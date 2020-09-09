@@ -346,6 +346,10 @@ class SampledMultiDataset(FairseqDataset):
         for i in range(len(prefetch_indices)):
             self.datasets[i].prefetch(prefetch_indices[i])
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return False
+
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
         if epoch == self._cur_epoch:

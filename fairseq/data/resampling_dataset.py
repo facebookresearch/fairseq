@@ -107,6 +107,10 @@ class ResamplingDataset(BaseWrapperDataset):
     def prefetch(self, indices):
         self.dataset.prefetch(self._cur_indices.array[indices])
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return False
+
     def set_epoch(self, epoch):
         logger.debug('ResamplingDataset.set_epoch: {}'.format(epoch))
         super().set_epoch(epoch)

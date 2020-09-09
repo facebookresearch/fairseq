@@ -292,22 +292,6 @@ class MultiLingualMaskedLMTask(FairseqTask):
             src_dataset = SortDataset(src_dataset, sort_order=[src_lengths])
         return src_dataset
 
-    def get_batch_iterator(
-        self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
-        ignore_invalid_inputs=False, required_batch_size_multiple=1,
-        seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
-    ):
-        # Recreate epoch iterator every epoch cause the underlying
-        # datasets are dynamic due to sampling.
-        self.dataset_to_epoch_iter = {}
-        epoch_iter = super().get_batch_iterator(
-            dataset, max_tokens, max_sentences, max_positions,
-            ignore_invalid_inputs, required_batch_size_multiple,
-            seed, num_shards, shard_id, num_workers, epoch,
-        )
-        self.dataset_to_epoch_iter = {}
-        return epoch_iter
-
     @property
     def source_dictionary(self):
         return self.dictionary
