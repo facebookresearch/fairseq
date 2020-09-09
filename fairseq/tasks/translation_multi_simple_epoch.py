@@ -269,6 +269,7 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
         self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
         ignore_invalid_inputs=False, required_batch_size_multiple=1,
         seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
+        data_buffer_size=0, disable_iterator_cache=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -296,6 +297,11 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
                 (default: 0).
             epoch (int, optional): the epoch to start the iterator from
                 (default: 0).
+            data_buffer_size (int, optional): number of batches to
+                preload (default: 0).
+            disable_iterator_cache (bool, optional): don't cache the
+                EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
+                (default: False).
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
@@ -308,9 +314,19 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
             self.args.sampling_method == 'RoundRobin'
         ):
             batch_iter = super().get_batch_iterator(
-                dataset, max_tokens=max_tokens, max_sentences=max_sentences, max_positions=max_positions,
-                ignore_invalid_inputs=ignore_invalid_inputs, required_batch_size_multiple=required_batch_size_multiple,
-                seed=seed, num_shards=num_shards, shard_id=shard_id, num_workers=num_workers, epoch=epoch,
+                dataset,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                max_positions=max_positions,
+                ignore_invalid_inputs=ignore_invalid_inputs,
+                required_batch_size_multiple=required_batch_size_multiple,
+                seed=seed,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                num_workers=num_workers,
+                epoch=epoch,
+                data_buffer_size=data_buffer_size,
+                disable_iterator_cache=disable_iterator_cache,
             )
             self.dataset_to_epoch_iter[dataset] = batch_iter
             return batch_iter

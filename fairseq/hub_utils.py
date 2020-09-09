@@ -233,6 +233,7 @@ class GeneratorHubInterface(nn.Module):
             max_sentences=self.args.max_sentences,
             max_positions=self.max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs,
+            disable_iterator_cache=True,
         ).next_epoch_itr(shuffle=False)
         return batch_iterator
 

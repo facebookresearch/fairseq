@@ -165,6 +165,8 @@ class FairseqTask(object):
         shard_id=0,
         num_workers=0,
         epoch=1,
+        data_buffer_size=0,
+        disable_iterator_cache=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -192,11 +194,19 @@ class FairseqTask(object):
                 (default: 0).
             epoch (int, optional): the epoch to start the iterator from
                 (default: 1).
+            data_buffer_size (int, optional): number of batches to
+                preload (default: 0).
+            disable_iterator_cache (bool, optional): don't cache the
+                EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
+                (default: False).
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
         """
-        can_reuse_epoch_itr = self.can_reuse_epoch_itr(dataset)
+        can_reuse_epoch_itr = (
+            not disable_iterator_cache
+            and self.can_reuse_epoch_itr(dataset)
+        )
         if can_reuse_epoch_itr and dataset in self.dataset_to_epoch_iter:
             logger.debug('reusing EpochBatchIterator for epoch {}'.format(epoch))
             return self.dataset_to_epoch_iter[dataset]
@@ -234,7 +244,7 @@ class FairseqTask(object):
             shard_id=shard_id,
             num_workers=num_workers,
             epoch=epoch,
-            buffer_size=getattr(self.args, 'data_buffer_size', 0),
+            buffer_size=data_buffer_size,
         )
 
         if can_reuse_epoch_itr:
