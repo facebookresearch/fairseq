@@ -313,7 +313,8 @@ following contents::
       # def get_batch_iterator(
       #     self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
       #     ignore_invalid_inputs=False, required_batch_size_multiple=1,
-      #     seed=1, num_shards=1, shard_id=0,
+      #     seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
+      #     data_buffer_size=0, disable_iterator_cache=False,
       # ):
       #     (...)
 

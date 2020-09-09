@@ -339,6 +339,7 @@ class Trainer(object):
         load_dataset=True,
         data_selector=None,
         shard_batch_itr=True,
+        disable_iterator_cache=False,
     ):
         """Return an EpochBatchIterator over the training set for a given epoch."""
         if load_dataset:
@@ -365,11 +366,14 @@ class Trainer(object):
             shard_id=self.data_parallel_rank if shard_batch_itr else 0,
             num_workers=self.args.num_workers,
             epoch=epoch,
+            data_buffer_size=self.args.data_buffer_size,
+            disable_iterator_cache=disable_iterator_cache,
         )
 
     def get_valid_iterator(
         self,
         subset,
+        disable_iterator_cache=False,
     ):
         """Return an EpochBatchIterator over given validation subset for a given epoch."""
         return self.task.get_batch_iterator(
@@ -386,6 +390,8 @@ class Trainer(object):
             num_shards=self.data_parallel_world_size,
             shard_id=self.data_parallel_rank,
             num_workers=self.args.num_workers,
+            data_buffer_size=self.args.data_buffer_size,
+            disable_iterator_cache=disable_iterator_cache,
         )
 
     def begin_epoch(self, epoch):

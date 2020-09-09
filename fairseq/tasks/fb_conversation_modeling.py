@@ -125,6 +125,7 @@ class BaseConversationTask(FairseqTask):
         self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
         ignore_invalid_inputs=False, required_batch_size_multiple=1,
         seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
+        data_buffer_size=0, disable_iterator_cache=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -152,6 +153,11 @@ class BaseConversationTask(FairseqTask):
                 (default: 0).
             epoch (int, optional): the epoch to start the iterator from
                 (default: 1).
+            data_buffer_size (int, optional): number of batches to
+                preload (default: 0).
+            disable_iterator_cache (bool, optional): don't cache the
+                EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
+                (default: False).
 
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the

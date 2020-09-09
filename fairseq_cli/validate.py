@@ -88,6 +88,7 @@ def main(args, override_args=None):
             num_shards=args.distributed_world_size,
             shard_id=args.distributed_rank,
             num_workers=args.num_workers,
+            data_buffer_size=args.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
         progress = progress_bar.progress_bar(
             itr,
