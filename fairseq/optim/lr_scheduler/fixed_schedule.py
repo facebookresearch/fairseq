@@ -3,11 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . import FairseqLRScheduler, register_lr_scheduler
+from . import register_lr_scheduler, LegacyFairseqLRScheduler
 
 
 @register_lr_scheduler('fixed')
-class FixedSchedule(FairseqLRScheduler):
+class FixedSchedule(LegacyFairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
     def __init__(self, args, optimizer):

@@ -16,7 +16,7 @@ from fairseq.data import (
     ListDataset,
 )
 
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data.multilingual.sampling_method import SamplingMethod
 from fairseq.data.multilingual.multilingual_data_manager import MultilingualDatasetManager
 
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_task('translation_multi_simple_epoch')
-class TranslationMultiSimpleEpochTask(FairseqTask):
+class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     """
     Translate from one (source) language to another (target) language.
 

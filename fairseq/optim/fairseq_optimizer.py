@@ -140,3 +140,9 @@ class FairseqOptimizer(object):
 
     def average_params(self):
         pass
+
+
+class LegacyFairseqOptimizer(FairseqOptimizer):
+
+    def __init__(self, args):
+        self.args = args

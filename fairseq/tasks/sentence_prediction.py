@@ -25,15 +25,15 @@ from fairseq.data import (
     SortDataset,
     StripTokenDataset,
 )
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
-from fairseq.tasks import FairseqTask, register_task
 
 
 logger = logging.getLogger(__name__)
 
 
 @register_task('sentence_prediction')
-class SentencePredictionTask(FairseqTask):
+class SentencePredictionTask(LegacyFairseqTask):
     """
     Sentence (or sentence pair) prediction (classification or regression) task.
 

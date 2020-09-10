@@ -21,14 +21,14 @@ from fairseq.data import (
 )
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.multi_corpus_sampled_dataset import MultiCorpusSampledDataset
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq import utils
 
 logger = logging.getLogger(__name__)
 
 
 @register_task('cross_lingual_lm')
-class CrossLingualLMTask(FairseqTask):
+class CrossLingualLMTask(LegacyFairseqTask):
     """
     Task for training cross-lingual language models.
 

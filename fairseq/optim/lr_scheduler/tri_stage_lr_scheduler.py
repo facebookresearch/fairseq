@@ -3,12 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . import FairseqLRScheduler, register_lr_scheduler
+from . import register_lr_scheduler, LegacyFairseqLRScheduler
 import math
 
 
 @register_lr_scheduler('tri_stage')
-class TriStageLRSchedule(FairseqLRScheduler):
+class TriStageLRSchedule(LegacyFairseqLRScheduler):
     """Tristage learning rate schedulr
 
     Implement the learning rate scheduler in https://arxiv.org/pdf/1904.08779.pdf

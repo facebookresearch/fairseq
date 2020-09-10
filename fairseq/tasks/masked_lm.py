@@ -21,8 +21,8 @@ from fairseq.data import (
     SortDataset,
     TokenBlockDataset,
 )
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
-from fairseq.tasks import FairseqTask, register_task
 from fairseq.data.encoders.utils import get_whole_word_mask
 from fairseq import utils
 
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_task('masked_lm')
-class MaskedLMTask(FairseqTask):
+class MaskedLMTask(LegacyFairseqTask):
     """Task for training masked language models (e.g., BERT, RoBERTa)."""
 
     @staticmethod

@@ -16,7 +16,7 @@ from fairseq.data import (
     TokenBlockDataset,
 )
 from fairseq.data.encoders.utils import get_whole_word_mask
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq import utils
 
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_task('denoising')
-class DenoisingTask(FairseqTask):
+class DenoisingTask(LegacyFairseqTask):
     """
     Denoising task for applying sequence to sequence denoising. (ie. BART)
     """

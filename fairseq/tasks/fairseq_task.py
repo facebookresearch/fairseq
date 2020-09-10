@@ -12,6 +12,7 @@ import torch
 
 from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import data_utils, FairseqDataset, iterators, Dictionary
+from argparse import Namespace
 
 logger = logging.getLogger(__name__)
 
@@ -486,3 +487,56 @@ class FairseqTask(object):
         """Return the target :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
         raise NotImplementedError
+
+
+class LegacyFairseqTask(FairseqTask):
+
+    def __init__(self, args: Namespace):
+        self.args = args
+        self.datasets = {}
+        self.dataset_to_epoch_iter = {}
+
+    @classmethod
+    def setup_task(cls, args: Namespace, **kwargs):
+        """Setup the task (e.g., load dictionaries).
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+        """
+        return cls(args, **kwargs)
+
+    def has_sharded_data(self, split):
+        return (os.pathsep in getattr(self.args, 'data', ''))
+
+    def build_model(self, args: Namespace):
+        """
+        Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
+        task.
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+
+        Returns:
+            a :class:`~fairseq.models.BaseFairseqModel` instance
+        """
+        from fairseq import models, quantization_utils
+        model = models.build_model(args, self)
+        if getattr(args, 'tpu', False):
+            model.prepare_for_tpu_()
+        model = quantization_utils.quantize_model_scalar(model, args)
+        return model
+
+    def build_criterion(self, args: Namespace):
+        """
+        Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
+        this task.
+
+        Args:
+            args (argparse.Namespace): parsed command-line arguments
+
+        Returns:
+            a :class:`~fairseq.criterions.FairseqCriterion` instance
+        """
+        from fairseq import criterions
+
+        return criterions.build_criterion(args, self)

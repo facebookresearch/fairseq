@@ -23,15 +23,15 @@ from fairseq.data import (
     SortDataset,
     TruncateDataset
 )
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
-from fairseq.tasks import FairseqTask, register_task
 
 
 logger = logging.getLogger(__name__)
 
 
 @register_task('sentence_ranking')
-class SentenceRankingTask(FairseqTask):
+class SentenceRankingTask(LegacyFairseqTask):
     """
     Ranking task on multiple sentences.
 

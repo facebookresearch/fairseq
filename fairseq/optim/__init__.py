@@ -7,7 +7,7 @@ import importlib
 import os
 
 from fairseq import registry
-from fairseq.optim.fairseq_optimizer import FairseqOptimizer
+from fairseq.optim.fairseq_optimizer import FairseqOptimizer, LegacyFairseqOptimizer # noqa
 from fairseq.optim.fp16_optimizer import FP16Optimizer, MemoryEfficientFP16Optimizer
 from fairseq.optim.bmuf import FairseqBMUF  # noqa
 from fairseq.optim.shard import shard_

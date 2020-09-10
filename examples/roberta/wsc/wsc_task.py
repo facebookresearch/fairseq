@@ -24,13 +24,13 @@ from fairseq.data import (
     PadDataset,
     SortDataset,
 )
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 
 from . import wsc_utils
 
 
 @register_task('wsc')
-class WSCTask(FairseqTask):
+class WSCTask(LegacyFairseqTask):
     """Task to finetune RoBERTa for Winograd Schemas."""
 
     @staticmethod

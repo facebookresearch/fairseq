@@ -9,7 +9,7 @@ import os
 import sys
 
 from fairseq.data import FileAudioDataset, Dictionary, AddTargetDataset
-from . import FairseqTask, register_task
+from . import LegacyFairseqTask, register_task
 
 
 class LabelEncoder(object):
@@ -23,7 +23,7 @@ class LabelEncoder(object):
 
 
 @register_task("audio_pretraining")
-class AudioPretrainingTask(FairseqTask):
+class AudioPretrainingTask(LegacyFairseqTask):
     """
 
     """

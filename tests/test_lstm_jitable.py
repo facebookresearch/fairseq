@@ -10,13 +10,13 @@ import unittest
 import torch
 from fairseq.data.dictionary import Dictionary
 from fairseq.models.lstm import LSTMModel
-from fairseq.tasks.fairseq_task import FairseqTask
+from fairseq.tasks.fairseq_task import LegacyFairseqTask
 
 
 DEFAULT_TEST_VOCAB_SIZE = 100
 
 
-class DummyTask(FairseqTask):
+class DummyTask(LegacyFairseqTask):
     def __init__(self, args):
         super().__init__(args)
         self.dictionary = get_dummy_dictionary()
