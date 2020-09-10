@@ -11,14 +11,14 @@ import os
 
 from fairseq.data.audio.fb_everstore_audio_dataset import EverstoreAudioDataset
 
-from . import FairseqTask, register_task
+from . import register_task, LegacyFairseqTask
 
 
 logger = logging.getLogger(__name__)
 
 
 @register_task("fb_audio_pretraining")
-class SpeechPretrainingTask(FairseqTask):
+class SpeechPretrainingTask(LegacyFairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""

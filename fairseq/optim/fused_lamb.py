@@ -3,11 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq.optim import FairseqOptimizer, register_optimizer
+from fairseq.optim import register_optimizer, LegacyFairseqOptimizer
 
 
 @register_optimizer('lamb')
-class FairseqLAMB(FairseqOptimizer):
+class FairseqLAMB(LegacyFairseqOptimizer):
     """LAMB optimizer."""
 
     def __init__(self, args, params):

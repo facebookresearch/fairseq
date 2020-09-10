@@ -11,7 +11,7 @@ import numpy as np
 import os
 from typing import List, Optional, Tuple
 
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data import Dictionary, iterators, ListDataset
 from fairseq.data.fb_conversations.fb_conversation_dataset import ConversationDataset
 from fairseq.data.fb_conversations.fb_special_symbols import SpecialConversationSymbols
@@ -35,7 +35,7 @@ def _shuffle(l: List) -> List:
 
 
 @register_task('fb_conversation_modeling')
-class BaseConversationTask(FairseqTask):
+class BaseConversationTask(LegacyFairseqTask):
     """
     Train a language model from conversations using Facebook's infrastructure.
     """

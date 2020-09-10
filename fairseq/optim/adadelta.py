@@ -5,11 +5,11 @@
 
 import torch.optim
 
-from . import FairseqOptimizer, register_optimizer
+from . import register_optimizer, LegacyFairseqOptimizer
 
 
 @register_optimizer('adadelta')
-class Adadelta(FairseqOptimizer):
+class Adadelta(LegacyFairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args)
         self._optimizer = torch.optim.Adadelta(params, **self.optimizer_config)

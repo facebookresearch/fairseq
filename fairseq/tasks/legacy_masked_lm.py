@@ -20,7 +20,7 @@ from fairseq.data import Dictionary
 from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.legacy.masked_lm_dictionary import BertDictionary
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq import utils
 
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_task('legacy_masked_lm')
-class LegacyMaskedLMTask(FairseqTask):
+class LegacyMaskedLMTask(LegacyFairseqTask):
     """
     Task for training Masked LM (BERT) model.
     Args:

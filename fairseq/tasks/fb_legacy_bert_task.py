@@ -22,14 +22,14 @@ from fairseq.data.legacy.masked_lm_dictionary import BertDictionary
 from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 
-from . import FairseqTask, register_task
+from . import register_task, LegacyFairseqTask
 
 
 logger = logging.getLogger(__name__)
 
 
 @register_task('fb_bert')
-class BertTask(FairseqTask):
+class BertTask(LegacyFairseqTask):
     """
     Train BERT model.
 

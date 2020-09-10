@@ -7,7 +7,7 @@ import argparse
 import importlib
 import os
 
-from .fairseq_task import FairseqTask
+from .fairseq_task import FairseqTask, LegacyFairseqTask # noqa
 
 TASK_REGISTRY = {}
 TASK_CLASS_NAMES = set()

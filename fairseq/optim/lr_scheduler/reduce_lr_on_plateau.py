@@ -5,11 +5,11 @@
 
 import torch.optim.lr_scheduler
 
-from . import FairseqLRScheduler, register_lr_scheduler
+from . import register_lr_scheduler, LegacyFairseqLRScheduler
 
 
 @register_lr_scheduler('reduce_lr_on_plateau')
-class ReduceLROnPlateau(FairseqLRScheduler):
+class ReduceLROnPlateau(LegacyFairseqLRScheduler):
     """
     Decay the LR by a factor every time the validation loss plateaus.
     Also comes with optional warmup phase, where we linearly increase
