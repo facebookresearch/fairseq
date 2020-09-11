@@ -218,8 +218,8 @@ class TranslationTask(LegacyFairseqTask):
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
-        args.left_pad_source = options.eval_bool(args.left_pad_source)
-        args.left_pad_target = options.eval_bool(args.left_pad_target)
+        args.left_pad_source = utils.eval_bool(args.left_pad_source)
+        args.left_pad_target = utils.eval_bool(args.left_pad_target)
 
         paths = utils.split_paths(args.data)
         assert len(paths) > 0

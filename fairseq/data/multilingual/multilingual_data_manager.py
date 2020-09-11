@@ -286,8 +286,8 @@ class MultilingualDatasetManager(object):
 
     @classmethod
     def prepare(cls, load_dictionary, args, **kargs):
-        args.left_pad_source = options.eval_bool(args.left_pad_source)
-        args.left_pad_target = options.eval_bool(args.left_pad_target)
+        args.left_pad_source = utils.eval_bool(args.left_pad_source)
+        args.left_pad_target = utils.eval_bool(args.left_pad_target)
 
         if not hasattr(args, "shuffle_instance"):
             args.shuffle_instance = False

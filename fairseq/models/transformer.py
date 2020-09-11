@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from fairseq import options, utils
+from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -29,7 +29,6 @@ from fairseq.modules import (
 )
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
-
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -612,7 +611,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary),
                 self.output_embed_dim,
-                options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
+                utils.eval_str_list(args.adaptive_softmax_cutoff, type=int),
                 dropout=args.adaptive_softmax_dropout,
                 adaptive_inputs=embed_tokens if args.tie_adaptive_weights else None,
                 factor=args.adaptive_softmax_factor,

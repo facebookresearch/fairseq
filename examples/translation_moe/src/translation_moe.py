@@ -162,7 +162,7 @@ class TranslationMoETask(TranslationTask):
             return lprob_yz
 
         # compute responsibilities without dropout
-        with utils.eval(model):  # disable dropout
+        with utils.model_eval(model):  # disable dropout
             with torch.no_grad():  # disable autograd
                 lprob_yz = get_lprob_yz()  # B x K
                 prob_z_xy = torch.nn.functional.softmax(lprob_yz, dim=1)

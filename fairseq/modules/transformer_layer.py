@@ -13,7 +13,6 @@ from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from torch import Tensor
 
-
 class TransformerEncoderLayer(nn.Module):
     """Encoder layer block.
 
@@ -174,8 +173,9 @@ class TransformerDecoderLayer(nn.Module):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
         )
+
         self.activation_fn = utils.get_activation_fn(
-            activation=getattr(args, "activation_fn", "relu")
+            activation=str(args.activation_fn) if getattr(args, "activation_fn", None) is not None else "relu"
         )
         activation_dropout_p = getattr(args, "activation_dropout", 0)
         if activation_dropout_p == 0:

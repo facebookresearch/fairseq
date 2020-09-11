@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq import options, utils
+from fairseq import utils
 from fairseq.models import (
     FairseqDecoder,
     FairseqLanguageModel,
@@ -231,7 +231,7 @@ class BiTransformerDecoder(FairseqDecoder):
             if args.adaptive_softmax_cutoff is not None:
                 self.adaptive_softmax = AdaptiveSoftmax(
                     len(dictionary), args.decoder_embed_dim,
-                    options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
+                    utils.eval_str_list(args.adaptive_softmax_cutoff, type=int),
                     dropout=args.adaptive_softmax_dropout,
                 )
             elif not self.share_input_output_embed:
