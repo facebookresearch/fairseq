@@ -155,7 +155,7 @@ class RobertaHubInterface(nn.Module):
         if tokens.dim() == 1:
             tokens = tokens.unsqueeze(0)
 
-        with utils.eval(self.model):
+        with utils.model_eval(self.model):
             features, extra = self.model(
                 tokens.long().to(device=self.device),
                 features_only=False,
@@ -200,5 +200,5 @@ class RobertaHubInterface(nn.Module):
         """
         assert hasattr(self.task, 'disambiguate_pronoun'), \
             'roberta.disambiguate_pronoun() requires a model trained with the WSC task.'
-        with utils.eval(self.model):
+        with utils.model_eval(self.model):
             return self.task.disambiguate_pronoun(self.model, sentence, use_cuda=self.device.type == 'cuda')

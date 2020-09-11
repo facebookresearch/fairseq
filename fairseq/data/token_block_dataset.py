@@ -75,7 +75,7 @@ class TokenBlockDataset(FairseqDataset):
         if break_mode == "eos" and block_size is None:
             block_size = 0
 
-        slice_indices = _get_slice_indices_fast(sizes, break_mode, block_size, document_sep_len)
+        slice_indices = _get_slice_indices_fast(sizes, str(break_mode), block_size, document_sep_len)
         self._sizes = slice_indices[:, 1] - slice_indices[:, 0]
 
         # build index mapping block indices to the underlying dataset indices
