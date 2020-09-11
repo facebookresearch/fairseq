@@ -31,6 +31,19 @@ def infer_init_method(args, force_distributed=False):
     if args.distributed_init_method is not None or getattr(args, 'tpu', False):
         return
 
+    if args.pipeline_model_parallel:
+        if args.pipeline_balance is None:
+            raise ValueError('--pipeline-balance is currently required for pipeline model parallelism')
+        if args.pipeline_devices is None:
+            raise ValueError('--pipeline-devices is currently required for pipeline model parallelism')
+        gpus_per_node = torch.cuda.device_count()
+        num_pipeline_devices = len(set(args.pipeline_devices))
+        assert gpus_per_node >= num_pipeline_devices and gpus_per_node % num_pipeline_devices == 0, (
+            'the number of unique device IDs in --pipeline-devices must evenly divide '
+            'the number of GPUs per node (multi-node pipelining is not yet supported)'
+        )
+        num_pipelines_per_node = gpus_per_node // num_pipeline_devices
+
     # support torch.distributed.launch
     if all(key in os.environ for key in [
         'MASTER_ADDR', 'MASTER_PORT', 'WORLD_SIZE', 'RANK'
@@ -63,10 +76,28 @@ def infer_init_method(args, force_distributed=False):
                     assert ntasks % nnodes == 0
                     ntasks_per_node = int(ntasks / nnodes)
                 if ntasks_per_node == 1:
-                    assert args.distributed_world_size % nnodes == 0
-                    gpus_per_node = args.distributed_world_size // nnodes
+                    gpus_per_node = torch.cuda.device_count()
                     node_id = int(os.environ.get('SLURM_NODEID'))
                     args.distributed_rank = node_id * gpus_per_node
+                    args.distributed_world_size = nnodes * gpus_per_node
+                elif args.pipeline_model_parallel:
+                    assert ntasks_per_node == num_pipelines_per_node, (
+                        'SLURM --ntasks-per-node must match number of pipelines per '
+                        'node (={})'.format(num_pipelines_per_node)
+                    )
+                    args.distributed_no_spawn = True
+                    # For 4-way MP on nodes with 8 GPUs, ranks will be [0, 1] on
+                    # the first node, [1, 2] on the second node, etc. This
+                    # matches torch.distributed.launch.
+                    node_id = int(os.environ.get('SLURM_NODEID'))
+                    local_id = int(os.environ.get('SLURM_LOCALID'))
+                    args.distributed_rank = node_id * num_pipelines_per_node + local_id
+                    # In the above example, device_id will always be in [0, 1],
+                    # which also matches torch.distributed.launch.
+                    args.device_id = local_id
+                    # We also want to set distributed_world_size to be the total
+                    # number of pipelines across all nodes.
+                    args.distributed_world_size = nnodes * num_pipelines_per_node
                 else:
                     assert ntasks_per_node == args.distributed_world_size // nnodes
                     args.distributed_no_spawn = True
@@ -82,6 +113,45 @@ def infer_init_method(args, force_distributed=False):
         assert args.distributed_world_size <= torch.cuda.device_count()
         port = random.randint(10000, 20000)
         args.distributed_init_method = 'tcp://localhost:{port}'.format(port=port)
+
+    if args.pipeline_model_parallel:
+        if not args.distributed_no_spawn:
+            # When distributed_no_spawn is False, we expect distributed_rank and
+            # distributed_world_size to be based on the total number of GPUs, so
+            # we need to correct them to be based on the number of pipelines.
+            assert args.distributed_world_size % num_pipeline_devices == 0
+            args.distributed_world_size = args.distributed_world_size // num_pipeline_devices
+            # In the case of 4-way MP on nodes with 8 GPUs, we want
+            # distributed_rank to be the starting GPU index for each pipeline
+            # i.e., 0, 2, ...
+            assert args.distributed_rank % gpus_per_node == 0
+            assert args.distributed_rank % num_pipeline_devices == 0
+            args.distributed_rank = args.distributed_rank // num_pipeline_devices
+            # launch one process per pipeline
+            args.distributed_num_procs = num_pipelines_per_node
+
+        # if we have 4-way MP on a node with 8 GPUs, we want device_ids to be 0
+        # and 4, indicating the starting device IDs for each pipeline
+        args.device_id *= num_pipeline_devices
+
+        if args.device_id > 0:
+            # if there's multiple pipelines on a node (e.g., 4-way MP on an 8
+            # GPU node), we need to adjust pipeline_devices accordingly
+            logger.debug(
+                "setting CUDA device={} on rank {}"
+                .format(args.device_id, args.distributed_rank)
+            )
+            torch.cuda.set_device(args.device_id)
+            args.pipeline_devices = [args.device_id + d for d in args.pipeline_devices]
+            logger.info(
+                "setting pipeline_devices={} on rank {}"
+                .format(args.pipeline_devices, args.distributed_rank),
+            )
+    elif not args.distributed_no_spawn:
+        args.distributed_num_procs = min(
+            torch.cuda.device_count(),
+            args.distributed_world_size,
+        )
 
 
 def distributed_init(args):
@@ -167,10 +237,7 @@ def call_main(args, main, **kwargs):
             torch.multiprocessing.spawn(
                 fn=distributed_main,
                 args=(main, args, kwargs),
-                nprocs=min(
-                    torch.cuda.device_count(),
-                    args.distributed_world_size,
-                ),
+                nprocs=args.distributed_num_procs,
             )
         else:
             distributed_main(args.device_id, main, args, kwargs)
