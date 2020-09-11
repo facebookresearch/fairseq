@@ -21,11 +21,18 @@ __all__ = [
 ]
 
 
-build_optimizer, register_optimizer, OPTIMIZER_REGISTRY = registry.setup_registry(
+_build_optimizer, register_optimizer, OPTIMIZER_REGISTRY = registry.setup_registry(
     '--optimizer',
     base_class=FairseqOptimizer,
     required=True,
 )
+
+
+def build_optimizer(args, params, *extra_args, **extra_kwargs):
+    if all(isinstance(p, dict) for p in params):
+        params = [t for p in params for t in p.values()]
+    params = list(filter(lambda p: p.requires_grad, params))
+    return _build_optimizer(args, params, *extra_args, **extra_kwargs)
 
 
 # automatically import any Python files in the optim/ directory

@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from itertools import chain
+from collections import defaultdict
 
 import torch
 
@@ -21,21 +22,38 @@ class _FP16OptimizerMixin(object):
 
     @property
     def has_flat_params(self):
-        return torch.is_tensor(self.fp32_params)
+        return (
+            torch.is_tensor(self.fp32_params) or
+            (
+                isinstance(self.fp32_params, dict) and
+                all(torch.is_tensor(t) for t in self.fp32_params.values())
+            )
+        )
 
     @classmethod
-    def build_fp32_params(cls, params, flatten=True):
+    def build_fp32_params(cls, args, params, flatten=True):
         # create FP32 copy of parameters and grads
         if flatten:
             total_param_size = sum(p.data.numel() for p in params)
-            fp32_params = torch.zeros(total_param_size, dtype=torch.float, device=params[0].device)
-            offset = 0
-            for p in params:
-                numel = p.data.numel()
-                fp32_params[offset:offset+numel].copy_(p.data.view(-1))
-                offset += numel
-            fp32_params = torch.nn.Parameter(fp32_params)
-            fp32_params.grad = fp32_params.data.new(total_param_size)
+            devices = [torch.cuda.current_device()]
+            if args.pipeline_model_parallel and args.distributed_no_spawn:
+                devices = list(set(args.pipeline_devices))
+            fp32_params = {}
+            for device in devices:
+                if args.pipeline_model_parallel and args.distributed_no_spawn:
+                    device_param_size = sum(p.data.numel() for p in params if p.device.index == device)
+                    device_params = [p for p in params if p.device.index == device]
+                else:
+                    device_param_size = total_param_size
+                    device_params = params
+                fp32_params[device] = device_params[0].new(0).float().new(device_param_size)
+                offset = 0
+                for p in device_params:
+                    numel = p.data.numel()
+                    fp32_params[device][offset:offset+numel].copy_(p.data.view(-1))
+                    offset += numel
+                fp32_params[device] = torch.nn.Parameter(fp32_params[device])
+                fp32_params[device].grad = fp32_params[device].data.new(device_param_size)
             return fp32_params
         else:
             fp32_params = []
@@ -80,14 +98,19 @@ class _FP16OptimizerMixin(object):
         if self._needs_sync:
             # copy FP16 grads to FP32
             if self.has_flat_params:
-                offset = 0
+                devices = list(self.fp32_params.keys())
+                device_params_dict = defaultdict(list)
                 for p in self.fp16_params:
-                    if not p.requires_grad:
-                        continue
-                    grad_data = p.grad.data if p.grad is not None else p.data.new_zeros(p.data.shape)
-                    numel = grad_data.numel()
-                    self.fp32_params.grad.data[offset:offset+numel].copy_(grad_data.view(-1))
-                    offset += numel
+                    if p.requires_grad:
+                        device_params_dict[p.device.index].append(p)
+                for device in devices:
+                    device_params = device_params_dict[device]
+                    offset = 0
+                    for p in device_params:
+                        grad_data = p.grad.data if p.grad is not None else p.data.new_zeros(p.data.shape)
+                        numel = grad_data.numel()
+                        self.fp32_params[device].grad.data[offset:offset+numel].copy_(grad_data.view(-1))
+                        offset += numel
             else:
                 for p, p32 in zip(self.fp16_params, self.fp32_params):
                     if not p.requires_grad:
@@ -102,13 +125,17 @@ class _FP16OptimizerMixin(object):
     def _sync_fp32_params_to_fp16(self):
         # copy FP32 params back into FP16 model
         if self.has_flat_params:
-            offset = 0
+            devices = list(self.fp32_params.keys())
+            device_params_dict = defaultdict(list)
             for p in self.fp16_params:
-                if not p.requires_grad:
-                    continue
-                numel = p.data.numel()
-                p.data.copy_(self.fp32_params.data[offset:offset+numel].view_as(p.data))
-                offset += numel
+                device_params_dict[p.device.index].append(p)
+            for device in devices:
+                device_params = device_params_dict[device]
+                offset = 0
+                for p in device_params:
+                    numel = p.data.numel()
+                    p.data.copy_(self.fp32_params[device].data[offset:offset+numel].view_as(p.data))
+                    offset += numel
         else:
             for p, p32 in zip(self.fp16_params, self.fp32_params):
                 if not p.requires_grad:
@@ -162,7 +189,13 @@ class _FP16OptimizerMixin(object):
         for p in self.fp16_params:
             p.grad = None
         if self.has_flat_params:
-            self.fp32_params.grad.zero_()
+            if torch.is_tensor(self.fp32_params):
+                self.fp32_params.grad.zero_()
+            elif isinstance(self.fp32_params, dict):
+                for fp32_params in self.fp32_params.values():
+                    fp32_params.grad.zero_()
+            else:
+                raise("self.fp32_params must be a tensor or dict")
         else:
             for p32 in self.fp32_params:
                 p32.grad.zero_()
@@ -216,7 +249,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
         flatten = not getattr(args, 'fp16_no_flatten_grads', False)
         if getattr(args, 'bf16', False):
             flatten = False  # mixed precision is faster on TPUs without flat grads
-        fp32_params = cls.build_fp32_params(params, flatten=flatten)
+        fp32_params = cls.build_fp32_params(args, params, flatten=flatten)
         if flatten:
             fp32_optimizer = optim.build_optimizer(args, [fp32_params])
         else:
