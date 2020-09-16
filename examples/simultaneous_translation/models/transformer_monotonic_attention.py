@@ -227,15 +227,10 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                 - the decoder's features of shape `(batch, tgt_len, embed_dim)`
                 - a dictionary with any model-specific outputs
         """
-        # incremental_state = None
         (
-            x,
-            encoder_outs,
-            encoder_padding_mask
+            x, encoder_outs, encoder_padding_mask
         ) = self.pre_attention(
-            prev_output_tokens,
-            encoder_out,
-            incremental_state
+            prev_output_tokens, encoder_out, incremental_state
         )
         attn = None
         inner_states = [x]
@@ -257,52 +252,28 @@ class TransformerMonotonicDecoder(TransformerDecoder):
             attn_list.append(attn)
 
             if incremental_state is not None:
-                curr_steps = layer.get_steps(incremental_state)
-                step_list.append(curr_steps)
+                head_read = layer.get_head_read(incremental_state)
+                # head_step = layer.get_head_step(incremental_state)
 
-                if incremental_state.get("online", False):
-                    p_choose = attn["p_choose"].squeeze(0).squeeze(1).gather(1, curr_steps.t())
+                if (
+                    head_read.any() and incremental_state["online"]
+                ):
+                    # We need to prune the last self_attn saved_state
+                    # if model decide not to read
+                    # otherwise there will be duplicated saved_state
+                    #
+                    # online means the input is not finished yet
+                    for j in range(i + 1):
+                        self.layers[j].prune_incremental_state(
+                            incremental_state)
 
-                    new_steps = (
-                        curr_steps
-                        + (p_choose < 0.5).t().type_as(curr_steps)
-                    )
-
-                    if (new_steps >= incremental_state["steps"]["src"]).any():
-                        # We need to prune the last self_attn saved_state
-                        # if model decide not to read
-                        # otherwise there will be duplicated saved_state
-                        for j in range(i + 1):
-                            self.layers[j].prune_incremental_state(
-                                incremental_state)
-
-                        return x, {"action": 0}
-
-        if (
-            incremental_state is not None
-            and not incremental_state.get("online", False)
-        ):
-            # Here is for fast evaluation
-            fastest_step = torch.max(
-                torch.cat(step_list, dim=1),
-                dim=1,
-                keepdim=True
-            )[0] + 1
-
-            if "fastest_step" in incremental_state:
-                incremental_state["fastest_step"] = torch.cat(
-                    [incremental_state["fastest_step"], fastest_step],
-                    dim=1
-                )
-            else:
-                incremental_state["fastest_step"] = fastest_step
+                    return x, {"action": 0}
 
         x = self.post_attention(x)
 
         return x, {
             "action": 1,
             "attn_list": attn_list,
-            "step_list": step_list,
             "encoder_out": encoder_out,
             "encoder_padding_mask": encoder_padding_mask,
         }

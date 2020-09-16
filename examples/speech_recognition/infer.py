@@ -102,7 +102,6 @@ def get_dataset_itr(args, task, models):
         num_shards=args.num_shards,
         shard_id=args.shard_id,
         num_workers=args.num_workers,
-        data_buffer_size=args.data_buffer_size,
     ).next_epoch_itr(shuffle=False)
 
 
@@ -220,7 +219,7 @@ class ExistingEmissionsDecoder(object):
         self.decoder = decoder
         self.emissions = emissions
 
-    def generate(self, models, sample, **unused):
+    def generate(self, models, sample, prefix_tokens=None):
         ids = sample["id"].cpu().numpy()
         try:
             emissions = np.stack(self.emissions[ids])

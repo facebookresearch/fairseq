@@ -66,7 +66,7 @@ class W2lDecoder(object):
         else:
             raise RuntimeError(f"unknown criterion: {args.criterion}")
 
-    def generate(self, models, sample, **unused):
+    def generate(self, models, sample, prefix_tokens=None):
         """Generate a batch of inferences."""
         # model.forward normally channels prev_output_tokens into the decoder
         # separately, but SequenceGenerator directly calls model.encoder
