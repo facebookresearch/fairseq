@@ -16,6 +16,10 @@ def arr2txt(arr, file_name):
             txt_file.write("".join(line) + "\n")
 
 
+# def join_arrays(source, target):
+#     join_arr = np.column_stack((source, target))
+#     return join_arr
+
 def split_arr(arr, n_train, n_valid, n_test):
     total_num = len(arr)
     if n_train+n_valid+n_test <= total_num:
@@ -35,8 +39,13 @@ emea_en_path = "custom_data/EMEA/EMEA.de-en.en"
 # EMEA arrs - de, en
 arr_emea_de = text2arr(emea_de_path)
 arr_emea_en = text2arr(emea_en_path)
-print(arr_emea_en[:100])
+# print(arr_emea_en[:10])
+join = np.column_stack((arr_emea_de[:10], arr_emea_en[:10]))
+print(join[0][0])
+
+
 # split arrs into train, valid and test sets
+'''
 train_de, valid_de, test_de = split_arr(arr_emea_de, 10000, 1000, 2000)
 train_en, valid_en, test_en = split_arr(arr_emea_en, 10000, 1000, 2000)
 
@@ -53,3 +62,4 @@ arr2txt(test_de, "test.de")
 arr2txt(train_en, "train.en")
 arr2txt(valid_en, "valid.en")
 arr2txt(test_en, "test.en")
+'''
