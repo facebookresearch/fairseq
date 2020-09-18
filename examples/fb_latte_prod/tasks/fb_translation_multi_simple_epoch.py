@@ -6,7 +6,7 @@
 
 from fairseq.tasks import register_task
 from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
-from fairseq_latte_prod.data.fb_dictionary import Dictionary
+from fairseq.data.dictionary import Dictionary
 
 
 @register_task('fb_translation_multi_simple_epoch')
