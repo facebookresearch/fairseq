@@ -785,15 +785,6 @@ class MultilingualDatasetManager(object):
             else None,
             langpairs_sharing_datasets=langpairs_sharing_datasets,
         )
-        if langpair_ds.tgt_sizes is None:
-            # hack to use src_sizes as the sizes for the whole pair dataset for ConcatDataset
-            langpair_ds.sizes = langpair_ds.src_sizes
-        else:
-            # use the max of two sides to define the size to help max positions filtering
-            langpair_ds.sizes = np.vstack(
-                [langpair_ds.src_sizes, langpair_ds.tgt_sizes]
-            ).max(axis=0)
-        assert langpair_ds.sizes.shape == langpair_ds.src_sizes.shape
         # TODO: handle modified lang toks for mined data and dae data
         if self.args.lang_tok_replacing_bos_eos:
             ds = self.alter_dataset_langtok(
@@ -1000,26 +991,6 @@ class MultilingualDatasetManager(object):
         ]
         return datasets, data_param_list
 
-    def load_into_sampled_multi_epoch_dataset(
-        self, split, datasets, data_param_list, epoch, shard_epoch=None
-    ):
-        sample_ratios = self.get_sampling_ratios(data_param_list, datasets, epoch)
-        return SampledMultiEpochDataset(
-            OrderedDict(datasets),
-            epoch=epoch,
-            shard_epoch=shard_epoch,
-            # valid and test datasets will be degerate to concating datasets:
-            sampling_ratios=sample_ratios,
-            eval_key=None,
-            batch_by_size=True,
-            collate_format=CollateFormat.single,
-            virtual_size=self.args.virtual_data_size,
-            split=split,
-            virtual_epoch_size=self.args.virtual_epoch_size,
-            # if not using lang_tok altering, simplified to use the same collater
-            shared_collater=self._shared_collater(),
-        )
-
     def load_into_concat_dataset(self, split, datasets, data_param_list):
         if self.args.lang_tok_replacing_bos_eos:
             # TODO: to investigate why TransformEosLangPairDataset doesn't work with ConcatDataset
@@ -1027,7 +998,6 @@ class MultilingualDatasetManager(object):
                 OrderedDict(datasets),
                 sampling_ratios=None,
                 eval_key=None,
-                batch_by_size=True,
                 collate_format=CollateFormat.single,
                 virtual_size=None,
                 split=split,
@@ -1041,8 +1011,20 @@ class MultilingualDatasetManager(object):
             split, training, epoch, combine, shard_epoch=shard_epoch, **kwargs
         )
         if training and split == getattr(self.args, "train_subset", None):
-            return self.load_into_sampled_multi_epoch_dataset(
-                split, datasets, data_param_list, epoch, shard_epoch=shard_epoch
+            sample_ratios = self.get_sampling_ratios(data_param_list, datasets, epoch)
+            return SampledMultiEpochDataset(
+                OrderedDict(datasets),
+                epoch=epoch,
+                shard_epoch=shard_epoch,
+                # valid and test datasets will be degenerate to concating datasets:
+                sampling_ratios=sample_ratios,
+                eval_key=None,
+                collate_format=CollateFormat.single,
+                virtual_size=self.args.virtual_data_size,
+                split=split,
+                virtual_epoch_size=self.args.virtual_epoch_size,
+                # if not using lang_tok altering, simplified to use the same collater
+                shared_collater=self._shared_collater(),
             )
         else:
             return self.load_into_concat_dataset(split, datasets, data_param_list)
