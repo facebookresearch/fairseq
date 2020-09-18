@@ -11,9 +11,14 @@ from fairseq.file_io import PathManager
 
 
 def main(get_grid, postprocess_hyperparams, args):
+    if args.manifold_has_user_data is None:
+        raise ValueError("fblearner backend requires --manifold-has-user-data be specified explicitly")
     try:
         from fvcore.fb.manifold import ManifoldPathHandler
-        PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800, has_user_data=False))
+        PathManager.register_handler(ManifoldPathHandler(
+            max_parallel=16,
+            timeout_sec=1800,
+            has_user_data=args.manifold_has_user_data))
     except KeyError:
         print("| ManifoldPathHandler already registered.")
     # compute all possible hyperparameter configurations
@@ -38,7 +43,20 @@ def main(get_grid, postprocess_hyperparams, args):
         # setup training
         x = setup_train(args, config)
         if x is not None:
-            sweep_config[x['train_log_path']] = x['cmd_args']
+            cmd_args = x['cmd_args']
+            cmd_args.extend([
+                "--manifold-max-parallel", str(args.manifold_max_parallel),
+                "--manifold-timeout-sec", str(args.manifold_timeout_sec),
+                "--manifold-has-user-data", str(args.manifold_has_user_data),
+                "--manifold-num-retries",  str(args.manifold_num_retries)
+            ])
+            if args.manifold_ttl is not None:
+                cmd_args.extend(
+                    [
+                        "--manifold-ttl", str(args.manifold_ttl),
+                    ]
+                )
+            sweep_config[x['train_log_path']] = cmd_args
             save_dirs.append(x['save_dir'])
 
         if i == args.num_trials - 1:
@@ -79,6 +97,7 @@ def main(get_grid, postprocess_hyperparams, args):
             'fairseq.train.train_workflow'
             # TODO put stuff in --notes, e.g., repro command
         ]
+
         cmd = ' '.join(map(shlex.quote, flow_cmd))
 
         if args.dry_run:

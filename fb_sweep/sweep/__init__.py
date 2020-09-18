@@ -66,6 +66,38 @@ def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None
         help='capabilities: e.g. GPU_V100_HOST,GPU_V100_32G_HOST',
         type=csv_str_list,
         default=None)
+    # for manifold in fblearner
+    parser.add_argument(
+        "--manifold-max-parallel",
+        default=8,
+        type=int,
+        help="set ManifoldPathHandler max_parallel download number"
+    )
+    parser.add_argument(
+        "--manifold-timeout-sec",
+        default=1800,
+        type=int,
+        help="set ManifoldPathHandler timeout seconds"
+    )
+    parser.add_argument(
+        "--manifold-has-user-data",
+        default=None,
+        type=lambda x: x.lower() not in ('no', 'false', 'f', 'n', '0') if x is not None else None,
+        help="set ManifoldPathHandler has_user_data option",
+    )
+    parser.add_argument(
+        "--manifold-num-retries",
+        default=15,
+        type=int,
+        help="set ManifoldPathHandler num_retries option",
+    )
+    parser.add_argument(
+        "--manifold-ttl",
+        default=None,
+        type=int,
+        help="A manifold  resource's time-to-live, applied to all manifold written resources. By default, there is no TTL."
+    )
+    # for manifold in fblearner
 
     # Chronos params
     parser.add_argument('--hostgroup', help='hostgroup to use')
@@ -165,7 +197,6 @@ def main(
     scheduler_args: Optional[List[str]] = None,
 ):
     args = get_args(add_extra_options_func, scheduler_args)
-
     if args.backend == 'fblearner':
         from .fblearner import main as backend_main
     elif args.backend == 'chronos':

@@ -12,9 +12,6 @@ import torch
 from fairseq import checkpoint_utils, utils
 from fairseq.file_io import PathManager
 
-# Register latte bucket
-from fblearner.flow.projects.fairseq.latte_training import manifold_file_io  # noqa
-
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +96,10 @@ def main():
     )
 
     args = parser.parse_args()
+    # Register latte bucket
+    # register inside main to avoid accidentally import latte bucket manifold settings
+    # for other fairseq flows
+    from fblearner.flow.projects.fairseq.latte_training import manifold_file_io  # noqa
     convert_model_to_fb_dict(args.source, args.destination)
 
 

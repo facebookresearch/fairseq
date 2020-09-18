@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-import contextlib
 import logging
 import os
 import sys
@@ -18,6 +17,9 @@ from fairseq.file_io import PathManager
 from fairseq_cli.train import main as fairseq_train_main
 from fairseq_latte_prod import tasks  # noqa
 from fvcore.fb.manifold import ManifoldPathHandler
+
+
+logger = logging.getLogger(__file__)
 
 
 def get_fb_training_parser():
@@ -34,7 +36,64 @@ def get_fb_training_parser():
         help="[FB only] Dir to store log in addition to stdout. If this "
         "is not set, it will be set to args.save_dir",
     )
+
+    # For latte_training use case, we have separate NMTManifoldPathHandler registered in
+    # https://fburl.com/wurd7t70. So if parameters need to be updated the right place
+    # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
+    # for manifold
+    parser.add_argument(
+        "--manifold-max-parallel",
+        default=8,
+        type=int,
+        help="set ManifoldPathHandler max_parallel download number"
+    )
+    parser.add_argument(
+        "--manifold-timeout-sec",
+        default=1800,
+        type=int,
+        help="set ManifoldPathHandler timeout seconds"
+    )
+    parser.add_argument(
+        "--manifold-has-user-data",
+        default=True,
+        type=lambda x: x.lower() not in ('no', 'false', 'f', 'n', '0') if x is not None else None,
+        help="set ManifoldPathHandler has_user_data option",
+    )
+    parser.add_argument(
+        "--manifold-num-retries",
+        default=15,
+        type=int,
+        help="set ManifoldPathHandler num_retries option",
+    )
+    parser.add_argument(
+        "--manifold-ttl",
+        default=None,
+        type=int,
+        help="A manifold  resource's time-to-live, applied to all manifold written resources. By default, there is no TTL."
+    )
+    # for manifold
     return parser
+
+
+def init_manifold(args):
+    # support Manifold for checkpoints
+    # For latte_training use case, we have separate NMTManifoldPathHandler registered in
+    # https://fburl.com/wurd7t70. So if parameters need to be updated the right place
+    # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
+    # Note that if manifold_file_io.py is imported before current file, the following try
+    # block will fail; the settings at manifold_file_io.py will take the priority.
+    try:
+        PathManager.register_handler(ManifoldPathHandler(
+            max_parallel=args.manifold_max_parallel,
+            timeout_sec=args.manifold_timeout_sec,
+            has_user_data=args.manifold_has_user_data,
+            num_retries=args.manifold_num_retries,
+            ttl=args.manifold_ttl,
+            ))
+        logger.info(f"ManifoldPathHandler is set: max_parallel={args.manifold_max_parallel}, "
+                    f"timeout_sec={args.manifold_timeout_sec}; has_user_data={args.manifold_has_user_data}")
+    except KeyError:
+        logging.warning("ManifoldPathHandler already registered.")
 
 
 def fb_main(
@@ -67,18 +126,7 @@ def fb_main(
     # write fairseq logs to stdout
     add_handler(logging.StreamHandler(sys.stdout))
 
-    # support Manifold for checkpoints
-    # For latte_training use case, we have separate NMTManifoldPathHandler registered in
-    # https://fburl.com/wurd7t70. So if parameters need to be updated the right place
-    # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
-    try:
-        PathManager.register_handler(ManifoldPathHandler(
-            max_parallel=16, timeout_sec=1800,
-            # fairseq checkpoints and logs do not contain user data
-            has_user_data=False,
-            ))
-    except KeyError:
-        logging.warning("ManifoldPathHandler already registered.")
+    init_manifold(args)
 
     def train_main():
         distributed_utils.distributed_main(
