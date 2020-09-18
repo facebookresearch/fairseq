@@ -64,6 +64,7 @@ class SampledMultiEpochDataset(SampledMultiDataset):
         self._random_global_indices = None
         self.shard_epoch = shard_epoch if shard_epoch is not None else 1
         self.load_next_shard = None
+        self._epoch_sizes = None
         super().__init__(
             datasets=datasets,
             sampling_ratios=sampling_ratios,
@@ -94,11 +95,17 @@ class SampledMultiEpochDataset(SampledMultiDataset):
 
     @property
     def sizes(self):
+        if self._epoch_sizes is not None:
+            return self._epoch_sizes
         _sizes = super().sizes
         indices = self._random_global_indices[
             self._current_epoch_start_index:self._current_epoch_start_index + len(self)
         ]
-        return _sizes[indices]
+        self._epoch_sizes = _sizes[indices]
+        # del super()._sizes to save memory
+        del self._sizes
+        self._sizes = None
+        return self._epoch_sizes
 
     def _get_dataset_and_index(self, index):
         i = self._map_epoch_index_to_global(index)
@@ -160,7 +167,7 @@ class SampledMultiEpochDataset(SampledMultiDataset):
 
         # reset cache sizes and ordered_indices for the epoch after moving to a new epoch
         self._clean_if_not_none([
-            self._sizes,
+            self._epoch_sizes,
         ])
-        self._sizes = None
+        self._epoch_sizes = None
         self._current_epoch_start_index = index
