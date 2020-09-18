@@ -17,7 +17,7 @@ import numpy as np
 import torch
 
 from fairseq import distributed_utils
-from fairseq.data import plasma_utils, FairseqDataset
+from fairseq.data import FairseqDataset, data_utils
 
 
 def get_time_gap(s, e):
@@ -54,9 +54,7 @@ class SampledMultiDataset(FairseqDataset):
             or OrderedDict[str, ~torch.utils.data.Dataset]
         ): datasets
         sampling_ratios (List[float]): list of probability of each dataset to be sampled
-            (default: None, which corresponds to concating all dataset together).
-        batch_by_size (bool): whether or not to batch by sequence length
-            (default: True).
+            (default: None, which corresponds to concatenating all dataset together).
         seed (int): RNG seed to use (default: 2).
         epoch (int): starting epoch number (default: 1).
         eval_key (str, optional): a key used at evaluation time that causes
@@ -70,24 +68,25 @@ class SampledMultiDataset(FairseqDataset):
         virtual_size (int, or callable): the expected virtual size of the dataset (default: default_virtual_size_func).
         split (str): the split of the data, e.g. 'train', 'valid' or 'test'.
         shared_collater (bool): whether or not to all sub-datasets have the same collater.
+        shuffle (bool): whether or not to shuffle data (default: True).
     """
 
     def __init__(
-            self,
-            datasets,
-            sampling_ratios=None,
-            batch_by_size=False,
-            seed=2,
-            epoch=1,
-            eval_key=None,
-            collate_format=CollateFormat.single,
-            virtual_size=default_virtual_size_func,
-            split='',
-            shared_collater=False,
+        self,
+        datasets,
+        sampling_ratios=None,
+        seed=2,
+        epoch=1,
+        eval_key=None,
+        collate_format=CollateFormat.single,
+        virtual_size=default_virtual_size_func,
+        split='',
+        shared_collater=False,
+        shuffle=True,
     ):
         super().__init__()
-        self.batch_by_size = batch_by_size
         self.shared_collater = shared_collater
+        self.shuffle = shuffle
 
         if isinstance(datasets, OrderedDict):
             self.keys = list(datasets.keys())
@@ -107,16 +106,18 @@ class SampledMultiDataset(FairseqDataset):
 
         self.seed = seed
         self._cur_epoch = None
+
+        self.cumulated_sizes = None
+        # self.datasets[k][self._cur_indices[i]] is the data item i in this sampled dataset
+        # namely, data item i is sampled from the kth sub-dataset self.datasets[k]
+        # where self.cumulated_sizes[k-1] <= i < self.cumulated_sizes[k]
         self._cur_indices = None
+
         self._sizes = None
-        self._ordered_indices = None
         self.virtual_size_per_dataset = None
         # caching properties
         self._reset_cached_properties()
         self.setup_sampling(sampling_ratios, virtual_size)
-        self.cumulated_sizes = None
-        self.virtual_size_per_dataset = None
-        self._size_cache = {}
         self.set_epoch(epoch)
 
     def _clean_if_not_none(self, var_list):
@@ -126,10 +127,9 @@ class SampledMultiDataset(FairseqDataset):
 
     def _reset_cached_properties(self):
         self._clean_if_not_none([
-            self._sizes, self._ordered_indices, self._cur_indices
+            self._sizes, self._cur_indices
         ])
         self._sizes = None
-        self._ordered_indices = None
         self._cur_indices = None
 
     def setup_sampling(self, sample_ratios, virtual_size):
@@ -141,10 +141,10 @@ class SampledMultiDataset(FairseqDataset):
         else:
             if not isinstance(sample_ratios, np.ndarray):
                 sample_ratios = np.array(sample_ratios)
-            self.sample_ratios = plasma_utils.PlasmaArray(sample_ratios)
+            self.sample_ratios = sample_ratios
             virtual_size = default_virtual_size_func if virtual_size is None else virtual_size
             self.virtual_size = (
-                virtual_size(self.datasets, self.sample_ratios.array) if callable(virtual_size)
+                virtual_size(self.datasets, self.sample_ratios) if callable(virtual_size)
                 else virtual_size)
 
     def adjust_sampling(self, epoch, sampling_ratios, virtual_size):
@@ -198,7 +198,6 @@ class SampledMultiDataset(FairseqDataset):
             in_dataset_indices = [list(range(s)) for s in sizes]
             virtual_sizes_per_dataset = sizes
         else:
-            sample_ratios = sample_ratios.array
             ratios = sample_ratios / sample_ratios.sum()
             in_dataset_indices = get_in_dataset_indices(datasets, sizes, ratios)
             virtual_sizes_per_dataset = [len(d) for d in in_dataset_indices]
@@ -215,23 +214,21 @@ class SampledMultiDataset(FairseqDataset):
         return in_dataset_indices, cumulative_sizes, virtual_sizes_per_dataset
 
     def _get_dataset_and_index(self, index):
-        i = bisect_right(self.cumulated_sizes.array, index)
-        return i, self._cur_indices.array[index]
+        i = bisect_right(self.cumulated_sizes, index)
+        return i, self._cur_indices[index]
 
     def __getitem__(self, index):
+        # self.__getitem__(index) returns self.datasets[k][self._cur_indices[index]]
+        # where k satisfies self.cumulated_sizes[k - 1] <= k < self.cumulated_sizes[k]
         ds_idx, ds_sample_idx = self._get_dataset_and_index(index)
         ret = (ds_idx, self.datasets[ds_idx][ds_sample_idx])
         return ret
 
     def num_tokens(self, index):
-        ds_idx, ds_sample_idx = self._get_dataset_and_index(index)
-        return self.datasets[ds_idx].num_tokens(ds_sample_idx)
+        return self.sizes[index].max()
 
     def size(self, index):
-        if self._sizes is not None:
-            return self._sizes[index]
-        ds_idx, ds_sample_idx = self._get_dataset_and_index(index)
-        return self.datasets[ds_idx].size(ds_sample_idx)
+        return self.sizes[index]
 
     def __len__(self):
         return self.virtual_size
@@ -244,13 +241,13 @@ class SampledMultiDataset(FairseqDataset):
             collect_samples = [[] for _ in range(len(self.datasets))]
             for (i, sample) in samples:
                 collect_samples[i].append(sample)
-            return OrderedDict([
+            batch = OrderedDict([
                 (self.keys[i], dataset.collater(collect_samples[i]))
                 for i, (key, dataset) in enumerate(zip(self.keys, self.datasets))
                 if len(collect_samples[i]) > 0
             ])
         elif self.shared_collater:
-            return self.datasets[0].collater(
+            batch = self.datasets[0].collater(
                 [s for _, s in samples]
             )
         else:
@@ -295,47 +292,41 @@ class SampledMultiDataset(FairseqDataset):
                 batch['net_input']['src_lang_id'] = straight_order([b['net_input']['src_lang_id'] for b in batches])
             if 'tgt_lang_id' in batches[0]:
                 batch['tgt_lang_id'] = straight_order([b['tgt_lang_id'] for b in batches])
-            return batch
+        return batch
 
     @property
     def sizes(self):
         if self._sizes is not None:
             return self._sizes
         start_time = time.time()
-        size_cache = self._size_cache
-        ret = []
-        for i in range(len(self)):
-            ds_idx, ds_sample_idx = self._get_dataset_and_index(i)
-            if (ds_idx, ds_sample_idx) in size_cache:
-                ret.append(size_cache[(ds_idx, ds_sample_idx)])
-            else:
-                s = self.datasets[ds_idx].size(ds_sample_idx)
-                size_cache[(ds_idx, ds_sample_idx)] = s
-                ret.append(s)
-        logger.debug(f'sizes() calling time: {get_time_gap(start_time, time.time())}')
-        self._sizes = np.array(ret, np.int64)
+        in_sub_dataset_indices = [
+            self._cur_indices[0 if i == 0 else self.cumulated_sizes[i-1]:self.cumulated_sizes[i]]
+            for i in range(len(self.datasets))
+        ]
+        sub_dataset_sizes = [
+            d.sizes[indices]
+            for d, indices in zip(self.datasets, in_sub_dataset_indices)
+        ]
+        self._sizes = np.vstack(sub_dataset_sizes)
+        logger.info(f'sizes() calling time: {get_time_gap(start_time, time.time())}')
         return self._sizes
 
     def ordered_indices(self):
-        if self._ordered_indices is not None:
-            return self._ordered_indices
-
-        if self.batch_by_size:
-            # No need to do shuffle as the data items are already randomized
-            indices = np.arange(len(self))
-            sizes = self.sizes
-            tgt_sizes = sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
-            src_sizes = sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
-
-            # sort by target length, then source length
-            if tgt_sizes is not None:
-                indices = indices[
-                    np.argsort(tgt_sizes[indices], kind='mergesort')
-                ]
-            sort_indices = indices[np.argsort(src_sizes[indices], kind='mergesort')]
+        if self.shuffle:
+            indices = np.random.permutation(len(self))
         else:
-            sort_indices = np.arange(len(self))
-        self._ordered_indices = sort_indices
+            indices = np.arange(len(self))
+
+        sizes = self.sizes
+        tgt_sizes = sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
+        src_sizes = sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+
+        # sort by target length, then source length
+        if tgt_sizes is not None:
+            indices = indices[
+                np.argsort(tgt_sizes[indices], kind='mergesort')
+            ]
+        sort_indices = indices[np.argsort(src_sizes[indices], kind='mergesort')]
         return sort_indices
 
     def prefetch(self, indices):
@@ -383,18 +374,37 @@ class SampledMultiDataset(FairseqDataset):
         self._clean_if_not_none([
             self.cumulated_sizes, self.virtual_size_per_dataset
         ])
-        self._cur_indices = plasma_utils.PlasmaArray(indices)
-        self.cumulated_sizes = plasma_utils.PlasmaArray(cumulated_sizes)
-        self.virtual_size_per_dataset = plasma_utils.PlasmaArray(virtual_size_per_dataset)
+        self._cur_indices = indices
+        self.cumulated_sizes = cumulated_sizes
+        self.virtual_size_per_dataset = virtual_size_per_dataset
 
         raw_sizes = [len(d) for d in self.datasets]
-        sampled_sizes = self.virtual_size_per_dataset.array
+        sampled_sizes = self.virtual_size_per_dataset
         logger.info(f'[{self.split}] Raw sizes: {str(dict(zip(self.keys, raw_sizes)))}; '
                     f'raw total size: {sum(raw_sizes)}')
         logger.info(f'[{self.split}] Resampled sizes: {str(dict(zip(self.keys, sampled_sizes)))}; '
                     f'resampled total size: {sum(sampled_sizes)}')
         if self.sample_ratios is not None:
-            logger.info(f'[{self.split}] Upsampling ratios: {str(dict(zip(self.keys, self.sample_ratios.array)))}')
+            logger.info(f'[{self.split}] Upsampling ratios: {str(dict(zip(self.keys, self.sample_ratios)))}')
         else:
             logger.info(f'[{self.split}] A concat dataset')
-        logger.debug(f'[{self.split}] virtual dataset established time: {get_time_gap(start_time, time.time())}')
+        logger.info(f'[{self.split}] virtual dataset established time: {get_time_gap(start_time, time.time())}')
+
+    def filter_indices_by_size(self, indices, max_sizes):
+        """ Filter a list of sample indices. Remove those that are longer
+            than specified in max_sizes.
+
+        Args:
+            indices (np.array): original array of sample indices
+            max_sizes (int or list[int] or tuple[int]): max sample size,
+                can be defined separately for src and tgt (then list or tuple)
+
+        Returns:
+            np.array: filtered sample array
+            list: list of removed indices
+        """
+        sizes = self.sizes
+        tgt_sizes = sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
+        src_sizes = sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+
+        return data_utils.filter_paired_dataset_indices_by_size(src_sizes, tgt_sizes, indices, max_sizes)
