@@ -368,12 +368,13 @@ class SampledMultiDataset(FairseqDataset):
                self._cur_epoch,  # epoch index,
            ]
         )
+        self._clean_if_not_none([
+            self.cumulated_sizes, self.virtual_size_per_dataset, self._sizes
+        ])
+        self._sizes = None
+
         indices, cumulated_sizes, virtual_size_per_dataset = self.get_virtual_indices(
             rng, self.datasets, self.sample_ratios, self.virtual_size)
-
-        self._clean_if_not_none([
-            self.cumulated_sizes, self.virtual_size_per_dataset
-        ])
         self._cur_indices = indices
         self.cumulated_sizes = cumulated_sizes
         self.virtual_size_per_dataset = virtual_size_per_dataset
