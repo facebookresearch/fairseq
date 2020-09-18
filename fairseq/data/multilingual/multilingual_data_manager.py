@@ -7,7 +7,7 @@ import itertools
 import json
 import logging
 import os
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import numpy as np
 from fairseq import options, utils
@@ -70,6 +70,7 @@ class MultilingualDatasetManager(object):
         self.sampling_scheduler = None
         self._has_sharded_data = False
         self._num_shards_dict = {}
+        self._training_data_sizes = defaultdict(lambda: {})
 
     @classmethod
     def setup_data_manager(cls, args, lang_pairs, langs, dicts, sampling_method):
@@ -865,10 +866,14 @@ class MultilingualDatasetManager(object):
         logger.info(f"[{split}] num of shards: {num_shards_dict}")
         return num_shards_dict
 
-    def get_split_data_path(self, paths, epoch, shard_epoch, num_shards):
+    @classmethod
+    def get_shard_id(cls, num_shards, epoch, shard_epoch=None):
         shard = epoch if shard_epoch is None else shard_epoch
         shard = (shard - 1) % num_shards
-        path = paths[shard]
+        return shard
+
+    def get_split_data_path(self, paths, epoch, shard_epoch, num_shards):
+        path = paths[self.get_shard_id(num_shards, epoch, shard_epoch)]
         return path
 
     def get_split_data_param_list(self, split, epoch, shard_epoch=None):
@@ -925,27 +930,41 @@ class MultilingualDatasetManager(object):
                 )
         return param_list
 
-    def get_train_dataset_sizes(self, data_param_list, datasets):
+    def get_train_dataset_sizes(self, data_param_list, datasets, epoch, shard_epoch=None):
         num_shards = [
             self.get_split_num_data_shards(param["split"])[param["key"]]
             for param in data_param_list
         ]
-        data_sizes = [
-            (key, len(d) * num_shard)
-            for (key, d), num_shard in zip(datasets, num_shards)
-        ]
+        data_sizes = []
+        for (key, d), num_shard in zip(datasets, num_shards):
+            my_data_sizes = self._training_data_sizes[key]
+            shard_ind = self.get_shard_id(num_shard, epoch, shard_epoch)
+            if shard_ind not in my_data_sizes:
+                my_data_sizes[shard_ind] = len(d)
+            known_size = max(my_data_sizes.values())
+            data_sizes.append(
+                # If we don't know the data size of the shard yet,
+                # use the the max known data size to approximate.
+                # Note that we preprocess shards by a designated shard size
+                # and put any remaining data at the end into the last shard so
+                # the max shard size approximation is almost correct before loading
+                # the last shard; after loading the last shard, it will have the
+                # exact data sizes of the whole data size.
+                (key, sum(my_data_sizes.get(i, known_size) for i in range(num_shard)))
+            )
         logger.info(
-            f"data sizes multiplied by num_shards used in sampling ratios: {data_sizes}"
+            f"estimated total data sizes of all shards used in sampling ratios: {data_sizes}. "
+            "Note that if the data a shard has not been loaded yet, use the max known data size to approximate"
         )
         return [s for _, s in data_sizes]
 
-    def get_train_sampling_ratios(self, data_param_list, datasets, epoch=1):
-        data_sizes = self.get_train_dataset_sizes(data_param_list, datasets)
+    def get_train_sampling_ratios(self, data_param_list, datasets, epoch=1, shard_epoch=None):
+        data_sizes = self.get_train_dataset_sizes(data_param_list, datasets, epoch, shard_epoch)
         sampling_func = self.sampling_method.sampling_method_selector()
         sample_ratios = sampling_func(data_sizes) if sampling_func is not None else None
         return sample_ratios
 
-    def get_sampling_ratios(self, data_param_list, datasets, epoch):
+    def get_sampling_ratios(self, data_param_list, datasets, epoch, shard_epoch=None):
         if self.args.sampling_weights_from_file:
             weights = load_sampling_weights(self.args.sampling_weights_from_file)
             sample_ratios = [weights[k] for k, _ in datasets]
@@ -957,7 +976,7 @@ class MultilingualDatasetManager(object):
             sample_ratios = [self.args.sampling_weights[k] for k, _ in datasets]
         else:
             sample_ratios = self.get_train_sampling_ratios(
-                data_param_list, datasets, epoch
+                data_param_list, datasets, epoch, shard_epoch
             )
 
         if sample_ratios is not None:
