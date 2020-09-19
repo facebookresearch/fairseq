@@ -9,8 +9,7 @@ import logging
 import os
 from collections import OrderedDict, defaultdict
 
-import numpy as np
-from fairseq import options, utils
+from fairseq import utils
 from fairseq.data import (
     AppendTokenDataset,
     ConcatDataset,
@@ -342,9 +341,9 @@ class MultilingualDatasetManager(object):
             langs_to_load_dicts = sorted([args.source_lang, args.target_lang])
 
         dicts = OrderedDict()
+        paths = utils.split_paths(args.data)
+        assert len(paths) > 0
         for lang in langs_to_load_dicts:
-            paths = utils.split_paths(args.data)
-            assert len(paths) > 0
             dicts[lang] = load_dictionary(
                 os.path.join(paths[0], "dict.{}.txt".format(lang))
             )
@@ -415,39 +414,6 @@ class MultilingualDatasetManager(object):
     def split_exists(cls, split, src, tgt, lang, data_path, dataset_impl):
         filename = os.path.join(data_path, "{}.{}-{}.{}".format(split, src, tgt, lang))
         return indexed_dataset.dataset_exists(filename, impl=dataset_impl)
-
-    @classmethod
-    def mono_split_exists(cls, split, lang, data_path, dataset_impl):
-        filename = os.path.join(data_path, "{}.{}".format(split, lang))
-        return indexed_dataset.dataset_exists(filename, impl=dataset_impl)
-
-    @classmethod
-    def bitext_split_exists(cls, split, src, tgt, data_path, dataset_impl):
-        src_exists = cls.split_exists(
-            split, src, tgt, lang=src, data_path=data_path, dataset_impl=dataset_impl
-        ) or cls.split_exists(
-            split, tgt, src, lang=src, data_path=data_path, dataset_impl=dataset_impl
-        )
-        # check source exists to determine shard number
-        # also note that during inference time target is not required
-        # so checking target will fail inference time data loading
-        return src_exists
-
-    @classmethod
-    def get_split_num_shards(cls, split, src, tgt, data_paths, dataset_impl):
-        return sum(
-            1
-            for path in data_paths
-            if cls.bitext_split_exists(split, src, tgt, path, dataset_impl)
-        )
-
-    @classmethod
-    def get_mono_split_num_shards(cls, split, lang, data_paths, dataset_impl):
-        return sum(
-            1
-            for path in data_paths
-            if cls.mono_split_exists(split, lang, path, dataset_impl)
-        )
 
     def load_lang_dataset(
         self,
@@ -814,6 +780,20 @@ class MultilingualDatasetManager(object):
     def get_dataset_key(cls, data_category, src, tgt):
         return f"{data_category}:{src}-{tgt}"
 
+    @classmethod
+    def _get_shard_num_dict(cls, split, paths):
+        shards = defaultdict(int)
+        for path in paths:
+            files = PathManager.ls(path)
+            for f in files:
+                if f.startswith(split) and f.endswith('.idx'):
+                    # idx files of the form "{split}.{src}-{tgt}.{lang}.idx"
+                    direction = f.split('.')[-3]
+                    shards[direction] += 1
+        # each direction has two '.idx' files
+        # one for source language and one for target language, so:
+        return {k: v // 2 for k, v in shards.items()}
+
     def get_split_num_data_shards(self, split):
         if split in self._num_shards_dict:
             return self._num_shards_dict[split]
@@ -824,24 +804,25 @@ class MultilingualDatasetManager(object):
             if data_category not in lang_pairs:
                 continue
             paths = utils.split_paths(paths)
+            shards_dict = self._get_shard_num_dict(split, paths)
             lang_dirs = [
                 lang_pair.split("-") for lang_pair in lang_pairs[data_category]
             ]
             lang_dirs = [x if len(x) > 1 else (x[0], x[0]) for x in lang_dirs]
             for src, tgt in lang_dirs:
-                # monolingual data ruqires tgt only
-                assert src is not None or "mono_" in data_category, (
-                    f"error: src={src}, " "tgt={tgt} for data_category={data_category}"
-                )
                 key = self.get_dataset_key(data_category, src, tgt)
                 if "mono_" in data_category:
-                    num_shards_dict[key] = self.get_mono_split_num_shards(
-                        split, tgt, paths, self.args.dataset_impl
+                    # monolingual data requires tgt only
+                    assert src is None or src == tgt, (
+                        f"error: src={src}, " "tgt={tgt} for data_category={data_category}"
                     )
+                    num_shards_dict[key] = shards_dict[tgt]
                 else:
-                    num_shards_dict[key] = self.get_split_num_shards(
-                        split, src, tgt, paths, self.args.dataset_impl
-                    )
+                    if f"{src}-{tgt}" in shards_dict:
+                        num_shards_dict[key] = shards_dict[f"{src}-{tgt}"]
+                    elif f'{tgt}-{src}' in shards_dict:
+                        # follow the fairseq tradition to use reversed direction data if it is not available
+                        num_shards_dict[key] = shards_dict[f'{tgt}-{src}']
         self._num_shards_dict[split] = num_shards_dict
         logger.info(f"[{split}] num of shards: {num_shards_dict}")
         return num_shards_dict
