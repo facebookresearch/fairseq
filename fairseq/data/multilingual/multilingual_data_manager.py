@@ -25,23 +25,19 @@ from fairseq.data import (
     data_utils,
     indexed_dataset,
 )
+from fairseq.data.multilingual.multilingual_utils import (
+    EncoderLangtok,
+    LangTokSpec,
+    LangTokStyle,
+    augment_dictionary,
+    get_lang_tok,
+)
 from fairseq.data.multilingual.sampled_multi_dataset import CollateFormat
 from fairseq.file_io import PathManager
 from fairseq.options import csv_str_list, eval_str_dict
 
 
 logger = logging.getLogger(__name__)
-
-
-def _lang_token(lang: str, style="__{}__"):
-    return style.format(lang)
-
-
-def _lang_token_index(dic: Dictionary, lang: str, style="__{}__"):
-    """Return language token index."""
-    idx = dic.index(_lang_token(lang, style))
-    assert idx != dic.unk_index, "cannot find language token for lang {}".format(lang)
-    return idx
 
 
 def _lang_id(dic: Dictionary, lang: str):
@@ -103,9 +99,9 @@ class MultilingualDatasetManager(object):
         )
         parser.add_argument(
             "--lang-tok-style",
-            default="multilingual",
+            default=LangTokStyle.multilingual.value,
             type=str,
-            choices=["multilingual", "mbart"],
+            choices=[LangTokStyle.multilingual.value, LangTokStyle.mbart.value],
             help="language token styles",
         )
 
@@ -158,7 +154,7 @@ class MultilingualDatasetManager(object):
             "--encoder-langtok",
             default=None,
             type=str,
-            choices=["src", "tgt"],
+            choices=[EncoderLangtok.src.value, EncoderLangtok.tgt.value],
             metavar="SRCTGT",
             help="prepend to the beginning of source sentence the source or target "
             "language token. (src/tgt)",
@@ -204,7 +200,7 @@ class MultilingualDatasetManager(object):
                             e.g. "main,dae,mined". There will be a set of language tokens added to the vocab to \
                             distinguish languages in different training data types. If not specified, default language \
                             tokens per languages will be added',
-            default="main",
+            default=LangTokSpec.main.value,
             type=csv_str_list,
         )
         parser.add_argument(
@@ -320,9 +316,9 @@ class MultilingualDatasetManager(object):
             training = False
         else:
             training = True
-        sorted_langs = cls.load_langs(args, **kargs)
+        language_list = cls.load_langs(args, **kargs)
         check_langs(
-            sorted_langs,
+            language_list,
             (
                 [p.split("-") for p in args.lang_pairs]
                 if training
@@ -346,33 +342,25 @@ class MultilingualDatasetManager(object):
             langs_to_load_dicts = sorted([args.source_lang, args.target_lang])
 
         dicts = OrderedDict()
-        supported_langtok_specs = args.langtoks_specs
         for lang in langs_to_load_dicts:
             paths = utils.split_paths(args.data)
             assert len(paths) > 0
             dicts[lang] = load_dictionary(
                 os.path.join(paths[0], "dict.{}.txt".format(lang))
             )
+            augment_dictionary(
+                dictionary=dicts[lang],
+                language_list=language_list,
+                lang_tok_style=args.lang_tok_style,
+                langtoks_specs=args.langtoks_specs,
+                extra_data=args.extra_data,
+            )
             if len(dicts) > 0:
                 assert dicts[lang].pad() == dicts[langs_to_load_dicts[0]].pad()
                 assert dicts[lang].eos() == dicts[langs_to_load_dicts[0]].eos()
                 assert dicts[lang].unk() == dicts[langs_to_load_dicts[0]].unk()
-
-            # keep the langs consistent for all experiments with the same lang dict
-            # for finetuning regardless of whether lang_tok is required or not just add the tokens to the dicts
-            for spec in supported_langtok_specs:
-                for lang_to_add in sorted_langs:
-                    dicts[lang].add_symbol(
-                        MultilingualDatasetManager.get_lang_tok(lang_to_add, args, spec)
-                    )
-            if args.lang_tok_style == "mbart" or (
-                args.extra_data and "mono_dae" in args.extra_data
-            ):
-                dicts[lang].add_symbol("<mask>")
             logger.info("[{}] dictionary: {} types".format(lang, len(dicts[lang])))
-        return sorted_langs, dicts, training
-
-    TOKEN_STYLES = {"mbart": "[{}]", "multilingual": "__{}__"}
+        return language_list, dicts, training
 
     @classmethod
     def create_lang_dictionary(cls, langs):
@@ -382,20 +370,6 @@ class MultilingualDatasetManager(object):
         for lang in langs:
             lang_dict.add_symbol(lang)
         return lang_dict
-
-    @classmethod
-    def get_lang_tok_style(cls, args):
-        return cls.TOKEN_STYLES[args.lang_tok_style]
-
-    @classmethod
-    def get_lang_tok(cls, lang, args, spec=""):
-        if spec is None:
-            return None
-        if spec.endswith("dae"):
-            lang = f"{lang}_dae"
-        elif spec.endswith("mined"):
-            lang = f"{lang}_mined"
-        return _lang_token(lang, cls.get_lang_tok_style(args))
 
     @classmethod
     def get_langtok_index(cls, lang_tok, dic):
@@ -411,11 +385,15 @@ class MultilingualDatasetManager(object):
         if spec and spec.startswith("src"):
             if src_lang is None:
                 return None
-            langtok = self.get_lang_tok(src_lang, self.args, spec)
+            langtok = get_lang_tok(
+                lang=src_lang, lang_tok_style=self.args.lang_tok_style, spec=spec
+            )
         else:
             if tgt_lang is None:
                 return None
-            langtok = self.get_lang_tok(tgt_lang, self.args, spec)
+            langtok = get_lang_tok(
+                lang=tgt_lang, lang_tok_style=self.args.lang_tok_style, spec=spec
+            )
         return self.get_langtok_index(
             langtok, self.dicts[src_lang if src_lang else tgt_lang]
         )
@@ -423,7 +401,9 @@ class MultilingualDatasetManager(object):
     def get_decoder_langtok(self, tgt_lang, spec=None):
         if spec is None:
             return None
-        langtok = self.get_lang_tok(tgt_lang, self.args, spec)
+        langtok = get_lang_tok(
+            lang=tgt_lang, lang_tok_style=self.args.lang_tok_style, spec=spec
+        )
         return self.get_langtok_index(langtok, self.dicts[tgt_lang])
 
     @classmethod
