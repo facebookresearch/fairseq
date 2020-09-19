@@ -71,15 +71,14 @@ def load_indexed_dataset(path, dictionary=None, dataset_impl=None, combine=False
     """
     from fairseq.data.concat_dataset import ConcatDataset
     import fairseq.data.indexed_dataset as indexed_dataset
-
     datasets = []
     for k in itertools.count():
         path_k = path + (str(k) if k > 0 else '')
+        path_k = indexed_dataset.get_indexed_dataset_to_local(path_k)
 
         dataset_impl_k = dataset_impl
         if dataset_impl_k is None:
             dataset_impl_k = indexed_dataset.infer_dataset_impl(path_k)
-
         dataset = indexed_dataset.make_dataset(
             path_k,
             impl=dataset_impl_k or default,
