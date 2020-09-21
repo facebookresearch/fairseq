@@ -3,8 +3,8 @@
 This page provides instructions for how to use lexically constrained decoding in Fairseq.
 Fairseq implements the code described in the following papers:
 
-* [Fast Lexically Constrained Decoding With Dynamic Beam Allocation](https://www.aclweb.org/anthology/N18-1119/)
-* [Improved Lexically Constrained Decoding for Translation and Monolingual Rewriting](https://www.aclweb.org/anthology/N19-1090/)
+* [Fast Lexically Constrained Decoding With Dynamic Beam Allocation](https://www.aclweb.org/anthology/N18-1119/) (Post & Vilar, 2018)
+* [Improved Lexically Constrained Decoding for Translation and Monolingual Rewriting](https://www.aclweb.org/anthology/N19-1090/) (Hu et al., 2019)
 
 ## Quick start
 
@@ -48,8 +48,8 @@ The heart of the implementation is in `fairseq/search.py`, which adds a `Lexical
 This instance of beam search tracks the progress of each hypothesis in the beam through the set of constraints
 provided for each input sentence. It does this using one of two classes, both found in `fairseq/token_generation_contstraints.py`:
 
-* OrderedConstraintState: assumes the C input constraints will be generated in the provided order
-* UnorderedConstraintState: tries to apply C (phrasal) constraints in all C! orders
+* OrderedConstraintState: assumes the `C` input constraints will be generated in the provided order
+* UnorderedConstraintState: tries to apply `C` (phrasal) constraints in all `C!` orders
 
 ## Differences from Sockeye
 
@@ -58,9 +58,8 @@ There are a number of [differences from Sockeye's implementation](https://awslab
 * Generating constraints in the order supplied (the default option here) is not available in Sockeye.
 * Due to an improved beam allocation method, there is no need to prune the beam.
 * Again due to better allocation, beam sizes as low as 10 or even 5 are often sufficient.
-* [The extensions described in Hu et al.](https://github.com/edwardjhu/sockeye/tree/trie_constraints) (NAACL 2019) were never merged
-  into the main branch.
-* Sockeye 2, released in July 2020, no longer supports constrained decoding.
+* [The vector extensions described in Hu et al.](https://github.com/edwardjhu/sockeye/tree/trie_constraints) (NAACL 2019) were never merged
+  into the main Sockeye branch.
 
 ## Citation
 
