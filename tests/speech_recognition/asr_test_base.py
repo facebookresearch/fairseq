@@ -17,7 +17,7 @@ from fairseq.models import (
     FairseqEncoderModel,
     FairseqModel,
 )
-from fairseq.tasks.fairseq_task import FairseqTask
+from fairseq.tasks.fairseq_task import LegacyFairseqTask
 from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
 
 
@@ -37,7 +37,7 @@ def get_dummy_dictionary(vocab_size=DEFAULT_TEST_VOCAB_SIZE):
     return dummy_dict
 
 
-class DummyTask(FairseqTask):
+class DummyTask(LegacyFairseqTask):
     def __init__(self, args):
         super().__init__(args)
         self.dictionary = get_dummy_dictionary()

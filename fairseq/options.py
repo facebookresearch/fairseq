@@ -8,7 +8,8 @@ import sys
 from typing import Callable, List, Optional
 
 import torch
-
+# this import is for backward compatibility
+from fairseq.utils import csv_str_list, eval_str_list, eval_str_dict, eval_bool # noqa
 from fairseq import utils
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 
@@ -58,38 +59,6 @@ def get_validation_parser(default_task=None):
     group = parser.add_argument_group("Evaluation")
     add_common_eval_args(group)
     return parser
-
-
-def csv_str_list(x):
-    return x.split(',')
-
-
-def eval_str_list(x, type=float):
-    if x is None:
-        return None
-    if isinstance(x, str):
-        x = eval(x)
-    try:
-        return list(map(type, x))
-    except TypeError:
-        return [type(x)]
-
-
-def eval_str_dict(x, type=dict):
-    if x is None:
-        return None
-    if isinstance(x, str):
-        x = eval(x)
-    return x
-
-
-def eval_bool(x, default=False):
-    if x is None:
-        return default
-    try:
-        return bool(eval(x))
-    except TypeError:
-        return default
 
 
 def parse_args_and_arch(
@@ -411,6 +380,8 @@ def add_distributed_training_args(parser, default_world_size=None):
                        help='which GPU to use (usually configured automatically)')
     group.add_argument('--distributed-no-spawn', action='store_true',
                        help='do not spawn multiple processes even if multiple GPUs are visible')
+    group.add_argument('--distributed-num-procs', default=None, type=int,
+                       help='number of processes to spawn (usually configured automatically)')
     # "c10d" is PyTorch's DDP implementation and provides the fastest
     # training. "no_c10d" is a more robust, but slightly slower DDP
     # implementation. Try this if you get warning messages about
@@ -450,6 +421,25 @@ def add_distributed_training_args(parser, default_world_size=None):
                        help='number of GPUs in each node. An allreduce operation across GPUs in '
                             'a node is very fast. Hence, we do allreduce across GPUs in a node, '
                             'and gossip across different nodes')
+    # Pipeline Parallel Arguments
+    group.add_argument('--pipeline-model-parallel', default=False, action='store_true',
+                       help='if set, use pipeline model parallelism across GPUs')
+    group.add_argument('--pipeline-balance', metavar='N1,N2,...,N_K',
+                       type=lambda x: eval_str_list(x, type=int),
+                       help='partition the model into N_K pieces, where each piece '
+                            'contains N_i layers. The sum(args.pipeline_balance) '
+                            'should equal the total number of layers in the model')
+    group.add_argument('--pipeline-devices', metavar='N1,N2,...,N_K',
+                       type=lambda x: eval_str_list(x, type=int),
+                       help='a list of device indices indicating which device to place '
+                            'each of the N_K partitions. The length of this list should '
+                            'equal the length of the --pipeline-balance argument')
+    group.add_argument('--pipeline-chunks', type=int, metavar='N',
+                       help='microbatch count for pipeline model parallelism')
+    group.add_argument('--pipeline-checkpoint', type=str, metavar='STR',
+                       choices=['always', 'never', 'except_last'],
+                       default='never',
+                       help='checkpointing mode for pipeline model parallelism')
     # Add argument for ZeRO sharding of OptimizerState(os), gradients(g) and parameters(p)
     group.add_argument('--zero-sharding', default='none', type=str,
                        choices=['none', 'os'],

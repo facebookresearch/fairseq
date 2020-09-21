@@ -88,7 +88,20 @@ class ConcatDataset(FairseqDataset):
         """
         Returns indices sorted by length. So less padding is needed.
         """
-        return np.argsort(self.sizes)
+        if isinstance(self.sizes, np.ndarray) and len(self.sizes.shape) > 1:
+            # special handling for concatenating lang_pair_datasets
+            indices = np.arange(len(self))
+            sizes = self.sizes
+            tgt_sizes = sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
+            src_sizes = sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+            # sort by target length, then source length
+            if tgt_sizes is not None:
+                indices = indices[
+                    np.argsort(tgt_sizes[indices], kind='mergesort')
+                ]
+            return indices[np.argsort(src_sizes[indices], kind='mergesort')]
+        else:
+            return np.argsort(self.sizes)
 
     def prefetch(self, indices):
         frm = 0
@@ -97,6 +110,10 @@ class ConcatDataset(FairseqDataset):
             if getattr(ds, 'supports_prefetch', False):
                 ds.prefetch([(i - frm) % real_size for i in indices if frm <= i < to])
             frm = to
+
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return all(d.can_reuse_epoch_itr_across_epochs for d in self.datasets)
 
     def set_epoch(self, epoch):
         super().set_epoch(epoch)

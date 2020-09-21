@@ -16,7 +16,7 @@ from fairseq.data import (
     ListDataset,
 )
 
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data.multilingual.sampling_method import SamplingMethod
 from fairseq.data.multilingual.multilingual_data_manager import MultilingualDatasetManager
 
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_task('translation_multi_simple_epoch')
-class TranslationMultiSimpleEpochTask(FairseqTask):
+class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     """
     Translate from one (source) language to another (target) language.
 
@@ -129,6 +129,11 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
         else:
             shard_epoch = None
         logger.info(f'loading data for {split} epoch={epoch}/{shard_epoch}')
+        logger.info(f"mem usage: {data_utils.get_mem_usage()}")
+        if split in self.datasets:
+            del self.datasets[split]
+            logger.info('old dataset deleted manually')
+            logger.info(f"mem usage: {data_utils.get_mem_usage()}")
         self.datasets[split] = self.data_manager.load_sampled_multi_epoch_dataset(
             split,
             self.training,
@@ -228,39 +233,51 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
 
     def create_batch_sampler_func(
         self, max_positions, ignore_invalid_inputs,
-        max_tokens, max_sentences
+        max_tokens, max_sentences,
+        required_batch_size_multiple=1,
+        seed=1,
     ):
         def construct_batch_sampler(
             dataset, epoch
         ):
             splits = [s for s, _ in self.datasets.items() if self.datasets[s] == dataset]
             split = splits[0] if len(splits) > 0 else None
-
+            # NEW implementation
             if epoch is not None:
+                # initialize the dataset with the correct starting epoch
                 dataset.set_epoch(epoch)
-            start_time = time.time()
+
             # get indices ordered by example size
-            indices = dataset.ordered_indices()
-            logger.debug(f'[{split}] @batch_sampler order indices time: {get_time_gap(start_time, time.time())}')
+            start_time = time.time()
+            logger.info(f"start batch sampler: mem usage: {data_utils.get_mem_usage()}")
+
+            with data_utils.numpy_seed(seed):
+                indices = dataset.ordered_indices()
+            logger.info(f'[{split}] @batch_sampler order indices time: {get_time_gap(start_time, time.time())}')
+            logger.info(f"mem usage: {data_utils.get_mem_usage()}")
 
             # filter examples that are too large
             if max_positions is not None:
                 my_time = time.time()
                 indices = self.filter_indices_by_size(
-                    indices,
-                    dataset,
-                    max_positions,
-                    ignore_invalid_inputs=ignore_invalid_inputs,
+                    indices, dataset, max_positions, ignore_invalid_inputs
                 )
-                logger.debug(f'[{split}] @batch_sampler filter_by_size time: {get_time_gap(my_time, time.time())}')
+                logger.info(f'[{split}] @batch_sampler filter_by_size time: {get_time_gap(my_time, time.time())}')
+                logger.info(f"mem usage: {data_utils.get_mem_usage()}")
 
             # create mini-batches with given size constraints
             my_time = time.time()
-            batch_sampler = data_utils.batch_by_size(
-                indices, dataset.num_tokens, max_tokens=max_tokens, max_sentences=max_sentences,
+            batch_sampler = dataset.batch_by_size(
+                indices,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                required_batch_size_multiple=required_batch_size_multiple,
             )
-            logger.debug(f'[{split}] @batch_sampler batch_by_size time: {get_time_gap(my_time, time.time())}')
-            logger.debug(f'[{split}] per epoch batch_sampler set-up time: {get_time_gap(start_time, time.time())}')
+
+            logger.info(f'[{split}] @batch_sampler batch_by_size time: {get_time_gap(my_time, time.time())}')
+            logger.info(f'[{split}] per epoch batch_sampler set-up time: {get_time_gap(start_time, time.time())}')
+            logger.info(f"mem usage: {data_utils.get_mem_usage()}")
+
             return batch_sampler
         return construct_batch_sampler
 
@@ -269,6 +286,7 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
         self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
         ignore_invalid_inputs=False, required_batch_size_multiple=1,
         seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
+        data_buffer_size=0, disable_iterator_cache=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -296,6 +314,11 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
                 (default: 0).
             epoch (int, optional): the epoch to start the iterator from
                 (default: 0).
+            data_buffer_size (int, optional): number of batches to
+                preload (default: 0).
+            disable_iterator_cache (bool, optional): don't cache the
+                EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
+                (default: False).
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
@@ -308,16 +331,29 @@ class TranslationMultiSimpleEpochTask(FairseqTask):
             self.args.sampling_method == 'RoundRobin'
         ):
             batch_iter = super().get_batch_iterator(
-                dataset, max_tokens=max_tokens, max_sentences=max_sentences, max_positions=max_positions,
-                ignore_invalid_inputs=ignore_invalid_inputs, required_batch_size_multiple=required_batch_size_multiple,
-                seed=seed, num_shards=num_shards, shard_id=shard_id, num_workers=num_workers, epoch=epoch,
+                dataset,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                max_positions=max_positions,
+                ignore_invalid_inputs=ignore_invalid_inputs,
+                required_batch_size_multiple=required_batch_size_multiple,
+                seed=seed,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                num_workers=num_workers,
+                epoch=epoch,
+                data_buffer_size=data_buffer_size,
+                disable_iterator_cache=disable_iterator_cache,
             )
             self.dataset_to_epoch_iter[dataset] = batch_iter
             return batch_iter
 
         construct_batch_sampler = self.create_batch_sampler_func(
             max_positions, ignore_invalid_inputs,
-            max_tokens, max_sentences)
+            max_tokens, max_sentences,
+            required_batch_size_multiple=required_batch_size_multiple,
+            seed=seed,
+        )
 
         epoch_iter = iterators.EpochBatchIterator(
             dataset=dataset,

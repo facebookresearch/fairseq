@@ -43,6 +43,10 @@ class RandomCropDataset(TruncateDataset):
         self.seed = seed
         self.epoch = 0
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return True  # only the crop changes, not item sizes
+
     def set_epoch(self, epoch, **unused):
         super().set_epoch(epoch)
         self.epoch = epoch

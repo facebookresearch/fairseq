@@ -74,9 +74,13 @@ def apply_to_sample(f, sample):
     return _apply(sample)
 
 
-def move_to_cuda(sample):
+def move_to_cuda(sample, device=None):
+    device = device or torch.cuda.current_device()
+
     def _move_to_cuda(tensor):
-        return tensor.cuda()
+        # non_blocking is ignored if tensor is not pinned, so we can always set
+        # to True (see github.com/PyTorchLightning/pytorch-lightning/issues/620)
+        return tensor.cuda(device=device, non_blocking=True)
 
     return apply_to_sample(_move_to_cuda, sample)
 
@@ -277,7 +281,7 @@ def multi_tensor_total_norm(grads, chunk_size=2048*32) -> torch.Tensor:
             has_inf = torch.zeros((1, 1), dtype=torch.int, device=device)
             with torch.cuda.device(device):
                 norm = multi_tensor_l2norm(chunk_size, has_inf, [cur_device_grads], False)
-                norms.append(norm[0])
+            norms.append(norm[0].to(torch.cuda.current_device()))
         else:
             norms += [torch.norm(g, p=2, dtype=torch.float32) for g in cur_device_grads]
     total_norm = torch.norm(torch.stack(norms))
@@ -301,13 +305,15 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
         if multi_tensor_l2norm_available:
             total_norm = multi_tensor_total_norm(grads)
         else:
+            device = torch.device('cpu')
             if torch.cuda.is_available():
                 warnings.warn(
                     "amp_C fused kernels unavailable, disabling multi_tensor_l2norm; "
                     "you may get better performance by installing NVIDIA's apex library"
                 )
+                device = torch.cuda.current_device()
             total_norm = torch.norm(
-                torch.stack([torch.norm(g, p=2, dtype=torch.float32) for g in grads])
+                torch.stack([torch.norm(g, p=2, dtype=torch.float32).to(device) for g in grads])
             )
 
     if aggregate_norm_fn is not None:
@@ -463,7 +469,7 @@ def get_available_activation_fns() -> List:
 
 
 @contextlib.contextmanager
-def eval(model):
+def model_eval(model):
     is_training = model.training
     model.eval()
     yield
@@ -602,3 +608,35 @@ class CudaEnvironment(object):
                 + "name = {:40s}".format(env.name)
             )
         logger.info(first_line)
+
+
+def csv_str_list(x):
+    return x.split(',')
+
+
+def eval_str_list(x, type=float):
+    if x is None:
+        return None
+    if isinstance(x, str):
+        x = eval(x)
+    try:
+        return list(map(type, x))
+    except TypeError:
+        return [type(x)]
+
+
+def eval_str_dict(x, type=dict):
+    if x is None:
+        return None
+    if isinstance(x, str):
+        x = eval(x)
+    return x
+
+
+def eval_bool(x, default=False):
+    if x is None:
+        return default
+    try:
+        return bool(eval(x))
+    except TypeError:
+        return default

@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from .. import FairseqOptimizer
+from argparse import Namespace
 
 
 class FairseqLRScheduler(object):
@@ -40,3 +41,13 @@ class FairseqLRScheduler(object):
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
         return self.optimizer.get_lr()
+
+
+class LegacyFairseqLRScheduler(FairseqLRScheduler):
+
+    def __init__(self, args: Namespace, optimizer):
+        if not isinstance(optimizer, FairseqOptimizer):
+            raise ValueError('optimizer must be an instance of FairseqOptimizer')
+        self.args = args
+        self.optimizer = optimizer
+        self.best = None

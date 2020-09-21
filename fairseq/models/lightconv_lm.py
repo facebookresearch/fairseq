@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq import options
+from fairseq import utils
 from fairseq.models import (
     FairseqLanguageModel,
     register_model,
@@ -83,14 +83,14 @@ class LightConvLanguageModel(FairseqLanguageModel):
                             help='use learned positional embeddings in the decoder')
 
         """LightConv and DynamicConv arguments"""
-        parser.add_argument('--decoder-kernel-size-list', type=lambda x: options.eval_str_list(x, int),
+        parser.add_argument('--decoder-kernel-size-list', type=lambda x: utils.eval_str_list(x, int),
                             help='list of kernel size (default: "[3,7,15,31,31,31]")')
-        parser.add_argument('--decoder-glu', type=options.eval_bool,
+        parser.add_argument('--decoder-glu', type=utils.eval_bool,
                             help='glu after in proj')
         parser.add_argument('--decoder-conv-type', default='dynamic', type=str,
                             choices=['dynamic', 'lightweight'],
                             help='type of convolution')
-        parser.add_argument('--weight-softmax', default=True, type=options.eval_bool)
+        parser.add_argument('--weight-softmax', default=True, type=utils.eval_bool)
         parser.add_argument('--weight-dropout', type=float, metavar='D',
                             help='dropout probability for conv weights')
 
@@ -115,7 +115,7 @@ class LightConvLanguageModel(FairseqLanguageModel):
         elif args.adaptive_input:
             embed_tokens = AdaptiveInput(len(task.dictionary), task.dictionary.pad(), args.decoder_input_dim,
                                          args.adaptive_input_factor, args.decoder_embed_dim,
-                                         options.eval_str_list(args.adaptive_input_cutoff, type=int))
+                                         utils.eval_str_list(args.adaptive_input_cutoff, type=int))
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_input_dim, task.dictionary.pad())
 

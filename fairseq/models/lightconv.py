@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq import options, utils
+from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
@@ -133,13 +133,13 @@ class LightConvModel(FairseqEncoderDecoderModel):
                             help='sets adaptive softmax dropout for the tail projections')
 
         """LightConv and DynamicConv arguments"""
-        parser.add_argument('--encoder-kernel-size-list', type=lambda x: options.eval_str_list(x, int),
+        parser.add_argument('--encoder-kernel-size-list', type=lambda x: utils.eval_str_list(x, int),
                             help='list of kernel size (default: "[3,7,15,31,31,31,31]")')
-        parser.add_argument('--decoder-kernel-size-list', type=lambda x: options.eval_str_list(x, int),
+        parser.add_argument('--decoder-kernel-size-list', type=lambda x: utils.eval_str_list(x, int),
                             help='list of kernel size (default: "[3,7,15,31,31,31]")')
-        parser.add_argument('--encoder-glu', type=options.eval_bool,
+        parser.add_argument('--encoder-glu', type=utils.eval_bool,
                             help='glu after in proj')
-        parser.add_argument('--decoder-glu', type=options.eval_bool,
+        parser.add_argument('--decoder-glu', type=utils.eval_bool,
                             help='glu after in proj')
         parser.add_argument('--encoder-conv-type', default='dynamic', type=str,
                             choices=['dynamic', 'lightweight'],
@@ -147,7 +147,7 @@ class LightConvModel(FairseqEncoderDecoderModel):
         parser.add_argument('--decoder-conv-type', default='dynamic', type=str,
                             choices=['dynamic', 'lightweight'],
                             help='type of convolution')
-        parser.add_argument('--weight-softmax', default=True, type=options.eval_bool)
+        parser.add_argument('--weight-softmax', default=True, type=utils.eval_bool)
         parser.add_argument('--weight-dropout', type=float, metavar='D',
                             help='dropout probability for conv weights')
 
@@ -353,7 +353,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary),
                 output_embed_dim,
-                options.eval_str_list(args.adaptive_softmax_cutoff, type=int),
+                utils.eval_str_list(args.adaptive_softmax_cutoff, type=int),
                 dropout=args.adaptive_softmax_dropout,
                 adaptive_inputs=embed_tokens if args.tie_adaptive_weights else None,
                 factor=args.adaptive_softmax_factor,

@@ -6,11 +6,11 @@
 from collections import OrderedDict
 import logging
 import os
-
+from fairseq import options
 import contextlib
 import torch
 
-from fairseq import metrics, options
+from fairseq import metrics, utils
 from fairseq.data import (
     Dictionary,
     LanguagePairDataset,
@@ -20,8 +20,7 @@ from fairseq.data import (
 from fairseq.models import FairseqMultiModel
 from fairseq.tasks.translation import load_langpair_dataset
 
-from . import FairseqTask, register_task
-from fairseq import utils
+from . import register_task, LegacyFairseqTask
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ def _lang_token_index(dic: Dictionary, lang: str):
 
 
 @register_task('multilingual_translation')
-class MultilingualTranslationTask(FairseqTask):
+class MultilingualTranslationTask(LegacyFairseqTask):
     """A task for training multiple translation models simultaneously.
 
     We iterate round-robin over batches from multiple language pairs, ordered
@@ -120,8 +119,8 @@ class MultilingualTranslationTask(FairseqTask):
 
     @classmethod
     def prepare(cls, args, **kargs):
-        args.left_pad_source = options.eval_bool(args.left_pad_source)
-        args.left_pad_target = options.eval_bool(args.left_pad_target)
+        args.left_pad_source = utils.eval_bool(args.left_pad_source)
+        args.left_pad_target = utils.eval_bool(args.left_pad_target)
 
         if args.lang_pairs is None:
             raise ValueError('--lang-pairs is required. List all the language pairs in the training objective.')

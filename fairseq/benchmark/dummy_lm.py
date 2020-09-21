@@ -9,14 +9,14 @@ import numpy as np
 import torch
 
 from fairseq.data import Dictionary, FairseqDataset
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 
 
 logger = logging.getLogger(__name__)
 
 
 @register_task('dummy_lm')
-class DummyLMTask(FairseqTask):
+class DummyLMTask(LegacyFairseqTask):
 
     @staticmethod
     def add_args(parser):

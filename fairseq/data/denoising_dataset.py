@@ -166,6 +166,10 @@ class DenoisingDataset(FairseqDataset):
 
         self.epoch = 0
 
+    @property
+    def can_reuse_epoch_itr_across_epochs(self):
+        return True  # only the noise changes, not item sizes
+
     def set_epoch(self, epoch, **unused):
         self.epoch = epoch
 

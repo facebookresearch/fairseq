@@ -7,11 +7,11 @@ import math
 import torch
 import torch.optim
 
-from . import FairseqOptimizer, register_optimizer
+from . import register_optimizer, LegacyFairseqOptimizer
 
 
 @register_optimizer('adafactor')
-class FairseqAdafactor(FairseqOptimizer):
+class FairseqAdafactor(LegacyFairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args)
         self._optimizer = Adafactor(params, **self.optimizer_config)

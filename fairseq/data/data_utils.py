@@ -74,15 +74,14 @@ def load_indexed_dataset(path, dictionary=None, dataset_impl=None, combine=False
     """
     from fairseq.data.concat_dataset import ConcatDataset
     import fairseq.data.indexed_dataset as indexed_dataset
-
     datasets = []
     for k in itertools.count():
         path_k = path + (str(k) if k > 0 else '')
+        path_k = indexed_dataset.get_indexed_dataset_to_local(path_k)
 
         dataset_impl_k = dataset_impl
         if dataset_impl_k is None:
             dataset_impl_k = indexed_dataset.infer_dataset_impl(path_k)
-
         dataset = indexed_dataset.make_dataset(
             path_k,
             impl=dataset_impl_k or default,
@@ -214,6 +213,41 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
             'max_positions={}, first few sample ids={}'
         ).format(len(ignored), max_positions, ignored[:10]))
     return indices
+
+
+def filter_paired_dataset_indices_by_size(src_sizes, tgt_sizes, indices, max_sizes):
+    """ Filter a list of sample indices. Remove those that are longer
+        than specified in max_sizes.
+
+    Args:
+        indices (np.array): original array of sample indices
+        max_sizes (int or list[int] or tuple[int]): max sample size,
+            can be defined separately for src and tgt (then list or tuple)
+
+    Returns:
+        np.array: filtered sample array
+        list: list of removed indices
+    """
+    if max_sizes is None:
+        return indices, []
+    if type(max_sizes) in (int, float):
+        max_src_size, max_tgt_size = max_sizes, max_sizes
+    else:
+        max_src_size, max_tgt_size = max_sizes
+    if tgt_sizes is None:
+        ignored = indices[src_sizes[indices] > max_src_size]
+    else:
+        ignored = indices[
+            (src_sizes[indices] > max_src_size) |
+            (tgt_sizes[indices] > max_tgt_size)]
+    if len(ignored) > 0:
+        if tgt_sizes is None:
+            indices = indices[src_sizes[indices] <= max_src_size]
+        else:
+            indices = indices[
+                (src_sizes[indices] <= max_src_size) &
+                (tgt_sizes[indices] <= max_tgt_size)]
+    return indices, ignored.tolist()
 
 
 def batch_by_size(
@@ -403,3 +437,10 @@ def compute_mask_indices(
         mask[i, mask_idc] = True
 
     return mask
+
+
+def get_mem_usage():
+    # for debug
+    import psutil
+    mb = 1024 * 1024
+    return f'used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb'

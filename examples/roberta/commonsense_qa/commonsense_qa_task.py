@@ -22,11 +22,11 @@ from fairseq.data import (
     RightPadDataset,
     SortDataset,
 )
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 
 
 @register_task('commonsense_qa')
-class CommonsenseQATask(FairseqTask):
+class CommonsenseQATask(LegacyFairseqTask):
     """Task to finetune RoBERTa for Commonsense QA."""
 
     @staticmethod

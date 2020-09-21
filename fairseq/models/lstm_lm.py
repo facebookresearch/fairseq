@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq import options, utils
+from fairseq import utils
 from fairseq.models import (
     FairseqLanguageModel, register_model, register_model_architecture
 )
@@ -104,7 +104,7 @@ class LSTMLanguageModel(FairseqLanguageModel):
             pretrained_embed=pretrained_decoder_embed,
             share_input_output_embed=args.share_decoder_input_output_embed,
             adaptive_softmax_cutoff=(
-                options.eval_str_list(args.adaptive_softmax_cutoff, type=int)
+                utils.eval_str_list(args.adaptive_softmax_cutoff, type=int)
                 if args.criterion == 'adaptive_loss' else None
             ),
             max_target_positions=max_target_positions,
