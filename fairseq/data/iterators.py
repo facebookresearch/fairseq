@@ -521,8 +521,6 @@ class BufferedIterator(object):
         # Propagate this change to the underlying iterator
         if hasattr(self._iterable, "take"):
             self._iterable.take(n)
-        else:
-            self._iterable = itertools.islice(self._iterable, n)
 
     def __next__(self):
         # Create consumer if not created yet
