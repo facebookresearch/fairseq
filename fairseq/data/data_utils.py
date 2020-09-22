@@ -440,7 +440,9 @@ def compute_mask_indices(
 
 
 def get_mem_usage():
-    # for debug
-    import psutil
-    mb = 1024 * 1024
-    return f'used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb'
+    try:
+        import psutil
+        mb = 1024 * 1024
+        return f'used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb'
+    except ImportError:
+        return 'N/A'
