@@ -317,6 +317,8 @@ def add_dataset_args(parser, train=False, gen=False):
     group.add_argument('--required-batch-size-multiple', default=8, type=int, metavar='N',
                        help='batch size will either be less than this value, '
                             'or a multiple of this value')
+    group.add_argument('--required-seq-len-multiple', default=1, type=int, metavar='N',
+                       help='maximum sequence length in batch will be a multiplier of this value')
     parser.add_argument('--dataset-impl', metavar='FORMAT',
                         choices=get_available_dataset_impl(),
                         help='output dataset implementation')
