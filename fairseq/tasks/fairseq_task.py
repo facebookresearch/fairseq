@@ -312,6 +312,7 @@ class FairseqTask(object):
         match_source_len = getattr(args, "match_source_len", False)
         diversity_rate = getattr(args, "diversity_rate", -1)
         constrained = getattr(args, "constraints", False)
+        prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
         if (
             sum(
                 int(cond)
@@ -353,6 +354,8 @@ class FairseqTask(object):
             )
         elif constrained:
             search_strategy = search.LexicallyConstrainedBeamSearch(self.target_dictionary, args.constraints)
+        elif prefix_allowed_tokens_fn:
+            search_strategy = search.PrefixConstrainedBeamSearch(self.target_dictionary, prefix_allowed_tokens_fn)
         else:
             search_strategy = search.BeamSearch(self.target_dictionary)
 

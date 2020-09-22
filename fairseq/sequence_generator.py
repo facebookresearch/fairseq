@@ -269,6 +269,7 @@ class SequenceGenerator(nn.Module):
 
         reorder_state: Optional[Tensor] = None
         batch_idxs: Optional[Tensor] = None
+        original_batch_idxs = sample["id"]
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             # print(f'step: {step}')
@@ -281,6 +282,7 @@ class SequenceGenerator(nn.Module):
                     reorder_state.view(-1, beam_size).add_(
                         corr.unsqueeze(-1) * beam_size
                     )
+                    original_batch_idxs = original_batch_idxs[batch_idxs]
                 self.model.reorder_incremental_state(incremental_states, reorder_state)
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
@@ -338,12 +340,21 @@ class SequenceGenerator(nn.Module):
                 lprobs = self._no_repeat_ngram(tokens, lprobs, bsz, beam_size, step)
 
             # Shape: (batch, cand_size)
-            cand_scores, cand_indices, cand_beams = self.search.step(
-                step,
-                lprobs.view(bsz, -1, self.vocab_size),
-                scores.view(bsz, beam_size, -1)[:, :, :step],
-            )
-
+            if isinstance(self.search, search.PrefixConstrainedBeamSearch):
+                cand_scores, cand_indices, cand_beams = self.search.step(
+                    step,
+                    lprobs.view(bsz, -1, self.vocab_size),
+                    scores.view(bsz, beam_size, -1)[:, :, :step],
+                    tokens[:, : step + 1],
+                    original_batch_idxs,
+                )
+            else:
+                cand_scores, cand_indices, cand_beams = self.search.step(
+                    step,
+                    lprobs.view(bsz, -1, self.vocab_size),
+                    scores.view(bsz, beam_size, -1)[:, :, :step],
+                )
+            
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
             # and dimensions: [bsz, cand_size]
@@ -385,8 +396,10 @@ class SequenceGenerator(nn.Module):
             assert num_remaining_sent >= 0
             if num_remaining_sent == 0:
                 break
+            if isinstance(self.search, search.PrefixConstrainedBeamSearch) and step >= max_len:
+                break
             assert step < max_len
-
+            
             # Remove finalized sentences (ones for which {beam_size}
             # finished hypotheses have been generated) from the batch.
             if len(finalized_sents) > 0:
