@@ -269,7 +269,7 @@ class SequenceGenerator(nn.Module):
 
         reorder_state: Optional[Tensor] = None
         batch_idxs: Optional[Tensor] = None
-        original_batch_idxs = sample["id"]
+        original_batch_idxs = sample.get("id", torch.arange(0, bsz))
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             # print(f'step: {step}')

@@ -141,7 +141,7 @@ class PrefixConstrainedBeamSearch(Search):
         for sent_i, (sent, batch_i) in enumerate(
             zip(prev_output_tokens, original_batch_idxs)
         ):
-            mask[sent_i, :, self.prefix_allowed_tokens_fn(batch_i, sent.tolist())] = 0
+            mask[sent_i, :, self.prefix_allowed_tokens_fn(batch_i, sent)] = 0
 
         return mask
         
