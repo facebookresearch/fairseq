@@ -110,7 +110,7 @@ class SentencePredictionTask(LegacyFairseqTask):
             logger.info('[label] dictionary: {} types'.format(len(label_dict)))
         else:
             label_dict = data_dict
-        return SentencePredictionTask(args, data_dict, label_dict)
+        return cls(args, data_dict, label_dict)
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split (e.g., train, valid, test)."""
