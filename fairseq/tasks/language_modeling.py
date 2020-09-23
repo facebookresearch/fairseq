@@ -5,14 +5,14 @@
 
 import logging
 import os
+from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
 import torch
-
 from fairseq import utils
 from fairseq.data import (
     AppendTokenDataset,
-    data_utils,
     Dictionary,
     IdDataset,
     MonolingualDataset,
@@ -22,14 +22,75 @@ from fairseq.data import (
     PrependTokenDataset,
     StripTokenDataset,
     TokenBlockDataset,
-    TransformEosDataset,
     TruncatedDictionary,
+    data_utils,
 )
+from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
+from fairseq.dataclass.utils import ChoiceEnum, FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
+from omegaconf import II
 
 
+SAMPLE_BREAK_MODE_CHOICES = ChoiceEnum(["none", "complete", "complete_doc", "eos"])
+SHORTEN_METHOD_CHOICES = ChoiceEnum(["none", "truncate", "random_crop"])
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class LanguageModelingConfig(FairseqDataclass):
+    # TODO common var add to parent
+    data: Optional[str] = field(
+        default=None, metadata={"help": "path to data directory"}
+    )
+    sample_break_mode: SAMPLE_BREAK_MODE_CHOICES = field(
+        default="none",
+        metadata={
+            "help": 'If omitted or "none", fills each sample with tokens-per-sample '
+            'tokens. If set to "complete", splits samples only at the end '
+            "of sentence, but may include multiple sentences per sample. "
+            '"complete_doc" is similar but respects doc boundaries. '
+            'If set to "eos", includes only one sentence per sample.'
+        },
+    )
+    tokens_per_sample: int = field(
+        default=1024,
+        metadata={"help": "max number of tokens per sample for LM dataset"},
+    )
+    output_dictionary_size: int = field(
+        default=-1, metadata={"help": "limit the size of output dictionary"}
+    )
+    self_target: bool = field(default=False, metadata={"help": "include self target"})
+    future_target: bool = field(
+        default=False, metadata={"help": "include future target"}
+    )
+    past_target: bool = field(default=False, metadata={"help": "include past target"})
+    add_bos_token: bool = field(
+        default=False, metadata={"help": "prepend beginning of sentence token (<s>)"}
+    )
+    max_target_positions: Optional[int] = field(
+        default=None, metadata={"help": "max number of tokens in the target sequence"}
+    )
+    shorten_method: SHORTEN_METHOD_CHOICES = field(
+        default="none",
+        metadata={
+            "help": "if not none, shorten sequences that exceed --tokens-per-sample"
+        },
+    )
+    shorten_data_split_list: str = field(
+        default="",
+        metadata={
+            "help": "comma-separated list of dataset splits to apply shortening to, "
+            'e.g., "train,valid" (default: all dataset splits)'
+        },
+    )
+    # TODO common vars below add to parent
+    seed: int = II("params.common.seed")
+    dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = II(
+        "params.dataset.dataset_impl"
+    )
+    data_buffer_size: int = II("params.dataset.data_buffer_size")
+    tpu: bool = II("params.common.tpu")
 
 
 @register_task("language_modeling")
@@ -242,23 +303,28 @@ class LanguageModelingTask(FairseqTask):
                 else self.source_dictionary.eos()
             ),
         )
-        tgt_dataset = AppendTokenDataset(
-            dataset,
-            token=self.source_dictionary.pad()
-        )
+        tgt_dataset = AppendTokenDataset(dataset, token=self.source_dictionary.pad())
         return NestedDictionaryDataset(
             {
                 "id": IdDataset(),
                 "net_input": {
-                    "src_tokens": PadDataset(src_dataset, pad_idx=self.source_dictionary.pad(), left_pad=False),
+                    "src_tokens": PadDataset(
+                        src_dataset,
+                        pad_idx=self.source_dictionary.pad(),
+                        left_pad=False,
+                    ),
                     "src_lengths": NumelDataset(src_dataset, reduce=False),
                 },
-                "target": PadDataset(tgt_dataset, pad_idx=self.source_dictionary.pad(), left_pad=False),
+                "target": PadDataset(
+                    tgt_dataset, pad_idx=self.source_dictionary.pad(), left_pad=False
+                ),
             },
             sizes=[np.array(src_lengths)],
         )
 
-    def inference_step(self, generator, models, sample, prefix_tokens=None, constraints=None):
+    def inference_step(
+        self, generator, models, sample, prefix_tokens=None, constraints=None
+    ):
         with torch.no_grad():
             # Generation will always be conditioned on bos_token
             if getattr(self.args, "add_bos_token", False):
@@ -267,7 +333,9 @@ class LanguageModelingTask(FairseqTask):
                 bos_token = self.source_dictionary.eos()
 
             if constraints is not None:
-                raise NotImplementedError("Constrained decoding with the language_modeling task is not supported")
+                raise NotImplementedError(
+                    "Constrained decoding with the language_modeling task is not supported"
+                )
 
             # SequenceGenerator doesn't use src_tokens directly, we need to
             # pass the `prefix_tokens` argument instead
@@ -277,7 +345,7 @@ class LanguageModelingTask(FairseqTask):
                     prefix_tokens = prefix_tokens[:, 1:]
 
             return generator.generate(
-                models, sample, prefix_tokens=prefix_tokens, bos_token=bos_token,
+                models, sample, prefix_tokens=prefix_tokens, bos_token=bos_token
             )
 
     @property

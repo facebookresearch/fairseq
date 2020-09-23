@@ -10,6 +10,8 @@ from fairseq import registry
 from fairseq.criterions.fairseq_criterion import FairseqCriterion, LegacyFairseqCriterion
 
 
+CRITERION_DATACLASS_REGISTRY = {}
+
 build_criterion, register_criterion, CRITERION_REGISTRY = registry.setup_registry(
     '--criterion',
     base_class=FairseqCriterion,

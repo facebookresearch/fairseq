@@ -3,10 +3,32 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+from typing import List
+
+from fairseq.dataclass.utils import FairseqDataclass
+from omegaconf import II
+
 from . import FairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler('inverse_sqrt')
+@dataclass
+class InverseSquareRootScheduleConfig(FairseqDataclass):
+    warmup_updates: int = field(
+        default=4000,
+        metadata={"help": "warmup the learning rate linearly for the first N updates"},
+    )
+    warmup_init_lr: float = field(
+        default=-1,
+        metadata={
+            "help": "initial learning rate during warmup phase; default is args.lr"
+        },
+    )
+    # TODO common vars at parent class
+    lr: List[float] = II("params.optimization.lr")
+
+
+@register_lr_scheduler("inverse_sqrt")
 class InverseSquareRootSchedule(FairseqLRScheduler):
     """Decay the LR based on the inverse square root of the update number.
 
@@ -30,8 +52,8 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
         super().__init__(args, optimizer)
         if len(args.lr) > 1:
             raise ValueError(
-                'Cannot use a fixed learning rate schedule with inverse_sqrt.'
-                ' Consider --lr-scheduler=fixed instead.'
+                "Cannot use a fixed learning rate schedule with inverse_sqrt."
+                " Consider --lr-scheduler=fixed instead."
             )
         warmup_end_lr = args.lr[0]
         if args.warmup_init_lr < 0:
@@ -41,7 +63,7 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
         self.lr_step = (warmup_end_lr - args.warmup_init_lr) / args.warmup_updates
 
         # then, decay prop. to the inverse square root of the update number
-        self.decay_factor = warmup_end_lr * args.warmup_updates**0.5
+        self.decay_factor = warmup_end_lr * args.warmup_updates ** 0.5
 
         # initial learning rate
         self.lr = args.warmup_init_lr
@@ -66,8 +88,8 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
         if num_updates < self.args.warmup_updates:
-            self.lr = self.args.warmup_init_lr + num_updates*self.lr_step
+            self.lr = self.args.warmup_init_lr + num_updates * self.lr_step
         else:
-            self.lr = self.decay_factor * num_updates**-0.5
+            self.lr = self.decay_factor * num_updates ** -0.5
         self.optimizer.set_lr(self.lr)
         return self.lr

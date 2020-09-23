@@ -9,6 +9,16 @@ import torch.nn.functional as F
 
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.dataclass.data_class import DDP_BACKEND_CHOICES
+from dataclasses import dataclass
+from fairseq.dataclass.utils import FairseqDataclass
+from omegaconf import II
+
+
+@dataclass
+class CrossEntropyCriterionConfig(FairseqDataclass):
+    sentence_avg: bool = II("params.optimization.sentence_avg")
+    ddp_backend: DDP_BACKEND_CHOICES = II("params.distributed_training.ddp_backend")
 
 
 @register_criterion('cross_entropy')

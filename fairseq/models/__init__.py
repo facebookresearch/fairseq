@@ -25,8 +25,10 @@ from .distributed_fairseq_model import DistributedFairseqModel
 
 MODEL_REGISTRY = {}
 ARCH_MODEL_REGISTRY = {}
+ARCH_MODEL_NAME_REGISTRY = {}
 ARCH_MODEL_INV_REGISTRY = {}
 ARCH_CONFIG_REGISTRY = {}
+ARCH_DATACLASS_REGISTRY = {}
 
 
 __all__ = [
