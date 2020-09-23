@@ -13,6 +13,8 @@ from fairseq.optim.bmuf import FairseqBMUF  # noqa
 from fairseq.optim.shard import shard_
 
 
+OPTIMIZER_DATACLASS_REGISTRY = {}
+
 __all__ = [
     'FairseqOptimizer',
     'FP16Optimizer',

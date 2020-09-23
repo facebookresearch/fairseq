@@ -5,19 +5,39 @@
 
 import logging
 import math
-import types
+from dataclasses import dataclass, field
+from typing import List
 
 import torch
-import torch.optim
 import torch.distributed as dist
-
+import torch.optim
+from fairseq.dataclass.utils import FairseqDataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from fairseq.optim.fused_adam import get_fused_adam_class
+from omegaconf import II
+
 
 logger = logging.getLogger(__name__)
 
 
-@register_optimizer('adam')
+@dataclass
+class FairseqAdamConfig(FairseqDataclass):
+    adam_betas: str = field(
+        default="(0.9, 0.999)", metadata={"help": "betas for Adam optimizer"}
+    )
+    adam_eps: float = field(
+        default=1e-8, metadata={"help": "epsilon for Adam optimizer"}
+    )
+    weight_decay: float = field(default=0.0, metadata={"help": "weight decay"})
+    use_old_adam: bool = field(
+        default=False, metadata={"help": "Use fairseq.optim.adam.Adam"}
+    )
+    # TODO common vars below in parent
+    tpu: bool = II("params.common.tpu")
+    lr: List[float] = II("params.optimization.lr")
+
+
+@register_optimizer("adam")
 class FairseqAdam(FairseqOptimizer):
     """Adam optimizer for fairseq.
 
@@ -30,16 +50,16 @@ class FairseqAdam(FairseqOptimizer):
         super().__init__(args)
         fused_adam_cls = get_fused_adam_class()
         use_fused_adam = (
-            not getattr(args, 'use_old_adam', False)
+            not getattr(args, "use_old_adam", False)
             and fused_adam_cls is not None
             and torch.cuda.is_available()
         )
-        if getattr(args, 'tpu', False):
+        if getattr(args, "tpu", False):
             # on TPUs we use the Adam defined here, since it
             # automatically casts gradients to FP32
             self._optimizer = Adam(params, **self.optimizer_config)
         elif use_fused_adam:
-            logger.info('using FusedAdam')
+            logger.info("using FusedAdam")
             self._optimizer = fused_adam_cls(params, **self.optimizer_config)
         else:
             self._optimizer = Adam(params, **self.optimizer_config)
@@ -73,10 +93,10 @@ class FairseqAdam(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'betas': eval(self.args.adam_betas),
-            'eps': self.args.adam_eps,
-            'weight_decay': self.args.weight_decay,
+            "lr": self.args.lr[0],
+            "betas": eval(self.args.adam_betas),
+            "eps": self.args.adam_eps,
+            "weight_decay": self.args.weight_decay,
         }
 
     def average_params(self):
@@ -118,10 +138,18 @@ class Adam(torch.optim.Optimizer):
         https://openreview.net/forum?id=ryQu7f-RZ
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
-                 weight_decay=0, amsgrad=False):
-        defaults = dict(lr=lr, betas=betas, eps=eps,
-                        weight_decay=weight_decay, amsgrad=amsgrad)
+    def __init__(
+        self,
+        params,
+        lr=1e-3,
+        betas=(0.9, 0.999),
+        eps=1e-8,
+        weight_decay=0,
+        amsgrad=False,
+    ):
+        defaults = dict(
+            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad
+        )
         super(Adam, self).__init__(params, defaults)
 
     @property
@@ -144,15 +172,17 @@ class Adam(torch.optim.Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            for p in group['params']:
+            for p in group["params"]:
                 if p.grad is None:
                     continue
                 grad = p.grad.data
                 if grad.dtype in {torch.float16, torch.bfloat16}:
                     grad = grad.float()
                 if grad.is_sparse:
-                    raise RuntimeError('Adam does not support sparse gradients, please consider SparseAdam instead')
-                amsgrad = group['amsgrad']
+                    raise RuntimeError(
+                        "Adam does not support sparse gradients, please consider SparseAdam instead"
+                    )
+                amsgrad = group["amsgrad"]
 
                 p_data_fp32 = p.data
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
@@ -162,26 +192,28 @@ class Adam(torch.optim.Optimizer):
 
                 # State initialization
                 if len(state) == 0:
-                    state['step'] = 0
+                    state["step"] = 0
                     # Exponential moving average of gradient values
-                    state['exp_avg'] = torch.zeros_like(p_data_fp32)
+                    state["exp_avg"] = torch.zeros_like(p_data_fp32)
                     # Exponential moving average of squared gradient values
-                    state['exp_avg_sq'] = torch.zeros_like(p_data_fp32)
+                    state["exp_avg_sq"] = torch.zeros_like(p_data_fp32)
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
-                        state['max_exp_avg_sq'] = torch.zeros_like(p_data_fp32)
+                        state["max_exp_avg_sq"] = torch.zeros_like(p_data_fp32)
                 else:
-                    state['exp_avg'] = state['exp_avg'].to(p_data_fp32)
-                    state['exp_avg_sq'] = state['exp_avg_sq'].to(p_data_fp32)
+                    state["exp_avg"] = state["exp_avg"].to(p_data_fp32)
+                    state["exp_avg_sq"] = state["exp_avg_sq"].to(p_data_fp32)
                     if amsgrad:
-                        state['max_exp_avg_sq'] = state['max_exp_avg_sq'].to(p_data_fp32)
+                        state["max_exp_avg_sq"] = state["max_exp_avg_sq"].to(
+                            p_data_fp32
+                        )
 
-                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+                exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
                 if amsgrad:
-                    max_exp_avg_sq = state['max_exp_avg_sq']
-                beta1, beta2 = group['betas']
+                    max_exp_avg_sq = state["max_exp_avg_sq"]
+                beta1, beta2 = group["betas"]
 
-                state['step'] += 1
+                state["step"] += 1
 
                 # Decay the first and second moment running average coefficient
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
@@ -190,16 +222,18 @@ class Adam(torch.optim.Optimizer):
                     # Maintains the maximum of all 2nd moment running avg. till now
                     torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
                     # Use the max. for normalizing running avg. of gradient
-                    denom = max_exp_avg_sq.sqrt().add_(group['eps'])
+                    denom = max_exp_avg_sq.sqrt().add_(group["eps"])
                 else:
-                    denom = exp_avg_sq.sqrt().add_(group['eps'])
+                    denom = exp_avg_sq.sqrt().add_(group["eps"])
 
-                bias_correction1 = 1 - beta1 ** state['step']
-                bias_correction2 = 1 - beta2 ** state['step']
-                step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
+                bias_correction1 = 1 - beta1 ** state["step"]
+                bias_correction2 = 1 - beta2 ** state["step"]
+                step_size = group["lr"] * math.sqrt(bias_correction2) / bias_correction1
 
-                if group['weight_decay'] != 0:
-                    p_data_fp32.add_(p_data_fp32, alpha=-group['weight_decay'] * group['lr'])
+                if group["weight_decay"] != 0:
+                    p_data_fp32.add_(
+                        p_data_fp32, alpha=-group["weight_decay"] * group["lr"]
+                    )
 
                 p_data_fp32.addcdiv_(exp_avg, denom, value=-step_size)
 
