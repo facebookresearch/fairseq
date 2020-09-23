@@ -15,7 +15,6 @@ import torch.fb.rendezvous.zeus  # noqa: F401
 from fairseq import distributed_utils, options
 from fairseq.file_io import PathManager
 from fairseq_cli.train import main as fairseq_train_main
-from fairseq_latte_prod import tasks  # noqa
 from fvcore.fb.manifold import ManifoldPathHandler
 
 
