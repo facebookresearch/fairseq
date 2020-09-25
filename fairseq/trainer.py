@@ -409,11 +409,23 @@ class Trainer(object):
         # task specific setup per epoch
         self.task.begin_epoch(epoch, self.get_model())
 
+        # reset dummy batch
+        self._dummy_batch = 'DUMMY'
+
         if self.tpu:
             import torch_xla.core.xla_model as xm
 
             xm.rendezvous('begin_epoch')  # wait for all workers
             xm.mark_step()
+
+    def begin_valid_epoch(self, epoch):
+        """Called at the beginning of each validation epoch."""
+
+        # task specific setup per validation epoch
+        self.task.begin_valid_epoch(epoch, self.get_model())
+        
+        # reset dummy batch
+        self._dummy_batch = 'DUMMY'
 
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
