@@ -60,6 +60,25 @@ class AugmentedMemoryConvTransformerModel(ConvTransformerModel):
             args, task.target_dictionary, embed_tokens)
 
 
+@register_model("convtransformer_augmented_memory_offline")
+@enable_streaming
+class AugmentedMemoryConvTransformerModelOffline(ConvTransformerModel):
+    @classmethod
+    def build_encoder(cls, args):
+        encoder = SequenceEncoder(
+            args, AugmentedMemoryConvTransformerEncoder(args)
+        )
+        return encoder
+
+
+@register_model_architecture(
+    "convtransformer_augmented_memory_offline",
+    "convtransformer_augmented_memory_offline"
+)
+def stream_convtransformer_espnet_offline(args):
+    convtransformer_espnet(args)
+
+
 @register_model_architecture(
     "convtransformer_augmented_memory",
     "convtransformer_augmented_memory"
