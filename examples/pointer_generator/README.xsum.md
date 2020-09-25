@@ -104,7 +104,7 @@ Above we specify that our dictionary contains 1000 source position markers, and
 that we want to use one attention head from the penultimate decoder layer for
 pointing. It should run in 5.5 hours on one node with eight 32GB V100 GPUs. The
 logged messages confirm that dictionary indices above 10000 will be mapped to
-the <unk> embedding:
+the `<unk>` embedding:
 
 ```
 2020-09-24 20:43:53 | INFO | fairseq.tasks.translation | [src] dictionary: 11000 types
@@ -167,12 +167,12 @@ The original source document in `test.document`:
 
 The preprocessed source document in `test.src.pg`:
 
-> de <unk-1> moved to <unk-4> in june 2016 for an initial # <unk-12> m fee and played 33 premier league games last term . the netherlands international , 26 , scored five goals in 36 league and cup games during his spell at boro . meanwhile , manager garry monk confirmed the championship club 's interest in signing chelsea midfielder lewis baker . `` he 's a target and one of many that we 've had throughout the summer months , '' said monk . find all the latest football transfers on our dedicated page .
+> de \<unk-1> moved to \<unk-4> in june 2016 for an initial # \<unk-12> m fee and played 33 premier league games last term . the netherlands international , 26 , scored five goals in 36 league and cup games during his spell at boro . meanwhile , manager garry monk confirmed the championship club 's interest in signing chelsea midfielder lewis baker . `` he 's a target and one of many that we 've had throughout the summer months , '' said monk . find all the latest football transfers on our dedicated page .
 
 The generated summary in `generate.hyp`:
 
-> middlesbrough striker <unk> de <unk-1> has joined spanish side <unk> on a season-long loan .
+> middlesbrough striker \<unk> de \<unk-1> has joined spanish side \<unk> on a season-long loan .
 
 The generated summary after postprocessing in `generate.hyp.processed`:
 
-> middlesbrough striker <unk> de roon has joined spanish side <unk> on a season-long loan .
+> middlesbrough striker \<unk> de roon has joined spanish side \<unk> on a season-long loan .
