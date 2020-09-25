@@ -21,6 +21,7 @@ from tests.utils import (
     create_dummy_data,
     preprocess_lm_data,
     preprocess_translation_data,
+    preprocess_summarization_data,
     train_translation_model,
     generate_main,
 )
@@ -263,6 +264,23 @@ class TestTranslation(unittest.TestCase):
                     '--cross-self-attention',
                 ], run_validation=True)
                 generate_main(data_dir, extra_flags=[])
+
+    def test_transformer_pointer_generator(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_transformer_pointer_generator') as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_summarization_data(data_dir)
+                train_translation_model(data_dir, 'transformer_pointer_generator', [
+                    '--user-dir', 'examples/pointer_generator/src',
+                    '--encoder-layers', '2',
+                    '--decoder-layers', '2',
+                    '--encoder-embed-dim', '8',
+                    '--decoder-embed-dim', '8',
+                    '--alignment-layer', '-1',
+                    '--alignment-heads', '1',
+                    '--source-position-markers', '0',
+                ], run_validation=True)
+                generate_main(data_dir)
 
     def test_lightconv(self):
         with contextlib.redirect_stdout(StringIO()):
