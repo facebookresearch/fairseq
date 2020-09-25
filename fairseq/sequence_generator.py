@@ -346,20 +346,13 @@ class SequenceGenerator(nn.Module):
                 lprobs = self._no_repeat_ngram(tokens, lprobs, bsz, beam_size, step)
 
             # Shape: (batch, cand_size)
-            if isinstance(self.search, search.PrefixConstrainedBeamSearch):
-                cand_scores, cand_indices, cand_beams = self.search.step(
-                    step,
-                    lprobs.view(bsz, -1, self.vocab_size),
-                    scores.view(bsz, beam_size, -1)[:, :, :step],
-                    tokens[:, : step + 1],
-                    original_batch_idxs,
-                )
-            else:
-                cand_scores, cand_indices, cand_beams = self.search.step(
-                    step,
-                    lprobs.view(bsz, -1, self.vocab_size),
-                    scores.view(bsz, beam_size, -1)[:, :, :step],
-                )
+            cand_scores, cand_indices, cand_beams = self.search.step(
+                step,
+                lprobs.view(bsz, -1, self.vocab_size),
+                scores.view(bsz, beam_size, -1)[:, :, :step],
+                tokens[:, : step + 1],
+                original_batch_idxs,
+            )
             
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
@@ -402,7 +395,7 @@ class SequenceGenerator(nn.Module):
             assert num_remaining_sent >= 0
             if num_remaining_sent == 0:
                 break
-            if isinstance(self.search, search.PrefixConstrainedBeamSearch) and step >= max_len:
+            if self.search.stop_on_max_len and step >= max_len:
                 break
             assert step < max_len
             
