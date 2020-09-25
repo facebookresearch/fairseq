@@ -294,6 +294,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
         # set fixed seed for every validation
         utils.set_torch_seed(args.fixed_validation_seed)
 
+    trainer.begin_valid_epoch(epoch_itr.epoch)
     valid_losses = []
     for subset in subsets:
         logger.info('begin validation on "{}" subset'.format(subset))
