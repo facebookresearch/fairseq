@@ -27,6 +27,9 @@ post-processing the output. This is described in detail in the next section.
 
 ## Usage
 
+The training and evaluation procedure is outlined below. You can also find a
+more detailed example for the XSum dataset on [this page](README.xsum.md).
+
 ##### 1. Create a vocabulary and extend it with source position markers
 
 The pointing mechanism is especially helpful with small vocabularies, if we are
