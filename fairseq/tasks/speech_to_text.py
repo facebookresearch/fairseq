@@ -45,7 +45,7 @@ class SpeechToTextTask(FairseqTask):
         super().__init__(args)
         if (
             getattr(args, "bpe", None) == "sentencepiece"
-            and getattr(args, "sentencepiece_vocab", None) is None):
+            and getattr(args, "sentencepiece_model", None) is None):
             # Hack here to automatic find spm model
             from os import listdir
             import re
@@ -54,7 +54,7 @@ class SpeechToTextTask(FairseqTask):
                 if re.search(r"^spm_.+\.model$", f)
             ]
             assert len(model_file) == 1
-            args.sentencepiece_vocab = op.join(args.data, model_file[0])
+            self.args.sentencepiece_model = op.join(args.data, model_file[0])
 
         self.tgt_dict = tgt_dict
         self.data_config = self.get_data_config()
@@ -130,6 +130,8 @@ class SpeechToTextTask(FairseqTask):
             max_positions=None,
             ignore_invalid_inputs=False, required_batch_size_multiple=1,
             seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
+            data_buffer_size=None,
+            disable_iterator_cache=None,
     ):
         # Recreate epoch iterator every epoch cause the underlying
         # datasets are dynamic due to sampling.
