@@ -4,14 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from dataclasses import dataclass
 
 import torch.nn.functional as F
-
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass.data_class import DDP_BACKEND_CHOICES
-from dataclasses import dataclass
-from fairseq.dataclass.utils import FairseqDataclass
+from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
 from omegaconf import II
 
 
@@ -21,12 +20,16 @@ class CrossEntropyCriterionConfig(FairseqDataclass):
     ddp_backend: DDP_BACKEND_CHOICES = II("params.distributed_training.ddp_backend")
 
 
-@register_criterion('cross_entropy')
+@register_criterion("cross_entropy")
 class CrossEntropyCriterion(FairseqCriterion):
-
     def __init__(self, task, sentence_avg):
         super().__init__(task)
         self.sentence_avg = sentence_avg
+
+    @staticmethod
+    def add_args(parser):
+        """Add task-specific arguments to the parser. optionaly register config store"""
+        gen_parser_from_dataclass(parser, CrossEntropyCriterionConfig())
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
@@ -36,14 +39,16 @@ class CrossEntropyCriterion(FairseqCriterion):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
-        net_output = model(**sample['net_input'])
+        net_output = model(**sample["net_input"])
         loss, _ = self.compute_loss(model, net_output, sample, reduce=reduce)
-        sample_size = sample['target'].size(0) if self.sentence_avg else sample['ntokens']
+        sample_size = (
+            sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
+        )
         logging_output = {
-            'loss': loss.data,
-            'ntokens': sample['ntokens'],
-            'nsentences': sample['target'].size(0),
-            'sample_size': sample_size,
+            "loss": loss.data,
+            "ntokens": sample["ntokens"],
+            "nsentences": sample["target"].size(0),
+            "sample_size": sample_size,
         }
         return loss, sample_size, logging_output
 
@@ -55,23 +60,31 @@ class CrossEntropyCriterion(FairseqCriterion):
             lprobs,
             target,
             ignore_index=self.padding_idx,
-            reduction='sum' if reduce else 'none',
+            reduction="sum" if reduce else "none",
         )
         return loss, loss
 
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
+        loss_sum = sum(log.get("loss", 0) for log in logging_outputs)
+        ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
+        sample_size = sum(log.get("sample_size", 0) for log in logging_outputs)
 
-        metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_scalar(
+            "loss", loss_sum / sample_size / math.log(2), sample_size, round=3
+        )
         if sample_size != ntokens:
-            metrics.log_scalar('nll_loss', loss_sum / ntokens / math.log(2), ntokens, round=3)
-            metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['nll_loss'].avg))
+            metrics.log_scalar(
+                "nll_loss", loss_sum / ntokens / math.log(2), ntokens, round=3
+            )
+            metrics.log_derived(
+                "ppl", lambda meters: utils.get_perplexity(meters["nll_loss"].avg)
+            )
         else:
-            metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['loss'].avg))
+            metrics.log_derived(
+                "ppl", lambda meters: utils.get_perplexity(meters["loss"].avg)
+            )
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:

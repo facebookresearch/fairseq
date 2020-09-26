@@ -11,7 +11,7 @@ from typing import List
 import torch
 import torch.distributed as dist
 import torch.optim
-from fairseq.dataclass.utils import FairseqDataclass
+from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from fairseq.optim.fused_adam import get_fused_adam_class
 from omegaconf import II
@@ -67,22 +67,7 @@ class FairseqAdam(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
-                            help='betas for Adam optimizer')
-        parser.add_argument('--adam-eps', type=float, default=1e-8, metavar='D',
-                            help='epsilon for Adam optimizer')
-        parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
-                            help='weight decay')
-        # Maintain backward compatibility with old checkpoints that have stored
-        # optimizer state as fairseq.optim.adam.Adam.
-        parser.add_argument(
-            "--use-old-adam",
-            action='store_true',
-            default=False,
-            help="Use fairseq.optim.adam.Adam",
-        )
-        # fmt: on
+        gen_parser_from_dataclass(parser, FairseqAdamConfig())
 
     @property
     def optimizer_config(self):
