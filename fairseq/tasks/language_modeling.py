@@ -27,7 +27,11 @@ from fairseq.data import (
 )
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
-from fairseq.dataclass.utils import ChoiceEnum, FairseqDataclass
+from fairseq.dataclass.utils import (
+    ChoiceEnum,
+    FairseqDataclass,
+    gen_parser_from_dataclass,
+)
 from fairseq.tasks import FairseqTask, register_task
 from omegaconf import II
 
@@ -125,37 +129,8 @@ class LanguageModelingTask(FairseqTask):
 
     @staticmethod
     def add_args(parser):
-        """Add task-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('data', help='path to data directory')
-        parser.add_argument('--sample-break-mode', default='none',
-                            choices=['none', 'complete', 'complete_doc', 'eos'],
-                            help='If omitted or "none", fills each sample with tokens-per-sample '
-                                 'tokens. If set to "complete", splits samples only at the end '
-                                 'of sentence, but may include multiple sentences per sample. '
-                                 '"complete_doc" is similar but respects doc boundaries. '
-                                 'If set to "eos", includes only one sentence per sample.')
-        parser.add_argument('--tokens-per-sample', default=1024, type=int,
-                            help='max number of tokens per sample for LM dataset')
-        parser.add_argument('--output-dictionary-size', default=-1, type=int,
-                            help='limit the size of output dictionary')
-        parser.add_argument('--self-target', action='store_true',
-                            help='include self target')
-        parser.add_argument('--future-target', action='store_true',
-                            help='include future target')
-        parser.add_argument('--past-target', action='store_true',
-                            help='include past target')
-        parser.add_argument('--add-bos-token', action='store_true',
-                            help='prepend beginning of sentence token (<s>)')
-        parser.add_argument('--max-target-positions', type=int, metavar='N',
-                            help='max number of tokens in the target sequence')
-        parser.add_argument('--shorten-method', default='none',
-                            choices=['none', 'truncate', 'random_crop'],
-                            help='if not none, shorten sequences that exceed --tokens-per-sample')
-        parser.add_argument('--shorten-data-split-list', default='',
-                            help='comma-separated list of dataset splits to apply shortening to, '
-                                 'e.g., "train,valid" (default: all dataset splits)')
-        # fmt: on
+        """Add task-specific arguments to the parser. optionaly register config store"""
+        gen_parser_from_dataclass(parser, LanguageModelingConfig())
 
     def __init__(self, args, dictionary, output_dictionary=None, targets=None):
         super().__init__(args)

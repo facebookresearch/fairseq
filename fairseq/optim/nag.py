@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 import torch
-from fairseq.dataclass.utils import FairseqDataclass
+from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
 from omegaconf import II
 from torch.optim.optimizer import Optimizer, required
 
@@ -31,12 +31,7 @@ class FairseqNAG(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('--momentum', default=0.99, type=float, metavar='M',
-                            help='momentum factor')
-        parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
-                            help='weight decay')
-        # fmt: on
+        gen_parser_from_dataclass(parser, FairseqNAGConfig())
 
     @property
     def optimizer_config(self):

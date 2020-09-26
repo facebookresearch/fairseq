@@ -7,7 +7,7 @@ import math
 from dataclasses import dataclass, field
 from typing import List
 
-from fairseq.dataclass.utils import FairseqDataclass
+from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
 from omegaconf import II
 
 from . import FairseqLRScheduler, register_lr_scheduler
@@ -108,20 +108,7 @@ class CosineSchedule(FairseqLRScheduler):
     @staticmethod
     def add_args(parser):
         """Add arguments to the parser for this LR scheduler."""
-        # fmt: off
-        parser.add_argument('--warmup-updates', default=0, type=int, metavar='N',
-                            help='warmup the learning rate linearly for the first N updates')
-        parser.add_argument('--warmup-init-lr', default=-1, type=float, metavar='LR',
-                            help='initial learning rate during warmup phase; default is args.lr')
-        parser.add_argument('--max-lr', type=float, metavar='LR',
-                            help='max learning rate, must be more than args.lr')
-        parser.add_argument('--t-mult', default=1, type=float, metavar='LR',
-                            help='factor to grow the length of each period')
-        parser.add_argument('--lr-period-updates', default=-1, type=float, metavar='LR',
-                            help='initial number of updates per period')
-        parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
-                            help='shrink factor for annealing')
-        # fmt: on
+        gen_parser_from_dataclass(parser, CosineConfig())
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""
