@@ -49,46 +49,5 @@ class TestTranslation(unittest.TestCase):
                 ])
 
 
-class TestMaskedLanguageModel(unittest.TestCase):
-
-    def setUp(self):
-        logging.disable(logging.CRITICAL)
-
-    def tearDown(self):
-        logging.disable(logging.NOTSET)
-
-    def test_linformer_roberta_masked_lm(self):
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_linformer_roberta_mlm") as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_lm_data(data_dir)
-                train_masked_lm(data_dir, "roberta_c")
-
-    def test_linformer_roberta_sentence_prediction(self):
-        num_classes = 3
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_linformer_roberta_head") as data_dir:
-                create_dummy_roberta_head_data(data_dir, num_classes=num_classes)
-                preprocess_lm_data(os.path.join(data_dir, 'input0'))
-                preprocess_lm_data(os.path.join(data_dir, 'label'))
-                train_roberta_head(data_dir, "roberta_c", num_classes=num_classes)
-
-    def test_linformer_roberta_regression_single(self):
-        num_classes = 1
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_linformer_roberta_regression_single") as data_dir:
-                create_dummy_roberta_head_data(data_dir, num_classes=num_classes, regression=True)
-                preprocess_lm_data(os.path.join(data_dir, 'input0'))
-                train_roberta_head(data_dir, "roberta_c", num_classes=num_classes, extra_flags=['--regression-target'])
-
-    def test_linformer_roberta_regression_multiple(self):
-        num_classes = 3
-        with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_linformer_roberta_regression_multiple") as data_dir:
-                create_dummy_roberta_head_data(data_dir, num_classes=num_classes, regression=True)
-                preprocess_lm_data(os.path.join(data_dir, 'input0'))
-                train_roberta_head(data_dir, "roberta_c", num_classes=num_classes, extra_flags=['--regression-target'])
-
-
 if __name__ == '__main__':
     unittest.main()

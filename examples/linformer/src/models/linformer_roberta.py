@@ -12,7 +12,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.modules.fb_linformer_sentence_encoder import LinformerSentenceEncoder
+from ..modules.linformer_sentence_encoder import LinformerSentenceEncoder
 
 from fairseq.models.roberta import (
     RobertaModel,
@@ -23,7 +23,7 @@ from fairseq.models.roberta import (
 logger = logging.getLogger(__name__)
 
 
-@register_model('linformer')
+@register_model('linformer_roberta')
 class LinformerModel(RobertaModel):
 
     @staticmethod
@@ -85,7 +85,7 @@ class LinformerEncoder(RobertaEncoder):
         )
 
 
-@register_model_architecture('linformer', 'roberta_c')
+@register_model_architecture('linformer_roberta', 'linformer_roberta')
 def base_architecture(args):
     args.encoder_layers = getattr(args, 'encoder_layers', 12)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 768)
@@ -107,8 +107,13 @@ def base_architecture(args):
     args.freeze_compress = getattr(args, 'freeze_compress', 0)
 
 
-@register_model_architecture('linformer', 'roberta_large_c')
-def base_large_architecture(args):
+@register_model_architecture('linformer_roberta', 'linformer_roberta_base')
+def linformer_roberta_base_architecture(args):
+    base_architecture(args)
+
+
+@register_model_architecture('linformer_roberta', 'linformer_roberta_large')
+def linformer_roberta_large_architecture(args):
     args.encoder_layers = getattr(args, 'encoder_layers', 24)
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)

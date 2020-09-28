@@ -7,14 +7,8 @@ import math
 
 import torch.nn as nn
 
-from fairseq.modules import (
-    LayerDropModuleList,
-    LayerNorm,
-    PositionalEmbedding,
-    TransformerSentenceEncoder,
-)
-from fairseq.modules.fb_linformer_sentence_encoder_layer import LinformerSentenceEncoderLayer
-from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+from fairseq.modules import TransformerSentenceEncoder
+from .linformer_sentence_encoder_layer import LinformerSentenceEncoderLayer
 
 
 class LinformerSentenceEncoder(TransformerSentenceEncoder):

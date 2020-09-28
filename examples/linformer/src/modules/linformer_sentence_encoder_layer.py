@@ -5,10 +5,8 @@
 
 from typing import Callable
 
-from torch import nn
-
 from fairseq.modules import TransformerSentenceEncoderLayer
-from fairseq.modules.fb_multihead_linear_attention import MultiheadLinearAttention
+from .multihead_linear_attention import MultiheadLinearAttention
 
 
 class LinformerSentenceEncoderLayer(TransformerSentenceEncoderLayer):
