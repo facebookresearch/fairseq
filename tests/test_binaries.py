@@ -280,7 +280,10 @@ class TestTranslation(unittest.TestCase):
                     '--alignment-heads', '1',
                     '--source-position-markers', '0',
                 ], run_validation=True)
-                generate_main(data_dir)
+                generate_main(
+                    data_dir,
+                    extra_flags=['--user-dir', 'examples/pointer_generator/src'],
+                )
 
     def test_lightconv(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -589,7 +592,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
             with tempfile.TemporaryDirectory("test_roberta_mlm") as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
-                train_masked_lm(data_dir, "roberta_base")
+                train_masked_lm(data_dir, "roberta_base", extra_flags=["--encoder-layers", "2"])
 
     def test_roberta_sentence_prediction(self):
         num_classes = 3
@@ -615,6 +618,60 @@ class TestMaskedLanguageModel(unittest.TestCase):
                 create_dummy_roberta_head_data(data_dir, num_classes=num_classes, regression=True)
                 preprocess_lm_data(os.path.join(data_dir, 'input0'))
                 train_roberta_head(data_dir, "roberta_base", num_classes=num_classes, extra_flags=['--regression-target'])
+
+    def test_linformer_roberta_masked_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_linformer_roberta_mlm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_masked_lm(
+                    data_dir,
+                    "linformer_roberta_base",
+                    extra_flags=[
+                        "--user-dir", "examples/linformer/src",
+                        "--encoder-layers", "2",
+                    ],
+                )
+
+    def test_linformer_roberta_sentence_prediction(self):
+        num_classes = 3
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_linformer_roberta_head") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes)
+                preprocess_lm_data(os.path.join(data_dir, 'input0'))
+                preprocess_lm_data(os.path.join(data_dir, 'label'))
+                train_roberta_head(
+                    data_dir,
+                    "linformer_roberta_base",
+                    num_classes=num_classes,
+                    extra_flags=["--user-dir", "examples/linformer/src"],
+                )
+
+    def test_linformer_roberta_regression_single(self):
+        num_classes = 1
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_linformer_roberta_regression_single") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes, regression=True)
+                preprocess_lm_data(os.path.join(data_dir, 'input0'))
+                train_roberta_head(
+                    data_dir,
+                    "linformer_roberta_base",
+                    num_classes=num_classes,
+                    extra_flags=["--regression-target", "--user-dir", "examples/linformer/src"],
+                )
+
+    def test_linformer_roberta_regression_multiple(self):
+        num_classes = 3
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_linformer_roberta_regression_multiple") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes, regression=True)
+                preprocess_lm_data(os.path.join(data_dir, 'input0'))
+                train_roberta_head(
+                    data_dir,
+                    "linformer_roberta_base",
+                    num_classes=num_classes,
+                    extra_flags=["--regression-target", "--user-dir", "examples/linformer/src"],
+                )
 
     def _test_pretrained_masked_lm_for_translation(self, learned_pos_emb, encoder_only):
         with contextlib.redirect_stdout(StringIO()):
@@ -836,6 +893,7 @@ def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
             '--task', 'sentence_prediction',
             data_dir,
             '--arch', arch,
+            '--encoder-layers', '2',
             '--num-classes', str(num_classes),
             '--optimizer', 'adam',
             '--lr', '0.0001',
