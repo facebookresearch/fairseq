@@ -403,9 +403,16 @@ def import_user_module(args):
                 module_path = fairseq_rel_path
         module_parent, module_name = os.path.split(module_path)
 
-        if module_name not in sys.modules:
-            sys.path.insert(0, module_parent)
-            importlib.import_module(module_name)
+        if module_name in sys.modules:
+            module_bak = sys.modules[module_name]
+            del sys.modules[module_name]
+        else:
+            module_bak = None
+        sys.path.insert(0, module_parent)
+        importlib.import_module(module_name)
+        sys.modules['fairseq_user_dir'] = sys.modules[module_name]
+        if module_bak is not None and module_name != 'fairseq_user_dir':
+            sys.modules[module_name] = module_bak
 
 
 def softmax(x, dim: int, onnx_trace: bool = False):
