@@ -7,7 +7,6 @@ import torch.nn as nn
 
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer_lm import (
-    base_lm_architecture,
     TransformerLanguageModel,
 )
 from fairseq.model_parallel.models.transformer import ModelParallelTransformerDecoder
@@ -63,6 +62,55 @@ class ModelParallelTransformerLanguageModel(TransformerLanguageModel):
         embed_tokens = VocabParallelEmbedding(len(dictionary), embed_dim, dictionary.pad(), init_method=_vocab_init)
         return embed_tokens
 
+
+def base_lm_architecture(args):
+    # backward compatibility for older model checkpoints
+    if hasattr(args, 'no_tie_adaptive_proj'):
+        # previous models defined --no-tie-adaptive-proj, so use the existence of
+        # that option to determine if this is an "old" model checkpoint
+        args.no_decoder_final_norm = True  # old models always set this to True
+        if args.no_tie_adaptive_proj is False:
+            args.tie_adaptive_proj = True
+    if hasattr(args, 'decoder_final_norm'):
+        args.no_decoder_final_norm = not args.decoder_final_norm
+
+    args.activation_fn = getattr(args, 'activation_fn', 'relu')
+    args.dropout = getattr(args, 'dropout', 0.1)
+    args.attention_dropout = getattr(args, 'attention_dropout', 0.0)
+    args.activation_dropout = getattr(args, 'activation_dropout', 0.0)
+    args.relu_dropout = getattr(args, 'relu_dropout', 0.0)
+    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
+    args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
+    args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)
+    args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim', 2048)
+    args.decoder_layers = getattr(args, 'decoder_layers', 6)
+    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 8)
+    # Model training is not stable without this
+    args.decoder_normalize_before = True
+    args.no_decoder_final_norm = getattr(args, 'no_decoder_final_norm', False)
+    args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', None)
+    args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
+    args.adaptive_softmax_factor = getattr(args, 'adaptive_softmax_factor', 4)
+    args.no_token_positional_embeddings = getattr(args, 'no_token_positional_embeddings', False)
+    args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
+    args.character_embeddings = getattr(args, 'character_embeddings', False)
+    args.character_filters = getattr(args, 'character_filters', '[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]')
+    args.character_embedding_dim = getattr(args, 'character_embedding_dim', 4)
+    args.char_embedder_highway_layers = getattr(args, 'char_embedder_highway_layers', 2)
+    args.adaptive_input = getattr(args, 'adaptive_input', False)
+    args.adaptive_input_factor = getattr(args, 'adaptive_input_factor', 4)
+    args.adaptive_input_cutoff = getattr(args, 'adaptive_input_cutoff', None)
+    args.tie_adaptive_weights = getattr(args, 'tie_adaptive_weights', False)
+    args.tie_adaptive_proj = getattr(args, 'tie_adaptive_proj', False)
+    args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', False)
+    args.decoder_layerdrop = getattr(args, 'decoder_layerdrop', 0.0)
+    args.decoder_layers_to_keep = getattr(args, 'decoder_layers_to_keep', None)
+    args.layernorm_embedding = getattr(args, 'layernorm_embedding', False)
+    args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
+    args.quant_noise_pq = getattr(args, 'quant_noise_pq', 0.0)
+    args.quant_noise_pq_block_size = getattr(args, 'quant_noise_pq_block_size', 8)
+    args.quant_noise_scalar = getattr(args, 'quant_noise_scalar', 0.0)
+    args.add_bos_token = getattr(args, 'add_bos_token', False)
 
 @register_model_architecture('model_parallel_transformer_lm', 'transformer_lm_megatron')
 def transformer_lm_megatron(args):
