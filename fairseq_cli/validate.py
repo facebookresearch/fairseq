@@ -33,9 +33,15 @@ def main(args, override_args=None):
 
     use_fp16 = args.fp16
     use_cuda = torch.cuda.is_available() and not args.cpu
-
     if use_cuda:
         torch.cuda.set_device(args.device_id)
+
+    if args.distributed_world_size > 1:
+        data_parallel_world_size = distributed_utils.get_data_parallel_world_size()
+        data_parallel_rank = distributed_utils.get_data_parallel_rank()
+    else:
+        data_parallel_world_size = 1
+        data_parallel_rank = 0
 
     if override_args is not None:
         overrides = vars(override_args)
@@ -85,8 +91,8 @@ def main(args, override_args=None):
             ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
             required_batch_size_multiple=args.required_batch_size_multiple,
             seed=args.seed,
-            num_shards=args.distributed_world_size,
-            shard_id=args.distributed_rank,
+            num_shards=data_parallel_world_size,
+            shard_id=data_parallel_rank,
             num_workers=args.num_workers,
             data_buffer_size=args.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
@@ -105,10 +111,11 @@ def main(args, override_args=None):
             progress.log(log_output, step=i)
             log_outputs.append(log_output)
 
-        if args.distributed_world_size > 1:
+        if data_parallel_world_size > 1:
             log_outputs = distributed_utils.all_gather_list(
                 log_outputs,
                 max_size=getattr(args, 'all_gather_list_size', 16384),
+                group=distributed_utils.get_data_parallel_group(),
             )
             log_outputs = list(chain.from_iterable(log_outputs))
 
