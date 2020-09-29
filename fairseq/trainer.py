@@ -159,7 +159,6 @@ class Trainer(object):
                 utils.has_parameters(self._criterion)
                 and self.data_parallel_world_size > 1
                 and not self.args.use_bmuf
-                and not self.tpu
             ):
                 self._wrapped_criterion = models.DistributedFairseqModel(
                     self.args, self._criterion,
@@ -175,7 +174,6 @@ class Trainer(object):
             if (
                 self.data_parallel_world_size > 1
                 and not self.args.use_bmuf
-                and not self.tpu
             ):
                 self._wrapped_model = models.DistributedFairseqModel(
                     self.args, self._model,
@@ -541,25 +539,17 @@ class Trainer(object):
             )
             self._cumulative_training_time = total_train_time / self.data_parallel_world_size
 
-        if hasattr(self.model, 'all_reduce'):
-            self.model.all_reduce()
-
         overflow = False
         try:
-            if self.tpu and self.data_parallel_world_size > 1:
-                import torch_xla.core.xla_model as xm
-                gradients = xm._fetch_gradients(self.optimizer.optimizer)
-                xm.all_reduce(
-                    'sum',
-                    gradients,
-                    scale=1.0 / self.data_parallel_world_size,
-                    groups=self.data_parallel_process_group[1],
-                )
+            with torch.autograd.profiler.record_function("reduce-grads"):
+                self.optimizer.all_reduce_grads(self.model)
+                if utils.has_parameters(self.criterion):
+                    self.optimizer.all_reduce_grads(self.criterion)
 
             with torch.autograd.profiler.record_function("multiply-grads"):
-                # multiply gradients by (# GPUs / sample_size) since DDP
-                # already normalizes by the number of GPUs. Thus we get
-                # (sum_of_gradients / sample_size).
+                # multiply gradients by (data_parallel_size / sample_size) since
+                # DDP already normalizes by the number of data parallel workers.
+                # Thus we get (sum_of_gradients / sample_size) at the end.
                 if not self.args.use_bmuf:
                     self.optimizer.multiply_grads(self.data_parallel_world_size / sample_size)
                 elif sample_size > 0:  # BMUF needs to check sample size

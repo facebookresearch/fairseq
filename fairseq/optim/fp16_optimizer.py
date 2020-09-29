@@ -279,6 +279,9 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
     def set_lr(self, lr):
         self.fp32_optimizer.set_lr(lr)
 
+    def all_reduce_grads(self, module):
+        self.fp32_optimizer.all_reduce_grads(module)
+
 
 class _MemoryEfficientFP16OptimizerMixin(object):
 
@@ -465,3 +468,6 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
 
     def set_lr(self, lr):
         self.wrapped_optimizer.set_lr(lr)
+
+    def all_reduce_grads(self, module):
+        self.wrapped_optimizer.all_reduce_grads(module)
