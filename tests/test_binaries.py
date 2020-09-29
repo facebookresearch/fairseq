@@ -270,16 +270,22 @@ class TestTranslation(unittest.TestCase):
             with tempfile.TemporaryDirectory('test_transformer_pointer_generator') as data_dir:
                 create_dummy_data(data_dir)
                 preprocess_summarization_data(data_dir)
-                train_translation_model(data_dir, 'transformer_pointer_generator', [
-                    '--user-dir', 'examples/pointer_generator/src',
-                    '--encoder-layers', '2',
-                    '--decoder-layers', '2',
-                    '--encoder-embed-dim', '8',
-                    '--decoder-embed-dim', '8',
-                    '--alignment-layer', '-1',
-                    '--alignment-heads', '1',
-                    '--source-position-markers', '0',
-                ], run_validation=True)
+                train_translation_model(
+                    data_dir,
+                    'transformer_pointer_generator',
+                    extra_flags=[
+                        '--user-dir', 'examples/pointer_generator/src',
+                        '--encoder-layers', '2',
+                        '--decoder-layers', '2',
+                        '--encoder-embed-dim', '8',
+                        '--decoder-embed-dim', '8',
+                        '--alignment-layer', '-1',
+                        '--alignment-heads', '1',
+                        '--source-position-markers', '0',
+                    ],
+                    run_validation=True,
+                    extra_valid_flags=['--user-dir', 'examples/pointer_generator/src'],
+                )
                 generate_main(
                     data_dir,
                     extra_flags=['--user-dir', 'examples/pointer_generator/src'],
