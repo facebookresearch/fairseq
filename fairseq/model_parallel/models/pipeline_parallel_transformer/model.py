@@ -129,6 +129,11 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        parser.add_argument('--num-embedding-chunks', type=int, metavar='N', default=1,
+                            help='Number of embedding layer chunks (enables more even distribution'
+                                 'of optimizer states across data parallel nodes'
+                                 'when using optimizer state sharding and'
+                                 'a big embedding vocabulary)')
         # fmt: on
 
     @classmethod
@@ -145,17 +150,27 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
-        def build_embedding(dictionary, embed_dim, path=None):
+        def build_embedding(dictionary, embed_dim, path=None, num_embed_chunks=1):
+            assert embed_dim % num_embed_chunks == 0, \
+                f"Number of embedding chunks = {num_embed_chunks} should be " + \
+                f"divisible by the embedding dimension = {embed_dim}"
+            assert path is None or num_embed_chunks == 1, \
+                "Loading embedding from a path with number of embedding chunks > 1" + \
+                " is not yet supported"
             num_embeddings = len(dictionary)
             padding_idx = dictionary.pad()
-
-            emb = Embedding(num_embeddings, embed_dim, padding_idx)
             # if provided, load from preloaded dictionaries
             if path:
+                emb = Embedding(num_embeddings, embed_dim, padding_idx)
                 embed_dict = utils.parse_embedding(path)
                 utils.load_embedding(embed_dict, dictionary, emb)
+            else:
+                embed_chunk_dim = embed_dim // num_embed_chunks
+                emb = nn.ModuleList()
+                for i in range(num_embed_chunks):
+                    emb.append(Embedding(num_embeddings, embed_chunk_dim, padding_idx))
             return emb
-
+        num_embed_chunks = args.num_embedding_chunks
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
                 raise ValueError('--share-all-embeddings requires a joined dictionary')
@@ -166,16 +181,19 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                     args.decoder_embed_path != args.encoder_embed_path):
                 raise ValueError('--share-all-embeddings not compatible with --decoder-embed-path')
             encoder_embed_tokens = build_embedding(
-                src_dict, args.encoder_embed_dim, args.encoder_embed_path,
+                src_dict, args.encoder_embed_dim, args.encoder_embed_path, num_embed_chunks,
             )
             decoder_embed_tokens = encoder_embed_tokens
             args.share_decoder_input_output_embed = True
         else:
+            assert args.share_decoder_input_output_embed or num_embed_chunks == 1, \
+                "Not sharing decoder I/O embeddings is not yet supported with number of " + \
+                "embedding chunks > 1"
             encoder_embed_tokens = build_embedding(
-                src_dict, args.encoder_embed_dim, args.encoder_embed_path
+                src_dict, args.encoder_embed_dim, args.encoder_embed_path, num_embed_chunks,
             )
             decoder_embed_tokens = build_embedding(
-                tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
+                tgt_dict, args.decoder_embed_dim, args.decoder_embed_path, num_embed_chunks,
             )
 
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
@@ -238,7 +256,7 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
 
     def max_decoder_positions(self):
         """Maximum length supported by the decoder."""
-        return self.decoder.max_positions()
+        return self.decoder_max_positions
 
     def load_state_dict(self, state_dict, strict=True, args=None):
         """Copies parameters and buffers from *state_dict* into this module and
