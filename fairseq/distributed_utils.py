@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import contextlib
 import logging
 import os
 import pickle
@@ -12,15 +13,28 @@ import struct
 import subprocess
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, List, Mapping
 
 import torch
 import torch.distributed as dist
 
 from fairseq import utils
 
+try:
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    xm = None
+
 
 logger = logging.getLogger(__name__)
+
+
+# Model parallel group that the current rank belongs to.
+_MODEL_PARALLEL_GROUP = None
+# Data parallel group that the current rank belongs to.
+_DATA_PARALLEL_GROUP = None
+# Whether to use XLA ops (e.g., on TPUs) instead of CUDA ops.
+_USE_XLA = False
 
 
 def is_master(args):
@@ -178,8 +192,9 @@ def distributed_init(args):
 
         args.distributed_rank = torch.distributed.get_rank()
     else:
-        import torch_xla.core.xla_model as xm
         assert xm.xrt_world_size() == args.distributed_world_size
+        global _USE_XLA
+        _USE_XLA = True
         args.device_id = xm.get_local_ordinal()
         args.distributed_rank = xm.get_ordinal()
         xm.rendezvous('distributed_init')  # wait for all workers
@@ -188,23 +203,25 @@ def distributed_init(args):
     if not is_master(args):
         logging.getLogger().setLevel(logging.WARNING)
 
-    if args.model_parallel_size > 1:
+    # initialize data parallel and model parallel groups
+    initialize_distributed_groups(model_parallel_size=args.model_parallel_size)
+
+    # set torch seed
+    utils.set_torch_seed(args.seed)
+
+    # extra setup for model parallel
+    if get_model_parallel_world_size() > 1:
         try:
-            from fairseq.model_parallel.megatron.mpu import (
-                get_model_parallel_rank,
-                initialize_model_parallel,
-                model_parallel_cuda_manual_seed,
-            )
+            from fairseq.model_parallel.megatron import mpu
         except ImportError:
             raise ImportError(
                 '\n\nPlease install the megatron submodule:'
                 '\n\n  git submodule update --init '
                 'fairseq/model_parallel/megatron'
             )
-        initialize_model_parallel(args.model_parallel_size)
-        model_parallel_cuda_manual_seed(args.seed)
         model_part_number = get_model_parallel_rank()
         args.checkpoint_suffix += '-model_part-{0}'.format(model_part_number)
+
     return args.distributed_rank
 
 
@@ -254,29 +271,99 @@ def call_main(args, main, **kwargs):
         main(args, **kwargs)
 
 
-def get_rank():
-    return dist.get_rank()
+def is_xla():
+    global _USE_XLA
+    return _USE_XLA
 
 
-def get_world_size():
-    return dist.get_world_size()
-
-
-def get_default_group():
-    return dist.group.WORLD
-
-
-def all_reduce(tensor, group=None):
-    if isinstance(group, tuple) and group[0] == 'tpu':
-        import torch_xla.core.xla_model as xm
-        return xm.all_reduce('sum', [tensor], groups=group[1])
+def get_rank(group):
+    if is_xla():
+        assert group[0] == 'tpu'
+        my_group = _find_my_group(group[1])
+        return my_group.index(get_global_rank())
     else:
-        if group is None:
-            group = get_default_group()
-        return dist.all_reduce(tensor, group=group)
+        return dist.get_rank(group=group)
 
 
-def all_gather_list(data, group=None, max_size=16384):
+def get_world_size(group):
+    if is_xla():
+        assert group[0] == 'tpu'
+        my_group = _find_my_group(group[1])
+        return len(my_group)
+    else:
+        return dist.get_world_size(group=group)
+
+
+def new_groups(grouped_ranks: List[List[int]]):
+    if is_xla():
+        return ('tpu', grouped_ranks)
+    else:
+        groups = [dist.new_group(g) for g in grouped_ranks]
+        my_group_idx = _find_my_group_index(grouped_ranks)
+        return groups[my_group_idx]
+
+
+def all_reduce(tensor, group, op='sum'):
+    if is_xla():
+        assert isinstance(group, tuple) and group[0] == 'tpu'
+        tensor = [tensor]  # wrap in a list to make xm.all_reduce in-place
+        return xm.all_reduce(op, tensor, groups=group[1])[0]
+    else:
+        if op == 'sum':
+            op = dist.ReduceOp.SUM
+        elif op == 'max':
+            op = dist.ReduceOp.MAX
+        else:
+            raise NotImplementedError
+        dist.all_reduce(tensor, op=op, group=group)
+        return tensor
+
+
+def all_to_all(tensor, group):
+    """Perform an all-to-all operation on a 1D Tensor."""
+    assert tensor.dim() == 1
+    split_count = get_world_size(group=group)
+    assert tensor.numel() % split_count == 0
+    if is_xla():
+        assert isinstance(group, tuple) and group[0] == 'tpu'
+        return xm.all_to_all(
+            tensor,
+            split_dimension=0,
+            concat_dimension=0,
+            split_count=split_count,
+            groups=group[1],
+        )
+    else:
+        output = torch.zeros_like(tensor)
+        dist.all_to_all_single(output, tensor, group=group)
+        return output
+
+
+def all_gather(tensor, group, return_tensor=False):
+    """Perform an all-gather operation."""
+    if is_xla():
+        result = xm.all_gather(tensor, groups=group[1])
+        world_size = get_world_size(group=group)
+        result = result.view(world_size, *tensor.size())
+        if return_tensor:
+            return result
+        else:
+            return [result[i] for i in range(world_size)]
+    else:
+        world_size = get_world_size(group=group)
+        rank = get_rank(group=group)
+        tensor_list = [
+            tensor if i == rank else torch.empty_like(tensor)
+            for i in range(world_size)
+        ]
+        dist.all_gather(tensor_list, tensor, group=group)
+        if return_tensor:
+            return torch.stack(tensor_list, dim=0)
+        else:
+            return tensor_list
+
+
+def all_gather_list(data, group, max_size=16384):
     """Gathers arbitrary data from all nodes into a list.
 
     Similar to :func:`~torch.distributed.all_gather` but for arbitrary Python
@@ -284,12 +371,12 @@ def all_gather_list(data, group=None, max_size=16384):
 
     Args:
         data (Any): data from the local worker to be gathered on other workers
-        group (optional): group of the collective
+        group: group of the collective
         max_size (int, optional): maximum size of the data to be gathered
             across workers
     """
-    rank = get_rank()
-    world_size = get_world_size()
+    rank = get_rank(group=group)
+    world_size = get_world_size(group=group)
 
     buffer_size = max_size * world_size
     if not hasattr(all_gather_list, '_buffer') or \
@@ -339,7 +426,7 @@ def all_gather_list(data, group=None, max_size=16384):
 def all_reduce_dict(
     data: Mapping[str, Any],
     device,
-    group=None,
+    group,
 ) -> Dict[str, Any]:
     """
     AllReduce a dictionary of values across workers. We separately
@@ -350,7 +437,7 @@ def all_reduce_dict(
         data (Mapping[str, Any]): dictionary of data to all-reduce, but
             cannot be a nested dictionary
         device (torch.device): device for the reduction
-        group (optional): group of the collective
+        group: group of the collective
     """
     data_keys = list(data.keys())
 
@@ -385,3 +472,131 @@ def all_reduce_dict(
         raise KeyError
 
     return OrderedDict([(key, get_from_stack(key)) for key in data_keys])
+
+
+def get_global_world_size():
+    if is_xla():
+        return xm.xrt_world_size()
+    else:
+        return torch.distributed.get_world_size()
+
+
+def get_global_rank():
+    if is_xla():
+        return xm.get_ordinal()
+    else:
+        return torch.distributed.get_rank()
+
+
+def initialize_distributed_groups(model_parallel_size, use_xla=False):
+    """
+    Initialize model data parallel groups.
+
+    Arguments:
+        model_parallel_size: number of GPUs used to parallelize model.
+
+    NOTE: modified from megatron.mpu.initialize to support XLA/TPUs.
+
+    Let's say we have a total of 8 GPUs denoted by g0 ... g7 and we
+    use 2 GPUs to parallelize the model. The present function will
+    create 4 model parallel groups and 2 data parallel groups as:
+        4 model parallel groups:
+            [g0, g1], [g2, g3], [g4, g5], [g6, g7]
+        2 data parallel groups:
+            [g0, g2, g4, g6], [g1, g3, g5, g7]
+    Note that for efficiency, the caller should make sure adjacent ranks
+    are on the same DGX box. For example if we are using 2 DGX-1 boxes
+    with a total of 16 GPUs, rank 0 to 7 belong to the first box and
+    ranks 8 to 15 belong to the second box.
+    """
+
+    # Get world size and rank. Ensure some consistencies.
+    world_size = get_global_world_size()
+    model_parallel_size = min(model_parallel_size, world_size)
+    assert world_size % model_parallel_size == 0
+    rank = get_global_rank()
+
+    # Build the data parallel groups.
+    global _DATA_PARALLEL_GROUP
+    assert _DATA_PARALLEL_GROUP is None, \
+        'data parallel group is already initialized'
+    grouped_ranks = []
+    for i in range(model_parallel_size):
+        ranks = list(range(i, world_size, model_parallel_size))
+        grouped_ranks.append(ranks)
+    _DATA_PARALLEL_GROUP = new_groups(grouped_ranks)
+
+    # Build the model parallel groups.
+    global _MODEL_PARALLEL_GROUP
+    assert _MODEL_PARALLEL_GROUP is None, \
+        'model parallel group is already initialized'
+    grouped_ranks = []
+    for i in range(world_size // model_parallel_size):
+        ranks = list(
+            range(i * model_parallel_size, (i + 1) * model_parallel_size)
+        )
+        grouped_ranks.append(ranks)
+    _MODEL_PARALLEL_GROUP = new_groups(grouped_ranks)
+
+    if model_parallel_size > 1:
+        logger.info(
+            'initialized model parallel with size {}'.format(model_parallel_size)
+        )
+
+
+def get_model_parallel_group():
+    global _MODEL_PARALLEL_GROUP
+    assert _MODEL_PARALLEL_GROUP is not None, \
+        'model parallel group is not initialized'
+    return _MODEL_PARALLEL_GROUP
+
+
+def _find_my_group_index(grouped_ranks):
+    my_rank = get_global_rank()
+    my_group = None
+    for i, group in enumerate(grouped_ranks):
+        if my_rank in group:
+            return i
+    raise RuntimeError
+
+
+def _find_my_group(grouped_ranks):
+    index = _find_my_group_index(grouped_ranks)
+    return grouped_ranks[index]
+
+
+def get_data_parallel_group():
+    """Get the data parallel group the caller rank belongs to."""
+    global _DATA_PARALLEL_GROUP
+    assert _DATA_PARALLEL_GROUP is not None, \
+        'data parallel group is not initialized'
+    return _DATA_PARALLEL_GROUP
+
+
+def get_model_parallel_world_size():
+    """Return world size for the model parallel group."""
+    return get_world_size(get_model_parallel_group())
+
+
+def get_model_parallel_rank():
+    """Return my rank for the model parallel group."""
+    return get_rank(get_model_parallel_group())
+
+
+def get_data_parallel_world_size():
+    """Return world size for the data parallel group."""
+    return get_world_size(get_data_parallel_group())
+
+
+def get_data_parallel_rank():
+    """Return my rank for the data parallel group."""
+    return get_rank(get_data_parallel_group())
+
+
+@contextlib.contextmanager
+def fork_rng_for_model_parallel():
+    # use the data parallel RNG to generate the starting seed for the fork
+    start_seed = torch.randint(1000000, (1,)).item()
+    seed = start_seed + get_model_parallel_rank()
+    with utils.set_torch_seed(seed):
+        yield

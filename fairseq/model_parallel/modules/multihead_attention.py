@@ -7,15 +7,13 @@ from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from fairseq import utils
+from fairseq import distributed_utils, utils
 from torch import Tensor, nn
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
 
 try:
     from fairseq.model_parallel.megatron.mpu import (
-        get_cuda_rng_tracker,
-        get_model_parallel_world_size,
         ColumnParallelLinear,
         RowParallelLinear,
     )
@@ -55,7 +53,7 @@ class ModelParallelMultiheadAttention(nn.Module):
         self.vdim = vdim if vdim is not None else embed_dim
         self.qkv_same_dim = self.kdim == embed_dim and self.vdim == embed_dim
 
-        self.model_parallel_size = get_model_parallel_world_size()
+        self.model_parallel_size = distributed_utils.get_model_parallel_world_size()
 
         self.num_heads_partition = num_heads // self.model_parallel_size
         assert (
@@ -240,7 +238,7 @@ class ModelParallelMultiheadAttention(nn.Module):
         )
         attn_weights = attn_weights_float.type_as(attn_weights)
 
-        with get_cuda_rng_tracker().fork():
+        with distributed_utils.fork_rng_for_model_parallel():
             attn_probs = self.dropout_module(attn_weights)
 
         assert v is not None

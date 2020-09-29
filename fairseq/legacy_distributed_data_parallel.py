@@ -119,7 +119,7 @@ class LegacyDistributedDataParallel(nn.Module):
             if nonzero_buffer:
                 buffer.div_(self.world_size)
 
-            distributed_utils.all_reduce(buffer, self.process_group)
+            distributed_utils.all_reduce(buffer, group=self.process_group)
 
             # copy all-reduced grads back into their original place
             offset = 0

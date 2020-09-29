@@ -105,7 +105,10 @@ class Trainer(object):
         if self.cuda:
             self.cuda_env = utils.CudaEnvironment()
             if self.data_parallel_world_size > 1:
-                self.cuda_env_arr = distributed_utils.all_gather_list(self.cuda_env)
+                self.cuda_env_arr = distributed_utils.all_gather_list(
+                    self.cuda_env,
+                    group=self.data_parallel_process_group,
+                )
             else:
                 self.cuda_env_arr = [self.cuda_env]
             if self.data_parallel_rank == 0:
@@ -129,22 +132,25 @@ class Trainer(object):
 
     @property
     def data_parallel_world_size(self):
-        return self.args.distributed_world_size
+        if self.args.distributed_world_size == 1:
+            return 1
+        return distributed_utils.get_data_parallel_world_size()
 
     @property
     def data_parallel_process_group(self):
-        if self.tpu:
-            return ('tpu', None)
-        else:
-            return None
+        return distributed_utils.get_data_parallel_group()
 
     @property
     def data_parallel_rank(self):
-        return self.args.distributed_rank
+        if self.args.distributed_world_size == 1:
+            return 0
+        return distributed_utils.get_data_parallel_rank()
 
     @property
     def is_data_parallel_master(self):
-        return distributed_utils.is_master(self.args)
+        # NOTE: this returns true for all model parallel replicas with data
+        # parallel rank 0
+        return self.data_parallel_rank == 0
 
     @property
     def criterion(self):
@@ -430,10 +436,13 @@ class Trainer(object):
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
+        with self.set_seed_for_train_step():
+            return self._train_step(samples, raise_oom=raise_oom)
+
+    def _train_step(self, samples, raise_oom=False):
         if self._dummy_batch == "DUMMY":
             self._dummy_batch = samples[0]
 
-        self._set_seed()
         self.model.train()
         self.criterion.train()
         self.zero_grad()
@@ -540,7 +549,12 @@ class Trainer(object):
             if self.tpu and self.data_parallel_world_size > 1:
                 import torch_xla.core.xla_model as xm
                 gradients = xm._fetch_gradients(self.optimizer.optimizer)
-                xm.all_reduce('sum', gradients, scale=1.0 / self.data_parallel_world_size)
+                xm.all_reduce(
+                    'sum',
+                    gradients,
+                    scale=1.0 / self.data_parallel_world_size,
+                    groups=self.data_parallel_process_group[1],
+                )
 
             with torch.autograd.profiler.record_function("multiply-grads"):
                 # multiply gradients by (# GPUs / sample_size) since DDP
@@ -843,11 +857,13 @@ class Trainer(object):
 
         return sample
 
-    def _set_seed(self):
-        # Set seed based on args.seed and the update number so that we get
-        # reproducible results when resuming from checkpoints
+    @contextlib.contextmanager
+    def set_seed_for_train_step(self):
+        # Set seed based on args.seed and the update number so that we
+        # get reproducible results when resuming from checkpoints
         seed = self.args.seed + self.get_num_updates()
-        utils.set_torch_seed(seed)
+        with utils.set_torch_seed(seed):
+            yield
 
     def _sync_stats(self):
         # Return True if it's using multiple GPUs and DDP or multiple GPUs with
