@@ -56,6 +56,12 @@ def main(get_grid, postprocess_hyperparams, args):
                         "--manifold-ttl", str(args.manifold_ttl),
                     ]
                 )
+            if args.tensorboard_logdir:
+                cmd_args.extend([
+                    "--tensorboard-logdir",
+                    args.tensorboard_logdir,
+                    "--tensorboard-manifold"
+                ])
             sweep_config[x['train_log_path']] = cmd_args
             save_dirs.append(x['save_dir'])
 

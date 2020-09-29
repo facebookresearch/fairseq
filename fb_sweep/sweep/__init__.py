@@ -130,7 +130,6 @@ def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None
     parser.add_argument('--snapshot-recurse-dirs', default='fairseq',
                         help='comma-separated directories from where to recursively copy *.py and *.so files')
     parser.add_argument('--tensorboard-logdir',
-                        default=os.path.join('/checkpoint', os.environ['USER'], 'tensorboard_logs', str(datetime.date.today())),
                         help='save tensorboard logs in <tensorboard-logdir>/<prefix>.<save_dir_key>')
     parser.add_argument('--no-tensorboard', action='store_true',
                         help='disable tensorboard logging')
