@@ -33,7 +33,7 @@ from fairseq.data.multilingual.multilingual_utils import (
 )
 from fairseq.data.multilingual.sampled_multi_dataset import CollateFormat
 from fairseq.file_io import PathManager
-from fairseq.options import csv_str_list, eval_str_dict
+from fairseq.options import csv_str_list, eval_str_dict, FileContentsAction
 
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,7 @@ class MultilingualDatasetManager(object):
             "data",
             help="colon separated path to data directories list, \
                             will be iterated upon during epochs in round-robin manner",
+            action=FileContentsAction,
         )
         parser.add_argument(
             "--langs",
@@ -95,6 +96,7 @@ class MultilingualDatasetManager(object):
             "languages which can appear in lang-pairs; "
             "note that the ordering determines language token IDs; "
             "--langs and --lang-dict are two exclusive options",
+            action=FileContentsAction,
         )
         parser.add_argument(
             "--lang-tok-style",

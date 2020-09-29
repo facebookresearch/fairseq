@@ -19,7 +19,7 @@ from fairseq.data import (
 from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data.multilingual.sampling_method import SamplingMethod
 from fairseq.data.multilingual.multilingual_data_manager import MultilingualDatasetManager
-
+from fairseq.options import FileContentsAction
 
 ###
 def get_time_gap(s, e):
@@ -62,7 +62,8 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
                             help='inference target language')
         parser.add_argument('--lang-pairs', default=None, metavar='PAIRS',
-                            help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr')
+                            help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr',
+                            action=FileContentsAction)
         parser.add_argument('--keep-inference-langtok', action='store_true',
                             help='keep language tokens in inference output (e.g. for analysis or debugging)')
 

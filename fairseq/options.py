@@ -4,14 +4,31 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import os
 import sys
 from typing import Callable, List, Optional
 
 import torch
 # this import is for backward compatibility
+from fairseq.file_io import PathManager
 from fairseq.utils import csv_str_list, eval_str_list, eval_str_dict, eval_bool # noqa
 from fairseq import utils
 from fairseq.data.indexed_dataset import get_available_dataset_impl
+
+
+class FileContentsAction(argparse.Action):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(FileContentsAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if PathManager.isfile(values):
+            with open(values) as f:
+                argument = f.read().strip()
+        else:
+            argument = values
+        setattr(namespace, self.dest, argument)
 
 
 def get_preprocessing_parser(default_task="translation"):
