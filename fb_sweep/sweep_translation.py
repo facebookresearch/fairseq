@@ -33,7 +33,7 @@ def add_extra_options_func(parser):
 
     parser.add_argument('--max-tokens', help='max tokens per batch', type=int, default=3584)
     parser.add_argument('--arch', default='transformer')
-    parser.add_argument('--task', default='translation_multi_simple_epoch')
+    parser.add_argument('--task', default='translation')
 
     # equivalent to training on 16x GPUs
     parser.add_argument('--update-freq', default=4)
