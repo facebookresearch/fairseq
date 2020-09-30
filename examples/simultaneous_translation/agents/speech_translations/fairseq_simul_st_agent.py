@@ -121,10 +121,13 @@ class FairseqSimulSTAgent(SpeechAgent):
         # TODO: temparory solution
         config_yaml = os.path.join(args.data_bin, 'config.yaml')
         with open(config_yaml, 'r') as f:
-            config = yaml.load(f)
+            config = yaml.safe_load(f)
 
-        with open(config['global_cmvn']['gcmvn'], 'rb') as f:
-            gcmvn = pickle.load(f)
+        if 'global_cmvn' in config:
+            with open(config['global_cmvn']['gcmvn'], 'rb') as f:
+                gcmvn = pickle.load(f)
+        else:
+            gcmvn = {"mean": 0, "std": 1}
 
         self.feature_extractor = OnlineFeatureExtractor(
             global_cmvn=(gcmvn["mean"], gcmvn["std"])

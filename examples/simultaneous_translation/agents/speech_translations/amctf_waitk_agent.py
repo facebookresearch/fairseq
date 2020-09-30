@@ -1,29 +1,29 @@
 import os
 import sys
-import json
 import torch
+import logging
 from simuleval.states import ListEntry
-from simuleval import READ_ACTION, WRITE_ACTION
+from simuleval import READ_ACTION, WRITE_ACTION, DEFAULT_EOS
+from fairseq.models.fairseq_encoder import EncoderOut
+from fairseq.models.speech_to_text.utils import pad_sequence
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from fairseq_simul_st_agent import FairseqSimulSTAgent  # noqa: E402
-from fairseq.models.fairseq_encoder import EncoderOut
-from fairseq.models.speech_to_text.utils import pad_sequence
-import logging
 
 logger = logging.getLogger('simuleval.agent')
 
 
-class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
+class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
     def __init__(self, args):
         super().__init__(args)
-        self.waitk = args.waitk
 
         # Segment size on features
         self.segment_size = self.model.encoder.segment_size
         self.left_context = self.model.encoder.left_context
         self.right_context = self.model.encoder.right_context
-        self.full_context = self.left_context + self.segment_size + self.right_context
+        self.full_context = (
+            self.left_context + self.segment_size + self.right_context
+        )
 
         # Segment size on samples
         self.speech_segment_size = int(
@@ -36,11 +36,27 @@ class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
             self.right_context * self.feature_extractor.shift_size
         )
 
+        self.waitk = getattr(
+            self.model.decoder.layers[0].encoder_attn, "waitk_lagging", None
+        )
+
+        if args.waitk is not None:
+            logger.warning(
+                "Usaing a different lagging from loaded model"
+                f"({args.waitk}, {self.waitk})"
+            )
+            self.waitk = args.waitk
+
+        if self.waitk is None:
+            logger.error(
+                "Wait K lagging can't be found from the model"
+                "Please use '--waitk' argument."
+                )
+
         # Fixed predicion size
-        #self.fixed_pooling_ratio = getattr(
-        #    self.model.decoder.layers[0].encoder_attn, "pooling_ratio", None
-        #)
-        self.fixed_pooling_ratio = 5
+        self.fixed_pooling_ratio = getattr(
+            self.model.decoder.layers[0].encoder_attn, "pooling_ratio", None
+        )
 
         if self.fixed_pooling_ratio is None:
             logger.warn("No pooling ratio is provided, use 1.")
@@ -59,11 +75,11 @@ class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
     @staticmethod
     def add_args(parser):
         super(
-            FixedStepTestTimeWaitkAMCTSimulSTAgent,
-            FixedStepTestTimeWaitkAMCTSimulSTAgent
+            AMCTFWaitkSimulSTAgent,
+            AMCTFWaitkSimulSTAgent
         ).add_args(parser)
-        parser.add_argument("--waitk", type=int, default=3)
-        # parser.add_argument("--segment-size", type=int, default=360)
+        parser.add_argument("--waitk", type=int, default=None,
+                            help="Use a different k for inference")
 
     def update_model_encoder(self, states):
         """
@@ -73,7 +89,9 @@ class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
             # First segment. No previous history
             seg_src_indices = self.to_device(
                 pad_sequence(
-                    states.units.source.value[-1][0: self.segment_size + self.right_context].unsqueeze(0),
+                    states.units.source.value[-1][
+                        0: self.segment_size + self.right_context
+                    ].unsqueeze(0),
                     time_axis=1,
                     extra_left_context=self.left_context,
                     extra_right_context=0,
@@ -129,16 +147,14 @@ class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
                 dim=0
             )
 
-        #import pdb; pdb.set_trace()
-        #states.encoder_states_full = self.model.encoder.forward(
-        #   self.to_device(torch.cat(states.units.source.value, 0).unsqueeze(0)),
-        #   self.to_device(torch.LongTensor([torch.cat(states.units.source.value, 0).size(0)]))
-        #).encoder_out
-
-
         torch.cuda.empty_cache()
 
     def policy(self, states):
+
+        if len(states.units.target) >= self.max_len:
+            states.status["write"] = False
+
+        print(states)
 
         if getattr(states, "encoder_states", None) is None:
             # Reading the first frames
@@ -149,7 +165,6 @@ class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
                 self.speech_segment_size = (
                     self.speech_segment_size
                     + self.speech_right_context + 15
-                    #+ self.speech_left_context
                 )
                 return READ_ACTION
 
@@ -157,11 +172,6 @@ class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
             self.segment_size
             * self.feature_extractor.shift_size
         )
-
-        #print(states)
-        #print(states.incremental_states['steps'])
-        #print(states.encoder_states.size())
-        #import pdb; pdb.set_trace()
 
         encoder_states = states.encoder_states
         while(
@@ -206,7 +216,7 @@ class FixedStepTestTimeWaitkAMCTSimulSTAgent(FairseqSimulSTAgent):
             'tgt': len(states.units.target.value) + 1
         }
 
-        states.incremental_states['online'] = False #not states.finish_read()
+        states.incremental_states['online'] = False
 
         x, outputs = self.model.decoder.forward(
             prev_output_tokens=tgt_indices,
