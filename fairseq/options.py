@@ -24,7 +24,7 @@ class FileContentsAction(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         if PathManager.isfile(values):
-            with open(values) as f:
+            with PathManager.open(values) as f:
                 argument = f.read().strip()
         else:
             argument = values
