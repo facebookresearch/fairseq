@@ -197,6 +197,7 @@ def train(args, trainer, task, epoch_itr):
 
     trainer.begin_epoch(epoch_itr.epoch)
 
+    valid_losses = [None]
     valid_subsets = args.valid_subset.split(",")
     should_stop = False
     num_updates = trainer.get_num_updates()
