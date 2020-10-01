@@ -241,7 +241,7 @@ def call_main(args, main, **kwargs):
             )
         else:
             distributed_main(args.device_id, main, args, kwargs)
-    elif getattr(args, "tpu", False):
+    elif getattr(args, "tpu", False) and args.distributed_world_size > 1:
         import torch_xla.distributed.xla_multiprocessing as xmp
         torch.multiprocessing.set_sharing_strategy("file_system")
         xmp.spawn(
