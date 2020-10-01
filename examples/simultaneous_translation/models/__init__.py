@@ -11,4 +11,7 @@ for file in os.listdir(os.path.dirname(__file__)):
         model_name = file[:file.find('.py')]
         importlib.import_module('examples.simultaneous_translation.models.' + model_name)
 
-from .transformer_monotonic_attention import TransformerMonotonicDecoder
+from .transformer_monotonic_attention import (
+    TransformerMonotonicDecoder,
+    TransformerMonotonicModel
+)
