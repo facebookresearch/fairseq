@@ -607,6 +607,17 @@ class Trainer(object):
                 # this causes wps to be misreported when log_interval > 1
                 logging_output = {}
                 if self.get_num_updates() % self.args.log_interval == 0:
+                    # log memory usage
+                    mem_info = xm.get_memory_info(self.device)
+                    gb_free = mem_info['kb_free'] / 1024 / 1024
+                    gb_total = mem_info['kb_total'] / 1024 / 1024
+                    metrics.log_scalar(
+                        'gb_free', gb_free, priority=1500, round=1, weight=0,
+                    )
+                    metrics.log_scalar(
+                        'gb_total', gb_total, priority=1600, round=1, weight=0,
+                    )
+
                     logging_output = self._reduce_and_log_stats(
                         logging_outputs, sample_size, grad_norm,
                     )
@@ -1017,19 +1028,18 @@ class Trainer(object):
                         del logging_output[key_to_delete]
             return logging_output
 
-    def _check_xla_compilation(self, message=None):
+    def _check_xla_compilation(self):
         import torch_xla.debug.metrics as met
         compile_stats = met.metric_data("CompileTime")
         if compile_stats is None:
             return
         num_xla_compiles = compile_stats[0]
         if num_xla_compiles > self._num_xla_compiles:
-            if message is None:
-                message = (
-                    "too many of these can lead to slow training, "
-                    "but we expect a few in the beginning"
-                )
-            logging.info("NOTE: XLA compilation detected; {}".format(message))
+            logger.warning(
+                "XLA compilation detected on device #{}; too many of these can lead "
+                "to slow training, but we expect a few in the beginning"
+                .format(self.args.distributed_rank)
+            )
         self._num_xla_compiles = num_xla_compiles
 
 

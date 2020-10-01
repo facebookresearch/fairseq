@@ -83,6 +83,11 @@ class ModelParallelMultiheadAttention(nn.Module):
         self.q_proj = ColumnParallelLinear(embed_dim, embed_dim, bias=bias, gather_output=False)
         self.out_proj = RowParallelLinear(embed_dim, embed_dim, bias=bias, input_is_parallel=True)
 
+        self.tpu = False
+
+    def prepare_for_tpu_(self, **kwargs):
+        self.tpu = True
+
     def forward(
         self,
         query,
@@ -220,9 +225,14 @@ class ModelParallelMultiheadAttention(nn.Module):
         if key_padding_mask is not None:
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads_partition, tgt_len, src_len)
-            attn_weights = attn_weights.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool), float("-inf")
-            )
+            if not self.tpu:
+                attn_weights = attn_weights.masked_fill(
+                    key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool), float("-inf")
+                )
+            else:
+                attn_weights = attn_weights.transpose(0, 2)
+                attn_weights = attn_weights.masked_fill(key_padding_mask, float('-inf'))
+                attn_weights = attn_weights.transpose(0, 2)
             attn_weights = attn_weights.view(bsz * self.num_heads_partition, tgt_len, src_len)
 
         attn_weights_float = utils.softmax(
