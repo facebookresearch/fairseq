@@ -952,7 +952,7 @@ class EnsembleModelWithAlignment(EnsembleModel):
         avg_attn = None
         for model in self.models:
             decoder_out = model(src_tokens, src_lengths, prev_output_tokens)
-            attn = decoder_out[1]["attn"]
+            attn = decoder_out[1]["attn"][0]
             if avg_attn is None:
                 avg_attn = attn
             else:
