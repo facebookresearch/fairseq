@@ -229,7 +229,7 @@ class Trainer(object):
                         "Please use --fp16-no-flatten-grads"
                 )
             else:
-                optim.shard_(self.args, self._optimizer)
+                optim.shard_(self.args, self._optimizer, self.data_parallel_process_group)
 
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
@@ -567,6 +567,7 @@ class Trainer(object):
             with torch.autograd.profiler.record_function("optimizer"):
                 # take an optimization step
                 self.optimizer.step()
+
         except FloatingPointError:
             # re-run the forward and backward pass with hooks attached to print
             # out where it fails
@@ -641,7 +642,6 @@ class Trainer(object):
             )
 
         metrics.log_stop_time("train_wall")
-
         return logging_output
 
     @metrics.aggregate("valid")
