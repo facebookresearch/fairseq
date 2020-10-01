@@ -446,7 +446,29 @@ class TestTranslation(unittest.TestCase):
                         '--decoder-embed-dim', '8',
                         '--load-alignments',
                         '--alignment-layer', '1',
-                        '--criterion', 'label_smoothed_cross_entropy_with_alignment'
+                        '--criterion', 'label_smoothed_cross_entropy_with_alignment',
+                    ],
+                    run_validation=True,
+                )
+                generate_main(data_dir)
+
+    def test_alignment_full_context(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory('test_alignment') as data_dir:
+                create_dummy_data(data_dir, alignment=True)
+                preprocess_translation_data(data_dir, ['--align-suffix', 'align'])
+                train_translation_model(
+                    data_dir,
+                    'transformer_align',
+                    [
+                        '--encoder-layers', '2',
+                        '--decoder-layers', '2',
+                        '--encoder-embed-dim', '8',
+                        '--decoder-embed-dim', '8',
+                        '--load-alignments',
+                        '--alignment-layer', '1',
+                        '--criterion', 'label_smoothed_cross_entropy_with_alignment',
+                        '--full-context-alignment',
                     ],
                     run_validation=True,
                 )
