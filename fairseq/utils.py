@@ -288,6 +288,7 @@ def multi_tensor_total_norm(grads, chunk_size=2048*32) -> torch.Tensor:
     return total_norm
 
 
+@torch.no_grad()
 def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
     if isinstance(params, torch.Tensor):
         params = [params]

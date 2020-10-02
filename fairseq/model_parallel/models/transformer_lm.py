@@ -36,6 +36,9 @@ class ModelParallelTransformerLanguageModel(TransformerLanguageModel):
         # make sure all arguments are present in older models
         base_lm_architecture(args)
 
+        task.source_dictionary.pad_to_multiple_(args.model_parallel_size * 8)
+        task.target_dictionary.pad_to_multiple_(args.model_parallel_size * 8)
+
         if args.decoder_layers_to_keep:
             args.decoder_layers = len(args.decoder_layers_to_keep.split(","))
 
