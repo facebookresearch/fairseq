@@ -63,7 +63,10 @@ class TestGradientScaling(unittest.TestCase):
         optimizer = FP16Optimizer.build_optimizer(self.namespace_dls, params)
 
         self.run_iter(model, params, optimizer)
-        self.assertTrue(torch.all(optimizer.fp32_params.eq(torch.tensor([3.1000, 5.1000], device='cuda:0', requires_grad=True))))
+        self.assertTrue(all(
+            torch.all(fp32_params.eq(torch.tensor([3.1000, 5.1000], device='cuda:0', requires_grad=True)))
+            for fp32_params in optimizer.fp32_params.values()
+        ))
 
     def test_memory_efficient(self):
         model = copy.deepcopy(self.model)
