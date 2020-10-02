@@ -423,16 +423,13 @@ class Trainer(object):
 
         # task specific setup per validation epoch
         self.task.begin_valid_epoch(epoch, self.get_model())
-        
+
         # reset dummy batch
         self._dummy_batch = 'DUMMY'
 
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
-        if self._dummy_batch == "DUMMY":
-            self._dummy_batch = samples[0]
-
         self._set_seed()
         self.model.train()
         self.criterion.train()
@@ -450,6 +447,8 @@ class Trainer(object):
                 sample = self._prepare_sample(self._dummy_batch)
                 is_dummy_batch = True
             else:
+                if self._dummy_batch == "DUMMY":
+                    self._dummy_batch = sample
                 is_dummy_batch = False
 
             def maybe_no_sync():
@@ -658,8 +657,6 @@ class Trainer(object):
     @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):
         """Do forward pass in evaluation mode."""
-        if self._dummy_batch == "DUMMY":
-            self._dummy_batch = sample
         if self.tpu:
             import torch_xla.core.xla_model as xm
             xm.rendezvous('valid_step')  # wait for all workers
@@ -674,6 +671,8 @@ class Trainer(object):
                 sample = self._prepare_sample(self._dummy_batch)
                 is_dummy_batch = True
             else:
+                if self._dummy_batch == "DUMMY":
+                    self._dummy_batch = sample
                 is_dummy_batch = False
 
             try:
