@@ -66,6 +66,9 @@ class ModelParallelRobertaModel(RobertaModel):
         # make sure all arguments are present
         base_architecture(args)
 
+        task.source_dictionary.pad_to_multiple_(args.model_parallel_size * 8)
+        task.target_dictionary.pad_to_multiple_(args.model_parallel_size * 8)
+
         if not hasattr(args, 'max_positions'):
             args.max_positions = args.tokens_per_sample
 

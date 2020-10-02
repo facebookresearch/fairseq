@@ -60,7 +60,7 @@ class ModelParallelMultiheadAttention(nn.Module):
         self.num_heads_partition = num_heads // self.model_parallel_size
         assert (
             self.num_heads_partition * self.model_parallel_size == num_heads
-        ), "Number of heads must be divisble by model parallel size"
+        ), "Number of heads must be divisible by model parallel size"
 
         self.dropout_module = FairseqDropout(
             dropout, module_name=self.__class__.__name__

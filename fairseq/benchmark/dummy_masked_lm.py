@@ -30,7 +30,6 @@ class DummyMaskedLMTask(LegacyFairseqTask):
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
-        self.seed = args.seed
 
         # add mask token
         self.mask_idx = dictionary.add_symbol('<mask>')

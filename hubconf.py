@@ -11,6 +11,8 @@ from fairseq.models import MODEL_REGISTRY
 
 
 dependencies = [
+    'dataclasses',
+    'hydra-core',
     'numpy',
     'regex',
     'requests',
