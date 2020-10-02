@@ -12,25 +12,32 @@ log = logging.getLogger(__name__)
 
 # tsv columns
 # id	audio	n_frames	tgt_text	speaker	src_text	src_lang	tgt_lang
-def load_values(file_name, key, value_table=None, spm_name=""):
+def load_values(file_name, key, value_table=None, spm_name="", utt_id_list=None):
 
-    if spm_name is not "":
+    if spm_name != "":
         sp = spm.SentencePieceProcessor()
         sp.Load(spm_name)
     else:
         sp = None
     value_table = {} if value_table is None else value_table
     with open(file_name, 'r') as f:
+        line_index = 0
         for line in f.readlines():
             line = line.strip()
             try:
                 (utt_id, value) = line.split("\t", 1)
             except ValueError:
-                (utt_id, value) = line.split(" ", 1)
+                value = line
+                utt_id = utt_id_list[line_index]
+                line_index += 1
             if utt_id not in value_table:
                 value_table[utt_id] = {}
             if sp is not None:
-                value = " ".join(sp.EncodeAsPieces(value))
+                #import pdb;pdb.set_trace()
+                try:
+                    value = " ".join(sp.EncodeAsPieces(value))
+                except:
+                    import pdb;pdb.set_trace()
             value_table[utt_id][key]=value
     return value_table
 
@@ -59,8 +66,8 @@ def main():
     cols = ['id', 'audio', 'n_frames', 'tgt_text']
     value_table = load_values(args.audio_tsv, "audio")
     value_table = expand_audio(value_table)
-    value_table = load_values(args.tgt_labels, "tgt_text", value_table, args.tgt_spm) 
-    if args.src_labels is not "":
+    value_table = load_values(args.tgt_labels, "tgt_text", value_table, args.tgt_spm, list(value_table.keys())) 
+    if args.src_labels != "":
         value_table = load_values(args.src_labels, "src_text", value_table) 
         cols = cols.append('src_text')
     with open(args.output_tsv,'w') as f:

@@ -14,15 +14,15 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from .berard import BerardASTModel
+from .berard import BerardModel
 
 from examples.simultaneous_translation.modules import (
-    build_monotonic_attention    
+    build_monotonic_attention
 )
 
 
 @register_model("berard_simul")
-class BerardSimulASTModel(BerardASTModel):
+class BerardSimulASTModel(BerardModel):
     @staticmethod
     def add_args(parser):
         super(BerardSimulASTModel, BerardSimulASTModel).add_args(parser)
@@ -31,7 +31,7 @@ class BerardSimulASTModel(BerardASTModel):
     @classmethod
     def build_encoder(cls, args, task):
         if getattr(args, 'encoder_hidden_size', None) is None:
-            args.encoder_hidden_size = args.lstm
+            args.encoder_hidden_size = args.lstm_size
         encoder = BerardSimulEncoder(
             input_layers=literal_eval(args.input_layers),
             conv_layers=literal_eval(args.conv_layers),
@@ -209,7 +209,7 @@ class BerardSimulEncoder(FairseqEncoder):
                     stride=stride,
                     padding=padding
                 ).squeeze(1)
-        
+
         if segmentation is not None:
             segmentation = segmentation.t()
 
@@ -247,7 +247,7 @@ class BerardSimulEncoder(FairseqEncoder):
         return {
             "encoder_out": x,
             "encoder_padding_mask": encoder_padding_mask,  # (T, B)
-            "encoder_segmentation" : segmentation
+            "encoder_segmentation": segmentation
         }  # (T, B, C)  # (B, )
 
     def reorder_encoder_out(self, encoder_out, new_order):
@@ -281,8 +281,8 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
         super().__init__(dictionary)
         self.num_layers = args.decoder_num_layers
         self.hidden_size = args.decoder_hidden_dim
-        self.embed_dim = args.decoder_embed_dim 
-        encoder_output_dim = args.encoder_hidden_size 
+        self.embed_dim = args.decoder_embed_dim
+        encoder_output_dim = args.encoder_hidden_size
         num_embeddings = len(dictionary)
         self.padding_idx = dictionary.pad()
         self.embed_tokens = nn.Embedding(num_embeddings, self.embed_dim, self.padding_idx)
@@ -303,7 +303,7 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
         self.attention = build_monotonic_attention(args)
 
         self.deep_output_layer = nn.Linear(
-            self.hidden_size + encoder_output_dim + self.embed_dim, 
+            self.hidden_size + encoder_output_dim + self.embed_dim,
             args.output_layer_dim
         )
         self.output_projection = nn.Linear(args.output_layer_dim, num_embeddings)
@@ -340,7 +340,6 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
 
         #attn_scores = x.new_zeros(bsz, srclen)
         prev_alpha = None
-        alpha_list = []
         attention_outs = []
         outs = []
         for j in range(seqlen):
@@ -365,16 +364,15 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
                 if attention_out is None:
                     if incremental_state is None:
                         self.attention.set_target_step(j)
-                    attention_out, prev_alpha = self.attention(
-                        hidden, 
-                        encoder_out, 
+                    attention_out = self.attention(
+                        hidden,
+                        encoder_outs,
                         prev_alpha,
                         incremental_state
                     )
                     if self.dropout is not None:
                         attention_out = self.dropout(attention_out)
                     attention_outs.append(attention_out)
-                    alpha_list.append(prev_alpha.t().unsqueeze(1))
                 input = attention_out
 
             # collect the output of the top layer
@@ -410,10 +408,8 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
         # to account for subsampling input frames
         # tgt_len, bsz, src_len
 
-        # bsz, tgt_len, src_len
-        alpha = torch.cat(alpha_list, dim=1)
 
-        return x, {'alpha' : alpha, 'encoder_padding_mask' : encoder_padding_mask}
+        return x, {'encoder_padding_mask' : encoder_padding_mask}
 
     def reorder_incremental_state(self, incremental_state, new_order):
         super().reorder_incremental_state(incremental_state, new_order)
@@ -439,7 +435,7 @@ class LSTMSimulDecoder(FairseqIncrementalDecoder):
 
 @register_model_architecture(model_name="berard_simul", arch_name="berard_simul_ast")
 def berard_simul_ast(args):
-    args.input_feat_per_channel = getattr(args, "input_feat_per_channel", 40)
+    args.input_feat_per_channel = getattr(args, "input_feat_per_channel", 80)
     args.in_channels = getattr(args, "in_channels", 1)
     args.input_layers = getattr(args, "input_layers", "[256, 128]")
     args.conv_layers = getattr(args, "conv_layers", "[(16, 3, 2), (16, 3, 2)]")

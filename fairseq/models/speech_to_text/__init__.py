@@ -11,3 +11,5 @@ from .augmented_memory_models import * # noqa
 from .utils import *
 from .s2t_transformer import * # noqa
 from .xm_transformer import * # noqa
+from .berard_simul import * # noqa
+from .convtransformer_simul import * # noqa

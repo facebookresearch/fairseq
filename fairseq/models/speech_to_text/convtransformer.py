@@ -129,20 +129,7 @@ class ConvTransformerModel(FairseqEncoderDecoderModel):
             action="store_true",
             help="if True, dont scale embeddings",
         )
-        parser.add_argument(
-            "--max-source-positions",
-            default=3000,
-            type=int,
-            metavar="N",
-            help="max number of tokens in the source sequence",
-        )
-        parser.add_argument(
-            "--max-target-positions",
-            default=1024,
-            type=int,
-            metavar="N",
-            help="max number of tokens in the target sequence",
-        )
+
         parser.add_argument("--load-pretrained-encoder-from", type=str,
                             metavar="STR", help=(
                                 "model to take encoder"

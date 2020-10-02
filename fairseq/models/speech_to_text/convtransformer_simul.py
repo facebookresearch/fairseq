@@ -15,14 +15,14 @@ from .convtransformer import (
     convtransformer_espnet
 )
 
-from .transformer_simul_trans import (
-    TransformerModelSimulTrans,
+from examples.simultaneous_translation.models import (
+    TransformerMonotonicModel,
 )
 
 from fairseq import checkpoint_utils
 
 
-@register_model('convtransformer_simul_trans')
+@register_model('convtransformer_simul')
 class SimulConvTransformerModel(ConvTransformerModel):
 
     @staticmethod
@@ -39,7 +39,7 @@ class SimulConvTransformerModel(ConvTransformerModel):
     def build_decoder(cls, args, task, embed_tokens):
         tgt_dict = task.tgt_dict
 
-        decoder = TransformerModelSimulTrans.build_decoder(
+        decoder = TransformerMonotonicModel.build_decoder(
             args, tgt_dict, embed_tokens)
 
         if getattr(args, "load_pretrained_decoder_from", None):
@@ -49,8 +49,8 @@ class SimulConvTransformerModel(ConvTransformerModel):
         return decoder
 
 @register_model_architecture(
-    'convtransformer_simul_trans',
-    'convtransformer_simul_trans_espnet'
+    'convtransformer_simul',
+    'convtransformer_simul'
 )
 def convtransformer_simul_trans_espnet(args):
     convtransformer_espnet(args)

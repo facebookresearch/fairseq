@@ -500,7 +500,7 @@ def lengths_to_encoder_padding_mask(lengths, batch_first: bool = False):
     max_lengths = torch.max(lengths).item()
     bsz = lengths.size(0)
     encoder_padding_mask = torch.arange(
-        max_lengths
+        start=1, end=max_lengths + 1
     ).to(  # a (T, ) tensor with [0, ..., T-1]
         lengths.device
     ).view(  # move to the right device
