@@ -92,7 +92,6 @@ def launch_train(args, config):
     save_dir_key = save_dir_key.replace(",", "_")
     num_total_gpus = args.num_nodes * args.num_gpus
     save_dir = os.path.join(args.checkpoints_dir, f'{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}')
-    tensorboard_logdir = os.path.join(args.tensorboard_logdir, f'{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}')
 
     # create save directory if it doesn't exist
     if not os.path.exists(save_dir):
@@ -135,6 +134,13 @@ def launch_train(args, config):
         train_cmd.extend([args.data])
     train_cmd.extend(['--save-dir', save_dir])
     if not args.no_tensorboard:
+        _dir = args.tensorboard_logdir
+        if _dir is None:
+            _dir = os.path.join('/checkpoint', os.environ['USER'],
+                                'tensorboard_logs', str(datetime.date.today()))
+        tensorboard_logdir = os.path.join(
+            _dir, f'{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}'
+        )
         train_cmd.extend(['--tensorboard-logdir', tensorboard_logdir])
     for hp in config.values():
         train_cmd.extend(map(str, hp.get_cli_args()))
