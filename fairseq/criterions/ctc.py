@@ -4,14 +4,14 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from argparse import Namespace
 import math
+from argparse import Namespace
 
 import torch
 import torch.nn.functional as F
 from fairseq import metrics, utils
-from fairseq.data.data_utils import post_process
 from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.data.data_utils import post_process
 from fairseq.logging.meters import safe_round
 
 
@@ -219,20 +219,26 @@ class CtcCriterion(FairseqCriterion):
         if c_total > 0:
             metrics.log_derived(
                 "uer",
-                lambda meters: safe_round(meters["_c_errors"].sum * 100.0 / meters["_c_total"].sum, 3)
+                lambda meters: safe_round(
+                    meters["_c_errors"].sum * 100.0 / meters["_c_total"].sum, 3
+                )
                 if meters["_c_total"].sum > 0
                 else float("nan"),
             )
         if w_total > 0:
             metrics.log_derived(
                 "wer",
-                lambda meters: safe_round(meters["_w_errors"].sum * 100.0 / meters["_w_total"].sum, 3)
+                lambda meters: safe_round(
+                    meters["_w_errors"].sum * 100.0 / meters["_w_total"].sum, 3
+                )
                 if meters["_w_total"].sum > 0
                 else float("nan"),
             )
             metrics.log_derived(
                 "raw_wer",
-                lambda meters: safe_round(meters["_wv_errors"].sum * 100.0 / meters["_w_total"].sum, 3)
+                lambda meters: safe_round(
+                    meters["_wv_errors"].sum * 100.0 / meters["_w_total"].sum, 3
+                )
                 if meters["_w_total"].sum > 0
                 else float("nan"),
             )

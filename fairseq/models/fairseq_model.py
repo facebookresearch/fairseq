@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from fairseq import utils
 from fairseq.checkpoint_utils import prune_state_dict
 from fairseq.data import Dictionary
+from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.models import FairseqDecoder, FairseqEncoder
 from torch import Tensor
 
@@ -29,10 +30,12 @@ class BaseFairseqModel(nn.Module):
         super().__init__()
         self._is_generation_fast = False
 
-    @staticmethod
-    def add_args(parser):
+    @classmethod
+    def add_args(cls, parser):
         """Add model-specific arguments to the parser."""
-        pass
+        dc = getattr(cls, "__dataclass", None)
+        if dc is not None:
+            gen_parser_from_dataclass(parser, dc())
 
     @classmethod
     def build_model(cls, args, task):
@@ -123,22 +126,22 @@ class BaseFairseqModel(nn.Module):
         """State from trainer to pass along to model at every update."""
 
         def _apply(m):
-            if hasattr(m, 'set_num_updates') and m != self:
+            if hasattr(m, "set_num_updates") and m != self:
                 m.set_num_updates(num_updates)
+
         self.apply(_apply)
 
     def prepare_for_inference_(self, args):
         """Prepare model for inference."""
         kwargs = {}
-        kwargs['beamable_mm_beam_size'] = (
-            None if getattr(args, 'no_beamable_mm', False)
-            else getattr(args, 'beam', 5)
+        kwargs["beamable_mm_beam_size"] = (
+            None if getattr(args, "no_beamable_mm", False) else getattr(args, "beam", 5)
         )
-        kwargs['need_attn'] = getattr(args, 'print_alignment', False)
-        if hasattr(args, 'retain_dropout'):
-            kwargs['retain_dropout'] = args.retain_dropout
-            kwargs['retain_dropout_modules'] = getattr(
-                args, 'retain_dropout_modules', None
+        kwargs["need_attn"] = getattr(args, "print_alignment", False)
+        if hasattr(args, "retain_dropout"):
+            kwargs["retain_dropout"] = args.retain_dropout
+            kwargs["retain_dropout_modules"] = getattr(
+                args, "retain_dropout_modules", None
             )
         self.make_generation_fast_(**kwargs)
 

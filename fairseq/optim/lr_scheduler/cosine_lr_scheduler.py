@@ -7,7 +7,7 @@ import math
 from dataclasses import dataclass, field
 from typing import List
 
-from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
+from fairseq.dataclass import FairseqDataclass
 from omegaconf import II
 
 from . import FairseqLRScheduler, register_lr_scheduler
@@ -42,7 +42,7 @@ class CosineConfig(FairseqDataclass):
     max_update: int = II("params.optimization.max_update")
 
 
-@register_lr_scheduler("cosine")
+@register_lr_scheduler("cosine", dataclass=CosineConfig)
 class CosineSchedule(FairseqLRScheduler):
     """Assign LR based on a cyclical schedule that follows the cosine function.
 
@@ -104,11 +104,6 @@ class CosineSchedule(FairseqLRScheduler):
         # initial learning rate
         self.lr = args.warmup_init_lr
         self.optimizer.set_lr(self.lr)
-
-    @staticmethod
-    def add_args(parser):
-        """Add arguments to the parser for this LR scheduler."""
-        gen_parser_from_dataclass(parser, CosineConfig())
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""

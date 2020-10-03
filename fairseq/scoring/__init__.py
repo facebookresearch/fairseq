@@ -10,7 +10,7 @@ import os
 from fairseq import registry
 
 
-_build_scoring, register_scoring, SCORING_REGISTRY = registry.setup_registry(
+_build_scoring, register_scoring, SCORING_REGISTRY, _ = registry.setup_registry(
     "--scoring", default="bleu"
 )
 

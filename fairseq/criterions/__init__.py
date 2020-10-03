@@ -5,22 +5,33 @@
 
 import importlib
 import os
+from argparse import Namespace
+from typing import Union
 
 from fairseq import registry
-from fairseq.criterions.fairseq_criterion import FairseqCriterion, LegacyFairseqCriterion
-
-
-CRITERION_DATACLASS_REGISTRY = {}
-
-build_criterion, register_criterion, CRITERION_REGISTRY = registry.setup_registry(
-    '--criterion',
-    base_class=FairseqCriterion,
-    default='cross_entropy',
+from fairseq.criterions.fairseq_criterion import (  # noqa
+    FairseqCriterion,
+    LegacyFairseqCriterion,
 )
+from omegaconf import DictConfig
+
+
+(
+    build_criterion_,
+    register_criterion,
+    CRITERION_REGISTRY,
+    CRITERION_DATACLASS_REGISTRY,
+) = registry.setup_registry(
+    "--criterion", base_class=FairseqCriterion, default="cross_entropy"
+)
+
+
+def build_criterion(criterion_cfg: Union[DictConfig, Namespace], task):
+    return build_criterion_(criterion_cfg, task)
 
 
 # automatically import any Python files in the criterions/ directory
 for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        module = file[:file.find('.py')]
-        importlib.import_module('fairseq.criterions.' + module)
+    if file.endswith(".py") and not file.startswith("_"):
+        file_name = file[: file.find(".py")]
+        importlib.import_module("fairseq.criterions." + file_name)

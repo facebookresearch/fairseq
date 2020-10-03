@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 import torch
-from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
+from fairseq.dataclass import FairseqDataclass
 from omegaconf import II
 from torch.optim.optimizer import Optimizer, required
 
@@ -22,16 +22,11 @@ class FairseqNAGConfig(FairseqDataclass):
     lr: List[float] = II("params.optimization.lr")
 
 
-@register_optimizer("nag")
+@register_optimizer("nag", dataclass=FairseqNAGConfig)
 class FairseqNAG(FairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args)
         self._optimizer = NAG(params, **self.optimizer_config)
-
-    @staticmethod
-    def add_args(parser):
-        """Add optimizer-specific arguments to the parser."""
-        gen_parser_from_dataclass(parser, FairseqNAGConfig())
 
     @property
     def optimizer_config(self):

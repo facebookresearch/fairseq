@@ -8,7 +8,6 @@ import inspect
 import torch.nn as nn
 
 from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
-from fairseq.models import BaseFairseqModel
 
 
 _GOSSIP_DISABLED = False

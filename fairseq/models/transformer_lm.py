@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from fairseq import options, utils
-from fairseq.dataclass.utils import ChoiceEnum, FairseqDataclass
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.models import (
     FairseqLanguageModel,
     register_model,
@@ -159,11 +159,10 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
     max_target_positions: Optional[int] = II("task.max_target_positions")
-    # TODO common var add to parent
     tpu: bool = II("params.common.tpu")
 
 
-@register_model("transformer_lm")
+@register_model("transformer_lm", dataclass=TransformerLanguageModelConfig)
 class TransformerLanguageModel(FairseqLanguageModel):
     @classmethod
     def hub_models(cls):
@@ -186,85 +185,6 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
     def __init__(self, decoder):
         super().__init__(decoder)
-
-    @staticmethod
-    def add_args(parser):
-        """Add model-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('--activation-fn',
-                            choices=utils.get_available_activation_fns(),
-                            help='activation function to use')
-        parser.add_argument('--dropout', type=float, metavar='D',
-                            help='dropout probability')
-        parser.add_argument('--attention-dropout', type=float, metavar='D',
-                            help='dropout probability for attention weights')
-        parser.add_argument('--activation-dropout', '--relu-dropout', type=float, metavar='D',
-                            help='dropout probability after activation in FFN.')
-        parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
-                            help='decoder embedding dimension')
-        parser.add_argument('--decoder-output-dim', type=int, metavar='N',
-                            help='decoder output dimension')
-        parser.add_argument('--decoder-input-dim', type=int, metavar='N',
-                            help='decoder input dimension')
-        parser.add_argument('--decoder-ffn-embed-dim', type=int, metavar='N',
-                            help='decoder embedding dimension for FFN')
-        parser.add_argument('--decoder-layers', type=int, metavar='N',
-                            help='num decoder layers')
-        parser.add_argument('--decoder-attention-heads', type=int, metavar='N',
-                            help='num decoder attention heads')
-        parser.add_argument('--decoder-normalize-before', action='store_true',
-                            help='apply layernorm before each decoder block')
-        parser.add_argument('--no-decoder-final-norm', action='store_true',
-                            help='don\'t add an extra layernorm after the last decoder block')
-        parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
-                            help='comma separated list of adaptive softmax cutoff points. '
-                                 'Must be used with adaptive_loss criterion')
-        parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
-                            help='sets adaptive softmax dropout for the tail projections')
-        parser.add_argument('--adaptive-softmax-factor', type=float, metavar='N',
-                            help='adaptive input factor')
-        parser.add_argument('--no-token-positional-embeddings', action='store_true',
-                            help='if set, disables positional embeddings (outside self attention)')
-        parser.add_argument('--share-decoder-input-output-embed', action='store_true',
-                            help='share decoder input and output embeddings')
-        parser.add_argument('--character-embeddings', action='store_true',
-                            help='if set, uses character embedding convolutions to produce token embeddings')
-        parser.add_argument('--character-filters', type=str, metavar='LIST',
-                            default='[(1, 64), (2, 128), (3, 192), (4, 256), (5, 256), (6, 256), (7, 256)]',
-                            help='size of character embeddings')
-        parser.add_argument('--character-embedding-dim', default=4, type=int, metavar='N',
-                            help='size of character embeddings')
-        parser.add_argument('--char-embedder-highway-layers', default=2, type=int, metavar='N',
-                            help='number of highway layers for character token embeddder')
-        parser.add_argument('--adaptive-input', action='store_true',
-                            help='if set, uses adaptive input')
-        parser.add_argument('--adaptive-input-factor', type=float, metavar='N',
-                            help='adaptive input factor')
-        parser.add_argument('--adaptive-input-cutoff', metavar='EXPR',
-                            help='comma separated list of adaptive input cutoff points.')
-        parser.add_argument('--tie-adaptive-weights', action='store_true',
-                            help='if set, ties the weights of adaptive softmax and adaptive input')
-        parser.add_argument('--tie-adaptive-proj', action='store_true',
-                            help='if set, ties the projection weights of adaptive softmax and adaptive input')
-        parser.add_argument('--decoder-learned-pos', action='store_true',
-                            help='use learned positional embeddings in the decoder')
-        parser.add_argument('--layernorm-embedding', action='store_true',
-                            help='add layernorm to embedding')
-        parser.add_argument('--no-scale-embedding', action='store_true',
-                            help='if True, dont scale embeddings')
-        # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
-        parser.add_argument('--decoder-layerdrop', type=float, metavar='D',
-                            help='LayerDrop probability for decoder')
-        parser.add_argument('--decoder-layers-to-keep',
-                            help='which layers to *keep* when pruning as a comma-separated list')
-        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument('--quant-noise-pq', type=float, metavar='D',
-                            help='iterative PQ quantization noise at training time')
-        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D',
-                            help='block size of quantization noise at training time')
-        parser.add_argument('--quant-noise-scalar', type=float, metavar='D',
-                            help='scalar quantization noise and scalar quantization at training time')
-        # fmt: on
 
     @classmethod
     def build_model(cls, args, task):
