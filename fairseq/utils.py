@@ -3,29 +3,30 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import argparse
 import contextlib
 import copy
 import importlib.util
 import logging
-import math
 import os
 import sys
 import warnings
-from collections import defaultdict
 from itertools import accumulate
 from typing import Callable, Dict, List, Optional
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from fairseq.data import iterators
+from fairseq.file_io import PathManager
 from fairseq.logging.meters import safe_round
 from fairseq.modules import gelu, gelu_accurate
 from fairseq.modules.multihead_attention import MultiheadAttention
 from torch import Tensor
 
+
 try:
     from amp_C import multi_tensor_l2norm
+
     multi_tensor_l2norm_available = True
 except ImportError:
     multi_tensor_l2norm_available = False
@@ -37,8 +38,27 @@ logger = logging.getLogger(__name__)
 MANIFOLD_PATH_SEP = "|"
 
 
+class FileContentsAction(argparse.Action):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(FileContentsAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if PathManager.isfile(values):
+            with PathManager.open(values) as f:
+                argument = f.read().strip()
+        else:
+            argument = values
+        setattr(namespace, self.dest, argument)
+
+
 def split_paths(paths: str) -> List[str]:
-    return paths.split(os.pathsep) if "://" not in paths else paths.split(MANIFOLD_PATH_SEP)
+    return (
+        paths.split(os.pathsep)
+        if "://" not in paths
+        else paths.split(MANIFOLD_PATH_SEP)
+    )
 
 
 def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
@@ -54,7 +74,7 @@ def load_ensemble_for_inference(filenames, task, model_arg_overrides=None):
 
 
 def apply_to_sample(f, sample):
-    if hasattr(sample, '__len__') and len(sample) == 0:
+    if hasattr(sample, "__len__") and len(sample) == 0:
         return {}
 
     def _apply(x):
@@ -189,9 +209,17 @@ def replace_unk(hypo_str, src_str, alignment, align_dict, unk):
 
 
 def post_process_prediction(
-    hypo_tokens, src_str, alignment, align_dict, tgt_dict, remove_bpe=None, extra_symbols_to_ignore=None
+    hypo_tokens,
+    src_str,
+    alignment,
+    align_dict,
+    tgt_dict,
+    remove_bpe=None,
+    extra_symbols_to_ignore=None,
 ):
-    hypo_str = tgt_dict.string(hypo_tokens, remove_bpe, extra_symbols_to_ignore=extra_symbols_to_ignore)
+    hypo_str = tgt_dict.string(
+        hypo_tokens, remove_bpe, extra_symbols_to_ignore=extra_symbols_to_ignore
+    )
     if align_dict is not None:
         hypo_str = replace_unk(
             hypo_str, src_str, alignment, align_dict, tgt_dict.unk_string()
@@ -264,7 +292,7 @@ def item(tensor):
     return tensor
 
 
-def multi_tensor_total_norm(grads, chunk_size=2048*32) -> torch.Tensor:
+def multi_tensor_total_norm(grads, chunk_size=2048 * 32) -> torch.Tensor:
     per_device_grads = {}
     norms = []
     for grad in grads:
@@ -280,7 +308,9 @@ def multi_tensor_total_norm(grads, chunk_size=2048*32) -> torch.Tensor:
             # TODO(msb) return has_inf
             has_inf = torch.zeros((1, 1), dtype=torch.int, device=device)
             with torch.cuda.device(device):
-                norm = multi_tensor_l2norm(chunk_size, has_inf, [cur_device_grads], False)
+                norm = multi_tensor_l2norm(
+                    chunk_size, has_inf, [cur_device_grads], False
+                )
             norms.append(norm[0].to(torch.cuda.current_device()))
         else:
             norms += [torch.norm(g, p=2, dtype=torch.float32) for g in cur_device_grads]
@@ -296,9 +326,9 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
     grads = [p.grad.detach() for p in filter(lambda p: p.grad is not None, params)]
     if len(grads) == 0:
         if len(params) > 0:
-            return params[0].new_tensor(0.)
+            return params[0].new_tensor(0.0)
         else:
-            return torch.tensor(0.)
+            return torch.tensor(0.0)
 
     if len(grads) == 1:
         total_norm = torch.norm(grads[0], p=2, dtype=torch.float32)
@@ -312,12 +342,14 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
                     "you may get better performance by installing NVIDIA's apex library"
                 )
                 device = torch.cuda.current_device()
-            elif grads[0].device.type == 'xla':
+            elif grads[0].device.type == "xla":
                 device = grads[0].device
             else:
-                device = torch.device('cpu')
+                device = torch.device("cpu")
             total_norm = torch.norm(
-                torch.stack([torch.norm(g, p=2, dtype=torch.float32).to(device) for g in grads])
+                torch.stack(
+                    [torch.norm(g, p=2, dtype=torch.float32).to(device) for g in grads]
+                )
             )
 
     if aggregate_norm_fn is not None:
@@ -414,8 +446,8 @@ def import_user_module(args):
             module_bak = None
         sys.path.insert(0, module_parent)
         importlib.import_module(module_name)
-        sys.modules['fairseq_user_dir'] = sys.modules[module_name]
-        if module_bak is not None and module_name != 'fairseq_user_dir':
+        sys.modules["fairseq_user_dir"] = sys.modules[module_name]
+        if module_bak is not None and module_name != "fairseq_user_dir":
             sys.modules[module_name] = module_bak
 
 
@@ -435,11 +467,11 @@ def log_softmax(x, dim: int, onnx_trace: bool = False):
 
 def get_perplexity(loss, round=2, base=2):
     if loss is None:
-        return 0.
+        return 0.0
     try:
         return safe_round(base ** loss, round)
     except OverflowError:
-        return float('inf')
+        return float("inf")
 
 
 def deprecation_warning(message, stacklevel=3):
@@ -544,8 +576,12 @@ def get_token_to_word_mapping(tokens, exclude_list):
 
 
 def extract_hard_alignment(attn, src_sent, tgt_sent, pad, eos):
-    tgt_valid = ((tgt_sent != pad) & (tgt_sent != eos)).nonzero(as_tuple=False).squeeze(dim=-1)
-    src_invalid = ((src_sent == pad) | (src_sent == eos)).nonzero(as_tuple=False).squeeze(dim=-1)
+    tgt_valid = (
+        ((tgt_sent != pad) & (tgt_sent != eos)).nonzero(as_tuple=False).squeeze(dim=-1)
+    )
+    src_invalid = (
+        ((src_sent == pad) | (src_sent == eos)).nonzero(as_tuple=False).squeeze(dim=-1)
+    )
     src_token_to_word = get_token_to_word_mapping(src_sent, [eos, pad])
     tgt_token_to_word = get_token_to_word_mapping(tgt_sent, [eos, pad])
     alignment = []
@@ -575,6 +611,7 @@ def new_arange(x, *size):
 
 def get_tpu_device(args):
     import torch_xla.core.xla_model as xm
+
     return xm.xla_device()
 
 
@@ -622,7 +659,7 @@ class CudaEnvironment(object):
 
 
 def csv_str_list(x):
-    return x.split(',')
+    return x.split(",")
 
 
 def eval_str_list(x, type=float):

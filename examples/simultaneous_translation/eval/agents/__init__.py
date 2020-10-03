@@ -7,7 +7,7 @@ import importlib
 import os
 from fairseq import registry
 
-build_agent, register_agent, MONOTONIC_AGENT = registry.setup_registry('--agent-type')
+build_agent, register_agent, MONOTONIC_AGENT, _ = registry.setup_registry('--agent-type')
 
 
 DEFAULT_EOS = '</s>'

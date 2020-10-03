@@ -36,6 +36,10 @@ def infer_init_method(args, force_distributed=False):
             raise ValueError('--pipeline-balance is currently required for pipeline model parallelism')
         if args.pipeline_devices is None:
             raise ValueError('--pipeline-devices is currently required for pipeline model parallelism')
+
+        args.pipeline_balance = utils.eval_str_list(args.pipeline_balance, type=int)
+        args.pipeline_devices = utils.eval_str_list(args.pipeline_devices, type=int)
+
         gpus_per_node = torch.cuda.device_count()
         num_pipeline_devices = len(set(args.pipeline_devices))
         assert gpus_per_node >= num_pipeline_devices and gpus_per_node % num_pipeline_devices == 0, (

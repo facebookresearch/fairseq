@@ -3,25 +3,28 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass, field
-from typing import Any, List, Optional, Dict, Type, Tuple
-import torch
-from fairseq.data.indexed_dataset import get_available_dataset_impl
-from fairseq.dataclass.utils import FairseqDataclass, ChoiceEnum
 import sys
-from fairseq.tasks import TASK_DATACLASS_REGISTRY
-from fairseq.models import ARCH_DATACLASS_REGISTRY
+from argparse import Namespace
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple, Type
+
+import torch
 from fairseq.criterions import CRITERION_DATACLASS_REGISTRY
+from fairseq.data.indexed_dataset import get_available_dataset_impl
+from fairseq.dataclass.constants import (
+    DDP_BACKEND_CHOICES,
+    DISTRIBUTED_WRAPPER_CHOICES,
+    LOG_FORMAT_CHOICES,
+    PIPELINE_CHECKPOINT_CHOICES,
+    ZERO_SHARDING_CHOICES,
+)
+from fairseq.dataclass.utils import ChoiceEnum, FairseqDataclass
+from fairseq.models import ARCH_MODEL_REGISTRY, MODEL_DATACLASS_REGISTRY
 from fairseq.optim import OPTIMIZER_DATACLASS_REGISTRY
 from fairseq.optim.bmuf import FairseqBMUFConfig
 from fairseq.optim.lr_scheduler import LR_SCHEDULER_DATACLASS_REGISTRY
+from fairseq.tasks import TASK_DATACLASS_REGISTRY
 from hydra.core.config_store import ConfigStore
-from argparse import Namespace
-
-
-LOG_FORMAT_CHOICES = ChoiceEnum(["json", "none", "simple", "tqdm"])
-DDP_BACKEND_CHOICES = ChoiceEnum(["c10d", "no_c10d"])
-DISTRIBUTED_WRAPPER_CHOICES = ChoiceEnum(["DDP", "SlowMo"])
 
 
 @dataclass
@@ -213,6 +216,36 @@ class DistributedTrainingParams(FairseqDataclass):
             "and gossip across different nodes"
         },
     )
+    pipeline_model_parallel: bool = field(
+        default=False,
+        metadata={"help": "if set, use pipeline model parallelism across GPUs"},
+    )
+    pipeline_balance: str = field(
+        default=None,
+        metadata={
+            "help": "partition the model into N_K pieces, where each piece "
+            "contains N_i layers. The sum(args.pipeline_balance) "
+            "should equal the total number of layers in the model"
+        },
+    )
+    pipeline_devices: str = field(
+        default=None,
+        metadata={
+            "help": "a list of device indices indicating which device to place "
+            "each of the N_K partitions. The length of this list should "
+            "equal the length of the --pipeline-balance argument"
+        },
+    )
+    pipeline_chunks: int = field(
+        default=0, metadata={"help": "microbatch count for pipeline model parallelism"}
+    )
+    pipeline_checkpoint: PIPELINE_CHECKPOINT_CHOICES = field(
+        default="never",
+        metadata={"help": "checkpointing mode for pipeline model parallelism"},
+    )
+    zero_sharding: ZERO_SHARDING_CHOICES = field(
+        default="none", metadata={"help": "ZeRO sharding"}
+    )
 
 
 @dataclass
@@ -235,6 +268,9 @@ class DatasetParams(FairseqDataclass):
     )
     required_batch_size_multiple: int = field(
         default=8, metadata={"help": "batch size will be a multiplier of this value"}
+    )
+    required_seq_len_multiple: int = field(
+        default=1, metadata={"help": "maximum sequence length in batch will be a multiplier of this value"}
     )
     dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = field(
         default=None, metadata={"help": "output dataset implementation"}
@@ -544,7 +580,7 @@ def register_training_hydra_cfg(cs: ConfigStore, name: str = "default") -> None:
     )
 
     register_module_dataclass(cs, TASK_DATACLASS_REGISTRY, "task")
-    register_module_dataclass(cs, ARCH_DATACLASS_REGISTRY, "model")
+    register_module_dataclass(cs, MODEL_DATACLASS_REGISTRY, "model")
     register_module_dataclass(cs, CRITERION_DATACLASS_REGISTRY, "criterion")
     register_module_dataclass(cs, OPTIMIZER_DATACLASS_REGISTRY, "optimizer")
     register_module_dataclass(cs, LR_SCHEDULER_DATACLASS_REGISTRY, "lr_scheduler")
@@ -680,15 +716,18 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
         else:
             deletes.append("lr_scheduler")
 
+        no_dc = True
         if hasattr(args, "arch"):
-            if args.arch in ARCH_DATACLASS_REGISTRY:
-                overrides.append("model={}".format(args.arch))
-                overrides.append("model._name={}".format(args.arch))
-                # override model params with those exist in args
-                overrides.extend(
-                    _override_attr("model", ARCH_DATACLASS_REGISTRY[args.arch], args)
-                )
-            else:
-                deletes.append("model")
+            if args.arch in ARCH_MODEL_REGISTRY:
+                m_cls = ARCH_MODEL_REGISTRY[args.arch]
+                dc = getattr(m_cls, "__dataclass", None)
+                if dc is not None:
+                    overrides.append("model={}".format(args.arch))
+                    overrides.append("model._name={}".format(args.arch))
+                    # override model params with those exist in args
+                    overrides.extend(_override_attr("model", dc, args))
+                    no_dc = False
+        if no_dc:
+            deletes.append("model")
 
     return overrides, deletes

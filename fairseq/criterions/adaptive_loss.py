@@ -9,8 +9,8 @@ from dataclasses import dataclass
 import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
-from fairseq.dataclass.data_class import DDP_BACKEND_CHOICES
-from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
+from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.constants import DDP_BACKEND_CHOICES
 from omegaconf import II
 
 
@@ -20,7 +20,7 @@ class AdaptiveLossConfig(FairseqDataclass):
     ddp_backend: DDP_BACKEND_CHOICES = II("params.distributed_training.ddp_backend")
 
 
-@register_criterion("adaptive_loss")
+@register_criterion("adaptive_loss", dataclass=AdaptiveLossConfig)
 class AdaptiveLoss(FairseqCriterion):
     """This is an implementation of the loss function accompanying the adaptive softmax approximation for
     graphical processing units (GPU), described in the paper "Efficient softmax approximation for GPUs"
@@ -29,11 +29,6 @@ class AdaptiveLoss(FairseqCriterion):
     def __init__(self, task, sentence_avg):
         super().__init__(task)
         self.sentence_avg = sentence_avg
-
-    @staticmethod
-    def add_args(parser):
-        """Add task-specific arguments to the parser. optionaly register config store"""
-        gen_parser_from_dataclass(parser, AdaptiveLossConfig())
 
     @classmethod
     def build_criterion(cls, args, task):

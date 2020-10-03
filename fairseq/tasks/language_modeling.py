@@ -27,11 +27,7 @@ from fairseq.data import (
 )
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
-from fairseq.dataclass.utils import (
-    ChoiceEnum,
-    FairseqDataclass,
-    gen_parser_from_dataclass,
-)
+from fairseq.dataclass import FairseqDataclass, ChoiceEnum
 from fairseq.tasks import FairseqTask, register_task
 from omegaconf import II
 
@@ -97,7 +93,7 @@ class LanguageModelingConfig(FairseqDataclass):
     tpu: bool = II("params.common.tpu")
 
 
-@register_task("language_modeling")
+@register_task("language_modeling", dataclass=LanguageModelingConfig)
 class LanguageModelingTask(FairseqTask):
     """
     Train a language model.
@@ -126,11 +122,6 @@ class LanguageModelingTask(FairseqTask):
         :ref: fairseq.tasks.language_modeling_parser
         :prog:
     """
-
-    @staticmethod
-    def add_args(parser):
-        """Add task-specific arguments to the parser. optionaly register config store"""
-        gen_parser_from_dataclass(parser, LanguageModelingConfig())
 
     def __init__(self, args, dictionary, output_dictionary=None, targets=None):
         super().__init__(args)

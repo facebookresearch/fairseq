@@ -33,7 +33,7 @@ from fairseq.data.multilingual.multilingual_utils import (
 )
 from fairseq.data.multilingual.sampled_multi_dataset import CollateFormat
 from fairseq.file_io import PathManager
-from fairseq.options import csv_str_list, eval_str_dict, FileContentsAction
+from fairseq.utils import FileContentsAction, csv_str_list, eval_str_dict
 
 
 logger = logging.getLogger(__name__)
@@ -788,9 +788,9 @@ class MultilingualDatasetManager(object):
         for path in paths:
             files = PathManager.ls(path)
             for f in files:
-                if f.startswith(split) and f.endswith('.idx'):
+                if f.startswith(split) and f.endswith(".idx"):
                     # idx files of the form "{split}.{src}-{tgt}.{lang}.idx"
-                    direction = f.split('.')[-3]
+                    direction = f.split(".")[-3]
                     shards[direction] += 1
         # each direction has two '.idx' files
         # one for source language and one for target language, so:
@@ -816,15 +816,16 @@ class MultilingualDatasetManager(object):
                 if "mono_" in data_category:
                     # monolingual data requires tgt only
                     assert src is None or src == tgt, (
-                        f"error: src={src}, " "tgt={tgt} for data_category={data_category}"
+                        f"error: src={src}, "
+                        "tgt={tgt} for data_category={data_category}"
                     )
                     num_shards_dict[key] = shards_dict[tgt]
                 else:
                     if f"{src}-{tgt}" in shards_dict:
                         num_shards_dict[key] = shards_dict[f"{src}-{tgt}"]
-                    elif f'{tgt}-{src}' in shards_dict:
+                    elif f"{tgt}-{src}" in shards_dict:
                         # follow the fairseq tradition to use reversed direction data if it is not available
-                        num_shards_dict[key] = shards_dict[f'{tgt}-{src}']
+                        num_shards_dict[key] = shards_dict[f"{tgt}-{src}"]
         self._num_shards_dict[split] = num_shards_dict
         logger.info(f"[{split}] num of shards: {num_shards_dict}")
         return num_shards_dict
@@ -893,7 +894,9 @@ class MultilingualDatasetManager(object):
                 )
         return param_list
 
-    def get_train_dataset_sizes(self, data_param_list, datasets, epoch, shard_epoch=None):
+    def get_train_dataset_sizes(
+        self, data_param_list, datasets, epoch, shard_epoch=None
+    ):
         num_shards = [
             self.get_split_num_data_shards(param["split"])[param["key"]]
             for param in data_param_list
@@ -921,8 +924,12 @@ class MultilingualDatasetManager(object):
         )
         return [s for _, s in data_sizes]
 
-    def get_train_sampling_ratios(self, data_param_list, datasets, epoch=1, shard_epoch=None):
-        data_sizes = self.get_train_dataset_sizes(data_param_list, datasets, epoch, shard_epoch)
+    def get_train_sampling_ratios(
+        self, data_param_list, datasets, epoch=1, shard_epoch=None
+    ):
+        data_sizes = self.get_train_dataset_sizes(
+            data_param_list, datasets, epoch, shard_epoch
+        )
         sampling_func = self.sampling_method.sampling_method_selector()
         sample_ratios = sampling_func(data_sizes) if sampling_func is not None else None
         return sample_ratios

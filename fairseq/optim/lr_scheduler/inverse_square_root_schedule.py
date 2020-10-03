@@ -6,7 +6,7 @@
 from dataclasses import dataclass, field
 from typing import List
 
-from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
+from fairseq.dataclass import FairseqDataclass
 from omegaconf import II
 
 from . import FairseqLRScheduler, register_lr_scheduler
@@ -28,7 +28,7 @@ class InverseSquareRootScheduleConfig(FairseqDataclass):
     lr: List[float] = II("params.optimization.lr")
 
 
-@register_lr_scheduler("inverse_sqrt")
+@register_lr_scheduler("inverse_sqrt", dataclass=InverseSquareRootScheduleConfig)
 class InverseSquareRootSchedule(FairseqLRScheduler):
     """Decay the LR based on the inverse square root of the update number.
 
@@ -68,11 +68,6 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
         # initial learning rate
         self.lr = args.warmup_init_lr
         self.optimizer.set_lr(self.lr)
-
-    @staticmethod
-    def add_args(parser):
-        """Add arguments to the parser for this LR scheduler."""
-        gen_parser_from_dataclass(parser, InverseSquareRootScheduleConfig())
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""

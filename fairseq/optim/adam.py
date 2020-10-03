@@ -11,7 +11,7 @@ from typing import List
 import torch
 import torch.distributed as dist
 import torch.optim
-from fairseq.dataclass.utils import FairseqDataclass, gen_parser_from_dataclass
+from fairseq.dataclass import FairseqDataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from fairseq.optim.fused_adam import get_fused_adam_class
 from omegaconf import II
@@ -37,7 +37,7 @@ class FairseqAdamConfig(FairseqDataclass):
     lr: List[float] = II("params.optimization.lr")
 
 
-@register_optimizer("adam")
+@register_optimizer("adam", dataclass=FairseqAdamConfig)
 class FairseqAdam(FairseqOptimizer):
     """Adam optimizer for fairseq.
 
@@ -63,11 +63,6 @@ class FairseqAdam(FairseqOptimizer):
             self._optimizer = fused_adam_cls(params, **self.optimizer_config)
         else:
             self._optimizer = Adam(params, **self.optimizer_config)
-
-    @staticmethod
-    def add_args(parser):
-        """Add optimizer-specific arguments to the parser."""
-        gen_parser_from_dataclass(parser, FairseqAdamConfig())
 
     @property
     def optimizer_config(self):

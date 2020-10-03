@@ -19,7 +19,7 @@ from fairseq.data import (
 from fairseq.tasks import register_task, LegacyFairseqTask
 from fairseq.data.multilingual.sampling_method import SamplingMethod
 from fairseq.data.multilingual.multilingual_data_manager import MultilingualDatasetManager
-from fairseq.options import FileContentsAction
+from fairseq.utils import FileContentsAction
 
 ###
 def get_time_gap(s, e):
