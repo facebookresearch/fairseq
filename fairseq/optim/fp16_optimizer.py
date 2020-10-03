@@ -34,13 +34,17 @@ class _FP16OptimizerMixin(object):
     def build_fp32_params(cls, args, params, flatten=True):
         # create FP32 copy of parameters and grads
         if flatten:
+            is_pipeline_parallel = (
+                getattr(args, 'pipeline_model_parallel', False)
+                and getattr(args, 'distributed_no_spawn', False)
+            )
             total_param_size = sum(p.data.numel() for p in params)
             devices = [torch.cuda.current_device()]
-            if args.pipeline_model_parallel and args.distributed_no_spawn:
+            if is_pipeline_parallel:
                 devices = list(set(args.pipeline_devices))
             fp32_params = {}
             for device in devices:
-                if args.pipeline_model_parallel and args.distributed_no_spawn:
+                if is_pipeline_parallel:
                     device_param_size = sum(p.data.numel() for p in params if p.device.index == device)
                     device_params = [p for p in params if p.device.index == device]
                 else:
