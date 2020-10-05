@@ -43,7 +43,7 @@ class RNNWaitKAttentionLayer(nn.Module):
         )
 
         parser.add_argument(
-            " --fixed-pooling-ratio",
+            "--waitk-stride",
             type=int,
             default=1,
             help="Size of fixed stride on source side",
