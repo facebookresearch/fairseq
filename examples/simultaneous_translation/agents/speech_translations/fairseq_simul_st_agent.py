@@ -4,14 +4,13 @@ import math
 import yaml
 import pickle
 from simuleval.agents import SpeechAgent
-from simuleval.states import ListEntry
+from simuleval.states import ListEntry, SignalEntry
 from simuleval import READ_ACTION, WRITE_ACTION, DEFAULT_EOS
 
 import torchaudio.compliance.kaldi as kaldi
 import numpy as np
 
-from fairseq import checkpoint_utils, utils, tasks
-from fairseq.models.fairseq_encoder import EncoderOut
+from fairseq import checkpoint_utils, tasks
 
 SHIFT_SIZE = 10
 WINDOW_SIZE = 25
@@ -26,7 +25,7 @@ class OnlineFeatureExtractor:
         window_size=WINDOW_SIZE,
         sample_rate=SAMPLE_RATE,
         feature_dim=FEATURE_DIM,
-        global_cmvn=None,
+        global_cmvn={"mean": 0, "std": 1},
     ):
         self.shift_size = shift_size
         self.window_size = window_size
@@ -51,7 +50,10 @@ class OnlineFeatureExtractor:
             return
 
         num_frames = math.floor(
-            (len(samples) - self.len_ms_to_samples(self.window_size - self.shift_size))
+            (
+                len(samples)
+                - self.len_ms_to_samples(self.window_size - self.shift_size)
+            )
             / self.num_samples_per_shift
         )
 
@@ -61,46 +63,22 @@ class OnlineFeatureExtractor:
         )
 
         input_samples = samples[:effective_num_samples]
-        self.previous_residual_samples = samples[num_frames * self.num_samples_per_shift:]
+        self.previous_residual_samples = samples[
+            num_frames * self.num_samples_per_shift:
+        ]
 
         torch.manual_seed(1)
-        output = kaldi.fbank(
+        x = kaldi.fbank(
             torch.FloatTensor(input_samples).unsqueeze(0),
             num_mel_bins=self.feature_dim,
             frame_length=self.window_size,
             frame_shift=self.shift_size,
         ).numpy()
 
-        x = output
-
-        # square_sums = (x ** 2).sum(axis=0)
-        # mean = x.mean(axis=0)
-
-        mean = self.global_cmvn[0]
-        std = self.global_cmvn[1]
-        #var = square_sums / x.shape[0] - mean ** 2
-
-        x = np.subtract(x, mean)
-        x = np.divide(x, std)
+        x = np.subtract(x, self.global_cmvn["mean"])
+        x = np.divide(x, self.global_cmvn["std"])
 
         return torch.from_numpy(x)
-
-
-class TensorListEntry(ListEntry):
-    def append(self, value):
-
-        if len(self.value) == 0:
-            self.value = value
-            return
-
-        self.value = torch.cat([self.value] + [value], dim=0)
-
-    def info(self):
-        return {
-            "type": str(self.new_value_type),
-            "length": self.__len__(),
-            "value": "" if type(self.value) is list else self.value.size()
-        }
 
 
 class FairseqSimulSTAgent(SpeechAgent):
@@ -118,7 +96,6 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         self.load_model_vocab(args)
 
-        # TODO: temparory solution
         config_yaml = os.path.join(args.data_bin, 'config.yaml')
         with open(config_yaml, 'r') as f:
             config = yaml.safe_load(f)
@@ -130,12 +107,12 @@ class FairseqSimulSTAgent(SpeechAgent):
             gcmvn = {"mean": 0, "std": 1}
 
         self.feature_extractor = OnlineFeatureExtractor(
-            global_cmvn=(gcmvn["mean"], gcmvn["std"])
+            global_cmvn=gcmvn
         )
 
         self.max_len = args.max_len
 
-        self.force_finish = args.force_finish
+        self.force_finish_read = args.force_finish_read
 
         torch.set_grad_enabled(False)
 
@@ -152,16 +129,22 @@ class FairseqSimulSTAgent(SpeechAgent):
                             help='path to your pretrained model.')
         parser.add_argument("--data-bin", type=str, required=True,
                             help="Path of data binary")
-        parser.add_argument("--tgt-splitter-type", type=str, default="SentencePiece",
+        parser.add_argument("--tgt-splitter-type", type=str,
+                            default="SentencePiece",
                             help="Subword splitter type for target text")
         parser.add_argument("--tgt-splitter-path", type=str, default=None,
                             help="Subword splitter model path for target text")
-        parser.add_argument("--user-dir", type=str, default="examples/simultaneous_translation",
+        parser.add_argument("--user-dir", type=str,
+                            default="examples/simultaneous_translation",
                             help="User directory for simultaneous translation")
         parser.add_argument("--max-len", type=int, default=200,
                             help="Max length of translation")
-        parser.add_argument("--force-finish", default=False, action="store_true",
-                            help="")
+        parser.add_argument("--force-finish-read", default=False,
+                            action="store_true",
+                            help=(
+                                "Force the model to finish read the whole"
+                                " input even the model predict eos"
+                            ))
         # fmt: on
         return parser
 
@@ -171,7 +154,6 @@ class FairseqSimulSTAgent(SpeechAgent):
         if not os.path.exists(filename):
             raise IOError("Model file not found: {}".format(filename))
 
-        #utils.import_user_module(args)
         state = checkpoint_utils.load_checkpoint_to_cpu(filename)
 
         saved_args = state["args"]
@@ -194,7 +176,7 @@ class FairseqSimulSTAgent(SpeechAgent):
 
     def initialize_states(self, states):
         self.feature_extractor.clear_cache()
-        states.units.source = TensorListEntry()
+        states.units.source = SignalEntry()
         states.units.target = ListEntry()
         states.incremental_states = dict()
 
@@ -206,9 +188,6 @@ class FairseqSimulSTAgent(SpeechAgent):
             return []
 
     def units_to_segment(self, units, states):
-        #print(states)
-        #print(states.end_times)
-        #import pdb;pdb.set_trace()
         # TODO: Refactor here to make it more readable
         if self.model.decoder.dictionary.eos() == units[0]:
             return DEFAULT_EOS
@@ -239,10 +218,15 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         if (
             len(units) > 0
-            and self.model.decoder.dictionary.eos() == units[-1]
-            or len(states.units.target) > self.max_len
+            and (
+                self.model.decoder.dictionary.eos() == units[-1]
+                or len(states.units.target) >= self.max_len
+            )
         ):
-            tokens = [self.model.decoder.dictionary.string([unit]) for unit in units]
+            tokens = [
+                self.model.decoder.dictionary.string([unit])
+                for unit in units
+            ]
             return [''.join(tokens).replace('\u2581', '')] + [DEFAULT_EOS]
 
         return None
@@ -251,7 +235,9 @@ class FairseqSimulSTAgent(SpeechAgent):
         if len(states.units.source) == 0:
             return
         src_indices = self.to_device(states.units.source.value.unsqueeze(0))
-        src_lengths = self.to_device(torch.LongTensor([states.units.source.value.size(0)]))
+        src_lengths = self.to_device(
+            torch.LongTensor([states.units.source.value.size(0)])
+        )
 
         states.encoder_states = self.model.encoder(src_indices, src_lengths)
         torch.cuda.empty_cache()
@@ -271,27 +257,16 @@ class FairseqSimulSTAgent(SpeechAgent):
             ).unsqueeze(0)
         )
 
-        #states.incremental_states["online"] = (
-        #    not states.finish_read()
-        #)
-
         states.incremental_states["steps"] = {
-            #"src": states.encoder_states.encoder_out["encoder_state"].size(0),
             "src": states.encoder_states.encoder_out.size(0),
             "tgt": 1 + len(states.units.target),
         }
 
-        #encoder_out = EncoderOut(
-        #    encoder_out=states.encoder_states
-        #)
-
         x, outputs = self.model.decoder.forward(
             prev_output_tokens=tgt_indices,
-            encoder_out=encoder_out,
+            encoder_out=states.encoder_states.encoder_out,
             incremental_state=states.incremental_states,
-            #features_only=True,
         )
-
 
         states.decoder_out = x
 
@@ -305,10 +280,7 @@ class FairseqSimulSTAgent(SpeechAgent):
             return WRITE_ACTION
 
     def predict(self, states):
-        #import pdb;pdb.set_trace()
-        #decoder_states = self.model.decoder.output_layer(
-        #    states.decoder_out
-        #)
+
         decoder_states = states.decoder_out
 
         lprobs = self.model.get_normalized_probs(
@@ -323,11 +295,10 @@ class FairseqSimulSTAgent(SpeechAgent):
         index = index[0, 0].item()
 
         if (
-            self.force_finish
+            self.force_finish_read
             and index == self.model.decoder.dictionary.eos()
             and not states.finish_read()
         ):
             index = None
-
 
         return index
