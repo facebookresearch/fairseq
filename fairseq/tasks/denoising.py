@@ -124,8 +124,6 @@ class DenoisingTask(LegacyFairseqTask):
         if dataset is None:
             raise FileNotFoundError('Dataset not found: {} ({})'.format(split, split_path))
 
-        dataset = StripTokenDataset(dataset, self.dictionary.eos())
-
         # create continuous blocks of tokens
         dataset = TokenBlockDataset(
                 dataset,
@@ -139,7 +137,6 @@ class DenoisingTask(LegacyFairseqTask):
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
-        dataset = AppendTokenDataset(dataset, self.source_dictionary.eos())
 
         mask_whole_words = get_whole_word_mask(self.args, self.source_dictionary) \
             if self.args.mask_length != 'subword' else None

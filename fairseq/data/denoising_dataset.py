@@ -193,7 +193,10 @@ class DenoisingDataset(FairseqDataset):
         # there can additional changes to make:
         if self.item_transform_func is not None:
             source, target = self.item_transform_func(source, target)
-
+        source = source[source != self.eos]
+        source = torch.cat([source, torch.tensor([self.eos])])
+        target = target[target != self.eos]
+        target = torch.cat([target, torch.tensor([self.eos])])
         assert (source >= 0).all()
         assert (source[1:-1] >= 1).all()
         assert (source <= len(self.vocab)).all()
@@ -328,7 +331,6 @@ class DenoisingDataset(FairseqDataset):
 
         if num_inserts > 0:
             source = self.add_insertion_noise(source, num_inserts / source.size(0))
-
         return source
 
     def add_permuted_noise(self, tokens, p):
