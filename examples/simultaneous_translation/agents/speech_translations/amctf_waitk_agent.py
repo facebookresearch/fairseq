@@ -2,8 +2,7 @@ import os
 import sys
 import torch
 import logging
-from simuleval.states import ListEntry
-from simuleval import READ_ACTION, WRITE_ACTION, DEFAULT_EOS
+from simuleval import READ_ACTION, WRITE_ACTION
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.speech_to_text.utils import pad_sequence
 
@@ -63,9 +62,7 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
             self.fixed_pooling_ratio = 1
 
     def initialize_states(self, states):
-        self.feature_extractor.clear_cache()
-        states.units.source = ListEntry()
-        states.units.target = ListEntry()
+        super().initialize_states(states)
         # To store memory banks and encoder hidden states
         states.encoder_states_tracker = None
         states.encoder_states = None
@@ -103,10 +100,11 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
                 states.units.source.value[-2].size(0) >=
                 self.left_context
             )
+            # TODO: try to refactor here later
             seg_src_indices = self.to_device(
                 torch.cat(
                     [
-                        states.units.source.value[-2][
+                        torch.cat(states.units.source.value[-3:-1], dim=0)[
                             - (self.left_context + self.right_context):
                         ],
                         states.units.source.value[-1]
@@ -115,21 +113,21 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
             )
 
         if states.finish_read():
-            if seg_src_indices.size(0) < self.full_context:
-                seg_src_indices = pad_sequence(
-                    seg_src_indices,
-                    time_axis=1,
-                    extra_left_context=0,
-                    extra_right_context=(
-                        self.full_context - seg_src_indices.size(0)
-                    )
+            seg_src_indices = pad_sequence(
+                seg_src_indices,
+                time_axis=1,
+                extra_left_context=0,
+                extra_right_context=(
+                    self.right_context
                 )
+            )
 
         seg_src_lengths = self.to_device(
             torch.LongTensor([
                 seg_src_indices.size(1)
             ])
         )
+
 
         (
             seg_encoder_states, seg_src_lengths, states.encoder_states_tracker
@@ -148,13 +146,10 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
             )
 
         torch.cuda.empty_cache()
-
     def policy(self, states):
 
         if len(states.units.target) >= self.max_len:
             states.status["write"] = False
-
-        print(states)
 
         if getattr(states, "encoder_states", None) is None:
             # Reading the first frames
