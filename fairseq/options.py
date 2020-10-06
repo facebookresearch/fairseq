@@ -168,7 +168,7 @@ def parse_args_and_arch(
         args = parser.parse_args(input_args)
         extra = None
     # Post-process args.
-    if hasattr(args, "batch_size_valid") and args.batch_size_valid is None:
+    if (hasattr(args, "batch_size_valid") and args.batch_size_valid is None) or not hasattr(args, "batch_size_valid"):
         args.batch_size_valid = args.batch_size
     if hasattr(args, "max_tokens_valid") and args.max_tokens_valid is None:
         args.max_tokens_valid = args.max_tokens
