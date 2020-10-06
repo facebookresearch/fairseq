@@ -250,6 +250,18 @@ class EpochBatchIterator(EpochBatchIterating):
         if self._frozen_batches is None:
             self._frozen_batches = tuple(self.batch_sampler(self.dataset, self.epoch))
         return self._frozen_batches
+    
+    @property
+    def first_batch(self):
+        if len(self.frozen_batches) == 0:
+            raise Exception(
+                "The dataset is empty. This could indicate "
+                "that all elements in the dataset have been skipped. "
+                "Try increasing the max number of allowed tokens or using "
+                "a larger dataset."
+            )
+
+        return self.collate_fn([self.dataset[i] for i in self.frozen_batches[0]])
 
     def __len__(self):
         return int(math.ceil(len(self.frozen_batches) / float(self.num_shards)))
