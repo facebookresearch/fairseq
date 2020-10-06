@@ -53,7 +53,7 @@ def get_grid(args):
         hyperparam('--weight-decay', 0.01, save_dir_key=lambda val: f'wd{val}'),
 
         # hyperparam('--max-tokens', 3200, save_dir_key=lambda val: f'mt{val}'),
-        hyperparam('--max-sentences', 12, save_dir_key=lambda val: f'ms{val}'),
+        hyperparam('--batch-size', 12, save_dir_key=lambda val: f'ms{val}'),
         hyperparam('--update-freq', update_freq, save_dir_key=lambda val: f'uf{val}'),
         hyperparam('--max-update', max_update, save_dir_key=lambda val: f'mu{val}'),
 

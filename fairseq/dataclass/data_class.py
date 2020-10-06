@@ -260,11 +260,8 @@ class DatasetParams(FairseqDataclass):
     max_tokens: Optional[int] = field(
         default=None, metadata={"help": "maximum number of tokens in a batch"}
     )
-    max_sentences: Optional[int] = field(
-        default=None, metadata={"help": "maximum number of sentences in a batch"}
-    )
     batch_size: Optional[int] = field(
-        default=None, metadata={"help": "maximum number of sentences in a batch"}
+        default=None, metadata={"help": "number of examples in a batch"}
     )
     required_batch_size_multiple: int = field(
         default=8, metadata={"help": "batch size will be a multiplier of this value"}
@@ -311,11 +308,11 @@ class DatasetParams(FairseqDataclass):
             " (defaults to --max-tokens)"
         },
     )
-    max_sentences_valid: Optional[int] = field(
+    batch_size_valid: Optional[int] = field(
         default=None,
         metadata={
-            "help": "maximum number of sentences in a validation batch"
-            " (defaults to --max-sentences)"
+            "help": "batch size of the validation batch"
+            " (defaults to --batch-size)"
         },
     )
     curriculum: int = field(

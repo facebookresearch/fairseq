@@ -125,7 +125,7 @@ def get_grid(args):
 
     if max_sentences is not None:
         grid += [
-            hyperparam("--max-sentences", max_sentences, save_dir_key=lambda val: f"ms{val}"),
+            hyperparam("--batch-size", max_sentences, save_dir_key=lambda val: f"ms{val}"),
         ]
 
     if max_source_positions is not None:

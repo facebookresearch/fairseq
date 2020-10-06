@@ -220,6 +220,11 @@ class BaseFairseqModel(nn.Module):
         self.apply(apply_prepare_for_tpu_)
 
     @classmethod
+    def upgrade_args(cls, args):
+        if hasattr(args, 'max_sentences') and not hasattr(args, 'batch_size'):
+            args.batch_size = args.max_sentences
+
+    @classmethod
     def from_pretrained(
         cls,
         model_name_or_path,
@@ -257,6 +262,9 @@ class BaseFairseqModel(nn.Module):
             archive_map=cls.hub_models(),
             **kwargs,
         )
+
+        cls.upgrade_args(x["args"])
+
         logger.info(x["args"])
         return hub_utils.GeneratorHubInterface(x["args"], x["task"], x["models"])
 

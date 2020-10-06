@@ -358,7 +358,7 @@ class Trainer(object):
         return self.task.get_batch_iterator(
             dataset=self.task.dataset(self.args.train_subset),
             max_tokens=self.args.max_tokens,
-            max_sentences=self.args.max_sentences,
+            max_sentences=self.args.batch_size,
             max_positions=utils.resolve_max_positions(
                 self.task.max_positions(),
                 self.model.max_positions(),
@@ -384,7 +384,7 @@ class Trainer(object):
         return self.task.get_batch_iterator(
             dataset=self.task.dataset(subset),
             max_tokens=self.args.max_tokens_valid,
-            max_sentences=self.args.max_sentences_valid,
+            max_sentences=self.args.batch_size_valid,
             max_positions=utils.resolve_max_positions(
                 self.task.max_positions(),
                 self.model.max_positions(),

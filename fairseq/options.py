@@ -168,8 +168,8 @@ def parse_args_and_arch(
         args = parser.parse_args(input_args)
         extra = None
     # Post-process args.
-    if hasattr(args, "max_sentences_valid") and args.max_sentences_valid is None:
-        args.max_sentences_valid = args.max_sentences
+    if hasattr(args, "batch_size_valid") and args.batch_size_valid is None:
+        args.batch_size_valid = args.batch_size
     if hasattr(args, "max_tokens_valid") and args.max_tokens_valid is None:
         args.max_tokens_valid = args.max_tokens
     if getattr(args, "memory_efficient_fp16", False):

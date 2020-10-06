@@ -151,7 +151,7 @@ fairseq-train $DATA_DIR \
     --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_UPDATES \
     --dropout 0.1 --attention-dropout 0.1 \
     --weight-decay 0.01 \
-    --max-sentences $MAX_SENTENCES \
+    --batch-size $MAX_SENTENCES \
     --update-freq $UPDATE_FREQ --max-update $TOTAL_UPDATES \
     --save-dir checkpoint/roberta \
     --ddp-backend no_c10d --encoder-layerdrop 0.2 \
@@ -172,7 +172,7 @@ ROBERTA_PATH=/path/to/roberta_quantnoise/model.pt
 fairseq-train /path/to/rte/data/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
-    --max-sentences $MAX_SENTENCES \
+    --batch-size $MAX_SENTENCES \
     --max-tokens 4400 \
     --task sentence_prediction \
     --reset-optimizer --reset-dataloader --reset-meters \
@@ -242,7 +242,7 @@ fairseq-train --task sentence_prediction /path/to/data/ \
     --restore-file $ROBERTA_PATH \
     --save-dir checkpoints/roberta_finetuned \
     --max-positions 512 \
-    --max-sentences $MAX_SENTENCES \
+    --batch-size $MAX_SENTENCES \
     --max-tokens 4400 \
     --init-token 0 --separator-token 2 \
     --arch roberta_large \

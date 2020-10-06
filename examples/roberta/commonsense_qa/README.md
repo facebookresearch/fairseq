@@ -53,14 +53,14 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train --fp16 --ddp-backend=no_c10d \
     --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 --clip-norm 0.0 \
     --lr-scheduler polynomial_decay --lr $LR \
     --warmup-updates $WARMUP_UPDATES --total-num-update $MAX_UPDATES \
-    --max-sentences $MAX_SENTENCES \
+    --batch-size $MAX_SENTENCES \
     --max-update $MAX_UPDATES \
     --log-format simple --log-interval 25 \
     --seed $SEED
 ```
 
 The above command assumes training on 1 GPU with 32GB of RAM. For GPUs with
-less memory, decrease `--max-sentences` and increase `--update-freq`
+less memory, decrease `--batch-size` and increase `--update-freq`
 accordingly to compensate.
 
 ### 3) Evaluate

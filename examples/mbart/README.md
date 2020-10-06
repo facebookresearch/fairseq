@@ -102,7 +102,7 @@ fairseq-generate path_2_data \
   -t ro_RO -s en_XX \
   --bpe 'sentencepiece' --sentencepiece-model $model_dir/sentence.bpe.model \
   --sacrebleu --remove-bpe 'sentencepiece' \
-  --max-sentences 32 --langs $langs > en_ro
+  --batch-size 32 --langs $langs > en_ro
 
 cat en_ro | grep -P "^H" |sort -V |cut -f 3- | sed 's/\[ro_RO\]//g' |$TOKENIZER ro > en_ro.hyp
 cat en_ro | grep -P "^T" |sort -V |cut -f 2- | sed 's/\[ro_RO\]//g' |$TOKENIZER ro > en_ro.ref

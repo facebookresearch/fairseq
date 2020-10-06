@@ -55,8 +55,8 @@ class DummyMTTask(LegacyFairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
         item_size = max(self.args.src_len, self.args.tgt_len)
-        if self.args.max_sentences is not None:
-            bsz = self.args.max_sentences
+        if self.args.batch_size is not None:
+            bsz = self.args.batch_size
         else:
             bsz = max(1, self.args.max_tokens // item_size)
         tgt = torch.stack([self.dummy_tgt for _ in range(bsz)])

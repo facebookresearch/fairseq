@@ -230,7 +230,7 @@ class GeneratorHubInterface(nn.Module):
         batch_iterator = self.task.get_batch_iterator(
             dataset=self.task.build_dataset_for_inference(tokens, lengths),
             max_tokens=self.args.max_tokens,
-            max_sentences=self.args.max_sentences,
+            max_sentences=self.args.batch_size,
             max_positions=self.max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs,
             disable_iterator_cache=True,

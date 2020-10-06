@@ -59,7 +59,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 fairseq-train WSC/ \
     --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
     --lr-scheduler polynomial_decay --lr $LR \
     --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
-    --max-sentences $MAX_SENTENCES \
+    --batch-size $MAX_SENTENCES \
     --max-update $TOTAL_NUM_UPDATES \
     --log-format simple --log-interval 100 \
     --seed $SEED
@@ -119,7 +119,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train winogrande_1.0/ \
   --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
   --lr-scheduler polynomial_decay --lr $LR \
   --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
-  --max-sentences $MAX_SENTENCES \
+  --batch-size $MAX_SENTENCES \
   --max-update $TOTAL_NUM_UPDATES \
   --log-format simple --log-interval 100
 ```
