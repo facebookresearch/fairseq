@@ -14,7 +14,7 @@ fairseq-generate "$path_2_data" \
   --source-lang "$source_lang" \
   --target-lang "$target_lang" \
   --sacrebleu --remove-bpe 'sentencepiece'\
-  --max-sentences 32 \
+  --batch-size 32 \
   --encoder-langtok "src" \
   --decoder-langtok \
   --lang-dict "$lang_list" \

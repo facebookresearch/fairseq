@@ -99,7 +99,7 @@ def gen_and_reprocess_nbest(args):
                       "--nbest", str(args.num_rescore),
                       "--batch-size", str(args.batch_size),
                       "--beam", str(args.num_rescore),
-                      "--max-sentences", str(args.num_rescore),
+                      "--batch-size", str(args.num_rescore),
                       "--gen-subset", args.gen_subset,
                       "--source-lang", args.source_lang,
                       "--target-lang", args.target_lang]

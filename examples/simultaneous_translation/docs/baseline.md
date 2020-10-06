@@ -84,7 +84,7 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
     --max-epoch 100 \
     --lr 0.001 \
     --clip-norm 5.0  \
-    --max-sentences 128  \
+    --batch-size 128  \
     --log-format json \
     --log-interval 10 \
     --criterion cross_entropy_acc \
@@ -127,7 +127,7 @@ CUDA_VISIBLE_DEVICES=1 python $FAIRSEQ/train.py data-bin/mustc_en_de \
     --max-epoch 100 \
     --lr 0.001 \
     --clip-norm 5.0  \
-    --max-sentences 128  \
+    --batch-size 128  \
     --log-format json \
     --log-interval 10 \
     --criterion cross_entropy_acc \
