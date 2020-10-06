@@ -117,7 +117,7 @@ def main(parsed_args, **unused_kwargs):
     itr = task.get_batch_iterator(
         dataset=dataset,
         max_tokens=args.max_tokens or 36000,
-        max_sentences=args.max_sentences,
+        max_sentences=args.batch_size,
         max_positions=utils.resolve_max_positions(*[
             model.max_positions() for model in models
         ]),

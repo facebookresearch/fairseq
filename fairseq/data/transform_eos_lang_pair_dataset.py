@@ -78,6 +78,11 @@ class TransformEosLangPairDataset(FairseqDataset):
     def size(self, index):
         return self.dataset.size(index)
 
+    @property
+    def sizes(self):
+        # dataset.sizes can be a dynamically computed sizes:
+        return self.dataset.sizes
+
     def ordered_indices(self):
         return self.dataset.ordered_indices()
 

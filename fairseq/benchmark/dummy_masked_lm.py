@@ -30,7 +30,6 @@ class DummyMaskedLMTask(LegacyFairseqTask):
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
-        self.seed = args.seed
 
         # add mask token
         self.mask_idx = dictionary.add_symbol('<mask>')
@@ -62,8 +61,8 @@ class DummyMaskedLMTask(LegacyFairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        if self.args.max_sentences is not None:
-            bsz = self.args.max_sentences
+        if self.args.batch_size is not None:
+            bsz = self.args.batch_size
         else:
             bsz = max(1, self.args.max_tokens // self.args.tokens_per_sample)
         self.datasets[split] = DummyDataset(

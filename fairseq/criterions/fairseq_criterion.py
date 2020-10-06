@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from torch.nn.modules.loss import _Loss
 
 from fairseq import metrics, utils
+from fairseq.dataclass.utils import gen_parser_from_dataclass
 
 
 class FairseqCriterion(_Loss):
@@ -20,10 +21,12 @@ class FairseqCriterion(_Loss):
             tgt_dict = task.target_dictionary
             self.padding_idx = tgt_dict.pad() if tgt_dict is not None else -100
 
-    @staticmethod
-    def add_args(parser):
+    @classmethod
+    def add_args(cls, parser):
         """Add criterion-specific arguments to the parser."""
-        pass
+        dc = getattr(cls, '__dataclass', None)
+        if dc is not None:
+            gen_parser_from_dataclass(parser, dc())
 
     @classmethod
     def build_criterion(cls, args, task):

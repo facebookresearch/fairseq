@@ -42,6 +42,7 @@ def load_langpair_dataset(
     truncate_source=False, append_source_id=False,
     num_buckets=0,
     shuffle=True,
+    pad_to_multiple=1,
 ):
 
     def split_exists(split, src, tgt, lang, data_path):
@@ -129,6 +130,7 @@ def load_langpair_dataset(
         align_dataset=align_dataset, eos=eos,
         num_buckets=num_buckets,
         shuffle=shuffle,
+        pad_to_multiple=pad_to_multiple,
     )
 
 
@@ -268,6 +270,7 @@ class TranslationTask(LegacyFairseqTask):
             truncate_source=self.args.truncate_source,
             num_buckets=self.args.num_batch_buckets,
             shuffle=(split != 'test'),
+            pad_to_multiple=self.args.required_seq_len_multiple,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):

@@ -22,6 +22,7 @@ def collate(
     left_pad_target=False,
     input_feeding=True,
     pad_to_length=None,
+    pad_to_multiple=1,
 ):
     if len(samples) == 0:
         return {}
@@ -31,6 +32,7 @@ def collate(
             [s[key] for s in samples],
             pad_idx, eos_idx, left_pad, move_eos_to_beginning,
             pad_to_length=pad_to_length,
+            pad_to_multiple=pad_to_multiple,
         )
 
     def check_alignment(alignment, src_len, tgt_len):
@@ -197,6 +199,7 @@ class LanguagePairDataset(FairseqDataset):
         num_buckets=0,
         src_lang_id=None,
         tgt_lang_id=None,
+        pad_to_multiple=1,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -257,6 +260,7 @@ class LanguagePairDataset(FairseqDataset):
             ]
         else:
             self.buckets = None
+        self.pad_to_multiple = pad_to_multiple
 
     def get_batch_shapes(self):
         return self.buckets
@@ -345,6 +349,7 @@ class LanguagePairDataset(FairseqDataset):
             left_pad_target=self.left_pad_target,
             input_feeding=self.input_feeding,
             pad_to_length=pad_to_length,
+            pad_to_multiple=self.pad_to_multiple,
         )
         if self.src_lang_id is not None or self.tgt_lang_id is not None:
             src_tokens = res['net_input']['src_tokens']

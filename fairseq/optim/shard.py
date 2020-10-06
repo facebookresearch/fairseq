@@ -11,7 +11,7 @@ except ImportError:
     _has_fairscale = False
 
 
-def shard_(args, optimizer):
+def shard_(args, optimizer, group):
     if not _has_fairscale:
         raise ImportError(
             '\n\nPlease install the fairscale package:'
@@ -30,4 +30,5 @@ def shard_(args, optimizer):
 
     torch_optimizer = optimizer.optimizer
     optim_cls = type(torch_optimizer)
-    optimizer.optimizer = FairseqOSS(torch_optimizer.param_groups, optim_cls, **optimizer.optimizer_config)
+    
+    optimizer.optimizer = FairseqOSS(torch_optimizer.param_groups, optim_cls, group=group, **optimizer.optimizer_config)

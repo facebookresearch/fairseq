@@ -3,10 +3,43 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+
 import torch
 import torch.distributed as dist
+from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.utils import gen_parser_from_dataclass
+from fairseq.optim.fairseq_optimizer import FairseqOptimizer
+from omegaconf import II
 
-from . import FairseqOptimizer
+
+@dataclass
+class FairseqBMUFConfig(FairseqDataclass):
+    block_lr: float = field(
+        default=1, metadata={"help": "block learning rate for bmuf"}
+    )
+    block_momentum: float = field(
+        default=0.875, metadata={"help": "block momentum for bmuf"}
+    )
+    global_sync_iter: int = field(
+        default=50, metadata={"help": "Iteration for syncing global model"}
+    )
+    warmup_iterations: int = field(
+        default=500, metadata={"help": "warmup iterations for model to broadcast"}
+    )
+    use_nbm: bool = field(
+        default=False,
+        metadata={"help": "Specify whether you want to use classical BM / Nesterov BM"},
+    )
+    average_sync: bool = field(
+        default=False,
+        metadata={
+            "help": "Specify whether you want to average the local momentum after each sync"
+        },
+    )
+    distributed_world_size: int = II(
+        "params.distributed_training.distributed_world_size"
+    )
 
 
 class FairseqBMUF(FairseqOptimizer):
@@ -37,39 +70,7 @@ class FairseqBMUF(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
-        parser.add_argument(
-            "--block-lr", default=1, type=float, help="block learning rate for bmuf"
-        )
-        parser.add_argument(
-            "--block-momentum",
-            default=0.875,
-            type=float,
-            help="block momentum for bmuf",
-        )
-        parser.add_argument(
-            "--global-sync-iter",
-            default=50,
-            type=int,
-            help="Iteration for syncing global model",
-        )
-        parser.add_argument(
-            "--warmup-iterations",
-            default=500,
-            type=int,
-            help="warmup iterations for model to broadcast",
-        )
-        parser.add_argument(
-            "--use-nbm",
-            default=False,
-            action="store_true",
-            help="Specify whether you want to use classical BM / Nesterov BM",
-        )
-        parser.add_argument(
-            "--average-sync",
-            default=False,
-            action="store_true",
-            help="Specify whether you want to average the local momentum after each sync",
-        )
+        gen_parser_from_dataclass(parser, FairseqBMUFConfig())
 
     @property
     def optimizer(self):

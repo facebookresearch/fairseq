@@ -28,8 +28,8 @@ logger = logging.getLogger('fairseq_cli.validate')
 def main(args, override_args=None):
     utils.import_user_module(args)
 
-    assert args.max_tokens is not None or args.max_sentences is not None, \
-        'Must specify batch size either with --max-tokens or --max-sentences'
+    assert args.max_tokens is not None or args.batch_size is not None, \
+        'Must specify batch size either with --max-tokens or --batch-size'
 
     use_fp16 = args.fp16
     use_cuda = torch.cuda.is_available() and not args.cpu
@@ -77,7 +77,7 @@ def main(args, override_args=None):
         itr = task.get_batch_iterator(
             dataset=dataset,
             max_tokens=args.max_tokens,
-            max_sentences=args.max_sentences,
+            max_sentences=args.batch_size,
             max_positions=utils.resolve_max_positions(
                 task.max_positions(),
                 *[m.max_positions() for m in models],

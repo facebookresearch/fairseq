@@ -41,6 +41,8 @@ We provide reference implementations of various sequence modeling papers:
   - [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
   - [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)
   - [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
+  - [Generating Medical Reports from Patient-Doctor Conversations Using Sequence-to-Sequence Models (Enarvi et al., 2020)](examples/pointer_generator/README.md)
+  - [Linformer: Self-Attention with Linear Complexity (Wang et al., 2020)](examples/linformer/README.md)
 - **Non-autoregressive Transformers**
   - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -52,6 +54,8 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+- September 2020: [Added Linformer code](examples/linformer/README.md)
+- September 2020: [Added pointer-generator networks](examples/pointer_generator/README.md)
 - August 2020: [Added lexically constrained decoding](examples/constrained_decoding/README.md)
 - August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
 - July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)

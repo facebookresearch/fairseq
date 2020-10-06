@@ -186,6 +186,7 @@ class TransformerDecoderOutputLayer(nn.Module):
     def __init__(self, args, embed_tokens, dictionary):
         super().__init__()
         self.share_input_output_embed = args.share_decoder_input_output_embed
+        self.embed_tokens = embed_tokens
         self.output_embed_dim = args.decoder_output_dim
         embed_dim = args.decoder_embed_dim
 
@@ -203,20 +204,9 @@ class TransformerDecoderOutputLayer(nn.Module):
                 factor=args.adaptive_softmax_factor,
                 tie_proj=args.tie_adaptive_proj,
             )
-        elif self.share_input_output_embed:
-            self.output_projection = nn.Linear(
-                embed_tokens.weight.shape[1],
-                embed_tokens.weight.shape[0],
-                bias=False,
-            )
-            self.output_projection.weight = embed_tokens.weight
         elif not self.share_input_output_embed:
-            self.output_projection = nn.Linear(
-                self.output_embed_dim, len(dictionary), bias=False
-            )
-            nn.init.normal_(
-                self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
-            )
+            self.embed_tokens = nn.Parameter(torch.Tensor(len(dictionary), self.output_embed_dim))
+            nn.init.normal_(self.embed_tokens, mean=0, std=self.output_embed_dim ** -0.5)
 
         if args.decoder_normalize_before and not getattr(args, 'no_decoder_final_norm', False):
             self.layer_norm = LayerNorm(embed_dim)
@@ -245,7 +235,22 @@ class TransformerDecoderOutputLayer(nn.Module):
         """Project features to the vocabulary size."""
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
-            return self.output_projection(features)
+            if self.share_input_output_embed:
+                if isinstance(self.embed_tokens, nn.ModuleList):
+                    output = None
+                    for i, emb in enumerate(self.embed_tokens):
+                        sidx = i * emb.embedding_dim
+                        eidx = (i + 1) * emb.embedding_dim
+                        if output is None:
+                            output = F.linear(features[:, :, sidx:eidx], emb.weight)
+                        else:
+                            output += F.linear(features[:, :, sidx:eidx], emb.weight)
+                    
+                    return output
+                else:
+                    return F.linear(features, self.embed_tokens.weight)
+            else:
+                return F.linear(features, self.embed_tokens)
         else:
             return features
 

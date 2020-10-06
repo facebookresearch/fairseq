@@ -3,10 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass, MISSING
-from typing import Any, List, Optional, Dict
-from enum import Enum
 from argparse import ArgumentParser
+from dataclasses import MISSING, dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 def eval_str_list(x, x_type=float):

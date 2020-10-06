@@ -64,7 +64,7 @@ fairseq-train <DATA_PATH> \
   --lr-scheduler inverse_sqrt --lr 0.00015 \
   --warmup-updates 3000 --weight-decay 0.01 \
   --dropout 0.1 --attention-dropout 0.1 \
-  --max-sentences 2 \
+  --batch-size 2 \
   --max-update 300000;
 ```
 
@@ -139,7 +139,7 @@ fairseq-eval-lm \
   --path megatron_11b/model.pt \
   --task language_modeling \
   --gen-subset test \
-  --max-sentences 8 \
+  --batch-size 8 \
   --criterion cross_entropy \
   --context-window 992 \
   --distributed-world-size 8 \

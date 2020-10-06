@@ -196,6 +196,24 @@ def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess.main(preprocess_args)
 
 
+def preprocess_summarization_data(data_dir, extra_flags=None):
+    preprocess_parser = options.get_preprocessing_parser()
+    preprocess_args = preprocess_parser.parse_args(
+        [
+            '--source-lang', 'in',
+            '--target-lang', 'out',
+            '--trainpref', os.path.join(data_dir, 'train'),
+            '--validpref', os.path.join(data_dir, 'valid'),
+            '--testpref', os.path.join(data_dir, 'test'),
+            '--thresholdtgt', '0',
+            '--thresholdsrc', '0',
+            '--joined-dictionary',
+            '--destdir', data_dir,
+        ] + (extra_flags or []),
+    )
+    preprocess.main(preprocess_args)
+
+
 def train_translation_model(data_dir, arch, extra_flags=None, task='translation', run_validation=False,
                             lang_flags=None, extra_valid_flags=None):
     if lang_flags is None:
@@ -264,7 +282,7 @@ def generate_main(data_dir, extra_flags=None):
     # evaluate model interactively
     generate_args.buffer_size = 0
     generate_args.input = '-'
-    generate_args.max_sentences = None
+    generate_args.batch_size = None
     orig_stdin = sys.stdin
     sys.stdin = StringIO('h e l l o\n')
     interactive.main(generate_args)

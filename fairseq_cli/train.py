@@ -43,8 +43,8 @@ def main(args):
     utils.import_user_module(args)
 
     assert (
-        args.max_tokens is not None or args.max_sentences is not None
-    ), "Must specify batch size either with --max-tokens or --max-sentences"
+        args.max_tokens is not None or args.batch_size is not None
+    ), "Must specify batch size either with --max-tokens or --batch-size"
 
     metrics.reset()
 
@@ -101,7 +101,7 @@ def main(args):
     )
     logger.info(
         "max tokens per GPU = {} and max sentences per GPU = {}".format(
-            args.max_tokens, args.max_sentences
+            args.max_tokens, args.batch_size
         )
     )
 
@@ -197,6 +197,7 @@ def train(args, trainer, task, epoch_itr):
 
     trainer.begin_epoch(epoch_itr.epoch)
 
+    valid_losses = [None]
     valid_subsets = args.valid_subset.split(",")
     should_stop = False
     num_updates = trainer.get_num_updates()
@@ -294,6 +295,7 @@ def validate(args, trainer, task, epoch_itr, subsets):
         # set fixed seed for every validation
         utils.set_torch_seed(args.fixed_validation_seed)
 
+    trainer.begin_valid_epoch(epoch_itr.epoch)
     valid_losses = []
     for subset in subsets:
         logger.info('begin validation on "{}" subset'.format(subset))

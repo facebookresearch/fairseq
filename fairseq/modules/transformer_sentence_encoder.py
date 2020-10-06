@@ -235,13 +235,13 @@ class TransformerSentenceEncoder(nn.Module):
         x = self.embed_tokens(tokens)
 
         if self.embed_scale is not None:
-            x *= self.embed_scale
+            x = x * self.embed_scale
 
         if self.embed_positions is not None:
-            x += self.embed_positions(tokens, positions=positions)
+            x = x + self.embed_positions(tokens, positions=positions)
 
         if self.segment_embeddings is not None and segment_labels is not None:
-            x += self.segment_embeddings(segment_labels)
+            x = x + self.segment_embeddings(segment_labels)
 
         if self.quant_noise is not None:
             x = self.quant_noise(x)
@@ -253,7 +253,7 @@ class TransformerSentenceEncoder(nn.Module):
 
         # account for padding while computing the representation
         if padding_mask is not None:
-            x *= 1 - padding_mask.unsqueeze(-1).type_as(x)
+            x = x * (1 - padding_mask.unsqueeze(-1).type_as(x))
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)

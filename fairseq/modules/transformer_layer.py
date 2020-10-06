@@ -324,7 +324,7 @@ class TransformerDecoderLayer(nn.Module):
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
 
-        if self.encoder_attn is not None:
+        if self.encoder_attn is not None and encoder_out is not None:
             residual = x
             if self.normalize_before:
                 x = self.encoder_attn_layer_norm(x)

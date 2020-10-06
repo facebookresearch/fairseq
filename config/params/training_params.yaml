@@ -42,8 +42,7 @@ dataset:
   num_workers: 1
   skip_invalid_size_inputs_valid_test: false
   max_tokens: null
-  max_sentences: null
-  batch_size: ${params.dataset.max_sentences}
+  batch_size: ${params.dataset.batch_size}
   required_batch_size_multiple: 8
   dataset_impl: null
   data_buffer_size: 10
@@ -57,7 +56,7 @@ dataset:
   num_shards: 1
   shard_id: 0
   max_tokens_valid: ${params.dataset.max_tokens}
-  max_sentences_valid: ${params.dataset.max_sentences}
+  batch_size_valid: ${params.dataset.batch_size}
 optimization:
   max_epoch: 0
   max_update: 0
