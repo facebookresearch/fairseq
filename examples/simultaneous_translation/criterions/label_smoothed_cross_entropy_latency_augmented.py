@@ -19,7 +19,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
 ):
 
     def __init__(self, args, task):
-        super().__init__(args, task)
+        super().__init__(task, args.sentence_avg, args.label_smoothing)
         self.eps = args.label_smoothing
         self.latency_weight_avg = args.latency_weight_avg
         self.latency_weight_avg_type = args.latency_weight_avg_type
@@ -74,3 +74,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
         loss += latency_loss
 
         return loss, nll_loss
+
+    @classmethod
+    def build_criterion(cls, args, task):
+        return cls(args, task)
