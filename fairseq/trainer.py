@@ -81,7 +81,7 @@ class Trainer(object):
                 )
                 _set_module_by_path(self._model, path, ref)
 
-        self._dummy_batch = "DUMMY"  # indicates we don't have a dummy batch at first
+        self._dummy_batch = None  # indicates we don't have a dummy batch at first
         self._lr_scheduler = None
         self._num_updates = 0
         self._num_xla_compiles = 0  # for TPUs
@@ -355,7 +355,7 @@ class Trainer(object):
                 combine=combine,
                 data_selector=data_selector,
             )
-        return self.task.get_batch_iterator(
+        batch_iterator = self.task.get_batch_iterator(
             dataset=self.task.dataset(self.args.train_subset),
             max_tokens=self.args.max_tokens,
             max_sentences=self.args.batch_size,
@@ -374,6 +374,8 @@ class Trainer(object):
             data_buffer_size=self.args.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
         )
+        self.reset_dummy_batch(batch_iterator.first_batch)
+        return batch_iterator
 
     def get_valid_iterator(
         self,
@@ -381,7 +383,7 @@ class Trainer(object):
         disable_iterator_cache=False,
     ):
         """Return an EpochBatchIterator over given validation subset for a given epoch."""
-        return self.task.get_batch_iterator(
+        batch_iterator = self.task.get_batch_iterator(
             dataset=self.task.dataset(subset),
             max_tokens=self.args.max_tokens_valid,
             max_sentences=self.args.batch_size_valid,
@@ -398,6 +400,8 @@ class Trainer(object):
             data_buffer_size=self.args.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
         )
+        self.reset_dummy_batch(batch_iterator.first_batch)
+        return batch_iterator
 
     def begin_epoch(self, epoch):
         """Called at the beginning of each epoch."""
@@ -423,9 +427,9 @@ class Trainer(object):
 
         # task specific setup per validation epoch
         self.task.begin_valid_epoch(epoch, self.get_model())
-
-        # reset dummy batch
-        self._dummy_batch = 'DUMMY'
+    
+    def reset_dummy_batch(self, batch):
+        self._dummy_batch = batch
 
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
@@ -447,8 +451,6 @@ class Trainer(object):
                 sample = self._prepare_sample(self._dummy_batch)
                 is_dummy_batch = True
             else:
-                if self._dummy_batch == "DUMMY":
-                    self._dummy_batch = sample
                 is_dummy_batch = False
 
             def maybe_no_sync():
@@ -671,8 +673,6 @@ class Trainer(object):
                 sample = self._prepare_sample(self._dummy_batch)
                 is_dummy_batch = True
             else:
-                if self._dummy_batch == "DUMMY":
-                    self._dummy_batch = sample
                 is_dummy_batch = False
 
             try:
@@ -807,13 +807,7 @@ class Trainer(object):
         return time.time() - self._start_time + self._previous_training_time
 
     def _prepare_sample(self, sample):
-        if sample == "DUMMY":
-            raise Exception(
-                "Trying to use an uninitialized 'dummy' batch. This usually indicates "
-                "that the total number of batches is smaller than the number of "
-                "participating GPUs. Try reducing the batch size or using fewer GPUs."
-            )
-
+        
         if sample is None or len(sample) == 0:
             return None
 
