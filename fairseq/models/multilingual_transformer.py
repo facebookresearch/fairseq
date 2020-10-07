@@ -18,6 +18,10 @@ from fairseq.models.transformer import (
     TransformerEncoder,
     TransformerDecoder,
 )
+from fairseq.models.latent_transformer import (
+    LatentTransformerEncoder,
+    LatentTransformerDecoder,
+)
 
 
 @register_model('multilingual_transformer')
@@ -136,7 +140,10 @@ class MultilingualTransformerModel(FairseqMultiModel):
                     encoder_embed_tokens = build_embedding(
                         task.dicts[lang], args.encoder_embed_dim, args.encoder_embed_path
                     )
-                lang_encoders[lang] = TransformerEncoder(args, task.dicts[lang], encoder_embed_tokens)
+                if hasattr(args, "encoder_latent_layer") and args.encoder_latent_layer:
+                    lang_encoders[lang] = LatentTransformerEncoder(args, task.dicts[lang], encoder_embed_tokens, num_logits=len(src_langs))
+                else:
+                    lang_encoders[lang] = TransformerEncoder(args, task.dicts[lang], encoder_embed_tokens)
             return lang_encoders[lang]
 
         def get_decoder(lang):
@@ -147,7 +154,10 @@ class MultilingualTransformerModel(FairseqMultiModel):
                     decoder_embed_tokens = build_embedding(
                         task.dicts[lang], args.decoder_embed_dim, args.decoder_embed_path
                     )
-                lang_decoders[lang] = TransformerDecoder(args, task.dicts[lang], decoder_embed_tokens)
+                if hasattr(args, "decoder_latent_layer") and args.decoder_latent_layer:
+                    lang_decoders[lang] = LatentTransformerDecoder(args, task.dicts[lang], decoder_embed_tokens, num_logits=len(tgt_langs))
+                else:
+                    lang_decoders[lang] = TransformerDecoder(args, task.dicts[lang], decoder_embed_tokens)
             return lang_decoders[lang]
 
         # shared encoders/decoders (if applicable)

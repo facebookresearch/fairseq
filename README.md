@@ -43,6 +43,7 @@ We provide reference implementations of various sequence modeling papers:
   - [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
   - [Generating Medical Reports from Patient-Doctor Conversations Using Sequence-to-Sequence Models (Enarvi et al., 2020)](examples/pointer_generator/README.md)
   - [Linformer: Self-Attention with Linear Complexity (Wang et al., 2020)](examples/linformer/README.md)
+  - [Deep Transformers with Latent Depth (Li et al., 2020)](examples/latent_depth/README.md)
 - **Non-autoregressive Transformers**
   - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -54,6 +55,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+- October 2020: [Deep Transformer with Latent Depth code released](examples/latent_depth/README.md)
 - September 2020: [Added Linformer code](examples/linformer/README.md)
 - September 2020: [Added pointer-generator networks](examples/pointer_generator/README.md)
 - August 2020: [Added lexically constrained decoding](examples/constrained_decoding/README.md)
