@@ -413,9 +413,6 @@ class Trainer(object):
         # task specific setup per epoch
         self.task.begin_epoch(epoch, self.get_model())
 
-        # reset dummy batch
-        self._dummy_batch = None
-
         if self.tpu:
             import torch_xla.core.xla_model as xm
 
