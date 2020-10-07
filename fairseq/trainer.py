@@ -414,7 +414,7 @@ class Trainer(object):
         self.task.begin_epoch(epoch, self.get_model())
 
         # reset dummy batch
-        self._dummy_batch = 'DUMMY'
+        self._dummy_batch = None
 
         if self.tpu:
             import torch_xla.core.xla_model as xm
@@ -427,7 +427,7 @@ class Trainer(object):
 
         # task specific setup per validation epoch
         self.task.begin_valid_epoch(epoch, self.get_model())
-    
+
     def reset_dummy_batch(self, batch):
         self._dummy_batch = batch
 
@@ -807,7 +807,6 @@ class Trainer(object):
         return time.time() - self._start_time + self._previous_training_time
 
     def _prepare_sample(self, sample):
-        
         if sample is None or len(sample) == 0:
             return None
 
