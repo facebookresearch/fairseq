@@ -84,7 +84,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             append_source_id=True
             )
 
-    def build_generator(self, models, args):
+    def build_generator(self, models, args, **unused):
         if getattr(args, 'score_reference', False):
             from fairseq.sequence_scorer import SequenceScorer
             return SequenceScorer(

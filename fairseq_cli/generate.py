@@ -7,6 +7,8 @@
 Translate pre-processed data with a trained model.
 """
 
+import ast
+from itertools import chain
 import logging
 import math
 import os
@@ -78,17 +80,39 @@ def _main(args, output_file):
         src_dict = None
     tgt_dict = task.target_dictionary
 
+    overrides = ast.literal_eval(args.model_overrides)
+
     # Load ensemble
     logger.info('loading model(s) from {}'.format(args.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
         utils.split_paths(args.path),
-        arg_overrides=eval(args.model_overrides),
+        arg_overrides=overrides,
         task=task,
         suffix=getattr(args, "checkpoint_suffix", ""),
     )
 
+    if args.lm_path is not None:
+        overrides['data'] = args.data
+
+        try:
+            lms, _ = checkpoint_utils.load_model_ensemble(
+                [args.lm_path],
+                arg_overrides=overrides,
+                task=None,
+            )
+        except:
+            logger.warning(f"Failed to load language model! Please make sure that the language model dict is the same "
+                           f"as target dict and is located in the data dir ({args.data})")
+            raise
+
+        assert len(lms) == 1
+    else:
+        lms = [None]
+
     # Optimize ensemble for generation
-    for model in models:
+    for model in chain(models, lms):
+        if model is None:
+            continue
         model.prepare_for_inference_(args)
         if args.fp16:
             model.half()
@@ -124,7 +148,12 @@ def _main(args, output_file):
 
     # Initialize generator
     gen_timer = StopwatchMeter()
-    generator = task.build_generator(models, args)
+
+    extra_gen_cls_kwargs = {
+        'lm_model': lms[0],
+        'lm_weight': args.lm_weight
+    }
+    generator = task.build_generator(models, args, extra_gen_cls_kwargs=extra_gen_cls_kwargs)
 
     # Handle tokenization and BPE
     tokenizer = encoders.build_tokenizer(args)
@@ -269,9 +298,11 @@ def _main(args, output_file):
     if has_target:
         if args.bpe and not args.sacrebleu:
             if args.remove_bpe:
-                logger.warning("BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization")
+                logger.warning(
+                    "BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization")
             else:
-                logger.warning("If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --sacrebleu for standard 13a BLEU tokenization")
+                logger.warning(
+                    "If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --sacrebleu for standard 13a BLEU tokenization")
         # use print to be consistent with other main outputs: S-, H-, T-, D- and so on
         print(
             'Generate {} with beam={}: {}'.format(args.gen_subset, args.beam, scorer.result_string()),

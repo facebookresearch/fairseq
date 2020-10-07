@@ -380,6 +380,11 @@ def add_generation_args(parser):
                        help='if set, uses attention feedback to compute and print alignment to source tokens')
     group.add_argument('--print-step', action='store_true')
 
+    group.add_argument('--lm-path', default=None, type=str, metavar='PATH',
+                       help='path to lm checkpoint for lm fusion')
+    group.add_argument('--lm-weight', default=0.0, type=float, metavar='N',
+                       help='weight for lm probs for lm fusion')
+
     # arguments for iterative refinement generator
     group.add_argument('--iter-decode-eos-penalty', default=0.0, type=float, metavar='N',
                        help='if > 0.0, it penalized early-stopping in decoding.')

@@ -128,7 +128,7 @@ class TranslationLevenshteinTask(TranslationTask):
         else:
             raise NotImplementedError
 
-    def build_generator(self, models, args):
+    def build_generator(self, models, args, **unused):
         # add models input to match the API for SequenceGenerator
         from fairseq.iterative_refinement_generator import IterativeRefinementGenerator
         return IterativeRefinementGenerator(
