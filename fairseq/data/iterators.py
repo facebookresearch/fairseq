@@ -250,7 +250,7 @@ class EpochBatchIterator(EpochBatchIterating):
         if self._frozen_batches is None:
             self._frozen_batches = tuple(self.batch_sampler(self.dataset, self.epoch))
         return self._frozen_batches
-    
+
     @property
     def first_batch(self):
         if len(self.frozen_batches) == 0:
