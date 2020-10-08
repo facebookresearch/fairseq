@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
-cd fairseq
+# shellcheck disable=SC2164
 python -m pip install --editable .
 echo $PYTHONPATH
