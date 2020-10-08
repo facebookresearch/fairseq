@@ -141,7 +141,9 @@ class MultilingualTransformerModel(FairseqMultiModel):
                         task.dicts[lang], args.encoder_embed_dim, args.encoder_embed_path
                     )
                 if hasattr(args, "encoder_latent_layer") and args.encoder_latent_layer:
-                    lang_encoders[lang] = LatentTransformerEncoder(args, task.dicts[lang], encoder_embed_tokens, num_logits=len(src_langs))
+                    lang_encoders[lang] = LatentTransformerEncoder(
+                        args, task.dicts[lang], encoder_embed_tokens, num_logits=len(src_langs)
+                    )
                 else:
                     lang_encoders[lang] = TransformerEncoder(args, task.dicts[lang], encoder_embed_tokens)
             return lang_encoders[lang]
@@ -155,7 +157,9 @@ class MultilingualTransformerModel(FairseqMultiModel):
                         task.dicts[lang], args.decoder_embed_dim, args.decoder_embed_path
                     )
                 if hasattr(args, "decoder_latent_layer") and args.decoder_latent_layer:
-                    lang_decoders[lang] = LatentTransformerDecoder(args, task.dicts[lang], decoder_embed_tokens, num_logits=len(tgt_langs))
+                    lang_decoders[lang] = LatentTransformerDecoder(
+                        args, task.dicts[lang], decoder_embed_tokens, num_logits=len(tgt_langs)
+                    )
                 else:
                     lang_decoders[lang] = TransformerDecoder(args, task.dicts[lang], decoder_embed_tokens)
             return lang_decoders[lang]

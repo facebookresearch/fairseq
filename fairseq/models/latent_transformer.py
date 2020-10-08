@@ -5,22 +5,20 @@
 
 from typing import Any, Dict, Optional
 
-import torch
 import torch.nn as nn
-from fairseq.models import register_model, register_model_architecture
 from fairseq.models.fairseq_encoder import EncoderOut
-from fairseq.models.transformer import TransformerEncoder, TransformerDecoder, TransformerModel
+from fairseq.models.transformer import TransformerEncoder, TransformerDecoder
 from fairseq.modules import LayerSelect, TransformerEncoderLayer, TransformerDecoderLayer
 from torch import Tensor
 
 
 class LatentTransformerEncoder(TransformerEncoder):
-    """Latent depth (https://arxiv.org/abs/2009.13102) implemented in 
-    TransformerEncoder. 
+    """Latent depth (https://arxiv.org/abs/2009.13102) implemented in
+    TransformerEncoder.
     """
     def __init__(self, args, dictionary, embed_tokens, num_logits=1):
         self.num_logits = num_logits
-        self.num_layers = args.decoder_layers
+        self.num_layers = args.encoder_layers
         super().__init__(args, dictionary, embed_tokens)
         self.layer_select = LayerSelect(self.num_layers, self.num_logits, args)
         self.lang_idx = None
@@ -45,7 +43,7 @@ class LatentTransformerEncoderLayer(TransformerEncoderLayer):
     or Gumbel Signmoid samples.
 
     Args:
-        args (argparse.Namespace): parsed command-line arguments from standard 
+        args (argparse.Namespace): parsed command-line arguments from standard
             TransformerEncoderLayer.
         idx (int): layer index (used to retrieve samples).
         layer_select (LayerSelect, optional): instance of LayerSelect module with logits
@@ -61,8 +59,8 @@ class LatentTransformerEncoderLayer(TransformerEncoderLayer):
 
 
 class LatentTransformerDecoder(TransformerDecoder):
-    """Latent depth (https://arxiv.org/abs/2009.13102) implemented in 
-    TransformerDecoder. 
+    """Latent depth (https://arxiv.org/abs/2009.13102) implemented in
+    TransformerDecoder.
     """
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, num_logits=1):
         self.num_logits = num_logits
@@ -111,7 +109,7 @@ class LatentTransformerDecoderLayer(TransformerDecoderLayer):
     or Gumbel Signmoid samples.
 
     Args:
-        args (argparse.Namespace): parsed command-line arguments from standard 
+        args (argparse.Namespace): parsed command-line arguments from standard
             TransformerDecoderLayer.
         idx (int): layer index (used to retrieve samples).
         layer_select (LayerSelect, optional): instance of LayerSelect module with logits
@@ -129,4 +127,3 @@ class LatentTransformerDecoderLayer(TransformerDecoderLayer):
 
     def residual_connection(self, x, residual):
         return residual + x * self.layer_select(self.idx)
-
