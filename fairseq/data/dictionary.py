@@ -221,7 +221,7 @@ class Dictionary(object):
         """
         if isinstance(f, str):
             try:
-                with PathManager.open(f, "r", encoding="utf-8") as fd:
+                with open(PathManager.get_local_path(f), "r", encoding="utf-8") as fd:
                     self.add_from_file(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe

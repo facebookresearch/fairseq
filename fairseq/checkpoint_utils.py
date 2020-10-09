@@ -200,7 +200,7 @@ def load_checkpoint(args, trainer, **passthrough_args):
 
 def load_checkpoint_to_cpu(path, arg_overrides=None):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility)."""
-    with PathManager.open(path, "rb") as f:
+    with open(PathManager.get_local_path(path), "rb") as f:
         state = torch.load(
             f, map_location=lambda s, l: default_restore_location(s, "cpu")
         )
