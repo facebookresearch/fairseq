@@ -5,3 +5,4 @@
 
 from .models import latent_transformer # noqa
 from .modules import latent_layers # noqa
+from .loss import latent_depth # noqa

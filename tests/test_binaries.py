@@ -220,7 +220,10 @@ class TestTranslation(unittest.TestCase):
                     dec_ll_flag = decoder_latent_layer[j]
                     with tempfile.TemporaryDirectory(f'test_multilingual_translation_latent_depth_{i}_{j}') as data_dir:
                         create_dummy_data(data_dir)
-                        preprocess_translation_data(data_dir)
+                        preprocess_translation_data(
+                            data_dir,
+                            extra_flags=['--joined-dictionary']
+                        )
                         train_translation_model(
                             data_dir,
                             arch='multilingual_transformer',
