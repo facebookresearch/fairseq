@@ -110,16 +110,16 @@ class MultilingualTranslationTask(LegacyFairseqTask):
     def __init__(self, args, dicts, training):
         super().__init__(args)
         self.dicts = dicts
+        self.training = training
         src_langs, tgt_langs = zip(*[(lang.split("-")[0], lang.split("-")[1]) for lang in args.lang_pairs])
         self.src_lang_idx_dict = {lang: lang_idx for lang_idx, lang in enumerate(src_langs)}
         self.tgt_lang_idx_dict = {lang: lang_idx for lang_idx, lang in enumerate(tgt_langs)}
         self.encoder_latent_layer = hasattr(self.args, "encoder_latent_layer") and self.args.encoder_latent_layer
-        if self.encoder_latent_layer:
+        if self.training and self.encoder_latent_layer:
             assert self.args.share_encoders
         self.decoder_latent_layer = hasattr(self.args, "decoder_latent_layer") and self.args.decoder_latent_layer
-        if self.decoder_latent_layer:
+        if self.training and self.decoder_latent_layer:
             assert self.args.share_decoders
-        self.training = training
         if training or self.encoder_latent_layer or self.decoder_latent_layer:
             self.lang_pairs = args.lang_pairs
         else:
