@@ -348,7 +348,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 if ignore_grad:
                     loss *= 0
 
-                if hasattr(self, sparsity_loss) and self.sparsity_loss.is_valid(update_num):
+                if hasattr(self, "sparsity_loss") and self.sparsity_loss.is_valid(update_num):
                     # need to retain the graph if sparsity loss needs to be added
                     loss.backward(retain_graph=True)
                 else:
@@ -361,7 +361,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 agg_logging_output[f"{lang_pair}:{k}"] += logging_output[k]
 
         # compute auxiliary loss from layere sparsity, based on all samples from all languages
-        if hasattr(self, sparsity_loss) and self.sparsity_loss.is_valid(update_num):
+        if hasattr(self, "sparsity_loss") and self.sparsity_loss.is_valid(update_num):
             sparsity_loss = 0
             if self.encoder_latent_layer:
                 sparsity_loss += self.sparsity_loss(model.models[lang_pair].encoder.layer_select.layer_samples, update_num, agg_sample_size)
