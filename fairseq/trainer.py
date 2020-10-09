@@ -569,7 +569,7 @@ class Trainer(object):
         except FloatingPointError:
             # re-run the forward and backward pass with hooks attached to print
             # out where it fails
-            with NanDetector(self.model):
+            with NanDetector(self.get_model()):
                 self.task.train_step(
                     sample, self.model, self.criterion, self.optimizer, self.get_num_updates(),
                     ignore_grad=False
