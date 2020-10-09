@@ -379,6 +379,13 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             for lang_pair in self.eval_lang_pairs:
                 if lang_pair not in sample or sample[lang_pair] is None or len(sample[lang_pair]) == 0:
                     continue
+                src, tgt = lang_pair.split("-")
+                if self.encoder_latent_layer:
+                    src_lang_idx = self.src_lang_idx_dict[src]
+                    model.models[lang_pair].encoder.set_lang_idx(src_lang_idx)
+                if self.decoder_latent_layer:
+                    tgt_lang_idx = self.tgt_lang_idx_dict[tgt]
+                    model.models[lang_pair].decoder.set_lang_idx(tgt_lang_idx)
                 loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
                 agg_loss += loss.data.item()
                 # TODO make summing of the sample sizes configurable
