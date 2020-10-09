@@ -18,7 +18,7 @@ from fairseq.models.transformer import (
     TransformerEncoder,
     TransformerDecoder,
 )
-from fairseq.models.latent_transformer import (
+from examples.latent_depth.src.models.latent_transformer import (
     LatentTransformerEncoder,
     LatentTransformerDecoder,
 )

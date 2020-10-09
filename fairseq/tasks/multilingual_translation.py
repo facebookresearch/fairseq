@@ -20,6 +20,7 @@ from fairseq.data import (
 )
 from fairseq.models import FairseqMultiModel
 from fairseq.tasks.translation import load_langpair_dataset
+from examples.latent_depth.src.loss.latent_depth import LatentLayersKLLoss, LatentLayersSparsityLoss 
 
 from . import register_task, LegacyFairseqTask
 
@@ -124,6 +125,9 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             self.lang_pairs = args.lang_pairs
         else:
             self.lang_pairs = ['{}-{}'.format(args.source_lang, args.target_lang)]
+        if self.training and (self.encoder_latent_layer or self.decoder_latent_layer):
+            self.kl_loss = LatentLayersKLLoss(self.args)
+            self.sparsity_loss = LatentLayersSparsityLoss(self.args)
         # eval_lang_pairs for multilingual translation is usually all of the
         # lang_pairs. However for other multitask settings or when we want to
         # optimize for certain languages we want to use a different subset. Thus
@@ -325,7 +329,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                         1 if x is None else 0 for x in model.models[lang_pair].encoder.layer_select.layer_samples
                     )
                     if none_samples == 0 or self.args.prior != "agged_posterior":
-                        loss += self.get_kl_loss(
+                        loss += self.kl_loss(
                             model.models[lang_pair].encoder.layer_select.layer_samples,
                             src_lang_idx,
                             update_num,
@@ -336,7 +340,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                         1 if x is None else 0 for x in model.models[lang_pair].decoder.layer_select.layer_samples
                     )
                     if none_samples == 0 or self.args.prior != "agged_posterior":
-                        loss += self.get_kl_loss(
+                        loss += self.kl_loss(
                             model.models[lang_pair].decoder.layer_select.layer_samples,
                             tgt_lang_idx,
                             update_num,
@@ -344,13 +348,28 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                         )
                 if ignore_grad:
                     loss *= 0
-                optimizer.backward(loss)
+
+                if self.sparsity_loss.is_valid(update_num):
+                    # need to retain the graph if sparsity loss needs to be added
+                    loss.backward(retain_graph=True)
+                else:
+                    optimizer.backward(loss)
             agg_loss += loss.detach().item()
             # TODO make summing of the sample sizes configurable
             agg_sample_size += sample_size
             for k in logging_output:
                 agg_logging_output[k] += logging_output[k]
                 agg_logging_output[f"{lang_pair}:{k}"] += logging_output[k]
+
+        # compute auxiliary loss from layere sparsity, based on all samples from all languages
+        if self.sparsity_loss.is_valid(update_num):
+            sparsity_loss = 0
+            if self.encoder_latent_layer:
+                sparsity_loss += self.sparsity_loss(model.models[lang_pair].encoder.layer_select.layer_samples, update_num, agg_sample_size)
+            if self.decoder_latent_layer:
+                sparsity_loss += self.sparsity_loss(model.models[lang_pair].decoder.layer_select.layer_samples, update_num, agg_sample_size)
+            if sparsity_loss > 0:
+                optimizer.backward(sparsity_loss)
         return agg_loss, agg_sample_size, agg_logging_output
 
     def valid_step(self, sample, model, criterion):
@@ -400,69 +419,6 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             super().reduce_metrics(logging_outputs, criterion)
             for k in ['sample_size', 'nsentences', 'ntokens']:
                 metrics.log_scalar(k, sum(l[k] for l in logging_outputs))
-
-    def get_kl_loss(self, layer_samples, lang_idx, update_num, sample_size):
-        prior = self.args.prior
-        samples = layer_samples[lang_idx]
-        eps = 1e-7
-        if prior == "uniform":
-            # uniform prior
-            kl_loss = (samples * (
-                torch.log(samples + eps) - math.log(0.5)
-            )).sum(-1)
-        elif prior == "agged_posterior":
-            # aggregated posterior
-            y_t = torch.stack([x.detach() for x in layer_samples], dim=0)
-            agged_q = torch.sum(y_t, dim=0)
-            row_norm = agged_q.sum(-1)
-            normed_agg_q = agged_q / row_norm
-            kl_loss = (samples * (
-                torch.log(samples + eps) - torch.log(normed_agg_q + eps))).sum(-1)
-        else:
-            raise NotImplementedError("The specified prior is not implemented.")
-
-        # normalized by number of layers
-        kl_loss /= layer_samples[0].size()[0]
-        kl_weight = min(
-            self.args.sparsity_weight, 
-            (update_num - self.args.soft_update) * self.args.sparsity_weight / self.args.anneal_updates
-        )
-        kl_loss *= kl_weight * sample_size
-        return kl_loss
-
-    def get_sparsity_loss(self, layer_samples_list, update_num, sample_size):
-        batch_loss = 0
-        share_loss = 0
-        global_sparsity_loss = 0
-        layer_samples = torch.stack(layer_samples_list, dim=0)
-        if ((self.args.target_layers > 0 or self.args.share_weight > 0) and 
-                update_num > (self.args.soft_update + self.args.anneal_updates)):
-            # anneal sparsity weight
-            if update_num < (self.args.anneal_updates + self.args.soft_update):
-                weight_anneal = 0
-            elif update_num < (2 * self.args.anneal_updates + self.args.soft_update):
-                weight_anneal = (
-                    (update_num - self.args.soft_update - self.args.anneal_updates) 
-                    * self.args.share_weight / self.args.anneal_updates
-                )
-            else:
-                weight_anneal = 1
-            # compute ratio among languages
-            layer_utilization = torch.sum(layer_samples, dim=0)
-            layer_utilization /= layer_samples.size()[0]
-            if self.args.share_weight > 0:
-                # encouraging sharing across languages
-                share_loss = sum(-1.0 * v * math.log(v) for v in layer_utilization if v > 0)
-                batch_loss += weight_anneal * self.args.share_weight * sample_size * share_loss
-            if self.args.target_layers > 0:
-                # computed expected number of layers selected
-                expeted_layers = sum(layer_utilization)
-                # compute l2 loss wrt target number of layers
-                global_sparsity_loss = (expeted_layers - self.args.target_layers) ** 2
-                batch_loss += weight_anneal * self.args.share_weight * sample_size * global_sparsity_loss
-        return batch_loss
-
-
 
     @property
     def source_dictionary(self):

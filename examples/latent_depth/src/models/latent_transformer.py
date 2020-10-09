@@ -8,7 +8,8 @@ from typing import Any, Dict, Optional
 import torch.nn as nn
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerEncoder, TransformerDecoder
-from fairseq.modules import LayerSelect, TransformerEncoderLayer, TransformerDecoderLayer
+from fairseq.modules import TransformerEncoderLayer, TransformerDecoderLayer
+from ..modules.latent_layers import LayerSelect
 from torch import Tensor
 
 

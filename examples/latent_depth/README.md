@@ -13,7 +13,7 @@ Below is an example of training with latent depth in decoder for one-to-many (O2
 lang_pairs_str="eng-aze,eng-bel,eng-ces,eng-glg,eng-por,eng-rus,eng-slk,eng-tur"
 databin_dir=<path to binarized data>
 
-fairseq-train ${databin_dir} \
+python fairseq_cli/train.py ${databin_dir} \
   --lang-pairs "${lang_pairs_str}" \
   --arch multilingual_transformer_iwslt_de_en \
   --task multilingual_translation \
@@ -49,7 +49,7 @@ src_lang=<source language to translate from>
 tgt_lang=<target language to translate to>
 gen_data=<name of data split, e.g. valid, test, etc>
 
-fairseq-generate ${databin_dir} \
+python fairseq_cli/generate.py ${databin_dir} \
   --path ${model_path} \
   --task multilingual_translation \
   --decoder-latent-layer \
