@@ -10,16 +10,17 @@
     2. If and only if the above fails, try installing the packages:
         ```
         # Install conda somewhere...
-        conda create -n 202010-fairseq-common -c conda-forge -c pytorch -c plotly -c nvidia python=3.7 plotly black click scikit-learn jupyter jupyterlab ipympl dvc plotnine seaborn dtale isort=4.3.21 more-itertools nbdime pyflakes pytest pylint mypy graphviz flake8 dill cython autopep8 nltk mkdocs flask sknw graphviz flake8-docstrings folium pydocstyle tqdm soupsieve docopt lxml jupytext papermill absl-py beautifulsoup4 scipy numba scikit-image scikit-fuzzy pandas-flavor pandas-profiling pytest-cov ptvsd great-expectations requests-cache apsw qgrid texttable pytorch torchvision cudatoolkit=10.1 cudatoolkit-dev=10.1 virtualenv nccl cffi cython dataclasses editdistance hydra-core regex sacrebleu tqdm pandas py-opencv
+        conda create -n 202010-fairseq -c conda-forge -c pytorch -c plotly -c nvidia python=3.7 plotly click scikit-learn jupyter jupyterlab ipympl dvc plotnine seaborn dtale nbdime cython tqdm jupytext scipy numba scikit-image scikit-fuzzy ptvsd qgrid pytorch torchvision cudatoolkit=10.1 cudatoolkit-dev=10.1 nccl cffi cython dataclasses editdistance regex sacrebleu tqdm pandas py-opencv
+        pip install soundfile
         ```
 
-3. Activate then env: `conda activate 202010-fairseq-common`
+3. Activate then env: `conda activate 202010-fairseq`
     
 4. Install APEX
     ```
     git clone https://github.com/NVIDIA/apex
-    export TORCH_CUDA_ARCH_LIST="5.2;6.0;6.1;6.2;7.0;7.5"
     cd apex
+    export TORCH_CUDA_ARCH_LIST="5.2;6.0;6.1;6.2;7.0;7.5"
     pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" \
     --global-option="--deprecated_fused_adam" --global-option="--xentropy" \
     --global-option="--fast_multihead_attn" ./
