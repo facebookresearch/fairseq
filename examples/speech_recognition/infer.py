@@ -244,6 +244,7 @@ def main(args, task=None, model_state=None):
         # Load dataset splits
         task = tasks.setup_task(args)
         task.load_dataset(args.gen_subset)
+
         logger.info(
             "| {} {} {} examples".format(
                 args.data, args.gen_subset, len(task.dataset(args.gen_subset))
@@ -281,24 +282,7 @@ def main(args, task=None, model_state=None):
     # Initialize generator
     gen_timer = StopwatchMeter()
 
-    def build_generator(args):
-        w2l_decoder = getattr(args, "w2l_decoder", None)
-        if w2l_decoder == "viterbi":
-            from examples.speech_recognition.w2l_decoder import W2lViterbiDecoder
-
-            return W2lViterbiDecoder(args, task.target_dictionary)
-        elif w2l_decoder == "kenlm":
-            from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
-
-            return W2lKenLMDecoder(args, task.target_dictionary)
-        elif w2l_decoder == "fairseqlm":
-            from examples.speech_recognition.w2l_decoder import W2lFairseqLMDecoder
-
-            return W2lFairseqLMDecoder(args, task.target_dictionary)
-        else:
-            return super().build_generator(args)
-
-    generator = build_generator(args)
+    generator = task.build_generator(models, args)
 
     if args.load_emissions:
         generator = ExistingEmissionsDecoder(
