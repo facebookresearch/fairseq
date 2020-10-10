@@ -87,8 +87,11 @@ class SequenceScorer(object):
                 avg_probs = probs
             else:
                 avg_probs.add_(probs)
-            if attn is not None and torch.is_tensor(attn):
-                attn = attn.data
+            if attn is not None:
+                if torch.is_tensor(attn):
+                    attn = attn.data
+                else:
+                    attn = attn[0]
                 if avg_attn is None:
                     avg_attn = attn
                 else:
