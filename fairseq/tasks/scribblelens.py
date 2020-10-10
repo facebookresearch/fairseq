@@ -69,6 +69,14 @@ class ScribblelensTask(LegacyFairseqTask):
             help="extension of the label file to load, if any",
         )
 
+        parser.add_argument(
+            "--distsup-dir",
+            type=str,
+            default=None,
+            required=True,
+            help="directory to use as dist_root in FileHandwritingDataset",
+        )
+
     def __init__(self, args, source_dictionary=None):
         super().__init__(args)
         self._target_dictionary = None
@@ -92,6 +100,7 @@ class ScribblelensTask(LegacyFairseqTask):
         """
         manifest = os.path.join(self.args.data, "{}.tsv".format(split))
         self.datasets[split] = FileHandwritingDataset(
+            self.args.distsup_dir,
             manifest,
             sample_rate=self.args.sample_rate,
             max_sample_size=self.args.max_sample_size,

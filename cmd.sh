@@ -20,9 +20,11 @@
 
 # python train.py --distributed-world-size 1 --update-freq 2 /pio/scratch/2/mstyp/wav2vec/data/LibriSpeech \
 #   --save-dir /pio/scratch/2/mstyp/wav2vec/try1 --num-workers 0 \
+#--distsup-dir '/pio/scratch/2/mstyp/wav2vec/DistSup'
 
 # python train.py --distributed-world-size 1 --update-freq 2 /pio/scratch/1/i283340/MGR/NewSetup/data/LibriSpeech \
 #   --save-dir /pio/scratch/1/i283340/MGR/sth/wav2vec/try1 --num-workers 0 \
+#--distsup-dir '/pio/scratch/1/i283340/MGR/NewSetup/DistSup'
 
 python train.py --distributed-world-size 1 --update-freq 2 /pio/scratch/2/mstyp/wav2vec/data/LibriSpeech \
   --save-dir /pio/scratch/2/mstyp/wav2vec/try1 --num-workers 0 \
@@ -37,4 +39,6 @@ python train.py --distributed-world-size 1 --update-freq 2 /pio/scratch/2/mstyp/
   --loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 \
   --num-negatives 100 --cross-sample-negatives 0 --max-sample-size 250000 --min-sample-size 32000 \
   --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 --max-tokens 1400000 --max-update 400000 \
-  --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d --enable-padding
+  --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d --enable-padding \
+  --distsup-dir '/pio/scratch/2/mstyp/wav2vec/DistSup'
+

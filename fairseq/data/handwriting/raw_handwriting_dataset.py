@@ -137,6 +137,7 @@ class RawHandwritingDataset(FairseqDataset):
 class FileHandwritingDataset(RawHandwritingDataset):
     def __init__(
         self,
+        dist_root,
         manifest_path,
         sample_rate,
         max_sample_size=None,
@@ -156,8 +157,6 @@ class FileHandwritingDataset(RawHandwritingDataset):
             normalize=normalize,
         )
         path = os.getcwd()
-        dist_root = '/pio/scratch/2/mstyp/wav2vec/DistSup'  
-        # ^ '/pio/scratch/1/i283340/MGR/NewSetup/DistSup'
         os.chdir(dist_root)
         from egs.scribblelens.data import ScribbleLensDataset
         self.dataset = ScribbleLensDataset(
