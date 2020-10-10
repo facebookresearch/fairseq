@@ -62,16 +62,16 @@ class RawHandwritingDataset(FairseqDataset):
                 feats = F.layer_norm(feats, feats.shape)
         return feats
 
-    def crop_to_max_size(self, wav, target_size):
-        size = len(wav)
-        diff = size - target_size
+    def crop_to_max_size(self, wav, target_size_dim1):
+        size = wav.shape[0] #len(wav)
+        diff = size - target_size_dim1
         if diff <= 0:
             return wav
 
         start = np.random.randint(0, diff + 1)
         end = size - diff + start
-        return wav[start:end]
-
+        return wav[start:end, :]
+        
     def collater(self, samples):
         samples = [
             s
@@ -85,11 +85,11 @@ class RawHandwritingDataset(FairseqDataset):
         sizes = [len(s) for s in sources]
 
         if self.pad:
-            target_size = min(max(sizes), self.max_sample_size)
+            target_size = 1000 #min(max(sizes), self.max_sample_size)
         else:
-            target_size = min(min(sizes), self.max_sample_size)
+            target_size = 1000 #min(min(sizes), self.max_sample_size)
 
-        collated_sources = sources[0].new_zeros(len(sources), target_size)
+        collated_sources = sources[0].new_zeros((len(sources), 1000, 32))  #target_size)
         padding_mask = (
             torch.BoolTensor(collated_sources.shape).fill_(False) if self.pad else None
         )
@@ -100,11 +100,11 @@ class RawHandwritingDataset(FairseqDataset):
             elif diff < 0:
                 assert self.pad
                 collated_sources[i] = torch.cat(
-                    [source, source.new_full((-diff,), 0.0)]
+                    [source, source.new_full((-diff, 32), 0.0)]
                 )
-                padding_mask[i, diff:] = True
+                padding_mask[i, diff:, :] = True
             else:
-                collated_sources[i] = self.crop_to_max_size(source, target_size)
+                collated_sources[i] = self.crop_to_max_size(source, 1000)  #target_size)
 
         input = {"source": collated_sources}
         if self.pad:
@@ -155,9 +155,9 @@ class FileHandwritingDataset(RawHandwritingDataset):
             pad=pad,
             normalize=normalize,
         )
-
         path = os.getcwd()
-        dist_root = '/pio/scratch/2/mstyp/wav2vec/DistSup'
+        dist_root = '/pio/scratch/2/mstyp/wav2vec/DistSup'  
+        # ^ '/pio/scratch/1/i283340/MGR/NewSetup/DistSup'
         os.chdir(dist_root)
         from egs.scribblelens.data import ScribbleLensDataset
         self.dataset = ScribbleLensDataset(
@@ -170,6 +170,10 @@ class FileHandwritingDataset(RawHandwritingDataset):
         )
         os.chdir(path)
 
+        for data in self.dataset:
+            sizeHere = data['image'][:,:,0].shape
+            #print(sizeHere)
+            self.sizes.append(sizeHere[0])  # 1/2 dim TODO?
 
         # self.fnames = []
 
