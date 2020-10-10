@@ -86,7 +86,7 @@ def make_batches(lines, args, task, max_positions, encode_fn):
     itr = task.get_batch_iterator(
         dataset=task.build_dataset_for_inference(tokens, lengths, constraints=constraints_tensor),
         max_tokens=args.max_tokens,
-        max_sentences=args.max_sentences,
+        max_sentences=args.batch_size,
         max_positions=max_positions,
         ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test
     ).next_epoch_itr(shuffle=False)
@@ -112,13 +112,13 @@ def main(args):
 
     if args.buffer_size < 1:
         args.buffer_size = 1
-    if args.max_tokens is None and args.max_sentences is None:
-        args.max_sentences = 1
+    if args.max_tokens is None and args.batch_size is None:
+        args.batch_size = 1
 
     assert not args.sampling or args.nbest == args.beam, \
         '--sampling requires --nbest to be equal to --beam'
-    assert not args.max_sentences or args.max_sentences <= args.buffer_size, \
-        '--max-sentences/--batch-size cannot be larger than --buffer-size'
+    assert not args.batch_size or args.batch_size <= args.buffer_size, \
+        '--batch-size cannot be larger than --buffer-size'
 
     logger.info(args)
 

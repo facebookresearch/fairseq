@@ -282,7 +282,7 @@ def generate_main(data_dir, extra_flags=None):
     # evaluate model interactively
     generate_args.buffer_size = 0
     generate_args.input = '-'
-    generate_args.max_sentences = None
+    generate_args.batch_size = None
     orig_stdin = sys.stdin
     sys.stdin = StringIO('h e l l o\n')
     interactive.main(generate_args)

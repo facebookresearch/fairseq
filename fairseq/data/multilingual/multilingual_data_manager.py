@@ -260,7 +260,7 @@ class MultilingualDatasetManager(object):
             langs = sorted(langs)
             logger.info(f"inferred language list: {langs}")
         elif args.lang_dict:
-            with PathManager.open(args.lang_dict, "r", encoding="utf-8") as f:
+            with open(PathManager.get_local_path(args.lang_dict), "r", encoding="utf-8") as f:
                 langs = [lang.strip() for lang in f.readlines() if lang.strip()]
                 logger.info(
                     f"loaded language list from {args.lang_dict} as they are ordered in file"
@@ -787,14 +787,15 @@ class MultilingualDatasetManager(object):
         shards = defaultdict(int)
         for path in paths:
             files = PathManager.ls(path)
+            directions = set()
             for f in files:
                 if f.startswith(split) and f.endswith(".idx"):
                     # idx files of the form "{split}.{src}-{tgt}.{lang}.idx"
-                    direction = f.split(".")[-3]
-                    shards[direction] += 1
-        # each direction has two '.idx' files
-        # one for source language and one for target language, so:
-        return {k: v // 2 for k, v in shards.items()}
+                    direction = f.split('.')[-3]
+                    directions.add(direction)
+            for direction in directions:
+                shards[direction] += 1
+        return shards
 
     def get_split_num_data_shards(self, split):
         if split in self._num_shards_dict:

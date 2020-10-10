@@ -27,7 +27,7 @@ ROBERTA_PATH=/path/to/roberta/model.pt
 CUDA_VISIBLE_DEVICES=0 fairseq-train RTE-bin/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
-    --max-sentences $MAX_SENTENCES \
+    --batch-size $MAX_SENTENCES \
     --max-tokens 4400 \
     --task sentence_prediction \
     --reset-optimizer --reset-dataloader --reset-meters \
@@ -52,7 +52,7 @@ Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
 ---|---|---|---|---|---|---|---|---
 `--num-classes` | 3 | 2 | 2 | 2 | 2 | 2 | 2 | 1
 `--lr` | 1e-5 | 1e-5 | 1e-5 | 2e-5 | 1e-5 | 1e-5 | 1e-5 | 2e-5
-`--max-sentences` | 32 | 32 | 32 | 16 | 32 | 16 | 16 | 16
+`--batch-size` | 32 | 32 | 32 | 16 | 32 | 16 | 16 | 16
 `--total-num-update` | 123873 | 33112 | 113272 | 2036 | 20935 | 2296 | 5336 | 3598
 `--warmup-updates` | 7432 | 1986 | 28318 | 122 | 1256 | 137 | 320 | 214
 
@@ -60,9 +60,9 @@ For `STS-B` additionally add `--regression-target --best-checkpoint-metric loss`
 
 **Note:**
 
-a) `--total-num-updates` is used by `--polynomial_decay` scheduler and is calculated for `--max-epoch=10` and `--max-sentences=16/32` depending on the task.
+a) `--total-num-updates` is used by `--polynomial_decay` scheduler and is calculated for `--max-epoch=10` and `--batch-size=16/32` depending on the task.
 
-b) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb` of memory for each task. Depending on the GPU memory resources available to you, you can use increase `--update-freq` and reduce `--max-sentences`.
+b) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb` of memory for each task. Depending on the GPU memory resources available to you, you can use increase `--update-freq` and reduce `--batch-size`.
 
 c) All the settings in above table are suggested settings based on our hyperparam search within a fixed search space (for careful comparison across models). You might be able to find better metrics with wider hyperparam search.  
 

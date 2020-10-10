@@ -53,8 +53,8 @@ class DummyLMTask(LegacyFairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        if self.args.max_sentences is not None:
-            bsz = self.args.max_sentences
+        if self.args.batch_size is not None:
+            bsz = self.args.batch_size
         else:
             bsz = max(1, self.args.max_tokens // self.args.tokens_per_sample)
         self.datasets[split] = DummyDataset(

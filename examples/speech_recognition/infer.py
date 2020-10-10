@@ -95,7 +95,7 @@ def get_dataset_itr(args, task, models):
     return task.get_batch_iterator(
         dataset=task.dataset(args.gen_subset),
         max_tokens=args.max_tokens,
-        max_sentences=args.max_sentences,
+        max_sentences=args.batch_size,
         max_positions=(sys.maxsize, sys.maxsize),
         ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
         required_batch_size_multiple=args.required_batch_size_multiple,
@@ -234,7 +234,7 @@ class ExistingEmissionsDecoder(object):
 def main(args, task=None, model_state=None):
     check_args(args)
 
-    if args.max_tokens is None and args.max_sentences is None:
+    if args.max_tokens is None and args.batch_size is None:
         args.max_tokens = 4000000
     logger.info(args)
 

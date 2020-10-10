@@ -29,7 +29,7 @@ fairseq-train "data/bin_${VOCAB}" --task translation --user-dir examples/byte_le
     --lr 5e-4 --lr-scheduler inverse_sqrt --warmup-updates 4000 \
     --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
     --log-format 'simple' --log-interval 100 --save-dir "checkpoints/${VOCAB}" \
-    --max-sentences 100 --max-update 100000 --update-freq 2
+    --batch-size 100 --max-update 100000 --update-freq 2
 ```
 
 ## Generation

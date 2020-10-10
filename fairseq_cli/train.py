@@ -43,8 +43,8 @@ def main(args):
     utils.import_user_module(args)
 
     assert (
-        args.max_tokens is not None or args.max_sentences is not None
-    ), "Must specify batch size either with --max-tokens or --max-sentences"
+        args.max_tokens is not None or args.batch_size is not None
+    ), "Must specify batch size either with --max-tokens or --batch-size"
 
     metrics.reset()
 
@@ -101,7 +101,7 @@ def main(args):
     )
     logger.info(
         "max tokens per GPU = {} and max sentences per GPU = {}".format(
-            args.max_tokens, args.max_sentences
+            args.max_tokens, args.batch_size
         )
     )
 

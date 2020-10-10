@@ -168,8 +168,8 @@ def parse_args_and_arch(
         args = parser.parse_args(input_args)
         extra = None
     # Post-process args.
-    if hasattr(args, "max_sentences_valid") and args.max_sentences_valid is None:
-        args.max_sentences_valid = args.max_sentences
+    if (hasattr(args, "batch_size_valid") and args.batch_size_valid is None) or not hasattr(args, "batch_size_valid"):
+        args.batch_size_valid = args.batch_size
     if hasattr(args, "max_tokens_valid") and args.max_tokens_valid is None:
         args.max_tokens_valid = args.max_tokens
     if getattr(args, "memory_efficient_fp16", False):
@@ -379,6 +379,11 @@ def add_generation_args(parser):
     group.add_argument('--print-alignment', action='store_true',
                        help='if set, uses attention feedback to compute and print alignment to source tokens')
     group.add_argument('--print-step', action='store_true')
+
+    group.add_argument('--lm-path', default=None, type=str, metavar='PATH',
+                       help='path to lm checkpoint for lm fusion')
+    group.add_argument('--lm-weight', default=0.0, type=float, metavar='N',
+                       help='weight for lm probs for lm fusion')
 
     # arguments for iterative refinement generator
     group.add_argument('--iter-decode-eos-penalty', default=0.0, type=float, metavar='N',
