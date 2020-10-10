@@ -33,12 +33,6 @@ class ScribblelensTask(LegacyFairseqTask):
         """Add task-specific arguments to the parser."""
         parser.add_argument("data", help="path to data directory")
         parser.add_argument(
-            "--sample-rate",
-            default=16000,
-            type=int,
-            help="target sample rate. audio files will be up/down sampled to this rate",
-        )
-        parser.add_argument(
             "--normalize",
             action="store_true",
             help="if set, normalizes input to have 0 mean and unit variance",
@@ -69,14 +63,6 @@ class ScribblelensTask(LegacyFairseqTask):
             help="extension of the label file to load, if any",
         )
 
-        parser.add_argument(
-            "--distsup-dir",
-            type=str,
-            default=None,
-            required=True,
-            help="directory to use as dist_root in FileHandwritingDataset",
-        )
-
     def __init__(self, args, source_dictionary=None):
         super().__init__(args)
         self._target_dictionary = None
@@ -100,9 +86,7 @@ class ScribblelensTask(LegacyFairseqTask):
         """
         manifest = os.path.join(self.args.data, "{}.tsv".format(split))
         self.datasets[split] = FileHandwritingDataset(
-            self.args.distsup_dir,
-            manifest,
-            sample_rate=self.args.sample_rate,
+            self.args.data,
             max_sample_size=self.args.max_sample_size,
             min_sample_size=self.args.max_sample_size,
             min_length=self.args.min_sample_size,

@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Copyright (c) UWr and its affiliates.
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
@@ -12,6 +12,7 @@ import sys
 import torch
 import torch.nn.functional as F
 
+from . import scribblelens
 from .. import FairseqDataset
 
 
@@ -21,7 +22,6 @@ logger = logging.getLogger(__name__)
 class RawHandwritingDataset(FairseqDataset):
     def __init__(
         self,
-        sample_rate,
         max_sample_size=None,
         min_sample_size=None,
         shuffle=True,
@@ -31,7 +31,8 @@ class RawHandwritingDataset(FairseqDataset):
     ):
         super().__init__()
 
-        self.sample_rate = sample_rate
+        # We don't really have a sampling rate - out of audio (JCh)
+        # self.sample_rate = sample_rate
         self.sizes = []
         self.max_sample_size = (
             max_sample_size if max_sample_size is not None else sys.maxsize
@@ -49,11 +50,13 @@ class RawHandwritingDataset(FairseqDataset):
         return len(self.sizes)
 
     def postprocess(self, feats, curr_sample_rate):
+        # TODO(jch): verify if this makes sense, prob not!
         if feats.dim() == 2:
             feats = feats.mean(-1)
 
-        if curr_sample_rate != self.sample_rate:
-            raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
+        # Doesn't make sense - JCh
+        # if curr_sample_rate != self.sample_rate:
+        #     raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
 
         assert feats.dim() == 1, feats.dim()
 
@@ -138,8 +141,6 @@ class FileHandwritingDataset(RawHandwritingDataset):
     def __init__(
         self,
         dist_root,
-        manifest_path,
-        sample_rate,
         max_sample_size=None,
         min_sample_size=None,
         shuffle=True,
@@ -148,7 +149,6 @@ class FileHandwritingDataset(RawHandwritingDataset):
         normalize=False,
     ):
         super().__init__(
-            sample_rate=sample_rate,
             max_sample_size=max_sample_size,
             min_sample_size=min_sample_size,
             shuffle=shuffle,
@@ -156,18 +156,15 @@ class FileHandwritingDataset(RawHandwritingDataset):
             pad=pad,
             normalize=normalize,
         )
-        path = os.getcwd()
-        os.chdir(dist_root)
-        from egs.scribblelens.data import ScribbleLensDataset
-        self.dataset = ScribbleLensDataset(
-            root=dist_root + '/data/scribblelens.corpus.v1.2.zip',           # Path to zip with images
-            alignment_root=dist_root + '/data/scribblelens.paths.1.4b.zip',  # Path to the alignments, i.e. info aou char boundaries
+        self.dataset = scribblelens.ScribbleLensDataset(
+            root=dist_root + '/scribblelens.corpus.v1.2.zip',           # Path to zip with images
+            alignment_root=dist_root + '/scribblelens.paths.1.4b.zip',  # Path to the alignments, i.e. info aou char boundaries
             slice='tasman',                                     # Part of the data, here a single scribe https://en.wikipedia.org/wiki/Abel_Tasman
             split='train',                                      # Train, test, valid or unsupervised. Train/Test/Valid have character transcripts, unspuervised has only images
+            # Not used in the simple ScribbleLens loader
             transcript_mode=5,                                  # Legacy space handling, has to be like that
-            vocabulary=dist_root + '/egs/scribblelens/tasman.alphabet.plus.space.mode5.json',  # Path
+            vocabulary=dist_root + '/tasman.alphabet.plus.space.mode5.json',  # Path
         )
-        os.chdir(path)
 
         for data in self.dataset:
             sizeHere = data['image'][:,:,0].shape
