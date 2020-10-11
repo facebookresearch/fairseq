@@ -304,7 +304,7 @@ class ScribbleLensDataset(torch.utils.data.Dataset):
         #                         torchvision.transforms.ToPILImage(),
         #                         ])
         # else:
-        #     self.pre_transform = None
+        self.pre_transform = None
 
         self.transform=torchvision.transforms.Compose([
                  torchvision.transforms.Grayscale(),
@@ -668,8 +668,8 @@ class ScribbleLensDataset(torch.utils.data.Dataset):
         with self.file.open(item['img_filename']) as img_f:
             image = PIL.Image.open(img_f).convert('RGB')
 
-        # if self.pre_transform:
-        #     image = self.pre_transform(image)
+        if self.pre_transform:
+            image = self.pre_transform(image)
 
         # Pass down the original image size, e.g., to stretch the forced alignement path later
         new_item['img_size'] = [ image.size[1], image.size[0] ]

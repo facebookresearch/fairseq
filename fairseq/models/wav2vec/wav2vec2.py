@@ -536,6 +536,7 @@ class Wav2Vec2Model(BaseFairseqModel):
             with torch.no_grad():
                 features = self.feature_extractor(source)
 
+        features = torch.squeeze(features)  # TODO check if this makes sense; also seems length reduction is too big for this input
         features_pen = features.float().pow(2).mean()
 
         features = features.transpose(1, 2)
@@ -547,7 +548,9 @@ class Wav2Vec2Model(BaseFairseqModel):
             if extra > 0:
                 padding_mask = padding_mask[:, :-extra]
             padding_mask = padding_mask.view(padding_mask.size(0), features.size(1), -1)
-            padding_mask = padding_mask.all(-1)
+             # ? padding_mask seems to have biggest possible size for any conv kernels, e.g. [961, 32, 1000] -> [961, 2, 16000] (feats [963, 2, 512])
+            padding_mask = padding_mask.all(-1) # TODO this seems incorrect
+       
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
@@ -568,6 +571,9 @@ class Wav2Vec2Model(BaseFairseqModel):
             prob_ppl = q["prob_perplexity"]
             curr_temp = q["temp"]
             features = self.project_inp(features)
+
+        # [!] careful with some nasty indirect dependencies - changing this function arg padding_mask -> sth else
+        #     seems to break the code completely because indirect dependencies on passthrough **kwargs etc. or so are so horrible
 
         if mask:
             x, mask_indices = self.apply_mask(features, padding_mask)
@@ -706,9 +712,14 @@ class ConvFeatureExtractionModel(nn.Module):
             conv_bias=False,
         ):
             def make_conv():
-                conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
-                nn.init.kaiming_normal_(conv.weight)
-                return conv
+                if len(k) == 2:
+                    conv = nn.Conv2d(n_in, n_out, k, stride=stride, bias=conv_bias)
+                    nn.init.kaiming_normal_(conv.weight)
+                    return conv
+                else:
+                    conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
+                    nn.init.kaiming_normal_(conv.weight)
+                    return conv
 
             assert (
                 is_layer_norm and is_group_norm

@@ -51,14 +51,14 @@ class RawHandwritingDataset(FairseqDataset):
 
     def postprocess(self, feats, curr_sample_rate):
         # TODO(jch): verify if this makes sense, prob not!
-        if feats.dim() == 2:
-            feats = feats.mean(-1)
+        # if feats.dim() == 2:
+        #     feats = feats.mean(-1)
 
-        # Doesn't make sense - JCh
-        # if curr_sample_rate != self.sample_rate:
-        #     raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
+        # # Doesn't make sense - JCh
+        # # if curr_sample_rate != self.sample_rate:
+        # #     raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
 
-        assert feats.dim() == 1, feats.dim()
+        # assert feats.dim() == 1, feats.dim()
 
         if self.normalize:
             with torch.no_grad():
@@ -66,14 +66,14 @@ class RawHandwritingDataset(FairseqDataset):
         return feats
 
     def crop_to_max_size(self, wav, target_size_dim1):
-        size = wav.shape[0] #len(wav)
+        size = wav.shape[1] #len(wav)
         diff = size - target_size_dim1
         if diff <= 0:
             return wav
 
         start = np.random.randint(0, diff + 1)
         end = size - diff + start
-        return wav[start:end, :]
+        return wav[:, start:end]
         
     def collater(self, samples):
         samples = [
@@ -85,14 +85,14 @@ class RawHandwritingDataset(FairseqDataset):
             return {}
 
         sources = [s["source"] for s in samples]
-        sizes = [len(s) for s in sources]
+        sizes = [s.shape[1] for s in sources]
 
         if self.pad:
             target_size = 1000 #min(max(sizes), self.max_sample_size)
         else:
             target_size = 1000 #min(min(sizes), self.max_sample_size)
 
-        collated_sources = sources[0].new_zeros((len(sources), 1000, 32))  #target_size)
+        collated_sources = sources[0].new_zeros((len(sources), 32, 1000))  #target_size)
         padding_mask = (
             torch.BoolTensor(collated_sources.shape).fill_(False) if self.pad else None
         )
@@ -103,7 +103,8 @@ class RawHandwritingDataset(FairseqDataset):
             elif diff < 0:
                 assert self.pad
                 collated_sources[i] = torch.cat(
-                    [source, source.new_full((-diff, 32), 0.0)]
+                    [source, source.new_full((32, -diff), 0.0)],
+                    dim=1
                 )
                 padding_mask[i, diff:, :] = True
             else:
@@ -197,4 +198,4 @@ class FileHandwritingDataset(RawHandwritingDataset):
         # feats = torch.from_numpy(wav).float()
         # feats = self.postprocess(feats, curr_sample_rate)
         feats = self.dataset[index]['image'][:,:,0]
-        return {"id": index, "source": feats}
+        return {"id": index, "source": feats.T}
