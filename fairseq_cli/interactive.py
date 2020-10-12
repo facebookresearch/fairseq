@@ -22,7 +22,7 @@ import torch
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import encoders
 from fairseq.token_generation_constraints import pack_constraints, unpack_constraints
-from .generate import get_symbols_to_strip_from_output
+from fairseq_cli.generate import get_symbols_to_strip_from_output
 
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -139,6 +139,8 @@ def main(args):
         arg_overrides=eval(args.model_overrides),
         task=task,
         suffix=getattr(args, "checkpoint_suffix", ""),
+        strict=(args.checkpoint_shard_count == 1),
+        num_shards=args.checkpoint_shard_count,
     )
 
     # Set dictionaries
@@ -147,11 +149,11 @@ def main(args):
 
     # Optimize ensemble for generation
     for model in models:
-        model.prepare_for_inference_(args)
         if args.fp16:
             model.half()
-        if use_cuda:
+        if use_cuda and not args.pipeline_model_parallel:
             model.cuda()
+        model.prepare_for_inference_(args)
 
     # Initialize generator
     generator = task.build_generator(models, args)

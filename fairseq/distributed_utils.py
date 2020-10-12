@@ -32,16 +32,26 @@ def infer_init_method(args, force_distributed=False):
         return
 
     if args.pipeline_model_parallel:
-        if args.pipeline_balance is None:
+        balance_exists = args.pipeline_balance is not None or \
+            args.pipeline_encoder_balance is not None or \
+            args.pipeline_decoder_balance is not None
+        devices_exist = args.pipeline_devices is not None or \
+            args.pipeline_encoder_devices is not None or \
+            args.pipeline_decoder_devices is not None
+        if not balance_exists:
             raise ValueError('--pipeline-balance is currently required for pipeline model parallelism')
-        if args.pipeline_devices is None:
+        if not devices_exist:
             raise ValueError('--pipeline-devices is currently required for pipeline model parallelism')
 
         args.pipeline_balance = utils.eval_str_list(args.pipeline_balance, type=int)
-        args.pipeline_devices = utils.eval_str_list(args.pipeline_devices, type=int)
-
+        if args.pipeline_devices is not None:
+            args.pipeline_devices = utils.eval_str_list(args.pipeline_devices, type=int)
+            num_pipeline_devices = len(set(args.pipeline_devices))
+        else:
+            args.pipeline_encoder_devices = utils.eval_str_list(args.pipeline_encoder_devices, type=int)
+            args.pipeline_decoder_devices = utils.eval_str_list(args.pipeline_decoder_devices, type=int)
+            num_pipeline_devices = len(set(args.pipeline_encoder_devices + args.pipeline_decoder_devices))
         gpus_per_node = torch.cuda.device_count()
-        num_pipeline_devices = len(set(args.pipeline_devices))
         assert gpus_per_node >= num_pipeline_devices and gpus_per_node % num_pipeline_devices == 0, (
             'the number of unique device IDs in --pipeline-devices must evenly divide '
             'the number of GPUs per node (multi-node pipelining is not yet supported)'

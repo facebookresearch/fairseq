@@ -213,7 +213,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
     return state
 
 
-def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True, suffix=''):
+def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True, suffix='', num_shards=1):
     """Loads an ensemble of models.
 
     Args:
@@ -222,29 +222,37 @@ def load_model_ensemble(filenames, arg_overrides=None, task=None, strict=True, s
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
+    assert not (strict and num_shards > 1), \
+        "Cannot load state dict with strict=True and checkpoint shards > 1"
     ensemble, args, _task = load_model_ensemble_and_task(
-        filenames, arg_overrides, task, strict, suffix,
+        filenames, arg_overrides, task, strict, suffix, num_shards,
     )
     return ensemble, args
 
 
-def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None, strict=True, suffix=''):
+def load_model_ensemble_and_task(filenames, arg_overrides=None, task=None, strict=True, suffix='', num_shards=1):
     from fairseq import tasks
-
+    assert not (strict and num_shards > 1), \
+        "Cannot load state dict with strict=True and checkpoint shards > 1"
     ensemble = []
     for filename in filenames:
-        filename = filename.replace(".pt", suffix + ".pt")
-        if not PathManager.exists(filename):
-            raise IOError("Model file not found: {}".format(filename))
-        state = load_checkpoint_to_cpu(filename, arg_overrides)
+        orig_filename = filename
+        for shard_idx in range(num_shards):
+            if num_shards == 1:
+                filename = filename.replace(".pt", suffix + ".pt")
+            else:
+                filename = orig_filename[:-3] + f"_part{shard_idx}.pt"
+            if not PathManager.exists(filename):
+                raise IOError("Model file not found: {}".format(filename))
+            state = load_checkpoint_to_cpu(filename, arg_overrides)
+            if shard_idx == 0:
+                args = state["args"]
+                if task is None:
+                    task = tasks.setup_task(args)
 
-        args = state["args"]
-        if task is None:
-            task = tasks.setup_task(args)
-
-        # build model for ensemble
-        model = task.build_model(args)
-        model.load_state_dict(state["model"], strict=strict, args=args)
+                # build model for ensemble
+                model = task.build_model(args)
+            model.load_state_dict(state["model"], strict=strict, args=args)
         ensemble.append(model)
     return ensemble, args, task
 

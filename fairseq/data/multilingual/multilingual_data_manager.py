@@ -196,6 +196,12 @@ class MultilingualDatasetManager(object):
             default=None,
         )
         parser.add_argument(
+            "--fixed-dictionary",
+            help='Fixed dictionary to use with model path',
+            default=None,
+            type=str,
+        )
+        parser.add_argument(
             "--langtoks-specs",
             help='a list of comma separated data types that a set of language tokens to be specialized for, \
                             e.g. "main,dae,mined". There will be a set of language tokens added to the vocab to \
@@ -346,16 +352,19 @@ class MultilingualDatasetManager(object):
         paths = utils.split_paths(args.data)
         assert len(paths) > 0
         for lang in langs_to_load_dicts:
-            dicts[lang] = load_dictionary(
-                os.path.join(paths[0], "dict.{}.txt".format(lang))
-            )
-            augment_dictionary(
-                dictionary=dicts[lang],
-                language_list=language_list,
-                lang_tok_style=args.lang_tok_style,
-                langtoks_specs=args.langtoks_specs,
-                extra_data=args.extra_data,
-            )
+            if args.fixed_dictionary is not None:
+                dicts[lang] = load_dictionary(args.fixed_dictionary)
+            else:
+                dicts[lang] = load_dictionary(
+                    os.path.join(paths[0], "dict.{}.txt".format(lang))
+                )
+                augment_dictionary(
+                    dictionary=dicts[lang],
+                    language_list=language_list,
+                    lang_tok_style=args.lang_tok_style,
+                    langtoks_specs=args.langtoks_specs,
+                    extra_data=args.extra_data,
+                )
             if len(dicts) > 0:
                 assert dicts[lang].pad() == dicts[langs_to_load_dicts[0]].pad()
                 assert dicts[lang].eos() == dicts[langs_to_load_dicts[0]].eos()

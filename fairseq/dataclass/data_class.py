@@ -112,6 +112,14 @@ class CommonParams(FairseqDataclass):
     checkpoint_suffix: str = field(
         default="", metadata={"help": "suffix to add to the checkpoint file name"}
     )
+    checkpoint_shard_count: int = field(
+        default=1, metadata={
+            "help": "Number of shards containing the checkpoint - "
+                    "if the checkpoint is over 300GB, it is preferable "
+                    "to split it into shards to prevent OOM on CPU while loading "
+                    "the checkpoint"
+        }
+    )
     quantization_config_path: Optional[str] = field(
         default=None, metadata={"help": "path to quantization config file"}
     )
@@ -238,6 +246,38 @@ class DistributedTrainingParams(FairseqDataclass):
     )
     pipeline_chunks: int = field(
         default=0, metadata={"help": "microbatch count for pipeline model parallelism"}
+    )
+    pipeline_encoder_balance: str = field(
+        default=None,
+        metadata={
+            "help": "partition the pipeline parallel encoder into N_K pieces, where each piece "
+            "contains N_i layers. The sum(args.pipeline_encoder_balance) "
+            "should equal the total number of encoder layers in the model"
+        },
+    )
+    pipeline_encoder_devices: str = field(
+        default=None,
+        metadata={
+            "help": "a list of device indices indicating which device to place "
+            "each of the N_K partitions. The length of this list should "
+            "equal the length of the --pipeline-encoder-balance argument"
+        },
+    )
+    pipeline_decoder_balance: str = field(
+        default=None,
+        metadata={
+            "help": "partition the pipeline parallel decoder into N_K pieces, where each piece "
+            "contains N_i layers. The sum(args.pipeline_decoder_balance) "
+            "should equal the total number of decoder layers in the model"
+        },
+    )
+    pipeline_decoder_devices: str = field(
+        default=None,
+        metadata={
+            "help": "a list of device indices indicating which device to place "
+            "each of the N_K partitions. The length of this list should "
+            "equal the length of the --pipeline-decoder-balance argument"
+        },
     )
     pipeline_checkpoint: PIPELINE_CHECKPOINT_CHOICES = field(
         default="never",
