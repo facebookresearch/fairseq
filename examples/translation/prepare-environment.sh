@@ -4,6 +4,9 @@
 python -m pip install --editable .
 echo $PYTHONPATH
 echo 'export PYTHONPATH=$PYTHONPATH:/savvihub/source/fairseq/' >> .bashrc
+cat .bashrc
+chmod .bashrc
+source .bashrc
 echo $PYTHONPATH
 
 pip install fastBPE sacremoses subword_nmt
