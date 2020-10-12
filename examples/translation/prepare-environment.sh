@@ -2,13 +2,10 @@
 
 # shellcheck disable=SC2164
 python -m pip install --editable .
+echo 'import os\nos.environ['PYTHONPATH'] += ":/content/fairseq/"' >> start.py
+python start.py
+rm start.py
 echo $PYTHONPATH
-echo 'export PYTHONPATH=$PYTHONPATH:/savvihub/source/fairseq/' >> .bashrc
-cat .bashrc
-chmod .bashrc
-source .bashrc
-echo $PYTHONPATH
-
 pip install fastBPE sacremoses subword_nmt
 
 cd examples/translation/
