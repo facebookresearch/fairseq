@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+
 from fairseq import utils
 from fairseq.models import (
     BaseFairseqModel,
@@ -17,6 +19,7 @@ from fairseq.models.transformer import (
     transformer_wmt_en_de_big,
 )
 from fairseq.modules import SinusoidalPositionalEmbedding
+from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.model_parallel.models.pipeline_parallel_transformer.layers import (
     Embedding,
     TransformerEncoderLayer,
@@ -29,6 +32,8 @@ from fairseq.model_parallel.models.pipeline_parallel_transformer.layers import (
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
@@ -45,17 +50,19 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
         super().__init__()
         assert isinstance(encoder, FairseqEncoder)
         assert isinstance(decoder, FairseqDecoder)
-        module_list = nn.Sequential(
-            encoder.embedding_layer,
-            *list(encoder.encoder_layers),
-            encoder.final_layer_norm,
-            decoder.embedding_layer,
-            *list(decoder.decoder_layers),
-            decoder.decoder_output_layer,
-        )
+        encoder_module_list = \
+            [encoder.embedding_layer] + \
+            list(encoder.encoder_layers) + \
+            [encoder.final_layer_norm]
+        self.num_encoder_modules = len(encoder_module_list)
+        decoder_module_list = [decoder.embedding_layer] + \
+            list(decoder.decoder_layers) + \
+            [decoder.decoder_output_layer]
+        self.num_decoder_modules = len(decoder_module_list)
+        module_list = encoder_module_list + decoder_module_list
         self.devices = devices
         self.model = Pipe(
-            module_list,
+            nn.Sequential(*module_list),
             balance=balance,
             devices=devices,
             chunks=chunks,
@@ -70,11 +77,39 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
             'max_target_positions'
         )
         self.adaptive_softmax = getattr(decoder, 'adaptive_softmax', None)
+        # Note: To be populated during inference
+        self.encoder = None
+        self.decoder = None
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens):
-        input_lst = [src_tokens, src_lengths, prev_output_tokens]
-        input = tuple(i.to(self.devices[0], non_blocking=True) for i in input_lst)
-        return self.model(input)
+        if self.training:
+            input_lst = [src_tokens, src_lengths, prev_output_tokens]
+            input = tuple(i.to(self.devices[0], non_blocking=True) for i in input_lst)
+            return self.model(input)
+        else:
+            assert self.encoder is not None and self.decoder is not None, \
+                "encoder and decoder need to be initialized by " + \
+                "calling the `prepare_for_inference_()` method"
+            encoder_output_tuple = self.encoder(input)
+            return self.decoder(encoder_output_tuple)
+
+    def prepare_for_inference_(self, args):
+        if self.encoder is not None and self.decoder is not None:
+            logger.info("Encoder and Decoder already initialized")
+            return
+        encoder_module_list = []
+        decoder_module_list = []
+        module_count = 0
+        for partition in self.model.partitions:
+            for module in partition:
+                if module_count < self.num_encoder_modules:
+                    encoder_module_list.append(module)
+                else:
+                    decoder_module_list.append(module)
+                module_count += 1
+        self.model = None
+        self.encoder = TransformerEncoder(args, None, None, encoder_module_list)
+        self.decoder = TransformerDecoder(args, None, None, decoder_module_list=decoder_module_list)
 
     @staticmethod
     def add_args(parser):
@@ -214,8 +249,8 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
         return PipelineParallelTransformerModel(
             encoder=encoder,
             decoder=decoder,
-            balance=args.pipeline_balance,
-            devices=args.pipeline_devices,
+            balance=utils.eval_str_list(args.pipeline_balance, type=int),
+            devices=utils.eval_str_list(args.pipeline_devices, type=int),
             chunks=args.pipeline_chunks,
             checkpoint=args.pipeline_checkpoint,
         )
@@ -248,7 +283,9 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
             out = self.adaptive_softmax.get_log_prob(net_output, target=target)
             return out.exp_() if not log_probs else out
 
-        logits = net_output
+        # A Pipe() module returns a tuple of tensors as the output.
+        # In this case, the tuple has one element - the output tensor of logits
+        logits = net_output if isinstance(net_output, torch.Tensor) else net_output[0]
         if log_probs:
             return utils.log_softmax(logits, dim=-1, onnx_trace=False)
         else:
@@ -299,7 +336,7 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
             'final_layer_norm.weight', 'final_layer_norm.bias'
         ]
         for pid, partition in enumerate(self.model.partitions):
-            print(f"Begin Partition {pid}")
+            logger.info(f"Begin Partition {pid}")
             for mid, module in enumerate(partition):
                 # fmt: off
                 if isinstance(module, TransformerEncoderEmbedding):
@@ -337,24 +374,44 @@ class TransformerEncoder(FairseqEncoder):
         embed_tokens (torch.nn.Embedding): input embedding
     """
 
-    def __init__(self, args, dictionary, embed_tokens):
+    def __init__(self, args, dictionary, embed_tokens, encoder_module_list=None):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([3]))
-        self.embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
-        layers = [
-            TransformerEncoderLayer(args) for i in range(args.encoder_layers)
-        ]
-        # Note: layer drop not supported yet
-        # Note: layer wise attention not supported yet
-        self.encoder_layers = nn.Sequential(*layers)
-        if isinstance(embed_tokens, nn.ModuleList):
-            emb_dim = sum(e.embedding_dim for e in embed_tokens)
+        try:
+            from fairscale.nn import Pipe
+        except ImportError:
+            raise ImportError('Please install fairscale with: pip install fairscale')
+        if encoder_module_list is None:
+            embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
+            layers = [
+                TransformerEncoderLayer(args) for i in range(args.encoder_layers)
+            ]
+            if isinstance(embed_tokens, nn.ModuleList):
+                emb_dim = sum(e.embedding_dim for e in embed_tokens)
+            else:
+                emb_dim = embed_tokens.embedding_dim
+            final_layer_norm = TransformerEncoderLayerNorm(args, emb_dim)
+            encoder_module_list = [embedding_layer] + layers + [final_layer_norm]
+        self.use_pipeline = (getattr(args, "pipeline_encoder_balance", None) is not None)
+        if self.use_pipeline:
+            encoder_balance = utils.eval_str_list(args.pipeline_encoder_balance, type=int)
+            encoder_devices = utils.eval_str_list(args.pipeline_encoder_devices, type=int)
+            assert sum(encoder_balance) == len(encoder_module_list), \
+                f"Sum of encoder_balance={encoder_balance} is not equal " + \
+                f"to num_encoder_modules={len(encoder_module_list)}"
+            self.model = Pipe(
+                module=nn.Sequential(*encoder_module_list),
+                balance=encoder_balance,
+                devices=encoder_devices,
+                chunks=args.pipeline_chunks,
+                checkpoint=args.pipeline_checkpoint,
+            )
         else:
-            emb_dim = embed_tokens.embedding_dim
-        self.final_layer_norm = \
-            TransformerEncoderLayerNorm(args, emb_dim)
+            self.embedding_layer = encoder_module_list[0]
+            self.encoder_layers = nn.Sequential(*encoder_module_list[1:-1])
+            self.final_layer_norm = encoder_module_list[-1]
 
-    def forward(self, src_tokens, src_lengths, prev_output_tokens):
+    def forward(self, src_tokens, src_lengths):
         """
         Args:
             input_tuple(
@@ -362,7 +419,6 @@ class TransformerEncoder(FairseqEncoder):
                     `(batch, src_len)`
                 src_lengths (torch.LongTensor): lengths of each source sentence of
                     shape `(batch)`
-                prev_output_tokens
             )
 
         Returns:
@@ -377,10 +433,20 @@ class TransformerEncoder(FairseqEncoder):
                   Only populated if *return_all_hiddens* is True.
             )
         """
-        input_tuple = (src_tokens, src_lengths, prev_output_tokens)
-        encoder_embed_output_tuple = self.embedding_layer(input_tuple)
-        encoder_layers_output = self.encoder_layers(encoder_embed_output_tuple)
-        return self.final_layer_norm(encoder_layers_output)
+        dummy_prev_output_tokens = torch.zeros(1, dtype=src_tokens.dtype, device=src_tokens.device)
+        input_tuple = (src_tokens, src_lengths, dummy_prev_output_tokens)
+        if self.use_pipeline:
+            input_tuple = tuple(i.to(self.model.devices[0]) for i in input_tuple)
+            encoder_out = self.model(input_tuple)
+        else:
+            encoder_embed_output_tuple = self.embedding_layer(input_tuple)
+            encoder_layers_output = self.encoder_layers(encoder_embed_output_tuple)
+            encoder_out = self.final_layer_norm(encoder_layers_output)
+        # first element is the encoder output
+        # second element is the encoder padding mask
+        # the remaining elements of EncoderOut are not computed by
+        # the PipelineParallelTransformer
+        return EncoderOut(encoder_out[0], encoder_out[1], None, None, None, None)
 
     def reorder_encoder_out(self, encoder_out, new_order):
         """
@@ -417,34 +483,6 @@ class TransformerEncoder(FairseqEncoder):
         return min(self.embedding_layer.max_source_positions,
                    self.embedding_layer.embed_positions.max_positions)
 
-    def buffered_future_mask(self, tensor):
-        dim = tensor.size(0)
-        if not hasattr(self, '_future_mask') or self._future_mask is None or self._future_mask.device != tensor.device:
-            self._future_mask = torch.triu(utils.fill_with_neg_inf(tensor.new(dim, dim)), 1)
-            if self._future_mask.size(0) < dim:
-                self._future_mask = torch.triu(utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1)
-        return self._future_mask[:dim, :dim]
-
-    def upgrade_state_dict_named(self, state_dict, name):
-        """Upgrade a (possibly old) state dict for new versions of fairseq."""
-        if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
-            weights_key = '{}.embed_positions.weights'.format(name)
-            if weights_key in state_dict:
-                print('deleting {0}'.format(weights_key))
-                del state_dict[weights_key]
-            state_dict['{}.embed_positions._float_tensor'.format(name)] = torch.FloatTensor(1)
-        for i in range(len(self.layers)):
-            # update layer norms
-            self.layers[i].upgrade_state_dict_named(state_dict, "{}.layers.{}".format(name, i))
-
-        version_key = '{}.version'.format(name)
-        if utils.item(state_dict.get(version_key, torch.Tensor([1]))[0]) < 2:
-            # earlier checkpoints did not normalize after the stack of layers
-            self.layer_norm = None
-            self.normalize = False
-            state_dict[version_key] = torch.Tensor([1])
-        return state_dict
-
 
 class TransformerDecoder(FairseqDecoder):
     """
@@ -459,16 +497,39 @@ class TransformerDecoder(FairseqDecoder):
             (default: False).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
+    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, decoder_module_list=None):
         super().__init__(dictionary)
         self.register_buffer('version', torch.Tensor([3]))
-        self.embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
-        layers = [
-            TransformerDecoderLayer(args, no_encoder_attn)
-            for _ in range(args.decoder_layers)
-        ]
-        self.decoder_layers = nn.Sequential(*layers)
-        self.decoder_output_layer = TransformerDecoderOutputLayer(args, embed_tokens, dictionary)
+        try:
+            from fairscale.nn import Pipe
+        except ImportError:
+            raise ImportError('Please install fairscale with: pip install fairscale')
+        if decoder_module_list is None:
+            embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
+            layers = [
+                TransformerDecoderLayer(args, no_encoder_attn)
+                for _ in range(args.decoder_layers)
+            ]
+            decoder_output_layer = TransformerDecoderOutputLayer(args, embed_tokens, dictionary)
+            decoder_module_list = [embedding_layer] + layers + [decoder_output_layer]
+        self.use_pipeline = (getattr(args, "pipeline_decoder_balance", None) is not None)
+        if self.use_pipeline:
+            decoder_balance = utils.eval_str_list(args.pipeline_decoder_balance, type=int)
+            decoder_devices = utils.eval_str_list(args.pipeline_decoder_devices, type=int)
+            assert sum(decoder_balance) == len(decoder_module_list), \
+                f"Sum of decoder_balance={decoder_balance} is not equal " + \
+                f"to num_decoder_modules={len(decoder_module_list)}"
+            self.model = Pipe(
+                module=nn.Sequential(*decoder_module_list),
+                balance=decoder_balance,
+                devices=decoder_devices,
+                chunks=args.pipeline_chunks,
+                checkpoint=args.pipeline_checkpoint,
+            )
+        else:
+            self.embedding_layer = decoder_module_list[0]
+            self.decoder_layers = nn.Sequential(*decoder_module_list[1:-1])
+            self.decoder_output_layer = decoder_module_list[-1]
 
     def forward(self, prev_output_tokens, encoder_out=None,):
         """
@@ -487,35 +548,14 @@ class TransformerDecoder(FairseqDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
-        input = (prev_output_tokens, encoder_out)
-        embed_layer_output = self.embedding_layer(input)
-        state = self.decoder_layers(embed_layer_output)
-        return self.decoder_output_layer(state)
-
-    def extract_features(self, prev_output_tokens, encoder_out=None,):
-        """
-        Similar to *forward* but only return features.
-
-        Includes several features from "Jointly Learning to Align and
-        Translate with Transformer Models" (Garg et al., EMNLP 2019).
-
-        Args:
-            full_context_alignment (bool, optional): don't apply
-                auto-regressive mask to self-attention (default: False).
-            alignment_layer (int, optional): return mean alignment over
-                heads at this layer (default: last layer).
-            alignment_heads (int, optional): only average alignment over
-                this many heads (default: all heads).
-
-        Returns:
-            tuple:
-                - the decoder's features of shape `(batch, tgt_len, embed_dim)`
-                - a dictionary with any model-specific outputs
-        """
-        input = (prev_output_tokens, encoder_out)
-        embed_layer_output = self.embedding_layer(input)
-        state = self.decoder_layers(embed_layer_output)
-        return self.decoder_output_layer(state, apply_final_proj=False)
+        input_tuple = (encoder_out.encoder_out, encoder_out.encoder_padding_mask, prev_output_tokens)
+        if self.use_pipeline:
+            input_tuple = tuple(i.to(self.model.devices[0]) for i in input_tuple)
+            return (self.model(input_tuple), )
+        else:
+            embed_layer_output = self.embedding_layer(input_tuple)
+            state = self.decoder_layers(embed_layer_output)
+            return (self.decoder_output_layer(state), )
 
     def output_layer(self, features, **kwargs):
         """Project features to the vocabulary size."""

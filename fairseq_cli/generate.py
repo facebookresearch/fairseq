@@ -89,6 +89,8 @@ def _main(args, output_file):
         arg_overrides=overrides,
         task=task,
         suffix=getattr(args, "checkpoint_suffix", ""),
+        strict=(args.checkpoint_shard_count == 1),
+        num_shards=args.checkpoint_shard_count,
     )
 
     if args.lm_path is not None:
@@ -113,11 +115,11 @@ def _main(args, output_file):
     for model in chain(models, lms):
         if model is None:
             continue
-        model.prepare_for_inference_(args)
         if args.fp16:
             model.half()
-        if use_cuda:
+        if use_cuda and not args.pipeline_model_parallel:
             model.cuda()
+        model.prepare_for_inference_(args)
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
