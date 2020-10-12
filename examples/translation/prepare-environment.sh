@@ -2,8 +2,11 @@
 
 # shellcheck disable=SC2164
 python -m pip install --editable .
-python python_path.py
+
 echo $PYTHONPATH
+python examples/translation/python_path.py
+echo $PYTHONPATH
+
 pip install fastBPE sacremoses subword_nmt
 
 cd examples/translation/
@@ -34,4 +37,4 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train \
 
 fairseq-generate data-bin/iwslt14.tokenized.de-en \
     --path checkpoints/checkpoint_best.pt --fp16 \
-    --batch-size 128 --beam 5 --remove-bpe True --quiet
+#    --batch-size 128 --beam 5 --remove-bpe True --quiet
