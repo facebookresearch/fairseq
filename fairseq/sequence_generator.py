@@ -186,6 +186,10 @@ class SequenceGenerator(nn.Module):
                 for i in range(self.model.models_size)
             ],
         )
+        lm_incremental_state = torch.jit.annotate(
+            Dict[str, Dict[str, Optional[Tensor]]],
+            torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+        ) if self.lm_model is not None else None
         net_input = sample["net_input"]
 
         if 'src_tokens' in net_input:
@@ -289,6 +293,10 @@ class SequenceGenerator(nn.Module):
                         corr.unsqueeze(-1) * beam_size
                     )
                 self.model.reorder_incremental_state(incremental_states, reorder_state)
+                if self.lm_model is not None:
+                    self.lm_model.decoder.reorder_incremental_state_scripting(
+                        lm_incremental_state, reorder_state
+                    )
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
@@ -301,7 +309,7 @@ class SequenceGenerator(nn.Module):
             )
 
             if self.lm_model is not None:
-                lm_out = self.lm_model(tokens[:, : step + 1])
+                lm_out = self.lm_model(tokens[:, : step + 1], incremental_state=lm_incremental_state)
                 probs = self.lm_model.get_normalized_probs(
                     lm_out, log_probs=True, sample=None
                 )
