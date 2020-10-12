@@ -481,7 +481,8 @@ class CommonEvalParams(FairseqDataclass):
     remove_bpe: Optional[str] = field(
         default=None,
         metadata={
-            "help": "remove BPE tokens before scoring (can be set to sentencepiece)"
+            "help": "remove BPE tokens before scoring (can be set to sentencepiece)",
+            "argparse_const": "@@ ",
         },
     )
     quiet: bool = field(default=False, metadata={"help": "only print final scores"})

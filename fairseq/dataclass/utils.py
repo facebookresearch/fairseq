@@ -93,6 +93,9 @@ class FairseqDataclass:
     def _get_help(self, attribute_name: str) -> Any:
         return self._get_meta(attribute_name, "help")
 
+    def _get_argparse_const(self, attribute_name: str) -> Any:
+        return self._get_meta(attribute_name, "argparse_const")
+
     def _get_choices(self, attribute_name: str) -> Any:
         return self._get_meta(attribute_name, "choices")
 
@@ -139,6 +142,7 @@ def gen_parser_from_dataclass(
             field_choices = None
 
         field_help = dataclass_instance._get_help(k)
+        field_const = dataclass_instance._get_argparse_const(k)
         kwargs = {}
         if isinstance(field_default, str) and field_default.startswith("${"):
             kwargs["default"] = field_default
@@ -160,9 +164,7 @@ def gen_parser_from_dataclass(
                     raise NotImplementedError()
                 if field_default is not MISSING:
                     kwargs["default"] = ",".join(map(str, field_default))
-            elif (isinstance(inter_type, type) and issubclass(inter_type, Enum)) or (
-                "Enum" in str(inter_type)
-            ):
+            elif (isinstance(inter_type, type) and issubclass(inter_type, Enum)) or "Enum" in str(inter_type):
                 kwargs["type"] = str
                 if field_default is not MISSING:
                     if isinstance(field_default, Enum):
@@ -180,6 +182,9 @@ def gen_parser_from_dataclass(
                     kwargs["default"] = field_default
 
         kwargs["help"] = field_help
+        if field_const is not None:
+            kwargs["const"] = field_const
+            kwargs["nargs"] = '?'
         return kwargs
 
     for k in dataclass_instance._get_all_attributes():
