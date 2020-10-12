@@ -448,6 +448,8 @@ class Trainer(object):
                 sample = self._prepare_sample(self._dummy_batch)
                 is_dummy_batch = True
             else:
+                if self._dummy_batch == "DUMMY":
+                    self._dummy_batch = sample
                 is_dummy_batch = False
 
             def maybe_no_sync():
@@ -670,6 +672,8 @@ class Trainer(object):
                 sample = self._prepare_sample(self._dummy_batch)
                 is_dummy_batch = True
             else:
+                if self._dummy_batch == "DUMMY":
+                    self._dummy_batch = sample
                 is_dummy_batch = False
 
             try:
@@ -804,6 +808,13 @@ class Trainer(object):
         return time.time() - self._start_time + self._previous_training_time
 
     def _prepare_sample(self, sample):
+        if sample == "DUMMY":
+            raise Exception(
+                "Trying to use an uninitialized 'dummy' batch. This usually indicates "
+                "that the total number of batches is smaller than the number of "
+                "participating GPUs. Try reducing the batch size or using fewer GPUs."
+            )
+
         if sample is None or len(sample) == 0:
             return None
 
