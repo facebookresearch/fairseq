@@ -166,6 +166,11 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
             indices, ignored = data_utils._filter_by_size_dynamic(indices, self.size, max_sizes)
         return indices, ignored
 
+    @property
+    def supports_fetch_outside_dataloader(self):
+        """Whether this dataset supports fetching outside the workers of the dataloader."""
+        return True
+
 
 class FairseqIterableDataset(torch.utils.data.IterableDataset, EpochListening):
     """

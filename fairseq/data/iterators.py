@@ -261,7 +261,10 @@ class EpochBatchIterator(EpochBatchIterating):
                 "a larger dataset."
             )
 
-        return self.collate_fn([self.dataset[i] for i in self.frozen_batches[0]])
+        if self.dataset.supports_fetch_outside_dataloader:
+            return self.collate_fn([self.dataset[i] for i in self.frozen_batches[0]])
+        else:
+            return "DUMMY"
 
     def __len__(self):
         return int(math.ceil(len(self.frozen_batches) / float(self.num_shards)))
