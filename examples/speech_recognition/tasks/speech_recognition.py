@@ -123,6 +123,10 @@ class SpeechRecognitionTask(LegacyFairseqTask):
             from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
 
             return W2lKenLMDecoder(args, self.target_dictionary)
+        elif w2l_decoder == "fairseqlm":
+            from examples.speech_recognition.w2l_decoder import W2lFairseqLMDecoder
+
+            return W2lFairseqLMDecoder(args, self.target_dictionary)
         else:
             return super().build_generator(models, args)
 
