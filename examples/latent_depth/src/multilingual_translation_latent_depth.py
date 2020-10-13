@@ -1,6 +1,12 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 from .loss.latent_depth import LatentLayersKLLoss, LatentLayersSparsityLoss
+
 
 @register_task('multilingual_translation_latent_depth')
 class MultilingualTranslationTaskLatentDepth(MultilingualTranslationTask):
@@ -93,16 +99,18 @@ class MultilingualTranslationTaskLatentDepth(MultilingualTranslationTask):
 
         return loss, sample_size, logging_output
 
-
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
-        agg_loss, agg_sample_size, agg_logging_output = super().train_step(sample, model, criterion, optimizer, update_num, ignore_grad) 
+        agg_loss, agg_sample_size, agg_logging_output = super().train_step(
+                sample, model, criterion, optimizer, update_num, ignore_grad)
         # compute auxiliary loss from layere sparsity, based on all samples from all languages
         if hasattr(self, "sparsity_loss") and self.sparsity_loss.is_valid(update_num):
             sparsity_loss = 0
             if self.encoder_latent_layer:
-                sparsity_loss += self.sparsity_loss(next(iter(model.models.values())).encoder.layer_select.layer_samples, update_num, agg_sample_size)
+                sparsity_loss += self.sparsity_loss(
+                        next(iter(model.models.values())).encoder.layer_select.layer_samples, update_num, agg_sample_size)
             if self.decoder_latent_layer:
-                sparsity_loss += self.sparsity_loss(next(iter(model.models.values())).decoder.layer_select.layer_samples, update_num, agg_sample_size)
+                sparsity_loss += self.sparsity_loss(
+                        next(iter(model.models.values())).decoder.layer_select.layer_samples, update_num, agg_sample_size)
             if sparsity_loss > 0:
                 optimizer.backward(sparsity_loss)
         return agg_loss, agg_sample_size, agg_logging_output
@@ -142,7 +150,7 @@ class MultilingualTranslationTaskLatentDepth(MultilingualTranslationTask):
     @property
     def src_lang_idx_dict(self):
         return {lang: lang_idx for lang_idx, lang in enumerate(self.src_langs)}
-    
+
     @property
     def tgt_lang_idx_dict(self):
         return {lang: lang_idx for lang_idx, lang in enumerate(self.tgt_langs)}

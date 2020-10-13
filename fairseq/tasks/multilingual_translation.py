@@ -270,7 +270,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             loss *= 0
         optimizer.backward(loss)
         return loss, sample_size, logging_output
-    
+
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
         from collections import defaultdict
@@ -292,7 +292,8 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 else:
                     return contextlib.ExitStack()  # dummy contextmanager
             with maybe_no_sync():
-                loss, sample_size, logging_output = self._per_lang_pair_train_loss(lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
+                loss, sample_size, logging_output = self._per_lang_pair_train_loss(
+                        lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
             agg_loss += loss.detach().item()
             # TODO make summing of the sample sizes configurable
             agg_sample_size += sample_size

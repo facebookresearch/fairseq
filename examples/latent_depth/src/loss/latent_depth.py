@@ -7,6 +7,7 @@ import torch
 import math
 from torch.nn.modules.loss import _Loss
 
+
 class LatentLayersKLLoss(_Loss):
     def __init__(self, args):
         super().__init__()
@@ -35,11 +36,12 @@ class LatentLayersKLLoss(_Loss):
         # normalized by number of layers
         kl_loss /= layer_samples[0].size()[0]
         kl_weight = min(
-            self.args.sparsity_weight, 
+            self.args.sparsity_weight,
             (update_num - self.args.soft_update) * self.args.sparsity_weight / self.args.anneal_updates
         )
         kl_loss *= kl_weight * sample_size
         return kl_loss
+
 
 class LatentLayersSparsityLoss(_Loss):
     def __init__(self, args):
@@ -56,14 +58,14 @@ class LatentLayersSparsityLoss(_Loss):
         share_loss = 0
         global_sparsity_loss = 0
         layer_samples = torch.stack(layer_samples_list, dim=0)
-        if ((self.args.target_layers > 0 or self.args.share_weight > 0) and 
+        if ((self.args.target_layers > 0 or self.args.share_weight > 0) and
                 update_num > (self.args.soft_update + self.args.anneal_updates)):
             # anneal sparsity weight
             if update_num < (self.args.anneal_updates + self.args.soft_update):
                 weight_anneal = 0
             elif update_num < (2 * self.args.anneal_updates + self.args.soft_update):
                 weight_anneal = (
-                    (update_num - self.args.soft_update - self.args.anneal_updates) 
+                    (update_num - self.args.soft_update - self.args.anneal_updates)
                     * self.args.share_weight / self.args.anneal_updates
                 )
             else:
@@ -82,5 +84,3 @@ class LatentLayersSparsityLoss(_Loss):
                 global_sparsity_loss = (expeted_layers - self.args.target_layers) ** 2
                 batch_loss += weight_anneal * self.args.share_weight * sample_size * global_sparsity_loss
         return batch_loss
-
-

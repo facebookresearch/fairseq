@@ -214,7 +214,7 @@ class TestTranslation(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             for i in range(len(encoder_latent_layer)):
                 for j in range(len(decoder_latent_layer)):
-                    if i == 0 and j ==0:
+                    if i == 0 and j == 0:
                         continue
                     enc_ll_flag = encoder_latent_layer[i]
                     dec_ll_flag = decoder_latent_layer[j]
@@ -240,7 +240,7 @@ class TestTranslation(unittest.TestCase):
                             ] + enc_ll_flag + dec_ll_flag,
                             lang_flags=['--lang-pairs', 'in-out,out-in'],
                             run_validation=True,
-                            extra_valid_flags=['--user-dir', 'examples/latent_depth/src'] + enc_ll_flag  + dec_ll_flag,
+                            extra_valid_flags=['--user-dir', 'examples/latent_depth/src'] + enc_ll_flag + dec_ll_flag,
                         )
                         generate_main(
                             data_dir,

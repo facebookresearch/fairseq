@@ -12,17 +12,19 @@ from fairseq.models.transformer import (
     TransformerEncoder,
     TransformerDecoder,
 )
-from fairseq.models.multilingual_transformer import MultilingualTransformerModel, base_multilingual_architecture
+from fairseq.models.multilingual_transformer import MultilingualTransformerModel
 
 from .latent_transformer import (
     LatentTransformerEncoder,
     LatentTransformerDecoder,
 )
 
+
 @register_model('latent_multilingual_transformer')
 class LatentMultilingualTransformerModel(MultilingualTransformerModel):
-    """Train Transformer models for multiple language pairs simultaneously.
-    TODO
+    """A variant of standard multilingual Transformer models which encoder and/or
+    decoders supports latent depth, as is in "Deep Transformer with Latent Depth" 
+    (https://arxiv.org/abs/2009.13102).
     """
     @classmethod
     def _get_module_class(cls, is_encoder, args, lang_dict, embed_tokens, langs):
@@ -38,6 +40,7 @@ class LatentMultilingualTransformerModel(MultilingualTransformerModel):
                 )
             else:
                 return TransformerDecoder(args, lang_dict, embed_tokens)
+
 
 @register_model_architecture('latent_multilingual_transformer', 'latent_multilingual_transformer')
 def latent_multilingual_architecture(args):

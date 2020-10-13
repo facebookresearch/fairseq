@@ -136,7 +136,8 @@ class MultilingualTransformerModel(FairseqMultiModel):
                     encoder_embed_tokens = build_embedding(
                         task.dicts[lang], args.encoder_embed_dim, args.encoder_embed_path
                     )
-                lang_encoders[lang] = cls._get_module_class(True, args, task.dicts[lang], encoder_embed_tokens, src_langs)
+                lang_encoders[lang] = cls._get_module_class(
+                        True, args, task.dicts[lang], encoder_embed_tokens, src_langs)
             return lang_encoders[lang]
 
         def get_decoder(lang):
@@ -147,7 +148,8 @@ class MultilingualTransformerModel(FairseqMultiModel):
                     decoder_embed_tokens = build_embedding(
                         task.dicts[lang], args.decoder_embed_dim, args.decoder_embed_path
                     )
-                lang_decoders[lang] = cls._get_module_class(False, args, task.dicts[lang], decoder_embed_tokens, tgt_langs)
+                lang_decoders[lang] = cls._get_module_class(
+                        False, args, task.dicts[lang], decoder_embed_tokens, tgt_langs)
             return lang_decoders[lang]
 
         # shared encoders/decoders (if applicable)
