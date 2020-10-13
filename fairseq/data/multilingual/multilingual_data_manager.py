@@ -87,7 +87,6 @@ class MultilingualDatasetManager(object):
             type=csv_str_list,
             help="a list of languages comma sperated languages which can appear in lang-pairs; "
             "note that the ordering determines language token IDs",
-            action=FileContentsAction,
         )
         parser.add_argument(
             "--lang-dict",
