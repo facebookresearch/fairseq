@@ -127,12 +127,35 @@ class MultilingualTransformerModel(FairseqMultiModel):
 
         # encoders/decoders for each language
         lang_encoders, lang_decoders = {}, {}
+
+        def get_encoder(lang):
+            if lang not in lang_encoders:
+                if shared_encoder_embed_tokens is not None:
+                    encoder_embed_tokens = shared_encoder_embed_tokens
+                else:
+                    encoder_embed_tokens = build_embedding(
+                        task.dicts[lang], args.encoder_embed_dim, args.encoder_embed_path
+                    )
+                lang_encoders[lang] = cls._get_module_class(True, args, task.dicts[lang], encoder_embed_tokens, src_langs)
+            return lang_encoders[lang]
+
+        def get_decoder(lang):
+            if lang not in lang_decoders:
+                if shared_decoder_embed_tokens is not None:
+                    decoder_embed_tokens = shared_decoder_embed_tokens
+                else:
+                    decoder_embed_tokens = build_embedding(
+                        task.dicts[lang], args.decoder_embed_dim, args.decoder_embed_path
+                    )
+                lang_decoders[lang] = cls._get_module_class(False, args, task.dicts[lang], decoder_embed_tokens, tgt_langs)
+            return lang_decoders[lang]
+
         # shared encoders/decoders (if applicable)
         shared_encoder, shared_decoder = None, None
         if args.share_encoders:
-            shared_encoder = cls._get_module(src_langs[0], lang_encoders, shared_encoder_embed_tokens, True, args, task.dicts, src_langs)
+            shared_encoder = get_encoder(src_langs[0])
         if args.share_decoders:
-            shared_decoder = cls._get_module(tgt_langs[0], lang_decoders, shared_decoder_embed_tokens, False, args, task.dicts, tgt_langs)
+            shared_decoder = get_decoder(tgt_langs[0])
 
         encoders, decoders = OrderedDict(), OrderedDict()
         for lang_pair, src, tgt in zip(task.model_lang_pairs, src_langs, tgt_langs):
@@ -142,23 +165,9 @@ class MultilingualTransformerModel(FairseqMultiModel):
         return MultilingualTransformerModel(encoders, decoders)
 
     @classmethod
-    def _get_module(cls, lang, lang_modules, shared_embed_tokens, is_encoder, args, dicts, langs):
-        if lang not in lang_modules:
-            if shared_embed_tokens is not None:
-                embed_tokens = shared_embed_tokens
-            else:
-                embed_tokens = cls.build_embedding(
-                    dicts[lang], args.encoder_embed_dim, args.encoder_embed_path
-                ) if is_encoder else cls.build_embedding(
-                    dicts[lang], args.decoder_embed_dim, args.decoder_embed_path
-                )
-        return cls._get_module_class(is_encoder, args, dicts[lang], embed_tokens, langs)
-
-    @classmethod
     def _get_module_class(cls, is_encoder, args, lang_dict, embed_tokens, langs):
         module_class = TransformerEncoder if is_encoder else TransformerDecoder
         return module_class(args, lang_dict, embed_tokens)
-
 
     def load_state_dict(self, state_dict, strict=True, args=None):
         state_dict_subset = state_dict.copy()

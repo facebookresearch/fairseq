@@ -226,9 +226,10 @@ class TestTranslation(unittest.TestCase):
                         )
                         train_translation_model(
                             data_dir,
-                            arch='multilingual_transformer',
-                            task='multilingual_translation',
+                            arch='latent_multilingual_transformer',
+                            task='multilingual_translation_latent_depth',
                             extra_flags=[
+                                '--user-dir', 'examples/latent_depth/src',
                                 '--encoder-layers', '2',
                                 '--decoder-layers', '2',
                                 '--encoder-embed-dim', '8',
@@ -244,7 +245,7 @@ class TestTranslation(unittest.TestCase):
                         generate_main(
                             data_dir,
                             extra_flags=[
-                                '--task', 'multilingual_translation',
+                                '--task', 'multilingual_translation_latent_depth',
                                 '--lang-pairs', 'in-out,out-in',
                                 '--source-lang', 'in',
                                 '--target-lang', 'out',

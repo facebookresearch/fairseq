@@ -27,13 +27,11 @@ class LatentMultilingualTransformerModel(MultilingualTransformerModel):
             else:
                 return TransformerEncoder(args, lang_dict, embed_tokens)
         else:
-            print("ooo")
             if hasattr(args, "decoder_latent_layer") and args.decoder_latent_layer:
                 return LatentTransformerDecoder(
                     args, lang_dict, embed_tokens, num_logits=len(langs)
                 )
             else:
-                print("kkk")
                 return TransformerDecoder(args, lang_dict, embed_tokens)
 
 @register_model_architecture('latent_multilingual_transformer', 'latent_multilingual_transformer')

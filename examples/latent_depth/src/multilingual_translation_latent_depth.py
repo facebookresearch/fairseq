@@ -100,9 +100,9 @@ class MultilingualTranslationTaskLatentDepth(MultilingualTranslationTask):
         if hasattr(self, "sparsity_loss") and self.sparsity_loss.is_valid(update_num):
             sparsity_loss = 0
             if self.encoder_latent_layer:
-                sparsity_loss += self.sparsity_loss(model.models[lang_pair].encoder.layer_select.layer_samples, update_num, agg_sample_size)
+                sparsity_loss += self.sparsity_loss(next(iter(model.models.values())).encoder.layer_select.layer_samples, update_num, agg_sample_size)
             if self.decoder_latent_layer:
-                sparsity_loss += self.sparsity_loss(model.models[lang_pair].decoder.layer_select.layer_samples, update_num, agg_sample_size)
+                sparsity_loss += self.sparsity_loss(next(iter(model.models.values())).decoder.layer_select.layer_samples, update_num, agg_sample_size)
             if sparsity_loss > 0:
                 optimizer.backward(sparsity_loss)
         return agg_loss, agg_sample_size, agg_logging_output
