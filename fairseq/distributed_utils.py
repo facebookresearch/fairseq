@@ -384,9 +384,11 @@ def all_reduce_dict(
     def _all_reduce_dict(data: OrderedDict):
         if len(data) == 0:
             return data
-        buf = torch.stack(list(data.values())).to(device=device)
+        buf = torch.cat([t.view(-1) for t in data.values()]).to(device=device)
         all_reduce(buf, group=group)
-        return {k: buf[i] for i, k in enumerate(data)}
+        split_buf = torch.split(buf, [t.numel() for t in data.values()])
+        reduced_data = [t.view_as(orig) for t, orig in zip(split_buf, data.values())]
+        return OrderedDict(zip(data.keys(), reduced_data))
 
     cpu_data = _all_reduce_dict(cpu_data)
     device_data = _all_reduce_dict(device_data)
