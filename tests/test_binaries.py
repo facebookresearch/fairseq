@@ -240,11 +240,12 @@ class TestTranslation(unittest.TestCase):
                             ] + enc_ll_flag + dec_ll_flag,
                             lang_flags=['--lang-pairs', 'in-out,out-in'],
                             run_validation=True,
-                            extra_valid_flags=enc_ll_flag + dec_ll_flag,
+                            extra_valid_flags=['--user-dir', 'examples/pointer_generator/src'] + enc_ll_flag  + dec_ll_flag,
                         )
                         generate_main(
                             data_dir,
                             extra_flags=[
+                                '--user-dir', 'examples/latent_depth/src',
                                 '--task', 'multilingual_translation_latent_depth',
                                 '--lang-pairs', 'in-out,out-in',
                                 '--source-lang', 'in',
