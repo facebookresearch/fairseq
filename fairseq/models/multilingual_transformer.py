@@ -18,10 +18,6 @@ from fairseq.models.transformer import (
     TransformerEncoder,
     TransformerDecoder,
 )
-from examples.latent_depth.src.models.latent_transformer import (
-    LatentTransformerEncoder,
-    LatentTransformerDecoder,
-)
 
 
 @register_model('multilingual_transformer')
@@ -131,45 +127,12 @@ class MultilingualTransformerModel(FairseqMultiModel):
 
         # encoders/decoders for each language
         lang_encoders, lang_decoders = {}, {}
-
-        def get_encoder(lang):
-            if lang not in lang_encoders:
-                if shared_encoder_embed_tokens is not None:
-                    encoder_embed_tokens = shared_encoder_embed_tokens
-                else:
-                    encoder_embed_tokens = build_embedding(
-                        task.dicts[lang], args.encoder_embed_dim, args.encoder_embed_path
-                    )
-                if hasattr(args, "encoder_latent_layer") and args.encoder_latent_layer:
-                    lang_encoders[lang] = LatentTransformerEncoder(
-                        args, task.dicts[lang], encoder_embed_tokens, num_logits=len(src_langs)
-                    )
-                else:
-                    lang_encoders[lang] = TransformerEncoder(args, task.dicts[lang], encoder_embed_tokens)
-            return lang_encoders[lang]
-
-        def get_decoder(lang):
-            if lang not in lang_decoders:
-                if shared_decoder_embed_tokens is not None:
-                    decoder_embed_tokens = shared_decoder_embed_tokens
-                else:
-                    decoder_embed_tokens = build_embedding(
-                        task.dicts[lang], args.decoder_embed_dim, args.decoder_embed_path
-                    )
-                if hasattr(args, "decoder_latent_layer") and args.decoder_latent_layer:
-                    lang_decoders[lang] = LatentTransformerDecoder(
-                        args, task.dicts[lang], decoder_embed_tokens, num_logits=len(tgt_langs)
-                    )
-                else:
-                    lang_decoders[lang] = TransformerDecoder(args, task.dicts[lang], decoder_embed_tokens)
-            return lang_decoders[lang]
-
         # shared encoders/decoders (if applicable)
         shared_encoder, shared_decoder = None, None
         if args.share_encoders:
-            shared_encoder = get_encoder(src_langs[0])
+            shared_encoder = cls._get_module(src_langs[0], lang_encoders, shared_encoder_embed_tokens, True, args, task.dicts, src_langs)
         if args.share_decoders:
-            shared_decoder = get_decoder(tgt_langs[0])
+            shared_decoder = cls._get_module(tgt_langs[0], lang_decoders, shared_decoder_embed_tokens, False, args, task.dicts, tgt_langs)
 
         encoders, decoders = OrderedDict(), OrderedDict()
         for lang_pair, src, tgt in zip(task.model_lang_pairs, src_langs, tgt_langs):
@@ -177,6 +140,25 @@ class MultilingualTransformerModel(FairseqMultiModel):
             decoders[lang_pair] = shared_decoder if shared_decoder is not None else get_decoder(tgt)
 
         return MultilingualTransformerModel(encoders, decoders)
+
+    @classmethod
+    def _get_module(cls, lang, lang_modules, shared_embed_tokens, is_encoder, args, dicts, langs):
+        if lang not in lang_modules:
+            if shared_embed_tokens is not None:
+                embed_tokens = shared_embed_tokens
+            else:
+                embed_tokens = cls.build_embedding(
+                    dicts[lang], args.encoder_embed_dim, args.encoder_embed_path
+                ) if is_encoder else cls.build_embedding(
+                    dicts[lang], args.decoder_embed_dim, args.decoder_embed_path
+                )
+        return cls._get_module_class(is_encoder, args, dicts[lang], embed_tokens, langs)
+
+    @classmethod
+    def _get_module_class(cls, is_encoder, args, lang_dict, embed_tokens, langs):
+        module_class = TransformerEncoder if is_encoder else TransformerDecoder
+        return module_class(args, lang_dict, embed_tokens)
+
 
     def load_state_dict(self, state_dict, strict=True, args=None):
         state_dict_subset = state_dict.copy()

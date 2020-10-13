@@ -19,7 +19,6 @@ from fairseq.data import (
 )
 from fairseq.models import FairseqMultiModel
 from fairseq.tasks.translation import load_langpair_dataset
-from examples.latent_depth.src.loss.latent_depth import LatentLayersKLLoss, LatentLayersSparsityLoss 
 
 from . import register_task, LegacyFairseqTask
 
@@ -91,42 +90,16 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                                  'language token. (src/tgt)')
         parser.add_argument('--decoder-langtok', action='store_true',
                             help='replace beginning-of-sentence in target sentence with target language token')
-        parser.add_argument('--encoder-latent-layer', action='store_true', help='latent layer selection in encoder')
-        parser.add_argument('--decoder-latent-layer', action='store_true', help='latent layer selection in decoder')
-        parser.add_argument('--target-layers', default=-1, type=int,
-                            help='number of effective layers to learn; -1 means no constraint')
-        parser.add_argument('--sparsity-weight', default=0.0, type=float,
-                            help='weight for sparsity loss')
-        parser.add_argument('--share-weight', default=0.0, type=float,
-                            help='weight for sharing loss')
-        parser.add_argument('--soft-update', default=1, type=int,
-                            help='number of updates with soft sampling')
-        parser.add_argument('--anneal-updates', default=1, type=int,
-                            help='number of updates to anneal the KL loss weight')
-        parser.add_argument('--prior', default="uniform", type=str,
-                            help='prior used for computing KL loss')
         # fmt: on
 
     def __init__(self, args, dicts, training):
         super().__init__(args)
         self.dicts = dicts
         self.training = training
-        src_langs, tgt_langs = zip(*[(lang.split("-")[0], lang.split("-")[1]) for lang in args.lang_pairs])
-        self.src_lang_idx_dict = {lang: lang_idx for lang_idx, lang in enumerate(src_langs)}
-        self.tgt_lang_idx_dict = {lang: lang_idx for lang_idx, lang in enumerate(tgt_langs)}
-        self.encoder_latent_layer = hasattr(self.args, "encoder_latent_layer") and self.args.encoder_latent_layer
-        if self.training and self.encoder_latent_layer:
-            assert self.args.share_encoders
-        self.decoder_latent_layer = hasattr(self.args, "decoder_latent_layer") and self.args.decoder_latent_layer
-        if self.training and self.decoder_latent_layer:
-            assert self.args.share_decoders
-        if training or self.encoder_latent_layer or self.decoder_latent_layer:
+        if training:
             self.lang_pairs = args.lang_pairs
         else:
             self.lang_pairs = ['{}-{}'.format(args.source_lang, args.target_lang)]
-        if self.training and (self.encoder_latent_layer or self.decoder_latent_layer):
-            self.kl_loss = LatentLayersKLLoss(self.args)
-            self.sparsity_loss = LatentLayersSparsityLoss(self.args)
         # eval_lang_pairs for multilingual translation is usually all of the
         # lang_pairs. However for other multitask settings or when we want to
         # optimize for certain languages we want to use a different subset. Thus
@@ -291,6 +264,13 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             raise ValueError('MultilingualTranslationTask requires a FairseqMultiModel architecture')
         return model
 
+    def _per_lang_pair_train_loss(self, lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad):
+        loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
+        if ignore_grad:
+            loss *= 0
+        optimizer.backward(loss)
+        return loss, sample_size, logging_output
+    
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
         from collections import defaultdict
@@ -302,16 +282,6 @@ class MultilingualTranslationTask(LegacyFairseqTask):
         ]
 
         for idx, lang_pair in enumerate(curr_lang_pairs):
-            src, tgt = lang_pair.split("-")
-            if self.encoder_latent_layer:
-                src_lang_idx = self.src_lang_idx_dict[src]
-                model.models[lang_pair].encoder.set_lang_idx(src_lang_idx)
-                model.models[lang_pair].encoder.layer_select.hard_select = update_num > self.args.soft_update
-            if self.decoder_latent_layer:
-                tgt_lang_idx = self.tgt_lang_idx_dict[tgt]
-                model.models[lang_pair].decoder.set_lang_idx(tgt_lang_idx)
-                model.models[lang_pair].decoder.layer_select.hard_select = update_num > self.args.soft_update
-
             def maybe_no_sync():
                 if (
                     self.args.distributed_world_size > 1
@@ -322,54 +292,17 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 else:
                     return contextlib.ExitStack()  # dummy contextmanager
             with maybe_no_sync():
-                loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
-                if self.encoder_latent_layer:
-                    none_samples = sum(
-                        1 if x is None else 0 for x in model.models[lang_pair].encoder.layer_select.layer_samples
-                    )
-                    if none_samples == 0 or self.args.prior != "agged_posterior":
-                        loss += self.kl_loss(
-                            model.models[lang_pair].encoder.layer_select.layer_samples,
-                            src_lang_idx,
-                            update_num,
-                            sample_size
-                        )
-                if self.decoder_latent_layer:
-                    none_samples = sum(
-                        1 if x is None else 0 for x in model.models[lang_pair].decoder.layer_select.layer_samples
-                    )
-                    if none_samples == 0 or self.args.prior != "agged_posterior":
-                        loss += self.kl_loss(
-                            model.models[lang_pair].decoder.layer_select.layer_samples,
-                            tgt_lang_idx,
-                            update_num,
-                            sample_size
-                        )
-                if ignore_grad:
-                    loss *= 0
-
-                if hasattr(self, "sparsity_loss") and self.sparsity_loss.is_valid(update_num):
-                    # need to retain the graph if sparsity loss needs to be added
-                    loss.backward(retain_graph=True)
-                else:
-                    optimizer.backward(loss)
+                loss, sample_size, logging_output = self._per_lang_pair_train_loss(lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
             agg_loss += loss.detach().item()
             # TODO make summing of the sample sizes configurable
             agg_sample_size += sample_size
             for k in logging_output:
                 agg_logging_output[k] += logging_output[k]
                 agg_logging_output[f"{lang_pair}:{k}"] += logging_output[k]
-
-        # compute auxiliary loss from layere sparsity, based on all samples from all languages
-        if hasattr(self, "sparsity_loss") and self.sparsity_loss.is_valid(update_num):
-            sparsity_loss = 0
-            if self.encoder_latent_layer:
-                sparsity_loss += self.sparsity_loss(model.models[lang_pair].encoder.layer_select.layer_samples, update_num, agg_sample_size)
-            if self.decoder_latent_layer:
-                sparsity_loss += self.sparsity_loss(model.models[lang_pair].decoder.layer_select.layer_samples, update_num, agg_sample_size)
-            if sparsity_loss > 0:
-                optimizer.backward(sparsity_loss)
         return agg_loss, agg_sample_size, agg_logging_output
+
+    def _per_lang_pair_valid_loss(self, lang_pair, model, criterion, sample):
+        return criterion(model.models[lang_pair], sample[lang_pair])
 
     def valid_step(self, sample, model, criterion):
         model.eval()
@@ -379,14 +312,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             for lang_pair in self.eval_lang_pairs:
                 if lang_pair not in sample or sample[lang_pair] is None or len(sample[lang_pair]) == 0:
                     continue
-                src, tgt = lang_pair.split("-")
-                if self.encoder_latent_layer:
-                    src_lang_idx = self.src_lang_idx_dict[src]
-                    model.models[lang_pair].encoder.set_lang_idx(src_lang_idx)
-                if self.decoder_latent_layer:
-                    tgt_lang_idx = self.tgt_lang_idx_dict[tgt]
-                    model.models[lang_pair].decoder.set_lang_idx(tgt_lang_idx)
-                loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
+                loss, sample_size, logging_output = self._per_lang_pair_valid_loss(lang_pair, model, criterion, sample)
                 agg_loss += loss.data.item()
                 # TODO make summing of the sample sizes configurable
                 agg_sample_size += sample_size
@@ -397,16 +323,6 @@ class MultilingualTranslationTask(LegacyFairseqTask):
 
     def inference_step(self, generator, models, sample, prefix_tokens=None, constraints=None):
         with torch.no_grad():
-            if self.encoder_latent_layer or self.decoder_latent_layer:
-                for model in models:
-                    if self.encoder_latent_layer:
-                        assert model.encoder.layer_select is not None
-                        src_lang_idx = self.src_lang_idx_dict[self.args.source_lang]
-                        model.encoder.set_lang_idx(src_lang_idx)
-                    if self.decoder_latent_layer:
-                        assert model.decoder.layer_select is not None
-                        tgt_lang_idx = self.tgt_lang_idx_dict[self.args.target_lang]
-                        model.decoder.set_lang_idx(tgt_lang_idx)
             if self.args.decoder_langtok:
                 bos_token = _lang_token_index(self.target_dictionary, self.args.target_lang)
             else:

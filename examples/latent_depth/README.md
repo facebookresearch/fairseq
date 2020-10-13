@@ -14,9 +14,10 @@ lang_pairs_str="eng-aze,eng-bel,eng-ces,eng-glg,eng-por,eng-rus,eng-slk,eng-tur"
 databin_dir=<path to binarized data>
 
 python fairseq_cli/train.py ${databin_dir} \
+  --user-dir, examples/latent_depth/src \
   --lang-pairs "${lang_pairs_str}" \
   --arch multilingual_transformer_iwslt_de_en \
-  --task multilingual_translation \
+  --task multilingual_translation_latent_depth \
   --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
   --share-encoders \
   --share-decoders \
@@ -51,7 +52,7 @@ gen_data=<name of data split, e.g. valid, test, etc>
 
 python fairseq_cli/generate.py ${databin_dir} \
   --path ${model_path} \
-  --task multilingual_translation \
+  --task multilingual_translation_latent_depth \
   --decoder-latent-layer \
   --lang-pairs "${lang_pairs_str}" \
   -s ${src_lang} -t ${tgt_lang} \
