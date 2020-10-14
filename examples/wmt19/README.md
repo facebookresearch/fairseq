@@ -14,6 +14,15 @@ Model | Description | Download
 `transformer_lm.wmt19.de` | De Language Model | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.de.tar.gz)
 `transformer_lm.wmt19.ru` | Ru Language Model | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.ru.tar.gz)
 
+## Pre-trained single models before finetuning
+
+Model | Description | Download
+---|---|---
+`transformer.wmt19.en-de` | En->De Single, no finetuning | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-de.ffn8192.tar.gz)
+`transformer.wmt19.de-en` | De->En Single, no finetuning  | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.de-en.ffn8192.tar.gz)
+`transformer.wmt19.en-ru` | En->Ru Single, no finetuning | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.en-ru.ffn8192.tar.gz)
+`transformer.wmt19.ru-en` | Ru->En Single, no finetuning  | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt19.ru-en.ffn8192.tar.gz)
+
 ## Example usage (torch.hub)
 
 #### Requirements
