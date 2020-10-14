@@ -10,9 +10,8 @@ from argparse import Namespace
 
 import torch
 from fairseq import metrics, search, tokenizer, utils
-from fairseq.data import Dictionary, FairseqDataset, data_utils, iterators
+from fairseq.data import Dictionary, FairseqDataset, data_utils, iterators, encoders
 from fairseq.dataclass.utils import gen_parser_from_dataclass
-
 
 logger = logging.getLogger(__name__)
 
@@ -503,6 +502,14 @@ class FairseqTask(object):
         """Return the target :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
         raise NotImplementedError
+
+    def build_tokenizer(self, args):
+        """Build the pre-tokenizer for this task."""
+        return encoders.build_tokenizer(args)
+
+    def build_bpe(self, args):
+        """Build the tokenizer for this task."""
+        return encoders.build_bpe(args)
 
 
 class LegacyFairseqTask(FairseqTask):
