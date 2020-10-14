@@ -38,6 +38,7 @@ class TestLabelSmoothing(unittest.TestCase):
         # build model
         self.args = argparse.Namespace()
         self.args.sentence_avg = False
+        self.args.report_accuracy = False
         self.args.probs = torch.FloatTensor([
             #      pad   eos  unk   w1   w2   w3
             [0.05, 0.05, 0.1, 0.05, 0.3, 0.4, 0.05],

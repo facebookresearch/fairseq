@@ -141,7 +141,7 @@ setup(
         'hydra-core',
         'numpy',
         'regex',
-        'sacrebleu',
+        'sacrebleu>=1.4.12',
         'torch',
         'tqdm',
     ],

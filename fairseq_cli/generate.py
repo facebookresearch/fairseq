@@ -21,7 +21,6 @@ import torch
 from fairseq import checkpoint_utils, options, scoring, tasks, utils
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
-from fairseq.data import encoders
 
 
 def main(args):
@@ -158,8 +157,8 @@ def _main(args, output_file):
     generator = task.build_generator(models, args, extra_gen_cls_kwargs=extra_gen_cls_kwargs)
 
     # Handle tokenization and BPE
-    tokenizer = encoders.build_tokenizer(args)
-    bpe = encoders.build_bpe(args)
+    tokenizer = task.build_tokenizer(args)
+    bpe = task.build_bpe(args)
 
     def decode_fn(x):
         if bpe is not None:

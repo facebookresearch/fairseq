@@ -251,6 +251,7 @@ class VGGTransformerEncoder(FairseqEncoder):
         self.conv_layers = nn.ModuleList()
         self.in_channels = in_channels
         self.input_dim = input_feat_per_channel
+        self.pooling_kernel_sizes = []
 
         if vggblock_config is not None:
             for _, config in enumerate(vggblock_config):
@@ -272,6 +273,7 @@ class VGGTransformerEncoder(FairseqEncoder):
                         layer_norm=layer_norm,
                     )
                 )
+                self.pooling_kernel_sizes.append(pooling_kernel_size)
                 in_channels = out_channels
                 input_feat_per_channel = self.conv_layers[-1].output_dim
 
@@ -336,9 +338,9 @@ class VGGTransformerEncoder(FairseqEncoder):
         x = x.transpose(1, 2).transpose(0, 1)
         x = x.contiguous().view(output_seq_len, bsz, -1)
 
-        subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
-        # TODO: shouldn't subsampling_factor determined in advance ?
-        input_lengths = (src_lengths.float() / subsampling_factor).ceil().long()
+        input_lengths = src_lengths.clone()
+        for s in self.pooling_kernel_sizes:
+            input_lengths = (input_lengths.float() / s).ceil().long()
 
         encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
             input_lengths, batch_first=True
@@ -346,6 +348,7 @@ class VGGTransformerEncoder(FairseqEncoder):
         if not encoder_padding_mask.any():
             encoder_padding_mask = None
 
+        subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
         attn_mask = self.lengths_to_attn_mask(input_lengths, subsampling_factor)
 
         transformer_layer_idx = 0

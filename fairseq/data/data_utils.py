@@ -446,3 +446,14 @@ def get_mem_usage():
         return f'used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb'
     except ImportError:
         return 'N/A'
+
+
+def lengths_to_padding_mask(lens: torch.LongTensor) -> torch.BoolTensor:
+    bsz, max_lens = lens.size(0), torch.max(lens).item()
+    mask = torch.arange(max_lens).to(lens.device).view(1, max_lens)
+    mask = mask.expand(bsz, -1) >= lens.view(bsz, 1).expand(-1, max_lens)
+    return mask
+
+
+def lengths_to_mask(lens: torch.LongTensor) -> torch.BoolTensor:
+    return ~lengths_to_padding_mask(lens)
