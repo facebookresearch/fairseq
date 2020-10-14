@@ -9,7 +9,8 @@ import sys
 
 import torch
 
-from fairseq.scoring import register_scoring
+from fairseq.scoring import BaseScorer, register_scorer
+from fairseq.scoring.tokenizer import EvaluationTokenizer
 
 
 class BleuStat(ctypes.Structure):
@@ -27,23 +28,33 @@ class BleuStat(ctypes.Structure):
     ]
 
 
-@register_scoring("sacrebleu")
-class SacrebleuScorer(object):
-    def __init__(self, *unused):
+@register_scorer("sacrebleu")
+class SacrebleuScorer(BaseScorer):
+    def __init__(self, args):
+        super(SacrebleuScorer, self).__init__(args)
         import sacrebleu
-
         self.sacrebleu = sacrebleu
-        self.reset()
+        self.tokenizer = EvaluationTokenizer(
+            tokenizer_type=self.args.sacrebleu_tokenizer,
+            lowercase=self.args.sacrebleu_lowercase,
+            character_tokenization=self.args.sacrebleu_char_level
+        )
 
-    def reset(self, one_init=False):
-        if one_init:
-            raise NotImplementedError
-        self.ref = []
-        self.sys = []
+    @staticmethod
+    def add_args(parser):
+        # fmt: off
+        parser.add_argument('--sacrebleu-tokenizer', type=str, default='13a',
+                            choices=EvaluationTokenizer.ALL_TOKENIZER_TYPES,
+                            help='tokenizer')
+        parser.add_argument('--sacrebleu-lowercase', type=str, default=False,
+                            help='apply lowercasing')
+        parser.add_argument('--sacrebleu-char-level', action='store_true',
+                            help='evaluate at character level')
+        # fmt: on
 
     def add_string(self, ref, pred):
-        self.ref.append(ref)
-        self.sys.append(pred)
+        self.ref.append(self.tokenizer.tokenize(ref))
+        self.pred.append(self.tokenizer.tokenize(pred))
 
     def score(self, order=4):
         return self.result_string(order).score
@@ -51,10 +62,12 @@ class SacrebleuScorer(object):
     def result_string(self, order=4):
         if order != 4:
             raise NotImplementedError
-        return self.sacrebleu.corpus_bleu(self.sys, [self.ref]).format()
+        # tokenization and lowercasing are performed by self.tokenizer instead.
+        return self.sacrebleu.corpus_bleu(self.pred, [self.ref],
+                                          tokenize='none').format()
 
 
-@register_scoring("bleu")
+@register_scorer("bleu")
 class Scorer(object):
     def __init__(self, pad, eos, unk):
         self.stat = BleuStat()

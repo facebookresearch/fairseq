@@ -6,11 +6,35 @@
 
 import importlib
 import os
+from abc import ABC, abstractmethod
 
 from fairseq import registry
 
 
-_build_scoring, register_scoring, SCORING_REGISTRY, _ = registry.setup_registry(
+class BaseScorer(ABC):
+    def __init__(self, args):
+        self.args = args
+        self.ref = []
+        self.pred = []
+
+    @staticmethod
+    def add_args(parser):
+        pass
+
+    def add_string(self, ref, pred):
+        self.ref.append(ref)
+        self.pred.append(pred)
+
+    @abstractmethod
+    def score(self) -> float:
+        pass
+
+    @abstractmethod
+    def result_string(self) -> str:
+        pass
+
+
+_build_scorer, register_scorer, SCORER_REGISTRY, _ = registry.setup_registry(
     "--scoring", default="bleu"
 )
 
@@ -26,8 +50,7 @@ def build_scorer(args, tgt_dict):
     if args.scoring == "bleu":
         from fairseq.scoring import bleu
         return bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
-    else:
-        return _build_scoring(args)
+    return _build_scorer(args)
 
 
 # automatically import any Python files in the current directory
