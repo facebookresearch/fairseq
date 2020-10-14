@@ -6,10 +6,11 @@
 import argparse
 import contextlib
 import copy
-import importlib.util
+import importlib
 import logging
 import os
 import sys
+import tempfile
 import warnings
 from itertools import accumulate
 from typing import Callable, Dict, List, Optional
@@ -437,18 +438,19 @@ def import_user_module(args):
             )
             if os.path.exists(fairseq_rel_path):
                 module_path = fairseq_rel_path
-        module_parent, module_name = os.path.split(module_path)
 
-        if module_name in sys.modules:
-            module_bak = sys.modules[module_name]
-            del sys.modules[module_name]
-        else:
-            module_bak = None
-        sys.path.insert(0, module_parent)
-        importlib.import_module(module_name)
-        sys.modules["fairseq_user_dir"] = sys.modules[module_name]
-        if module_bak is not None and module_name != "fairseq_user_dir":
-            sys.modules[module_name] = module_bak
+        # We want to import the module under a unique name so that it doesn't
+        # collide with existing modules. At the same time we don't want to
+        # import the module multiple times. The solution is to create a
+        # temporary directory and symlink the user_dir under a new name, which is
+        # a deterministic hash of the original module_path.
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            unique_mod_name = 'fairseq_user_dir_{}'.format(hash(module_path) % 100000)
+            os.symlink(module_path, os.path.join(tmpdirname, unique_mod_name))
+
+            sys.path.insert(0, tmpdirname)
+            importlib.import_module(unique_mod_name)
+            sys.path.remove(tmpdirname)
 
 
 def softmax(x, dim: int, onnx_trace: bool = False):

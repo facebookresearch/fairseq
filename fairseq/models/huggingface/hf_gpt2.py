@@ -20,10 +20,10 @@ try:
     # Prepend the transformers submodule to the path, so that
     # it's prioritized over other installations. This allows
     # making local changes in the submodule.
-    sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), 'transformers', 'src')
-    )
-    from transformers import AutoModel, GPT2Config, GPT2LMHeadModel
+    hf_path = os.path.join(os.path.dirname(__file__), 'transformers', 'src')
+    sys.path.insert(0, hf_path)
+    from transformers import GPT2Config, GPT2LMHeadModel
+    sys.path.remove(hf_path)
     has_hf = True
 except ImportError:
     has_hf = False
@@ -78,15 +78,7 @@ class HuggingFaceGPT2Decoder(FairseqIncrementalDecoder):
     def __init__(self, args, task):
         super().__init__(task.target_dictionary)
 
-        try:
-            # Prepend the transformers submodule to the path, so that
-            # it's prioritized over other installations. This allows
-            # making local changes in the submodule.
-            sys.path.insert(
-                0, os.path.join(os.path.dirname(__file__), 'transformers', 'src')
-            )
-            from transformers import GPT2Config, GPT2LMHeadModel
-        except ImportError:
+        if not has_hf:
             raise ImportError(
                 '\n\nPlease install huggingface/transformers with:'
                 '\n\n  pip install transformers'
