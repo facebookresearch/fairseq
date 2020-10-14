@@ -276,6 +276,13 @@ class SequenceGenerator(nn.Module):
 
         reorder_state: Optional[Tensor] = None
         batch_idxs: Optional[Tensor] = None
+
+        original_batch_idxs: Optional[Tensor] = None
+        if "id" in sample and isinstance(sample["id"], Tensor):
+            original_batch_idxs = sample["id"]
+        else:
+            original_batch_idxs = torch.arange(0, bsz).type_as(tokens)
+
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
             # print(f'step: {step}')
@@ -288,6 +295,7 @@ class SequenceGenerator(nn.Module):
                     reorder_state.view(-1, beam_size).add_(
                         corr.unsqueeze(-1) * beam_size
                     )
+                    original_batch_idxs = original_batch_idxs[batch_idxs]
                 self.model.reorder_incremental_state(incremental_states, reorder_state)
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
@@ -358,6 +366,8 @@ class SequenceGenerator(nn.Module):
                 step,
                 lprobs.view(bsz, -1, self.vocab_size),
                 scores.view(bsz, beam_size, -1)[:, :, :step],
+                tokens[:, : step + 1],
+                original_batch_idxs,
             )
 
             # cand_bbsz_idx contains beam indices for the top candidate
@@ -400,6 +410,8 @@ class SequenceGenerator(nn.Module):
 
             assert num_remaining_sent >= 0
             if num_remaining_sent == 0:
+                break
+            if self.search.stop_on_max_len and step >= max_len:
                 break
             assert step < max_len
 
