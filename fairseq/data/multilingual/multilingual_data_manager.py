@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from collections import OrderedDict, defaultdict
+import math
 
 from fairseq import utils
 from fairseq.data import (
@@ -286,6 +287,15 @@ class MultilingualDatasetManager(object):
         return not (self.args.extra_data and "mono_dae" in self.args.extra_data) and (
             not self.args.lang_tok_replacing_bos_eos
         )
+
+    def estimate_global_pass_epoch(self, epoch):
+        if self.args.virtual_epoch_size is None or self.args.virtual_data_size is None:
+            return None
+        # one epoch more for remaining data in each shard
+        virtual_epochs_per_shard = math.ceil(self.args.virtual_data_size / self.args.virtual_epoch_size)
+        # note that fairseq epoch / shard_epoch starts from 1
+        shard_epoch = (epoch - 1) // virtual_epochs_per_shard + 1
+        return shard_epoch
 
     @classmethod
     def prepare(cls, load_dictionary, args, **kargs):
