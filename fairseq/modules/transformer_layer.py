@@ -72,6 +72,9 @@ class TransformerEncoderLayer(nn.Module):
             qn_block_size=self.quant_noise_block_size,
         )
 
+    def residual_connection(self, x, residual):
+        return residual + x
+
     def upgrade_state_dict_named(self, state_dict, name):
         """
         Rename layer norm states from `...layer_norms.0.weight` to
@@ -121,7 +124,7 @@ class TransformerEncoderLayer(nn.Module):
             attn_mask=attn_mask,
         )
         x = self.dropout_module(x)
-        x = residual + x
+        x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
 
@@ -133,7 +136,7 @@ class TransformerEncoderLayer(nn.Module):
         x = self.activation_dropout_module(x)
         x = self.fc2(x)
         x = self.dropout_module(x)
-        x = residual + x
+        x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         return x
@@ -243,6 +246,9 @@ class TransformerDecoderLayer(nn.Module):
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
+    def residual_connection(self, x, residual):
+        return residual + x
+
     def forward(
         self,
         x,
@@ -320,7 +326,7 @@ class TransformerDecoderLayer(nn.Module):
             attn_mask=self_attn_mask,
         )
         x = self.dropout_module(x)
-        x = residual + x
+        x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
 
@@ -350,7 +356,7 @@ class TransformerDecoderLayer(nn.Module):
                 need_head_weights=need_head_weights,
             )
             x = self.dropout_module(x)
-            x = residual + x
+            x = self.residual_connection(x, residual)
             if not self.normalize_before:
                 x = self.encoder_attn_layer_norm(x)
 
@@ -362,7 +368,7 @@ class TransformerDecoderLayer(nn.Module):
         x = self.activation_dropout_module(x)
         x = self.fc2(x)
         x = self.dropout_module(x)
-        x = residual + x
+        x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         if self.onnx_trace and incremental_state is not None:

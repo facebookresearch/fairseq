@@ -264,6 +264,13 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             raise ValueError('MultilingualTranslationTask requires a FairseqMultiModel architecture')
         return model
 
+    def _per_lang_pair_train_loss(self, lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad):
+        loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
+        if ignore_grad:
+            loss *= 0
+        optimizer.backward(loss)
+        return loss, sample_size, logging_output
+
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
         from collections import defaultdict
@@ -285,10 +292,8 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 else:
                     return contextlib.ExitStack()  # dummy contextmanager
             with maybe_no_sync():
-                loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
-                if ignore_grad:
-                    loss *= 0
-                optimizer.backward(loss)
+                loss, sample_size, logging_output = self._per_lang_pair_train_loss(
+                        lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
             agg_loss += loss.detach().item()
             # TODO make summing of the sample sizes configurable
             agg_sample_size += sample_size
@@ -296,6 +301,9 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 agg_logging_output[k] += logging_output[k]
                 agg_logging_output[f"{lang_pair}:{k}"] += logging_output[k]
         return agg_loss, agg_sample_size, agg_logging_output
+
+    def _per_lang_pair_valid_loss(self, lang_pair, model, criterion, sample):
+        return criterion(model.models[lang_pair], sample[lang_pair])
 
     def valid_step(self, sample, model, criterion):
         model.eval()
@@ -305,7 +313,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             for lang_pair in self.eval_lang_pairs:
                 if lang_pair not in sample or sample[lang_pair] is None or len(sample[lang_pair]) == 0:
                     continue
-                loss, sample_size, logging_output = criterion(model.models[lang_pair], sample[lang_pair])
+                loss, sample_size, logging_output = self._per_lang_pair_valid_loss(lang_pair, model, criterion, sample)
                 agg_loss += loss.data.item()
                 # TODO make summing of the sample sizes configurable
                 agg_sample_size += sample_size
