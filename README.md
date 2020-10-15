@@ -44,6 +44,7 @@ We provide reference implementations of various sequence modeling papers:
   - [Generating Medical Reports from Patient-Doctor Conversations Using Sequence-to-Sequence Models (Enarvi et al., 2020)](examples/pointer_generator/README.md)
   - [Linformer: Self-Attention with Linear Complexity (Wang et al., 2020)](examples/linformer/README.md)
   - [Cross-lingual Retrieval for Iterative Self-Supervised Training (Tran et al., 2020)](examples/criss/README.md)
+  - [Deep Transformers with Latent Depth (Li et al., 2020)](examples/latent_depth/README.md)
 - **Non-autoregressive Transformers**
   - Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   - Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -55,6 +56,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+- October 2020: [Deep Transformer with Latent Depth code released](examples/latent_depth/README.md)
 - October 2020: [Added CRISS models and code](examples/criss/README.md)
 - September 2020: [Added Linformer code](examples/linformer/README.md)
 - September 2020: [Added pointer-generator networks](examples/pointer_generator/README.md)
