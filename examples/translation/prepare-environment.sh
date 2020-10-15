@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-
-# shellcheck disable=SC2164
 pip install --upgrade pip
-python -m pip install --editable .
+
+export PIP_TARGET_TEMP=($echo $PIP_TARGET)
+unset PIP_TARGET
+pip install --editable .
+export PIP_TARGET=($echo $PIP_TARGET_TEMP)
+unset PIP_TARGET_TEMP
 
 echo $PYTHONPATH
 export PYTHONPATH=$(echo $PYTHONPATH):/savvihub/source/
