@@ -39,7 +39,8 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train \
     --eval-bleu-detok moses \
     --eval-bleu-remove-bpe \
     --eval-bleu-print-samples \
-    --best-checkpoint-metric bleu --maximize-best-checkpoint-metric
+    --best-checkpoint-metric bleu --maximize-best-checkpoint-metric \
+    --save-dir output
 
 fairseq-generate data-bin/iwslt14.tokenized.de-en \
     --path checkpoints/checkpoint_best.pt --fp16 \
