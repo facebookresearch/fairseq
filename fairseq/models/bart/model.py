@@ -59,6 +59,11 @@ class BARTModel(TransformerModel):
             choices=utils.get_available_activation_fns(),
             help='activation function to use for pooler layer'
         )
+        parser.add_argument(
+            '--spectral-norm-classification-head',
+            action='store_true',
+            help='Apply spectral normalization on the classification head'
+        )
 
     @property
     def supported_targets(self):
@@ -66,7 +71,8 @@ class BARTModel(TransformerModel):
 
     def forward(
         self, src_tokens, src_lengths, prev_output_tokens,
-        features_only=False, classification_head_name=None, **kwargs
+        features_only=False, classification_head_name=None,
+        token_embeddings=None, **kwargs
     ):
         if classification_head_name is not None:
             features_only = True
@@ -74,6 +80,7 @@ class BARTModel(TransformerModel):
         encoder_out = self.encoder(
             src_tokens,
             src_lengths=src_lengths,
+            token_embeddings=token_embeddings,
             **kwargs,
         )
         x, extra = self.decoder(
@@ -127,11 +134,12 @@ class BARTModel(TransformerModel):
                     )
                 )
         self.classification_heads[name] = BARTClassificationHead(
-            self.args.encoder_embed_dim,
-            inner_dim or self.args.encoder_embed_dim,
-            num_classes,
-            self.args.pooler_activation_fn,
-            self.args.pooler_dropout,
+            input_dim=self.args.encoder_embed_dim,
+            inner_dim=inner_dim or self.args.encoder_embed_dim,
+            num_classes=num_classes,
+            activation_fn=self.args.pooler_activation_fn,
+            pooler_dropout=self.args.pooler_dropout,
+            do_spectral_norm=self.args.spectral_norm_classification_head
         )
 
     def upgrade_state_dict_named(self, state_dict, name):
@@ -240,12 +248,16 @@ class BARTClassificationHead(nn.Module):
         num_classes,
         activation_fn,
         pooler_dropout,
+        do_spectral_norm=False
     ):
         super().__init__()
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout = nn.Dropout(p=pooler_dropout)
         self.out_proj = nn.Linear(inner_dim, num_classes)
+
+        if do_spectral_norm:
+            self.out_proj = torch.nn.utils.spectral_norm(self.out_proj)
 
     def forward(self, features, **kwargs):
         x = features

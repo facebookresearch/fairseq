@@ -809,6 +809,26 @@ class TestMaskedLanguageModel(unittest.TestCase):
     def test_pretrained_masked_lm_for_translation_encoder_only(self):
         self._test_pretrained_masked_lm_for_translation(True, True)
 
+    def test_r4f_roberta(self):
+        num_classes = 3
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_r4f_roberta_head") as data_dir:
+                create_dummy_roberta_head_data(data_dir, num_classes=num_classes)
+                preprocess_lm_data(os.path.join(data_dir, 'input0'))
+                preprocess_lm_data(os.path.join(data_dir, 'label'))
+                train_roberta_head(
+                    data_dir,
+                    "roberta_base",
+                    num_classes=num_classes,
+                    extra_flags=[
+                        "--user-dir",
+                        "examples/rxf/src",
+                        "--criterion",
+                        'sentence_prediction_r3f',
+                        '--spectral-norm-classification-head',
+                    ],
+                )
+
 
 def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
     train_parser = options.get_training_parser()

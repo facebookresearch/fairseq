@@ -98,6 +98,8 @@ class RobertaModel(FairseqEncoderModel):
                             help='scalar quantization noise and scalar quantization at training time')
         parser.add_argument('--untie-weights-roberta', action='store_true',
                             help='Untie weights between embeddings and classifiers in RoBERTa')
+        parser.add_argument('--spectral-norm-classification-head', action='store_true', default=False,
+                            help='Apply spectral normalization on the classification head')
 
     @classmethod
     def build_model(cls, args, task):
@@ -143,13 +145,14 @@ class RobertaModel(FairseqEncoderModel):
                     )
                 )
         self.classification_heads[name] = RobertaClassificationHead(
-            self.args.encoder_embed_dim,
-            inner_dim or self.args.encoder_embed_dim,
-            num_classes,
-            self.args.pooler_activation_fn,
-            self.args.pooler_dropout,
-            self.args.quant_noise_pq,
-            self.args.quant_noise_pq_block_size,
+            input_dim=self.args.encoder_embed_dim,
+            inner_dim=inner_dim or self.args.encoder_embed_dim,
+            num_classes=num_classes,
+            activation_fn=self.args.pooler_activation_fn,
+            pooler_dropout=self.args.pooler_dropout,
+            q_noise=self.args.quant_noise_pq,
+            qn_block_size=self.args.quant_noise_pq_block_size,
+            do_spectral_norm=self.args.spectral_norm_classification_head,
         )
 
     @property
@@ -260,7 +263,17 @@ class RobertaLMHead(nn.Module):
 class RobertaClassificationHead(nn.Module):
     """Head for sentence-level classification tasks."""
 
-    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout, q_noise=0, qn_block_size=8):
+    def __init__(
+        self,
+        input_dim,
+        inner_dim,
+        num_classes,
+        activation_fn,
+        pooler_dropout,
+        q_noise=0,
+        qn_block_size=8,
+        do_spectral_norm=False,
+    ):
         super().__init__()
         self.dense = nn.Linear(input_dim, inner_dim)
         self.activation_fn = utils.get_activation_fn(activation_fn)
@@ -268,6 +281,11 @@ class RobertaClassificationHead(nn.Module):
         self.out_proj = apply_quant_noise_(
             nn.Linear(inner_dim, num_classes), q_noise, qn_block_size
         )
+        if do_spectral_norm:
+            if q_noise != 0:
+                raise NotImplementedError(
+                    "Attempting to use Spectral Normalization with Quant Noise. This is not officially supported")
+            self.out_proj = torch.nn.utils.spectral_norm(self.out_proj)
 
     def forward(self, features, **kwargs):
         x = features[:, 0, :]  # take <s> token (equiv. to [CLS])
@@ -343,10 +361,11 @@ class RobertaEncoder(FairseqEncoder):
             x = self.output_layer(x, masked_tokens=masked_tokens)
         return x, extra
 
-    def extract_features(self, src_tokens, return_all_hiddens=False, **unused):
+    def extract_features(self, src_tokens, return_all_hiddens=False, **kwargs):
         inner_states, _ = self.sentence_encoder(
             src_tokens,
             last_state_only=not return_all_hiddens,
+            token_embeddings=kwargs.get('token_embeddings', None),
         )
         features = inner_states[-1].transpose(0, 1)  # T x B x C -> B x T x C
         return features, {'inner_states': inner_states if return_all_hiddens else None}
@@ -375,6 +394,8 @@ def base_architecture(args):
     args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
     args.encoder_layers_to_keep = getattr(args, 'encoder_layers_to_keep', None)
     args.encoder_layerdrop = getattr(args, 'encoder_layerdrop', 0.0)
+    args.encoder_layerdrop = getattr(args, 'encoder_layerdrop', 0.0)
+    args.spectral_norm_classification_head = getattr(args, 'spectral_nrom_classification_head', False)
 
 
 @register_model_architecture('roberta', 'roberta_base')
