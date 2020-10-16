@@ -51,11 +51,14 @@ We provide reference implementations of various sequence modeling papers:
   - Insertion Transformer: Flexible Sequence Generation via Insertion Operations (Stern et al. 2019)
   - Mask-Predict: Parallel Decoding of Conditional Masked Language Models (Ghazvininejad et al., 2019)
   - [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
+- **Finetuning**
+  - [Better Fine-Tuning by Reducing Representational Collapse (Aghajanyan et al. 2020)](examples/rxf/README.md)
 
 </p></details>
 
 ### What's New:
 
+- October 2020: [Added R3F/R4F (Better Fine-Tuning) code](examples/rxf/README.md)
 - October 2020: [Deep Transformer with Latent Depth code released](examples/latent_depth/README.md)
 - October 2020: [Added CRISS models and code](examples/criss/README.md)
 - September 2020: [Added Linformer code](examples/linformer/README.md)
