@@ -106,7 +106,7 @@ class RawHandwritingDataset(FairseqDataset):
                     [source, source.new_full((32, -diff), 0.0)],
                     dim=1
                 )
-                padding_mask[i, diff:, :] = True
+                padding_mask[i, :, diff:] = True
             else:
                 collated_sources[i] = self.crop_to_max_size(source, 1000)  #target_size)
 

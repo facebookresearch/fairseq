@@ -526,7 +526,7 @@ class Wav2Vec2ModelSL(BaseFairseqModel):
         return logits
 
     def forward(self, source, padding_mask=None, mask=True, features_only=False):
-        padding_mask = None  # JCh: padding_mask prob need to be True where the data is padded. mask=True => data invalid
+        # padding_mask = None  # JCh: padding_mask prob need to be True where the data is padded. mask=True => data invalid
 
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
@@ -544,13 +544,15 @@ class Wav2Vec2ModelSL(BaseFairseqModel):
         unmasked_features = features.clone()
 
         if padding_mask is not None:
-            extra = padding_mask.size(1) % features.size(1)
-            if extra > 0:
-                padding_mask = padding_mask[:, :-extra]
-            padding_mask = padding_mask.view(padding_mask.size(0), features.size(1), -1)
-             # ? padding_mask seems to have biggest possible size for any conv kernels, e.g. [961, 32, 1000] -> [961, 2, 16000] (feats [963, 2, 512])
-            padding_mask = padding_mask.all(-1) # TODO this seems incorrect
-       
+            scale = padding_mask.size(2) // features.size(1)
+            extra = padding_mask.size(2) % features.size(1) # should be 0 since 1st CNN reduces number of features [scale] times (due to the architecture choice)
+            assert extra == 0
+            # if extra > 0:
+            #     padding_mask = padding_mask[:, :-extra]
+            # padding_mask = padding_mask.view(padding_mask.size(0), features.size(1), -1)
+             # PP: ? padding_mask seems to have biggest possible size for any conv kernels, e.g. [961, 32, 1000] -> [961, 2, 16000] (feats [963, 2, 512])
+            # padding_mask = padding_mask.all(-1) # TODO this seems incorrect
+            padding_mask = padding_mask[:, :, ::scale].transpose(1,2).all(-1) # here we get padding_mask with size (batch_size, extracted_feature_len)
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
@@ -589,7 +591,7 @@ class Wav2Vec2ModelSL(BaseFairseqModel):
             mask_indices = None
 
         x = self.encoder(x, padding_mask=padding_mask)
-
+        
         if features_only:
             return {"x": x, "padding_mask": padding_mask}
 
