@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Copyright (c) Facebook, Inc. and its affiliates., UWr
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
@@ -29,9 +29,8 @@ from fairseq.modules import (
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from fairseq.utils import buffered_arange
 
-
-@register_model("wav2vec2")
-class Wav2Vec2Model(BaseFairseqModel):
+@register_model("wav2vec2_scribblelens")
+class Wav2Vec2ModelSL(BaseFairseqModel):
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
@@ -527,6 +526,7 @@ class Wav2Vec2Model(BaseFairseqModel):
         return logits
 
     def forward(self, source, padding_mask=None, mask=True, features_only=False):
+        padding_mask = None  # JCh: padding_mask prob need to be True where the data is padded. mask=True => data invalid
 
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
@@ -536,6 +536,7 @@ class Wav2Vec2Model(BaseFairseqModel):
             with torch.no_grad():
                 features = self.feature_extractor(source)
 
+        # features = torch.squeeze(features)  # TODO check if this makes sense; also seems length reduction is too big for this input
         features_pen = features.float().pow(2).mean()
 
         features = features.transpose(1, 2)
@@ -547,7 +548,9 @@ class Wav2Vec2Model(BaseFairseqModel):
             if extra > 0:
                 padding_mask = padding_mask[:, :-extra]
             padding_mask = padding_mask.view(padding_mask.size(0), features.size(1), -1)
-            padding_mask = padding_mask.all(-1)
+             # ? padding_mask seems to have biggest possible size for any conv kernels, e.g. [961, 32, 1000] -> [961, 2, 16000] (feats [963, 2, 512])
+            padding_mask = padding_mask.all(-1) # TODO this seems incorrect
+       
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
@@ -568,6 +571,9 @@ class Wav2Vec2Model(BaseFairseqModel):
             prob_ppl = q["prob_perplexity"]
             curr_temp = q["temp"]
             features = self.project_inp(features)
+
+        # [!] careful with some nasty indirect dependencies - changing this function arg padding_mask -> sth else
+        #     seems to break the code completely because indirect dependencies on passthrough **kwargs etc. or so are so horrible
 
         if mask:
             x, mask_indices = self.apply_mask(features, padding_mask)
@@ -687,7 +693,7 @@ class Wav2Vec2Model(BaseFairseqModel):
 class ConvFeatureExtractionModel(nn.Module):
     def __init__(
         self,
-        conv_layers: List[Tuple[int, int, int]],
+        conv_layers: List,
         dropout: float = 0.0,
         mode: str = "default",
         conv_bias: bool = False,
@@ -701,20 +707,22 @@ class ConvFeatureExtractionModel(nn.Module):
             n_out,
             k,
             stride,
+            padding,
             is_layer_norm=False,
             is_group_norm=False,
             conv_bias=False,
         ):
             def make_conv():
-                conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
+                assert len(k) == 2
+                conv = nn.Conv2d(n_in, n_out, k, stride=stride, bias=conv_bias, padding=padding)
                 nn.init.kaiming_normal_(conv.weight)
                 return conv
-
             assert (
                 is_layer_norm and is_group_norm
             ) == False, "layer norm and group norm are exclusive"
 
             if is_layer_norm:
+                assert False  # JCh: didn't check teh shapes
                 return nn.Sequential(
                     make_conv(),
                     nn.Dropout(p=dropout),
@@ -738,8 +746,8 @@ class ConvFeatureExtractionModel(nn.Module):
         in_d = 1
         self.conv_layers = nn.ModuleList()
         for i, cl in enumerate(conv_layers):
-            assert len(cl) == 3, "invalid conv definition: " + str(cl)
-            (dim, k, stride) = cl
+            assert len(cl) == 4, "invalid conv definition: " + str(cl)
+            (dim, k, stride, padding) = cl
 
             self.conv_layers.append(
                 block(
@@ -747,6 +755,7 @@ class ConvFeatureExtractionModel(nn.Module):
                     dim,
                     k,
                     stride,
+                    padding,
                     is_layer_norm=mode == "layer_norm",
                     is_group_norm=mode == "default" and i == 0,
                     conv_bias=conv_bias,
@@ -756,11 +765,14 @@ class ConvFeatureExtractionModel(nn.Module):
 
     def forward(self, x):
 
-        # BxT -> BxCxT
-        x = x.unsqueeze(1)
+        # BxHxW -> BxCxWxH
+        x = x.unsqueeze(1).transpose(-2, -1).contiguous()
 
         for conv in self.conv_layers:
             x = conv(x)
+        
+        assert x.shape[-1] == 1
+        x = x.squeeze(3)
 
         return x
 
@@ -961,7 +973,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         return x, attn
 
 
-@register_model_architecture("wav2vec2", "wav2vec2")
+@register_model_architecture("wav2vec2_scribblelens", "wav2vec2_scribblelens")
 def base_architecture(args):
     args.extractor_mode = getattr(args, "extractor_mode", "default")
 
