@@ -888,6 +888,8 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
             "1",
             "--dataset-impl",
             "raw",
+            "--num-workers",
+            "0",
         ] + list(extra_args),
     )
     train.main(train_args)
@@ -973,7 +975,7 @@ def train_masked_lm(data_dir, arch, extra_flags=None):
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
-            '--num-workers', 0,
+            '--num-workers', '0',
         ] + (extra_flags or []),
     )
     train.main(train_args)
@@ -1000,7 +1002,7 @@ def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
-            '--num-workers', 0,
+            '--num-workers', '0',
         ] + (extra_flags or []),
     )
     train.main(train_args)
@@ -1025,6 +1027,7 @@ def train_language_model(data_dir, arch, extra_flags=None, run_validation=False)
             '--no-progress-bar',
             '--distributed-world-size', '1',
             '--ddp-backend', 'no_c10d',
+            '--num-workers', '0',
         ] + (extra_flags or []),
     )
     train.main(train_args)
@@ -1041,6 +1044,7 @@ def train_language_model(data_dir, arch, extra_flags=None, run_validation=False)
                 '--valid-subset', 'valid',
                 '--max-tokens', '500',
                 '--no-progress-bar',
+                '--num-workers', '0',
             ]
         )
         validate.main(validate_args)
@@ -1054,6 +1058,7 @@ def eval_lm_main(data_dir):
             data_dir,
             '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
             '--no-progress-bar',
+            '--num-workers', '0',
         ],
     )
     eval_lm.main(eval_lm_args)
@@ -1117,6 +1122,8 @@ def train_masked_language_model(data_dir, arch, extra_args=()):
             "1",
             "--dataset-impl",
             "raw",
+            "--num-workers",
+            "0",
         ] + list(extra_args),
     )
     train.main(train_args)

@@ -235,7 +235,7 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
             '--max-epoch', '1',
             '--no-progress-bar',
             '--distributed-world-size', '1',
-            '--num-workers', 0,
+            '--num-workers', '0',
         ] + lang_flags + (extra_flags or []),
     )
     train.main(train_args)
@@ -252,6 +252,7 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
                 '--valid-subset', 'valid',
                 '--max-tokens', '500',
                 '--no-progress-bar',
+                '--num-workers', '0',
             ] + lang_flags + (extra_valid_flags or [])
         )
         validate.main(validate_args)
@@ -273,6 +274,7 @@ def generate_main(data_dir, extra_flags=None):
             '--max-len-b', '5',
             '--gen-subset', 'valid',
             '--no-progress-bar',
+            '--num-workers', '0',
         ] + (extra_flags or []),
     )
 
