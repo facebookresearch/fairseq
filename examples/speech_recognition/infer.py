@@ -38,13 +38,16 @@ def add_asr_eval_argument(parser):
         help="wfstlm on dictonary\
 output units",
     )
-    parser.add_argument(
-        "--lm-weight",
-        "--lm_weight",
-        type=float,
-        default=0.2,
-        help="weight for lm while interpolating with neural score",
-    )
+    try:
+        parser.add_argument(
+            "--lm-weight",
+            "--lm_weight",
+            type=float,
+            default=0.2,
+            help="weight for lm while interpolating with neural score",
+        )
+    except:
+        pass
     parser.add_argument(
         "--rnnt_len_penalty", default=-0.5, help="rnnt length penalty on word level"
     )
@@ -282,7 +285,25 @@ def main(args, task=None, model_state=None):
     # Initialize generator
     gen_timer = StopwatchMeter()
 
-    generator = task.build_generator(models, args)
+    def build_generator(args):
+        w2l_decoder = getattr(args, "w2l_decoder", None)
+        if w2l_decoder == "viterbi":
+            from examples.speech_recognition.w2l_decoder import W2lViterbiDecoder
+
+            return W2lViterbiDecoder(args, task.target_dictionary)
+        elif w2l_decoder == "kenlm":
+            from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
+
+            return W2lKenLMDecoder(args, task.target_dictionary)
+        elif w2l_decoder == "fairseqlm":
+            from examples.speech_recognition.w2l_decoder import W2lFairseqLMDecoder
+
+            return W2lFairseqLMDecoder(args, task.target_dictionary)
+        else:
+            print('only wav2letter decoders with (viterbi, kenlm, fairseqlm) options are supported at the moment')
+
+    # please do not touch this unless you test both generate.py and infer.py with audio_pretraining task
+    generator = build_generator(args)
 
     if args.load_emissions:
         generator = ExistingEmissionsDecoder(
