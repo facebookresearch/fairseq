@@ -61,6 +61,10 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
             logger.warn("No pooling ratio is provided, use 1.")
             self.fixed_pooling_ratio = 1
 
+        if args.max_memory_size > -1:
+            for layer in self.model.encoder.module.transformer_layers:
+                layer.self_attn.max_memory_size = args.max_memory_size
+
     def initialize_states(self, states):
         super().initialize_states(states)
         # To store memory banks and encoder hidden states
@@ -76,6 +80,9 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
             AMCTFWaitkSimulSTAgent
         ).add_args(parser)
         parser.add_argument("--waitk", type=int, default=None,
+                            help="Use a different k for inference")
+
+        parser.add_argument("--max-memory-size", type=int, default=-1,
                             help="Use a different k for inference")
 
     def update_model_encoder(self, states):
@@ -128,7 +135,6 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
             ])
         )
 
-
         (
             seg_encoder_states, seg_src_lengths, states.encoder_states_tracker
         ) = self.model.encoder.incremental_encode(
@@ -146,6 +152,7 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
             )
 
         torch.cuda.empty_cache()
+
     def policy(self, states):
 
         if len(states.units.target) >= self.max_len:
@@ -161,6 +168,7 @@ class AMCTFWaitkSimulSTAgent(FairseqSimulSTAgent):
                     self.speech_segment_size
                     + self.speech_right_context + 15
                 )
+                # self.speech_segment_size = 1000000
                 return READ_ACTION
 
         self.speech_segment_size = int(
