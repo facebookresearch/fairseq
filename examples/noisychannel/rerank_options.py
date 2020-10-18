@@ -103,7 +103,7 @@ def add_reranking_args(parser):
                        help='the fraction of the source prefix to use in rescoring (in terms of words wo bpe)')
     group.add_argument('--normalize', action='store_true',
                        help='whether to normalize by src and target len')
-
+    # fmt: on
     return group
 
 

@@ -30,6 +30,7 @@ class TranslationLevenshteinTask(TranslationTask):
             '--noise',
             default='random_delete',
             choices=['random_delete', 'random_mask', 'no_noise', 'full_mask'])
+        # fmt: on
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.

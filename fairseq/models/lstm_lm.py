@@ -51,6 +51,7 @@ class LSTMLanguageModel(FairseqLanguageModel):
         parser.add_argument('--share-decoder-input-output-embed', default=False,
                             action='store_true',
                             help='share decoder input and output embeddings')
+        # fmt: on
 
     @classmethod
     def build_model(cls, args, task):

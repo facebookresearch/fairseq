@@ -32,6 +32,7 @@ class Wav2vecCriterion(FairseqCriterion):
                             help='weights for additional loss terms (not first one)')
         parser.add_argument('--log-keys', type=str, default=None,
                             help='output keys to log')
+        # fmt: on
 
     def forward(self, model, sample, reduce=True, log_pred=False):
         """Compute the loss for the given sample.
