@@ -264,7 +264,7 @@ class MonotonicAttention(nn.Module):
             # finish_read = (~ (finish_read.sum(dim=1, keepdim=True)
             # < self.num_heads / 2)) | finish_read
         if p_choose_i is None:
-            import pdb;pdb.set_trace()
+            raise RuntimeError
 
         monotonic_cache["head_step"] = new_monotonic_step
         # Whether a head is looking for new input

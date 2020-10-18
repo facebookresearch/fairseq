@@ -274,7 +274,12 @@ class AugmentedMemoryMultiheadAttention(MultiheadAttention):
 
         self.max_memory_size = max_memory_size
 
-    def forward(self, input_and_summary: Tensor, state: Dict, key_padding_mask: Tensor):
+    def forward(
+        self,
+        input_and_summary: Tensor,
+        state: Dict,
+        key_padding_mask: Tensor
+     ):
         """
         input_and_summary:
             seg_length + 1, batch_size, dim
