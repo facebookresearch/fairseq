@@ -50,3 +50,17 @@ class TransformerMonotonicDecoderLayer(TransformerDecoderLayer):
             self.encoder_attn
             ._get_monotonic_buffer(incremental_state).get("head_read")
         )
+
+    def prune_incremental_state(self, incremental_state):
+        def prune(module):
+            input_buffer = module._get_input_buffer(incremental_state)
+            for key in ["prev_key", "prev_value"]:
+                if input_buffer[key].size(2) > 1:
+                    # Remove the last key or value since there is a read action
+                    input_buffer[key] = input_buffer[key][:, :, :-1, :]
+                else:
+                    # the first step on the target side
+                    input_buffer = {}
+                    break
+            module._set_input_buffer(incremental_state, input_buffer)
+        prune(self.self_attn)

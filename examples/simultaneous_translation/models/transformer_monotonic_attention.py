@@ -5,7 +5,6 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from fairseq.models import (
     register_model,
@@ -235,7 +234,6 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         attn = None
         inner_states = [x]
         attn_list = []
-        step_list = []
 
         for i, layer in enumerate(self.layers):
 
@@ -306,7 +304,8 @@ def transformer_monotonic_iwslt_de_en(args):
     base_monotonic_rchitecture(args)
 
 
-# parameters used in the "Attention Is All You Need" paper (Vaswani et al., 2017)
+# parameters used in the
+# "Attention Is All You Need" paper (Vaswani et al., 2017)
 @register_model_architecture(
     'transformer_monotonic',
     'transformer_monotonic_vaswani_wmt_en_de_big'
