@@ -187,6 +187,9 @@ def train(cfg: DictConfig, trainer: Trainer, task: tasks.FairseqTask, epoch_itr)
         tensorboard_logdir=(
             cfg.common.tensorboard_logdir if distributed_utils.is_master(cfg.distributed_training) else None
         ),
+        wandb_project=(
+            cfg.common.wandb_project if distributed_utils.is_master(cfg.distributed_training) else None
+        ),
         default_log_format=('tqdm' if not cfg.common.no_progress_bar else 'simple'),
     )
 
@@ -306,6 +309,9 @@ def validate(cfg: DictConfig, trainer: Trainer, task: tasks.FairseqTask, epoch_i
             prefix=f"valid on '{subset}' subset",
             tensorboard_logdir=(
                 cfg.common.tensorboard_logdir if distributed_utils.is_master(cfg.distributed_training) else None
+            ),
+            wandb_project=(
+                cfg.common.wandb_project if distributed_utils.is_master(cfg.distributed_training) else None
             ),
             default_log_format=('tqdm' if not cfg.common.no_progress_bar else 'simple'),
         )
