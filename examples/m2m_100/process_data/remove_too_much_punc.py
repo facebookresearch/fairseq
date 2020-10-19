@@ -15,8 +15,6 @@ def main(args):
         with open(args.bitext + '.' + args.src_lang, 'wt', encoding=args.encoding) as fsrc:
             with open(args.bitext + '.' + args.tgt_lang, 'wt', encoding=args.encoding) as ftgt:
                 line = tsv.readline()
-                if not line:
-                    continue
                 fields = line.split('\t')
 
                 src, tgt = fields[1], fields[2]
