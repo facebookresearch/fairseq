@@ -22,6 +22,11 @@ DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 @register_model("model_parallel_transformer_lm")
 class ModelParallelTransformerLanguageModel(TransformerLanguageModel):
+
+    @staticmethod
+    def add_args(parser):
+        TransformerLanguageModel.add_args(parser)
+
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
