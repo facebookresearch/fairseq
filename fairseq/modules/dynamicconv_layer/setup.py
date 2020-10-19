@@ -5,19 +5,19 @@
 # LICENSE file in the root directory of this source tree.
 
 from setuptools import setup
-from torch.utils.cpp_extension import CUDAExtension, BuildExtension
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
 
 setup(
-    name='dynamicconv_layer',
+    name="dynamicconv_layer",
     ext_modules=[
         CUDAExtension(
-            name='dynamicconv_cuda',
+            name="dynamicconv_cuda",
             sources=[
-                'dynamicconv_cuda.cpp',
-                'dynamicconv_cuda_kernel.cu',
+                "dynamicconv_cuda.cpp",
+                "dynamicconv_cuda_kernel.cu",
             ],
         ),
     ],
-    cmdclass={
-        'build_ext': BuildExtension
-    })
+    cmdclass={"build_ext": BuildExtension},
+)

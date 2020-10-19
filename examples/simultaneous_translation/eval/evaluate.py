@@ -5,37 +5,48 @@
 
 import argparse
 
+from agents import build_agent
 from client import SimulSTEvaluationService, SimulSTLocalEvaluationService
 from fairseq.registry import REGISTRIES
-from agents import build_agent
 
-DEFAULT_HOSTNAME = 'localhost'
+
+DEFAULT_HOSTNAME = "localhost"
 DEFAULT_PORT = 12321
 
 
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--hostname', type=str, default=DEFAULT_HOSTNAME,
-                        help='server hostname')
-    parser.add_argument('--port', type=int, default=DEFAULT_PORT,
-                        help='server port number')
-    parser.add_argument('--agent-type', default='simul_trans_text',
-                        help='Agent type')
-    parser.add_argument('--scorer-type', default='text',
-                        help='Scorer type')
-    parser.add_argument('--start-idx', type=int, default=0,
-                        help='Start index of the sentence to evaluate')
-    parser.add_argument('--end-idx', type=int, default=float('inf'),
-                        help='End index of the sentence to evaluate')
-    parser.add_argument('--scores', action="store_true",
-                        help='Request scores from server')
-    parser.add_argument('--reset-server', action="store_true",
-                        help='Reset the server')
-    parser.add_argument('--num-threads', type=int, default=10,
-                        help='Number of threads used by agent')
-    parser.add_argument('--local', action="store_true", default=False,
-                        help='Local evaluation')
+    parser.add_argument(
+        "--hostname", type=str, default=DEFAULT_HOSTNAME, help="server hostname"
+    )
+    parser.add_argument(
+        "--port", type=int, default=DEFAULT_PORT, help="server port number"
+    )
+    parser.add_argument("--agent-type", default="simul_trans_text", help="Agent type")
+    parser.add_argument("--scorer-type", default="text", help="Scorer type")
+    parser.add_argument(
+        "--start-idx",
+        type=int,
+        default=0,
+        help="Start index of the sentence to evaluate",
+    )
+    parser.add_argument(
+        "--end-idx",
+        type=int,
+        default=float("inf"),
+        help="End index of the sentence to evaluate",
+    )
+    parser.add_argument(
+        "--scores", action="store_true", help="Request scores from server"
+    )
+    parser.add_argument("--reset-server", action="store_true", help="Reset the server")
+    parser.add_argument(
+        "--num-threads", type=int, default=10, help="Number of threads used by agent"
+    )
+    parser.add_argument(
+        "--local", action="store_true", default=False, help="Local evaluation"
+    )
 
     args, _ = parser.parse_known_args()
 

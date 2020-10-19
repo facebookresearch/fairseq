@@ -8,13 +8,12 @@ from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from torch import Tensor, nn
-from torch.nn import Parameter
-
 from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+from torch import Tensor, nn
+from torch.nn import Parameter
 
 
 @with_incremental_state
@@ -63,11 +62,19 @@ class MultiheadAttention(nn.Module):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = quant_noise(nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size)
-        self.v_proj = quant_noise(nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size)
-        self.q_proj = quant_noise(nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size)
+        self.k_proj = quant_noise(
+            nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.v_proj = quant_noise(
+            nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.q_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
 
-        self.out_proj = quant_noise(nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size)
+        self.out_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
 
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
@@ -102,7 +109,7 @@ class MultiheadAttention(nn.Module):
 
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
+            nn.init.constant_(self.out_proj.bias, 0.0)
         if self.bias_k is not None:
             nn.init.xavier_normal_(self.bias_k)
         if self.bias_v is not None:
@@ -333,11 +340,11 @@ class MultiheadAttention(nn.Module):
             if not self.tpu:
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
-                    float("-inf")
+                    float("-inf"),
                 )
             else:
                 attn_weights = attn_weights.transpose(0, 2)
-                attn_weights = attn_weights.masked_fill(key_padding_mask, float('-inf'))
+                attn_weights = attn_weights.masked_fill(key_padding_mask, float("-inf"))
                 attn_weights = attn_weights.transpose(0, 2)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
@@ -411,7 +418,9 @@ class MultiheadAttention(nn.Module):
 
     @torch.jit.export
     def reorder_incremental_state(
-        self, incremental_state: Dict[str, Dict[str, Optional[Tensor]]], new_order: Tensor
+        self,
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
+        new_order: Tensor,
     ):
         """Reorder buffered internal state (for incremental generation)."""
         input_buffer = self._get_input_buffer(incremental_state)
@@ -419,7 +428,9 @@ class MultiheadAttention(nn.Module):
             for k in input_buffer.keys():
                 input_buffer_k = input_buffer[k]
                 if input_buffer_k is not None:
-                    if self.encoder_decoder_attention and input_buffer_k.size(0) == new_order.size(0):
+                    if self.encoder_decoder_attention and input_buffer_k.size(
+                        0
+                    ) == new_order.size(0):
                         break
                     input_buffer[k] = input_buffer_k.index_select(0, new_order)
             incremental_state = self._set_input_buffer(incremental_state, input_buffer)

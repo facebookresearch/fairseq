@@ -4,15 +4,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch.nn as nn
+
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 
 
 def PositionalEmbedding(
-        num_embeddings: int,
-        embedding_dim: int,
-        padding_idx: int,
-        learned: bool = False,
+    num_embeddings: int,
+    embedding_dim: int,
+    padding_idx: int,
+    learned: bool = False,
 ):
     if learned:
         # if padding_idx is specified then offset the embedding ids by
@@ -27,6 +28,8 @@ def PositionalEmbedding(
             nn.init.constant_(m.weight[padding_idx], 0)
     else:
         m = SinusoidalPositionalEmbedding(
-            embedding_dim, padding_idx, init_size=num_embeddings + padding_idx + 1,
+            embedding_dim,
+            padding_idx,
+            init_size=num_embeddings + padding_idx + 1,
         )
     return m

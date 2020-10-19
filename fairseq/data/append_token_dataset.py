@@ -10,7 +10,6 @@ from . import BaseWrapperDataset
 
 
 class AppendTokenDataset(BaseWrapperDataset):
-
     def __init__(self, dataset, token=None):
         super().__init__(dataset)
         self.token = token

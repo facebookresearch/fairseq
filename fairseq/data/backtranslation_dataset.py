@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
-
 from fairseq import utils
 
 from . import FairseqDataset
@@ -36,16 +35,18 @@ def backtranslate_samples(samples, collate_fn, generate_fn, cuda=True):
     s = utils.move_to_cuda(collated_samples) if cuda else collated_samples
     generated_sources = generate_fn(s)
 
-    id_to_src = {
-        sample['id']: sample['source'] for sample in samples
-    }
+    id_to_src = {sample["id"]: sample["source"] for sample in samples}
 
     # Go through each tgt sentence in batch and its corresponding best
     # generated hypothesis and create a backtranslation data pair
     # {id: id, source: generated backtranslation, target: original tgt}
     return [
-        {'id': id.item(), 'target': id_to_src[id.item()], 'source': hypos[0]['tokens'].cpu()}
-        for id, hypos in zip(collated_samples['id'], generated_sources)
+        {
+            "id": id.item(),
+            "target": id_to_src[id.item()],
+            "source": hypos[0]["tokens"].cpu(),
+        }
+        for id, hypos in zip(collated_samples["id"], generated_sources)
     ]
 
 
@@ -87,8 +88,9 @@ class BacktranslationDataset(FairseqDataset):
     ):
         self.tgt_dataset = tgt_dataset
         self.backtranslation_fn = backtranslation_fn
-        self.output_collater = output_collater if output_collater is not None \
-            else tgt_dataset.collater
+        self.output_collater = (
+            output_collater if output_collater is not None else tgt_dataset.collater
+        )
         self.cuda = cuda if torch.cuda.is_available() else False
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
@@ -126,14 +128,12 @@ class BacktranslationDataset(FairseqDataset):
         Returns:
             dict: a mini-batch with keys coming from *output_collater*
         """
-        if samples[0].get('is_dummy', False):
+        if samples[0].get("is_dummy", False):
             return samples
         samples = backtranslate_samples(
             samples=samples,
             collate_fn=self.tgt_dataset.collater,
-            generate_fn=(
-                lambda net_input: self.backtranslation_fn(net_input)
-            ),
+            generate_fn=(lambda net_input: self.backtranslation_fn(net_input)),
             cuda=self.cuda,
         )
         return self.output_collater(samples)
@@ -159,7 +159,7 @@ class BacktranslationDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return getattr(self.tgt_dataset, 'supports_prefetch', False)
+        return getattr(self.tgt_dataset, "supports_prefetch", False)
 
     def prefetch(self, indices):
         return self.tgt_dataset.prefetch(indices)

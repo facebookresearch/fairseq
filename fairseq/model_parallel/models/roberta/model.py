@@ -11,27 +11,19 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from fairseq import utils
-from fairseq.models import (
-    FairseqEncoder,
-    register_model,
-    register_model_architecture,
-)
+from fairseq.model_parallel.modules import ModelParallelTransformerSentenceEncoder
+from fairseq.models import FairseqEncoder, register_model, register_model_architecture
 from fairseq.models.roberta import (
-    RobertaModel,
+    RobertaClassificationHead,
     RobertaEncoder,
     RobertaLMHead,
-    RobertaClassificationHead,
+    RobertaModel,
 )
-from fairseq.modules import (
-    LayerNorm,
-    TransformerSentenceEncoder,
-)
-from fairseq.model_parallel.modules import (
-    ModelParallelTransformerSentenceEncoder,
-)
+from fairseq.modules import LayerNorm, TransformerSentenceEncoder
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+
+
 try:
     from fairseq.model_parallel.megatron.mpu import (
         copy_to_model_parallel_region,
@@ -39,6 +31,7 @@ try:
         ColumnParallelLinear,
         RowParallelLinear,
     )
+
     has_megatron_submodule = True
 except (ImportError, ModuleNotFoundError):
     has_megatron_submodule = False
@@ -46,10 +39,8 @@ except (ImportError, ModuleNotFoundError):
 logger = logging.getLogger(__name__)
 
 
-@register_model('model_parallel_roberta')
+@register_model("model_parallel_roberta")
 class ModelParallelRobertaModel(RobertaModel):
-
-
     def __init__(self, args, encoder):
         super().__init__(args, encoder)
 
@@ -69,18 +60,25 @@ class ModelParallelRobertaModel(RobertaModel):
         task.source_dictionary.pad_to_multiple_(args.model_parallel_size * 8)
         task.target_dictionary.pad_to_multiple_(args.model_parallel_size * 8)
 
-        if not hasattr(args, 'max_positions'):
+        if not hasattr(args, "max_positions"):
             args.max_positions = args.tokens_per_sample
 
-        if getattr(args, 'untie_weights_roberta', False):
+        if getattr(args, "untie_weights_roberta", False):
             raise NotImplementedError(
-                '--untie-weights-roberta is not supported in model parallel mode'
+                "--untie-weights-roberta is not supported in model parallel mode"
             )
 
         encoder = ModelParallelRobertaEncoder(args, task.source_dictionary)
         return cls(args, encoder)
 
-    def forward(self, src_tokens, features_only=False, return_all_hiddens=False, classification_head_name=None, **kwargs):
+    def forward(
+        self,
+        src_tokens,
+        features_only=False,
+        return_all_hiddens=False,
+        classification_head_name=None,
+        **kwargs
+    ):
         if classification_head_name is not None:
             features_only = True
 
@@ -90,7 +88,9 @@ class ModelParallelRobertaModel(RobertaModel):
             x = self.classification_heads[classification_head_name](x)
         return x, extra
 
-    def register_classification_head(self, name, num_classes=None, inner_dim=None, **kwargs):
+    def register_classification_head(
+        self, name, num_classes=None, inner_dim=None, **kwargs
+    ):
         """Register a classification head."""
         if name in self.classification_heads:
             prev_num_classes = self.classification_heads[name].out_proj.out_features
@@ -98,7 +98,7 @@ class ModelParallelRobertaModel(RobertaModel):
             if num_classes != prev_num_classes or inner_dim != prev_inner_dim:
                 logger.warning(
                     're-registering head "{}" with num_classes {} (prev: {}) '
-                    'and inner_dim {} (prev: {})'.format(
+                    "and inner_dim {} (prev: {})".format(
                         name, num_classes, prev_num_classes, inner_dim, prev_inner_dim
                     )
                 )
@@ -146,7 +146,9 @@ class ModelParallelRobertaLMHead(nn.Module):
 class ModelParallelRobertaClassificationHead(nn.Module):
     """Head for sentence-level classification tasks."""
 
-    def __init__(self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout):
+    def __init__(
+        self, input_dim, inner_dim, num_classes, activation_fn, pooler_dropout
+    ):
         super().__init__()
         self.dense = ColumnParallelLinear(input_dim, inner_dim, gather_output=True)
         self.activation_fn = utils.get_activation_fn(activation_fn)
@@ -206,7 +208,14 @@ class ModelParallelRobertaEncoder(FairseqEncoder):
             weight=self.sentence_encoder.embed_tokens.weight,
         )
 
-    def forward(self, src_tokens, features_only=False, return_all_hiddens=False, masked_tokens=None, **unused):
+    def forward(
+        self,
+        src_tokens,
+        features_only=False,
+        return_all_hiddens=False,
+        masked_tokens=None,
+        **unused
+    ):
         """
         Args:
             src_tokens (LongTensor): input tokens of shape `(batch, src_len)`
@@ -223,7 +232,9 @@ class ModelParallelRobertaEncoder(FairseqEncoder):
                   is a list of hidden states. Note that the hidden
                   states have shape `(src_len, batch, vocab)`.
         """
-        x, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
+        x, extra = self.extract_features(
+            src_tokens, return_all_hiddens=return_all_hiddens
+        )
         if not features_only:
             x = self.output_layer(x, masked_tokens=masked_tokens)
         return x, extra
@@ -234,7 +245,7 @@ class ModelParallelRobertaEncoder(FairseqEncoder):
             last_state_only=not return_all_hiddens,
         )
         features = inner_states[-1].transpose(0, 1)  # T x B x C -> B x T x C
-        return features, {'inner_states': inner_states if return_all_hiddens else None}
+        return features, {"inner_states": inner_states if return_all_hiddens else None}
 
     def output_layer(self, features, masked_tokens=None, **unused):
         return self.lm_head(features, masked_tokens)
@@ -244,33 +255,33 @@ class ModelParallelRobertaEncoder(FairseqEncoder):
         return self.args.max_positions
 
 
-@register_model_architecture('model_parallel_roberta', 'model_parallel_roberta')
+@register_model_architecture("model_parallel_roberta", "model_parallel_roberta")
 def base_architecture(args):
-    args.encoder_layers = getattr(args, 'encoder_layers', 12)
-    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 768)
-    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 3072)
-    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 12)
+    args.encoder_layers = getattr(args, "encoder_layers", 12)
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 768)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 3072)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 12)
 
-    args.activation_fn = getattr(args, 'activation_fn', 'gelu')
-    args.pooler_activation_fn = getattr(args, 'pooler_activation_fn', 'tanh')
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
 
-    args.dropout = getattr(args, 'dropout', 0.1)
-    args.attention_dropout = getattr(args, 'attention_dropout', 0.1)
-    args.activation_dropout = getattr(args, 'activation_dropout', 0.0)
-    args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
-    args.encoder_layers_to_keep = getattr(args, 'encoder_layers_to_keep', None)
-    args.encoder_layerdrop = getattr(args, 'encoder_layerdrop', 0.0)
+    args.dropout = getattr(args, "dropout", 0.1)
+    args.attention_dropout = getattr(args, "attention_dropout", 0.1)
+    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
+    args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
+    args.encoder_layers_to_keep = getattr(args, "encoder_layers_to_keep", None)
+    args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
 
 
-@register_model_architecture('model_parallel_roberta', 'model_parallel_roberta_base')
+@register_model_architecture("model_parallel_roberta", "model_parallel_roberta_base")
 def roberta_base_architecture(args):
     base_architecture(args)
 
 
-@register_model_architecture('model_parallel_roberta', 'model_parallel_roberta_large')
+@register_model_architecture("model_parallel_roberta", "model_parallel_roberta_large")
 def roberta_large_architecture(args):
-    args.encoder_layers = getattr(args, 'encoder_layers', 24)
-    args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1024)
-    args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
-    args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
+    args.encoder_layers = getattr(args, "encoder_layers", 24)
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 4096)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
     base_architecture(args)

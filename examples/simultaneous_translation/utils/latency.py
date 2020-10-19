@@ -18,7 +18,7 @@ class LatencyMetric(object):
         src_lens,
         target_padding_mask=None,
         batch_first: bool = False,
-        start_from_zero: bool = True
+        start_from_zero: bool = True,
     ):
         assert len(delays.size()) == 2
         assert len(src_lens.size()) == 2
@@ -59,11 +59,7 @@ class LatencyMetric(object):
         start_from_zero: bool = True,
     ):
         delays, src_lens, tgt_lens, target_padding_mask = self.prepare_latency_metric(
-            delays,
-            src_lens,
-            target_padding_mask,
-            batch_first,
-            start_from_zero
+            delays, src_lens, target_padding_mask, batch_first, start_from_zero
         )
         return self.cal_metric(delays, src_lens, tgt_lens, target_padding_mask)
 
@@ -89,10 +85,13 @@ class AverageProportion(LatencyMetric):
 
     AP = 1 / (|x||y]) sum_i^|Y| deleys_i
     """
+
     @staticmethod
     def cal_metric(delays, src_lens, tgt_lens, target_padding_mask):
         if target_padding_mask is not None:
-            AP = torch.sum(delays.masked_fill(target_padding_mask, 0), dim=0, keepdim=True)
+            AP = torch.sum(
+                delays.masked_fill(target_padding_mask, 0), dim=0, keepdim=True
+            )
         else:
             AP = torch.sum(delays, dim=0, keepdim=True)
 
@@ -116,14 +115,24 @@ class AverageLagging(LatencyMetric):
     gamma = |y| / |x|
     tau = argmin_i(delays_i = |x|)
     """
+
     @staticmethod
     def cal_metric(delays, src_lens, tgt_lens, target_padding_mask):
         # tau = argmin_i(delays_i = |x|)
         tgt_len, bsz = delays.size()
         lagging_padding_mask = delays >= src_lens
-        lagging_padding_mask = torch.nn.functional.pad(lagging_padding_mask.t(), (1, 0)).t()[:-1, :]
+        lagging_padding_mask = torch.nn.functional.pad(
+            lagging_padding_mask.t(), (1, 0)
+        ).t()[:-1, :]
         gamma = tgt_lens / src_lens
-        lagging = delays - torch.arange(delays.size(0)).unsqueeze(1).type_as(delays).expand_as(delays) / gamma
+        lagging = (
+            delays
+            - torch.arange(delays.size(0))
+            .unsqueeze(1)
+            .type_as(delays)
+            .expand_as(delays)
+            / gamma
+        )
         lagging.masked_fill_(lagging_padding_mask, 0)
         tau = (1 - lagging_padding_mask.type_as(lagging)).sum(dim=0, keepdim=True)
         AL = lagging.sum(dim=0, keepdim=True) / tau
@@ -149,6 +158,7 @@ class DifferentiableAverageLagging(LatencyMetric):
         2. max(delays_i, delays'_{i-1} + 1 / gamma)
 
     """
+
     @staticmethod
     def cal_metric(delays, src_lens, tgt_lens, target_padding_mask):
         tgt_len, bsz = delays.size()
@@ -163,13 +173,18 @@ class DifferentiableAverageLagging(LatencyMetric):
                 new_delays[i] = torch.cat(
                     [
                         new_delays[i - 1].unsqueeze(0) + 1 / gamma,
-                        delays[i].unsqueeze(0)
+                        delays[i].unsqueeze(0),
                     ],
-                    dim=0
+                    dim=0,
                 ).max(dim=0)[0]
 
         DAL = (
-            new_delays - torch.arange(delays.size(0)).unsqueeze(1).type_as(delays).expand_as(delays) / gamma
+            new_delays
+            - torch.arange(delays.size(0))
+            .unsqueeze(1)
+            .type_as(delays)
+            .expand_as(delays)
+            / gamma
         )
         if target_padding_mask is not None:
             DAL = DAL.masked_fill(target_padding_mask, 0)
@@ -186,7 +201,7 @@ class LatencyMetricVariance(LatencyMetric):
         src_lens,
         target_padding_mask=None,
         batch_first: bool = True,
-        start_from_zero: bool = True
+        start_from_zero: bool = True,
     ):
         assert batch_first
         assert len(delays.size()) == 3
@@ -256,25 +271,21 @@ class LatencyInference(object):
 
         src_lens = src_lens
 
-        delays = (
-            monotonic_step
-            .view(monotonic_step.size(0), -1, monotonic_step.size(-1))
-            .max(dim=1)[0]
-        )
+        delays = monotonic_step.view(
+            monotonic_step.size(0), -1, monotonic_step.size(-1)
+        ).max(dim=1)[0]
 
-        delays = (
-            delays.masked_fill(delays >= src_lens, 0)
-            + (src_lens - 1)
-            .expand_as(delays)
-            .masked_fill(delays < src_lens, 0)
-        )
+        delays = delays.masked_fill(delays >= src_lens, 0) + (src_lens - 1).expand_as(
+            delays
+        ).masked_fill(delays < src_lens, 0)
         return_dict = {}
         for key, func in self.metric_calculator.items():
             return_dict[key] = func(
-                delays.float(), src_lens.float(),
+                delays.float(),
+                src_lens.float(),
                 target_padding_mask=None,
                 batch_first=True,
-                start_from_zero=True
+                start_from_zero=True,
             ).t()
 
         return return_dict
@@ -282,8 +293,13 @@ class LatencyInference(object):
 
 class LatencyTraining(object):
     def __init__(
-        self, avg_weight, var_weight, avg_type, var_type,
-        stay_on_last_token, average_method,
+        self,
+        avg_weight,
+        var_weight,
+        avg_type,
+        var_type,
+        stay_on_last_token,
+        average_method,
     ):
         self.avg_weight = avg_weight
         self.var_weight = var_weight
@@ -319,17 +335,12 @@ class LatencyTraining(object):
             attention = attention.view(-1, tgt_len, src_len)
 
         if not self.stay_on_last_token:
-            residual_attention = \
-                1 - attention[:, :, :-1].sum(dim=2, keepdim=True)
-            attention = torch.cat(
-                [attention[:, :, :-1], residual_attention],
-                dim=2
-            )
+            residual_attention = 1 - attention[:, :, :-1].sum(dim=2, keepdim=True)
+            attention = torch.cat([attention[:, :, :-1], residual_attention], dim=2)
 
         # bsz * num_heads_x_num_layers, tgt_len, src_len for MMA
         steps = (
-            torch
-            .arange(1, 1 + src_len)
+            torch.arange(1, 1 + src_len)
             .unsqueeze(0)
             .unsqueeze(1)
             .expand_as(attention)
@@ -355,15 +366,12 @@ class LatencyTraining(object):
             src_lens = src_lens.view(-1, 1)
 
         # bsz * num_heads_num_layers, tgt_len, src_len
-        expected_delays = (steps * attention).sum(dim=2).view(
-            bsz, num_heads_x_layers, tgt_len
+        expected_delays = (
+            (steps * attention).sum(dim=2).view(bsz, num_heads_x_layers, tgt_len)
         )
 
         if target_padding_mask is not None:
-            expected_delays.masked_fill_(
-                target_padding_mask.unsqueeze(1),
-                0
-            )
+            expected_delays.masked_fill_(target_padding_mask.unsqueeze(1), 0)
 
         return expected_delays, src_lens
 
@@ -371,8 +379,7 @@ class LatencyTraining(object):
 
         bsz, num_heads_x_layers, tgt_len = expected_delays.size()
         target_padding_mask = (
-            target_padding_mask
-            .unsqueeze(1)
+            target_padding_mask.unsqueeze(1)
             .expand_as(expected_delays)
             .contiguous()
             .view(-1, tgt_len)
@@ -396,8 +403,11 @@ class LatencyTraining(object):
         if self.avg_weight > 0.0:
             if self.avg_type in self.metric_calculator:
                 average_delays = self.metric_calculator[self.avg_type](
-                    expected_delays, src_lens, target_padding_mask,
-                    batch_first=True, start_from_zero=False
+                    expected_delays,
+                    src_lens,
+                    target_padding_mask,
+                    batch_first=True,
+                    start_from_zero=False,
                 )
             else:
                 raise RuntimeError(f"{self.avg_type} is not supported.")
@@ -408,12 +418,17 @@ class LatencyTraining(object):
             return 0.0
 
     def var_loss(self, expected_delays, src_lens, target_padding_mask):
-        src_lens = src_lens.view(expected_delays.size(0), expected_delays.size(1))[:, :1]
+        src_lens = src_lens.view(expected_delays.size(0), expected_delays.size(1))[
+            :, :1
+        ]
         if self.var_weight > 0.0:
             if self.var_type in self.variance_calculator:
                 variance_delays = self.variance_calculator[self.var_type](
-                    expected_delays, src_lens, target_padding_mask,
-                    batch_first=True, start_from_zero=False
+                    expected_delays,
+                    src_lens,
+                    target_padding_mask,
+                    batch_first=True,
+                    start_from_zero=False,
                 )
             else:
                 raise RuntimeError(f"{self.var_type} is not supported.")

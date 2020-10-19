@@ -10,8 +10,7 @@ from . import BaseWrapperDataset
 
 
 class TruncateDataset(BaseWrapperDataset):
-    """Truncate a sequence by returning the first truncation_length tokens
-    """
+    """Truncate a sequence by returning the first truncation_length tokens"""
 
     def __init__(self, dataset, truncation_length):
         super().__init__(dataset)
@@ -23,7 +22,7 @@ class TruncateDataset(BaseWrapperDataset):
         item = self.dataset[index]
         item_len = item.size(0)
         if item_len > self.truncation_length:
-            item = item[:self.truncation_length]
+            item = item[: self.truncation_length]
         return item
 
     @property
@@ -35,8 +34,7 @@ class TruncateDataset(BaseWrapperDataset):
 
 
 class RandomCropDataset(TruncateDataset):
-    """Truncate a sequence by returning a random crop of truncation_length tokens
-    """
+    """Truncate a sequence by returning a random crop of truncation_length tokens"""
 
     def __init__(self, dataset, truncation_length, seed=1):
         super().__init__(dataset, truncation_length)
@@ -58,8 +56,9 @@ class RandomCropDataset(TruncateDataset):
             excess = item_len - self.truncation_length
             if excess > 0:
                 start_idx = np.random.randint(0, excess)
-                item = item[start_idx:start_idx+self.truncation_length]
+                item = item[start_idx : start_idx + self.truncation_length]
             return item
+
 
 def maybe_shorten_dataset(
     dataset,
@@ -69,10 +68,11 @@ def maybe_shorten_dataset(
     tokens_per_sample,
     seed,
 ):
-    truncate_split = split in shorten_data_split_list.split(',') \
-        or len(shorten_data_split_list) == 0
-    if shorten_method == 'truncate' and truncate_split:
+    truncate_split = (
+        split in shorten_data_split_list.split(",") or len(shorten_data_split_list) == 0
+    )
+    if shorten_method == "truncate" and truncate_split:
         dataset = TruncateDataset(dataset, tokens_per_sample)
-    elif shorten_method == 'random_crop' and truncate_split:
+    elif shorten_method == "random_crop" and truncate_split:
         dataset = RandomCropDataset(dataset, tokens_per_sample, seed)
     return dataset

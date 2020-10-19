@@ -4,18 +4,14 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-
-from typing import Dict, List, Tuple
-
-from fairseq.data import FairseqDataset, data_utils
-
-from fairseq.data import Dictionary
+from fairseq.data import Dictionary, FairseqDataset, data_utils
+from fairseq.data.concat_dataset import ConcatDataset
 from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
 from fairseq.data.token_block_dataset import TokenBlockDataset
-from fairseq.data.concat_dataset import ConcatDataset
 
 
 class MaskedLMDataset(FairseqDataset):
@@ -55,29 +51,31 @@ class MaskedLMDataset(FairseqDataset):
     """
 
     def __init__(
-            self,
-            dataset: FairseqDataset,
-            sizes: np.ndarray,
-            vocab: Dictionary,
-            pad_idx: int,
-            mask_idx: int,
-            classif_token_idx: int,
-            sep_token_idx: int,
-            seed: int = 1,
-            shuffle: bool = True,
-            has_pairs: bool = True,
-            segment_id: int = 0,
-            masking_ratio: float = 0.15,
-            masking_prob: float = 0.8,
-            random_token_prob: float = 0.1
+        self,
+        dataset: FairseqDataset,
+        sizes: np.ndarray,
+        vocab: Dictionary,
+        pad_idx: int,
+        mask_idx: int,
+        classif_token_idx: int,
+        sep_token_idx: int,
+        seed: int = 1,
+        shuffle: bool = True,
+        has_pairs: bool = True,
+        segment_id: int = 0,
+        masking_ratio: float = 0.15,
+        masking_prob: float = 0.8,
+        random_token_prob: float = 0.1,
     ):
         # Make sure the input datasets are the ones supported
         assert (
-            isinstance(dataset, TokenBlockDataset) or
-            isinstance(dataset, BlockPairDataset) or
-            isinstance(dataset, ConcatDataset)
-        ), "MaskedLMDataset only wraps TokenBlockDataset or BlockPairDataset or " \
-           "ConcatDataset"
+            isinstance(dataset, TokenBlockDataset)
+            or isinstance(dataset, BlockPairDataset)
+            or isinstance(dataset, ConcatDataset)
+        ), (
+            "MaskedLMDataset only wraps TokenBlockDataset or BlockPairDataset or "
+            "ConcatDataset"
+        )
 
         self.dataset = dataset
         self.sizes = np.array(sizes)
@@ -99,10 +97,7 @@ class MaskedLMDataset(FairseqDataset):
         if not has_pairs:
             self.sizes = self.sizes + 1
 
-    def __getitem__(
-            self,
-            index: int
-    ):
+    def __getitem__(self, index: int):
         # if has_pairs, then expect 2 blocks and a sentence target
         if self.has_pairs:
             (block_one, block_two, sentence_target) = self.dataset[index]
@@ -120,11 +115,11 @@ class MaskedLMDataset(FairseqDataset):
         return len(self.dataset)
 
     def _mask_block(
-            self,
-            sentence: np.ndarray,
-            mask_idx: int,
-            pad_idx: int,
-            dictionary_token_range: Tuple,
+        self,
+        sentence: np.ndarray,
+        mask_idx: int,
+        pad_idx: int,
+        dictionary_token_range: Tuple,
     ):
         """
         Mask tokens for Masked Language Model training
@@ -166,22 +161,15 @@ class MaskedLMDataset(FairseqDataset):
                 # masking_prob + random_token_prob (Eg: 0.9)
                 elif rand < (self.masking_prob + self.random_token_prob):
                     # sample random token from dictionary
-                    masked_sent[i] = (
-                        np.random.randint(
-                            dictionary_token_range[0], dictionary_token_range[1]
-                        )
+                    masked_sent[i] = np.random.randint(
+                        dictionary_token_range[0], dictionary_token_range[1]
                     )
             else:
                 target[i] = pad_idx
 
         return masked_sent, target
 
-    def _collate(
-            self,
-            samples: List[Dict],
-            pad_idx: int,
-            eos_idx: int
-    ):
+    def _collate(self, samples: List[Dict], pad_idx: int, eos_idx: int):
         """
         Does the heavy lifting for creating a batch from the input list of
         examples. The logic is as follows:
@@ -215,12 +203,13 @@ class MaskedLMDataset(FairseqDataset):
 
                 # mask according to specified probabilities.
                 masked_blk_one, masked_tgt_one = self._mask_block(
-                    s["block_one"], self.mask_idx, self.pad_idx, token_range,
+                    s["block_one"],
+                    self.mask_idx,
+                    self.pad_idx,
+                    token_range,
                 )
 
-                tokens = np.concatenate([
-                    [self.classif_token_idx], masked_blk_one
-                ])
+                tokens = np.concatenate([[self.classif_token_idx], masked_blk_one])
                 targets = np.concatenate([[self.pad_idx], masked_tgt_one])
                 segments = np.ones(len(tokens)) * self.segment_id
 
@@ -232,9 +221,9 @@ class MaskedLMDataset(FairseqDataset):
                     targets_one = np.concatenate([targets, [self.pad_idx]])
 
                     masked_blk_two, masked_tgt_two = self._mask_block(
-                        s["block_two"], self.mask_idx, self.pad_idx, token_range)
-                    tokens_two = np.concatenate(
-                        [masked_blk_two, [self.sep_token_idx]])
+                        s["block_two"], self.mask_idx, self.pad_idx, token_range
+                    )
+                    tokens_two = np.concatenate([masked_blk_two, [self.sep_token_idx]])
                     targets_two = np.concatenate([masked_tgt_two, [self.pad_idx]])
 
                     # block + 1 sep + 1 special (CLS)
@@ -254,6 +243,7 @@ class MaskedLMDataset(FairseqDataset):
             return data_utils.collate_tokens(
                 [s[key] for s in samples], pad_idx, eos_idx, left_pad=False
             )
+
         return {
             "id": torch.LongTensor([s["id"] for s in samples]),
             "ntokens": sum(len(s["source"]) for s in samples),
@@ -262,16 +252,13 @@ class MaskedLMDataset(FairseqDataset):
                 "segment_labels": merge("segment_labels"),
             },
             "lm_target": merge("lm_target"),
-            "sentence_target": torch.LongTensor(
-                [s["sentence_target"] for s in samples]
-            ) if self.has_pairs else None,
+            "sentence_target": torch.LongTensor([s["sentence_target"] for s in samples])
+            if self.has_pairs
+            else None,
             "nsentences": len(samples),
         }
 
-    def collater(
-            self,
-            samples: List[Dict]
-    ):
+    def collater(self, samples: List[Dict]):
         """Merge a list of samples to form a mini-batch.
 
         Args:
@@ -282,20 +269,14 @@ class MaskedLMDataset(FairseqDataset):
         """
         return self._collate(samples, self.vocab.pad(), self.vocab.eos())
 
-    def num_tokens(
-            self,
-            index: int
-    ):
+    def num_tokens(self, index: int):
         """
         Return the number of tokens in a sample. This value is used to
         enforce max-tokens during batching.
         """
         return self.sizes[index]
 
-    def size(
-            self,
-            index: int
-    ):
+    def size(self, index: int):
         """
         Return an example's size as a float or tuple. This value is used when
         filtering a dataset with max-positions.

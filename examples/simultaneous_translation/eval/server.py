@@ -3,12 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 import argparse
-import sys
 import json
-from tornado import web, ioloop
-from scorers import build_scorer
+import sys
 
-DEFAULT_HOSTNAME = 'localhost'
+from scorers import build_scorer
+from tornado import ioloop, web
+
+
+DEFAULT_HOSTNAME = "localhost"
 DEFAULT_PORT = 12321
 
 
@@ -34,10 +36,10 @@ class ResultHandler(ScorerHandler):
 
 class SourceHandler(ScorerHandler):
     def get(self):
-        sent_id = int(self.get_argument('sent_id'))
+        sent_id = int(self.get_argument("sent_id"))
         segment_size = None
         if "segment_size" in self.request.arguments:
-            string = self.get_argument('segment_size')
+            string = self.get_argument("segment_size")
             if len(string) > 0:
                 segment_size = int(string)
 
@@ -48,8 +50,8 @@ class SourceHandler(ScorerHandler):
 
 class HypothesisHandler(ScorerHandler):
     def put(self):
-        sent_id = int(self.get_argument('sent_id'))
-        list_of_tokens = self.request.body.decode('utf-8').strip().split()
+        sent_id = int(self.get_argument("sent_id"))
+        list_of_tokens = self.request.body.decode("utf-8").strip().split()
         self.scorer.recv_hyp(sent_id, list_of_tokens)
 
 
@@ -67,18 +69,21 @@ def add_args():
 
 
 def start_server(scorer, hostname=DEFAULT_HOSTNAME, port=DEFAULT_PORT, debug=False):
-    app = web.Application([
-        (r'/result', ResultHandler, dict(scorer=scorer)),
-        (r'/src', SourceHandler, dict(scorer=scorer)),
-        (r'/hypo', HypothesisHandler, dict(scorer=scorer)),
-        (r'/', EvalSessionHandler, dict(scorer=scorer)),
-    ], debug=debug)
+    app = web.Application(
+        [
+            (r"/result", ResultHandler, dict(scorer=scorer)),
+            (r"/src", SourceHandler, dict(scorer=scorer)),
+            (r"/hypo", HypothesisHandler, dict(scorer=scorer)),
+            (r"/", EvalSessionHandler, dict(scorer=scorer)),
+        ],
+        debug=debug,
+    )
     app.listen(port, max_buffer_size=1024 ** 3)
     sys.stdout.write(f"Evaluation Server Started. Listening to port {port}\n")
     ioloop.IOLoop.current().start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = add_args()
     scorer = build_scorer(args)
     start_server(scorer, args.hostname, args.port, args.debug)

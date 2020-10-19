@@ -17,15 +17,15 @@ import numpy as np
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input')
-    parser.add_argument('--gzip', action='store_true')
+    parser.add_argument("input")
+    parser.add_argument("--gzip", action="store_true")
     args = parser.parse_args()
 
     def gopen():
         if args.gzip:
-            return gzip.open(args.input, 'r')
+            return gzip.open(args.input, "r")
         else:
-            return open(args.input, 'r', encoding='utf-8')
+            return open(args.input, "r", encoding="utf-8")
 
     num_lines = []
     num_toks = []
@@ -54,5 +54,5 @@ def main():
     print("average num toks per doc: {}".format(np.mean(num_toks)))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -4,14 +4,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+
 import torch
+
 
 logger = logging.getLogger(__name__)
 
 
 class NanDetector:
     """
-        Detects the first NaN or Inf in forward and/or backward pass and logs, together with the module name
+    Detects the first NaN or Inf in forward and/or backward pass and logs, together with the module name
     """
 
     def __init__(self, model, forward=True, backward=True):
@@ -83,7 +85,7 @@ class NanDetector:
                         f" input max: {inp.max().item()}, input min: {inp.min().item()}"
                     )
 
-                has_printed_attr = 'has_printed_b' if backward else 'has_printed_f'
+                has_printed_attr = "has_printed_b" if backward else "has_printed_f"
                 logger.warning(err)
                 setattr(self, has_printed_attr, True)
         elif isinstance(x, dict):

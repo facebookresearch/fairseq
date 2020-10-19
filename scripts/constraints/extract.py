@@ -10,12 +10,13 @@
 import argparse
 import random
 import sys
+
 from sacrebleu import extract_ngrams
 
 
 def get_phrase(words, index, length):
-    assert(index < len(words) - length + 1)
-    phr = ' '.join(words[index:index+length])
+    assert index < len(words) - length + 1
+    phr = " ".join(words[index : index + length])
     for i in range(index, index + length):
         words.pop(index)
     return phr
@@ -33,8 +34,8 @@ def main(args):
             constraints.append(constraint)
 
         source = line.rstrip()
-        if '\t' in line:
-            source, target = line.split('\t')
+        if "\t" in line:
+            source, target = line.split("\t")
             if args.add_sos:
                 target = f"<s> {target}"
             if args.add_eos:
@@ -53,8 +54,12 @@ def main(args):
                     segment = words.pop(segmentno)
                     tokens = segment.split()
                     phrase_index = random.choice(range(len(tokens)))
-                    choice = " ".join(tokens[phrase_index:min(len(tokens), phrase_index + args.len)])
-                    for j in range(phrase_index, min(len(tokens), phrase_index + args.len)):
+                    choice = " ".join(
+                        tokens[phrase_index : min(len(tokens), phrase_index + args.len)]
+                    )
+                    for j in range(
+                        phrase_index, min(len(tokens), phrase_index + args.len)
+                    ):
                         tokens.pop(phrase_index)
                     if phrase_index > 0:
                         words.append(" ".join(tokens[0:phrase_index]))
@@ -73,11 +78,15 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--number', '-n', type=int, default=1, help="number of phrases")
-    parser.add_argument('--len', '-l', type=int, default=1, help="phrase length")
-    parser.add_argument('--add-sos', default=False, action='store_true', help='add <s> token')
-    parser.add_argument('--add-eos', default=False, action='store_true', help='add </s> token')
-    parser.add_argument('--seed', "-s", default=0, type=int)
+    parser.add_argument("--number", "-n", type=int, default=1, help="number of phrases")
+    parser.add_argument("--len", "-l", type=int, default=1, help="phrase length")
+    parser.add_argument(
+        "--add-sos", default=False, action="store_true", help="add <s> token"
+    )
+    parser.add_argument(
+        "--add-eos", default=False, action="store_true", help="add </s> token"
+    )
+    parser.add_argument("--seed", "-s", default=0, type=int)
     args = parser.parse_args()
 
     main(args)

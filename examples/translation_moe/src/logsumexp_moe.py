@@ -21,6 +21,6 @@ class LogSumExpMoE(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        posterior, = ctx.saved_tensors
+        (posterior,) = ctx.saved_tensors
         grad_logp = grad_output.unsqueeze(ctx.dim) * posterior
         return grad_logp, None, None

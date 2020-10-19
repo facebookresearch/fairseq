@@ -7,15 +7,13 @@ import math
 
 import torch
 import torch.nn.functional as F
-
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.logging.meters import safe_round
 
 
-@register_criterion('wav2vec')
+@register_criterion("wav2vec")
 class Wav2vecCriterion(FairseqCriterion):
-
     def __init__(self, task, infonce=False, loss_weights=None, log_keys=None):
         super().__init__(task)
         self.infonce = infonce
@@ -42,12 +40,12 @@ class Wav2vecCriterion(FairseqCriterion):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
-        net_output = model(**sample['net_input'])
+        net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
         target = model.get_targets(sample, net_output)
 
         weights = None
-        if hasattr(model, 'get_target_weights') and not self.infonce:
+        if hasattr(model, "get_target_weights") and not self.infonce:
             weights = model.get_target_weights(target, net_output)
             if torch.is_tensor(weights):
                 weights = weights.float()
@@ -55,9 +53,18 @@ class Wav2vecCriterion(FairseqCriterion):
         losses = []
 
         if self.infonce:
-            loss = F.cross_entropy(logits, target, reduction="sum" if reduce else "none",)
+            loss = F.cross_entropy(
+                logits,
+                target,
+                reduction="sum" if reduce else "none",
+            )
         else:
-            loss = F.binary_cross_entropy_with_logits(logits, target.float(), weights, reduction="sum" if reduce else "none",)
+            loss = F.binary_cross_entropy_with_logits(
+                logits,
+                target.float(),
+                weights,
+                reduction="sum" if reduce else "none",
+            )
 
         sample_size = target.numel() if self.infonce else target.long().sum().item()
         losses.append(loss.detach().clone())
@@ -69,7 +76,9 @@ class Wav2vecCriterion(FairseqCriterion):
                 extra_losses = [extra_losses]
             if len(self.loss_weights) == 1 and len(extra_losses) != 1:
                 self.loss_weights = [self.loss_weights[0]] * len(extra_losses)
-            assert len(extra_losses) == len(self.loss_weights), f'{len(extra_losses)}, {len(self.loss_weights)}'
+            assert len(extra_losses) == len(
+                self.loss_weights
+            ), f"{len(extra_losses)}, {len(self.loss_weights)}"
             for p, coef in zip(extra_losses, self.loss_weights):
                 if coef != 0 and p is not None:
                     p = coef * p.float() * sample_size
@@ -77,10 +86,10 @@ class Wav2vecCriterion(FairseqCriterion):
                     losses.append(p)
 
         logging_output = {
-            'loss': loss.item() if reduce else loss,
-            'ntokens': sample_size,
-            'nsentences': sample['id'].numel(),
-            'sample_size': sample_size,
+            "loss": loss.item() if reduce else loss,
+            "ntokens": sample_size,
+            "nsentences": sample["id"].numel(),
+            "sample_size": sample_size,
         }
 
         for lk in self.log_keys:
@@ -89,7 +98,7 @@ class Wav2vecCriterion(FairseqCriterion):
 
         if len(losses) > 1:
             for i, l in enumerate(losses):
-                logging_output[f'loss_{i}'] = l.item()
+                logging_output[f"loss_{i}"] = l.item()
 
         if self.infonce:
             with torch.no_grad():
@@ -108,21 +117,27 @@ class Wav2vecCriterion(FairseqCriterion):
                 logging_output["count"] = count
 
         if log_pred:
-            logging_output['logits'] = logits.cpu().numpy()
-            logging_output['target'] = target.cpu().numpy()
+            logging_output["logits"] = logits.cpu().numpy()
+            logging_output["target"] = target.cpu().numpy()
         return loss, sample_size, logging_output
 
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = utils.item(sum(log.get('loss', 0) for log in logging_outputs))
-        ntokens = utils.item(sum(log.get('ntokens', 0) for log in logging_outputs))
-        nsentences = utils.item(sum(log.get('nsentences', 0) for log in logging_outputs))
-        sample_size = utils.item(sum(log.get('sample_size', 0) for log in logging_outputs))
+        loss_sum = utils.item(sum(log.get("loss", 0) for log in logging_outputs))
+        ntokens = utils.item(sum(log.get("ntokens", 0) for log in logging_outputs))
+        nsentences = utils.item(
+            sum(log.get("nsentences", 0) for log in logging_outputs)
+        )
+        sample_size = utils.item(
+            sum(log.get("sample_size", 0) for log in logging_outputs)
+        )
 
-        metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
-        metrics.log_scalar('ntokens', ntokens)
-        metrics.log_scalar('nsentences', nsentences)
+        metrics.log_scalar(
+            "loss", loss_sum / sample_size / math.log(2), sample_size, round=3
+        )
+        metrics.log_scalar("ntokens", ntokens)
+        metrics.log_scalar("nsentences", nsentences)
 
         correct = sum(log.get("correct", 0) for log in logging_outputs)
         metrics.log_scalar("_correct", correct)
@@ -130,21 +145,31 @@ class Wav2vecCriterion(FairseqCriterion):
         total = sum(log.get("count", 0) for log in logging_outputs)
         metrics.log_scalar("_total", total)
 
-
         if total > 0:
             metrics.log_derived(
                 "accuracy",
-                lambda meters: safe_round(meters["_correct"].sum / meters["_total"].sum, 5)
+                lambda meters: safe_round(
+                    meters["_correct"].sum / meters["_total"].sum, 5
+                )
                 if meters["_total"].sum > 0
                 else float("nan"),
             )
 
-        builtin_keys = {'loss', 'ntokens', 'nsentences', 'sample_size', 'correct', 'count'}
+        builtin_keys = {
+            "loss",
+            "ntokens",
+            "nsentences",
+            "sample_size",
+            "correct",
+            "count",
+        }
 
         for k in logging_outputs[0]:
             if k not in builtin_keys:
-                val = sum(log.get(k, 0) for log in logging_outputs) / len(logging_outputs)
-                if k.startswith('loss'):
+                val = sum(log.get(k, 0) for log in logging_outputs) / len(
+                    logging_outputs
+                )
+                if k.startswith("loss"):
                     metrics.log_scalar(k, val / sample_size / math.log(2), sample_size)
                 else:
                     metrics.log_scalar(k, val, round=3)

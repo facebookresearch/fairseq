@@ -8,10 +8,10 @@ import re
 from operator import attrgetter, itemgetter
 
 import numpy as np
-import torch.nn as nn
 import torch.distributed as dist
+import torch.nn as nn
 
-from .modules import PQConv2d, PQLinear, PQEmbedding
+from .modules import PQConv2d, PQEmbedding, PQLinear
 from .pq import PQ
 
 
@@ -63,7 +63,9 @@ def quantize_model_(
     for layer in quantized_layers:
 
         # book-keeping
-        is_master_process = (not dist.is_initialized()) or (dist.is_initialized() and dist.get_rank() == 0)
+        is_master_process = (not dist.is_initialized()) or (
+            dist.is_initialized() and dist.get_rank() == 0
+        )
         verbose = verbose and is_master_process
 
         # get block size and centroids
@@ -71,11 +73,13 @@ def quantize_model_(
         block_size = get_param(module, layer, block_sizes_config)
         n_centroids = get_param(module, layer, n_centroids_config)
         if verbose:
-            logging.info(f"Quantizing layer {layer} with block size {block_size} and {n_centroids} centroids")
+            logging.info(
+                f"Quantizing layer {layer} with block size {block_size} and {n_centroids} centroids"
+            )
 
         # quantize layer
         weight = module.weight.data.clone()
-        is_bias = 'bias' in [x[0] for x in module.named_parameters()]
+        is_bias = "bias" in [x[0] for x in module.named_parameters()]
         bias = module.bias.data.clone() if is_bias else None
         quantizer = PQ(
             weight,
@@ -238,9 +242,7 @@ def get_param(module, layer_name, param_config):
             if "*" in params:
                 feature_value = "*"
             else:
-                raise KeyError(
-                    f"name={layer_name} not in config for {module}"
-                )
+                raise KeyError(f"name={layer_name} not in config for {module}")
         else:
             feature_value = feature_values[0]
 

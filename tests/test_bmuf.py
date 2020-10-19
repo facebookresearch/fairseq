@@ -4,13 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-from multiprocessing import Manager
 import random
 import unittest
+from multiprocessing import Manager
 
 import torch
 import torch.nn as nn
-
 from fairseq import distributed_utils, optim
 
 
@@ -169,5 +168,5 @@ class TestBMUF(unittest.TestCase):
         self.assertLess((t1 - t2).abs().max(), 1e-4)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

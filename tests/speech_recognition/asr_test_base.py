@@ -7,6 +7,7 @@ from inspect import currentframe, getframeinfo
 
 import numpy as np
 import torch
+from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
 from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.dictionary import Dictionary
 from fairseq.models import (
@@ -18,7 +19,6 @@ from fairseq.models import (
     FairseqModel,
 )
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
-from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
 
 
 DEFAULT_TEST_VOCAB_SIZE = 100
@@ -172,9 +172,8 @@ def check_encoder_output(encoder_output, batch_size=None):
                 "encoder_padding_mask must be a torch.Tensor" + _current_postion_info()
             )
             return False, msg
-        if (
-            mask.dtype != torch.uint8
-            and (not hasattr(torch, 'bool') or mask.dtype != torch.bool)
+        if mask.dtype != torch.uint8 and (
+            not hasattr(torch, "bool") or mask.dtype != torch.bool
         ):
             msg = (
                 "encoder_padding_mask must have dtype of uint8"
@@ -516,14 +515,16 @@ class CrossEntropyCriterionTestBase(unittest.TestCase):
     def setUp(self):
         args = self.setUpArgs()
         self.model = DummyEncoderModel(encoder=DummyEncoder())
-        self.criterion = self.criterion_cls.build_criterion(args=args, task=DummyTask(args))
+        self.criterion = self.criterion_cls.build_criterion(
+            args=args, task=DummyTask(args)
+        )
 
     def get_src_tokens(self, correct_prediction, aggregate):
         """
-            correct_prediction: True if the net_output (src_tokens) should
-            predict the correct target
-            aggregate: True if the criterion expects net_output (src_tokens)
-            aggregated across time axis
+        correct_prediction: True if the net_output (src_tokens) should
+        predict the correct target
+        aggregate: True if the criterion expects net_output (src_tokens)
+        aggregated across time axis
         """
         predicted_idx = 0 if correct_prediction else 1
         if aggregate:

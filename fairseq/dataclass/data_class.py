@@ -113,12 +113,13 @@ class CommonParams(FairseqDataclass):
         default="", metadata={"help": "suffix to add to the checkpoint file name"}
     )
     checkpoint_shard_count: int = field(
-        default=1, metadata={
+        default=1,
+        metadata={
             "help": "Number of shards containing the checkpoint - "
-                    "if the checkpoint is over 300GB, it is preferable "
-                    "to split it into shards to prevent OOM on CPU while loading "
-                    "the checkpoint"
-        }
+            "if the checkpoint is over 300GB, it is preferable "
+            "to split it into shards to prevent OOM on CPU while loading "
+            "the checkpoint"
+        },
     )
     quantization_config_path: Optional[str] = field(
         default=None, metadata={"help": "path to quantization config file"}
@@ -307,7 +308,10 @@ class DatasetParams(FairseqDataclass):
         default=8, metadata={"help": "batch size will be a multiplier of this value"}
     )
     required_seq_len_multiple: int = field(
-        default=1, metadata={"help": "maximum sequence length in batch will be a multiplier of this value"}
+        default=1,
+        metadata={
+            "help": "maximum sequence length in batch will be a multiplier of this value"
+        },
     )
     dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = field(
         default=None, metadata={"help": "output dataset implementation"}
@@ -351,8 +355,7 @@ class DatasetParams(FairseqDataclass):
     batch_size_valid: Optional[int] = field(
         default=None,
         metadata={
-            "help": "batch size of the validation batch"
-            " (defaults to --batch-size)"
+            "help": "batch size of the validation batch" " (defaults to --batch-size)"
         },
     )
     curriculum: int = field(

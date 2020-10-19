@@ -9,18 +9,22 @@ from collections.abc import Iterable
 
 import torch
 import torch.nn as nn
+from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
 from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
+    FairseqEncoderDecoderModel,
     FairseqEncoderModel,
     FairseqIncrementalDecoder,
-    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
-from fairseq.modules import LinearizedConvolution
-from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
-from fairseq.modules import TransformerDecoderLayer, TransformerEncoderLayer, VGGBlock
+from fairseq.modules import (
+    LinearizedConvolution,
+    TransformerDecoderLayer,
+    TransformerEncoderLayer,
+    VGGBlock,
+)
 
 
 @register_model("asr_vggtransformer")
@@ -29,6 +33,7 @@ class VGGTransformerModel(FairseqEncoderDecoderModel):
     Transformers with convolutional context for ASR
     https://arxiv.org/abs/1904.11660
     """
+
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
@@ -602,18 +607,22 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.layers = nn.ModuleList()
         if conv_config[-1][0] != transformer_config[0][0]:
             self.layers.append(Linear(conv_config[-1][0], transformer_config[0][0]))
-        self.layers.append(TransformerDecoderLayer(
-            prepare_transformer_decoder_params(*transformer_config[0])
-        ))
+        self.layers.append(
+            TransformerDecoderLayer(
+                prepare_transformer_decoder_params(*transformer_config[0])
+            )
+        )
 
         for i in range(1, len(transformer_config)):
             if transformer_config[i - 1][0] != transformer_config[i][0]:
                 self.layers.append(
                     Linear(transformer_config[i - 1][0], transformer_config[i][0])
                 )
-            self.layers.append(TransformerDecoderLayer(
-                prepare_transformer_decoder_params(*transformer_config[i])
-            ))
+            self.layers.append(
+                TransformerDecoderLayer(
+                    prepare_transformer_decoder_params(*transformer_config[i])
+                )
+            )
         self.fc_out = Linear(transformer_config[-1][0], vocab_size)
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
@@ -712,6 +721,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if incremental_state:
             x = x.transpose(0, 1)
         return x
+
 
 @register_model("asr_vggtransformer_encoder")
 class VGGTransformerEncoderModel(FairseqEncoderModel):

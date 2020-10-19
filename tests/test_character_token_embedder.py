@@ -3,9 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
 import unittest
 
+import torch
 from fairseq.data import Dictionary
 from fairseq.modules import CharacterTokenEmbedder
 
@@ -13,12 +13,14 @@ from fairseq.modules import CharacterTokenEmbedder
 class TestCharacterTokenEmbedder(unittest.TestCase):
     def test_character_token_embedder(self):
         vocab = Dictionary()
-        vocab.add_symbol('hello')
-        vocab.add_symbol('there')
+        vocab.add_symbol("hello")
+        vocab.add_symbol("there")
 
-        embedder = CharacterTokenEmbedder(vocab, [(2, 16), (4, 32), (8, 64), (16, 2)], 64, 5, 2)
+        embedder = CharacterTokenEmbedder(
+            vocab, [(2, 16), (4, 32), (8, 64), (16, 2)], 64, 5, 2
+        )
 
-        test_sents = [['hello', 'unk', 'there'], ['there'], ['hello', 'there']]
+        test_sents = [["hello", "unk", "there"], ["there"], ["hello", "there"]]
         max_len = max(len(s) for s in test_sents)
         input = torch.LongTensor(len(test_sents), max_len + 2).fill_(vocab.pad())
         for i in range(len(test_sents)):
@@ -42,5 +44,5 @@ class TestCharacterTokenEmbedder(unittest.TestCase):
         self.assertLess((t1 - t2).abs().max(), 1e-6)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

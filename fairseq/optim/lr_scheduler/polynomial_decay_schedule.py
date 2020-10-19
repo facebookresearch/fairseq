@@ -3,10 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . import register_lr_scheduler, LegacyFairseqLRScheduler
+from . import LegacyFairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler('polynomial_decay')
+@register_lr_scheduler("polynomial_decay")
 class PolynomialDecaySchedule(LegacyFairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
@@ -14,11 +14,11 @@ class PolynomialDecaySchedule(LegacyFairseqLRScheduler):
         super().__init__(args, optimizer)
 
         # set defaults
-        args.warmup_updates = getattr(args, 'warmup_updates', 0) or 0
+        args.warmup_updates = getattr(args, "warmup_updates", 0) or 0
 
         self.lr = args.lr[0]
         if args.warmup_updates > 0:
-            self.warmup_factor = 1. / args.warmup_updates
+            self.warmup_factor = 1.0 / args.warmup_updates
         else:
             self.warmup_factor = 1
         self.end_learning_rate = args.end_learning_rate
@@ -29,13 +29,23 @@ class PolynomialDecaySchedule(LegacyFairseqLRScheduler):
     @staticmethod
     def add_args(parser):
         """Add arguments to the parser for this LR scheduler."""
-        parser.add_argument('--force-anneal', '--fa', type=int, metavar='N',
-                            help='force annealing at specified epoch')
-        parser.add_argument('--warmup-updates', default=0, type=int, metavar='N',
-                            help='warmup the learning rate linearly for the first N updates')
-        parser.add_argument('--end-learning-rate', default=0.0, type=float)
-        parser.add_argument('--power', default=1.0, type=float)
-        parser.add_argument('--total-num-update', default=1000000, type=int)
+        parser.add_argument(
+            "--force-anneal",
+            "--fa",
+            type=int,
+            metavar="N",
+            help="force annealing at specified epoch",
+        )
+        parser.add_argument(
+            "--warmup-updates",
+            default=0,
+            type=int,
+            metavar="N",
+            help="warmup the learning rate linearly for the first N updates",
+        )
+        parser.add_argument("--end-learning-rate", default=0.0, type=float)
+        parser.add_argument("--power", default=1.0, type=float)
+        parser.add_argument("--total-num-update", default=1000000, type=int)
 
     def get_next_lr(self, epoch):
         lrs = self.args.lr
@@ -64,7 +74,9 @@ class PolynomialDecaySchedule(LegacyFairseqLRScheduler):
         else:
             warmup = self.args.warmup_updates
             lr_range = self.lr - self.end_learning_rate
-            pct_remaining = 1 - (num_updates - warmup) / (self.total_num_update - warmup)
+            pct_remaining = 1 - (num_updates - warmup) / (
+                self.total_num_update - warmup
+            )
             lr = lr_range * pct_remaining ** (self.power) + self.end_learning_rate
         self.optimizer.set_lr(lr)
         return self.optimizer.get_lr()

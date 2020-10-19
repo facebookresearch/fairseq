@@ -9,13 +9,12 @@ from fairseq.data.encoders import register_bpe
 from .gpt2_bpe_utils import get_encoder
 
 
-DEFAULT_ENCODER_JSON = 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json'
-DEFAULT_VOCAB_BPE = 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/vocab.bpe'
+DEFAULT_ENCODER_JSON = "https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json"
+DEFAULT_VOCAB_BPE = "https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/vocab.bpe"
 
 
-@register_bpe('gpt2')
+@register_bpe("gpt2")
 class GPT2BPE(object):
-
     @staticmethod
     def add_args(parser):
         # fmt: off
@@ -29,21 +28,20 @@ class GPT2BPE(object):
 
     def __init__(self, args):
         encoder_json = file_utils.cached_path(
-            getattr(args, 'gpt2_encoder_json', DEFAULT_ENCODER_JSON)
+            getattr(args, "gpt2_encoder_json", DEFAULT_ENCODER_JSON)
         )
         vocab_bpe = file_utils.cached_path(
-            getattr(args, 'gpt2_vocab_bpe', DEFAULT_VOCAB_BPE)
+            getattr(args, "gpt2_vocab_bpe", DEFAULT_VOCAB_BPE)
         )
         self.bpe = get_encoder(encoder_json, vocab_bpe)
 
     def encode(self, x: str) -> str:
-        return ' '.join(map(str, self.bpe.encode(x)))
+        return " ".join(map(str, self.bpe.encode(x)))
 
     def decode(self, x: str) -> str:
-        return self.bpe.decode([
-            int(tok) if tok not in {'<unk>', '<mask>'} else tok
-            for tok in x.split()
-        ])
+        return self.bpe.decode(
+            [int(tok) if tok not in {"<unk>", "<mask>"} else tok for tok in x.split()]
+        )
 
     def is_beginning_of_word(self, x: str) -> bool:
-        return self.decode(x).startswith(' ')
+        return self.decode(x).startswith(" ")

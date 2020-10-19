@@ -3,14 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Dict, Optional
 import uuid
+from typing import Dict, Optional
 
 from torch import Tensor
 
 
 class FairseqIncrementalState(object):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.init_incremental_state()
@@ -46,5 +45,7 @@ class FairseqIncrementalState(object):
 
 
 def with_incremental_state(cls):
-    cls.__bases__ = (FairseqIncrementalState,) + tuple(b for b in cls.__bases__ if b != FairseqIncrementalState)
+    cls.__bases__ = (FairseqIncrementalState,) + tuple(
+        b for b in cls.__bases__ if b != FairseqIncrementalState
+    )
     return cls

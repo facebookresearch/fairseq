@@ -6,32 +6,49 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from fairseq import utils
-from fairseq.modules.unfold import unfold1d
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
+from fairseq.modules.unfold import unfold1d
 
 
-def LightweightConv(input_size, kernel_size=1, padding_l=None, num_heads=1,
-                    weight_dropout=0., weight_softmax=False, bias=False):
+def LightweightConv(
+    input_size,
+    kernel_size=1,
+    padding_l=None,
+    num_heads=1,
+    weight_dropout=0.0,
+    weight_softmax=False,
+    bias=False,
+):
     if torch.cuda.is_available():
         try:
             from fairseq.modules.lightconv_layer import LightconvLayer
-            return LightconvLayer(input_size, kernel_size=kernel_size,
-                                  padding_l=padding_l, num_heads=num_heads,
-                                  weight_dropout=weight_dropout,
-                                  weight_softmax=weight_softmax, bias=bias)
+
+            return LightconvLayer(
+                input_size,
+                kernel_size=kernel_size,
+                padding_l=padding_l,
+                num_heads=num_heads,
+                weight_dropout=weight_dropout,
+                weight_softmax=weight_softmax,
+                bias=bias,
+            )
         except ImportError as e:
             print(e)
-    return LightweightConv1dTBC(input_size, kernel_size=kernel_size,
-                                padding_l=padding_l, num_heads=num_heads,
-                                weight_dropout=weight_dropout,
-                                weight_softmax=weight_softmax, bias=bias)
+    return LightweightConv1dTBC(
+        input_size,
+        kernel_size=kernel_size,
+        padding_l=padding_l,
+        num_heads=num_heads,
+        weight_dropout=weight_dropout,
+        weight_softmax=weight_softmax,
+        bias=bias,
+    )
 
 
 class LightweightConv1d(nn.Module):
-    '''Lightweight Convolution assuming the input is BxCxT
+    """Lightweight Convolution assuming the input is BxCxT
     This is just an example that explains LightConv clearer than the TBC version.
     We don't use this module in the model.
 
@@ -51,10 +68,18 @@ class LightweightConv1d(nn.Module):
         weight: the learnable weights of the module of shape
             `(num_heads, 1, kernel_size)`
         bias: the learnable bias of the module of shape `(input_size)`
-    '''
+    """
 
-    def __init__(self, input_size, kernel_size=1, padding=0, num_heads=1,
-                 weight_softmax=False, bias=False, weight_dropout=0.):
+    def __init__(
+        self,
+        input_size,
+        kernel_size=1,
+        padding=0,
+        num_heads=1,
+        weight_softmax=False,
+        bias=False,
+        weight_dropout=0.0,
+    ):
         super().__init__()
         self.input_size = input_size
         self.kernel_size = kernel_size
@@ -67,19 +92,21 @@ class LightweightConv1d(nn.Module):
             self.bias = nn.Parameter(torch.Tensor(input_size))
         else:
             self.bias = None
-        self.weight_dropout_module = FairseqDropout(weight_dropout, module_name=self.__class__.__name__)
+        self.weight_dropout_module = FairseqDropout(
+            weight_dropout, module_name=self.__class__.__name__
+        )
         self.reset_parameters()
 
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.weight)
         if self.bias is not None:
-            nn.init.constant_(self.bias, 0.)
+            nn.init.constant_(self.bias, 0.0)
 
     def forward(self, input):
-        '''
+        """
         input size: B x C x T
         output size: B x C x T
-        '''
+        """
         B, C, T = input.size()
         H = self.num_heads
 
@@ -103,7 +130,7 @@ class LightweightConv1d(nn.Module):
 
 @with_incremental_state
 class LightweightConv1dTBC(nn.Module):
-    '''Lightweight Convolution assuming the input is TxBxC
+    """Lightweight Convolution assuming the input is TxBxC
     Args:
         input_size: # of channels of the input
         kernel_size: convolution channels
@@ -121,15 +148,26 @@ class LightweightConv1dTBC(nn.Module):
         weight: the learnable weights of the module of shape
             `(num_heads, 1, kernel_size)`
         bias:   the learnable bias of the module of shape `(input_size)`
-    '''
-    def __init__(self, input_size, kernel_size=1, padding_l=None, num_heads=1,
-                 weight_dropout=0., weight_softmax=False, bias=False):
+    """
+
+    def __init__(
+        self,
+        input_size,
+        kernel_size=1,
+        padding_l=None,
+        num_heads=1,
+        weight_dropout=0.0,
+        weight_softmax=False,
+        bias=False,
+    ):
         super().__init__()
         self.input_size = input_size
         self.kernel_size = kernel_size
         self.padding_l = padding_l
         self.num_heads = num_heads
-        self.weight_dropout_module = FairseqDropout(weight_dropout, module_name=self.__class__.__name__)
+        self.weight_dropout_module = FairseqDropout(
+            weight_dropout, module_name=self.__class__.__name__
+        )
         self.weight_softmax = weight_softmax
 
         self.weight = nn.Parameter(torch.Tensor(num_heads, 1, kernel_size))
@@ -144,15 +182,15 @@ class LightweightConv1dTBC(nn.Module):
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.weight)
         if self.bias is not None:
-            nn.init.constant_(self.bias, 0.)
+            nn.init.constant_(self.bias, 0.0)
 
     def forward(self, x, incremental_state=None, unfold=False):
-        '''Assuming the input, x, of the shape T x B x C and producing an output in the shape T x B x C
+        """Assuming the input, x, of the shape T x B x C and producing an output in the shape T x B x C
         args:
             x: Input of shape T x B x C, i.e. (timesteps, batch_size, input_size)
             incremental_state: A dict to keep the state
             unfold: unfold the input or not. If not, we use the matrix trick instead
-        '''
+        """
         unfold = unfold or (incremental_state is not None)
 
         if unfold:
@@ -168,8 +206,8 @@ class LightweightConv1dTBC(nn.Module):
         self.onnx_trace = True
 
     def _forward_unfolded(self, x, incremental_state):
-        '''The conventional implementation of convolutions.
-        Unfolding the input by having a window shifting to the right.'''
+        """The conventional implementation of convolutions.
+        Unfolding the input by having a window shifting to the right."""
         T, B, C = x.size()
         K, H = self.kernel_size, self.num_heads
         R = C // H
@@ -182,21 +220,27 @@ class LightweightConv1dTBC(nn.Module):
                 input_buffer = x.new()
             x_unfold = torch.cat([input_buffer, x.unsqueeze(3)], dim=3)
             if self.kernel_size > 1:
-                self._set_input_buffer(incremental_state, x_unfold[:, :, :, -self.kernel_size+1:])
-            x_unfold = x_unfold.view(T*B*H, R, -1)
+                self._set_input_buffer(
+                    incremental_state, x_unfold[:, :, :, -self.kernel_size + 1 :]
+                )
+            x_unfold = x_unfold.view(T * B * H, R, -1)
         else:
             # unfold the input: T x B x C --> T' x B x C x K
             x_unfold = unfold1d(x, self.kernel_size, self.padding_l, 0)
-            x_unfold = x_unfold.view(T*B*H, R, K)
+            x_unfold = x_unfold.view(T * B * H, R, K)
 
         if self.weight_softmax:
-            weight = utils.softmax(weight, dim=1, onnx_trace=self.onnx_trace).type_as(weight)
+            weight = utils.softmax(weight, dim=1, onnx_trace=self.onnx_trace).type_as(
+                weight
+            )
 
         if incremental_state is not None:
-            weight = weight[:, -x_unfold.size(2):]
+            weight = weight[:, -x_unfold.size(2) :]
             K = weight.size(1)
 
-        weight = weight.view(1, H, K).expand(T*B, H, K).contiguous().view(T*B*H, K, 1)
+        weight = (
+            weight.view(1, H, K).expand(T * B, H, K).contiguous().view(T * B * H, K, 1)
+        )
 
         weight = self.weight_dropout_module(weight)
         output = torch.bmm(x_unfold, weight)  # T*B*H x R x 1
@@ -204,10 +248,10 @@ class LightweightConv1dTBC(nn.Module):
         return output
 
     def _forward_expanded(self, x, incremental_state):
-        '''Turn the convolution filters into band matrices and do matrix multiplication.
+        """Turn the convolution filters into band matrices and do matrix multiplication.
         This is faster when the sequence is short, but less memory efficient.
         This is not used in the decoder during inference.
-        '''
+        """
         T, B, C = x.size()
         K, H = self.kernel_size, self.num_heads
         R = C // H
@@ -215,18 +259,22 @@ class LightweightConv1dTBC(nn.Module):
 
         weight = self.weight.view(H, K)
         if self.weight_softmax:
-            weight = utils.softmax(weight, dim=1, onnx_trace=self.onnx_trace).type_as(weight)
-        weight = weight.view(1, H, K).expand(T*B, H, K).contiguous()
-        weight = weight.view(T, B*H, K).transpose(0, 1)
+            weight = utils.softmax(weight, dim=1, onnx_trace=self.onnx_trace).type_as(
+                weight
+            )
+        weight = weight.view(1, H, K).expand(T * B, H, K).contiguous()
+        weight = weight.view(T, B * H, K).transpose(0, 1)
 
-        x = x.view(T, B*H, R).transpose(0, 1)
+        x = x.view(T, B * H, R).transpose(0, 1)
         P = self.padding_l
-        if K > T and P == K-1:
-            weight = weight.narrow(2, K-T, T)
-            K, P = T, T-1
+        if K > T and P == K - 1:
+            weight = weight.narrow(2, K - T, T)
+            K, P = T, T - 1
         # turn the convolution filters into band matrices
-        weight_expanded = weight.new_zeros(B*H, T, T+K-1, requires_grad=False)
-        weight_expanded.as_strided((B*H, T, K), (T*(T+K-1), T+K, 1)).copy_(weight)
+        weight_expanded = weight.new_zeros(B * H, T, T + K - 1, requires_grad=False)
+        weight_expanded.as_strided((B * H, T, K), (T * (T + K - 1), T + K, 1)).copy_(
+            weight
+        )
         weight_expanded = weight_expanded.narrow(2, P, T)
         weight_expanded = self.weight_dropout_module(weight_expanded)
 
@@ -241,16 +289,22 @@ class LightweightConv1dTBC(nn.Module):
             self._set_input_buffer(incremental_state, input_buffer)
 
     def _get_input_buffer(self, incremental_state):
-        return utils.get_incremental_state(self, incremental_state, 'input_buffer')
+        return utils.get_incremental_state(self, incremental_state, "input_buffer")
 
     def _set_input_buffer(self, incremental_state, new_buffer):
-        return utils.set_incremental_state(self, incremental_state, 'input_buffer', new_buffer)
+        return utils.set_incremental_state(
+            self, incremental_state, "input_buffer", new_buffer
+        )
 
     def extra_repr(self):
-        s = '{}, kernel_size={}, padding_l={}, num_heads={}, weight_softmax={}, bias={}'.format(
-            self.input_size, self.kernel_size, self.padding_l,
-            self.num_heads, self.weight_softmax, self.bias is not None
+        s = "{}, kernel_size={}, padding_l={}, num_heads={}, weight_softmax={}, bias={}".format(
+            self.input_size,
+            self.kernel_size,
+            self.padding_l,
+            self.num_heads,
+            self.weight_softmax,
+            self.bias is not None,
         )
-        if self.weight_dropout_module.p > 0.:
-            s += ', weight_dropout={}'.format(self.weight_dropout_module.p)
+        if self.weight_dropout_module.p > 0.0:
+            s += ", weight_dropout={}".format(self.weight_dropout_module.p)
         return s

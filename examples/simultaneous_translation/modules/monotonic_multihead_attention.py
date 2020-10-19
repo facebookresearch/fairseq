@@ -4,22 +4,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
-
-from fairseq import utils
-
-from fairseq.modules import MultiheadAttention
-
+import torch.nn.functional as F
 from examples.simultaneous_translation.utils.functions import (
     exclusive_cumprod,
-    lengths_to_mask
+    lengths_to_mask,
 )
-
-
+from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.modules import MultiheadAttention
 from fairseq.utils import convert_padding_direction
+
 from . import register_monotonic_attention
 
 
@@ -28,6 +25,7 @@ class MonotonicAttention(nn.Module):
     """
     Abstract class of monotonic attentions
     """
+
     def __init__(self, args):
         self.eps = args.attention_eps
         self.mass_preservation = args.mass_preservation
@@ -38,7 +36,8 @@ class MonotonicAttention(nn.Module):
         self.energy_bias_init = args.energy_bias_init
         self.energy_bias = (
             nn.Parameter(self.energy_bias_init * torch.ones([1]))
-            if args.energy_bias is True else 0
+            if args.energy_bias is True
+            else 0
         )
 
     @staticmethod
@@ -90,7 +89,7 @@ class MonotonicAttention(nn.Module):
         if key_padding_mask is not None:
             attn_energy = attn_energy.masked_fill(
                 key_padding_mask.unsqueeze(1).unsqueeze(2).bool(),
-                float('-inf'),
+                float("-inf"),
             )
 
         return attn_energy
@@ -131,10 +130,7 @@ class MonotonicAttention(nn.Module):
             alpha_i = (
                 p_choose[:, i]
                 * cumprod_1mp[:, i]
-                * torch.cumsum(
-                    previous_attn[i][:, 0] / cumprod_1mp_clamp[:, i],
-                    dim=1
-                )
+                * torch.cumsum(previous_attn[i][:, 0] / cumprod_1mp_clamp[:, i], dim=1)
             ).clamp(0, 1.0)
             previous_attn.append(alpha_i.unsqueeze(1))
 
@@ -170,8 +166,7 @@ class MonotonicAttention(nn.Module):
         # prev_monotonic_step: bsz, num_heads
         bsz = bsz_num_heads // self.num_heads
         prev_monotonic_step = monotonic_cache.get(
-            "step",
-            p_choose.new_zeros([bsz, self.num_heads]).long()
+            "step", p_choose.new_zeros([bsz, self.num_heads]).long()
         )
         bsz, num_heads = prev_monotonic_step.size()
         assert num_heads == self.num_heads
@@ -181,8 +176,7 @@ class MonotonicAttention(nn.Module):
         p_choose = p_choose.view(bsz, num_heads, src_len)
 
         if key_padding_mask is not None:
-            src_lengths = src_len - \
-                key_padding_mask.sum(dim=1, keepdim=True).long()
+            src_lengths = src_len - key_padding_mask.sum(dim=1, keepdim=True).long()
         else:
             src_lengths = prev_monotonic_step.new_ones(bsz, 1) * src_len
 
@@ -197,10 +191,7 @@ class MonotonicAttention(nn.Module):
                 # left_pad_source = True:
                 step_offset = key_padding_mask.sum(dim=-1, keepdim=True)
 
-        max_steps = (
-            src_lengths - 1 if self.mass_preservation
-            else src_lengths
-        )
+        max_steps = src_lengths - 1 if self.mass_preservation else src_lengths
 
         # finish_read: bsz, num_heads
         finish_read = new_monotonic_step.eq(max_steps)
@@ -210,11 +201,11 @@ class MonotonicAttention(nn.Module):
             # only choose the p at monotonic steps
             # p_choose_i: bsz , self.num_heads
             p_choose_i = (
-                p_choose
-                .gather(
+                p_choose.gather(
                     2,
-                    (step_offset + new_monotonic_step).unsqueeze(2)
-                    .clamp(0, src_len - 1)
+                    (step_offset + new_monotonic_step)
+                    .unsqueeze(2)
+                    .clamp(0, src_len - 1),
                 )
             ).squeeze(2)
 
@@ -239,21 +230,17 @@ class MonotonicAttention(nn.Module):
 
         # alpha: bsz * num_heads, 1, src_len
         # new_monotonic_step: bsz, num_heads
-        alpha = (
-            p_choose
-            .new_zeros([bsz * self.num_heads, src_len])
-            .scatter(
-                1,
-                (step_offset + new_monotonic_step).view(bsz *
-                                                        self.num_heads, 1).clamp(0, src_len - 1),
-                1
-            )
+        alpha = p_choose.new_zeros([bsz * self.num_heads, src_len]).scatter(
+            1,
+            (step_offset + new_monotonic_step)
+            .view(bsz * self.num_heads, 1)
+            .clamp(0, src_len - 1),
+            1,
         )
 
         if not self.mass_preservation:
             alpha = alpha.masked_fill(
-                (new_monotonic_step == max_steps).view(bsz * self.num_heads, 1),
-                0
+                (new_monotonic_step == max_steps).view(bsz * self.num_heads, 1), 0
             )
 
         alpha = alpha.unsqueeze(1)
@@ -266,8 +253,14 @@ class MonotonicAttention(nn.Module):
         raise NotImplementedError
 
     def forward(
-        self, query, key, value,
-        key_padding_mask=None, incremental_state=None, *args, **kwargs,
+        self,
+        query,
+        key,
+        value,
+        key_padding_mask=None,
+        incremental_state=None,
+        *args,
+        **kwargs,
     ):
 
         tgt_len, bsz, embed_dim = query.size()
@@ -280,25 +273,24 @@ class MonotonicAttention(nn.Module):
         # expected alignment alpha
         # bsz * self.num_heads, tgt_len, src_len
         if incremental_state is not None:
-            alpha = self.expected_alignment_infer(p_choose, key_padding_mask, incremental_state)
+            alpha = self.expected_alignment_infer(
+                p_choose, key_padding_mask, incremental_state
+            )
         else:
             alpha = self.expected_alignment_train(p_choose, key_padding_mask)
 
         # expected attention beta
         # bsz * self.num_heads, tgt_len, src_len
-        beta = self.expected_attention(alpha, query, key, value, key_padding_mask, incremental_state)
+        beta = self.expected_attention(
+            alpha, query, key, value, key_padding_mask, incremental_state
+        )
 
         attn_weights = beta
 
         v_proj = self.v_proj_output(value)
         attn = torch.bmm(attn_weights.type_as(v_proj), v_proj)
 
-        attn = (
-            attn
-            .transpose(0, 1)
-            .contiguous()
-            .view(tgt_len, bsz, embed_dim)
-        )
+        attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
 
         attn = self.out_proj(attn)
 
@@ -318,26 +310,32 @@ class MonotonicAttention(nn.Module):
             self._set_monotonic_buffer(incremental_state, input_buffer)
 
     def _get_monotonic_buffer(self, incremental_state):
-        return utils.get_incremental_state(
-            self,
-            incremental_state,
-            'monotonic',
-        ) or {}
+        return (
+            utils.get_incremental_state(
+                self,
+                incremental_state,
+                "monotonic",
+            )
+            or {}
+        )
 
     def _set_monotonic_buffer(self, incremental_state, buffer):
         utils.set_incremental_state(
             self,
             incremental_state,
-            'monotonic',
+            "monotonic",
             buffer,
         )
 
     def get_pointer(self, incremental_state):
-        return utils.get_incremental_state(
-            self,
-            incremental_state,
-            'monotonic',
-        ) or {}
+        return (
+            utils.get_incremental_state(
+                self,
+                incremental_state,
+                "monotonic",
+            )
+            or {}
+        )
 
     def get_fastest_pointer(self, incremental_state):
         return self.get_pointer(incremental_state)["step"].max(0)[0]
@@ -354,23 +352,22 @@ class MonotonicAttention(nn.Module):
         utils.set_incremental_state(
             self,
             incremental_state,
-            'monotonic',
+            "monotonic",
             {"step": buffer},
         )
 
 
 @register_monotonic_attention("hard_aligned")
 class MonotonicMultiheadAttentionHard(MonotonicAttention, MultiheadAttention):
-
     def __init__(self, args):
         MultiheadAttention.__init__(
             self,
             embed_dim=args.decoder_embed_dim,
             num_heads=args.decoder_attention_heads,
-            kdim=getattr(args, 'encoder_embed_dim', None),
-            vdim=getattr(args, 'encoder_embed_dim', None),
+            kdim=getattr(args, "encoder_embed_dim", None),
+            vdim=getattr(args, "encoder_embed_dim", None),
             dropout=args.attention_dropout,
-            encoder_decoder_attention=True
+            encoder_decoder_attention=True,
         )
 
         MonotonicAttention.__init__(self, args)
@@ -395,21 +392,33 @@ class MonotonicMultiheadAttentionHard(MonotonicAttention, MultiheadAttention):
             bsz = query.size(1)
             q = self.q_in_proj[name](query)
             q *= self.scaling
-            q = q.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            q = (
+                q.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
         else:
             q = None
 
         if key is not None:
             bsz = key.size(1)
             k = self.k_in_proj[name](key)
-            k = k.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            k = (
+                k.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
         else:
             k = None
 
         if value is not None:
             bsz = value.size(1)
             v = self.v_in_proj[name](value)
-            v = v.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            v = (
+                v.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
         else:
             v = None
 
@@ -441,8 +450,7 @@ class MonotonicMultiheadAttentionHard(MonotonicAttention, MultiheadAttention):
         if self.training:
             # add noise here to encourage discretness
             noise = (
-                torch
-                .normal(self.noise_mean, self.noise_var, attn_energy.size())
+                torch.normal(self.noise_mean, self.noise_var, attn_energy.size())
                 .type_as(attn_energy)
                 .to(attn_energy.device)
             )
@@ -454,9 +462,9 @@ class MonotonicMultiheadAttentionHard(MonotonicAttention, MultiheadAttention):
         return p_choose.view(-1, tgt_len, src_len)
 
     def expected_attention(self, alpha, *args):
-        '''
+        """
         For MMA-H, beta = alpha
-        '''
+        """
         return alpha
 
     def v_proj_output(self, value):
@@ -479,13 +487,19 @@ class MonotonicMultiheadAttentionInfiniteLookback(MonotonicMultiheadAttentionHar
         if self.qkv_same_dim:
             # Empirically observed the convergence to be much better with
             # the scaled initialization
-            nn.init.xavier_uniform_(self.k_in_proj["soft"].weight, gain=1 / math.sqrt(2))
-            nn.init.xavier_uniform_(self.q_in_proj["soft"].weight, gain=1 / math.sqrt(2))
+            nn.init.xavier_uniform_(
+                self.k_in_proj["soft"].weight, gain=1 / math.sqrt(2)
+            )
+            nn.init.xavier_uniform_(
+                self.q_in_proj["soft"].weight, gain=1 / math.sqrt(2)
+            )
         else:
             nn.init.xavier_uniform_(self.k_in_proj["soft"].weight)
             nn.init.xavier_uniform_(self.q_in_proj["soft"].weight)
 
-    def expected_attention(self, alpha, query, key, value, key_padding_mask, incremental_state):
+    def expected_attention(
+        self, alpha, query, key, value, key_padding_mask, incremental_state
+    ):
         # monotonic attention, we will calculate milk here
         bsz_x_num_heads, tgt_len, src_len = alpha.size()
         bsz = int(bsz_x_num_heads / self.num_heads)
@@ -507,9 +521,10 @@ class MonotonicMultiheadAttentionInfiniteLookback(MonotonicMultiheadAttentionHar
                     step_offset = key_padding_mask.sum(dim=-1, keepdim=True)
             monotonic_step += step_offset
             mask = lengths_to_mask(
-                monotonic_step.view(-1), soft_energy.size(2), 1).unsqueeze(1)
+                monotonic_step.view(-1), soft_energy.size(2), 1
+            ).unsqueeze(1)
 
-            soft_energy = soft_energy.masked_fill(~ mask.bool(), float('-inf'))
+            soft_energy = soft_energy.masked_fill(~mask.bool(), float("-inf"))
             soft_energy = soft_energy - soft_energy.max(dim=2, keepdim=True)[0]
             exp_soft_energy = torch.exp(soft_energy)
             exp_soft_energy_sum = exp_soft_energy.sum(dim=2)
@@ -524,14 +539,20 @@ class MonotonicMultiheadAttentionInfiniteLookback(MonotonicMultiheadAttentionHar
             if key_padding_mask is not None:
                 if key_padding_mask.any():
                     exp_soft_energy_cumsum = (
-                        exp_soft_energy_cumsum.view(-1, self.num_heads, tgt_len, src_len)
-                        .masked_fill(key_padding_mask.unsqueeze(1).unsqueeze(1), self.eps)
+                        exp_soft_energy_cumsum.view(
+                            -1, self.num_heads, tgt_len, src_len
+                        )
+                        .masked_fill(
+                            key_padding_mask.unsqueeze(1).unsqueeze(1), self.eps
+                        )
                         .view(-1, tgt_len, src_len)
                     )
 
             inner_items = alpha / exp_soft_energy_cumsum
 
-            beta = exp_soft_energy * torch.cumsum(inner_items.flip(dims=[2]), dim=2).flip(dims=[2])
+            beta = exp_soft_energy * torch.cumsum(
+                inner_items.flip(dims=[2]), dim=2
+            ).flip(dims=[2])
 
             beta = self.dropout_module(beta)
 
@@ -547,7 +568,9 @@ class MonotonicMultiheadAttentionWaitk(MonotonicMultiheadAttentionInfiniteLookba
         self.q_in_proj["soft"] = self.q_in_proj["monotonic"]
         self.k_in_proj["soft"] = self.k_in_proj["monotonic"]
         self.waitk_lagging = args.waitk_lagging
-        assert self.waitk_lagging > 0, f"Lagging has to been larger than 0, get {self.waitk_lagging}."
+        assert (
+            self.waitk_lagging > 0
+        ), f"Lagging has to been larger than 0, get {self.waitk_lagging}."
 
     @staticmethod
     def add_args(parser):
@@ -556,10 +579,13 @@ class MonotonicMultiheadAttentionWaitk(MonotonicMultiheadAttentionInfiniteLookba
             MonotonicMultiheadAttentionWaitk,
         ).add_args(parser)
 
-        parser.add_argument('--waitk-lagging', type=int, required=True,
-                            help='Wait k lagging')
+        parser.add_argument(
+            "--waitk-lagging", type=int, required=True, help="Wait k lagging"
+        )
 
-    def p_choose(self, query, key, key_padding_mask=None, attn_mask=None, incremental_state=None):
+    def p_choose(
+        self, query, key, key_padding_mask=None, attn_mask=None, incremental_state=None
+    ):
         """
         query: bsz, tgt_len
         key: bsz, src_len
@@ -574,16 +600,22 @@ class MonotonicMultiheadAttentionWaitk(MonotonicMultiheadAttentionInfiniteLookba
         if key_padding_mask is not None and key_padding_mask[:, 0].eq(1).any():
             # Left pad source
             # add -1 to the end
-            p_choose = p_choose.masked_fill(key_padding_mask.float().flip(1).unsqueeze(1).bool(), -1)
-            p_choose = convert_padding_direction(p_choose.view(-1, src_len).long(), padding_idx=-1, right_to_left=True)
+            p_choose = p_choose.masked_fill(
+                key_padding_mask.float().flip(1).unsqueeze(1).bool(), -1
+            )
+            p_choose = convert_padding_direction(
+                p_choose.view(-1, src_len).long(), padding_idx=-1, right_to_left=True
+            )
             p_choose = p_choose.view(bsz, tgt_len, src_len).type_as(query)
             # remove -1
             p_choose[p_choose.eq(-1)] = 0
 
         # Extend to each head
         p_choose = (
-            p_choose.contiguous().unsqueeze(1)
-            .expand(-1, self.num_heads, -1, -1).contiguous()
+            p_choose.contiguous()
+            .unsqueeze(1)
+            .expand(-1, self.num_heads, -1, -1)
+            .contiguous()
             .view(-1, tgt_len, src_len)
         )
 

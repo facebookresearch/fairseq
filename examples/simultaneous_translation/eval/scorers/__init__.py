@@ -5,15 +5,15 @@
 
 import importlib
 import os
+
 from fairseq import registry
-(
-    build_scorer,
-    register_scorer,
-    SCORER_REGISTRIES,
-    _
-) = registry.setup_registry('--scorer-type')
+
+
+(build_scorer, register_scorer, SCORER_REGISTRIES, _) = registry.setup_registry(
+    "--scorer-type"
+)
 
 for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        module = file[:file.find('.py')]
-        importlib.import_module('scorers.' + module)
+    if file.endswith(".py") and not file.startswith("_"):
+        module = file[: file.find(".py")]
+        importlib.import_module("scorers." + module)

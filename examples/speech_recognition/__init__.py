@@ -1,1 +1,1 @@
-from . import tasks, criterions, models  # noqa
+from . import criterions, models, tasks  # noqa

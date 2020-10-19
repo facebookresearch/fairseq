@@ -5,15 +5,17 @@
 
 from fairseq import utils
 from fairseq.models import (
-    FairseqLanguageModel, register_model, register_model_architecture
+    FairseqLanguageModel,
+    register_model,
+    register_model_architecture,
 )
-from fairseq.models.lstm import (
-    LSTMDecoder, Embedding
-)
+from fairseq.models.lstm import Embedding, LSTMDecoder
+
 
 DEFAULT_MAX_TARGET_POSITIONS = 1e5
 
-@register_model('lstm_lm')
+
+@register_model("lstm_lm")
 class LSTMLanguageModel(FairseqLanguageModel):
     def __init__(self, decoder):
         super().__init__(decoder)
@@ -60,10 +62,12 @@ class LSTMLanguageModel(FairseqLanguageModel):
         # make sure all arguments are present in older models
         base_architecture(args)
 
-        if getattr(args, 'max_target_positions', None) is not None:
+        if getattr(args, "max_target_positions", None) is not None:
             max_target_positions = args.max_target_positions
         else:
-            max_target_positions = getattr(args, 'tokens_per_sample', DEFAULT_MAX_TARGET_POSITIONS)
+            max_target_positions = getattr(
+                args, "tokens_per_sample", DEFAULT_MAX_TARGET_POSITIONS
+            )
 
         def load_pretrained_embedding_from_file(embed_path, dictionary, embed_dim):
             num_embeddings = len(dictionary)
@@ -76,21 +80,21 @@ class LSTMLanguageModel(FairseqLanguageModel):
         pretrained_decoder_embed = None
         if args.decoder_embed_path:
             pretrained_decoder_embed = load_pretrained_embedding_from_file(
-                args.decoder_embed_path,
-                task.target_dictionary,
-                args.decoder_embed_dim
+                args.decoder_embed_path, task.target_dictionary, args.decoder_embed_dim
             )
 
         if args.share_decoder_input_output_embed:
             # double check all parameters combinations are valid
             if task.source_dictionary != task.target_dictionary:
-                raise ValueError('--share-decoder-input-output-embeddings requires a joint dictionary')
+                raise ValueError(
+                    "--share-decoder-input-output-embeddings requires a joint dictionary"
+                )
 
             if args.decoder_embed_dim != args.decoder_out_embed_dim:
                 raise ValueError(
-                    '--share-decoder-input-output-embeddings requires '
-                    '--decoder-embed-dim to match --decoder-out-embed-dim'
-                    )
+                    "--share-decoder-input-output-embeddings requires "
+                    "--decoder-embed-dim to match --decoder-out-embed-dim"
+                )
 
         decoder = LSTMDecoder(
             dictionary=task.dictionary,
@@ -106,26 +110,33 @@ class LSTMLanguageModel(FairseqLanguageModel):
             share_input_output_embed=args.share_decoder_input_output_embed,
             adaptive_softmax_cutoff=(
                 utils.eval_str_list(args.adaptive_softmax_cutoff, type=int)
-                if args.criterion == 'adaptive_loss' else None
+                if args.criterion == "adaptive_loss"
+                else None
             ),
             max_target_positions=max_target_positions,
-            residuals=args.residuals
+            residuals=args.residuals,
         )
 
         return cls(decoder)
 
 
-@register_model_architecture('lstm_lm', 'lstm_lm')
+@register_model_architecture("lstm_lm", "lstm_lm")
 def base_architecture(args):
-    args.dropout = getattr(args, 'dropout', 0.1)
-    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
-    args.decoder_embed_path = getattr(args, 'decoder_embed_path', None)
-    args.decoder_hidden_size = getattr(args, 'decoder_hidden_size', args.decoder_embed_dim)
-    args.decoder_layers = getattr(args, 'decoder_layers', 1)
-    args.decoder_out_embed_dim = getattr(args, 'decoder_out_embed_dim', 512)
-    args.decoder_attention = getattr(args, 'decoder_attention', '0')
-    args.decoder_dropout_in = getattr(args, 'decoder_dropout_in', args.dropout)
-    args.decoder_dropout_out = getattr(args, 'decoder_dropout_out', args.dropout)
-    args.share_decoder_input_output_embed = getattr(args, 'share_decoder_input_output_embed', False)
-    args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff', '10000,50000,200000')
-    args.residuals = getattr(args, 'residuals', False)
+    args.dropout = getattr(args, "dropout", 0.1)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 512)
+    args.decoder_embed_path = getattr(args, "decoder_embed_path", None)
+    args.decoder_hidden_size = getattr(
+        args, "decoder_hidden_size", args.decoder_embed_dim
+    )
+    args.decoder_layers = getattr(args, "decoder_layers", 1)
+    args.decoder_out_embed_dim = getattr(args, "decoder_out_embed_dim", 512)
+    args.decoder_attention = getattr(args, "decoder_attention", "0")
+    args.decoder_dropout_in = getattr(args, "decoder_dropout_in", args.dropout)
+    args.decoder_dropout_out = getattr(args, "decoder_dropout_out", args.dropout)
+    args.share_decoder_input_output_embed = getattr(
+        args, "share_decoder_input_output_embed", False
+    )
+    args.adaptive_softmax_cutoff = getattr(
+        args, "adaptive_softmax_cutoff", "10000,50000,200000"
+    )
+    args.residuals = getattr(args, "residuals", False)

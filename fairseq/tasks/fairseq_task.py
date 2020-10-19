@@ -10,8 +10,9 @@ from argparse import Namespace
 
 import torch
 from fairseq import metrics, search, tokenizer, utils
-from fairseq.data import Dictionary, FairseqDataset, data_utils, iterators, encoders
+from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass.utils import gen_parser_from_dataclass
+
 
 logger = logging.getLogger(__name__)
 
@@ -358,7 +359,7 @@ class FairseqTask(object):
             )
         elif prefix_allowed_tokens_fn:
             search_strategy = search.PrefixConstrainedBeamSearch(
-              self.target_dictionary, prefix_allowed_tokens_fn
+                self.target_dictionary, prefix_allowed_tokens_fn
             )
         else:
             search_strategy = search.BeamSearch(self.target_dictionary)

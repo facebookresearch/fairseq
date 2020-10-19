@@ -27,7 +27,7 @@ from fairseq.data import (
 )
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
-from fairseq.dataclass import FairseqDataclass, ChoiceEnum
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
 from omegaconf import II
 

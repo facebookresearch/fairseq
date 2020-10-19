@@ -77,7 +77,7 @@ std::vector<at::Tensor> dynamicconv_cuda_forward(at::Tensor input, at::Tensor we
 }
 """
 
-    with open("dynamicconv_cuda_forward.cu", 'w') as forward:
+    with open("dynamicconv_cuda_forward.cu", "w") as forward:
         forward.write(head)
         forward.write(switch)
         for k in kernels:
@@ -191,7 +191,7 @@ std::vector<at::Tensor> dynamicconv_cuda_backward(at::Tensor gradOutput, int pad
 }
 """
 
-    with open("dynamicconv_cuda_backward.cu", 'w') as backward:
+    with open("dynamicconv_cuda_backward.cu", "w") as backward:
         backward.write(head)
         for seq in seqs:
             backward.write(sequence_if.format(seq=seq))

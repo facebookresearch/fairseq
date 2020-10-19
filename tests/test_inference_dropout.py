@@ -6,12 +6,11 @@
 import logging
 import unittest
 
-from tests.test_sequence_generator import get_dummy_task_and_parser
 from fairseq.models.transformer import TransformerModel
+from tests.test_sequence_generator import get_dummy_task_and_parser
 
 
 class TestInferenceDropout(unittest.TestCase):
-
     def setUp(self):
         self.task, self.parser = get_dummy_task_and_parser()
         TransformerModel.add_args(self.parser)
@@ -55,7 +54,10 @@ class TestInferenceDropout(unittest.TestCase):
 
     def test_retain_modules(self):
         self.args.retain_dropout = True
-        self.args.retain_dropout_modules = ['TransformerEncoder', 'TransformerEncoderLayer']
+        self.args.retain_dropout_modules = [
+            "TransformerEncoder",
+            "TransformerEncoderLayer",
+        ]
         self.transformer_model = TransformerModel.build_model(self.args, self.task)
         self.transformer_model.prepare_for_inference_(self.args)
         assert self.transformer_model.encoder.dropout_module.apply_during_inference

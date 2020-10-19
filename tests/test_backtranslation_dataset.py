@@ -5,8 +5,8 @@
 
 import unittest
 
+import tests.utils as test_utils
 import torch
-
 from fairseq.data import (
     BacktranslationDataset,
     LanguagePairDataset,
@@ -14,15 +14,17 @@ from fairseq.data import (
 )
 from fairseq.sequence_generator import SequenceGenerator
 
-import tests.utils as test_utils
-
 
 class TestBacktranslationDataset(unittest.TestCase):
-
     def setUp(self):
-        self.tgt_dict, self.w1, self.w2, self.src_tokens, self.src_lengths, self.model = (
-            test_utils.sequence_generator_setup()
-        )
+        (
+            self.tgt_dict,
+            self.w1,
+            self.w2,
+            self.src_tokens,
+            self.src_lengths,
+            self.model,
+        ) = test_utils.sequence_generator_setup()
 
         dummy_src_samples = self.src_tokens
 
@@ -30,7 +32,9 @@ class TestBacktranslationDataset(unittest.TestCase):
         self.cuda = torch.cuda.is_available()
 
     def _backtranslation_dataset_helper(
-        self, remove_eos_from_input_src, remove_eos_from_output_src,
+        self,
+        remove_eos_from_input_src,
+        remove_eos_from_output_src,
     ):
         tgt_dataset = LanguagePairDataset(
             src=self.tgt_dataset,
@@ -94,17 +98,20 @@ class TestBacktranslationDataset(unittest.TestCase):
 
     def test_backtranslation_dataset_no_eos_in_output_src(self):
         self._backtranslation_dataset_helper(
-            remove_eos_from_input_src=False, remove_eos_from_output_src=True,
+            remove_eos_from_input_src=False,
+            remove_eos_from_output_src=True,
         )
 
     def test_backtranslation_dataset_with_eos_in_output_src(self):
         self._backtranslation_dataset_helper(
-            remove_eos_from_input_src=False, remove_eos_from_output_src=False,
+            remove_eos_from_input_src=False,
+            remove_eos_from_output_src=False,
         )
 
     def test_backtranslation_dataset_no_eos_in_input_src(self):
         self._backtranslation_dataset_helper(
-            remove_eos_from_input_src=True, remove_eos_from_output_src=False,
+            remove_eos_from_input_src=True,
+            remove_eos_from_output_src=False,
         )
 
     def assertTensorEqual(self, t1, t2):

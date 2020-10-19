@@ -3,10 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . import register_lr_scheduler, LegacyFairseqLRScheduler
+from . import LegacyFairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler('fixed')
+@register_lr_scheduler("fixed")
 class FixedSchedule(LegacyFairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
@@ -14,11 +14,11 @@ class FixedSchedule(LegacyFairseqLRScheduler):
         super().__init__(args, optimizer)
 
         # set defaults
-        args.warmup_updates = getattr(args, 'warmup_updates', 0) or 0
+        args.warmup_updates = getattr(args, "warmup_updates", 0) or 0
 
         self.lr = args.lr[0]
         if args.warmup_updates > 0:
-            self.warmup_factor = 1. / args.warmup_updates
+            self.warmup_factor = 1.0 / args.warmup_updates
         else:
             self.warmup_factor = 1
 
@@ -35,11 +35,11 @@ class FixedSchedule(LegacyFairseqLRScheduler):
         # fmt: on
 
     def state_dict(self):
-        return {'lr': self.lr}
+        return {"lr": self.lr}
 
     def load_state_dict(self, state_dict):
-        if 'lr' in state_dict:
-            self.lr = state_dict['lr']
+        if "lr" in state_dict:
+            self.lr = state_dict["lr"]
 
     def get_next_lr(self, epoch):
         lrs = self.args.lr
@@ -48,7 +48,9 @@ class FixedSchedule(LegacyFairseqLRScheduler):
             next_lr = lrs[min(epoch, len(lrs) - 1)]
         else:
             # annneal based on lr_shrink
-            next_lr = lrs[-1] * self.args.lr_shrink ** (epoch + 1 - self.args.force_anneal)
+            next_lr = lrs[-1] * self.args.lr_shrink ** (
+                epoch + 1 - self.args.force_anneal
+            )
         return next_lr
 
     def step(self, epoch, val_loss=None):

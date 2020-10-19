@@ -102,7 +102,9 @@ class TransformerSentenceEncoder(nn.Module):
         super().__init__()
         self.padding_idx = padding_idx
         self.vocab_size = vocab_size
-        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
         self.layerdrop = layerdrop
         self.max_seq_len = max_seq_len
         self.embedding_dim = embedding_dim
@@ -148,21 +150,23 @@ class TransformerSentenceEncoder(nn.Module):
             self.layers = LayerDropModuleList(p=self.layerdrop)
         else:
             self.layers = nn.ModuleList([])
-        self.layers.extend([
-            self.build_transformer_sentence_encoder_layer(
-                embedding_dim=self.embedding_dim,
-                ffn_embedding_dim=ffn_embedding_dim,
-                num_attention_heads=num_attention_heads,
-                dropout=self.dropout_module.p,
-                attention_dropout=attention_dropout,
-                activation_dropout=activation_dropout,
-                activation_fn=activation_fn,
-                export=export,
-                q_noise=q_noise,
-                qn_block_size=qn_block_size,
-            )
-            for _ in range(num_encoder_layers)
-        ])
+        self.layers.extend(
+            [
+                self.build_transformer_sentence_encoder_layer(
+                    embedding_dim=self.embedding_dim,
+                    ffn_embedding_dim=ffn_embedding_dim,
+                    num_attention_heads=num_attention_heads,
+                    dropout=self.dropout_module.p,
+                    attention_dropout=attention_dropout,
+                    activation_dropout=activation_dropout,
+                    activation_fn=activation_fn,
+                    export=export,
+                    q_noise=q_noise,
+                    qn_block_size=qn_block_size,
+                )
+                for _ in range(num_encoder_layers)
+            ]
+        )
 
         if encoder_normalize_before:
             self.emb_layer_norm = LayerNorm(self.embedding_dim, export=export)

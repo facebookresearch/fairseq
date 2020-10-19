@@ -9,7 +9,6 @@ from fairseq.data import iterators
 
 
 class TestIterators(unittest.TestCase):
-
     def test_counting_iterator(self, ref=None, itr=None):
         if ref is None:
             assert itr is None
@@ -109,7 +108,7 @@ class TestIterators(unittest.TestCase):
         self.assertFalse(itr.has_next())
         self.assertRaises(StopIteration, next, buffered_itr)
 
-        ref = list(range(4,10))
+        ref = list(range(4, 10))
         buffered_itr = iterators.BufferedIterator(2, ref)
         itr = iterators.CountingIterator(buffered_itr, start=4)
         itr.take(5)
@@ -120,5 +119,5 @@ class TestIterators(unittest.TestCase):
         self.assertRaises(StopIteration, next, buffered_itr)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

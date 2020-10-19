@@ -3,41 +3,35 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from itertools import chain
 from collections import defaultdict
+from itertools import chain
 
 import torch
-
 from fairseq import optim, utils
 
 from .dynamic_loss_scaler import DynamicLossScaler
 
 
 class _FP16OptimizerMixin(object):
-
     def __init__(self, *args, **kwargs):
         # forward __init__ call to the next class in mro(method resolution order)
         super().__init__(*args, **kwargs)
-        self._multiply_factor = 1.
+        self._multiply_factor = 1.0
 
     @property
     def has_flat_params(self):
-        return (
-            torch.is_tensor(self.fp32_params) or
-            (
-                isinstance(self.fp32_params, dict) and
-                all(torch.is_tensor(t) for t in self.fp32_params.values())
-            )
+        return torch.is_tensor(self.fp32_params) or (
+            isinstance(self.fp32_params, dict)
+            and all(torch.is_tensor(t) for t in self.fp32_params.values())
         )
 
     @classmethod
     def build_fp32_params(cls, args, params, flatten=True):
         # create FP32 copy of parameters and grads
         if flatten:
-            is_pipeline_parallel = (
-                getattr(args, 'pipeline_model_parallel', False)
-                and getattr(args, 'distributed_no_spawn', False)
-            )
+            is_pipeline_parallel = getattr(
+                args, "pipeline_model_parallel", False
+            ) and getattr(args, "distributed_no_spawn", False)
             total_param_size = sum(p.data.numel() for p in params)
             devices = [torch.cuda.current_device()]
             if is_pipeline_parallel:
@@ -45,19 +39,25 @@ class _FP16OptimizerMixin(object):
             fp32_params = {}
             for device in devices:
                 if is_pipeline_parallel:
-                    device_param_size = sum(p.data.numel() for p in params if p.device.index == device)
+                    device_param_size = sum(
+                        p.data.numel() for p in params if p.device.index == device
+                    )
                     device_params = [p for p in params if p.device.index == device]
                 else:
                     device_param_size = total_param_size
                     device_params = params
-                fp32_params[device] = device_params[0].new(0).float().new(device_param_size)
+                fp32_params[device] = (
+                    device_params[0].new(0).float().new(device_param_size)
+                )
                 offset = 0
                 for p in device_params:
                     numel = p.data.numel()
-                    fp32_params[device][offset:offset+numel].copy_(p.data.view(-1))
+                    fp32_params[device][offset : offset + numel].copy_(p.data.view(-1))
                     offset += numel
                 fp32_params[device] = torch.nn.Parameter(fp32_params[device])
-                fp32_params[device].grad = fp32_params[device].data.new(device_param_size)
+                fp32_params[device].grad = fp32_params[device].data.new(
+                    device_param_size
+                )
             return fp32_params
         else:
             fp32_params = []
@@ -71,7 +71,7 @@ class _FP16OptimizerMixin(object):
         """Return the optimizer's state dict."""
         state_dict = self.fp32_optimizer.state_dict()
         if self.scaler is not None:
-            state_dict['loss_scale'] = self.scaler.loss_scale
+            state_dict["loss_scale"] = self.scaler.loss_scale
         return state_dict
 
     def load_state_dict(self, state_dict, optimizer_overrides=None):
@@ -82,8 +82,8 @@ class _FP16OptimizerMixin(object):
         allows us to resume training from a checkpoint using a new set of
         optimizer args.
         """
-        if 'loss_scale' in state_dict and self.scaler is not None:
-            self.scaler.loss_scale = state_dict['loss_scale']
+        if "loss_scale" in state_dict and self.scaler is not None:
+            self.scaler.loss_scale = state_dict["loss_scale"]
         self.fp32_optimizer.load_state_dict(state_dict, optimizer_overrides)
 
     def backward(self, loss):
@@ -111,9 +111,15 @@ class _FP16OptimizerMixin(object):
                     device_params = device_params_dict[device]
                     offset = 0
                     for p in device_params:
-                        grad_data = p.grad.data if p.grad is not None else p.data.new_zeros(p.data.shape)
+                        grad_data = (
+                            p.grad.data
+                            if p.grad is not None
+                            else p.data.new_zeros(p.data.shape)
+                        )
                         numel = grad_data.numel()
-                        self.fp32_params[device].grad.data[offset:offset+numel].copy_(grad_data.view(-1))
+                        self.fp32_params[device].grad.data[
+                            offset : offset + numel
+                        ].copy_(grad_data.view(-1))
                         offset += numel
             else:
                 for p, p32 in zip(self.fp16_params, self.fp32_params):
@@ -138,7 +144,11 @@ class _FP16OptimizerMixin(object):
                 offset = 0
                 for p in device_params:
                     numel = p.data.numel()
-                    p.data.copy_(self.fp32_params[device].data[offset:offset+numel].view_as(p.data))
+                    p.data.copy_(
+                        self.fp32_params[device]
+                        .data[offset : offset + numel]
+                        .view_as(p.data)
+                    )
                     offset += numel
         else:
             for p, p32 in zip(self.fp16_params, self.fp32_params):
@@ -148,9 +158,9 @@ class _FP16OptimizerMixin(object):
 
     def _unscale_grads(self):
         self._sync_fp16_grads_to_fp32()
-        if self._multiply_factor != 1.:
+        if self._multiply_factor != 1.0:
             self.fp32_optimizer.multiply_grads(self._multiply_factor)
-            self._multiply_factor = 1.
+            self._multiply_factor = 1.0
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant ``c``."""
@@ -160,7 +170,9 @@ class _FP16OptimizerMixin(object):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._sync_fp16_grads_to_fp32()
 
-        grad_norm = self._multiply_factor * self.fp32_optimizer.clip_grad_norm(0, aggregate_norm_fn)
+        grad_norm = self._multiply_factor * self.fp32_optimizer.clip_grad_norm(
+            0, aggregate_norm_fn
+        )
 
         if self.scaler is not None:
             if grad_norm > max_norm > 0.0:
@@ -177,8 +189,8 @@ class _FP16OptimizerMixin(object):
         """Performs a single optimization step."""
         self._sync_fp16_grads_to_fp32()
 
-        if getattr(self, 'supports_step_with_scale', False):
-            self.fp32_optimizer.step(closure, scale=(1. / self._multiply_factor))
+        if getattr(self, "supports_step_with_scale", False):
+            self.fp32_optimizer.step(closure, scale=(1.0 / self._multiply_factor))
         else:
             self._unscale_grads()
             self.fp32_optimizer.step(closure)
@@ -199,14 +211,14 @@ class _FP16OptimizerMixin(object):
                 for fp32_params in self.fp32_params.values():
                     fp32_params.grad.zero_()
             else:
-                raise("self.fp32_params must be a tensor or dict")
+                raise ("self.fp32_params must be a tensor or dict")
         else:
             for p32 in self.fp32_params:
                 p32.grad.zero_()
         self._needs_sync = False
 
         if self.scaler is not None:
-            self._multiply_factor = 1. / float(self.scaler.loss_scale)
+            self._multiply_factor = 1.0 / float(self.scaler.loss_scale)
 
 
 class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
@@ -220,24 +232,26 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
         self.fp32_optimizer = fp32_optimizer
         self.fp32_params = fp32_params
 
-        if getattr(args, 'fp16_scale_window', None) is None:
+        if getattr(args, "fp16_scale_window", None) is None:
             if len(args.update_freq) > 1:
                 raise ValueError(
-                    '--fp16-scale-window must be given explicitly when using a '
-                    'custom --update-freq schedule'
+                    "--fp16-scale-window must be given explicitly when using a "
+                    "custom --update-freq schedule"
                 )
-            data_parallel_size = int(args.distributed_world_size / args.model_parallel_size)
-            scale_window = int(2**14 / data_parallel_size / args.update_freq[0])
+            data_parallel_size = int(
+                args.distributed_world_size / args.model_parallel_size
+            )
+            scale_window = int(2 ** 14 / data_parallel_size / args.update_freq[0])
         else:
             scale_window = args.fp16_scale_window
 
-        if not getattr(args, 'bf16', False):
+        if not getattr(args, "bf16", False):
             self.scaler = DynamicLossScaler(
                 init_scale=args.fp16_init_scale,
                 scale_window=scale_window,
                 tolerance=args.fp16_scale_tolerance,
                 threshold=args.threshold_loss_scale,
-                min_loss_scale=args.min_loss_scale
+                min_loss_scale=args.min_loss_scale,
             )
         else:
             # disable loss scaling for bfloat16
@@ -250,8 +264,8 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
             args (argparse.Namespace): fairseq args
             params (iterable): iterable of parameters to optimize
         """
-        flatten = not getattr(args, 'fp16_no_flatten_grads', False)
-        if getattr(args, 'bf16', False):
+        flatten = not getattr(args, "fp16_no_flatten_grads", False)
+        if getattr(args, "bf16", False):
             flatten = False  # mixed precision is faster on TPUs without flat grads
         fp32_params = cls.build_fp32_params(args, params, flatten=flatten)
         if flatten:
@@ -260,8 +274,8 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
             fp32_optimizer = optim.build_optimizer(args, fp32_params)
         if flatten and not fp32_optimizer.supports_flat_params:
             raise RuntimeError(
-                'chosen optimizer does not support flat params, '
-                'please set --fp16-no-flatten-grads'
+                "chosen optimizer does not support flat params, "
+                "please set --fp16-no-flatten-grads"
             )
         return cls(args, params, fp32_optimizer, fp32_params)
 
@@ -285,11 +299,10 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
 
 
 class _MemoryEfficientFP16OptimizerMixin(object):
-
     def __init__(self, *args, **kwargs):
         # forward __init__ call to the next class in MRO (method resolution order)
         super().__init__(*args, **kwargs)
-        self._multiply_factor = 1.
+        self._multiply_factor = 1.0
 
     @property
     def has_flat_params(self):
@@ -299,7 +312,7 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         """Return the optimizer's state dict."""
         state_dict = self.wrapped_optimizer.state_dict()
         if self.scaler is not None:
-            state_dict['loss_scale'] = self.scaler.loss_scale
+            state_dict["loss_scale"] = self.scaler.loss_scale
         return state_dict
 
     def load_state_dict(self, state_dict, optimizer_overrides=None):
@@ -310,8 +323,8 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         allows us to resume training from a checkpoint using a new set of
         optimizer args.
         """
-        if 'loss_scale' in state_dict and self.scaler is not None:
-            self.scaler.loss_scale = state_dict['loss_scale']
+        if "loss_scale" in state_dict and self.scaler is not None:
+            self.scaler.loss_scale = state_dict["loss_scale"]
 
         self.wrapped_optimizer.load_state_dict(state_dict, optimizer_overrides)
 
@@ -320,17 +333,17 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         # params are FP16 while the optimizer state is FP32 and we don't want
         # to cast. A workaround is to manually copy back the original state
         # after the optimizer has been loaded.
-        if not getattr(self.optimizer, 'disable_mem_eff_fp16_loading_hack', False):
+        if not getattr(self.optimizer, "disable_mem_eff_fp16_loading_hack", False):
             groups = self.optimizer.param_groups
-            saved_groups = state_dict['param_groups']
+            saved_groups = state_dict["param_groups"]
             id_map = {
                 old_id: p
                 for old_id, p in zip(
-                    chain(*(g['params'] for g in saved_groups)),
-                    chain(*(g['params'] for g in groups))
+                    chain(*(g["params"] for g in saved_groups)),
+                    chain(*(g["params"] for g in groups)),
                 )
             }
-            for k, v in state_dict['state'].items():
+            for k, v in state_dict["state"].items():
                 if k in id_map:
                     param = id_map[k]
                     self.optimizer.state[param] = v
@@ -347,9 +360,9 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         loss.backward()
 
     def _unscale_grads(self):
-        if self._multiply_factor != 1.:
+        if self._multiply_factor != 1.0:
             self.wrapped_optimizer.multiply_grads(self._multiply_factor)
-            self._multiply_factor = 1.
+            self._multiply_factor = 1.0
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
@@ -358,11 +371,13 @@ class _MemoryEfficientFP16OptimizerMixin(object):
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
         max_norm = float(max_norm)
-        grad_norm = self._multiply_factor * self.wrapped_optimizer.clip_grad_norm(0, aggregate_norm_fn)
+        grad_norm = self._multiply_factor * self.wrapped_optimizer.clip_grad_norm(
+            0, aggregate_norm_fn
+        )
 
         if self.scaler is not None:
             grad_norm_cpu = float(grad_norm)
-            if grad_norm_cpu > max_norm > 0.:
+            if grad_norm_cpu > max_norm > 0.0:
                 self._multiply_factor *= max_norm / grad_norm_cpu
 
             # detect overflow and adjust loss scale
@@ -375,9 +390,9 @@ class _MemoryEfficientFP16OptimizerMixin(object):
 
     def step(self, closure=None):
         """Performs a single optimization step."""
-        if getattr(self, 'supports_step_with_scale', False):
+        if getattr(self, "supports_step_with_scale", False):
             # NOTE(msb) optimizer divides by scale factor
-            self.wrapped_optimizer.step(closure, scale=(1. / self._multiply_factor))
+            self.wrapped_optimizer.step(closure, scale=(1.0 / self._multiply_factor))
         else:
             self._unscale_grads()
             self.wrapped_optimizer.step(closure)
@@ -389,12 +404,14 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         """Clears the gradients of all optimized parameters."""
         self.wrapped_optimizer.zero_grad()
         if self.scaler is not None:
-            self._multiply_factor = 1. / float(self.scaler.loss_scale)
+            self._multiply_factor = 1.0 / float(self.scaler.loss_scale)
         else:
-            self._multiply_factor = 1.
+            self._multiply_factor = 1.0
 
 
-class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.FairseqOptimizer):
+class MemoryEfficientFP16Optimizer(
+    _MemoryEfficientFP16OptimizerMixin, optim.FairseqOptimizer
+):
     """
     Wrap an *optimizer* to support FP16 (mixed precision) training.
 
@@ -413,30 +430,32 @@ class MemoryEfficientFP16Optimizer(_MemoryEfficientFP16OptimizerMixin, optim.Fai
     def __init__(self, args, params, optimizer):
         if not optimizer.supports_memory_efficient_fp16:
             raise ValueError(
-                'Unsupported optimizer: {}'.format(optimizer.__class__.__name__)
+                "Unsupported optimizer: {}".format(optimizer.__class__.__name__)
             )
 
         super().__init__(args)
         self.wrapped_optimizer = optimizer
 
-        if getattr(args, 'fp16_scale_window', None) is None:
+        if getattr(args, "fp16_scale_window", None) is None:
             if len(args.update_freq) > 1:
                 raise ValueError(
-                    '--fp16-scale-window must be given explicitly when using a '
-                    'custom --update-freq schedule'
+                    "--fp16-scale-window must be given explicitly when using a "
+                    "custom --update-freq schedule"
                 )
-            data_parallel_size = int(args.distributed_world_size / args.model_parallel_size)
-            scale_window = 2**14 / data_parallel_size / args.update_freq[0]
+            data_parallel_size = int(
+                args.distributed_world_size / args.model_parallel_size
+            )
+            scale_window = 2 ** 14 / data_parallel_size / args.update_freq[0]
         else:
             scale_window = args.fp16_scale_window
 
-        if not getattr(args, 'bf16', False):
+        if not getattr(args, "bf16", False):
             self.scaler = DynamicLossScaler(
                 init_scale=args.fp16_init_scale,
                 scale_window=scale_window,
                 tolerance=args.fp16_scale_tolerance,
                 threshold=args.threshold_loss_scale,
-                min_loss_scale=args.min_loss_scale
+                min_loss_scale=args.min_loss_scale,
             )
         else:
             # disable loss scaling for bfloat16

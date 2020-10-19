@@ -9,7 +9,6 @@ from . import FairseqDataset
 
 
 class IdDataset(FairseqDataset):
-
     def __getitem__(self, index):
         return index
 

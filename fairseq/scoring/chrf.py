@@ -6,11 +6,12 @@
 from fairseq.scoring import BaseScorer, register_scorer
 
 
-@register_scorer('chrf')
+@register_scorer("chrf")
 class ChrFScorer(BaseScorer):
     def __init__(self, args):
         super(ChrFScorer, self).__init__(args)
         import sacrebleu
+
         self.sacrebleu = sacrebleu
 
     def add_string(self, ref, pred):

@@ -10,25 +10,28 @@ and `huggingface <https://github.com/huggingface>`_.
 """
 
 import fnmatch
-from functools import wraps, partial
-from hashlib import sha256
-from io import open
 import json
 import logging
 import os
 import shutil
 import tarfile
 import tempfile
+from functools import partial, wraps
+from hashlib import sha256
+from io import open
 
 
 try:
     from torch.hub import _get_torch_home
+
     torch_cache_home = _get_torch_home()
 except ImportError:
     torch_cache_home = os.path.expanduser(
-        os.getenv('TORCH_HOME', os.path.join(
-            os.getenv('XDG_CACHE_HOME', '~/.cache'), 'torch')))
-default_cache_path = os.path.join(torch_cache_home, 'pytorch_fairseq')
+        os.getenv(
+            "TORCH_HOME", os.path.join(os.getenv("XDG_CACHE_HOME", "~/.cache"), "torch")
+        )
+    )
+default_cache_path = os.path.join(torch_cache_home, "pytorch_fairseq")
 
 try:
     from urllib.parse import urlparse
@@ -37,11 +40,10 @@ except ImportError:
 
 try:
     from pathlib import Path
-    PYTORCH_FAIRSEQ_CACHE = Path(
-        os.getenv('PYTORCH_FAIRSEQ_CACHE', default_cache_path))
+
+    PYTORCH_FAIRSEQ_CACHE = Path(os.getenv("PYTORCH_FAIRSEQ_CACHE", default_cache_path))
 except (AttributeError, ImportError):
-    PYTORCH_FAIRSEQ_CACHE = os.getenv(
-        'PYTORCH_FAIRSEQ_CACHE', default_cache_path)
+    PYTORCH_FAIRSEQ_CACHE = os.getenv("PYTORCH_FAIRSEQ_CACHE", default_cache_path)
 
 CONFIG_NAME = "config.json"
 WEIGHTS_NAME = "pytorch_model.bin"
@@ -67,17 +69,23 @@ def load_archive_file(archive_file):
     if resolved_archive_file == archive_file:
         logger.info("loading archive file {}".format(archive_file))
     else:
-        logger.info("loading archive file {} from cache at {}".format(
-            archive_file, resolved_archive_file))
+        logger.info(
+            "loading archive file {} from cache at {}".format(
+                archive_file, resolved_archive_file
+            )
+        )
 
     # Extract archive to temp dir and replace .tar.bz2 if necessary
     tempdir = None
     if not os.path.isdir(resolved_archive_file):
         tempdir = tempfile.mkdtemp()
-        logger.info("extracting archive file {} to temp dir {}".format(
-            resolved_archive_file, tempdir))
+        logger.info(
+            "extracting archive file {} to temp dir {}".format(
+                resolved_archive_file, tempdir
+            )
+        )
         ext = os.path.splitext(archive_file)[1][1:]
-        with tarfile.open(resolved_archive_file, 'r:' + ext) as archive:
+        with tarfile.open(resolved_archive_file, "r:" + ext) as archive:
             top_dir = os.path.commonprefix(archive.getnames())
             archive.extractall(tempdir)
         os.remove(resolved_archive_file)
@@ -93,14 +101,14 @@ def url_to_filename(url, etag=None):
     If `etag` is specified, append its hash to the URL's, delimited
     by a period.
     """
-    url_bytes = url.encode('utf-8')
+    url_bytes = url.encode("utf-8")
     url_hash = sha256(url_bytes)
     filename = url_hash.hexdigest()
 
     if etag:
-        etag_bytes = etag.encode('utf-8')
+        etag_bytes = etag.encode("utf-8")
         etag_hash = sha256(etag_bytes)
-        filename += '.' + etag_hash.hexdigest()
+        filename += "." + etag_hash.hexdigest()
 
     return filename
 
@@ -119,14 +127,14 @@ def filename_to_url(filename, cache_dir=None):
     if not os.path.exists(cache_path):
         raise EnvironmentError("file {} not found".format(cache_path))
 
-    meta_path = cache_path + '.json'
+    meta_path = cache_path + ".json"
     if not os.path.exists(meta_path):
         raise EnvironmentError("file {} not found".format(meta_path))
 
     with open(meta_path, encoding="utf-8") as meta_file:
         metadata = json.load(meta_file)
-    url = metadata['url']
-    etag = metadata['etag']
+    url = metadata["url"]
+    etag = metadata["etag"]
 
     return url, etag
 
@@ -147,18 +155,20 @@ def cached_path(url_or_filename, cache_dir=None):
 
     parsed = urlparse(url_or_filename)
 
-    if parsed.scheme in ('http', 'https', 's3'):
+    if parsed.scheme in ("http", "https", "s3"):
         # URL, so get it from the cache (downloading if necessary)
         return get_from_cache(url_or_filename, cache_dir)
     elif os.path.exists(url_or_filename):
         # File, and it exists.
         return url_or_filename
-    elif parsed.scheme == '':
+    elif parsed.scheme == "":
         # File, but it doesn't exist.
         raise EnvironmentError("file {} not found".format(url_or_filename))
     else:
         # Something unknown
-        raise ValueError("unable to parse {} as a URL or as a local path".format(url_or_filename))
+        raise ValueError(
+            "unable to parse {} as a URL or as a local path".format(url_or_filename)
+        )
 
 
 def split_s3_path(url):
@@ -183,6 +193,7 @@ def s3_request(func):
     @wraps(func)
     def wrapper(url, *args, **kwargs):
         from botocore.exceptions import ClientError
+
         try:
             return func(url, *args, **kwargs)
         except ClientError as exc:
@@ -198,6 +209,7 @@ def s3_request(func):
 def s3_etag(url):
     """Check ETag on S3 object."""
     import boto3
+
     s3_resource = boto3.resource("s3")
     bucket_name, s3_path = split_s3_path(url)
     s3_object = s3_resource.Object(bucket_name, s3_path)
@@ -208,6 +220,7 @@ def s3_etag(url):
 def s3_get(url, temp_file):
     """Pull a file directly from S3."""
     import boto3
+
     s3_resource = boto3.resource("s3")
     bucket_name, s3_path = split_s3_path(url)
     s3_resource.Bucket(bucket_name).download_fileobj(s3_path, temp_file)
@@ -215,12 +228,18 @@ def s3_get(url, temp_file):
 
 def request_wrap_timeout(func, url):
     import requests
+
     for attempt, timeout in enumerate([10, 20, 40, 60, 60]):
         try:
             return func(timeout=timeout)
         except requests.exceptions.Timeout as e:
-            logger.warning("Request for %s timed-out (attempt %d). Retrying with a timeout of %d secs",
-                           url, attempt, timeout, exc_info=e)
+            logger.warning(
+                "Request for %s timed-out (attempt %d). Retrying with a timeout of %d secs",
+                url,
+                attempt,
+                timeout,
+                exc_info=e,
+            )
             continue
     raise RuntimeError(f"Unable to fetch file {url}")
 
@@ -230,7 +249,7 @@ def http_get(url, temp_file):
     from tqdm import tqdm
 
     req = request_wrap_timeout(partial(requests.get, url, stream=True), url)
-    content_length = req.headers.get('Content-Length')
+    content_length = req.headers.get("Content-Length")
     total = int(content_length) if content_length is not None else None
     progress = tqdm(unit="B", total=total)
     for chunk in req.iter_content(chunk_size=1024):
@@ -259,7 +278,10 @@ def get_from_cache(url, cache_dir=None):
     else:
         try:
             import requests
-            response = request_wrap_timeout(partial(requests.head, url, allow_redirects=True), url)
+
+            response = request_wrap_timeout(
+                partial(requests.head, url, allow_redirects=True), url
+            )
             if response.status_code != 200:
                 etag = None
             else:
@@ -275,8 +297,8 @@ def get_from_cache(url, cache_dir=None):
     # If we don't have a connection (etag is None) and can't identify the file
     # try to get the last downloaded one
     if not os.path.exists(cache_path) and etag is None:
-        matching_files = fnmatch.filter(os.listdir(cache_dir), filename + '.*')
-        matching_files = list(filter(lambda s: not s.endswith('.json'), matching_files))
+        matching_files = fnmatch.filter(os.listdir(cache_dir), filename + ".*")
+        matching_files = list(filter(lambda s: not s.endswith(".json"), matching_files))
         if matching_files:
             cache_path = os.path.join(cache_dir, matching_files[-1])
 
@@ -298,13 +320,13 @@ def get_from_cache(url, cache_dir=None):
             temp_file.seek(0)
 
             logger.info("copying %s to cache at %s", temp_file.name, cache_path)
-            with open(cache_path, 'wb') as cache_file:
+            with open(cache_path, "wb") as cache_file:
                 shutil.copyfileobj(temp_file, cache_file)
 
             logger.info("creating metadata file for %s", cache_path)
-            meta = {'url': url, 'etag': etag}
-            meta_path = cache_path + '.json'
-            with open(meta_path, 'w') as meta_file:
+            meta = {"url": url, "etag": etag}
+            meta_path = cache_path + ".json"
+            with open(meta_path, "w") as meta_file:
                 output_string = json.dumps(meta)
                 meta_file.write(output_string)
 
@@ -314,12 +336,12 @@ def get_from_cache(url, cache_dir=None):
 
 
 def read_set_from_file(filename):
-    '''
+    """
     Extract a de-duped collection (set) of text from a file.
     Expected file format is one item per line.
-    '''
+    """
     collection = set()
-    with open(filename, 'r', encoding='utf-8') as file_:
+    with open(filename, "r", encoding="utf-8") as file_:
         for line in file_:
             collection.add(line.rstrip())
     return collection

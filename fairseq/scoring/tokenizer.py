@@ -19,13 +19,18 @@ class EvaluationTokenizer(object):
         category) from text.
         character_tokenization (bool): tokenize the text to characters.
     """
+
     SPACE = chr(32)
     SPACE_ESCAPE = chr(9601)
-    ALL_TOKENIZER_TYPES = ['none', '13a', 'intl', 'zh', 'ja-mecab']
+    ALL_TOKENIZER_TYPES = ["none", "13a", "intl", "zh", "ja-mecab"]
 
-    def __init__(self, tokenizer_type: str = '13a', lowercase: bool = False,
-                 punctuation_removal: bool = False,
-                 character_tokenization: bool = False):
+    def __init__(
+        self,
+        tokenizer_type: str = "13a",
+        lowercase: bool = False,
+        punctuation_removal: bool = False,
+        character_tokenization: bool = False,
+    ):
         from sacrebleu.tokenizers import TOKENIZERS
 
         assert tokenizer_type in self.ALL_TOKENIZER_TYPES
@@ -38,8 +43,9 @@ class EvaluationTokenizer(object):
     def remove_punctuation(cls, sent: str):
         """Remove punctuation based on Unicode category."""
         return cls.SPACE.join(
-            t for t in sent.split(cls.SPACE)
-            if not all(unicodedata.category(c)[0] == 'P' for c in t)
+            t
+            for t in sent.split(cls.SPACE)
+            if not all(unicodedata.category(c)[0] == "P" for c in t)
         )
 
     def tokenize(self, sent: str):

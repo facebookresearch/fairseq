@@ -4,16 +4,17 @@
 # LICENSE file in the root directory of this source tree.
 """isort:skip_file"""
 
-__all__ = ['pdb']
-__version__ = '1.0.0a0'
+__all__ = ["pdb"]
+__version__ = "1.0.0a0"
 
 import sys
 
 # backwards compatibility to support `from fairseq.meters import AverageMeter`
 from fairseq.logging import meters, metrics, progress_bar  # noqa
-sys.modules['fairseq.meters'] = meters
-sys.modules['fairseq.metrics'] = metrics
-sys.modules['fairseq.progress_bar'] = progress_bar
+
+sys.modules["fairseq.meters"] = meters
+sys.modules["fairseq.metrics"] = metrics
+sys.modules["fairseq.progress_bar"] = progress_bar
 
 import fairseq.criterions  # noqa
 import fairseq.models  # noqa

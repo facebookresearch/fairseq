@@ -6,9 +6,9 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
+from examples.speech_recognition.data.replabels import pack_replabels
 from fairseq import utils
 from fairseq.criterions import FairseqCriterion, register_criterion
-from examples.speech_recognition.data.replabels import pack_replabels
 
 
 @register_criterion("asg_loss")

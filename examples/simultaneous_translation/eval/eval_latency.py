@@ -3,20 +3,21 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from examples.simultaneous_translation.utils.latency import LatencyInference
 import argparse
-import torch
 import json
+
+import torch
+from examples.simultaneous_translation.utils.latency import LatencyInference
 
 
 LATENCY_METRICS = [
-    'differentiable_average_lagging',
-    'average_lagging',
-    'average_proportion',
+    "differentiable_average_lagging",
+    "average_lagging",
+    "average_proportion",
 ]
 
 
-class LatencyScorer():
+class LatencyScorer:
     def __init__(self, start_from_zero=True):
         self.recorder = []
         self.scores = {}
@@ -26,10 +27,7 @@ class LatencyScorer():
     def update_reorder(self, list_of_dict):
         self.recorder = []
         for info in list_of_dict:
-            delays = [
-                int(x) - int(not self.start_from_zero)
-                for x in info["delays"]
-            ]
+            delays = [int(x) - int(not self.start_from_zero) for x in info["delays"]]
             delays = torch.LongTensor(delays).unsqueeze(0)
             src_len = torch.LongTensor([info["src_len"]]).unsqueeze(0)
 
@@ -59,7 +57,7 @@ if __name__ == "__main__":
 
     scorer = LatencyInference()
     recorder = []
-    with open(args.input, 'r') as f:
+    with open(args.input, "r") as f:
         for line in f:
             info = json.loads(line)
 
@@ -74,7 +72,7 @@ if __name__ == "__main__":
     average_results = {}
 
     for metric in LATENCY_METRICS:
-        average_results[metric] = sum(
-            [x[metric][0, 0].item() for x in recorder]
-        ) / len(recorder)
+        average_results[metric] = sum([x[metric][0, 0].item() for x in recorder]) / len(
+            recorder
+        )
         print(f"{metric}: {average_results[metric]}")

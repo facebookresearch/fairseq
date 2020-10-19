@@ -3,9 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
 import sys
 
+import torch
 from fairseq import utils
 
 
@@ -13,7 +13,11 @@ class SequenceScorer(object):
     """Scores the target for a given source sentence."""
 
     def __init__(
-        self, tgt_dict, softmax_batch=None, compute_alignment=False, eos=None,
+        self,
+        tgt_dict,
+        softmax_batch=None,
+        compute_alignment=False,
+        eos=None,
         symbols_to_strip_from_output=None,
     ):
         self.pad = tgt_dict.pad()
@@ -23,12 +27,14 @@ class SequenceScorer(object):
         self.compute_alignment = compute_alignment
         self.symbols_to_strip_from_output = (
             symbols_to_strip_from_output.union({self.eos})
-            if symbols_to_strip_from_output is not None else {self.eos})
+            if symbols_to_strip_from_output is not None
+            else {self.eos}
+        )
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):
         """Score a batch of translations."""
-        net_input = sample['net_input']
+        net_input = sample["net_input"]
 
         def batch_for_softmax(dec_out, target):
             # assumes decoder_out[0] is the only thing needed (may not be correct for future models!)
@@ -52,7 +58,7 @@ class SequenceScorer(object):
             )
             return probs
 
-        orig_target = sample['target']
+        orig_target = sample["target"]
 
         # compute scores for each model in the ensemble
         avg_probs = None
@@ -62,13 +68,15 @@ class SequenceScorer(object):
             decoder_out = model(**net_input)
             attn = decoder_out[1] if len(decoder_out) > 1 else None
             if type(attn) is dict:
-                attn = attn.get('attn', None)
+                attn = attn.get("attn", None)
 
             batched = batch_for_softmax(decoder_out, orig_target)
             probs, idx = None, 0
             for bd, tgt, is_single in batched:
-                sample['target'] = tgt
-                curr_prob = model.get_normalized_probs(bd, log_probs=len(models) == 1, sample=sample).data
+                sample["target"] = tgt
+                curr_prob = model.get_normalized_probs(
+                    bd, log_probs=len(models) == 1, sample=sample
+                ).data
                 if is_single:
                     probs = gather_target_probs(curr_prob, orig_target)
                 else:
@@ -76,12 +84,14 @@ class SequenceScorer(object):
                         probs = curr_prob.new(orig_target.numel())
                     step = curr_prob.size(0) * curr_prob.size(1)
                     end = step + idx
-                    tgt_probs = gather_target_probs(curr_prob.view(tgt.shape + (curr_prob.size(-1),)), tgt)
+                    tgt_probs = gather_target_probs(
+                        curr_prob.view(tgt.shape + (curr_prob.size(-1),)), tgt
+                    )
                     probs[idx:end] = tgt_probs.view(-1)
                     idx = end
-                sample['target'] = orig_target
+                sample["target"] = orig_target
 
-            probs = probs.view(sample['target'].shape)
+            probs = probs.view(sample["target"].shape)
 
             if avg_probs is None:
                 avg_probs = probs
@@ -104,21 +114,24 @@ class SequenceScorer(object):
 
         bsz = avg_probs.size(0)
         hypos = []
-        start_idxs = sample['start_indices'] if 'start_indices' in sample else [0] * bsz
+        start_idxs = sample["start_indices"] if "start_indices" in sample else [0] * bsz
         for i in range(bsz):
             # remove padding from ref
-            ref = utils.strip_pad(sample['target'][i, start_idxs[i]:], self.pad) \
-                if sample['target'] is not None else None
+            ref = (
+                utils.strip_pad(sample["target"][i, start_idxs[i] :], self.pad)
+                if sample["target"] is not None
+                else None
+            )
             tgt_len = ref.numel()
-            avg_probs_i = avg_probs[i][start_idxs[i]:start_idxs[i] + tgt_len]
+            avg_probs_i = avg_probs[i][start_idxs[i] : start_idxs[i] + tgt_len]
             score_i = avg_probs_i.sum() / tgt_len
             if avg_attn is not None:
                 avg_attn_i = avg_attn[i]
                 if self.compute_alignment:
                     alignment = utils.extract_hard_alignment(
                         avg_attn_i,
-                        sample['net_input']['src_tokens'][i],
-                        sample['target'][i],
+                        sample["net_input"]["src_tokens"][i],
+                        sample["target"][i],
                         self.pad,
                         self.eos,
                     )
@@ -126,11 +139,15 @@ class SequenceScorer(object):
                     alignment = None
             else:
                 avg_attn_i = alignment = None
-            hypos.append([{
-                'tokens': ref,
-                'score': score_i,
-                'attention': avg_attn_i,
-                'alignment': alignment,
-                'positional_scores': avg_probs_i,
-            }])
+            hypos.append(
+                [
+                    {
+                        "tokens": ref,
+                        "score": score_i,
+                        "attention": avg_attn_i,
+                        "alignment": alignment,
+                        "positional_scores": avg_probs_i,
+                    }
+                ]
+            )
         return hypos

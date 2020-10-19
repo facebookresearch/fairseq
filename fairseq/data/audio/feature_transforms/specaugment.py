@@ -3,13 +3,13 @@ import numbers
 from typing import Optional
 
 import numpy as np
-
 from fairseq.data.audio.feature_transforms import (
-    AudioFeatureTransform, register_audio_feature_transform
+    AudioFeatureTransform,
+    register_audio_feature_transform,
 )
 
 
-@register_audio_feature_transform('specaugment')
+@register_audio_feature_transform("specaugment")
 class SpecAugmentTransform(AudioFeatureTransform):
     """SpecAugment (https://arxiv.org/abs/1904.08779)"""
 
@@ -17,13 +17,13 @@ class SpecAugmentTransform(AudioFeatureTransform):
     def from_config_dict(cls, config=None):
         _config = {} if config is None else config
         return SpecAugmentTransform(
-            _config.get('time_warp_W', 0),
-            _config.get('freq_mask_N', 0),
-            _config.get('freq_mask_F', 0),
-            _config.get('time_mask_N', 0),
-            _config.get('time_mask_T', 0),
-            _config.get('time_mask_p', 0.0),
-            _config.get('mask_value', None),
+            _config.get("time_warp_W", 0),
+            _config.get("freq_mask_N", 0),
+            _config.get("freq_mask_F", 0),
+            _config.get("time_mask_N", 0),
+            _config.get("time_mask_T", 0),
+            _config.get("time_mask_p", 0.0),
+            _config.get("mask_value", None),
         )
 
     def __init__(
@@ -41,15 +41,15 @@ class SpecAugmentTransform(AudioFeatureTransform):
             mask_value, numbers.Number
         ), f"mask_value (type: {type(mask_value)}) must be None or a number"
         if freq_mask_n > 0:
-            assert (
-                    freq_mask_f > 0
-            ), f"freq_mask_F ({freq_mask_f}) " \
-               f"must be larger than 0 when doing freq masking."
+            assert freq_mask_f > 0, (
+                f"freq_mask_F ({freq_mask_f}) "
+                f"must be larger than 0 when doing freq masking."
+            )
         if time_mask_n > 0:
-            assert (
-                    time_mask_t > 0
-            ), f"time_mask_T ({time_mask_t}) must be larger than 0 when " \
-               f"doing time masking."
+            assert time_mask_t > 0, (
+                f"time_mask_T ({time_mask_t}) must be larger than 0 when "
+                f"doing time masking."
+            )
 
         self.time_warp_w = time_warp_w
         self.freq_mask_n = freq_mask_n
@@ -60,14 +60,21 @@ class SpecAugmentTransform(AudioFeatureTransform):
         self.mask_value = mask_value
 
     def __repr__(self):
-        return self.__class__.__name__ + '(' + ', '.join(
-            [f'time_warp_w={self.time_warp_w}',
-             f'freq_mask_n={self.freq_mask_n}',
-             f'freq_mask_f={self.freq_mask_f}',
-             f'time_mask_n={self.time_mask_n}',
-             f'time_mask_t={self.time_mask_t}',
-             f'time_mask_p={self.time_mask_p}']
-        ) + ')'
+        return (
+            self.__class__.__name__
+            + "("
+            + ", ".join(
+                [
+                    f"time_warp_w={self.time_warp_w}",
+                    f"freq_mask_n={self.freq_mask_n}",
+                    f"freq_mask_f={self.freq_mask_f}",
+                    f"time_mask_n={self.time_mask_n}",
+                    f"time_mask_t={self.time_mask_t}",
+                    f"time_mask_p={self.time_mask_p}",
+                ]
+            )
+            + ")"
+        )
 
     def __call__(self, spectrogram):
         assert len(spectrogram.shape) == 2, "spectrogram must be a 2-D tensor."
@@ -89,14 +96,12 @@ class SpecAugmentTransform(AudioFeatureTransform):
         if self.time_warp_w > 0:
             if 2 * self.time_warp_w < num_frames:
                 import cv2
-                w0 = np.random.randint(
-                    self.time_warp_w, num_frames - self.time_warp_w
-                )
+
+                w0 = np.random.randint(self.time_warp_w, num_frames - self.time_warp_w)
                 w = np.random.randint(0, self.time_warp_w)
                 upper, lower = distorted[:w0, :], distorted[w0:, :]
                 upper = cv2.resize(
-                    upper, dsize=(num_freqs, w0 + w),
-                    interpolation=cv2.INTER_LINEAR
+                    upper, dsize=(num_freqs, w0 + w), interpolation=cv2.INTER_LINEAR
                 )
                 lower = cv2.resize(
                     lower,
@@ -109,7 +114,7 @@ class SpecAugmentTransform(AudioFeatureTransform):
             f = np.random.randint(0, self.freq_mask_f)
             f0 = np.random.randint(0, num_freqs - f)
             if f != 0:
-                distorted[:, f0: f0 + f] = mask_value
+                distorted[:, f0 : f0 + f] = mask_value
 
         max_time_mask_t = min(
             self.time_mask_t, math.floor(num_frames * self.time_mask_p)
@@ -121,6 +126,6 @@ class SpecAugmentTransform(AudioFeatureTransform):
             t = np.random.randint(0, max_time_mask_t)
             t0 = np.random.randint(0, num_frames - t)
             if t != 0:
-                distorted[t0: t0 + t, :] = mask_value
+                distorted[t0 : t0 + t, :] = mask_value
 
         return distorted

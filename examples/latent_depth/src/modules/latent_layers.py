@@ -12,6 +12,7 @@ class LayerSelect(nn.Module):
     either (soft) weighting or (hard) selection of residual connection.
     https://arxiv.org/abs/2009.13102
     """
+
     def __init__(self, num_layers, num_logits, args):
         super(LayerSelect, self).__init__()
         self.args = args
@@ -27,14 +28,14 @@ class LayerSelect(nn.Module):
     @staticmethod
     def add_args(parser):
         parser.add_argument(
-            '--soft-select',
-            action='store_true',
-            help='use soft samples in training an inference'
+            "--soft-select",
+            action="store_true",
+            help="use soft samples in training an inference",
         )
-        parser.add_argument('--sampling-tau', type=float, help='sampling temperature')
+        parser.add_argument("--sampling-tau", type=float, help="sampling temperature")
 
     def sample(self, logit_idx):
-        """ To leverage the efficiency of distributed training, samples for all
+        """To leverage the efficiency of distributed training, samples for all
         layers are computed at once for each logit_idx. Logits are parameters
         learnt independent of each other.
 
@@ -43,7 +44,9 @@ class LayerSelect(nn.Module):
         """
         assert logit_idx is not None
         self.samples = self._gumbel_sigmoid(
-            self.layer_logits[logit_idx, :].detach() if self.detach_grad else self.layer_logits[logit_idx, :],
+            self.layer_logits[logit_idx, :].detach()
+            if self.detach_grad
+            else self.layer_logits[logit_idx, :],
             dim=-1,
             tau=self.tau,
             hard=self.hard_select,
@@ -54,10 +57,20 @@ class LayerSelect(nn.Module):
         sample = self.samples[i]
         return sample
 
-    def _gumbel_sigmoid(self, logits, tau=1, hard=False, eps=1e-10, dim=-1, threshold=0.5):
+    def _gumbel_sigmoid(
+        self, logits, tau=1, hard=False, eps=1e-10, dim=-1, threshold=0.5
+    ):
         # ~Gumbel(0,1)
-        gumbels1 = -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format).exponential_().log()
-        gumbels2 = -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format).exponential_().log()
+        gumbels1 = (
+            -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format)
+            .exponential_()
+            .log()
+        )
+        gumbels2 = (
+            -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format)
+            .exponential_()
+            .log()
+        )
         # Difference of two gumbels because we apply a sigmoid
         gumbels1 = (logits + gumbels1 - gumbels2) / tau
         y_soft = gumbels1.sigmoid()

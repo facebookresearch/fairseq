@@ -6,10 +6,9 @@
 import logging
 from typing import Dict, Optional
 
-from torch import Tensor
-
-from fairseq.models import FairseqDecoder
 from fairseq.incremental_decoding_utils import with_incremental_state
+from fairseq.models import FairseqDecoder
+from torch import Tensor
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,9 @@ class FairseqIncrementalDecoder(FairseqDecoder):
     def __init__(self, dictionary):
         super().__init__(dictionary)
 
-    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs):
+    def forward(
+        self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs
+    ):
         """
         Args:
             prev_output_tokens (LongTensor): shifted output tokens of shape
@@ -58,7 +59,9 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         """
         raise NotImplementedError
 
-    def extract_features(self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs):
+    def extract_features(
+        self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs
+    ):
         """
         Returns:
             tuple:
@@ -92,19 +95,22 @@ class FairseqIncrementalDecoder(FairseqDecoder):
         calling :func:`reorder_incremental_state` directly.
         """
         for module in self.modules():
-            if hasattr(module, 'reorder_incremental_state'):
+            if hasattr(module, "reorder_incremental_state"):
                 result = module.reorder_incremental_state(incremental_state, new_order)
                 if result is not None:
                     incremental_state = result
 
     def set_beam_size(self, beam_size):
         """Sets the beam size in the decoder and all children."""
-        if getattr(self, '_beam_size', -1) != beam_size:
+        if getattr(self, "_beam_size", -1) != beam_size:
             seen = set()
 
             def apply_set_beam_size(module):
-                if module != self and hasattr(module, 'set_beam_size') \
-                        and module not in seen:
+                if (
+                    module != self
+                    and hasattr(module, "set_beam_size")
+                    and module not in seen
+                ):
                     seen.add(module)
                     module.set_beam_size(beam_size)
 

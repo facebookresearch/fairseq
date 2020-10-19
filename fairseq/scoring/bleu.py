@@ -8,7 +8,6 @@ import math
 import sys
 
 import torch
-
 from fairseq.scoring import BaseScorer, register_scorer
 from fairseq.scoring.tokenizer import EvaluationTokenizer
 
@@ -33,11 +32,12 @@ class SacrebleuScorer(BaseScorer):
     def __init__(self, args):
         super(SacrebleuScorer, self).__init__(args)
         import sacrebleu
+
         self.sacrebleu = sacrebleu
         self.tokenizer = EvaluationTokenizer(
             tokenizer_type=self.args.sacrebleu_tokenizer,
             lowercase=self.args.sacrebleu_lowercase,
-            character_tokenization=self.args.sacrebleu_char_level
+            character_tokenization=self.args.sacrebleu_char_level,
         )
 
     @staticmethod
@@ -63,8 +63,9 @@ class SacrebleuScorer(BaseScorer):
         if order != 4:
             raise NotImplementedError
         # tokenization and lowercasing are performed by self.tokenizer instead.
-        return self.sacrebleu.corpus_bleu(self.pred, [self.ref],
-                                          tokenize='none').format()
+        return self.sacrebleu.corpus_bleu(
+            self.pred, [self.ref], tokenize="none"
+        ).format()
 
 
 @register_scorer("bleu")
@@ -78,7 +79,9 @@ class Scorer(object):
         try:
             from fairseq import libbleu
         except ImportError as e:
-            sys.stderr.write("ERROR: missing libbleu.so. run `pip install --editable .`\n")
+            sys.stderr.write(
+                "ERROR: missing libbleu.so. run `pip install --editable .`\n"
+            )
             raise e
 
         self.C = ctypes.cdll.LoadLibrary(libbleu.__file__)

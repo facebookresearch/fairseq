@@ -7,14 +7,13 @@ import math
 
 import torch
 import torch.nn.functional as F
-
 from fairseq.models.nat import (
+    _apply_del_words,
+    _apply_ins_masks,
+    _apply_ins_words,
     _fill,
     _skip,
     _skip_encoder_out,
-    _apply_ins_masks,
-    _apply_ins_words,
-    _apply_del_words,
 )
 
 
@@ -43,7 +42,7 @@ class BasicEnsembleModel(torch.nn.Module):
         self.encoder = _EnsembleModelEncoder(self.models)
 
     def has_encoder(self):
-        return hasattr(self.models[0], 'encoder')
+        return hasattr(self.models[0], "encoder")
 
     def max_decoder_positions(self):
         return min(m.max_decoder_positions() for m in self.models)
@@ -69,7 +68,9 @@ class EnsembleLevT(BasicEnsembleModel):
         super().__init__(models)
 
     @torch.no_grad()
-    def forward_decoder(self, decoder_out, encoder_outs, eos_penalty=0.0, max_ratio=None, **kwargs):
+    def forward_decoder(
+        self, decoder_out, encoder_outs, eos_penalty=0.0, max_ratio=None, **kwargs
+    ):
         # LevT ensembling
         # A pipeline of three steps: deletion, placeholder, and word insertion.
         # We need to average scores in each step in a pipeline way because of dependence.
@@ -83,7 +84,11 @@ class EnsembleLevT(BasicEnsembleModel):
             max_lens = output_tokens.new().fill_(255)
         else:
             if encoder_outs[0].encoder_padding_mask is None:
-                src_lens = encoder_outs[0].encoder_out.new(bsz).fill_(encoder_outs[0].encoder_out.size(1))
+                src_lens = (
+                    encoder_outs[0]
+                    .encoder_out.new(bsz)
+                    .fill_(encoder_outs[0].encoder_out.size(1))
+                )
             else:
                 src_lens = (~encoder_outs[0].encoder_padding_mask).sum(1)
             max_lens = (src_lens * max_ratio).clamp(min=10).long()
@@ -104,13 +109,13 @@ class EnsembleLevT(BasicEnsembleModel):
         can_ins_mask = output_tokens.ne(self.pad).sum(1) < max_lens
         if can_ins_mask.sum() != 0:
             output_tokens, output_scores = self.forward_mask_ins(
-                 encoder_outs,
-                 output_tokens,
-                 output_scores,
-                 can_ins_mask,
-                 eos_penalty,
-                 max_lens,
-             )
+                encoder_outs,
+                output_tokens,
+                output_scores,
+                can_ins_mask,
+                eos_penalty,
+                max_lens,
+            )
 
         # insert words
         can_ins_word = output_tokens.eq(self.unk).sum(1) > 0
@@ -132,10 +137,12 @@ class EnsembleLevT(BasicEnsembleModel):
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=attn,
-            history=None
+            history=None,
         )
 
-    def forward_word_del(self, encoder_outs, output_tokens, output_scores, attn, can_del_word):
+    def forward_word_del(
+        self, encoder_outs, output_tokens, output_scores, attn, can_del_word
+    ):
         word_del_score_avg = []
         word_del_attn_avg = []
         for model, encoder_out in zip(self.models, encoder_outs):
@@ -146,10 +153,12 @@ class EnsembleLevT(BasicEnsembleModel):
             word_del_score = F.log_softmax(word_del_out, 2)
             word_del_score_avg.append(word_del_score)
             word_del_attn_avg.append(word_del_attn)
-        word_del_score_avg = torch.logsumexp(torch.stack(word_del_score_avg, dim=0), dim=0) - math.log(len(self.models))
+        word_del_score_avg = torch.logsumexp(
+            torch.stack(word_del_score_avg, dim=0), dim=0
+        ) - math.log(len(self.models))
         word_del_pred = word_del_score_avg.max(-1)[1].bool()
         if word_del_attn_avg[0] is not None:
-            word_del_attn_avg = torch.stack(word_del_attn_avg, dim=0)/len(self.models)
+            word_del_attn_avg = torch.stack(word_del_attn_avg, dim=0) / len(self.models)
         else:
             word_del_attn_avg = None
 
@@ -164,10 +173,18 @@ class EnsembleLevT(BasicEnsembleModel):
         )
         output_tokens = _fill(output_tokens, can_del_word, _tokens, self.pad)
         output_scores = _fill(output_scores, can_del_word, _scores, 0)
-        attn = _fill(attn, can_del_word, _attn, 0.)
+        attn = _fill(attn, can_del_word, _attn, 0.0)
         return output_tokens, output_scores, attn
 
-    def forward_mask_ins(self, encoder_outs, output_tokens, output_scores, can_ins_mask, eos_penalty, max_lens):
+    def forward_mask_ins(
+        self,
+        encoder_outs,
+        output_tokens,
+        output_scores,
+        can_ins_mask,
+        eos_penalty,
+        max_lens,
+    ):
         mask_ins_score_avg = []
         for model, encoder_out in zip(self.models, encoder_outs):
             mask_ins_out, _ = model.decoder.forward_mask_ins(
@@ -178,7 +195,9 @@ class EnsembleLevT(BasicEnsembleModel):
             if eos_penalty > 0.0:
                 mask_ins_score[:, :, 0] -= eos_penalty
             mask_ins_score_avg.append(mask_ins_score)
-        mask_ins_score_avg = torch.logsumexp(torch.stack(mask_ins_score_avg, dim=0), dim=0) - math.log(len(self.models))
+        mask_ins_score_avg = torch.logsumexp(
+            torch.stack(mask_ins_score_avg, dim=0), dim=0
+        ) - math.log(len(self.models))
         mask_ins_pred = mask_ins_score_avg.max(-1)[1]
         mask_ins_pred = torch.min(
             mask_ins_pred, max_lens[can_ins_mask, None].expand_as(mask_ins_pred)
@@ -195,7 +214,9 @@ class EnsembleLevT(BasicEnsembleModel):
         output_scores = _fill(output_scores, can_ins_mask, _scores, 0)
         return output_tokens, output_scores
 
-    def forward_word_ins(self, encoder_outs, output_tokens, output_scores, attn, can_ins_word):
+    def forward_word_ins(
+        self, encoder_outs, output_tokens, output_scores, attn, can_ins_word
+    ):
         word_ins_score_avg = []
         word_ins_attn_avg = []
         for model, encoder_out in zip(self.models, encoder_outs):
@@ -206,9 +227,11 @@ class EnsembleLevT(BasicEnsembleModel):
             word_ins_score = F.log_softmax(word_ins_out, 2)
             word_ins_score_avg.append(word_ins_score)
             word_ins_attn_avg.append(word_ins_attn)
-        word_ins_score_avg = torch.logsumexp(torch.stack(word_ins_score_avg, dim=0), dim=0) - math.log(len(self.models))
+        word_ins_score_avg = torch.logsumexp(
+            torch.stack(word_ins_score_avg, dim=0), dim=0
+        ) - math.log(len(self.models))
         if word_ins_attn_avg[0] is not None:
-            word_ins_attn_avg = torch.stack(word_ins_attn_avg, dim=0)/len(self.models)
+            word_ins_attn_avg = torch.stack(word_ins_attn_avg, dim=0) / len(self.models)
         else:
             word_ins_attn_avg = None
         word_ins_score_max, word_ins_pred = word_ins_score_avg.max(-1)
@@ -223,7 +246,7 @@ class EnsembleLevT(BasicEnsembleModel):
 
         output_tokens = _fill(output_tokens, can_ins_word, _tokens, self.pad)
         output_scores = _fill(output_scores, can_ins_word, _scores, 0)
-        attn = _fill(attn, can_ins_word, word_ins_attn, 0.)
+        attn = _fill(attn, can_ins_word, word_ins_attn, 0.0)
         return output_tokens, output_scores, attn
 
     def initialize_output_tokens(self, encoder_outs, src_tokens):

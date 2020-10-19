@@ -223,7 +223,7 @@ class BaseFairseqModel(nn.Module):
 
     @classmethod
     def upgrade_args(cls, args):
-        if hasattr(args, 'max_sentences') and not hasattr(args, 'batch_size'):
+        if hasattr(args, "max_sentences") and not hasattr(args, "batch_size"):
             args.batch_size = args.max_sentences
 
     @classmethod

@@ -7,7 +7,6 @@ from . import FairseqDataset
 
 
 class NumSamplesDataset(FairseqDataset):
-
     def __getitem__(self, index):
         return 1
 

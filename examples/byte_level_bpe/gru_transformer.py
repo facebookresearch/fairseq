@@ -11,7 +11,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.transformer import TransformerModel, TransformerEncoder
+from fairseq.models.transformer import TransformerEncoder, TransformerModel
 
 
 @register_model("gru_transformer")
@@ -24,9 +24,12 @@ class GRUTransformerModel(TransformerModel):
 class GRUTransformerEncoder(TransformerEncoder):
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(args, dictionary, embed_tokens)
-        self.emb_ctx = nn.GRU(input_size=embed_tokens.embedding_dim,
-                              hidden_size=embed_tokens.embedding_dim // 2,
-                              num_layers=1, bidirectional=True)
+        self.emb_ctx = nn.GRU(
+            input_size=embed_tokens.embedding_dim,
+            hidden_size=embed_tokens.embedding_dim // 2,
+            num_layers=1,
+            bidirectional=True,
+        )
 
     def forward_embedding(self, src_tokens):
         # embed tokens and positions
