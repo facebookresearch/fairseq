@@ -6,9 +6,8 @@
 from fairseq.data.encoders import register_bpe
 
 
-@register_bpe('bert')
+@register_bpe("bert")
 class BertBPE(object):
-
     @staticmethod
     def add_args(parser):
         # fmt: off
@@ -24,25 +23,26 @@ class BertBPE(object):
             from transformers import BertTokenizer
         except ImportError:
             raise ImportError(
-                'Please install transformers with: pip install transformers'
+                "Please install transformers with: pip install transformers"
             )
 
-        if 'bpe_vocab_file' in args:
+        if "bpe_vocab_file" in args:
             self.bert_tokenizer = BertTokenizer(
-                args.bpe_vocab_file,
-                do_lower_case=not args.bpe_cased
+                args.bpe_vocab_file, do_lower_case=not args.bpe_cased
             )
         else:
-            vocab_file_name = 'bert-base-cased' if args.bpe_cased else 'bert-base-uncased'
+            vocab_file_name = (
+                "bert-base-cased" if args.bpe_cased else "bert-base-uncased"
+            )
             self.bert_tokenizer = BertTokenizer.from_pretrained(vocab_file_name)
 
     def encode(self, x: str) -> str:
-        return ' '.join(self.bert_tokenizer.tokenize(x))
+        return " ".join(self.bert_tokenizer.tokenize(x))
 
     def decode(self, x: str) -> str:
         return self.bert_tokenizer.clean_up_tokenization(
-            self.bert_tokenizer.convert_tokens_to_string(x.split(' '))
+            self.bert_tokenizer.convert_tokens_to_string(x.split(" "))
         )
 
     def is_beginning_of_word(self, x: str) -> bool:
-        return not x.startswith('##')
+        return not x.startswith("##")

@@ -164,7 +164,9 @@ def gen_parser_from_dataclass(
                     raise NotImplementedError()
                 if field_default is not MISSING:
                     kwargs["default"] = ",".join(map(str, field_default))
-            elif (isinstance(inter_type, type) and issubclass(inter_type, Enum)) or "Enum" in str(inter_type):
+            elif (
+                isinstance(inter_type, type) and issubclass(inter_type, Enum)
+            ) or "Enum" in str(inter_type):
                 kwargs["type"] = str
                 if field_default is not MISSING:
                     if isinstance(field_default, Enum):
@@ -184,7 +186,7 @@ def gen_parser_from_dataclass(
         kwargs["help"] = field_help
         if field_const is not None:
             kwargs["const"] = field_const
-            kwargs["nargs"] = '?'
+            kwargs["nargs"] = "?"
         return kwargs
 
     for k in dataclass_instance._get_all_attributes():

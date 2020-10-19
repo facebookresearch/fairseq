@@ -12,7 +12,6 @@ from tests.test_export import _test_save_and_load, get_dummy_task_and_parser
 
 
 class TestExportModelsFB(unittest.TestCase):
-
     @unittest.skipIf(
         torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
     )

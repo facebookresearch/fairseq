@@ -445,7 +445,7 @@ def import_user_module(args):
         # temporary directory and symlink the user_dir under a new name, which is
         # a deterministic hash of the original module_path.
         with tempfile.TemporaryDirectory() as tmpdirname:
-            unique_mod_name = 'fairseq_user_dir_{}'.format(hash(module_path) % 100000)
+            unique_mod_name = "fairseq_user_dir_{}".format(hash(module_path) % 100000)
             os.symlink(module_path, os.path.join(tmpdirname, unique_mod_name))
 
             sys.path.insert(0, tmpdirname)

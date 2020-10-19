@@ -5,8 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-import torch
 import os
+
+import torch
 
 
 def get_parser():
@@ -23,7 +24,7 @@ def get_parser():
 def upgrade_common(args):
     args.task = "audio_pretraining"
     args.criterion = "wav2vec"
-    args.normalize = getattr(args, 'normalize', False)
+    args.normalize = getattr(args, "normalize", False)
 
 
 def upgrade_bert_args(args):
@@ -31,7 +32,7 @@ def upgrade_bert_args(args):
     args.arch = "wav2vec2"
     args.final_dim = args.mlp_mi
     args.latent_groups = args.latent_var_banks
-    args.extractor_mode = 'layer_norm' if args.normalize else 'default'
+    args.extractor_mode = "layer_norm" if args.normalize else "default"
     del args.latent_dim
 
 
@@ -62,7 +63,7 @@ def update_checkpoint(model_dict, prefix=""):
     }
 
     if prefix:
-        replace_paths = { prefix + k: prefix + v for k,v in replace_paths.items() }
+        replace_paths = {prefix + k: prefix + v for k, v in replace_paths.items()}
 
     for k in list(model_dict.keys()):
         if k in replace_paths:
@@ -77,7 +78,7 @@ def main():
     cp = torch.load(args.checkpoint, map_location="cpu")
     upgrade_common(cp["args"])
 
-    if args.type == 'ctc':
+    if args.type == "ctc":
         cp["args"].arch = "wav2vec_ctc"
         bert_path = cp["args"].bert_path
 
@@ -92,7 +93,7 @@ def main():
         update_prefix(cp["model"], "bert", "w2v_encoder")
         update_prefix(cp["model"], "w2v_encoder.bert_model", "w2v_encoder.w2v_model")
         update_checkpoint(cp["model"], "w2v_encoder.w2v_model.")
-    elif args.type == 'seq2seq':
+    elif args.type == "seq2seq":
         cp["args"].arch = "wav2vec_seq2seq"
         bert_path = cp["args"].bert_path
 

@@ -75,8 +75,9 @@ class EverstoreAudioDataset(RawAudioDataset):
         pid = os.getpid()
         if pid not in self.clients:
             from langtech import EverstoreIo
+
             self.clients[pid] = EverstoreIo.EverstoreIo()
-        success, blob = self.clients[pid].get(self.handles[index], 'wav2vec')
+        success, blob = self.clients[pid].get(self.handles[index], "wav2vec")
         self.gets += 1
         if not success:
             self.fails += 1

@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class FairseqDropout(nn.Module):
-
     def __init__(self, p, module_name=None):
         super().__init__()
         self.p = p
@@ -37,16 +36,16 @@ class FairseqDropout(nn.Module):
         if retain_dropout:
             if retain_dropout_modules is not None and self.module_name is None:
                 logger.warning(
-                    'Cannot enable dropout during inference for module {} '
-                    'because module_name was not set'.format(name)
+                    "Cannot enable dropout during inference for module {} "
+                    "because module_name was not set".format(name)
                 )
             elif (
                 retain_dropout_modules is None  # if None, apply to all modules
                 or self.module_name in retain_dropout_modules
             ):
                 logger.info(
-                    'Enabling dropout during inference for module: {}'.format(name)
+                    "Enabling dropout during inference for module: {}".format(name)
                 )
                 self.apply_during_inference = True
             else:
-                logger.info('Disabling dropout for module: {}'.format(name))
+                logger.info("Disabling dropout for module: {}".format(name))

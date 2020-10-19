@@ -6,16 +6,15 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from fairseq import checkpoint_utils, utils
+from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
     FairseqEncoder,
-    FairseqIncrementalDecoder,
     FairseqEncoderDecoderModel,
+    FairseqIncrementalDecoder,
     register_model,
     register_model_architecture,
 )
-from fairseq.data.data_utils import lengths_to_padding_mask
 
 
 @register_model("s2t_berard")
@@ -40,48 +39,85 @@ class BerardModel(FairseqEncoderDecoderModel):
 
     @staticmethod
     def add_args(parser):
-        parser.add_argument("--input-layers", type=str, metavar="EXPR",
-                            help="List of linear layer dimensions. These "
-                                 "layers are applied to the input features and "
-                                 "are followed by tanh and possibly dropout.")
         parser.add_argument(
-            "--dropout", type=float, metavar="D",
+            "--input-layers",
+            type=str,
+            metavar="EXPR",
+            help="List of linear layer dimensions. These "
+            "layers are applied to the input features and "
+            "are followed by tanh and possibly dropout.",
+        )
+        parser.add_argument(
+            "--dropout",
+            type=float,
+            metavar="D",
             help="Dropout probability to use in the encoder/decoder. "
-                 "Note that this parameters control dropout in various places, "
-                 "there is no fine-grained control for dropout for embeddings "
-                 "vs LSTM layers for example."
-        )
-        parser.add_argument("--in-channels", type=int, metavar="N",
-                            help="Number of encoder input channels. "
-                                 "Typically value is 1.")
-        parser.add_argument("--conv-layers", type=str, metavar="EXPR",
-                            help="List of conv layers "
-                                 "(format: (channels, kernel, stride)).")
-        parser.add_argument("--num-blstm-layers", type=int, metavar="N",
-                            help="Number of encoder bi-LSTM layers.")
-        parser.add_argument("--lstm-size", type=int, metavar="N",
-                            help="LSTM hidden size.")
-        parser.add_argument(
-            "--decoder-embed-dim", type=int, metavar="N",
-            help="Embedding dimension of the decoder target tokens."
-        )
-        parser.add_argument("--decoder-hidden-dim", type=int, metavar="N",
-                            help="Decoder LSTM hidden dimension.")
-        parser.add_argument("--decoder-num-layers", type=int, metavar="N",
-                            help="Number of decoder LSTM layers.")
-        parser.add_argument("--attention-dim", type=int, metavar="N",
-                            help="Hidden layer dimension in MLP attention.")
-        parser.add_argument(
-            "--output-layer-dim", type=int, metavar="N",
-            help="Hidden layer dim for linear layer prior to output projection."
+            "Note that this parameters control dropout in various places, "
+            "there is no fine-grained control for dropout for embeddings "
+            "vs LSTM layers for example.",
         )
         parser.add_argument(
-            "--load-pretrained-encoder-from", type=str, metavar="STR",
-            help="model to take encoder weights from (for initialization)"
+            "--in-channels",
+            type=int,
+            metavar="N",
+            help="Number of encoder input channels. " "Typically value is 1.",
         )
         parser.add_argument(
-            "--load-pretrained-decoder-from", type=str, metavar="STR",
-            help="model to take decoder weights from (for initialization)"
+            "--conv-layers",
+            type=str,
+            metavar="EXPR",
+            help="List of conv layers " "(format: (channels, kernel, stride)).",
+        )
+        parser.add_argument(
+            "--num-blstm-layers",
+            type=int,
+            metavar="N",
+            help="Number of encoder bi-LSTM layers.",
+        )
+        parser.add_argument(
+            "--lstm-size", type=int, metavar="N", help="LSTM hidden size."
+        )
+        parser.add_argument(
+            "--decoder-embed-dim",
+            type=int,
+            metavar="N",
+            help="Embedding dimension of the decoder target tokens.",
+        )
+        parser.add_argument(
+            "--decoder-hidden-dim",
+            type=int,
+            metavar="N",
+            help="Decoder LSTM hidden dimension.",
+        )
+        parser.add_argument(
+            "--decoder-num-layers",
+            type=int,
+            metavar="N",
+            help="Number of decoder LSTM layers.",
+        )
+        parser.add_argument(
+            "--attention-dim",
+            type=int,
+            metavar="N",
+            help="Hidden layer dimension in MLP attention.",
+        )
+        parser.add_argument(
+            "--output-layer-dim",
+            type=int,
+            metavar="N",
+            help="Hidden layer dim for linear layer prior to output projection.",
+        )
+        parser.add_argument(
+            "--load-pretrained-encoder-from",
+            type=str,
+            metavar="STR",
+            help="model to take encoder weights from (for initialization)",
+        )
+        parser.add_argument(
+            "--load-pretrained-decoder-from",
+            type=str,
+            metavar="STR",
+            help="model to take decoder weights from (for initialization)",
         )
 
     @classmethod
@@ -170,8 +206,7 @@ class BerardEncoder(FairseqEncoder):
             if dropout > 0:
                 self.input_layers.append(
                     nn.Sequential(
-                        nn.Linear(in_features, out_features),
-                        nn.Dropout(p=dropout)
+                        nn.Linear(in_features, out_features), nn.Dropout(p=dropout)
                     )
                 )
             else:
@@ -194,9 +229,7 @@ class BerardEncoder(FairseqEncoder):
                     padding=conv_kernel_size // 2,
                 )
             )
-            self.conv_kernel_sizes_and_strides.append(
-                (conv_kernel_size, conv_stride)
-            )
+            self.conv_kernel_sizes_and_strides.append((conv_kernel_size, conv_stride))
             in_channels = out_channels
             lstm_input_dim //= conv_stride
 
@@ -241,8 +274,7 @@ class BerardEncoder(FairseqEncoder):
 
         # (B, C, T, feat) -> (B, T, C, feat) -> (T, B, C, feat) ->
         # (T, B, C * feat)
-        x = x.transpose(1, 2).transpose(0, 1).contiguous().view(output_seq_len,
-                                                                bsz, -1)
+        x = x.transpose(1, 2).transpose(0, 1).contiguous().view(output_seq_len, bsz, -1)
 
         input_lengths = src_lengths.clone()
         for k, s in self.conv_kernel_sizes_and_strides:
@@ -261,8 +293,9 @@ class BerardEncoder(FairseqEncoder):
         if self.dropout is not None:
             x = self.dropout(x)
 
-        encoder_padding_mask = lengths_to_padding_mask(output_lengths).to(
-            src_tokens.device).t()
+        encoder_padding_mask = (
+            lengths_to_padding_mask(output_lengths).to(src_tokens.device).t()
+        )
 
         return {
             "encoder_out": x,  # (T, B, C)
@@ -293,8 +326,7 @@ class MLPAttention(nn.Module):
         self.context_dim = context_dim
         self.attention_dim = attention_dim
         # W_ae and b_a
-        self.encoder_proj = nn.Linear(context_dim, self.attention_dim,
-                                      bias=True)
+        self.encoder_proj = nn.Linear(context_dim, self.attention_dim, bias=True)
         # W_ad
         self.decoder_proj = nn.Linear(
             decoder_hidden_state_dim, self.attention_dim, bias=False
@@ -314,8 +346,7 @@ class MLPAttention(nn.Module):
         # (src_len*bsz) x attention_dim
         encoder_component = self.encoder_proj(flat_source_hids)
         # src_len x bsz x attention_dim
-        encoder_component = encoder_component.view(src_len, bsz,
-                                                   self.attention_dim)
+        encoder_component = encoder_component.view(src_len, bsz, self.attention_dim)
         # 1 x bsz x attention_dim
         decoder_component = self.decoder_proj(decoder_state).unsqueeze(0)
         # Sum with broadcasting and apply the non linearity
@@ -400,8 +431,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         )
         self.output_projection = nn.Linear(output_layer_dim, num_embeddings)
 
-    def forward(self, prev_output_tokens, encoder_out=None,
-                incremental_state=None, **kwargs):
+    def forward(
+        self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs
+    ):
         encoder_padding_mask = encoder_out["encoder_padding_mask"]
         encoder_outs = encoder_out["encoder_out"]
 
@@ -428,9 +460,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         if cached_state is not None:
             prev_hiddens, prev_cells = cached_state
         else:
-            prev_hiddens = [
-                               encoder_out["encoder_out"].mean(dim=0)
-                           ] * self.num_layers
+            prev_hiddens = [encoder_out["encoder_out"].mean(dim=0)] * self.num_layers
             prev_cells = [x.new_zeros(bsz, self.hidden_size)] * self.num_layers
 
         attn_scores = x.new_zeros(bsz, srclen)
@@ -510,9 +540,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
             return state.index_select(0, new_order)
 
         new_state = tuple(map(reorder_state, cached_state))
-        utils.set_incremental_state(
-            self, incremental_state, "cached_state", new_state
-        )
+        utils.set_incremental_state(self, incremental_state, "cached_state", new_state)
 
 
 @register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard")
@@ -538,8 +566,7 @@ def berard(args):
     )
 
 
-@register_model_architecture(model_name="s2t_berard",
-                             arch_name="s2t_berard_256_3_3")
+@register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard_256_3_3")
 def berard_256_3_3(args):
     """Used in
     * "Harnessing Indirect Training Data for End-to-End Automatic Speech
@@ -553,8 +580,7 @@ def berard_256_3_3(args):
     berard(args)
 
 
-@register_model_architecture(model_name="s2t_berard",
-                             arch_name="s2t_berard_512_3_2")
+@register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard_512_3_2")
 def berard_512_3_2(args):
     args.num_blstm_layers = getattr(args, "num_blstm_layers", 3)
     args.lstm_size = getattr(args, "lstm_size", 512)
@@ -567,8 +593,7 @@ def berard_512_3_2(args):
     berard(args)
 
 
-@register_model_architecture(model_name="s2t_berard",
-                             arch_name="s2t_berard_512_5_3")
+@register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard_512_5_3")
 def berard_512_5_3(args):
     args.num_blstm_layers = getattr(args, "num_blstm_layers", 5)
     args.lstm_size = getattr(args, "lstm_size", 512)

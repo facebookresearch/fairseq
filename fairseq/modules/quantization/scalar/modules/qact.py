@@ -32,8 +32,16 @@ class ActivationQuantizer:
         - The activations are hard-clamped in [-clamp_threshold, clamp_threshold]
           to prevent overflow during the backward pass
     """
-    def __init__(self, module, p=1, update_step=1000, bits=8,
-                 method="histogram", clamp_threshold=5):
+
+    def __init__(
+        self,
+        module,
+        p=1,
+        update_step=1000,
+        bits=8,
+        method="histogram",
+        clamp_threshold=5,
+    ):
         self.module = module
         self.p = p
         self.update_step = update_step
@@ -72,7 +80,7 @@ class ActivationQuantizer:
             noise = (y_q - y).masked_fill(mask.bool(), 0)
 
             # using straight-through estimator (STE)
-            clamp_low = - self.scale * self.zero_point
+            clamp_low = -self.scale * self.zero_point
             clamp_high = self.scale * (2 ** self.bits - 1 - self.zero_point)
             return torch.clamp(y, clamp_low.item(), clamp_high.item()) + noise.detach()
 

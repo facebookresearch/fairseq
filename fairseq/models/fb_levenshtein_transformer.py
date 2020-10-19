@@ -8,23 +8,22 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-
 from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.model_utils import (
     coalesce,
+    expand_2d_or_3d_tensor,
     script_skip_tensor,
-    expand_2d_or_3d_tensor
 )
 from fairseq.models.transformer import (
+    Embedding,
     TransformerDecoder,
+    TransformerDecoderLayer,
     TransformerEncoder,
     TransformerModel,
-    TransformerDecoderLayer,
 )
-from fairseq.models.transformer import Embedding
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from torch import Tensor
 
 
 @torch.jit.script
@@ -51,9 +50,9 @@ def _fill(x: Optional[Tensor], mask, y: Optional[Tensor], padding_idx: int):
     elif x.size(1) > y.size(1):
         x[mask] = torch.tensor(padding_idx).type_as(x)
         if x.dim() == 2:
-            x[mask, :y.size(1)] = y
+            x[mask, : y.size(1)] = y
         else:
-            x[mask, :y.size(1), :] = y
+            x[mask, : y.size(1), :] = y
     else:
         x[mask] = y
     return x
@@ -227,7 +226,7 @@ class LevenshteinTransformerModel(TransformerModel):
 
     @property
     def validate(self):
-        return {'length-beam': False}
+        return {"length-beam": False}
 
     @classmethod
     def build_decoder(cls, args, tgt_dict, embed_tokens):
@@ -284,18 +283,23 @@ class LevenshteinTransformerModel(TransformerModel):
 
         return {
             "mask_ins": {
-                "out": mask_ins_out, "tgt": mask_ins_targets,
-                "mask": mask_ins_masks, "ls": 0.01,
+                "out": mask_ins_out,
+                "tgt": mask_ins_targets,
+                "mask": mask_ins_masks,
+                "ls": 0.01,
             },
             "word_ins": {
-                "out": word_ins_out, "tgt": tgt_tokens,
-                "mask": masked_tgt_masks, "ls": self.args.label_smoothing,
-                "nll_loss": True
+                "out": word_ins_out,
+                "tgt": tgt_tokens,
+                "mask": masked_tgt_masks,
+                "ls": self.args.label_smoothing,
+                "nll_loss": True,
             },
             "word_del": {
-                "out": word_del_out, "tgt": word_del_targets,
-                "mask": word_predictions.ne(self.pad)
-            }
+                "out": word_del_out,
+                "tgt": word_del_targets,
+                "mask": word_predictions.ne(self.pad),
+            },
         }
 
     def forward_encoder(self, encoder_inputs):
@@ -310,7 +314,9 @@ class LevenshteinTransformerModel(TransformerModel):
         attn = decoder_out.attn
 
         if max_ratio is not None and encoder_out.encoder_padding_mask is not None:
-            max_lengths = ((~encoder_out.encoder_padding_mask).sum(1) * max_ratio).clamp(min=10)
+            max_lengths = (
+                (~encoder_out.encoder_padding_mask).sum(1) * max_ratio
+            ).clamp(min=10)
         else:
             max_lengths = output_tokens.new_full(output_tokens.size()[:1], 255)
 
@@ -318,7 +324,9 @@ class LevenshteinTransformerModel(TransformerModel):
             if not mask.any():
                 return encoder_out
             else:
-                return self.encoder.reorder_encoder_out(encoder_out, mask.nonzero().squeeze())
+                return self.encoder.reorder_encoder_out(
+                    encoder_out, mask.nonzero().squeeze()
+                )
 
         @torch.jit.script
         def del_word(
@@ -366,8 +374,12 @@ class LevenshteinTransformerModel(TransformerModel):
                     _attn = word_del_attn.masked_fill(_mask, 0.0).gather(1, _reordering)
                     attn = _fill(attn, can_del_word, _attn, 0)
 
-                output_tokens = coalesce(_fill(output_tokens, can_del_word, _tokens, pad_idx), output_tokens)
-                output_scores = coalesce(_fill(output_scores, can_del_word, _scores, 0), output_scores)
+                output_tokens = coalesce(
+                    _fill(output_tokens, can_del_word, _tokens, pad_idx), output_tokens
+                )
+                output_scores = coalesce(
+                    _fill(output_scores, can_del_word, _scores, 0), output_scores
+                )
             return output_tokens, output_scores, attn
 
         @torch.jit.script
@@ -390,7 +402,8 @@ class LevenshteinTransformerModel(TransformerModel):
                 mask_ins_pred = mask_ins_score.max(-1)[1]
                 if max_lengths is not None:
                     mask_ins_pred = torch.min(
-                        mask_ins_pred, max_lengths[can_ins_mask, None].expand_as(mask_ins_pred)
+                        mask_ins_pred,
+                        max_lengths[can_ins_mask, None].expand_as(mask_ins_pred),
                     )
                 in_tokens = output_tokens[can_ins_mask]
                 in_scores = output_scores[can_ins_mask]
@@ -410,7 +423,12 @@ class LevenshteinTransformerModel(TransformerModel):
 
                 reordering = (mask_ins_pred + in_masks[:, 1:].long()).cumsum(1)
                 out_tokens = (
-                    torch.zeros(in_tokens.size()[0], out_max_len, device=in_tokens.device, dtype=in_tokens.dtype)
+                    torch.zeros(
+                        in_tokens.size()[0],
+                        out_max_len,
+                        device=in_tokens.device,
+                        dtype=in_tokens.dtype,
+                    )
                     .fill_(pad_idx)
                     .masked_fill_(out_masks, unk_idx)
                 )
@@ -424,8 +442,13 @@ class LevenshteinTransformerModel(TransformerModel):
                     out_scores.scatter_(1, reordering, in_scores[:, 1:])
                 else:
                     out_scores = None
-                output_tokens = coalesce(_fill(output_tokens, can_ins_mask, out_tokens, pad_idx), output_tokens)
-                output_scores = coalesce(_fill(output_scores, can_ins_mask, out_scores, 0), output_scores)
+                output_tokens = coalesce(
+                    _fill(output_tokens, can_ins_mask, out_tokens, pad_idx),
+                    output_tokens,
+                )
+                output_scores = coalesce(
+                    _fill(output_scores, can_ins_mask, out_scores, 0), output_scores
+                )
             return output_tokens, output_scores
 
         @torch.jit.script
@@ -456,8 +479,13 @@ class LevenshteinTransformerModel(TransformerModel):
                     )
                 else:
                     out_scores = None
-                output_tokens = coalesce(_fill(output_tokens, can_ins_word, out_tokens, pad_idx), output_tokens)
-                output_scores = coalesce(_fill(output_scores, can_ins_word, out_scores, 0), output_scores)
+                output_tokens = coalesce(
+                    _fill(output_tokens, can_ins_word, out_tokens, pad_idx),
+                    output_tokens,
+                )
+                output_scores = coalesce(
+                    _fill(output_scores, can_ins_word, out_scores, 0), output_scores
+                )
                 if attn is not None:
                     attn = coalesce(_fill(attn, can_ins_word, word_ins_attn, 0), attn)
 
@@ -497,7 +525,8 @@ class LevenshteinTransformerModel(TransformerModel):
             eos_penalty,
             max_lengths=(
                 max_lengths
-                if max_ratio is not None and encoder_out.encoder_padding_mask is not None
+                if max_ratio is not None
+                and encoder_out.encoder_padding_mask is not None
                 else None
             ),
         )
@@ -568,7 +597,7 @@ class LevenshteinTransformerModel(TransformerModel):
             attn=initial_attn,
             step=0,
             max_step=0,
-            history=None
+            history=None,
         )
 
 

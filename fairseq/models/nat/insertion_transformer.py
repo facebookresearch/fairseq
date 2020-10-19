@@ -6,17 +6,16 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.nat import (
+    FairseqNATModel,
     LevenshteinTransformerDecoder,
     LevenshteinTransformerModel,
-    FairseqNATModel,
-    ensemble_decoder
+    ensemble_decoder,
 )
 from fairseq.models.transformer import Linear
-from fairseq.utils import new_arange
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from fairseq.utils import new_arange
 
 
 class NegativeDistanceScore(object):
@@ -58,7 +57,8 @@ def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx, vocab_size, ta
         from fairseq import libnat
     except ImportError as e:
         import sys
-        sys.stderr.write('ERROR: missing libnat. run `pip install --editable .`\n')
+
+        sys.stderr.write("ERROR: missing libnat. run `pip install --editable .`\n")
         raise e
 
     B = in_tokens.size(0)
@@ -147,7 +147,7 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
         word_ins_out = self.decoder.forward_word_ins(
             normalize=False,
             prev_output_tokens=prev_output_tokens,
-            encoder_out=encoder_out
+            encoder_out=encoder_out,
         )
 
         word_ins_tgt = _get_ins_targets(
@@ -162,9 +162,11 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
 
         return {
             "word_ins": {
-                "out": word_ins_out, "tgt": word_ins_tgt,
-                "mask": word_ins_masks, "ls": self.args.label_smoothing,
-                "nll_loss": True
+                "out": word_ins_out,
+                "tgt": word_ins_tgt,
+                "mask": word_ins_masks,
+                "ls": self.args.label_smoothing,
+                "nll_loss": True,
             }
         }
 
@@ -178,9 +180,7 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
 
         # TODO: decoding for InsertionTransformer
         word_ins_score = self.decoder.forward_word_ins(
-            normalize=True,
-            prev_output_tokens=output_tokens,
-            encoder_out=encoder_out
+            normalize=True, prev_output_tokens=output_tokens, encoder_out=encoder_out
         )
 
         if eos_penalty > 0.0:
@@ -202,7 +202,7 @@ class InsertionTransformerModel(LevenshteinTransformerModel):
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=None,
-            history=history
+            history=history,
         )
 
 

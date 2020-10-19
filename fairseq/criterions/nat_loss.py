@@ -5,17 +5,15 @@
 
 import math
 
-import torch.nn.functional as F
 import torch
-from torch import Tensor
-
+import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
+from torch import Tensor
 
 
 @register_criterion("nat_loss")
 class LabelSmoothedDualImitationCriterion(FairseqCriterion):
-
     def __init__(self, task, label_smoothing):
         super().__init__(task)
         self.label_smoothing = label_smoothing
@@ -24,23 +22,23 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
     def add_args(parser):
         """Add criterion-specific arguments to the parser."""
         parser.add_argument(
-            '--label-smoothing',
-            default=0.,
+            "--label-smoothing",
+            default=0.0,
             type=float,
-            metavar='D',
-            help='epsilon for label smoothing, 0 means no label smoothing',
+            metavar="D",
+            help="epsilon for label smoothing, 0 means no label smoothing",
         )
 
     def _compute_loss(
         self, outputs, targets, masks=None, label_smoothing=0.0, name="loss", factor=1.0
     ):
         """
-            outputs: batch x len x d_model
-            targets: batch x len
-            masks:   batch x len
+        outputs: batch x len x d_model
+        targets: batch x len
+        masks:   batch x len
 
-            policy_logprob: if there is some policy
-                depends on the likelihood score as rewards.
+        policy_logprob: if there is some policy
+            depends on the likelihood score as rewards.
         """
 
         def mean_ds(x: Tensor, dim=None) -> Tensor:
@@ -49,6 +47,7 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
                 if dim is None
                 else x.float().mean(dim).type_as(x)
             )
+
         if masks is not None:
             outputs, targets = outputs[masks], targets[masks]
 
@@ -58,16 +57,17 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         else:
             logits = F.log_softmax(outputs, dim=-1)
             if targets.dim() == 1:
-                losses = F.nll_loss(logits, targets.to(logits.device), reduction='none')
+                losses = F.nll_loss(logits, targets.to(logits.device), reduction="none")
 
             else:  # soft-labels
-                losses = F.kl_div(logits, targets.to(logits.device), reduction='none')
+                losses = F.kl_div(logits, targets.to(logits.device), reduction="none")
                 losses = losses.sum(-1)
 
             nll_loss = mean_ds(losses)
             if label_smoothing > 0:
-                loss = nll_loss * (
-                    1 - label_smoothing) - mean_ds(logits) * label_smoothing
+                loss = (
+                    nll_loss * (1 - label_smoothing) - mean_ds(logits) * label_smoothing
+                )
             else:
                 loss = nll_loss
 
@@ -103,14 +103,14 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
                     outputs[obj].get("tgt"),
                     outputs[obj].get("mask", None),
                     outputs[obj].get("ls", 0.0),
-                    name=obj + '-loss',
-                    factor=outputs[obj].get("factor", 1.0)
+                    name=obj + "-loss",
+                    factor=outputs[obj].get("factor", 1.0),
                 )
             else:
                 _losses = self._custom_loss(
                     outputs[obj].get("loss"),
-                    name=obj + '-loss',
-                    factor=outputs[obj].get("factor", 1.0)
+                    name=obj + "-loss",
+                    factor=outputs[obj].get("factor", 1.0),
                 )
 
             losses += [_losses]
@@ -118,8 +118,7 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
                 nll_loss += [_losses.get("nll_loss", 0.0)]
 
         loss = sum(l["loss"] for l in losses)
-        nll_loss = sum(l for l in nll_loss) if len(nll_loss) > 0 \
-            else loss.new_tensor(0)
+        nll_loss = sum(l for l in nll_loss) if len(nll_loss) > 0 else loss.new_tensor(0)
 
         # NOTE:
         # we don't need to use sample_size as denominator for the gradient
@@ -145,13 +144,21 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        sample_size = utils.item(sum(log.get("sample_size", 0) for log in logging_outputs))
+        sample_size = utils.item(
+            sum(log.get("sample_size", 0) for log in logging_outputs)
+        )
         loss = utils.item(sum(log.get("loss", 0) for log in logging_outputs))
         nll_loss = utils.item(sum(log.get("nll_loss", 0) for log in logging_outputs))
 
-        metrics.log_scalar('loss', loss / sample_size / math.log(2), sample_size, round=3)
-        metrics.log_scalar('nll_loss', nll_loss / sample_size / math.log(2), sample_size, round=3)
-        metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['loss'].avg))
+        metrics.log_scalar(
+            "loss", loss / sample_size / math.log(2), sample_size, round=3
+        )
+        metrics.log_scalar(
+            "nll_loss", nll_loss / sample_size / math.log(2), sample_size, round=3
+        )
+        metrics.log_derived(
+            "ppl", lambda meters: utils.get_perplexity(meters["loss"].avg)
+        )
 
         for key in logging_outputs[0]:
             if key[-5:] == "-loss":

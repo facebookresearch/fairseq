@@ -5,7 +5,6 @@
 
 import numpy as np
 import torch
-
 from fairseq.data import FairseqDataset, plasma_utils
 
 
@@ -31,6 +30,7 @@ class TokenBlockDataset(FairseqDataset):
             'complete_doc' break mode). Typically 1 if the sentences have eos
             and 0 otherwise.
     """
+
     def __init__(
         self,
         dataset,
@@ -49,8 +49,8 @@ class TokenBlockDataset(FairseqDataset):
             )
         except ImportError:
             raise ImportError(
-                'Please build Cython components with: `pip install --editable .` '
-                'or `python setup.py build_ext --inplace`'
+                "Please build Cython components with: `pip install --editable .` "
+                "or `python setup.py build_ext --inplace`"
             )
 
         super().__init__()
@@ -69,13 +69,15 @@ class TokenBlockDataset(FairseqDataset):
                 sizes = sizes.numpy()
             sizes = sizes.astype(np.int64)
 
-        break_mode = break_mode if break_mode is not None else 'none'
+        break_mode = break_mode if break_mode is not None else "none"
 
         # For "eos" break-mode, block_size is not required parameters.
         if break_mode == "eos" and block_size is None:
             block_size = 0
 
-        slice_indices = _get_slice_indices_fast(sizes, str(break_mode), block_size, document_sep_len)
+        slice_indices = _get_slice_indices_fast(
+            sizes, str(break_mode), block_size, document_sep_len
+        )
         self._sizes = slice_indices[:, 1] - slice_indices[:, 0]
 
         # build index mapping block indices to the underlying dataset indices

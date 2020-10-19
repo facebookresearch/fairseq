@@ -5,17 +5,17 @@
 
 import torch
 import torch.nn.functional as F
-
 from fairseq import utils
-from fairseq.modules import (
-    TransformerSentenceEncoderLayer
-)
 from fairseq.model_parallel.modules import ModelParallelMultiheadAttention
+from fairseq.modules import TransformerSentenceEncoderLayer
+
+
 try:
     from fairseq.model_parallel.megatron.mpu import (
         ColumnParallelLinear,
         RowParallelLinear,
     )
+
     has_megatron_submodule = True
 except (ImportError, ModuleNotFoundError):
     has_megatron_submodule = False
@@ -26,6 +26,7 @@ class ModelParallelTransformerSentenceEncoderLayer(TransformerSentenceEncoderLay
     Implements a Model Parallel Transformer Encoder Layer used in
     BERT/XLM style pre-trained models.
     """
+
     def build_fc1(self, input_dim, output_dim, **unused):
         return ColumnParallelLinear(input_dim, output_dim, gather_output=False)
 
@@ -40,10 +41,7 @@ class ModelParallelTransformerSentenceEncoderLayer(TransformerSentenceEncoderLay
         **kwargs,
     ):
         return ModelParallelMultiheadAttention(
-            embed_dim,
-            num_attention_heads,
-            dropout=dropout,
-            self_attention=True
+            embed_dim, num_attention_heads, dropout=dropout, self_attention=True
         )
 
     def forward(

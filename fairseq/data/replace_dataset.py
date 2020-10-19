@@ -9,12 +9,12 @@ from . import BaseWrapperDataset
 class ReplaceDataset(BaseWrapperDataset):
     """Replaces tokens found in the dataset by a specified replacement token
 
-        Args:
-            dataset (~torch.utils.data.Dataset): dataset to replace tokens in
-            replace_map(Dictionary[int,int]): map of token to replace -> replacement token
-            offsets (List[int]): do not replace tokens before (from left if pos, right if neg) this offset. should be
-            as many as the number of objects returned by the underlying dataset __getitem__ method.
-        """
+    Args:
+        dataset (~torch.utils.data.Dataset): dataset to replace tokens in
+        replace_map(Dictionary[int,int]): map of token to replace -> replacement token
+        offsets (List[int]): do not replace tokens before (from left if pos, right if neg) this offset. should be
+        as many as the number of objects returned by the underlying dataset __getitem__ method.
+    """
 
     def __init__(self, dataset, replace_map, offsets):
         super().__init__(dataset)

@@ -5,13 +5,13 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from itertools import count
 import logging
 import os
+from itertools import count
 
 from fairseq.data.audio.fb_everstore_audio_dataset import EverstoreAudioDataset
 
-from . import register_task, LegacyFairseqTask
+from . import LegacyFairseqTask, register_task
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class SpeechPretrainingTask(LegacyFairseqTask):
         if os.path.isfile(manifest):
             self.datasets[split] = self.create_dataset(manifest)
         else:
-            if not hasattr(self, 'dataset_parts'):
+            if not hasattr(self, "dataset_parts"):
                 self.dataset_parts = []
                 for i in count(1):
                     manifest = os.path.join(self.args.data, "{}{}.tsv".format(split, i))

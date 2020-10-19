@@ -12,9 +12,9 @@ See `"Mixture Models for Diverse Machine Translation: Tricks of the Trade"
 """
 
 import argparse
-from itertools import chain
-import sys
 import random
+import sys
+from itertools import chain
 
 import numpy as np
 from sacrebleu import compute_bleu, corpus_bleu as _corpus_bleu
@@ -22,17 +22,21 @@ from sacrebleu import compute_bleu, corpus_bleu as _corpus_bleu
 
 def main():
     parser = argparse.ArgumentParser(sys.argv[0])
-    parser.add_argument('--sys', nargs='*', default='', metavar='FILE',
-                        help='path to system output')
-    parser.add_argument('--ref', default='', metavar='FILE',
-                        help='path to references')
-    parser.add_argument('--output', default='', metavar='FILE',
-                        help='print outputs into a pretty format')
+    parser.add_argument(
+        "--sys", nargs="*", default="", metavar="FILE", help="path to system output"
+    )
+    parser.add_argument("--ref", default="", metavar="FILE", help="path to references")
+    parser.add_argument(
+        "--output",
+        default="",
+        metavar="FILE",
+        help="print outputs into a pretty format",
+    )
     args = parser.parse_args()
 
     if args.sys:
         src, tgt, hypos, log_probs = load_sys(args.sys)
-        print('pairwise BLEU: %.2f' % pairwise(hypos))
+        print("pairwise BLEU: %.2f" % pairwise(hypos))
         if args.output:
             merge(src, tgt, hypos, log_probs, args.output)
 
@@ -58,18 +62,18 @@ def load_sys(paths):
                 # S: source
                 # T: target
                 # D: detokenized system output
-                if line.startswith(('S-', 'T-', 'D-')):
-                    i = int(line[line.find('-')+1:line.find('\t')])
-                    if line.startswith('S-'):
-                        src[i] = line.split('\t')[1]
-                    if line.startswith('T-'):
-                        tgt[i] = line.split('\t')[1]
-                    if line.startswith('D-'):
+                if line.startswith(("S-", "T-", "D-")):
+                    i = int(line[line.find("-") + 1 : line.find("\t")])
+                    if line.startswith("S-"):
+                        src[i] = line.split("\t")[1]
+                    if line.startswith("T-"):
+                        tgt[i] = line.split("\t")[1]
+                    if line.startswith("D-"):
                         if i not in hypos:
                             hypos[i] = []
                             log_probs[i] = []
-                        hypos[i].append(line.split('\t')[2])
-                        log_probs[i].append(float(line.split('\t')[1]))
+                        hypos[i].append(line.split("\t")[2])
+                        log_probs[i].append(float(line.split("\t")[1]))
     return dictolist(src), dictolist(tgt), dictolist(hypos), dictolist(log_probs)
 
 
@@ -79,34 +83,34 @@ def load_ref(path):
     src, tgt, refs = [], [], []
     i = 0
     while i < len(lines):
-        if lines[i].startswith('S-'):
-            src.append(lines[i].split('\t')[1].rstrip())
+        if lines[i].startswith("S-"):
+            src.append(lines[i].split("\t")[1].rstrip())
             i += 1
-        elif lines[i].startswith('T-'):
-            tgt.append(lines[i].split('\t')[1].rstrip())
+        elif lines[i].startswith("T-"):
+            tgt.append(lines[i].split("\t")[1].rstrip())
             i += 1
         else:
             a = []
-            while i < len(lines) and lines[i].startswith('R'):
-                a.append(lines[i].split('\t')[1].rstrip())
+            while i < len(lines) and lines[i].startswith("R"):
+                a.append(lines[i].split("\t")[1].rstrip())
                 i += 1
             refs.append(a)
     return src, tgt, refs
 
 
 def merge(src, tgt, hypos, log_probs, path):
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         for s, t, hs, lps in zip(src, tgt, hypos, log_probs):
-            f.write(s + '\n')
-            f.write(t + '\n')
-            f.write('\n')
+            f.write(s + "\n")
+            f.write(t + "\n")
+            f.write("\n")
             for h, lp in zip(hs, lps):
-                f.write('\t%f\t%s\n' % (lp, h.strip()))
-            f.write('------------------------------------------------------\n')
+                f.write("\t%f\t%s\n" % (lp, h.strip()))
+            f.write("------------------------------------------------------\n")
 
 
 def corpus_bleu(sys_stream, ref_streams):
-    bleu = _corpus_bleu(sys_stream, ref_streams, tokenize='none')
+    bleu = _corpus_bleu(sys_stream, ref_streams, tokenize="none")
     return bleu.score
 
 
@@ -116,9 +120,11 @@ def sentence_bleu(hypothesis, reference):
         bleu.counts[i] += 1
         bleu.totals[i] += 1
     bleu = compute_bleu(
-        bleu.counts, bleu.totals,
-        bleu.sys_len, bleu.ref_len,
-        smooth_method='exp',
+        bleu.counts,
+        bleu.totals,
+        bleu.sys_len,
+        bleu.ref_len,
+        smooth_method="exp",
     )
     return bleu.score
 
@@ -150,7 +156,7 @@ def multi_ref(refs, hypos):
             best = [k for k in range(len(rs)) if s[k] == s[j]]
             a.add(random.choice(best))
         ref_cnt += len(a)
-    print('#refs covered: %.2f' % (ref_cnt / len(refs)))
+    print("#refs covered: %.2f" % (ref_cnt / len(refs)))
 
     # transpose refs and hypos
     refs = list(zip(*refs))
@@ -160,33 +166,32 @@ def multi_ref(refs, hypos):
     k = len(hypos)
     m = len(refs)
     flat_hypos = [hypos[j][i] for i in range(len(hypos[0])) for j in range(k)]
-    duplicated_refs = [
-        [ref for ref in refs_i for _ in range(k)]
-        for refs_i in refs
-    ]
+    duplicated_refs = [[ref for ref in refs_i for _ in range(k)] for refs_i in refs]
     loo_bleus = []
     for held_out_ref in range(m):
-        remaining_refs = duplicated_refs[:held_out_ref] + duplicated_refs[held_out_ref+1:]
+        remaining_refs = (
+            duplicated_refs[:held_out_ref] + duplicated_refs[held_out_ref + 1 :]
+        )
         assert len(remaining_refs) == m - 1
         loo_bleus.append(corpus_bleu(flat_hypos, remaining_refs))
-    print('average multi-reference BLEU (leave-one-out): %.2f' % np.mean(loo_bleus))
+    print("average multi-reference BLEU (leave-one-out): %.2f" % np.mean(loo_bleus))
 
 
 def intra_ref(refs):
-    print('ref pairwise BLEU: %.2f' % pairwise(refs))
+    print("ref pairwise BLEU: %.2f" % pairwise(refs))
     refs = list(zip(*refs))
     m = len(refs)
     concat_h = []
     concat_rest = [[] for j in range(m - 1)]
     for i, h in enumerate(refs):
-        rest = refs[:i] + refs[i+1:]
+        rest = refs[:i] + refs[i + 1 :]
         concat_h.append(h)
         for j in range(m - 1):
             concat_rest[j].extend(rest[j])
     concat_h = list(chain.from_iterable(concat_h))
     bleu = corpus_bleu(concat_h, concat_rest)
-    print('multi-reference BLEU (leave-one-out): %.2f' % bleu)
+    print("multi-reference BLEU (leave-one-out): %.2f" % bleu)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

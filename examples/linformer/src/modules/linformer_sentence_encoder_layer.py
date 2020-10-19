@@ -6,6 +6,7 @@
 from typing import Callable
 
 from fairseq.modules import TransformerSentenceEncoderLayer
+
 from .multihead_linear_attention import MultiheadLinearAttention
 
 
@@ -23,7 +24,7 @@ class LinformerSentenceEncoderLayer(TransformerSentenceEncoderLayer):
         dropout: float = 0.1,
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
-        activation_fn: str = 'relu',
+        activation_fn: str = "relu",
         export: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,

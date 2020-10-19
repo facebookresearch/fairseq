@@ -9,7 +9,6 @@ from . import FairseqDataset
 
 
 class RawLabelDataset(FairseqDataset):
-
     def __init__(self, labels):
         super().__init__()
         self.labels = labels

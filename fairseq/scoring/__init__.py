@@ -49,6 +49,7 @@ def build_scorer(args, tgt_dict):
         args.scoring = "sacrebleu"
     if args.scoring == "bleu":
         from fairseq.scoring import bleu
+
         return bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
     return _build_scorer(args)
 

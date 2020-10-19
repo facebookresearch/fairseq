@@ -4,5 +4,5 @@
 # LICENSE file in the root directory of this source tree.
 
 from .qconv import PQConv2d  # NOQA
-from .qlinear import PQLinear  # NOQA
 from .qemb import PQEmbedding  # NOQA
+from .qlinear import PQLinear  # NOQA

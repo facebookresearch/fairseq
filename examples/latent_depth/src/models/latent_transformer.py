@@ -7,26 +7,27 @@ from typing import Any, Dict, Optional
 
 import torch.nn as nn
 from fairseq.models.fairseq_encoder import EncoderOut
-from fairseq.models.transformer import TransformerEncoder, TransformerDecoder
-from fairseq.modules import TransformerEncoderLayer, TransformerDecoderLayer
-from ..modules.latent_layers import LayerSelect
+from fairseq.models.transformer import TransformerDecoder, TransformerEncoder
+from fairseq.modules import TransformerDecoderLayer, TransformerEncoderLayer
 from torch import Tensor
+
+from ..modules.latent_layers import LayerSelect
 
 
 class LatentTransformerEncoder(TransformerEncoder):
     """Latent depth (https://arxiv.org/abs/2009.13102) implemented in
     TransformerEncoder.
     """
+
     def __init__(self, args, dictionary, embed_tokens, num_logits=1):
         self.num_logits = num_logits
         self.num_layers = args.encoder_layers
         super().__init__(args, dictionary, embed_tokens)
         self.layer_select = LayerSelect(self.num_layers, self.num_logits, args)
         self.lang_idx = None
-        self.layers = nn.ModuleList([
-            self._build_encoder_layer(args, idx)
-            for idx in range(args.encoder_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [self._build_encoder_layer(args, idx) for idx in range(args.encoder_layers)]
+        )
 
     def set_lang_idx(self, lang_idx):
         self.lang_idx = lang_idx
@@ -50,6 +51,7 @@ class LatentTransformerEncoderLayer(TransformerEncoderLayer):
         layer_select (LayerSelect, optional): instance of LayerSelect module with logits
             parameters and sampling method.
     """
+
     def __init__(self, args, idx, layer_select=None):
         super().__init__(args)
         self.idx = idx
@@ -63,7 +65,10 @@ class LatentTransformerDecoder(TransformerDecoder):
     """Latent depth (https://arxiv.org/abs/2009.13102) implemented in
     TransformerDecoder.
     """
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False, num_logits=1):
+
+    def __init__(
+        self, args, dictionary, embed_tokens, no_encoder_attn=False, num_logits=1
+    ):
         self.num_logits = num_logits
         self.num_layers = args.decoder_layers
         super().__init__(
@@ -71,16 +76,20 @@ class LatentTransformerDecoder(TransformerDecoder):
         )
         self.layer_select = LayerSelect(self.num_layers, self.num_logits, args)
         self.lang_idx = None
-        self.layers = nn.ModuleList([
-            self._build_decoder_layer(args, no_encoder_attn, idx)
-            for idx in range(args.decoder_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [
+                self._build_decoder_layer(args, no_encoder_attn, idx)
+                for idx in range(args.decoder_layers)
+            ]
+        )
 
     def set_lang_idx(self, lang_idx):
         self.lang_idx = lang_idx
 
     def _build_decoder_layer(self, args, no_encoder_attn=False, idx=None):
-        return LatentTransformerDecoderLayer(args, idx, layer_select=self.layer_select, no_encoder_attn=no_encoder_attn)
+        return LatentTransformerDecoderLayer(
+            args, idx, layer_select=self.layer_select, no_encoder_attn=no_encoder_attn
+        )
 
     def forward(
         self,
@@ -119,8 +128,15 @@ class LatentTransformerDecoderLayer(TransformerDecoderLayer):
             (default: False).
 
     """
+
     def __init__(
-        self, args, idx, layer_select=None, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False
+        self,
+        args,
+        idx,
+        layer_select=None,
+        no_encoder_attn=False,
+        add_bias_kv=False,
+        add_zero_attn=False,
     ):
         super().__init__(args, no_encoder_attn, add_bias_kv, add_zero_attn)
         self.idx = idx

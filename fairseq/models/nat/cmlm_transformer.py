@@ -38,26 +38,34 @@ class CMLMNATransformerModel(NATransformerModel):
         # encoding
         encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
         # length prediction
-        length_out = self.decoder.forward_length(normalize=False, encoder_out=encoder_out)
-        length_tgt = self.decoder.forward_length_prediction(length_out, encoder_out, tgt_tokens)
+        length_out = self.decoder.forward_length(
+            normalize=False, encoder_out=encoder_out
+        )
+        length_tgt = self.decoder.forward_length_prediction(
+            length_out, encoder_out, tgt_tokens
+        )
 
         # decoding
         word_ins_out = self.decoder(
             normalize=False,
             prev_output_tokens=prev_output_tokens,
-            encoder_out=encoder_out)
+            encoder_out=encoder_out,
+        )
         word_ins_mask = prev_output_tokens.eq(self.unk)
 
         return {
             "word_ins": {
-                "out": word_ins_out, "tgt": tgt_tokens,
-                "mask": word_ins_mask, "ls": self.args.label_smoothing,
-                "nll_loss": True
+                "out": word_ins_out,
+                "tgt": tgt_tokens,
+                "mask": word_ins_mask,
+                "ls": self.args.label_smoothing,
+                "nll_loss": True,
             },
             "length": {
-                "out": length_out, "tgt": length_tgt,
-                "factor": self.decoder.length_loss_factor
-            }
+                "out": length_out,
+                "tgt": length_tgt,
+                "factor": self.decoder.length_loss_factor,
+            },
         }
 
     def forward_decoder(self, decoder_out, encoder_out, decoding_format=None, **kwargs):
@@ -98,7 +106,7 @@ class CMLMNATransformerModel(NATransformerModel):
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=None,
-            history=history
+            history=history,
         )
 
 

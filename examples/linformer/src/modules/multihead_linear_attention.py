@@ -9,10 +9,10 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from fairseq import utils
-from torch import Tensor, nn
-from torch.nn import Parameter
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.quant_noise import quant_noise
+from torch import Tensor, nn
+from torch.nn import Parameter
 
 
 @with_incremental_state
@@ -65,16 +65,24 @@ class MultiheadLinearAttention(nn.Module):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = quant_noise(nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size)
-        self.v_proj = quant_noise(nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size)
-        self.q_proj = quant_noise(nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size)
+        self.k_proj = quant_noise(
+            nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.v_proj = quant_noise(
+            nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.q_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
 
         # used for compress sequence to subsequence
         if shared_compress_layer is None:
             self.compress_seq_len = max_seq_len // compressed
             self.compress_k = nn.Linear(max_seq_len, self.compress_seq_len, bias=False)
             if shared_kv_compressed == 0:
-                self.compress_v = nn.Linear(max_seq_len, self.compress_seq_len, bias=False)
+                self.compress_v = nn.Linear(
+                    max_seq_len, self.compress_seq_len, bias=False
+                )
             self.layerwise_sharing = False
         else:
             self.compress_k = shared_compress_layer
@@ -83,7 +91,9 @@ class MultiheadLinearAttention(nn.Module):
             self.layerwise_sharing = True
         self.shared_kv_compressed = shared_kv_compressed
 
-        self.out_proj = quant_noise(nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size)
+        self.out_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
 
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
@@ -116,22 +126,28 @@ class MultiheadLinearAttention(nn.Module):
             nn.init.xavier_uniform_(self.k_proj.weight, gain=1 / math.sqrt(2))
             nn.init.xavier_uniform_(self.v_proj.weight, gain=1 / math.sqrt(2))
             nn.init.xavier_uniform_(self.q_proj.weight, gain=1 / math.sqrt(2))
-            if not self.layerwise_sharing:  # otherwise, we already initialize the parameters
-                nn.init.xavier_uniform_(self.compress_k.weight, gain=1/math.sqrt(2))
+            if (
+                not self.layerwise_sharing
+            ):  # otherwise, we already initialize the parameters
+                nn.init.xavier_uniform_(self.compress_k.weight, gain=1 / math.sqrt(2))
                 if self.shared_kv_compressed == 0:
-                    nn.init.xavier_uniform_(self.compress_v.weight, gain=1/math.sqrt(2))
+                    nn.init.xavier_uniform_(
+                        self.compress_v.weight, gain=1 / math.sqrt(2)
+                    )
         else:
             nn.init.xavier_uniform_(self.k_proj.weight)
             nn.init.xavier_uniform_(self.v_proj.weight)
             nn.init.xavier_uniform_(self.q_proj.weight)
-            if not self.layerwise_sharing:  # otherwise, we already initialize the parameters
+            if (
+                not self.layerwise_sharing
+            ):  # otherwise, we already initialize the parameters
                 nn.init.xavier_uniform_(self.compress_k.weight)
                 if self.shared_kv_compressed == 0:
                     nn.init.xavier_uniform_(self.compress_v.weight)
 
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
+            nn.init.constant_(self.out_proj.bias, 0.0)
         if self.bias_k is not None:
             nn.init.xavier_normal_(self.bias_k)
         if self.bias_v is not None:
@@ -189,14 +205,26 @@ class MultiheadLinearAttention(nn.Module):
             q = self.q_proj(query)
 
             k_input = query.permute(1, 2, 0).contiguous()  # B * C * T
-            k_input = F.linear(k_input, self.compress_k.weight[:, 0: tgt_len]).permute(2, 0, 1).contiguous()
+            k_input = (
+                F.linear(k_input, self.compress_k.weight[:, 0:tgt_len])
+                .permute(2, 0, 1)
+                .contiguous()
+            )
             k = self.k_proj(k_input)
 
             v_input = query.permute(1, 2, 0).contiguous()  # B * C * T
             if self.shared_kv_compressed == 0:
-                v_input = F.linear(v_input, self.compress_v.weight[:, 0: tgt_len]).permute(2, 0, 1).contiguous()
+                v_input = (
+                    F.linear(v_input, self.compress_v.weight[:, 0:tgt_len])
+                    .permute(2, 0, 1)
+                    .contiguous()
+                )
             if self.shared_kv_compressed == 1:  # use shared kv compressed linear layer
-                v_input = F.linear(v_input, self.compress_k.weight[:, 0: tgt_len]).permute(2, 0, 1).contiguous()
+                v_input = (
+                    F.linear(v_input, self.compress_k.weight[:, 0:tgt_len])
+                    .permute(2, 0, 1)
+                    .contiguous()
+                )
             v = self.v_proj(v_input)
         elif self.encoder_decoder_attention:
             # encoder-decoder attention
@@ -302,7 +330,9 @@ class MultiheadLinearAttention(nn.Module):
                 )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-        attn_weights = MultiheadLinearAttention.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
+        attn_weights = MultiheadLinearAttention.apply_sparse_mask(
+            attn_weights, tgt_len, src_len, bsz
+        )
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
@@ -385,7 +415,9 @@ class MultiheadLinearAttention(nn.Module):
 
     @torch.jit.export
     def reorder_incremental_state(
-        self, incremental_state: Dict[str, Dict[str, Optional[Tensor]]], new_order: Tensor
+        self,
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
+        new_order: Tensor,
     ):
         """Reorder buffered internal state (for incremental generation)."""
         input_buffer = self._get_input_buffer(incremental_state)
@@ -393,7 +425,9 @@ class MultiheadLinearAttention(nn.Module):
             for k in input_buffer.keys():
                 input_buffer_k = input_buffer[k]
                 if input_buffer_k is not None:
-                    if self.encoder_decoder_attention and input_buffer_k.size(0) == new_order.size(0):
+                    if self.encoder_decoder_attention and input_buffer_k.size(
+                        0
+                    ) == new_order.size(0):
                         break
                     input_buffer[k] = input_buffer_k.index_select(0, new_order)
             incremental_state = self._set_input_buffer(incremental_state, input_buffer)
@@ -428,8 +462,8 @@ class MultiheadLinearAttention(nn.Module):
                 # in_proj_weight used to be q + k + v with same dimensions
                 dim = int(state_dict[k].shape[0] / 3)
                 items_to_add[prefix + "q_proj.weight"] = state_dict[k][:dim]
-                items_to_add[prefix + "k_proj.weight"] = state_dict[k][dim:2 * dim]
-                items_to_add[prefix + "v_proj.weight"] = state_dict[k][2 * dim:]
+                items_to_add[prefix + "k_proj.weight"] = state_dict[k][dim : 2 * dim]
+                items_to_add[prefix + "v_proj.weight"] = state_dict[k][2 * dim :]
 
                 keys_to_remove.append(k)
 
@@ -438,9 +472,9 @@ class MultiheadLinearAttention(nn.Module):
                     dim = int(state_dict[k].shape[0] / 3)
                     items_to_add[prefix + "q_proj.bias"] = state_dict[k_bias][:dim]
                     items_to_add[prefix + "k_proj.bias"] = state_dict[k_bias][
-                        dim:2 * dim
+                        dim : 2 * dim
                     ]
-                    items_to_add[prefix + "v_proj.bias"] = state_dict[k_bias][2 * dim:]
+                    items_to_add[prefix + "v_proj.bias"] = state_dict[k_bias][2 * dim :]
 
                     keys_to_remove.append(prefix + "in_proj_bias")
 

@@ -8,14 +8,13 @@ Train a network across multiple GPUs.
 """
 
 import contextlib
-from itertools import chain
 import logging
 import sys
 import time
+from itertools import chain
 from typing import Any, Dict, List
 
 import torch
-
 from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics
@@ -43,20 +42,21 @@ class Trainer(object):
         # catalog shared parameters
         shared_params = _catalog_shared_params(model)
 
-        self.tpu = getattr(args, 'tpu', False)
+        self.tpu = getattr(args, "tpu", False)
         self.cuda = torch.cuda.is_available() and not args.cpu and not self.tpu
         if self.cuda:
-            self.device = torch.device('cuda')
+            self.device = torch.device("cuda")
         elif self.tpu:
             self.device = utils.get_tpu_device(args)
         else:
-            self.device = torch.device('cpu')
+            self.device = torch.device("cpu")
 
         # copy model and criterion to current device/dtype
         self._criterion = criterion
         self._model = model
         if self.tpu:
             import torch_xla.core.xla_model as xm
+
             self._model = xm.send_cpu_data_to_device(self._model, self.device)
         if args.fp16:
             self._criterion = self._criterion.half()
@@ -77,7 +77,7 @@ class Trainer(object):
             ref = _get_module_by_path(self._model, shared_param[0])
             for path in shared_param[1:]:
                 logger.info(
-                    'detected shared parameter: {} <- {}'.format(shared_param[0], path)
+                    "detected shared parameter: {} <- {}".format(shared_param[0], path)
                 )
                 _set_module_by_path(self._model, path, ref)
 
@@ -134,7 +134,7 @@ class Trainer(object):
     @property
     def data_parallel_process_group(self):
         if self.tpu:
-            return ('tpu', None)
+            return ("tpu", None)
         else:
             return None
 
@@ -156,8 +156,9 @@ class Trainer(object):
                 and not self.tpu
             ):
                 self._wrapped_criterion = models.DistributedFairseqModel(
-                    self.args, self._criterion,
-                    process_group=self.data_parallel_process_group
+                    self.args,
+                    self._criterion,
+                    process_group=self.data_parallel_process_group,
                 )
             else:
                 self._wrapped_criterion = self._criterion
@@ -172,8 +173,9 @@ class Trainer(object):
                 and not self.tpu
             ):
                 self._wrapped_model = models.DistributedFairseqModel(
-                    self.args, self._model,
-                    process_group=self.data_parallel_process_group
+                    self.args,
+                    self._model,
+                    process_group=self.data_parallel_process_group,
                 )
             else:
                 self._wrapped_model = self._model
@@ -219,17 +221,20 @@ class Trainer(object):
         if self.args.use_bmuf:
             self._optimizer = optim.FairseqBMUF(self.args, self._optimizer)
 
-        if self.args.zero_sharding == 'os':
-            if (self.args.fp16
-                    and not self.args.memory_efficient_fp16
-                    and not self.args.memory_efficient_bf16
+        if self.args.zero_sharding == "os":
+            if (
+                self.args.fp16
+                and not self.args.memory_efficient_fp16
+                and not self.args.memory_efficient_bf16
             ) and not self.args.fp16_no_flatten_grads:
                 raise ValueError(
-                        "ZeRO is incomptabile with fp16 and flattened grads. "
-                        "Please use --fp16-no-flatten-grads"
+                    "ZeRO is incomptabile with fp16 and flattened grads. "
+                    "Please use --fp16-no-flatten-grads"
                 )
             else:
-                optim.shard_(self.args, self._optimizer, self.data_parallel_process_group)
+                optim.shard_(
+                    self.args, self._optimizer, self.data_parallel_process_group
+                )
 
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
@@ -416,7 +421,7 @@ class Trainer(object):
         if self.tpu:
             import torch_xla.core.xla_model as xm
 
-            xm.rendezvous('begin_epoch')  # wait for all workers
+            xm.rendezvous("begin_epoch")  # wait for all workers
             xm.mark_step()
 
     def begin_valid_epoch(self, epoch):
@@ -511,13 +516,14 @@ class Trainer(object):
                 # To handle gradient accumulation use case, we explicitly
                 # mark step here for every forward pass without a backward pass
                 import torch_xla.core.xla_model as xm
+
                 xm.mark_step()
 
         if is_dummy_batch:
             if torch.is_tensor(sample_size):
                 sample_size.zero_()
             else:
-                sample_size *= 0.
+                sample_size *= 0.0
 
         if torch.is_tensor(sample_size):
             sample_size = sample_size.float()
@@ -527,27 +533,42 @@ class Trainer(object):
         # gather logging outputs from all replicas
         if self._sync_stats():
             train_time = self._local_cumulative_training_time()
-            logging_outputs, (sample_size, ooms, total_train_time) = self._aggregate_logging_outputs(
-                logging_outputs, sample_size, ooms, train_time, ignore=is_dummy_batch,
+            logging_outputs, (
+                sample_size,
+                ooms,
+                total_train_time,
+            ) = self._aggregate_logging_outputs(
+                logging_outputs,
+                sample_size,
+                ooms,
+                train_time,
+                ignore=is_dummy_batch,
             )
-            self._cumulative_training_time = total_train_time / self.data_parallel_world_size
+            self._cumulative_training_time = (
+                total_train_time / self.data_parallel_world_size
+            )
 
-        if hasattr(self.model, 'all_reduce'):
+        if hasattr(self.model, "all_reduce"):
             self.model.all_reduce()
 
         overflow = False
         try:
             if self.tpu and self.data_parallel_world_size > 1:
                 import torch_xla.core.xla_model as xm
+
                 gradients = xm._fetch_gradients(self.optimizer.optimizer)
-                xm.all_reduce('sum', gradients, scale=1.0 / self.data_parallel_world_size)
+                xm.all_reduce(
+                    "sum", gradients, scale=1.0 / self.data_parallel_world_size
+                )
 
             with torch.autograd.profiler.record_function("multiply-grads"):
                 # multiply gradients by (# GPUs / sample_size) since DDP
                 # already normalizes by the number of GPUs. Thus we get
                 # (sum_of_gradients / sample_size).
                 if not self.args.use_bmuf:
-                    self.optimizer.multiply_grads(self.data_parallel_world_size / sample_size)
+                    self.optimizer.multiply_grads(
+                        self.data_parallel_world_size / sample_size
+                    )
                 elif sample_size > 0:  # BMUF needs to check sample size
                     num = self.data_parallel_world_size if self._sync_stats() else 1
                     self.optimizer.multiply_grads(num / sample_size)
@@ -559,7 +580,7 @@ class Trainer(object):
             # check that grad norms are consistent across workers
             if (
                 not self.args.use_bmuf
-                and self.args.distributed_wrapper != 'SlowMo'
+                and self.args.distributed_wrapper != "SlowMo"
                 and not self.tpu
             ):
                 self._check_grad_norms(grad_norm)
@@ -573,14 +594,18 @@ class Trainer(object):
             # out where it fails
             with NanDetector(self.get_model()):
                 self.task.train_step(
-                    sample, self.model, self.criterion, self.optimizer, self.get_num_updates(),
-                    ignore_grad=False
+                    sample,
+                    self.model,
+                    self.criterion,
+                    self.optimizer,
+                    self.get_num_updates(),
+                    ignore_grad=False,
                 )
             raise
         except OverflowError as e:
             overflow = True
             logger.info("NOTE: overflow detected, " + str(e))
-            grad_norm = torch.tensor(0.).cuda()
+            grad_norm = torch.tensor(0.0).cuda()
             self.zero_grad()
         except RuntimeError as e:
             if "out of memory" in str(e):
@@ -589,18 +614,23 @@ class Trainer(object):
             raise e
 
         # Some distributed wrappers (e.g., SlowMo) need access to the optimizer after the step
-        if hasattr(self.model, 'perform_additional_optimizer_actions'):
-            if hasattr(self.optimizer, 'fp32_params'):
-                self.model.perform_additional_optimizer_actions(self.optimizer.optimizer, self.optimizer.fp32_params)
+        if hasattr(self.model, "perform_additional_optimizer_actions"):
+            if hasattr(self.optimizer, "fp32_params"):
+                self.model.perform_additional_optimizer_actions(
+                    self.optimizer.optimizer, self.optimizer.fp32_params
+                )
             else:
-                self.model.perform_additional_optimizer_actions(self.optimizer.optimizer)
+                self.model.perform_additional_optimizer_actions(
+                    self.optimizer.optimizer
+                )
 
-        if not overflow or self.args.distributed_wrapper == 'SlowMo':
+        if not overflow or self.args.distributed_wrapper == "SlowMo":
             self.set_num_updates(self.get_num_updates() + 1)
 
             if self.tpu:
                 # mark step on TPUs
                 import torch_xla.core.xla_model as xm
+
                 xm.mark_step()
 
                 # only log stats every log_interval steps
@@ -609,17 +639,27 @@ class Trainer(object):
                 if self.get_num_updates() % self.args.log_interval == 0:
                     # log memory usage
                     mem_info = xm.get_memory_info(self.device)
-                    gb_free = mem_info['kb_free'] / 1024 / 1024
-                    gb_total = mem_info['kb_total'] / 1024 / 1024
+                    gb_free = mem_info["kb_free"] / 1024 / 1024
+                    gb_total = mem_info["kb_total"] / 1024 / 1024
                     metrics.log_scalar(
-                        'gb_free', gb_free, priority=1500, round=1, weight=0,
+                        "gb_free",
+                        gb_free,
+                        priority=1500,
+                        round=1,
+                        weight=0,
                     )
                     metrics.log_scalar(
-                        'gb_total', gb_total, priority=1600, round=1, weight=0,
+                        "gb_total",
+                        gb_total,
+                        priority=1600,
+                        round=1,
+                        weight=0,
                     )
 
                     logging_output = self._reduce_and_log_stats(
-                        logging_outputs, sample_size, grad_norm,
+                        logging_outputs,
+                        sample_size,
+                        grad_norm,
                     )
 
                 # log whenever there's an XLA compilation, since these
@@ -629,7 +669,9 @@ class Trainer(object):
             else:
                 # log stats
                 logging_output = self._reduce_and_log_stats(
-                    logging_outputs, sample_size, grad_norm,
+                    logging_outputs,
+                    sample_size,
+                    grad_norm,
                 )
 
                 # clear CUDA cache to reduce memory fragmentation
@@ -639,7 +681,8 @@ class Trainer(object):
                     and (
                         (self.get_num_updates() + self.args.empty_cache_freq - 1)
                         % self.args.empty_cache_freq
-                    ) == 0
+                    )
+                    == 0
                 ):
                     torch.cuda.empty_cache()
 
@@ -660,7 +703,8 @@ class Trainer(object):
         """Do forward pass in evaluation mode."""
         if self.tpu:
             import torch_xla.core.xla_model as xm
-            xm.rendezvous('valid_step')  # wait for all workers
+
+            xm.rendezvous("valid_step")  # wait for all workers
             xm.mark_step()
 
         with torch.no_grad():
@@ -700,12 +744,14 @@ class Trainer(object):
                 if torch.is_tensor(sample_size):
                     sample_size.zero_()
                 else:
-                    sample_size *= 0.
+                    sample_size *= 0.0
 
         # gather logging outputs from all replicas
         if self.data_parallel_world_size > 1:
-            logging_outputs, (sample_size, ) = self._aggregate_logging_outputs(
-                logging_outputs, sample_size, ignore=is_dummy_batch,
+            logging_outputs, (sample_size,) = self._aggregate_logging_outputs(
+                logging_outputs,
+                sample_size,
+                ignore=is_dummy_batch,
             )
 
         # log validation stats
@@ -744,10 +790,10 @@ class Trainer(object):
         """[deprecated] Get a specific meter by name."""
         from fairseq import meters
 
-        if 'get_meter' not in self._warn_once:
-            self._warn_once.add('get_meter')
+        if "get_meter" not in self._warn_once:
+            self._warn_once.add("get_meter")
             utils.deprecation_warning(
-                'Trainer.get_meter is deprecated. Please use fairseq.metrics instead.'
+                "Trainer.get_meter is deprecated. Please use fairseq.metrics instead."
             )
 
         train_meters = metrics.get_meters("train")
@@ -772,7 +818,7 @@ class Trainer(object):
         elif name in {"valid_loss", "valid_nll_loss"}:
             # support for legacy train.py, which assumed these meters
             # are always initialized
-            k = name[len("valid_"):]
+            k = name[len("valid_") :]
             m = metrics.get_meter("valid", k)
             return m or meters.AverageMeter()
         elif name == "oom":
@@ -820,8 +866,10 @@ class Trainer(object):
 
         if self.cuda:
             if self.pipeline_model_parallel:
-                if 'target' in sample:
-                    sample['target'] = utils.move_to_cuda(sample['target'], device=self.last_device)
+                if "target" in sample:
+                    sample["target"] = utils.move_to_cuda(
+                        sample["target"], device=self.last_device
+                    )
             else:
                 sample = utils.move_to_cuda(sample)
 
@@ -855,10 +903,9 @@ class Trainer(object):
         if self.data_parallel_world_size == 1:
             return False
         elif self.args.use_bmuf:
-            return (
-                (self.get_num_updates() + 1) % self.args.global_sync_iter == 0
-                and (self.get_num_updates() + 1) > self.args.warmup_iterations
-            )
+            return (self.get_num_updates() + 1) % self.args.global_sync_iter == 0 and (
+                self.get_num_updates() + 1
+            ) > self.args.warmup_iterations
         else:
             return True
 
@@ -899,13 +946,15 @@ class Trainer(object):
             raise NotImplementedError
         if ignore:
             logging_outputs = []
-        results = list(zip(
-            *distributed_utils.all_gather_list(
-                [logging_outputs] + list(extra_stats_to_sum),
-                max_size=getattr(self.args, 'all_gather_list_size', 16384),
-                group=self.data_parallel_process_group,
+        results = list(
+            zip(
+                *distributed_utils.all_gather_list(
+                    [logging_outputs] + list(extra_stats_to_sum),
+                    max_size=getattr(self.args, "all_gather_list_size", 16384),
+                    group=self.data_parallel_process_group,
+                )
             )
-        ))
+        )
         logging_outputs, extra_stats_to_sum = results[0], results[1:]
         logging_outputs = list(chain.from_iterable(logging_outputs))
         extra_stats_to_sum = [sum(s) for s in extra_stats_to_sum]
@@ -925,7 +974,7 @@ class Trainer(object):
         """
         data = {}
         for i, stat in enumerate(extra_stats_to_sum):
-            data['extra_stats_' + str(i)] = stat
+            data["extra_stats_" + str(i)] = stat
         if len(logging_outputs) > 0:
             log_keys = list(logging_outputs[0].keys())
             for k in log_keys:
@@ -934,21 +983,19 @@ class Trainer(object):
                 else:
                     v = logging_outputs[0][k]
                     v = torch.zeros_like(v) if torch.is_tensor(v) else 0
-                data['logging_outputs_' + k] = v
+                data["logging_outputs_" + k] = v
         else:
             log_keys = None
 
         data = distributed_utils.all_reduce_dict(
-            data,
-            device=self.device,
-            group=self.data_parallel_process_group
+            data, device=self.device, group=self.data_parallel_process_group
         )
 
         extra_stats_to_sum = [
-            data['extra_stats_' + str(i)] for i in range(len(extra_stats_to_sum))
+            data["extra_stats_" + str(i)] for i in range(len(extra_stats_to_sum))
         ]
         if log_keys is not None:
-            logging_outputs = [{k: data['logging_outputs_' + k] for k in log_keys}]
+            logging_outputs = [{k: data["logging_outputs_" + k] for k in log_keys}]
         else:
             logging_outputs = []
         return logging_outputs, extra_stats_to_sum
@@ -959,8 +1006,7 @@ class Trainer(object):
             self._grad_norm_buf.zero_()
             self._grad_norm_buf[self.data_parallel_rank] = grad_norm
             distributed_utils.all_reduce(
-                self._grad_norm_buf,
-                group=self.data_parallel_process_group
+                self._grad_norm_buf, group=self.data_parallel_process_group
             )
 
             def is_consistent(tensor):
@@ -975,7 +1021,9 @@ class Trainer(object):
                     "rank {:3d} = {:.8f}".format(r, n)
                     for r, n in enumerate(self._grad_norm_buf.tolist())
                 )
-                error_detail = "grad_norm across the workers:\n{}\n".format(pretty_detail)
+                error_detail = "grad_norm across the workers:\n{}\n".format(
+                    pretty_detail
+                )
                 raise RuntimeError(
                     "Fatal error: gradients are inconsistent between workers. "
                     "Try --ddp-backend=no_c10d. "
@@ -988,7 +1036,7 @@ class Trainer(object):
 
     def _reduce_and_log_stats(self, logging_outputs, sample_size, grad_norm=None):
         if grad_norm is not None:
-            metrics.log_speed("ups", 1., priority=100, round=2)
+            metrics.log_speed("ups", 1.0, priority=100, round=2)
             metrics.log_scalar("gnorm", grad_norm, priority=400, round=3)
             if self.args.clip_norm > 0:
                 metrics.log_scalar(
@@ -1030,6 +1078,7 @@ class Trainer(object):
 
     def _check_xla_compilation(self):
         import torch_xla.debug.metrics as met
+
         compile_stats = met.metric_data("CompileTime")
         if compile_stats is None:
             return
@@ -1037,41 +1086,42 @@ class Trainer(object):
         if num_xla_compiles > self._num_xla_compiles:
             logger.warning(
                 "XLA compilation detected on device #{}; too many of these can lead "
-                "to slow training, but we expect a few in the beginning"
-                .format(self.args.distributed_rank)
+                "to slow training, but we expect a few in the beginning".format(
+                    self.args.distributed_rank
+                )
             )
         self._num_xla_compiles = num_xla_compiles
 
 
-def _catalog_shared_params(module, memo=None, prefix=''):
+def _catalog_shared_params(module, memo=None, prefix=""):
     if memo is None:
         first_call = True
         memo = {}
     else:
         first_call = False
     for name, param in module._parameters.items():
-        param_prefix = prefix + ('.' if prefix else '') + name
+        param_prefix = prefix + ("." if prefix else "") + name
         if param not in memo:
             memo[param] = []
         memo[param].append(param_prefix)
     for name, m in module._modules.items():
         if m is None:
             continue
-        submodule_prefix = prefix + ('.' if prefix else '') + name
+        submodule_prefix = prefix + ("." if prefix else "") + name
         _catalog_shared_params(m, memo, submodule_prefix)
     if first_call:
         return [x for x in memo.values() if len(x) > 1]
 
 
 def _get_module_by_path(module, path):
-    path = path.split('.')
+    path = path.split(".")
     for name in path:
         module = getattr(module, name)
     return module
 
 
 def _set_module_by_path(module, path, value):
-    path = path.split('.')
+    path = path.split(".")
     for name in path[:-1]:
         module = getattr(module, name)
     setattr(module, path[-1], value)

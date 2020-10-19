@@ -5,16 +5,19 @@
 # LICENSE file in the root directory of this source tree.
 
 from setuptools import setup
-from torch.utils.cpp_extension import CUDAExtension, BuildExtension
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
 
 setup(
-    name='lightconv_layer',
+    name="lightconv_layer",
     ext_modules=[
-        CUDAExtension('lightconv_cuda', [
-            'lightconv_cuda.cpp',
-            'lightconv_cuda_kernel.cu',
-        ]),
+        CUDAExtension(
+            "lightconv_cuda",
+            [
+                "lightconv_cuda.cpp",
+                "lightconv_cuda_kernel.cu",
+            ],
+        ),
     ],
-    cmdclass={
-        'build_ext': BuildExtension
-    })
+    cmdclass={"build_ext": BuildExtension},
+)

@@ -4,11 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
+import torch.nn.functional as F
+from fairseq import utils
 from torch import nn
 from torch.nn import Parameter
-import torch.nn.functional as F
-
-from fairseq import utils
 
 
 class BidirectionalMultiheadSelfAttention(nn.Module):
@@ -17,7 +16,9 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
     See "Attention Is All You Need" for more details.
     """
 
-    def __init__(self, embed_dim, num_heads, dropout=0., bias=True, mask_curr_state=True):
+    def __init__(
+        self, embed_dim, num_heads, dropout=0.0, bias=True, mask_curr_state=True
+    ):
         super().__init__()
         self.onnx_trace = False
         self.embed_dim = embed_dim
@@ -25,14 +26,16 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         self.dropout = dropout
         self.mask_curr_state = mask_curr_state
         self.head_dim = embed_dim // num_heads
-        assert self.embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
+        assert (
+            self.embed_dim % num_heads == 0
+        ), "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
         self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
         if bias:
             self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
         else:
-            self.register_parameter('in_proj_bias', None)
+            self.register_parameter("in_proj_bias", None)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         self.reset_parameters()
@@ -41,8 +44,8 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         nn.init.xavier_uniform_(self.in_proj_weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.in_proj_bias is not None:
-            nn.init.constant_(self.in_proj_bias, 0.)
-            nn.init.constant_(self.out_proj.bias, 0.)
+            nn.init.constant_(self.in_proj_bias, 0.0)
+            nn.init.constant_(self.out_proj.bias, 0.0)
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -73,9 +76,21 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
         q = self.in_proj_q(q)
         k, v = self.in_proj_kv(kv)
 
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
-        k = k.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
-        v = v.contiguous().view(src_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        q = (
+            q.contiguous()
+            .view(tgt_len, bsz * self.num_heads, self.head_dim)
+            .transpose(0, 1)
+        )
+        k = (
+            k.contiguous()
+            .view(src_len, bsz * self.num_heads, self.head_dim)
+            .transpose(0, 1)
+        )
+        v = (
+            v.contiguous()
+            .view(src_len, bsz * self.num_heads, self.head_dim)
+            .transpose(0, 1)
+        )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
@@ -90,13 +105,17 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
                 attn_weights = torch.where(
                     key_padding_mask.repeat(1, 2).unsqueeze(1).unsqueeze(2),
                     torch.Tensor([float("-Inf")]),
-                    attn_weights.float()
+                    attn_weights.float(),
                 ).type_as(attn_weights)
             else:
-                attn_weights = attn_weights.float().masked_fill(
-                    key_padding_mask.repeat(1, 2).unsqueeze(1).unsqueeze(2),
-                    float('-inf'),
-                ).type_as(attn_weights)  # FP16 support: cast to float and back
+                attn_weights = (
+                    attn_weights.float()
+                    .masked_fill(
+                        key_padding_mask.repeat(1, 2).unsqueeze(1).unsqueeze(2),
+                        float("-inf"),
+                    )
+                    .type_as(attn_weights)
+                )  # FP16 support: cast to float and back
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         attn_weights = F.softmax(attn_weights.float(), dim=-1).type_as(attn_weights)
@@ -142,10 +161,12 @@ class BidirectionalMultiheadSelfAttention(nn.Module):
             mask = torch.where(
                 mask > 0,
                 torch.Tensor([0]).type_as(tensor),
-                torch.Tensor([float("-Inf")]).type_as(tensor)
+                torch.Tensor([float("-Inf")]).type_as(tensor),
             )
         else:
             ones = tensor.new_ones(half_dim, dim).bool()
             mask = ones.triu(half_dim + 1) + ones.tril(-1)
-            mask = utils.fill_with_neg_inf(tensor.new(mask.size())).masked_fill_(mask, 0)
+            mask = utils.fill_with_neg_inf(tensor.new(mask.size())).masked_fill_(
+                mask, 0
+            )
         return mask

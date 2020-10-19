@@ -7,6 +7,7 @@
 
 import sys
 
+
 """Reads in a fairseq output file, and verifies that the constraints
 (C- lines) are present in the output (the first H- line). Assumes that
 constraints are listed prior to the first hypothesis.

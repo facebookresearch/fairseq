@@ -16,7 +16,9 @@ def exclusive_cumprod(tensor, dim: int, eps: float = 1e-10):
     tensor_size = list(tensor.size())
     tensor_size[dim] = 1
     return_tensor = safe_cumprod(
-        torch.cat([torch.ones(tensor_size).type_as(tensor), tensor], dim=dim), dim=dim, eps=eps
+        torch.cat([torch.ones(tensor_size).type_as(tensor), tensor], dim=dim),
+        dim=dim,
+        eps=eps,
     )
 
     if dim == 0:
@@ -132,12 +134,14 @@ def moving_sum(x, start_idx: int, end_idx: int):
     # batch_size, 1, src_len
     moving_sum_weight = x.new_ones([1, 1, end_idx + start_idx - 1])
 
-    moving_sum = torch.nn.functional.conv1d(
-        x,
-        moving_sum_weight,
-        padding=start_idx + end_idx - 1
-    ).squeeze(1).t()
-    moving_sum = moving_sum[end_idx: -start_idx]
+    moving_sum = (
+        torch.nn.functional.conv1d(
+            x, moving_sum_weight, padding=start_idx + end_idx - 1
+        )
+        .squeeze(1)
+        .t()
+    )
+    moving_sum = moving_sum[end_idx:-start_idx]
 
     assert src_len == moving_sum.size(0)
     assert batch_size == moving_sum.size(1)

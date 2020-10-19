@@ -20,7 +20,7 @@ class SparseTransformerSentenceEncoderLayer(TransformerSentenceEncoderLayer):
         dropout: float = 0.1,
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
-        activation_fn: str = 'relu',
+        activation_fn: str = "relu",
         export: bool = False,
         is_bidirectional: bool = True,
         stride: int = 32,
@@ -28,8 +28,14 @@ class SparseTransformerSentenceEncoderLayer(TransformerSentenceEncoderLayer):
     ) -> None:
 
         super().__init__(
-            embedding_dim, ffn_embedding_dim, num_attention_heads, dropout,
-            attention_dropout, activation_dropout, activation_fn, export
+            embedding_dim,
+            ffn_embedding_dim,
+            num_attention_heads,
+            dropout,
+            attention_dropout,
+            activation_dropout,
+            activation_fn,
+            export,
         )
 
         self.self_attn = SparseMultiheadAttention(

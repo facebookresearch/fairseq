@@ -1,4 +1,3 @@
-from collections import OrderedDict
 import itertools
 import os
 import random
@@ -7,12 +6,13 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import OrderedDict
 
 import libfb.py.fbpkg as fbpkg
 
 
 def main(get_grid, postprocess_hyperparams, args):
-    assert args.hostgroup is not None, '--hostgroup is required for Chronos jobs'
+    assert args.hostgroup is not None, "--hostgroup is required for Chronos jobs"
 
     # compute all possible hyperparameter configurations
     grid = get_grid(args)
@@ -28,52 +28,56 @@ def main(get_grid, postprocess_hyperparams, args):
     else:
         # build train.par
         if args.debug:
-            mode = 'dbg'
+            mode = "dbg"
         elif args.local:
-            mode = 'dev-nosan'
+            mode = "dev-nosan"
         else:
-            mode = 'opt'
+            mode = "opt"
         buck_cmd = [
-            '/usr/local/bin/buck',
-            'build',
-            '@mode/' + mode,
-            'deeplearning/projects/fairseq-py:fb_train'
+            "/usr/local/bin/buck",
+            "build",
+            "@mode/" + mode,
+            "deeplearning/projects/fairseq-py:fb_train",
         ]
-        buck_cmd_str = ' '.join(map(shlex.quote, buck_cmd))
+        buck_cmd_str = " ".join(map(shlex.quote, buck_cmd))
         if args.dry_run:
-            print(f'| dry-run: {buck_cmd_str}')
+            print(f"| dry-run: {buck_cmd_str}")
         else:
             subprocess.Popen(
                 buck_cmd,
                 cwd=os.path.join(
-                    '/data/users', os.environ['USER'], 'fbsource/fbcode',
+                    "/data/users",
+                    os.environ["USER"],
+                    "fbsource/fbcode",
                 ),
             ).wait()
 
         if args.dry_run:
-            print(f'| dry_run: build fbpkg')
+            print(f"| dry_run: build fbpkg")
         elif args.local:
             train_fbpkg = None
         else:
             train_fbpkg = fbpkg.build_version(
-                'fairseq',
+                "fairseq",
                 build_config=fbpkg.BuildConfig(
                     paths=[
                         os.path.join(
-                            '/data/users', os.environ['USER'], 'fbsource/fbcode',
-                            'buck-out/gen/deeplearning/projects/fairseq-py/fb_train.par',
+                            "/data/users",
+                            os.environ["USER"],
+                            "fbsource/fbcode",
+                            "buck-out/gen/deeplearning/projects/fairseq-py/fb_train.par",
                         )
                     ],
                 ),
                 ephemeral=True,
-                expire='2w',
+                expire="2w",
             )[0].identifier
 
         if args.build_only:
             sys.exit(0)
 
     if args.dry_run:
-        train_fbpkg = 'fb_train.par'
+        train_fbpkg = "fb_train.par"
 
     for i, hp_values in enumerate(grid_product):
         config = OrderedDict()
@@ -94,29 +98,34 @@ def main(get_grid, postprocess_hyperparams, args):
 def launch_train(args, config, train_fbpkg):
     def dry_run(msg):
         if args.dry_run:
-            print(f'| dry-run: {msg}')
+            print(f"| dry-run: {msg}")
         return args.dry_run
 
     # compute save_dir
-    save_dir_key = '.'.join(filter(
-        lambda save_dir_key: save_dir_key is not None,
-        [hp.get_save_dir_key() for hp in config.values()]
-    ))
+    save_dir_key = ".".join(
+        filter(
+            lambda save_dir_key: save_dir_key is not None,
+            [hp.get_save_dir_key() for hp in config.values()],
+        )
+    )
     save_dir_key = save_dir_key.replace(",", "_")
     num_total_gpus = args.num_nodes * args.num_gpus
     x = int(time.time())
     if not args.force_checkpoints_dir:
-        save_dir = os.path.join(args.checkpoints_dir, f'{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}.{x}')
+        save_dir = os.path.join(
+            args.checkpoints_dir,
+            f"{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}.{x}",
+        )
     else:
         save_dir = args.force_checkpoints_dir
 
     # create save directory if it doesn't exist
     if not os.path.exists(save_dir):
-        if not dry_run(f'create directory: {save_dir}'):
+        if not dry_run(f"create directory: {save_dir}"):
             os.makedirs(save_dir)
             os.chmod(save_dir, 0o777)
 
-    #if has_started(save_dir) and not args.resume_checkpoints_dir:
+    # if has_started(save_dir) and not args.resume_checkpoints_dir:
     #    print(f'skip in progress run: {save_dir}')
     #    return
 
@@ -124,18 +133,18 @@ def launch_train(args, config, train_fbpkg):
     cmd_args = []
     if args.data:
         cmd_args += [args.data]
-    cmd_args += ['--save-dir', save_dir]
+    cmd_args += ["--save-dir", save_dir]
     for hp in config.values():
         cmd_args.extend(map(str, hp.get_cli_args()))
-    cmd_args_str = ' '.join(map(shlex.quote, cmd_args))
+    cmd_args_str = " ".join(map(shlex.quote, cmd_args))
     if args.dry_run:
-        dry_run(f'train command: fb_train.par {cmd_args_str}')
+        dry_run(f"train command: fb_train.par {cmd_args_str}")
 
     # initialize train log
-    train_log = os.path.join(save_dir, 'train.log')
-    if not dry_run(f'create train.log at: {train_log}'):
-        with open(train_log, 'a') as train_log_h:
-            train_log_h.write('')
+    train_log = os.path.join(save_dir, "train.log")
+    if not dry_run(f"create train.log at: {train_log}"):
+        with open(train_log, "a") as train_log_h:
+            train_log_h.write("")
         os.chmod(train_log, 0o777)
 
     # write script
@@ -145,52 +154,65 @@ def launch_train(args, config, train_fbpkg):
         train_fbpkg=train_fbpkg,
         cmd_args_str=cmd_args_str,
         stdout=train_log,
-        stderr_prefix=os.path.join(save_dir, 'train.stderr'),
+        stderr_prefix=os.path.join(save_dir, "train.stderr"),
         baseline_model_src=args.baseline_model,
-        baseline_model_dst=os.path.join(save_dir, 'checkpoint_last.pt'),
+        baseline_model_dst=os.path.join(save_dir, "checkpoint_last.pt"),
     )
-    with tempfile.NamedTemporaryFile('w') as h:
-        if not dry_run(f'write script to: {h.name}\n\n{script}'):
+    with tempfile.NamedTemporaryFile("w") as h:
+        if not dry_run(f"write script to: {h.name}\n\n{script}"):
             h.write(script)
             h.flush()
 
         # crun
         crun_cmd = [
-            '/usr/local/chronos/scripts/crun',
-            '--print-url',
-            '--mailwhen', 'onFailure',
-            '--hostgroup', str(args.hostgroup),
-            '--gang-size', str(args.num_nodes),
-            '-G', str(args.num_gpus),
-            '-C', str(10 * args.num_gpus),
-            '-M', ('-1' if args.num_gpus == 8 else str(29 * args.num_gpus)),
+            "/usr/local/chronos/scripts/crun",
+            "--print-url",
+            "--mailwhen",
+            "onFailure",
+            "--hostgroup",
+            str(args.hostgroup),
+            "--gang-size",
+            str(args.num_nodes),
+            "-G",
+            str(args.num_gpus),
+            "-C",
+            str(10 * args.num_gpus),
+            "-M",
+            ("-1" if args.num_gpus == 8 else str(29 * args.num_gpus)),
             #'--host-filter', 'gpu_model=="Tesla V100-SXM2-16GB"',
-            h.name
+            h.name,
         ]
-        crun_cmd_str = ' '.join(map(shlex.quote, crun_cmd))
+        crun_cmd_str = " ".join(map(shlex.quote, crun_cmd))
 
         env = os.environ.copy()
         if args.local:
-            assert args.num_nodes == 1, 'distributed training cannot be combined with --local'
-            if not dry_run('start training locally'):
-                if 'CUDA_VISIBLE_DEVICES' not in env:
-                    env['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, range(args.num_gpus)))
+            assert (
+                args.num_nodes == 1
+            ), "distributed training cannot be combined with --local"
+            if not dry_run("start training locally"):
+                if "CUDA_VISIBLE_DEVICES" not in env:
+                    env["CUDA_VISIBLE_DEVICES"] = ",".join(
+                        map(str, range(args.num_gpus))
+                    )
                 with tempfile.TemporaryDirectory() as tmpdir:
                     os.chmod(tmpdir, 0o777)
                     subprocess.Popen(
                         [
                             os.path.join(
-                                '/data/users', os.environ['USER'], 'fbsource/fbcode',
-                                'buck-out/gen/deeplearning/projects/fairseq-py/fb_train.par',
+                                "/data/users",
+                                os.environ["USER"],
+                                "fbsource/fbcode",
+                                "buck-out/gen/deeplearning/projects/fairseq-py/fb_train.par",
                             )
-                        ] + cmd_args,
+                        ]
+                        + cmd_args,
                         env=env,
                         cwd=tmpdir,
                     ).wait()
         else:
             if args.dry_run:
-                print('| dry-run: start remote training')
-                print(f'| dry-run: - run command: {crun_cmd_str}')
+                print("| dry-run: start remote training")
+                print(f"| dry-run: - run command: {crun_cmd_str}")
             else:
                 subprocess.Popen(crun_cmd).wait()
 
@@ -290,7 +312,7 @@ LD_LIBRARY_PATH=/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/nccl_2.4.8-1:$
 
 
 def has_started(save_dir):
-    train_log = os.path.join(save_dir, 'train.log')
+    train_log = os.path.join(save_dir, "train.log")
     if not os.path.exists(train_log):
         return False
     return True

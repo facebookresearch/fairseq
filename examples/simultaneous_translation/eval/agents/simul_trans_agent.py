@@ -3,11 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . agent import Agent
-from . import DEFAULT_EOS, GET, SEND
-from fairseq import checkpoint_utils, utils, tasks
-import os
 import json
+import os
+
+from fairseq import checkpoint_utils, tasks, utils
+
+from . import DEFAULT_EOS, GET, SEND
+from .agent import Agent
 
 
 class SimulTransAgent(Agent):
@@ -51,13 +53,15 @@ class SimulTransAgent(Agent):
         raise NotImplementedError
 
     def load_model(self, args):
-        args.user_dir = os.path.join(os.path.dirname(__file__), '..', '..')
+        args.user_dir = os.path.join(os.path.dirname(__file__), "..", "..")
         utils.import_user_module(args)
         filename = args.model_path
         if not os.path.exists(filename):
             raise IOError("Model file not found: {}".format(filename))
 
-        state = checkpoint_utils.load_checkpoint_to_cpu(filename, json.loads(args.model_overrides))
+        state = checkpoint_utils.load_checkpoint_to_cpu(
+            filename, json.loads(args.model_overrides)
+        )
 
         saved_args = state["args"]
         saved_args.data = args.data_bin
@@ -79,7 +83,7 @@ class SimulTransAgent(Agent):
             "steps": {"src": 0, "tgt": 0},
             "finished": False,
             "finish_read": False,
-            "model_states": {}
+            "model_states": {},
         }
 
     def update_states(self, states, new_state):
@@ -115,38 +119,38 @@ class SimulTransAgent(Agent):
     def write_action(self, states):
         token, index = self.model.predict_from_states(states)
 
-        if index == self.dict["tgt"].eos() or len(states["tokens"]["tgt"]) > self.max_len:
+        if (
+            index == self.dict["tgt"].eos()
+            or len(states["tokens"]["tgt"]) > self.max_len
+        ):
             # Finish this sentence is predict EOS
             states["finished"] = True
             end_idx_last_full_word = self._target_length(states)
 
         else:
             states["tokens"]["tgt"] += [token]
-            end_idx_last_full_word = (
-                self.word_splitter["tgt"]
-                .end_idx_last_full_word(states["tokens"]["tgt"])
+            end_idx_last_full_word = self.word_splitter["tgt"].end_idx_last_full_word(
+                states["tokens"]["tgt"]
             )
             self._append_indices(states, [index], "tgt")
 
         if end_idx_last_full_word > states["steps"]["tgt"]:
             # Only sent detokenized full words to the server
             word = self.word_splitter["tgt"].merge(
-                states["tokens"]["tgt"][
-                    states["steps"]["tgt"]: end_idx_last_full_word
-                ]
+                states["tokens"]["tgt"][states["steps"]["tgt"] : end_idx_last_full_word]
             )
             states["steps"]["tgt"] = end_idx_last_full_word
             states["segments"]["tgt"] += [word]
 
-            return {'key': SEND, 'value': word}
+            return {"key": SEND, "value": word}
         else:
             return None
 
     def read_action(self, states):
-        return {'key': GET, 'value': None}
+        return {"key": GET, "value": None}
 
     def finish_action(self):
-        return {'key': SEND, 'value': DEFAULT_EOS}
+        return {"key": SEND, "value": DEFAULT_EOS}
 
     def reset(self):
         pass
@@ -160,4 +164,4 @@ class SimulTransAgent(Agent):
         states["indices"][key] += new_indices
 
     def _target_length(self, states):
-        return len(states["tokens"]['tgt'])
+        return len(states["tokens"]["tgt"])

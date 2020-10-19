@@ -6,7 +6,7 @@ import sys
 import torch.hub
 
 
-MODULE_HUBCONF = 'hubconf.py'
+MODULE_HUBCONF = "hubconf.py"
 
 
 # Ideally this should be `def load(github, model, *args, forece_reload=False, **kwargs):`,
@@ -33,14 +33,16 @@ def load(model, *args, **kwargs):
     # Setup hub_dir to save downloaded files
     _setup_hubdir()
 
-    force_reload = kwargs.get('force_reload', False)
-    kwargs.pop('force_reload', None)
+    force_reload = kwargs.get("force_reload", False)
+    kwargs.pop("force_reload", None)
 
     repo_dir = os.path.dirname(os.path.dirname(__file__))
 
     sys.path.insert(0, repo_dir)
 
-    hub_module = torch.hub.import_module(MODULE_HUBCONF, repo_dir + '/' + MODULE_HUBCONF)
+    hub_module = torch.hub.import_module(
+        MODULE_HUBCONF, repo_dir + "/" + MODULE_HUBCONF
+    )
 
     entry = torch.hub._load_entry_from_hubconf(hub_module, model)
 
@@ -52,7 +54,7 @@ def load(model, *args, **kwargs):
 
 
 def _setup_hubdir():
-    if hasattr(torch.hub, '_setup_hubdir'):
+    if hasattr(torch.hub, "_setup_hubdir"):
         torch.hub._setup_hubdir()
     else:
         hub_dir = torch.hub.get_dir()
@@ -80,11 +82,17 @@ def list(force_reload=False):
 
     sys.path.insert(0, repo_dir)
 
-    hub_module = torch.hub.import_module(MODULE_HUBCONF, repo_dir + '/' + MODULE_HUBCONF)
+    hub_module = torch.hub.import_module(
+        MODULE_HUBCONF, repo_dir + "/" + MODULE_HUBCONF
+    )
 
     sys.path.remove(repo_dir)
 
     # We take functions starts with '_' as internal helper functions
-    entrypoints = [f for f in dir(hub_module) if callable(getattr(hub_module, f)) and not f.startswith('_')]
+    entrypoints = [
+        f
+        for f in dir(hub_module)
+        if callable(getattr(hub_module, f)) and not f.startswith("_")
+    ]
 
     return entrypoints

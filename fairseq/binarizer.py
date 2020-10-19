@@ -6,9 +6,10 @@
 import os
 from collections import Counter
 
-from fairseq.tokenizer import tokenize_line
 import torch
 from fairseq.file_io import PathManager
+from fairseq.tokenizer import tokenize_line
+
 
 def safe_readline(f):
     pos = f.tell()

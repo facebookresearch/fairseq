@@ -7,26 +7,26 @@
 Data pre-processing: build vocabularies and binarize training data.
 """
 
-from collections import Counter
-from itertools import zip_longest
 import logging
-from multiprocessing import Pool
 import os
 import shutil
 import sys
+from collections import Counter
+from itertools import zip_longest
+from multiprocessing import Pool
 
 from fairseq import options, tasks, utils
-from fairseq.data import indexed_dataset
 from fairseq.binarizer import Binarizer
+from fairseq.data import indexed_dataset
 
 
 logging.basicConfig(
-    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    level=os.environ.get('LOGLEVEL', 'INFO').upper(),
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=os.environ.get("LOGLEVEL", "INFO").upper(),
     stream=sys.stdout,
 )
-logger = logging.getLogger('fairseq_cli.preprocess')
+logger = logging.getLogger("fairseq_cli.preprocess")
 
 
 def main(args):
@@ -34,9 +34,11 @@ def main(args):
 
     os.makedirs(args.destdir, exist_ok=True)
 
-    logger.addHandler(logging.FileHandler(
-        filename=os.path.join(args.destdir, 'preprocess.log'),
-    ))
+    logger.addHandler(
+        logging.FileHandler(
+            filename=os.path.join(args.destdir, "preprocess.log"),
+        )
+    )
     logger.info(args)
 
     task = tasks.get_task(args.task)
@@ -74,31 +76,39 @@ def main(args):
         raise FileExistsError(dict_path(args.target_lang))
 
     if args.joined_dictionary:
-        assert not args.srcdict or not args.tgtdict, \
-            "cannot use both --srcdict and --tgtdict with --joined-dictionary"
+        assert (
+            not args.srcdict or not args.tgtdict
+        ), "cannot use both --srcdict and --tgtdict with --joined-dictionary"
 
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         elif args.tgtdict:
             src_dict = task.load_dictionary(args.tgtdict)
         else:
-            assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
+            assert (
+                args.trainpref
+            ), "--trainpref must be set if --srcdict is not specified"
             src_dict = build_dictionary(
-                {train_path(lang) for lang in [args.source_lang, args.target_lang]}, src=True
+                {train_path(lang) for lang in [args.source_lang, args.target_lang]},
+                src=True,
             )
         tgt_dict = src_dict
     else:
         if args.srcdict:
             src_dict = task.load_dictionary(args.srcdict)
         else:
-            assert args.trainpref, "--trainpref must be set if --srcdict is not specified"
+            assert (
+                args.trainpref
+            ), "--trainpref must be set if --srcdict is not specified"
             src_dict = build_dictionary([train_path(args.source_lang)], src=True)
 
         if target:
             if args.tgtdict:
                 tgt_dict = task.load_dictionary(args.tgtdict)
             else:
-                assert args.trainpref, "--trainpref must be set if --tgtdict is not specified"
+                assert (
+                    args.trainpref
+                ), "--trainpref must be set if --tgtdict is not specified"
                 tgt_dict = build_dictionary([train_path(args.target_lang)], tgt=True)
         else:
             tgt_dict = None
@@ -135,18 +145,20 @@ def main(args):
                         prefix,
                         lang,
                         offsets[worker_id],
-                        offsets[worker_id + 1]
+                        offsets[worker_id + 1],
                     ),
-                    callback=merge_result
+                    callback=merge_result,
                 )
             pool.close()
 
-        ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"),
-                                          impl=args.dataset_impl, vocab_size=len(vocab))
+        ds = indexed_dataset.make_builder(
+            dataset_dest_file(args, output_prefix, lang, "bin"),
+            impl=args.dataset_impl,
+            vocab_size=len(vocab),
+        )
         merge_result(
             Binarizer.binarize(
-                input_file, vocab, lambda t: ds.add_item(t),
-                offset=0, end=offsets[1]
+                input_file, vocab, lambda t: ds.add_item(t), offset=0, end=offsets[1]
             )
         )
         if num_workers > 1:
@@ -175,7 +187,7 @@ def main(args):
         nseq = [0]
 
         def merge_result(worker_result):
-            nseq[0] += worker_result['nseq']
+            nseq[0] += worker_result["nseq"]
 
         input_file = input_prefix
         offsets = Binarizer.find_offsets(input_file, num_workers)
@@ -192,19 +204,23 @@ def main(args):
                         utils.parse_alignment,
                         prefix,
                         offsets[worker_id],
-                        offsets[worker_id + 1]
+                        offsets[worker_id + 1],
                     ),
-                    callback=merge_result
+                    callback=merge_result,
                 )
             pool.close()
 
-        ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, None, "bin"),
-                                          impl=args.dataset_impl)
+        ds = indexed_dataset.make_builder(
+            dataset_dest_file(args, output_prefix, None, "bin"), impl=args.dataset_impl
+        )
 
         merge_result(
             Binarizer.binarize_alignments(
-                input_file, utils.parse_alignment, lambda t: ds.add_item(t),
-                offset=0, end=offsets[1]
+                input_file,
+                utils.parse_alignment,
+                lambda t: ds.add_item(t),
+                offset=0,
+                end=offsets[1],
             )
         )
         if num_workers > 1:
@@ -218,12 +234,7 @@ def main(args):
 
         ds.finalize(dataset_dest_file(args, output_prefix, None, "idx"))
 
-        logger.info(
-            "[alignments] {}: parsed {} alignments".format(
-                input_file,
-                nseq[0]
-            )
-        )
+        logger.info("[alignments] {}: parsed {} alignments".format(input_file, nseq[0]))
 
     def make_dataset(vocab, input_prefix, output_prefix, lang, num_workers=1):
         if args.dataset_impl == "raw":
@@ -242,7 +253,9 @@ def main(args):
         if args.validpref:
             for k, validpref in enumerate(args.validpref.split(",")):
                 outprefix = "valid{}".format(k) if k > 0 else "valid"
-                make_dataset(vocab, validpref, outprefix, lang, num_workers=args.workers)
+                make_dataset(
+                    vocab, validpref, outprefix, lang, num_workers=args.workers
+                )
         if args.testpref:
             for k, testpref in enumerate(args.testpref.split(",")):
                 outprefix = "test{}".format(k) if k > 0 else "test"
@@ -250,11 +263,23 @@ def main(args):
 
     def make_all_alignments():
         if args.trainpref and os.path.exists(args.trainpref + "." + args.align_suffix):
-            make_binary_alignment_dataset(args.trainpref + "." + args.align_suffix, "train.align", num_workers=args.workers)
+            make_binary_alignment_dataset(
+                args.trainpref + "." + args.align_suffix,
+                "train.align",
+                num_workers=args.workers,
+            )
         if args.validpref and os.path.exists(args.validpref + "." + args.align_suffix):
-            make_binary_alignment_dataset(args.validpref + "." + args.align_suffix, "valid.align", num_workers=args.workers)
+            make_binary_alignment_dataset(
+                args.validpref + "." + args.align_suffix,
+                "valid.align",
+                num_workers=args.workers,
+            )
         if args.testpref and os.path.exists(args.testpref + "." + args.align_suffix):
-            make_binary_alignment_dataset(args.testpref + "." + args.align_suffix, "test.align", num_workers=args.workers)
+            make_binary_alignment_dataset(
+                args.testpref + "." + args.align_suffix,
+                "test.align",
+                num_workers=args.workers,
+            )
 
     make_all(args.source_lang, src_dict)
     if target:
@@ -269,9 +294,9 @@ def main(args):
         src_file_name = train_path(args.source_lang)
         tgt_file_name = train_path(args.target_lang)
         freq_map = {}
-        with open(args.alignfile, "r", encoding='utf-8') as align_file:
-            with open(src_file_name, "r", encoding='utf-8') as src_file:
-                with open(tgt_file_name, "r", encoding='utf-8') as tgt_file:
+        with open(args.alignfile, "r", encoding="utf-8") as align_file:
+            with open(src_file_name, "r", encoding="utf-8") as src_file:
+                with open(tgt_file_name, "r", encoding="utf-8") as tgt_file:
                     for a, s, t in zip_longest(align_file, src_file, tgt_file):
                         si = src_dict.encode_line(s, add_if_not_exist=False)
                         ti = tgt_dict.encode_line(t, add_if_not_exist=False)
@@ -297,38 +322,47 @@ def main(args):
             align_dict[srcidx] = max(freq_map[srcidx], key=freq_map[srcidx].get)
 
         with open(
-                os.path.join(
-                    args.destdir,
-                    "alignment.{}-{}.txt".format(args.source_lang, args.target_lang),
-                ),
-                "w", encoding='utf-8'
+            os.path.join(
+                args.destdir,
+                "alignment.{}-{}.txt".format(args.source_lang, args.target_lang),
+            ),
+            "w",
+            encoding="utf-8",
         ) as f:
             for k, v in align_dict.items():
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
 
 
 def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos=True):
-    ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, lang, "bin"),
-                                      impl=args.dataset_impl, vocab_size=len(vocab))
+    ds = indexed_dataset.make_builder(
+        dataset_dest_file(args, output_prefix, lang, "bin"),
+        impl=args.dataset_impl,
+        vocab_size=len(vocab),
+    )
 
     def consumer(tensor):
         ds.add_item(tensor)
 
-    res = Binarizer.binarize(filename, vocab, consumer, append_eos=append_eos,
-                             offset=offset, end=end)
+    res = Binarizer.binarize(
+        filename, vocab, consumer, append_eos=append_eos, offset=offset, end=end
+    )
     ds.finalize(dataset_dest_file(args, output_prefix, lang, "idx"))
     return res
 
 
 def binarize_alignments(args, filename, parse_alignment, output_prefix, offset, end):
-    ds = indexed_dataset.make_builder(dataset_dest_file(args, output_prefix, None, "bin"),
-                                      impl=args.dataset_impl, vocab_size=None)
+    ds = indexed_dataset.make_builder(
+        dataset_dest_file(args, output_prefix, None, "bin"),
+        impl=args.dataset_impl,
+        vocab_size=None,
+    )
 
     def consumer(tensor):
         ds.add_item(tensor)
 
-    res = Binarizer.binarize_alignments(filename, parse_alignment, consumer, offset=offset,
-                                        end=end)
+    res = Binarizer.binarize_alignments(
+        filename, parse_alignment, consumer, offset=offset, end=end
+    )
     ds.finalize(dataset_dest_file(args, output_prefix, None, "idx"))
     return res
 

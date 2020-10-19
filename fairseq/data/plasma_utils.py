@@ -33,6 +33,7 @@ class PlasmaArray(object):
         if self._plasma is None and not self.disable:
             try:
                 import pyarrow.plasma as plasma
+
                 self._plasma = plasma
             except ImportError:
                 self._plasma = None
@@ -45,11 +46,15 @@ class PlasmaArray(object):
         assert self.path is None
         self._server_tmp = tempfile.NamedTemporaryFile()
         self.path = self._server_tmp.name
-        self._server = subprocess.Popen([
-            'plasma_store',
-            '-m', str(int(1.05 * self.array.nbytes)),
-            '-s', self.path,
-        ])
+        self._server = subprocess.Popen(
+            [
+                "plasma_store",
+                "-m",
+                str(int(1.05 * self.array.nbytes)),
+                "-s",
+                self.path,
+            ]
+        )
 
     @property
     def client(self):
@@ -65,11 +70,11 @@ class PlasmaArray(object):
             self.start_server()
             self.object_id = self.client.put(self.array)
         state = self.__dict__.copy()
-        del state['array']
-        state['_client'] = None
-        state['_server'] = None
-        state['_server_tmp'] = None
-        state['_plasma'] = None
+        del state["array"]
+        state["_client"] = None
+        state["_server"] = None
+        state["_server_tmp"] = None
+        state["_plasma"] = None
         return state
 
     def __setstate__(self, state):

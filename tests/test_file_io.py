@@ -1,14 +1,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
-import tempfile
 import os
 import shutil
-
-from typing import Optional
-
+import sys
+import tempfile
 import unittest
+from typing import Optional
 from unittest.mock import MagicMock
 
 
@@ -34,14 +32,16 @@ class TestFileIO(unittest.TestCase):
 
     def test_file_io(self):
         from fairseq.file_io import PathManager
+
         with PathManager.open(os.path.join(self._tmpdir, "test.txt"), "r") as f:
             s = f.read()
         self.assertEqual(s, self._tmpfile_contents)
 
     def test_file_io_oss(self):
         # Mock fvcore to simulate oss environment.
-        sys.modules['fvcore'] = MagicMock()
+        sys.modules["fvcore"] = MagicMock()
         from fairseq.file_io import PathManager
+
         with PathManager.open(os.path.join(self._tmpdir, "test.txt"), "r") as f:
             s = f.read()
         self.assertEqual(s, self._tmpfile_contents)

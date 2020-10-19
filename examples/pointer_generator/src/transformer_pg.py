@@ -8,19 +8,17 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
-
-from fairseq import utils, metrics
+from fairseq import metrics, utils
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import (
-    TransformerModel,
-    TransformerDecoder,
-    TransformerEncoder,
-    base_architecture,
     DEFAULT_MAX_SOURCE_POSITIONS,
     DEFAULT_MAX_TARGET_POSITIONS,
+    TransformerDecoder,
+    TransformerEncoder,
+    TransformerModel,
+    base_architecture,
 )
-
 from torch import Tensor
 
 

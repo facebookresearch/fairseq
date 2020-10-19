@@ -10,7 +10,6 @@ import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from fairseq.models import BaseFairseqModel, register_model, register_model_architecture
 from fairseq.modules import (
     Fp32GroupNorm,
@@ -20,6 +19,7 @@ from fairseq.modules import (
     TransposeLast,
 )
 from fairseq.utils import buffered_arange
+
 
 logger = logging.getLogger(__name__)
 

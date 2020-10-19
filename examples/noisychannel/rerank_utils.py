@@ -3,11 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from contextlib import redirect_stdout
 import math
 import os
 import re
 import subprocess
+from contextlib import redirect_stdout
 
 from fairseq import options
 from fairseq_cli import eval_lm, preprocess
@@ -20,7 +20,7 @@ def reprocess(fle):
     # per source, so the values for hypothesis_dict are lists.
     # parses output of generate.py
 
-    with open(fle, 'r') as f:
+    with open(fle, "r") as f:
         txt = f.read()
 
     """reprocess generate.py output"""
@@ -45,7 +45,9 @@ def reprocess(fle):
             if line_type == "H":
                 h_txt = line[j:]
                 hypo = re.search(hp, h_txt)
-                assert hypo is not None, ("regular expression failed to find the hypothesis scoring")
+                assert (
+                    hypo is not None
+                ), "regular expression failed to find the hypothesis scoring"
                 _, i = hypo.span()
                 score = hypo.group()
                 if id_num in hypothesis_dict:
@@ -56,9 +58,9 @@ def reprocess(fle):
                     score_dict[id_num] = [float(score)]
 
             elif line_type == "S":
-                source_dict[id_num] = (line[j:])
+                source_dict[id_num] = line[j:]
             elif line_type == "T":
-                target_dict[id_num] = (line[j:])
+                target_dict[id_num] = line[j:]
             elif line_type == "P":
                 pos_scores = (line[j:]).split()
                 pos_scores = [float(x) for x in pos_scores]
@@ -72,7 +74,7 @@ def reprocess(fle):
 
 def reprocess_nbest(fle):
     """reprocess interactive.py output"""
-    with open(fle, 'r') as f:
+    with open(fle, "r") as f:
         txt = f.read()
 
     source_dict = {}
@@ -82,7 +84,7 @@ def reprocess_nbest(fle):
     pos_score_dict = {}
     lines = txt.split("\n")
 
-    hp = re.compile(r'[-]?\d+[.]?\d+')
+    hp = re.compile(r"[-]?\d+[.]?\d+")
     j = -1
 
     for _i, line in enumerate(lines):
@@ -119,59 +121,76 @@ def reprocess_nbest(fle):
     return source_dict, hypothesis_dict, score_dict, target_dict, pos_score_dict
 
 
-def write_reprocessed(sources, hypos, targets, source_outfile,
-                      hypo_outfile, target_outfile, right_to_left=False,
-                      prefix_len=None, bpe_symbol=None,
-                      target_prefix_frac=None, source_prefix_frac=None):
+def write_reprocessed(
+    sources,
+    hypos,
+    targets,
+    source_outfile,
+    hypo_outfile,
+    target_outfile,
+    right_to_left=False,
+    prefix_len=None,
+    bpe_symbol=None,
+    target_prefix_frac=None,
+    source_prefix_frac=None,
+):
 
     """writes nbest hypothesis for rescoring"""
-    assert not (prefix_len is not None and target_prefix_frac is not None), \
-        "in writing reprocessed, only one type of prefix may be used"
-    assert not (prefix_len is not None and source_prefix_frac is not None), \
-        "in writing reprocessed, only one type of prefix may be used"
-    assert not (target_prefix_frac is not None and source_prefix_frac is not None), \
-        "in writing reprocessed, only one type of prefix may be used"
+    assert not (
+        prefix_len is not None and target_prefix_frac is not None
+    ), "in writing reprocessed, only one type of prefix may be used"
+    assert not (
+        prefix_len is not None and source_prefix_frac is not None
+    ), "in writing reprocessed, only one type of prefix may be used"
+    assert not (
+        target_prefix_frac is not None and source_prefix_frac is not None
+    ), "in writing reprocessed, only one type of prefix may be used"
 
-    with open(source_outfile, 'w') as source_file, \
-            open(hypo_outfile, 'w') as hypo_file, \
-            open(target_outfile, 'w') as target_file:
+    with open(source_outfile, "w") as source_file, open(
+        hypo_outfile, "w"
+    ) as hypo_file, open(target_outfile, "w") as target_file:
 
         assert len(sources) == len(hypos), "sources and hypos list length mismatch"
         if right_to_left:
             for i in range(len(sources)):
-                    for j in range(len(hypos[i])):
-                        if prefix_len is None:
-                            hypo_file.write(make_right_to_left(hypos[i][j])+"\n")
-                        else:
-                            raise NotImplementedError()
-                        source_file.write(make_right_to_left(sources[i])+"\n")
-                        target_file.write(make_right_to_left(targets[i])+"\n")
+                for j in range(len(hypos[i])):
+                    if prefix_len is None:
+                        hypo_file.write(make_right_to_left(hypos[i][j]) + "\n")
+                    else:
+                        raise NotImplementedError()
+                    source_file.write(make_right_to_left(sources[i]) + "\n")
+                    target_file.write(make_right_to_left(targets[i]) + "\n")
         else:
             for i in sorted(sources.keys()):
-                    for j in range(len(hypos[i])):
-                        if prefix_len is not None:
-                            shortened = get_prefix_no_bpe(hypos[i][j], bpe_symbol, prefix_len)+"\n"
-                            hypo_file.write(shortened)
-                            source_file.write(sources[i])
-                            target_file.write(targets[i])
-                        elif target_prefix_frac is not None:
-                            num_words, shortened, num_bpe_tokens = \
-                                    calc_length_from_frac(hypos[i][j], target_prefix_frac, bpe_symbol)
-                            shortened += "\n"
-                            hypo_file.write(shortened)
-                            source_file.write(sources[i])
-                            target_file.write(targets[i])
-                        elif source_prefix_frac is not None:
-                            num_words, shortened, num_bpe_tokensn = \
-                                    calc_length_from_frac(sources[i], source_prefix_frac, bpe_symbol)
-                            shortened += "\n"
-                            hypo_file.write(hypos[i][j])
-                            source_file.write(shortened)
-                            target_file.write(targets[i])
-                        else:
-                            hypo_file.write(hypos[i][j])
-                            source_file.write(sources[i])
-                            target_file.write(targets[i])
+                for j in range(len(hypos[i])):
+                    if prefix_len is not None:
+                        shortened = (
+                            get_prefix_no_bpe(hypos[i][j], bpe_symbol, prefix_len)
+                            + "\n"
+                        )
+                        hypo_file.write(shortened)
+                        source_file.write(sources[i])
+                        target_file.write(targets[i])
+                    elif target_prefix_frac is not None:
+                        num_words, shortened, num_bpe_tokens = calc_length_from_frac(
+                            hypos[i][j], target_prefix_frac, bpe_symbol
+                        )
+                        shortened += "\n"
+                        hypo_file.write(shortened)
+                        source_file.write(sources[i])
+                        target_file.write(targets[i])
+                    elif source_prefix_frac is not None:
+                        num_words, shortened, num_bpe_tokensn = calc_length_from_frac(
+                            sources[i], source_prefix_frac, bpe_symbol
+                        )
+                        shortened += "\n"
+                        hypo_file.write(hypos[i][j])
+                        source_file.write(shortened)
+                        target_file.write(targets[i])
+                    else:
+                        hypo_file.write(hypos[i][j])
+                        source_file.write(sources[i])
+                        target_file.write(targets[i])
 
 
 def calc_length_from_frac(bpe_sentence, prefix_frac, bpe_symbol):
@@ -207,7 +226,9 @@ def get_prefix_from_len(sentence, bpe_symbol, prefix_len):
     if bpe_count == 0:
         return sentence[:prefix_len]
     else:
-        return sentence[:prefix_len]+get_prefix_from_len(sentence[prefix_len:], bpe_symbol, bpe_count)
+        return sentence[:prefix_len] + get_prefix_from_len(
+            sentence[prefix_len:], bpe_symbol, bpe_count
+        )
 
 
 def get_num_bpe_tokens_from_len(sentence, bpe_symbol, prefix_len):
@@ -225,9 +246,9 @@ def make_right_to_left(line):
 
 
 def remove_bpe(line, bpe_symbol):
-    line = line.replace("\n", '')
-    line = (line + ' ').replace(bpe_symbol, '').rstrip()
-    return line+("\n")
+    line = line.replace("\n", "")
+    line = (line + " ").replace(bpe_symbol, "").rstrip()
+    return line + ("\n")
 
 
 def remove_bpe_dict(pred_dict, bpe_symbol):
@@ -242,7 +263,7 @@ def remove_bpe_dict(pred_dict, bpe_symbol):
 
 
 def parse_bleu_scoring(line):
-    p = re.compile(r'(BLEU4 = )\d+[.]\d+')
+    p = re.compile(r"(BLEU4 = )\d+[.]\d+")
     res = re.search(p, line)
     assert res is not None, line
     return float(res.group()[8:])
@@ -259,9 +280,21 @@ def get_full_from_prefix(hypo_prefix, hypos):
     raise Exception()
 
 
-def get_score(a, b, c, target_len, bitext_score1, bitext_score2=None, lm_score=None,
-              lenpen=None, src_len=None, tgt_len=None, bitext1_backwards=False,
-              bitext2_backwards=False, normalize=False):
+def get_score(
+    a,
+    b,
+    c,
+    target_len,
+    bitext_score1,
+    bitext_score2=None,
+    lm_score=None,
+    lenpen=None,
+    src_len=None,
+    tgt_len=None,
+    bitext1_backwards=False,
+    bitext2_backwards=False,
+    normalize=False,
+):
     if bitext1_backwards:
         bitext1_norm = src_len
     else:
@@ -275,9 +308,13 @@ def get_score(a, b, c, target_len, bitext_score1, bitext_score2=None, lm_score=N
         bitext2_norm = 1
         bitext_score2 = 0
     if normalize:
-        score = a*bitext_score1/bitext1_norm + b*bitext_score2/bitext2_norm+c*lm_score/src_len
+        score = (
+            a * bitext_score1 / bitext1_norm
+            + b * bitext_score2 / bitext2_norm
+            + c * lm_score / src_len
+        )
     else:
-        score = a*bitext_score1 + b*bitext_score2+c*lm_score
+        score = a * bitext_score1 + b * bitext_score2 + c * lm_score
 
     if lenpen is not None:
         score /= (target_len) ** float(lenpen)
@@ -286,8 +323,16 @@ def get_score(a, b, c, target_len, bitext_score1, bitext_score2=None, lm_score=N
 
 
 class BitextOutput(object):
-    def __init__(self, output_file, backwards, right_to_left, bpe_symbol,
-                 prefix_len=None, target_prefix_frac=None, source_prefix_frac=None):
+    def __init__(
+        self,
+        output_file,
+        backwards,
+        right_to_left,
+        bpe_symbol,
+        prefix_len=None,
+        target_prefix_frac=None,
+        source_prefix_frac=None,
+    ):
         """process output from rescoring"""
         source, hypo, score, target, pos_score = reprocess(output_file)
         if backwards:
@@ -296,7 +341,9 @@ class BitextOutput(object):
             self.hypo_fracs = target_prefix_frac
 
         # remove length penalty so we can use raw scores
-        score, num_bpe_tokens = get_score_from_pos(pos_score, prefix_len, hypo, bpe_symbol, self.hypo_fracs, backwards)
+        score, num_bpe_tokens = get_score_from_pos(
+            pos_score, prefix_len, hypo, bpe_symbol, self.hypo_fracs, backwards
+        )
         source_lengths = {}
         target_lengths = {}
 
@@ -341,7 +388,9 @@ class BitextOutput(object):
                     score[i] = float(score[i][0])
                     pos_score[i] = pos_score[i][0]
                 else:
-                    assert len(hypo[i]) == 1, "expected only one hypothesis per source sentence"
+                    assert (
+                        len(hypo[i]) == 1
+                    ), "expected only one hypothesis per source sentence"
                     source[i] = remove_bpe(source[i], bpe_symbol)
                     target[i] = remove_bpe(target[i], bpe_symbol)
                     hypo[i] = remove_bpe(hypo[i][0], bpe_symbol)
@@ -360,11 +409,26 @@ class BitextOutput(object):
 
 
 class BitextOutputFromGen(object):
-    def __init__(self, predictions_bpe_file, bpe_symbol=None, nbest=False, prefix_len=None, target_prefix_frac=None):
+    def __init__(
+        self,
+        predictions_bpe_file,
+        bpe_symbol=None,
+        nbest=False,
+        prefix_len=None,
+        target_prefix_frac=None,
+    ):
         if nbest:
-            pred_source, pred_hypo, pred_score, pred_target, pred_pos_score = reprocess_nbest(predictions_bpe_file)
+            (
+                pred_source,
+                pred_hypo,
+                pred_score,
+                pred_target,
+                pred_pos_score,
+            ) = reprocess_nbest(predictions_bpe_file)
         else:
-            pred_source, pred_hypo, pred_score, pred_target, pred_pos_score = reprocess(predictions_bpe_file)
+            pred_source, pred_hypo, pred_score, pred_target, pred_pos_score = reprocess(
+                predictions_bpe_file
+            )
 
         assert len(pred_source) == len(pred_hypo)
         assert len(pred_source) == len(pred_score)
@@ -372,8 +436,9 @@ class BitextOutputFromGen(object):
         assert len(pred_source) == len(pred_pos_score)
 
         # remove length penalty so we can use raw scores
-        pred_score, num_bpe_tokens = get_score_from_pos(pred_pos_score, prefix_len, pred_hypo,
-                                                        bpe_symbol, target_prefix_frac, False)
+        pred_score, num_bpe_tokens = get_score_from_pos(
+            pred_pos_score, prefix_len, pred_hypo, bpe_symbol, target_prefix_frac, False
+        )
 
         self.source = pred_source
         self.target = pred_target
@@ -414,7 +479,9 @@ class BitextOutputFromGen(object):
                 index += 1
 
 
-def get_score_from_pos(pos_score_dict, prefix_len, hypo_dict, bpe_symbol, hypo_frac, backwards):
+def get_score_from_pos(
+    pos_score_dict, prefix_len, hypo_dict, bpe_symbol, hypo_frac, backwards
+):
     score_dict = {}
     num_bpe_tokens_dict = {}
     assert prefix_len is None or hypo_frac is None
@@ -423,11 +490,15 @@ def get_score_from_pos(pos_score_dict, prefix_len, hypo_dict, bpe_symbol, hypo_f
         num_bpe_tokens_dict[key] = []
         for i in range(len(pos_score_dict[key])):
             if prefix_len is not None and not backwards:
-                num_bpe_tokens = get_num_bpe_tokens_from_len(hypo_dict[key][i], bpe_symbol, prefix_len)
+                num_bpe_tokens = get_num_bpe_tokens_from_len(
+                    hypo_dict[key][i], bpe_symbol, prefix_len
+                )
                 score_dict[key].append(sum(pos_score_dict[key][i][:num_bpe_tokens]))
                 num_bpe_tokens_dict[key].append(num_bpe_tokens)
             elif hypo_frac is not None:
-                num_words, shortened, hypo_prefix_len = calc_length_from_frac(hypo_dict[key][i], hypo_frac, bpe_symbol)
+                num_words, shortened, hypo_prefix_len = calc_length_from_frac(
+                    hypo_dict[key][i], hypo_frac, bpe_symbol
+                )
                 score_dict[key].append(sum(pos_score_dict[key][i][:hypo_prefix_len]))
                 num_bpe_tokens_dict[key].append(hypo_prefix_len)
             else:
@@ -437,10 +508,26 @@ def get_score_from_pos(pos_score_dict, prefix_len, hypo_dict, bpe_symbol, hypo_f
 
 
 class LMOutput(object):
-    def __init__(self, lm_score_file, lm_dict=None, prefix_len=None, bpe_symbol=None, target_prefix_frac=None):
-        lm_sentences, lm_sen_scores, lm_sen_pos_scores, lm_no_bpe_sentences, lm_bpe_tokens = \
-                parse_lm(lm_score_file, prefix_len=prefix_len,
-                         bpe_symbol=bpe_symbol, target_prefix_frac=target_prefix_frac)
+    def __init__(
+        self,
+        lm_score_file,
+        lm_dict=None,
+        prefix_len=None,
+        bpe_symbol=None,
+        target_prefix_frac=None,
+    ):
+        (
+            lm_sentences,
+            lm_sen_scores,
+            lm_sen_pos_scores,
+            lm_no_bpe_sentences,
+            lm_bpe_tokens,
+        ) = parse_lm(
+            lm_score_file,
+            prefix_len=prefix_len,
+            bpe_symbol=bpe_symbol,
+            target_prefix_frac=target_prefix_frac,
+        )
 
         self.sentences = lm_sentences
         self.score = lm_sen_scores
@@ -452,7 +539,7 @@ class LMOutput(object):
 
 def parse_lm(input_file, prefix_len=None, bpe_symbol=None, target_prefix_frac=None):
     """parse output of eval_lm"""
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         text = f.readlines()
         text = text[7:]
         cleaned_text = text[:-2]
@@ -467,20 +554,23 @@ def parse_lm(input_file, prefix_len=None, bpe_symbol=None, target_prefix_frac=No
             if tokens[0].isdigit():
                 line_id = int(tokens[0])
                 scores = [float(x[1:-1]) for x in tokens[2::2]]
-                sentences[line_id] = " ".join(tokens[1::2][:-1])+"\n"
+                sentences[line_id] = " ".join(tokens[1::2][:-1]) + "\n"
                 if bpe_symbol is not None:
                     # exclude <eos> symbol to match output from generate.py
-                    bpe_sen = " ".join(tokens[1::2][:-1])+"\n"
+                    bpe_sen = " ".join(tokens[1::2][:-1]) + "\n"
                     no_bpe_sen = remove_bpe(bpe_sen, bpe_symbol)
                     no_bpe_sentences[line_id] = no_bpe_sen
 
                 if prefix_len is not None:
-                    num_bpe_tokens = get_num_bpe_tokens_from_len(bpe_sen, bpe_symbol, prefix_len)
+                    num_bpe_tokens = get_num_bpe_tokens_from_len(
+                        bpe_sen, bpe_symbol, prefix_len
+                    )
                     sen_scores[line_id] = sum(scores[:num_bpe_tokens])
                     num_bpe_tokens_dict[line_id] = num_bpe_tokens
                 elif target_prefix_frac is not None:
-                    num_words, shortened, target_prefix_len = calc_length_from_frac(bpe_sen, target_prefix_frac,
-                                                                                    bpe_symbol)
+                    num_words, shortened, target_prefix_len = calc_length_from_frac(
+                        bpe_sen, target_prefix_frac, bpe_symbol
+                    )
                     sen_scores[line_id] = sum(scores[:target_prefix_len])
                     num_bpe_tokens_dict[line_id] = target_prefix_len
                 else:
@@ -492,160 +582,269 @@ def parse_lm(input_file, prefix_len=None, bpe_symbol=None, target_prefix_frac=No
     return sentences, sen_scores, sen_pos_scores, no_bpe_sentences, num_bpe_tokens_dict
 
 
-def get_directories(data_dir_name, num_rescore, gen_subset,
-                    fw_name, shard_id, num_shards,
-                    sampling=False, prefix_len=None,
-                    target_prefix_frac=None, source_prefix_frac=None):
-    nbest_file_id = "nbest_" + str(num_rescore) + \
-                    "_subset_" + gen_subset + \
-                    "_fw_name_" + fw_name + \
-                    "_shard_" + str(shard_id) + \
-                    "_of_" + str(num_shards)
+def get_directories(
+    data_dir_name,
+    num_rescore,
+    gen_subset,
+    fw_name,
+    shard_id,
+    num_shards,
+    sampling=False,
+    prefix_len=None,
+    target_prefix_frac=None,
+    source_prefix_frac=None,
+):
+    nbest_file_id = (
+        "nbest_"
+        + str(num_rescore)
+        + "_subset_"
+        + gen_subset
+        + "_fw_name_"
+        + fw_name
+        + "_shard_"
+        + str(shard_id)
+        + "_of_"
+        + str(num_shards)
+    )
 
     if sampling:
         nbest_file_id += "_sampling"
 
     # the directory containing all information for this nbest list
-    pre_gen = os.path.join(os.path.dirname(__file__))+"/rerank_data/"+data_dir_name+"/"+nbest_file_id
+    pre_gen = (
+        os.path.join(os.path.dirname(__file__))
+        + "/rerank_data/"
+        + data_dir_name
+        + "/"
+        + nbest_file_id
+    )
     # the directory to store the preprocessed nbest list, for left to right rescoring
-    left_to_right_preprocessed_dir = pre_gen+"/left_to_right_preprocessed"
+    left_to_right_preprocessed_dir = pre_gen + "/left_to_right_preprocessed"
     if source_prefix_frac is not None:
-        left_to_right_preprocessed_dir = left_to_right_preprocessed_dir + "/prefix_frac" + str(source_prefix_frac)
+        left_to_right_preprocessed_dir = (
+            left_to_right_preprocessed_dir + "/prefix_frac" + str(source_prefix_frac)
+        )
     # the directory to store the preprocessed nbest list, for right to left rescoring
-    right_to_left_preprocessed_dir = pre_gen+"/right_to_left_preprocessed"
+    right_to_left_preprocessed_dir = pre_gen + "/right_to_left_preprocessed"
     # the directory to store the preprocessed nbest list, for backwards rescoring
-    backwards_preprocessed_dir = pre_gen+"/backwards"
+    backwards_preprocessed_dir = pre_gen + "/backwards"
     if target_prefix_frac is not None:
-        backwards_preprocessed_dir = backwards_preprocessed_dir+"/prefix_frac"+str(target_prefix_frac)
+        backwards_preprocessed_dir = (
+            backwards_preprocessed_dir + "/prefix_frac" + str(target_prefix_frac)
+        )
     elif prefix_len is not None:
-        backwards_preprocessed_dir = backwards_preprocessed_dir+"/prefix_"+str(prefix_len)
+        backwards_preprocessed_dir = (
+            backwards_preprocessed_dir + "/prefix_" + str(prefix_len)
+        )
 
     # the directory to store the preprocessed nbest list, for rescoring with P(T)
-    lm_preprocessed_dir = pre_gen+"/lm_preprocessed"
+    lm_preprocessed_dir = pre_gen + "/lm_preprocessed"
 
-    return pre_gen, left_to_right_preprocessed_dir, right_to_left_preprocessed_dir, \
-        backwards_preprocessed_dir, lm_preprocessed_dir
+    return (
+        pre_gen,
+        left_to_right_preprocessed_dir,
+        right_to_left_preprocessed_dir,
+        backwards_preprocessed_dir,
+        lm_preprocessed_dir,
+    )
 
 
-def lm_scoring(preprocess_directory, bpe_status, gen_output, pre_gen,
-               cur_lm_dict, cur_lm_name, cur_language_model, cur_lm_bpe_code,
-               batch_size, lm_score_file, target_lang, source_lang, prefix_len=None):
+def lm_scoring(
+    preprocess_directory,
+    bpe_status,
+    gen_output,
+    pre_gen,
+    cur_lm_dict,
+    cur_lm_name,
+    cur_language_model,
+    cur_lm_bpe_code,
+    batch_size,
+    lm_score_file,
+    target_lang,
+    source_lang,
+    prefix_len=None,
+):
     if prefix_len is not None:
-        assert bpe_status == "different", "bpe status must be different to use prefix len"
+        assert (
+            bpe_status == "different"
+        ), "bpe status must be different to use prefix len"
     if bpe_status == "no bpe":
         # run lm on output without bpe
-        write_reprocessed(gen_output.no_bpe_source, gen_output.no_bpe_hypo,
-                          gen_output.no_bpe_target, pre_gen+"/rescore_data_no_bpe.de",
-                          pre_gen+"/rescore_data_no_bpe.en", pre_gen+"/reference_file_no_bpe")
+        write_reprocessed(
+            gen_output.no_bpe_source,
+            gen_output.no_bpe_hypo,
+            gen_output.no_bpe_target,
+            pre_gen + "/rescore_data_no_bpe.de",
+            pre_gen + "/rescore_data_no_bpe.en",
+            pre_gen + "/reference_file_no_bpe",
+        )
 
-        preprocess_lm_param = ["--only-source",
-                               "--trainpref", pre_gen+"/rescore_data_no_bpe."+target_lang,
-                               "--srcdict", cur_lm_dict,
-                               "--destdir", preprocess_directory]
+        preprocess_lm_param = [
+            "--only-source",
+            "--trainpref",
+            pre_gen + "/rescore_data_no_bpe." + target_lang,
+            "--srcdict",
+            cur_lm_dict,
+            "--destdir",
+            preprocess_directory,
+        ]
         preprocess_parser = options.get_preprocessing_parser()
         input_args = preprocess_parser.parse_args(preprocess_lm_param)
         preprocess.main(input_args)
 
-        eval_lm_param = [preprocess_directory,
-                         "--path", cur_language_model,
-                         "--output-word-probs",
-                         "--batch-size", str(batch_size),
-                         "--max-tokens", "1024",
-                         "--sample-break-mode", "eos",
-                         "--gen-subset", "train"]
+        eval_lm_param = [
+            preprocess_directory,
+            "--path",
+            cur_language_model,
+            "--output-word-probs",
+            "--batch-size",
+            str(batch_size),
+            "--max-tokens",
+            "1024",
+            "--sample-break-mode",
+            "eos",
+            "--gen-subset",
+            "train",
+        ]
 
         eval_lm_parser = options.get_eval_lm_parser()
         input_args = options.parse_args_and_arch(eval_lm_parser, eval_lm_param)
 
-        with open(lm_score_file, 'w') as f:
+        with open(lm_score_file, "w") as f:
             with redirect_stdout(f):
                 eval_lm.main(input_args)
 
     elif bpe_status == "shared":
-            preprocess_lm_param = ["--only-source",
-                                   "--trainpref", pre_gen+"/rescore_data."+target_lang,
-                                   "--srcdict", cur_lm_dict,
-                                   "--destdir", preprocess_directory]
-            preprocess_parser = options.get_preprocessing_parser()
-            input_args = preprocess_parser.parse_args(preprocess_lm_param)
-            preprocess.main(input_args)
+        preprocess_lm_param = [
+            "--only-source",
+            "--trainpref",
+            pre_gen + "/rescore_data." + target_lang,
+            "--srcdict",
+            cur_lm_dict,
+            "--destdir",
+            preprocess_directory,
+        ]
+        preprocess_parser = options.get_preprocessing_parser()
+        input_args = preprocess_parser.parse_args(preprocess_lm_param)
+        preprocess.main(input_args)
 
-            eval_lm_param = [preprocess_directory,
-                             "--path", cur_language_model,
-                             "--output-word-probs",
-                             "--batch-size", str(batch_size),
-                             "--sample-break-mode", "eos",
-                             "--gen-subset", "train"]
+        eval_lm_param = [
+            preprocess_directory,
+            "--path",
+            cur_language_model,
+            "--output-word-probs",
+            "--batch-size",
+            str(batch_size),
+            "--sample-break-mode",
+            "eos",
+            "--gen-subset",
+            "train",
+        ]
 
-            eval_lm_parser = options.get_eval_lm_parser()
-            input_args = options.parse_args_and_arch(eval_lm_parser, eval_lm_param)
+        eval_lm_parser = options.get_eval_lm_parser()
+        input_args = options.parse_args_and_arch(eval_lm_parser, eval_lm_param)
 
-            with open(lm_score_file, 'w') as f:
-                with redirect_stdout(f):
-                    eval_lm.main(input_args)
+        with open(lm_score_file, "w") as f:
+            with redirect_stdout(f):
+                eval_lm.main(input_args)
 
     elif bpe_status == "different":
-        rescore_file = pre_gen+"/rescore_data_no_bpe"
-        rescore_bpe = pre_gen+"/rescore_data_new_bpe"
+        rescore_file = pre_gen + "/rescore_data_no_bpe"
+        rescore_bpe = pre_gen + "/rescore_data_new_bpe"
 
         rescore_file += "."
         rescore_bpe += "."
 
-        write_reprocessed(gen_output.no_bpe_source, gen_output.no_bpe_hypo,
-                          gen_output.no_bpe_target, rescore_file+source_lang,
-                          rescore_file+target_lang, pre_gen+"/reference_file_no_bpe",
-                          bpe_symbol=None)
+        write_reprocessed(
+            gen_output.no_bpe_source,
+            gen_output.no_bpe_hypo,
+            gen_output.no_bpe_target,
+            rescore_file + source_lang,
+            rescore_file + target_lang,
+            pre_gen + "/reference_file_no_bpe",
+            bpe_symbol=None,
+        )
 
         # apply LM bpe to nbest list
-        bpe_src_param = ["-c", cur_lm_bpe_code,
-                         "--input", rescore_file+target_lang,
-                         "--output", rescore_bpe+target_lang]
-        subprocess.call(["python",
-                         os.path.join(os.path.dirname(__file__),
-                                      "subword-nmt/subword_nmt/apply_bpe.py")] + bpe_src_param,
-                        shell=False)
+        bpe_src_param = [
+            "-c",
+            cur_lm_bpe_code,
+            "--input",
+            rescore_file + target_lang,
+            "--output",
+            rescore_bpe + target_lang,
+        ]
+        subprocess.call(
+            [
+                "python",
+                os.path.join(
+                    os.path.dirname(__file__), "subword-nmt/subword_nmt/apply_bpe.py"
+                ),
+            ]
+            + bpe_src_param,
+            shell=False,
+        )
         # uncomment to use fastbpe instead of subword-nmt bpe
         # bpe_src_param = [rescore_bpe+target_lang, rescore_file+target_lang, cur_lm_bpe_code]
         # subprocess.call(["/private/home/edunov/fastBPE/fast", "applybpe"] + bpe_src_param, shell=False)
 
         preprocess_dir = preprocess_directory
 
-        preprocess_lm_param = ["--only-source",
-                               "--trainpref", rescore_bpe+target_lang,
-                               "--srcdict", cur_lm_dict,
-                               "--destdir", preprocess_dir]
+        preprocess_lm_param = [
+            "--only-source",
+            "--trainpref",
+            rescore_bpe + target_lang,
+            "--srcdict",
+            cur_lm_dict,
+            "--destdir",
+            preprocess_dir,
+        ]
         preprocess_parser = options.get_preprocessing_parser()
         input_args = preprocess_parser.parse_args(preprocess_lm_param)
         preprocess.main(input_args)
 
-        eval_lm_param = [preprocess_dir,
-                         "--path", cur_language_model,
-                         "--output-word-probs",
-                         "--batch-size", str(batch_size),
-                         "--max-tokens", "1024",
-                         "--sample-break-mode", "eos",
-                         "--gen-subset", "train"]
+        eval_lm_param = [
+            preprocess_dir,
+            "--path",
+            cur_language_model,
+            "--output-word-probs",
+            "--batch-size",
+            str(batch_size),
+            "--max-tokens",
+            "1024",
+            "--sample-break-mode",
+            "eos",
+            "--gen-subset",
+            "train",
+        ]
 
         eval_lm_parser = options.get_eval_lm_parser()
         input_args = options.parse_args_and_arch(eval_lm_parser, eval_lm_param)
 
-        with open(lm_score_file, 'w') as f:
+        with open(lm_score_file, "w") as f:
             with redirect_stdout(f):
                 eval_lm.main(input_args)
 
 
-def rescore_file_name(nbest_dir, prefix_len, scorer_name, lm_file=False,
-                      target_prefix_frac=None, source_prefix_frac=None, backwards=None):
+def rescore_file_name(
+    nbest_dir,
+    prefix_len,
+    scorer_name,
+    lm_file=False,
+    target_prefix_frac=None,
+    source_prefix_frac=None,
+    backwards=None,
+):
     if lm_file:
-        score_file = nbest_dir+"/lm_score_translations_model_"+scorer_name+".txt"
+        score_file = nbest_dir + "/lm_score_translations_model_" + scorer_name + ".txt"
     else:
-        score_file = nbest_dir+"/"+scorer_name+"_score_translations.txt"
+        score_file = nbest_dir + "/" + scorer_name + "_score_translations.txt"
     if backwards:
         if prefix_len is not None:
-            score_file += "prefix_len"+str(prefix_len)
+            score_file += "prefix_len" + str(prefix_len)
         elif target_prefix_frac is not None:
-            score_file += "target_prefix_frac"+str(target_prefix_frac)
+            score_file += "target_prefix_frac" + str(target_prefix_frac)
     else:
         if source_prefix_frac is not None:
-            score_file += "source_prefix_frac"+str(source_prefix_frac)
+            score_file += "source_prefix_frac" + str(source_prefix_frac)
     return score_file

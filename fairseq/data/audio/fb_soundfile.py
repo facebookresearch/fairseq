@@ -12,19 +12,170 @@ __version__ = "0.10.2"
 
 import os as _os
 import sys as _sys
-from os import SEEK_SET, SEEK_CUR, SEEK_END
 from ctypes.util import find_library as _find_library
-#from _soundfile import ffi as _ffi
+from os import SEEK_CUR, SEEK_END, SEEK_SET
 
 import _cffi_backend
 
-_ffi = _cffi_backend.FFI('_soundfile',
-    _version = 0x2601,
-    _types = b'\x00\x00\x12\x0D\x00\x00\x68\x03\x00\x00\x07\x01\x00\x00\x67\x03\x00\x00\x75\x03\x00\x00\x00\x0F\x00\x00\x12\x0D\x00\x00\x6A\x03\x00\x00\x07\x01\x00\x00\x03\x11\x00\x00\x00\x0F\x00\x00\x12\x0D\x00\x00\x07\x01\x00\x00\x07\x01\x00\x00\x03\x11\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x69\x03\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x12\x11\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x67\x03\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x6A\x03\x00\x00\x1C\x01\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x07\x01\x00\x00\x07\x11\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x07\x01\x00\x00\x04\x11\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x6B\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x6F\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x02\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x17\x01\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x74\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x04\x11\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x17\x01\x00\x00\x07\x01\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x04\x11\x00\x00\x17\x01\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x75\x03\x00\x00\x17\x01\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x75\x0D\x00\x00\x12\x11\x00\x00\x00\x0F\x00\x00\x00\x09\x00\x00\x01\x09\x00\x00\x02\x09\x00\x00\x03\x09\x00\x00\x02\x01\x00\x00\x0E\x01\x00\x00\x00\x0B\x00\x00\x01\x0B\x00\x00\x02\x0B\x00\x00\x0D\x01\x00\x00\x51\x03\x00\x00\x56\x03\x00\x00\x59\x03\x00\x00\x5E\x03\x00\x00\x05\x01\x00\x00\x00\x01',
-    _globals = (b'\xFF\xFF\xFF\x0BSFC_FILE_TRUNCATE',4224,b'\xFF\xFF\xFF\x0BSFC_GET_FORMAT_INFO',4136,b'\xFF\xFF\xFF\x0BSFC_GET_FORMAT_MAJOR',4145,b'\xFF\xFF\xFF\x0BSFC_GET_FORMAT_MAJOR_COUNT',4144,b'\xFF\xFF\xFF\x0BSFC_GET_FORMAT_SUBTYPE',4147,b'\xFF\xFF\xFF\x0BSFC_GET_FORMAT_SUBTYPE_COUNT',4146,b'\xFF\xFF\xFF\x0BSFC_GET_LIB_VERSION',4096,b'\xFF\xFF\xFF\x0BSFC_GET_LOG_INFO',4097,b'\xFF\xFF\xFF\x0BSFC_SET_CLIPPING',4288,b'\xFF\xFF\xFF\x0BSFC_SET_SCALE_FLOAT_INT_READ',4116,b'\xFF\xFF\xFF\x0BSFC_SET_SCALE_INT_FLOAT_WRITE',4117,b'\xFF\xFF\xFF\x0BSFM_RDWR',48,b'\xFF\xFF\xFF\x0BSFM_READ',16,b'\xFF\xFF\xFF\x0BSFM_WRITE',32,b'\xFF\xFF\xFF\x0BSF_FALSE',0,b'\xFF\xFF\xFF\x0BSF_FORMAT_ENDMASK',805306368,b'\xFF\xFF\xFF\x0BSF_FORMAT_SUBMASK',65535,b'\xFF\xFF\xFF\x0BSF_FORMAT_TYPEMASK',268369920,b'\xFF\xFF\xFF\x0BSF_TRUE',1,b'\x00\x00\x20\x23sf_close',0,b'\x00\x00\x2D\x23sf_command',0,b'\x00\x00\x20\x23sf_error',0,b'\x00\x00\x18\x23sf_error_number',0,b'\x00\x00\x23\x23sf_error_str',0,b'\x00\x00\x1D\x23sf_format_check',0,b'\x00\x00\x14\x23sf_get_string',0,b'\x00\x00\x06\x23sf_open',0,b'\x00\x00\x0B\x23sf_open_fd',0,b'\x00\x00\x00\x23sf_open_virtual',0,b'\x00\x00\x20\x23sf_perror',0,b'\x00\x00\x33\x23sf_read_double',0,b'\x00\x00\x38\x23sf_read_float',0,b'\x00\x00\x3D\x23sf_read_int',0,b'\x00\x00\x4C\x23sf_read_raw',0,b'\x00\x00\x47\x23sf_read_short',0,b'\x00\x00\x4C\x23sf_readf_double',0,b'\x00\x00\x4C\x23sf_readf_float',0,b'\x00\x00\x4C\x23sf_readf_int',0,b'\x00\x00\x4C\x23sf_readf_short',0,b'\x00\x00\x42\x23sf_seek',0,b'\x00\x00\x28\x23sf_set_string',0,b'\x00\x00\x11\x23sf_strerror',0,b'\x00\x00\x1B\x23sf_version_string',0,b'\x00\x00\x33\x23sf_write_double',0,b'\x00\x00\x38\x23sf_write_float',0,b'\x00\x00\x3D\x23sf_write_int',0,b'\x00\x00\x4C\x23sf_write_raw',0,b'\x00\x00\x47\x23sf_write_short',0,b'\x00\x00\x63\x23sf_write_sync',0,b'\x00\x00\x4C\x23sf_writef_double',0,b'\x00\x00\x4C\x23sf_writef_float',0,b'\x00\x00\x4C\x23sf_writef_int',0,b'\x00\x00\x4C\x23sf_writef_short',0),
-    _struct_unions = ((b'\x00\x00\x00\x66\x00\x00\x00\x02SF_FORMAT_INFO',b'\x00\x00\x02\x11format',b'\x00\x00\x07\x11name',b'\x00\x00\x07\x11extension'),(b'\x00\x00\x00\x67\x00\x00\x00\x02SF_INFO',b'\x00\x00\x36\x11frames',b'\x00\x00\x02\x11samplerate',b'\x00\x00\x02\x11channels',b'\x00\x00\x02\x11format',b'\x00\x00\x02\x11sections',b'\x00\x00\x02\x11seekable'),(b'\x00\x00\x00\x68\x00\x00\x00\x02SF_VIRTUAL_IO',b'\x00\x00\x71\x11get_filelen',b'\x00\x00\x70\x11seek',b'\x00\x00\x72\x11read',b'\x00\x00\x73\x11write',b'\x00\x00\x71\x11tell'),(b'\x00\x00\x00\x69\x00\x00\x00\x10SNDFILE_tag',)),
-    _enums = (b'\x00\x00\x00\x6C\x00\x00\x00\x16$1\x00SF_FORMAT_SUBMASK,SF_FORMAT_TYPEMASK,SF_FORMAT_ENDMASK',b'\x00\x00\x00\x6D\x00\x00\x00\x16$2\x00SFC_GET_LIB_VERSION,SFC_GET_LOG_INFO,SFC_GET_FORMAT_INFO,SFC_GET_FORMAT_MAJOR_COUNT,SFC_GET_FORMAT_MAJOR,SFC_GET_FORMAT_SUBTYPE_COUNT,SFC_GET_FORMAT_SUBTYPE,SFC_FILE_TRUNCATE,SFC_SET_CLIPPING,SFC_SET_SCALE_FLOAT_INT_READ,SFC_SET_SCALE_INT_FLOAT_WRITE',b'\x00\x00\x00\x6E\x00\x00\x00\x16$3\x00SF_FALSE,SF_TRUE,SFM_READ,SFM_WRITE,SFM_RDWR'),
-    _typenames = (b'\x00\x00\x00\x66SF_FORMAT_INFO',b'\x00\x00\x00\x67SF_INFO',b'\x00\x00\x00\x68SF_VIRTUAL_IO',b'\x00\x00\x00\x69SNDFILE',b'\x00\x00\x00\x36sf_count_t',b'\x00\x00\x00\x71sf_vio_get_filelen',b'\x00\x00\x00\x72sf_vio_read',b'\x00\x00\x00\x70sf_vio_seek',b'\x00\x00\x00\x71sf_vio_tell',b'\x00\x00\x00\x73sf_vio_write'),
+
+# from _soundfile import ffi as _ffi
+
+
+_ffi = _cffi_backend.FFI(
+    "_soundfile",
+    _version=0x2601,
+    _types=b"\x00\x00\x12\x0D\x00\x00\x68\x03\x00\x00\x07\x01\x00\x00\x67\x03\x00\x00\x75\x03\x00\x00\x00\x0F\x00\x00\x12\x0D\x00\x00\x6A\x03\x00\x00\x07\x01\x00\x00\x03\x11\x00\x00\x00\x0F\x00\x00\x12\x0D\x00\x00\x07\x01\x00\x00\x07\x01\x00\x00\x03\x11\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x69\x03\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x12\x11\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x07\x0D\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x67\x03\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x6A\x03\x00\x00\x1C\x01\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x07\x01\x00\x00\x07\x11\x00\x00\x00\x0F\x00\x00\x02\x0D\x00\x00\x12\x11\x00\x00\x07\x01\x00\x00\x04\x11\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x6B\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x6F\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x02\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x17\x01\x00\x00\x07\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x74\x03\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x12\x11\x00\x00\x04\x11\x00\x00\x17\x01\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x17\x01\x00\x00\x07\x01\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x04\x11\x00\x00\x17\x01\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x36\x0D\x00\x00\x75\x03\x00\x00\x17\x01\x00\x00\x04\x11\x00\x00\x00\x0F\x00\x00\x75\x0D\x00\x00\x12\x11\x00\x00\x00\x0F\x00\x00\x00\x09\x00\x00\x01\x09\x00\x00\x02\x09\x00\x00\x03\x09\x00\x00\x02\x01\x00\x00\x0E\x01\x00\x00\x00\x0B\x00\x00\x01\x0B\x00\x00\x02\x0B\x00\x00\x0D\x01\x00\x00\x51\x03\x00\x00\x56\x03\x00\x00\x59\x03\x00\x00\x5E\x03\x00\x00\x05\x01\x00\x00\x00\x01",
+    _globals=(
+        b"\xFF\xFF\xFF\x0BSFC_FILE_TRUNCATE",
+        4224,
+        b"\xFF\xFF\xFF\x0BSFC_GET_FORMAT_INFO",
+        4136,
+        b"\xFF\xFF\xFF\x0BSFC_GET_FORMAT_MAJOR",
+        4145,
+        b"\xFF\xFF\xFF\x0BSFC_GET_FORMAT_MAJOR_COUNT",
+        4144,
+        b"\xFF\xFF\xFF\x0BSFC_GET_FORMAT_SUBTYPE",
+        4147,
+        b"\xFF\xFF\xFF\x0BSFC_GET_FORMAT_SUBTYPE_COUNT",
+        4146,
+        b"\xFF\xFF\xFF\x0BSFC_GET_LIB_VERSION",
+        4096,
+        b"\xFF\xFF\xFF\x0BSFC_GET_LOG_INFO",
+        4097,
+        b"\xFF\xFF\xFF\x0BSFC_SET_CLIPPING",
+        4288,
+        b"\xFF\xFF\xFF\x0BSFC_SET_SCALE_FLOAT_INT_READ",
+        4116,
+        b"\xFF\xFF\xFF\x0BSFC_SET_SCALE_INT_FLOAT_WRITE",
+        4117,
+        b"\xFF\xFF\xFF\x0BSFM_RDWR",
+        48,
+        b"\xFF\xFF\xFF\x0BSFM_READ",
+        16,
+        b"\xFF\xFF\xFF\x0BSFM_WRITE",
+        32,
+        b"\xFF\xFF\xFF\x0BSF_FALSE",
+        0,
+        b"\xFF\xFF\xFF\x0BSF_FORMAT_ENDMASK",
+        805306368,
+        b"\xFF\xFF\xFF\x0BSF_FORMAT_SUBMASK",
+        65535,
+        b"\xFF\xFF\xFF\x0BSF_FORMAT_TYPEMASK",
+        268369920,
+        b"\xFF\xFF\xFF\x0BSF_TRUE",
+        1,
+        b"\x00\x00\x20\x23sf_close",
+        0,
+        b"\x00\x00\x2D\x23sf_command",
+        0,
+        b"\x00\x00\x20\x23sf_error",
+        0,
+        b"\x00\x00\x18\x23sf_error_number",
+        0,
+        b"\x00\x00\x23\x23sf_error_str",
+        0,
+        b"\x00\x00\x1D\x23sf_format_check",
+        0,
+        b"\x00\x00\x14\x23sf_get_string",
+        0,
+        b"\x00\x00\x06\x23sf_open",
+        0,
+        b"\x00\x00\x0B\x23sf_open_fd",
+        0,
+        b"\x00\x00\x00\x23sf_open_virtual",
+        0,
+        b"\x00\x00\x20\x23sf_perror",
+        0,
+        b"\x00\x00\x33\x23sf_read_double",
+        0,
+        b"\x00\x00\x38\x23sf_read_float",
+        0,
+        b"\x00\x00\x3D\x23sf_read_int",
+        0,
+        b"\x00\x00\x4C\x23sf_read_raw",
+        0,
+        b"\x00\x00\x47\x23sf_read_short",
+        0,
+        b"\x00\x00\x4C\x23sf_readf_double",
+        0,
+        b"\x00\x00\x4C\x23sf_readf_float",
+        0,
+        b"\x00\x00\x4C\x23sf_readf_int",
+        0,
+        b"\x00\x00\x4C\x23sf_readf_short",
+        0,
+        b"\x00\x00\x42\x23sf_seek",
+        0,
+        b"\x00\x00\x28\x23sf_set_string",
+        0,
+        b"\x00\x00\x11\x23sf_strerror",
+        0,
+        b"\x00\x00\x1B\x23sf_version_string",
+        0,
+        b"\x00\x00\x33\x23sf_write_double",
+        0,
+        b"\x00\x00\x38\x23sf_write_float",
+        0,
+        b"\x00\x00\x3D\x23sf_write_int",
+        0,
+        b"\x00\x00\x4C\x23sf_write_raw",
+        0,
+        b"\x00\x00\x47\x23sf_write_short",
+        0,
+        b"\x00\x00\x63\x23sf_write_sync",
+        0,
+        b"\x00\x00\x4C\x23sf_writef_double",
+        0,
+        b"\x00\x00\x4C\x23sf_writef_float",
+        0,
+        b"\x00\x00\x4C\x23sf_writef_int",
+        0,
+        b"\x00\x00\x4C\x23sf_writef_short",
+        0,
+    ),
+    _struct_unions=(
+        (
+            b"\x00\x00\x00\x66\x00\x00\x00\x02SF_FORMAT_INFO",
+            b"\x00\x00\x02\x11format",
+            b"\x00\x00\x07\x11name",
+            b"\x00\x00\x07\x11extension",
+        ),
+        (
+            b"\x00\x00\x00\x67\x00\x00\x00\x02SF_INFO",
+            b"\x00\x00\x36\x11frames",
+            b"\x00\x00\x02\x11samplerate",
+            b"\x00\x00\x02\x11channels",
+            b"\x00\x00\x02\x11format",
+            b"\x00\x00\x02\x11sections",
+            b"\x00\x00\x02\x11seekable",
+        ),
+        (
+            b"\x00\x00\x00\x68\x00\x00\x00\x02SF_VIRTUAL_IO",
+            b"\x00\x00\x71\x11get_filelen",
+            b"\x00\x00\x70\x11seek",
+            b"\x00\x00\x72\x11read",
+            b"\x00\x00\x73\x11write",
+            b"\x00\x00\x71\x11tell",
+        ),
+        (b"\x00\x00\x00\x69\x00\x00\x00\x10SNDFILE_tag",),
+    ),
+    _enums=(
+        b"\x00\x00\x00\x6C\x00\x00\x00\x16$1\x00SF_FORMAT_SUBMASK,SF_FORMAT_TYPEMASK,SF_FORMAT_ENDMASK",
+        b"\x00\x00\x00\x6D\x00\x00\x00\x16$2\x00SFC_GET_LIB_VERSION,SFC_GET_LOG_INFO,SFC_GET_FORMAT_INFO,SFC_GET_FORMAT_MAJOR_COUNT,SFC_GET_FORMAT_MAJOR,SFC_GET_FORMAT_SUBTYPE_COUNT,SFC_GET_FORMAT_SUBTYPE,SFC_FILE_TRUNCATE,SFC_SET_CLIPPING,SFC_SET_SCALE_FLOAT_INT_READ,SFC_SET_SCALE_INT_FLOAT_WRITE",
+        b"\x00\x00\x00\x6E\x00\x00\x00\x16$3\x00SF_FALSE,SF_TRUE,SFM_READ,SFM_WRITE,SFM_RDWR",
+    ),
+    _typenames=(
+        b"\x00\x00\x00\x66SF_FORMAT_INFO",
+        b"\x00\x00\x00\x67SF_INFO",
+        b"\x00\x00\x00\x68SF_VIRTUAL_IO",
+        b"\x00\x00\x00\x69SNDFILE",
+        b"\x00\x00\x00\x36sf_count_t",
+        b"\x00\x00\x00\x71sf_vio_get_filelen",
+        b"\x00\x00\x00\x72sf_vio_read",
+        b"\x00\x00\x00\x70sf_vio_seek",
+        b"\x00\x00\x00\x71sf_vio_tell",
+        b"\x00\x00\x00\x73sf_vio_write",
+    ),
 )
 
 try:
@@ -34,139 +185,135 @@ except NameError:
 
 
 _str_types = {
-    'title':       0x01,
-    'copyright':   0x02,
-    'software':    0x03,
-    'artist':      0x04,
-    'comment':     0x05,
-    'date':        0x06,
-    'album':       0x07,
-    'license':     0x08,
-    'tracknumber': 0x09,
-    'genre':       0x10,
+    "title": 0x01,
+    "copyright": 0x02,
+    "software": 0x03,
+    "artist": 0x04,
+    "comment": 0x05,
+    "date": 0x06,
+    "album": 0x07,
+    "license": 0x08,
+    "tracknumber": 0x09,
+    "genre": 0x10,
 }
 
 _formats = {
-    'WAV':   0x010000,  # Microsoft WAV format (little endian default).
-    'AIFF':  0x020000,  # Apple/SGI AIFF format (big endian).
-    'AU':    0x030000,  # Sun/NeXT AU format (big endian).
-    'RAW':   0x040000,  # RAW PCM data.
-    'PAF':   0x050000,  # Ensoniq PARIS file format.
-    'SVX':   0x060000,  # Amiga IFF / SVX8 / SV16 format.
-    'NIST':  0x070000,  # Sphere NIST format.
-    'VOC':   0x080000,  # VOC files.
-    'IRCAM': 0x0A0000,  # Berkeley/IRCAM/CARL
-    'W64':   0x0B0000,  # Sonic Foundry's 64 bit RIFF/WAV
-    'MAT4':  0x0C0000,  # Matlab (tm) V4.2 / GNU Octave 2.0
-    'MAT5':  0x0D0000,  # Matlab (tm) V5.0 / GNU Octave 2.1
-    'PVF':   0x0E0000,  # Portable Voice Format
-    'XI':    0x0F0000,  # Fasttracker 2 Extended Instrument
-    'HTK':   0x100000,  # HMM Tool Kit format
-    'SDS':   0x110000,  # Midi Sample Dump Standard
-    'AVR':   0x120000,  # Audio Visual Research
-    'WAVEX': 0x130000,  # MS WAVE with WAVEFORMATEX
-    'SD2':   0x160000,  # Sound Designer 2
-    'FLAC':  0x170000,  # FLAC lossless file format
-    'CAF':   0x180000,  # Core Audio File format
-    'WVE':   0x190000,  # Psion WVE format
-    'OGG':   0x200000,  # Xiph OGG container
-    'MPC2K': 0x210000,  # Akai MPC 2000 sampler
-    'RF64':  0x220000,  # RF64 WAV file
+    "WAV": 0x010000,  # Microsoft WAV format (little endian default).
+    "AIFF": 0x020000,  # Apple/SGI AIFF format (big endian).
+    "AU": 0x030000,  # Sun/NeXT AU format (big endian).
+    "RAW": 0x040000,  # RAW PCM data.
+    "PAF": 0x050000,  # Ensoniq PARIS file format.
+    "SVX": 0x060000,  # Amiga IFF / SVX8 / SV16 format.
+    "NIST": 0x070000,  # Sphere NIST format.
+    "VOC": 0x080000,  # VOC files.
+    "IRCAM": 0x0A0000,  # Berkeley/IRCAM/CARL
+    "W64": 0x0B0000,  # Sonic Foundry's 64 bit RIFF/WAV
+    "MAT4": 0x0C0000,  # Matlab (tm) V4.2 / GNU Octave 2.0
+    "MAT5": 0x0D0000,  # Matlab (tm) V5.0 / GNU Octave 2.1
+    "PVF": 0x0E0000,  # Portable Voice Format
+    "XI": 0x0F0000,  # Fasttracker 2 Extended Instrument
+    "HTK": 0x100000,  # HMM Tool Kit format
+    "SDS": 0x110000,  # Midi Sample Dump Standard
+    "AVR": 0x120000,  # Audio Visual Research
+    "WAVEX": 0x130000,  # MS WAVE with WAVEFORMATEX
+    "SD2": 0x160000,  # Sound Designer 2
+    "FLAC": 0x170000,  # FLAC lossless file format
+    "CAF": 0x180000,  # Core Audio File format
+    "WVE": 0x190000,  # Psion WVE format
+    "OGG": 0x200000,  # Xiph OGG container
+    "MPC2K": 0x210000,  # Akai MPC 2000 sampler
+    "RF64": 0x220000,  # RF64 WAV file
 }
 
 _subtypes = {
-    'PCM_S8':    0x0001,  # Signed 8 bit data
-    'PCM_16':    0x0002,  # Signed 16 bit data
-    'PCM_24':    0x0003,  # Signed 24 bit data
-    'PCM_32':    0x0004,  # Signed 32 bit data
-    'PCM_U8':    0x0005,  # Unsigned 8 bit data (WAV and RAW only)
-    'FLOAT':     0x0006,  # 32 bit float data
-    'DOUBLE':    0x0007,  # 64 bit float data
-    'ULAW':      0x0010,  # U-Law encoded.
-    'ALAW':      0x0011,  # A-Law encoded.
-    'IMA_ADPCM': 0x0012,  # IMA ADPCM.
-    'MS_ADPCM':  0x0013,  # Microsoft ADPCM.
-    'GSM610':    0x0020,  # GSM 6.10 encoding.
-    'VOX_ADPCM': 0x0021,  # OKI / Dialogix ADPCM
-    'G721_32':   0x0030,  # 32kbs G721 ADPCM encoding.
-    'G723_24':   0x0031,  # 24kbs G723 ADPCM encoding.
-    'G723_40':   0x0032,  # 40kbs G723 ADPCM encoding.
-    'DWVW_12':   0x0040,  # 12 bit Delta Width Variable Word encoding.
-    'DWVW_16':   0x0041,  # 16 bit Delta Width Variable Word encoding.
-    'DWVW_24':   0x0042,  # 24 bit Delta Width Variable Word encoding.
-    'DWVW_N':    0x0043,  # N bit Delta Width Variable Word encoding.
-    'DPCM_8':    0x0050,  # 8 bit differential PCM (XI only)
-    'DPCM_16':   0x0051,  # 16 bit differential PCM (XI only)
-    'VORBIS':    0x0060,  # Xiph Vorbis encoding.
-    'ALAC_16':   0x0070,  # Apple Lossless Audio Codec (16 bit).
-    'ALAC_20':   0x0071,  # Apple Lossless Audio Codec (20 bit).
-    'ALAC_24':   0x0072,  # Apple Lossless Audio Codec (24 bit).
-    'ALAC_32':   0x0073,  # Apple Lossless Audio Codec (32 bit).
+    "PCM_S8": 0x0001,  # Signed 8 bit data
+    "PCM_16": 0x0002,  # Signed 16 bit data
+    "PCM_24": 0x0003,  # Signed 24 bit data
+    "PCM_32": 0x0004,  # Signed 32 bit data
+    "PCM_U8": 0x0005,  # Unsigned 8 bit data (WAV and RAW only)
+    "FLOAT": 0x0006,  # 32 bit float data
+    "DOUBLE": 0x0007,  # 64 bit float data
+    "ULAW": 0x0010,  # U-Law encoded.
+    "ALAW": 0x0011,  # A-Law encoded.
+    "IMA_ADPCM": 0x0012,  # IMA ADPCM.
+    "MS_ADPCM": 0x0013,  # Microsoft ADPCM.
+    "GSM610": 0x0020,  # GSM 6.10 encoding.
+    "VOX_ADPCM": 0x0021,  # OKI / Dialogix ADPCM
+    "G721_32": 0x0030,  # 32kbs G721 ADPCM encoding.
+    "G723_24": 0x0031,  # 24kbs G723 ADPCM encoding.
+    "G723_40": 0x0032,  # 40kbs G723 ADPCM encoding.
+    "DWVW_12": 0x0040,  # 12 bit Delta Width Variable Word encoding.
+    "DWVW_16": 0x0041,  # 16 bit Delta Width Variable Word encoding.
+    "DWVW_24": 0x0042,  # 24 bit Delta Width Variable Word encoding.
+    "DWVW_N": 0x0043,  # N bit Delta Width Variable Word encoding.
+    "DPCM_8": 0x0050,  # 8 bit differential PCM (XI only)
+    "DPCM_16": 0x0051,  # 16 bit differential PCM (XI only)
+    "VORBIS": 0x0060,  # Xiph Vorbis encoding.
+    "ALAC_16": 0x0070,  # Apple Lossless Audio Codec (16 bit).
+    "ALAC_20": 0x0071,  # Apple Lossless Audio Codec (20 bit).
+    "ALAC_24": 0x0072,  # Apple Lossless Audio Codec (24 bit).
+    "ALAC_32": 0x0073,  # Apple Lossless Audio Codec (32 bit).
 }
 
 _endians = {
-    'FILE':   0x00000000,  # Default file endian-ness.
-    'LITTLE': 0x10000000,  # Force little endian-ness.
-    'BIG':    0x20000000,  # Force big endian-ness.
-    'CPU':    0x30000000,  # Force CPU endian-ness.
+    "FILE": 0x00000000,  # Default file endian-ness.
+    "LITTLE": 0x10000000,  # Force little endian-ness.
+    "BIG": 0x20000000,  # Force big endian-ness.
+    "CPU": 0x30000000,  # Force CPU endian-ness.
 }
 
 # libsndfile doesn't specify default subtypes, these are somehow arbitrary:
 _default_subtypes = {
-    'WAV':   'PCM_16',
-    'AIFF':  'PCM_16',
-    'AU':    'PCM_16',
+    "WAV": "PCM_16",
+    "AIFF": "PCM_16",
+    "AU": "PCM_16",
     # 'RAW':  # subtype must be explicit!
-    'PAF':   'PCM_16',
-    'SVX':   'PCM_16',
-    'NIST':  'PCM_16',
-    'VOC':   'PCM_16',
-    'IRCAM': 'PCM_16',
-    'W64':   'PCM_16',
-    'MAT4':  'DOUBLE',
-    'MAT5':  'DOUBLE',
-    'PVF':   'PCM_16',
-    'XI':    'DPCM_16',
-    'HTK':   'PCM_16',
-    'SDS':   'PCM_16',
-    'AVR':   'PCM_16',
-    'WAVEX': 'PCM_16',
-    'SD2':   'PCM_16',
-    'FLAC':  'PCM_16',
-    'CAF':   'PCM_16',
-    'WVE':   'ALAW',
-    'OGG':   'VORBIS',
-    'MPC2K': 'PCM_16',
-    'RF64':  'PCM_16',
+    "PAF": "PCM_16",
+    "SVX": "PCM_16",
+    "NIST": "PCM_16",
+    "VOC": "PCM_16",
+    "IRCAM": "PCM_16",
+    "W64": "PCM_16",
+    "MAT4": "DOUBLE",
+    "MAT5": "DOUBLE",
+    "PVF": "PCM_16",
+    "XI": "DPCM_16",
+    "HTK": "PCM_16",
+    "SDS": "PCM_16",
+    "AVR": "PCM_16",
+    "WAVEX": "PCM_16",
+    "SD2": "PCM_16",
+    "FLAC": "PCM_16",
+    "CAF": "PCM_16",
+    "WVE": "ALAW",
+    "OGG": "VORBIS",
+    "MPC2K": "PCM_16",
+    "RF64": "PCM_16",
 }
 
-_ffi_types = {
-    'float64': 'double',
-    'float32': 'float',
-    'int32': 'int',
-    'int16': 'short'
-}
+_ffi_types = {"float64": "double", "float32": "float", "int32": "int", "int16": "short"}
 
 try:
-    _libname = _find_library('sndfile')
+    _libname = _find_library("sndfile")
 
     if _libname is None:
-        for path in _os.environ['LD_LIBRARY_PATH'].split(':'):
-            libpath = _os.path.join(path, 'libsndfile.so.1')
+        for path in _os.environ["LD_LIBRARY_PATH"].split(":"):
+            libpath = _os.path.join(path, "libsndfile.so.1")
             if _os.path.isfile(libpath):
                 libpath = _os.path.realpath(libpath)
                 _libname = libpath
                 break
 
     if _libname is None:
-        raise OSError('sndfile library not found')
+        raise OSError("sndfile library not found")
     _snd = _ffi.dlopen(_libname)
 except OSError:
-    if _sys.platform == 'darwin':
-        _libname = 'libsndfile.dylib'
-    elif _sys.platform == 'win32':
+    if _sys.platform == "darwin":
+        _libname = "libsndfile.dylib"
+    elif _sys.platform == "win32":
         from platform import architecture as _architecture
-        _libname = 'libsndfile' + _architecture()[0] + '.dll'
+
+        _libname = "libsndfile" + _architecture()[0] + ".dll"
     else:
         raise
 
@@ -177,19 +324,33 @@ except OSError:
     _path = _os.path.dirname(_os.path.abspath(__file__))
 
     while not _os.path.isdir(_path):
-        _path = _os.path.abspath(_os.path.join(_path, '..'))
+        _path = _os.path.abspath(_os.path.join(_path, ".."))
 
-    _snd = _ffi.dlopen(_os.path.join(
-        _path, '_soundfile_data', _libname))
+    _snd = _ffi.dlopen(_os.path.join(_path, "_soundfile_data", _libname))
 
-__libsndfile_version__ = _ffi.string(_snd.sf_version_string()).decode('utf-8', 'replace')
-if __libsndfile_version__.startswith('libsndfile-'):
-    __libsndfile_version__ = __libsndfile_version__[len('libsndfile-'):]
+__libsndfile_version__ = _ffi.string(_snd.sf_version_string()).decode(
+    "utf-8", "replace"
+)
+if __libsndfile_version__.startswith("libsndfile-"):
+    __libsndfile_version__ = __libsndfile_version__[len("libsndfile-") :]
 
 
-def read(file, frames=-1, start=0, stop=None, dtype='float64', always_2d=False,
-         fill_value=None, out=None, samplerate=None, channels=None,
-         format=None, subtype=None, endian=None, closefd=True):
+def read(
+    file,
+    frames=-1,
+    start=0,
+    stop=None,
+    dtype="float64",
+    always_2d=False,
+    fill_value=None,
+    out=None,
+    samplerate=None,
+    channels=None,
+    format=None,
+    subtype=None,
+    endian=None,
+    closefd=True,
+):
     """Provide audio data from a sound file as NumPy array.
 
     By default, the whole file is read from the beginning, but the
@@ -273,15 +434,15 @@ def read(file, frames=-1, start=0, stop=None, dtype='float64', always_2d=False,
     44100
 
     """
-    with SoundFile(file, 'r', samplerate, channels,
-                   subtype, endian, format, closefd) as f:
+    with SoundFile(
+        file, "r", samplerate, channels, subtype, endian, format, closefd
+    ) as f:
         frames = f._prepare_read(start, stop, frames)
         data = f.read(frames, dtype, always_2d, fill_value, out)
     return data, f.samplerate
 
 
-def write(file, data, samplerate, subtype=None, endian=None, format=None,
-          closefd=True):
+def write(file, data, samplerate, subtype=None, endian=None, format=None, closefd=True):
     """Write data to a sound file.
 
     .. note:: If `file` exists, it will be truncated and overwritten!
@@ -326,20 +487,36 @@ def write(file, data, samplerate, subtype=None, endian=None, format=None,
 
     """
     import numpy as np
+
     data = np.asarray(data)
     if data.ndim == 1:
         channels = 1
     else:
         channels = data.shape[1]
-    with SoundFile(file, 'w', samplerate, channels,
-                   subtype, endian, format, closefd) as f:
+    with SoundFile(
+        file, "w", samplerate, channels, subtype, endian, format, closefd
+    ) as f:
         f.write(data)
 
 
-def blocks(file, blocksize=None, overlap=0, frames=-1, start=0, stop=None,
-           dtype='float64', always_2d=False, fill_value=None, out=None,
-           samplerate=None, channels=None,
-           format=None, subtype=None, endian=None, closefd=True):
+def blocks(
+    file,
+    blocksize=None,
+    overlap=0,
+    frames=-1,
+    start=0,
+    stop=None,
+    dtype="float64",
+    always_2d=False,
+    fill_value=None,
+    out=None,
+    samplerate=None,
+    channels=None,
+    format=None,
+    subtype=None,
+    endian=None,
+    closefd=True,
+):
     """Return a generator for block-wise reading.
 
     By default, iteration starts at the beginning and stops at the end
@@ -387,11 +564,13 @@ def blocks(file, blocksize=None, overlap=0, frames=-1, start=0, stop=None,
     >>>     pass  # do something with 'block'
 
     """
-    with SoundFile(file, 'r', samplerate, channels,
-                   subtype, endian, format, closefd) as f:
+    with SoundFile(
+        file, "r", samplerate, channels, subtype, endian, format, closefd
+    ) as f:
         frames = f._prepare_read(start, stop, frames)
-        for block in f.blocks(blocksize, overlap, frames,
-                              dtype, always_2d, fill_value, out):
+        for block in f.blocks(
+            blocksize, overlap, frames, dtype, always_2d, fill_value, out
+        ):
             yield block
 
 
@@ -405,7 +584,7 @@ class _SoundFileInfo(object):
             self.samplerate = f.samplerate
             self.channels = f.channels
             self.frames = f.frames
-            self.duration = float(self.frames)/f.samplerate
+            self.duration = float(self.frames) / f.samplerate
             self.format = f.format
             self.subtype = f.subtype
             self.endian = f.endian
@@ -428,20 +607,26 @@ class _SoundFileInfo(object):
 
     def __repr__(self):
         info = "\n".join(
-            ["{0.name}",
-             "samplerate: {0.samplerate} Hz",
-             "channels: {0.channels}",
-             "duration: {0._duration_str}",
-             "format: {0.format_info} [{0.format}]",
-             "subtype: {0.subtype_info} [{0.subtype}]"])
+            [
+                "{0.name}",
+                "samplerate: {0.samplerate} Hz",
+                "channels: {0.channels}",
+                "duration: {0._duration_str}",
+                "format: {0.format_info} [{0.format}]",
+                "subtype: {0.subtype_info} [{0.subtype}]",
+            ]
+        )
         if self.verbose:
             info += "\n".join(
-                ["\nendian: {0.endian}",
-                 "sections: {0.sections}",
-                 "frames: {0.frames}",
-                 'extra_info: """',
-                 '    {1}"""'])
-        indented_extra_info = ("\n"+" "*4).join(self.extra_info.split("\n"))
+                [
+                    "\nendian: {0.endian}",
+                    "sections: {0.sections}",
+                    "frames: {0.frames}",
+                    'extra_info: """',
+                    '    {1}"""',
+                ]
+            )
+        indented_extra_info = ("\n" + " " * 4).join(self.extra_info.split("\n"))
         return info.format(self, indented_extra_info)
 
 
@@ -473,8 +658,11 @@ def available_formats():
      'MAT5': 'MAT5 (GNU Octave 2.1 / Matlab 5.0)'}
 
     """
-    return dict(_available_formats_helper(_snd.SFC_GET_FORMAT_MAJOR_COUNT,
-                                          _snd.SFC_GET_FORMAT_MAJOR))
+    return dict(
+        _available_formats_helper(
+            _snd.SFC_GET_FORMAT_MAJOR_COUNT, _snd.SFC_GET_FORMAT_MAJOR
+        )
+    )
 
 
 def available_subtypes(format=None):
@@ -494,10 +682,14 @@ def available_subtypes(format=None):
      'PCM_S8': 'Signed 8 bit PCM'}
 
     """
-    subtypes = _available_formats_helper(_snd.SFC_GET_FORMAT_SUBTYPE_COUNT,
-                                         _snd.SFC_GET_FORMAT_SUBTYPE)
-    return dict((subtype, name) for subtype, name in subtypes
-                if format is None or check_format(format, subtype))
+    subtypes = _available_formats_helper(
+        _snd.SFC_GET_FORMAT_SUBTYPE_COUNT, _snd.SFC_GET_FORMAT_SUBTYPE
+    )
+    return dict(
+        (subtype, name)
+        for subtype, name in subtypes
+        if format is None or check_format(format, subtype)
+    )
 
 
 def check_format(format, subtype=None, endian=None):
@@ -542,8 +734,17 @@ class SoundFile(object):
 
     """
 
-    def __init__(self, file, mode='r', samplerate=None, channels=None,
-                 subtype=None, endian=None, format=None, closefd=True):
+    def __init__(
+        self,
+        file,
+        mode="r",
+        samplerate=None,
+        channels=None,
+        subtype=None,
+        endian=None,
+        format=None,
+        closefd=True,
+    ):
         """Open a sound file.
 
         If a file is opened with `mode` ``'r'`` (the default) or
@@ -636,20 +837,20 @@ class SoundFile(object):
         """
         # resolve PathLike objects (see PEP519 for details):
         # can be replaced with _os.fspath(file) for Python >= 3.6
-        file = file.__fspath__() if hasattr(file, '__fspath__') else file
+        file = file.__fspath__() if hasattr(file, "__fspath__") else file
         self._name = file
         if mode is None:
-            mode = getattr(file, 'mode', None)
+            mode = getattr(file, "mode", None)
         mode_int = _check_mode(mode)
         self._mode = mode
-        self._info = _create_info_struct(file, mode, samplerate, channels,
-                                         format, subtype, endian)
+        self._info = _create_info_struct(
+            file, mode, samplerate, channels, format, subtype, endian
+        )
         self._file = self._open(file, mode_int, closefd)
-        if set(mode).issuperset('r+') and self.seekable():
+        if set(mode).issuperset("r+") and self.seekable():
             # Move write position to 0 (like in Python file objects)
             self.seek(0)
-        _snd.sf_command(self._file, _snd.SFC_SET_CLIPPING, _ffi.NULL,
-                        _snd.SF_TRUE)
+        _snd.sf_command(self._file, _snd.SFC_SET_CLIPPING, _ffi.NULL, _snd.SF_TRUE)
 
     name = property(lambda self: self._name)
     """The file name of the sound file."""
@@ -662,21 +863,24 @@ class SoundFile(object):
     channels = property(lambda self: self._info.channels)
     """The number of channels in the sound file."""
     format = property(
-        lambda self: _format_str(self._info.format & _snd.SF_FORMAT_TYPEMASK))
+        lambda self: _format_str(self._info.format & _snd.SF_FORMAT_TYPEMASK)
+    )
     """The major format of the sound file."""
     subtype = property(
-        lambda self: _format_str(self._info.format & _snd.SF_FORMAT_SUBMASK))
+        lambda self: _format_str(self._info.format & _snd.SF_FORMAT_SUBMASK)
+    )
     """The subtype of data in the the sound file."""
     endian = property(
-        lambda self: _format_str(self._info.format & _snd.SF_FORMAT_ENDMASK))
+        lambda self: _format_str(self._info.format & _snd.SF_FORMAT_ENDMASK)
+    )
     """The endian-ness of the data in the sound file."""
     format_info = property(
-        lambda self: _format_info(self._info.format &
-                                  _snd.SF_FORMAT_TYPEMASK)[1])
+        lambda self: _format_info(self._info.format & _snd.SF_FORMAT_TYPEMASK)[1]
+    )
     """A description of the major format of the sound file."""
     subtype_info = property(
-        lambda self: _format_info(self._info.format &
-                                  _snd.SF_FORMAT_SUBMASK)[1])
+        lambda self: _format_info(self._info.format & _snd.SF_FORMAT_SUBMASK)[1]
+    )
     """A description of the subtype of the sound file."""
     sections = property(lambda self: self._info.sections)
     """The number of sections of the sound file."""
@@ -688,19 +892,20 @@ class SoundFile(object):
     @property
     def extra_info(self):
         """Retrieve the log string generated when opening the file."""
-        info = _ffi.new("char[]", 2**14)
-        _snd.sf_command(self._file, _snd.SFC_GET_LOG_INFO,
-                        info, _ffi.sizeof(info))
-        return _ffi.string(info).decode('utf-8', 'replace')
+        info = _ffi.new("char[]", 2 ** 14)
+        _snd.sf_command(self._file, _snd.SFC_GET_LOG_INFO, info, _ffi.sizeof(info))
+        return _ffi.string(info).decode("utf-8", "replace")
 
     # avoid confusion if something goes wrong before assigning self._file:
     _file = None
 
     def __repr__(self):
-        return ("SoundFile({0.name!r}, mode={0.mode!r}, "
-                "samplerate={0.samplerate}, channels={0.channels}, "
-                "format={0.format!r}, subtype={0.subtype!r}, "
-                "endian={0.endian!r})".format(self))
+        return (
+            "SoundFile({0.name!r}, mode={0.mode!r}, "
+            "samplerate={0.samplerate}, channels={0.channels}, "
+            "format={0.format!r}, subtype={0.subtype!r}, "
+            "endian={0.endian!r})".format(self)
+        )
 
     def __del__(self):
         self.close()
@@ -715,8 +920,7 @@ class SoundFile(object):
         """Write text meta-data in the sound file through properties."""
         if name in _str_types:
             self._check_if_closed()
-            err = _snd.sf_set_string(self._file, _str_types[name],
-                                     value.encode())
+            err = _snd.sf_set_string(self._file, _str_types[name], value.encode())
             _error_check(err)
         else:
             object.__setattr__(self, name, value)
@@ -726,10 +930,11 @@ class SoundFile(object):
         if name in _str_types:
             self._check_if_closed()
             data = _snd.sf_get_string(self._file, _str_types[name])
-            return _ffi.string(data).decode('utf-8', 'replace') if data else ""
+            return _ffi.string(data).decode("utf-8", "replace") if data else ""
         else:
             raise AttributeError(
-                "'SoundFile' object has no attribute {0!r}".format(name))
+                "'SoundFile' object has no attribute {0!r}".format(name)
+            )
 
     def __len__(self):
         # Note: This is deprecated and will be removed at some point,
@@ -795,8 +1000,9 @@ class SoundFile(object):
         """Return the current read/write position."""
         return self.seek(0, SEEK_CUR)
 
-    def read(self, frames=-1, dtype='float64', always_2d=False,
-             fill_value=None, out=None):
+    def read(
+        self, frames=-1, dtype="float64", always_2d=False, fill_value=None, out=None
+    ):
         """Read from the file and return data as NumPy array.
 
         Reads the given number of frames in the given data format
@@ -882,7 +1088,7 @@ class SoundFile(object):
         else:
             if frames < 0 or frames > len(out):
                 frames = len(out)
-        frames = self._array_io('read', out, frames)
+        frames = self._array_io("read", out, frames)
         if len(out) > frames:
             if fill_value is None:
                 out = out[:frames]
@@ -920,8 +1126,8 @@ class SoundFile(object):
         """
         frames = self._check_frames(frames, fill_value=None)
         ctype = self._check_dtype(dtype)
-        cdata = _ffi.new(ctype + '[]', frames * self.channels)
-        read_frames = self._cdata_io('read', cdata, ctype, frames)
+        cdata = _ffi.new(ctype + "[]", frames * self.channels)
+        read_frames = self._cdata_io("read", cdata, ctype, frames)
         assert read_frames == frames
         return _ffi.buffer(cdata)
 
@@ -955,7 +1161,7 @@ class SoundFile(object):
         """
         ctype = self._check_dtype(dtype)
         cdata, frames = self._check_buffer(buffer, ctype)
-        frames = self._cdata_io('read', cdata, ctype, frames)
+        frames = self._cdata_io("read", cdata, ctype, frames)
         return frames
 
     def write(self, data):
@@ -1005,9 +1211,10 @@ class SoundFile(object):
 
         """
         import numpy as np
+
         # no copy is made if data has already the correct memory layout:
         data = np.ascontiguousarray(data)
-        written = self._array_io('write', data, len(data))
+        written = self._array_io("write", data, len(data))
         assert written == len(data)
         self._update_frames(written)
 
@@ -1034,12 +1241,20 @@ class SoundFile(object):
         """
         ctype = self._check_dtype(dtype)
         cdata, frames = self._check_buffer(data, ctype)
-        written = self._cdata_io('write', cdata, ctype, frames)
+        written = self._cdata_io("write", cdata, ctype, frames)
         assert written == frames
         self._update_frames(written)
 
-    def blocks(self, blocksize=None, overlap=0, frames=-1, dtype='float64',
-               always_2d=False, fill_value=None, out=None):
+    def blocks(
+        self,
+        blocksize=None,
+        overlap=0,
+        frames=-1,
+        dtype="float64",
+        always_2d=False,
+        fill_value=None,
+        out=None,
+    ):
         """Return a generator for block-wise reading.
 
         By default, the generator yields blocks of the given
@@ -1090,7 +1305,7 @@ class SoundFile(object):
         """
         import numpy as np
 
-        if 'r' not in self.mode and '+' not in self.mode:
+        if "r" not in self.mode and "+" not in self.mode:
             raise RuntimeError("blocks() is not allowed in write-only mode")
 
         if out is None:
@@ -1100,8 +1315,7 @@ class SoundFile(object):
             copy_out = True
         else:
             if blocksize is not None:
-                raise TypeError(
-                    "Only one of {blocksize, out} may be specified")
+                raise TypeError("Only one of {blocksize, out} may be specified")
             blocksize = len(out)
             copy_out = False
 
@@ -1124,7 +1338,7 @@ class SoundFile(object):
                     overlap_memory[:] = out[-overlap:]
 
             if blocksize > frames + overlap and fill_value is None:
-                block = out[:frames + overlap]
+                block = out[: frames + overlap]
             else:
                 block = out
             yield np.copy(block) if copy_out else block
@@ -1145,9 +1359,12 @@ class SoundFile(object):
         """
         if frames is None:
             frames = self.tell()
-        err = _snd.sf_command(self._file, _snd.SFC_FILE_TRUNCATE,
-                              _ffi.new("sf_count_t*", frames),
-                              _ffi.sizeof("sf_count_t"))
+        err = _snd.sf_command(
+            self._file,
+            _snd.SFC_FILE_TRUNCATE,
+            _ffi.new("sf_count_t*", frames),
+            _ffi.sizeof("sf_count_t"),
+        )
         if err:
             raise RuntimeError("Error truncating the file")
         self._info.frames = frames
@@ -1179,14 +1396,14 @@ class SoundFile(object):
         """Call the appropriate sf_open*() function from libsndfile."""
         if isinstance(file, (_unicode, bytes)):
             if _os.path.isfile(file):
-                if 'x' in self.mode:
+                if "x" in self.mode:
                     raise OSError("File exists: {0!r}".format(self.name))
-                elif set(self.mode).issuperset('w+'):
+                elif set(self.mode).issuperset("w+"):
                     # truncate the file, because SFM_RDWR doesn't:
                     _os.close(_os.open(file, _os.O_WRONLY | _os.O_TRUNC))
             openfunction = _snd.sf_open
             if isinstance(file, _unicode):
-                if _sys.platform == 'win32':
+                if _sys.platform == "win32":
                     openfunction = _snd.sf_wchar_open
                 else:
                     file = file.encode(_sys.getfilesystemencoding())
@@ -1194,12 +1411,12 @@ class SoundFile(object):
         elif isinstance(file, int):
             file_ptr = _snd.sf_open_fd(file, mode_int, self._info, closefd)
         elif _has_virtual_io_attrs(file, mode_int):
-            file_ptr = _snd.sf_open_virtual(self._init_virtual_io(file),
-                                            mode_int, self._info, _ffi.NULL)
+            file_ptr = _snd.sf_open_virtual(
+                self._init_virtual_io(file), mode_int, self._info, _ffi.NULL
+            )
         else:
             raise TypeError("Invalid file: {0!r}".format(self.name))
-        _error_check(_snd.sf_error(file_ptr),
-                     "Error opening {0!r}: ".format(self.name))
+        _error_check(_snd.sf_error(file_ptr), "Error opening {0!r}: ".format(self.name))
         if mode_int == _snd.SFM_WRITE:
             # Due to a bug in libsndfile version <= 1.0.25, frames != 0
             # when opening a named pipe in SFM_WRITE mode.
@@ -1211,6 +1428,7 @@ class SoundFile(object):
 
     def _init_virtual_io(self, file):
         """Initialize callback functions for sf_open_virtual()."""
+
         @_ffi.callback("sf_vio_get_filelen")
         def vio_get_filelen(user_data):
             curr = file.tell()
@@ -1252,11 +1470,13 @@ class SoundFile(object):
             return file.tell()
 
         # Note: the callback functions must be kept alive!
-        self._virtual_io = {'get_filelen': vio_get_filelen,
-                            'seek': vio_seek,
-                            'read': vio_read,
-                            'write': vio_write,
-                            'tell': vio_tell}
+        self._virtual_io = {
+            "get_filelen": vio_get_filelen,
+            "seek": vio_seek,
+            "read": vio_read,
+            "write": vio_write,
+            "tell": vio_tell,
+        }
 
         return _ffi.new("SF_VIRTUAL_IO*", self._virtual_io)
 
@@ -1281,8 +1501,7 @@ class SoundFile(object):
         """Reduce frames to no more than are available in the file."""
         if self.seekable():
             remaining_frames = self.frames - self.tell()
-            if frames < 0 or (frames > remaining_frames and
-                              fill_value is None):
+            if frames < 0 or (frames > remaining_frames and fill_value is None):
                 frames = remaining_frames
         elif frames < 0:
             raise ValueError("frames must be specified for non-seekable files")
@@ -1293,8 +1512,7 @@ class SoundFile(object):
         assert ctype in _ffi_types.values()
         if not isinstance(data, bytes):
             data = _ffi.from_buffer(data)
-        frames, remainder = divmod(len(data),
-                                   self.channels * _ffi.sizeof(ctype))
+        frames, remainder = divmod(len(data), self.channels * _ffi.sizeof(ctype))
         if remainder:
             raise ValueError("Data size must be a multiple of frame size")
         return data, frames
@@ -1302,31 +1520,37 @@ class SoundFile(object):
     def _create_empty_array(self, frames, always_2d, dtype):
         """Create an empty array with appropriate shape."""
         import numpy as np
+
         if always_2d or self.channels > 1:
             shape = frames, self.channels
         else:
-            shape = frames,
-        return np.empty(shape, dtype, order='C')
+            shape = (frames,)
+        return np.empty(shape, dtype, order="C")
 
     def _check_dtype(self, dtype):
         """Check if dtype string is valid and return ctype string."""
         try:
             return _ffi_types[dtype]
         except KeyError:
-            raise ValueError("dtype must be one of {0!r}".format(
-                sorted(_ffi_types.keys())))
+            raise ValueError(
+                "dtype must be one of {0!r}".format(sorted(_ffi_types.keys()))
+            )
 
     def _array_io(self, action, array, frames):
         """Check array and call low-level IO function."""
-        if (array.ndim not in (1, 2) or
-                array.ndim == 1 and self.channels != 1 or
-                array.ndim == 2 and array.shape[1] != self.channels):
+        if (
+            array.ndim not in (1, 2)
+            or array.ndim == 1
+            and self.channels != 1
+            or array.ndim == 2
+            and array.shape[1] != self.channels
+        ):
             raise ValueError("Invalid shape: {0!r}".format(array.shape))
         if not array.flags.c_contiguous:
             raise ValueError("Data must be C-contiguous")
         ctype = self._check_dtype(array.dtype.name)
         assert array.dtype.itemsize == _ffi.sizeof(ctype)
-        cdata = _ffi.cast(ctype + '*', array.__array_interface__['data'][0])
+        cdata = _ffi.cast(ctype + "*", array.__array_interface__["data"][0])
         return self._cdata_io(action, cdata, ctype, frames)
 
     def _cdata_io(self, action, data, ctype, frames):
@@ -1335,7 +1559,7 @@ class SoundFile(object):
         self._check_if_closed()
         if self.seekable():
             curr = self.tell()
-        func = getattr(_snd, 'sf_' + action + 'f_' + ctype)
+        func = getattr(_snd, "sf_" + action + "f_" + ctype)
         frames = func(self._file, data, frames)
         _error_check(self._errorcode)
         if self.seekable():
@@ -1372,7 +1596,7 @@ def _error_check(err, prefix=""):
     """Pretty-print a numerical error code if there is an error."""
     if err != 0:
         err_str = _snd.sf_error_number(err)
-        raise RuntimeError(prefix + _ffi.string(err_str).decode('utf-8', 'replace'))
+        raise RuntimeError(prefix + _ffi.string(err_str).decode("utf-8", "replace"))
 
 
 def _format_int(format, subtype, endian):
@@ -1381,8 +1605,7 @@ def _format_int(format, subtype, endian):
     if subtype is None:
         subtype = default_subtype(format)
         if subtype is None:
-            raise TypeError(
-                "No default subtype for major format {0!r}".format(format))
+            raise TypeError("No default subtype for major format {0!r}".format(format))
     elif not isinstance(subtype, (_unicode, str)):
         raise TypeError("Invalid subtype: {0!r}".format(subtype))
     try:
@@ -1390,7 +1613,7 @@ def _format_int(format, subtype, endian):
     except KeyError:
         raise ValueError("Unknown subtype: {0!r}".format(subtype))
     if endian is None:
-        endian = 'FILE'
+        endian = "FILE"
     elif not isinstance(endian, (_unicode, str)):
         raise TypeError("Invalid endian-ness: {0!r}".format(endian))
     try:
@@ -1402,8 +1625,7 @@ def _format_int(format, subtype, endian):
     info.format = result
     info.channels = 1
     if _snd.sf_format_check(info) == _snd.SF_FALSE:
-        raise ValueError(
-            "Invalid combination of format, subtype and endian")
+        raise ValueError("Invalid combination of format, subtype and endian")
     return result
 
 
@@ -1412,22 +1634,21 @@ def _check_mode(mode):
     if not isinstance(mode, (_unicode, str)):
         raise TypeError("Invalid mode: {0!r}".format(mode))
     mode_set = set(mode)
-    if mode_set.difference('xrwb+') or len(mode) > len(mode_set):
+    if mode_set.difference("xrwb+") or len(mode) > len(mode_set):
         raise ValueError("Invalid mode: {0!r}".format(mode))
-    if len(mode_set.intersection('xrw')) != 1:
+    if len(mode_set.intersection("xrw")) != 1:
         raise ValueError("mode must contain exactly one of 'xrw'")
 
-    if '+' in mode_set:
+    if "+" in mode_set:
         mode_int = _snd.SFM_RDWR
-    elif 'r' in mode_set:
+    elif "r" in mode_set:
         mode_int = _snd.SFM_READ
     else:
         mode_int = _snd.SFM_WRITE
     return mode_int
 
 
-def _create_info_struct(file, mode, samplerate, channels,
-                        format, subtype, endian):
+def _create_info_struct(file, mode, samplerate, channels, format, subtype, endian):
     """Check arguments and create SF_INFO struct."""
     original_format = format
     if format is None:
@@ -1437,7 +1658,7 @@ def _create_info_struct(file, mode, samplerate, channels,
         _check_format(format)
 
     info = _ffi.new("SF_INFO*")
-    if 'r' not in mode or format.upper() == 'RAW':
+    if "r" not in mode or format.upper() == "RAW":
         if samplerate is None:
             raise TypeError("samplerate must be specified")
         info.samplerate = samplerate
@@ -1446,10 +1667,14 @@ def _create_info_struct(file, mode, samplerate, channels,
         info.channels = channels
         info.format = _format_int(format, subtype, endian)
     else:
-        if any(arg is not None for arg in (
-                samplerate, channels, original_format, subtype, endian)):
-            raise TypeError("Not allowed for existing files (except 'RAW'): "
-                            "samplerate, channels, format, subtype, endian")
+        if any(
+            arg is not None
+            for arg in (samplerate, channels, original_format, subtype, endian)
+        ):
+            raise TypeError(
+                "Not allowed for existing files (except 'RAW'): "
+                "samplerate, channels, format, subtype, endian"
+            )
     return info
 
 
@@ -1462,18 +1687,20 @@ def _get_format_from_filename(file, mode):
     file/file.name is a bytes object).
 
     """
-    format = ''
-    file = getattr(file, 'name', file)
+    format = ""
+    file = getattr(file, "name", file)
     try:
         # This raises an exception if file is not a (Unicode/byte) string:
         format = _os.path.splitext(file)[-1][1:]
         # Convert bytes to unicode (raises AttributeError on Python 3 str):
-        format = format.decode('utf-8', 'replace')
+        format = format.decode("utf-8", "replace")
     except Exception:
         pass
-    if format.upper() not in _formats and 'r' not in mode:
-        raise TypeError("No format specified and unable to get format from "
-                        "file extension: {0!r}".format(file))
+    if format.upper() not in _formats and "r" not in mode:
+        raise TypeError(
+            "No format specified and unable to get format from "
+            "file extension: {0!r}".format(file)
+        )
     return format
 
 
@@ -1484,18 +1711,19 @@ def _format_str(format_int):
             if v == format_int:
                 return k
     else:
-        return 'n/a'
+        return "n/a"
 
 
 def _format_info(format_int, format_flag=_snd.SFC_GET_FORMAT_INFO):
     """Return the ID and short description of a given format."""
     format_info = _ffi.new("SF_FORMAT_INFO*")
     format_info.format = format_int
-    _snd.sf_command(_ffi.NULL, format_flag, format_info,
-                    _ffi.sizeof("SF_FORMAT_INFO"))
+    _snd.sf_command(_ffi.NULL, format_flag, format_info, _ffi.sizeof("SF_FORMAT_INFO"))
     name = format_info.name
-    return (_format_str(format_info.format),
-            _ffi.string(name).decode('utf-8', 'replace') if name else "")
+    return (
+        _format_str(format_info.format),
+        _ffi.string(name).decode("utf-8", "replace") if name else "",
+    )
 
 
 def _available_formats_helper(count_flag, format_flag):
@@ -1521,9 +1749,11 @@ def _has_virtual_io_attrs(file, mode_int):
     """Check if file has all the necessary attributes for virtual IO."""
     readonly = mode_int == _snd.SFM_READ
     writeonly = mode_int == _snd.SFM_WRITE
-    return all([
-        hasattr(file, 'seek'),
-        hasattr(file, 'tell'),
-        hasattr(file, 'write') or readonly,
-        hasattr(file, 'read') or hasattr(file, 'readinto') or writeonly,
-    ])
+    return all(
+        [
+            hasattr(file, "seek"),
+            hasattr(file, "tell"),
+            hasattr(file, "write") or readonly,
+            hasattr(file, "read") or hasattr(file, "readinto") or writeonly,
+        ]
+    )

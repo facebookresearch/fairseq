@@ -5,24 +5,25 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from datetime import date, timedelta
 import logging
-import numpy as np
 import os
+from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
-from fairseq.tasks import register_task, LegacyFairseqTask
-from fairseq.data import Dictionary, iterators, ListDataset
+import numpy as np
+import torch.utils.data
+from fairseq.data import Dictionary, ListDataset, iterators
 from fairseq.data.fb_conversations.fb_conversation_dataset import ConversationDataset
 from fairseq.data.fb_conversations.fb_special_symbols import SpecialConversationSymbols
 from fairseq.data.fb_hive_dataset import HiveDataset, StreamingHiveDataset
-import torch.utils.data
+from fairseq.tasks import LegacyFairseqTask, register_task
+
 
 logger = logging.getLogger(__name__)
 
 
 def _date_list_from_arg(date_ranges: str) -> List[Tuple[str, str]]:
-    return [tuple(r.split('|')) for r in date_ranges.split(',')]
+    return [tuple(r.split("|")) for r in date_ranges.split(",")]
 
 
 def _shuffle(l: List) -> List:
@@ -34,7 +35,7 @@ def _shuffle(l: List) -> List:
     return [l[i] for i in shuffled_indices]
 
 
-@register_task('fb_conversation_modeling')
+@register_task("fb_conversation_modeling")
 class BaseConversationTask(LegacyFairseqTask):
     """
     Train a language model from conversations using Facebook's infrastructure.
@@ -92,22 +93,22 @@ class BaseConversationTask(LegacyFairseqTask):
         ]
         dictionary = Dictionary(extra_special_symbols=symbols)
         dictionary.add_from_file(
-            f=os.path.join(args.dictionary, 'dict.txt'),
+            f=os.path.join(args.dictionary, "dict.txt"),
         )
-        logger.info('dictionary: {} types'.format(len(dictionary)))
+        logger.info("dictionary: {} types".format(len(dictionary)))
 
-        if args.data_loading == 'stream':
+        if args.data_loading == "stream":
             return StreamingConversationTask(args, dictionary)
-        elif args.data_loading == 'preload':
+        elif args.data_loading == "preload":
             return PreloadConversationTask(args, dictionary)
         else:
-            raise Exception(f'Unsupported data loading strategy: {args.data_loading}')
+            raise Exception(f"Unsupported data loading strategy: {args.data_loading}")
 
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
         self.args = args
-        assert sum(float(x) for x in args.split_pcts.split(',')) == 1.0
+        assert sum(float(x) for x in args.split_pcts.split(",")) == 1.0
 
     @property
     def source_dictionary(self):
@@ -122,10 +123,20 @@ class BaseConversationTask(LegacyFairseqTask):
         return self.dictionary
 
     def get_batch_iterator(
-        self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
-        ignore_invalid_inputs=False, required_batch_size_multiple=1,
-        seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
-        data_buffer_size=0, disable_iterator_cache=False,
+        self,
+        dataset,
+        max_tokens=None,
+        max_sentences=None,
+        max_positions=None,
+        ignore_invalid_inputs=False,
+        required_batch_size_multiple=1,
+        seed=1,
+        num_shards=1,
+        shard_id=0,
+        num_workers=0,
+        epoch=1,
+        data_buffer_size=0,
+        disable_iterator_cache=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -172,23 +183,23 @@ class BaseConversationTask(LegacyFairseqTask):
         )
 
     def _prob_range_from_split(self, split) -> Tuple[float, float]:
-        trn_pct, vld_pct, tst_pct = [float(x) for x in self.args.split_pcts.split(',')]
+        trn_pct, vld_pct, tst_pct = [float(x) for x in self.args.split_pcts.split(",")]
 
         # (start, end]
         start = end = 0.0
-        if split == 'train':
+        if split == "train":
             end = trn_pct
-        elif split == 'valid':
+        elif split == "valid":
             # start right after train
             start = trn_pct
             end = start + vld_pct
-        elif split == 'test':
+        elif split == "test":
             start = trn_pct + vld_pct
             end = 1.0
         else:
             logger.error(f"Invalid dataset split: {split}")
 
-        logger.info(f'Probability range for split: {split}, {start}, {end}')
+        logger.info(f"Probability range for split: {split}, {start}, {end}")
 
         return start, end
 
@@ -204,7 +215,7 @@ class PreloadConversationTask(BaseConversationTask):
 
     def _set_up_train_dataset(self, split_range) -> torch.utils.data.Dataset:
         new_date_ranges = _date_list_from_arg(self.args.new_data_date_range)
-        logger.info(f'Setting up training data: {split_range}, {new_date_ranges}')
+        logger.info(f"Setting up training data: {split_range}, {new_date_ranges}")
         new_hive_data = HiveDataset(
             table=self.args.table,
             namespace=self.args.namespace,
@@ -214,7 +225,9 @@ class PreloadConversationTask(BaseConversationTask):
         )
 
         desired_total_data_size = self.args.old_to_new_ratio * len(new_hive_data)
-        desired_old_data_size = (1 - (1 / self.args.old_to_new_ratio)) * desired_total_data_size
+        desired_old_data_size = (
+            1 - (1 / self.args.old_to_new_ratio)
+        ) * desired_total_data_size
 
         old_date_ranges = _date_list_from_arg(self.args.train_date_range)
         old_hive_data = HiveDataset(
@@ -225,7 +238,7 @@ class PreloadConversationTask(BaseConversationTask):
             filter_fn=lambda x: _should_include(x[0], split_range),
         )
 
-        old_hive_data = old_hive_data[:int(desired_old_data_size)]
+        old_hive_data = old_hive_data[: int(desired_old_data_size)]
 
         all_data = new_hive_data.data + list(old_hive_data)
         conversations = ConversationDataset(
@@ -233,22 +246,26 @@ class PreloadConversationTask(BaseConversationTask):
             dictionary=self.dictionary,
             split_range=split_range,
         )
-        logger.info(f"Created train dataset of size: {len(conversations)} conversations")
+        logger.info(
+            f"Created train dataset of size: {len(conversations)} conversations"
+        )
 
         return conversations
 
     def load_dataset(self, split, combine=False, **kwargs):
         prob_range = self._prob_range_from_split(split)
         date_ranges = []
-        if split == 'train':
+        if split == "train":
             self.datasets[split] = self._set_up_train_dataset(prob_range)
             return
-        elif split == 'valid' or split == 'test':
+        elif split == "valid" or split == "test":
             date_ranges = _date_list_from_arg(self.args.eval_date_ranges)
         else:
             logger.error("Invalid dataset split: {split}".format(**locals()))
 
-        logger.info(f'Data split: {split}, {prob_range[0]}, {prob_range[1]}, {date_ranges}')
+        logger.info(
+            f"Data split: {split}, {prob_range[0]}, {prob_range[1]}, {date_ranges}"
+        )
 
         hive_dataset = HiveDataset(
             table=self.args.table,
@@ -274,11 +291,11 @@ class StreamingConversationTask(BaseConversationTask):
         pass
 
     def dataset(self, split):
-        return self._train_dataset() if split == 'train' else self._eval_dataset(split)
+        return self._train_dataset() if split == "train" else self._eval_dataset(split)
 
     def _train_dataset(self):
-        start, end = self._prob_range_from_split('train')
-        date_ranges = self._date_range_for_split('train')
+        start, end = self._prob_range_from_split("train")
+        date_ranges = self._date_range_for_split("train")
         fresh_ranges = None
         if self.args.new_data_date_range:
             fresh_ranges = _date_list_from_arg(self.args.new_data_date_range)
@@ -317,12 +334,12 @@ class StreamingConversationTask(BaseConversationTask):
         return conversation
 
     def _date_range_for_split(self, split) -> Optional[List[Tuple[str, str]]]:
-        is_eval = split == 'valid' or split == 'test'
-        if is_eval and self.args.eval_data_strategy != 'dates':
+        is_eval = split == "valid" or split == "test"
+        if is_eval and self.args.eval_data_strategy != "dates":
             return None
 
         date_range = None
-        if split == 'train':
+        if split == "train":
             date_range = self.args.train_date_range
         elif is_eval:
             date_range = self.args.eval_date_ranges

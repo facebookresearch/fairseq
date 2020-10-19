@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def quantize_model_scalar(model, args):
-    quant_noise_scalar = getattr(args, 'quant_noise_scalar', 0)
+    quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
     if quant_noise_scalar > 0:
         # quantize_model edits the model in place
         scalar.quantize_model_(model, p=quant_noise_scalar, bits=8, update_step=1000)
@@ -20,12 +20,11 @@ def quantize_model_scalar(model, args):
 
 
 class Quantizer(object):
-
     def __init__(self, config_path, max_epoch, max_update):
         try:
             import yaml
         except ImportError:
-            raise ImportError('Please install yaml with: pip install yaml')
+            raise ImportError("Please install yaml with: pip install yaml")
 
         # parse config
         if config_path:
@@ -46,22 +45,23 @@ class Quantizer(object):
         num_iterations = len(self.layers_to_quantize)
         if max_epoch > 0:
             assert max_epoch % num_iterations == 0, (
-                'for iterative PQ, --max-epoch (={}) must be evenly divisible by '
-                'len(layers_to_quantize) (={})'.format(max_epoch, num_iterations)
+                "for iterative PQ, --max-epoch (={}) must be evenly divisible by "
+                "len(layers_to_quantize) (={})".format(max_epoch, num_iterations)
             )
             self.epoch_schedule = max_epoch // num_iterations
         else:
             self.epoch_schedule = None
         if max_update > 0:
             assert max_update % num_iterations == 0, (
-                'for iterative PQ, --max-update (={}) must be evenly divisible by '
-                'len(layers_to_quantize) (={})'.format(max_update, num_iterations)
+                "for iterative PQ, --max-update (={}) must be evenly divisible by "
+                "len(layers_to_quantize) (={})".format(max_update, num_iterations)
             )
             self.update_schedule = max_update // num_iterations
         else:
             self.update_schedule = None
-        assert (self.epoch_schedule is not None) ^ (self.update_schedule is not None), \
-            'for iterative PQ, cannot specify both --max-update and --max-epoch'
+        assert (self.epoch_schedule is not None) ^ (
+            self.update_schedule is not None
+        ), "for iterative PQ, cannot specify both --max-update and --max-epoch"
 
         # 0 is a special value for quantization step, which will force
         # the first call to begin_epoch() to call step()
@@ -80,7 +80,7 @@ class Quantizer(object):
             return
 
         logger.info(
-            'quantizing model (step={}; layers_to_quantize[step]={})'.format(
+            "quantizing model (step={}; layers_to_quantize[step]={})".format(
                 self.quantization_step, self.layers_to_quantize[self.quantization_step]
             )
         )
@@ -92,7 +92,7 @@ class Quantizer(object):
             self.n_centroids_config,
             step=self.quantization_step,
         )
-        logger.info('quantized layers: {}'.format(quantized_layers))
+        logger.info("quantized layers: {}".format(quantized_layers))
         logger.info(self.size_tracker)
 
         self.quantization_step += 1
@@ -125,18 +125,18 @@ class Quantizer(object):
 
     def state_dict(self):
         return {
-            'n_centroids_config': self.n_centroids_config,
-            'block_sizes_config': self.block_sizes_config,
-            'layers_to_quantize': self.layers_to_quantize,
-            'epoch_schedule': self.epoch_schedule,
-            'update_schedule': self.update_schedule,
-            'quantization_step': self.quantization_step,
+            "n_centroids_config": self.n_centroids_config,
+            "block_sizes_config": self.block_sizes_config,
+            "layers_to_quantize": self.layers_to_quantize,
+            "epoch_schedule": self.epoch_schedule,
+            "update_schedule": self.update_schedule,
+            "quantization_step": self.quantization_step,
         }
 
     def load_state_dict(self, state_dict):
-        self.n_centroids_config = state_dict['n_centroids_config']
-        self.block_sizes_config = state_dict['block_sizes_config']
-        self.layers_to_quantize = state_dict['layers_to_quantize']
-        self.epoch_schedule = state_dict['epoch_schedule']
-        self.update_schedule = state_dict['update_schedule']
-        self.quantization_step = state_dict['quantization_step']
+        self.n_centroids_config = state_dict["n_centroids_config"]
+        self.block_sizes_config = state_dict["block_sizes_config"]
+        self.layers_to_quantize = state_dict["layers_to_quantize"]
+        self.epoch_schedule = state_dict["epoch_schedule"]
+        self.update_schedule = state_dict["update_schedule"]
+        self.quantization_step = state_dict["quantization_step"]

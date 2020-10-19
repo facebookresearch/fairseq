@@ -19,7 +19,6 @@ from fairseq.models.transformer import (
 
 @register_model("transformer_from_pretrained_xlm")
 class TransformerFromPretrainedXLMModel(TransformerModel):
-
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
@@ -96,25 +95,24 @@ def upgrade_state_dict_with_xlm_weights(
 
         for search_key in ["embed_tokens", "embed_positions", "layers"]:
             if search_key in key:
-                subkey = key[key.find(search_key):]
+                subkey = key[key.find(search_key) :]
                 assert subkey in state_dict, (
                     "{} Transformer encoder / decoder "
                     "state_dict does not contain {}. Cannot "
                     "load {} from pretrained XLM checkpoint "
                     "{} into Transformer.".format(
-                        str(state_dict.keys()),
-                        subkey, key, pretrained_xlm_checkpoint)
+                        str(state_dict.keys()), subkey, key, pretrained_xlm_checkpoint
                     )
+                )
 
                 state_dict[subkey] = xlm_state_dict[key]
     return state_dict
 
 
 class TransformerEncoderFromPretrainedXLM(TransformerEncoder):
-
     def __init__(self, args, dictionary, embed_tokens):
         super().__init__(args, dictionary, embed_tokens)
-        if getattr(args, 'init_decoder_only', False):
+        if getattr(args, "init_decoder_only", False):
             # Don't load XLM weights for encoder if --init-decoder-only
             return
 
@@ -130,10 +128,9 @@ class TransformerEncoderFromPretrainedXLM(TransformerEncoder):
 
 
 class TransformerDecoderFromPretrainedXLM(TransformerDecoder):
-
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
         super().__init__(args, dictionary, embed_tokens, no_encoder_attn)
-        if getattr(args, 'init_encoder_only', False):
+        if getattr(args, "init_encoder_only", False):
             # Don't load XLM weights for decoder if --init-encoder-only
             return
         assert hasattr(args, "pretrained_xlm_checkpoint"), (

@@ -6,14 +6,20 @@
 import functools
 import importlib
 
+from fairseq.hub_utils import (  # noqa; noqa
+    BPEHubInterface as bpe,
+    TokenizerHubInterface as tokenizer,
+)
+from fairseq.models import MODEL_REGISTRY  # noqa
+
 
 dependencies = [
-    'dataclasses',
-    'hydra',
-    'numpy',
-    'regex',
-    'requests',
-    'torch',
+    "dataclasses",
+    "hydra",
+    "numpy",
+    "regex",
+    "requests",
+    "torch",
 ]
 
 
@@ -26,11 +32,11 @@ for dep in dependencies:
         # Hack: the hydra package is provided under the "hydra-core" name in
         # pypi. We don't want the user mistakenly calling `pip install hydra`
         # since that will install an unrelated package.
-        if dep == 'hydra':
-            dep = 'hydra-core'
+        if dep == "hydra":
+            dep = "hydra-core"
         missing_deps.append(dep)
 if len(missing_deps) > 0:
-    raise RuntimeError('Missing dependencies: {}'.format(', '.join(missing_deps)))
+    raise RuntimeError("Missing dependencies: {}".format(", ".join(missing_deps)))
 
 
 # torch.hub doesn't build Cython components, so if they are not found then try
@@ -42,20 +48,16 @@ except ImportError:
         import cython  # noqa
         import os
         from setuptools import sandbox
+
         sandbox.run_setup(
-            os.path.join(os.path.dirname(__file__), 'setup.py'),
-            ['build_ext', '--inplace'],
+            os.path.join(os.path.dirname(__file__), "setup.py"),
+            ["build_ext", "--inplace"],
         )
     except ImportError:
         print(
-            'Unable to build Cython components. Please make sure Cython is '
-            'installed if the torch.hub model you are loading depends on it.'
+            "Unable to build Cython components. Please make sure Cython is "
+            "installed if the torch.hub model you are loading depends on it."
         )
-
-
-from fairseq.hub_utils import BPEHubInterface as bpe  # noqa
-from fairseq.hub_utils import TokenizerHubInterface as tokenizer  # noqa
-from fairseq.models import MODEL_REGISTRY  # noqa
 
 
 # automatically expose models defined in FairseqModel::hub_models

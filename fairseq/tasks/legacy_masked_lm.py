@@ -8,26 +8,18 @@ import logging
 import os
 
 import numpy as np
-
-from fairseq import tokenizer
-from fairseq.data import (
-    ConcatDataset,
-    indexed_dataset,
-    data_utils,
-)
-
-from fairseq.data import Dictionary
+from fairseq import tokenizer, utils
+from fairseq.data import ConcatDataset, Dictionary, data_utils, indexed_dataset
 from fairseq.data.legacy.block_pair_dataset import BlockPairDataset
 from fairseq.data.legacy.masked_lm_dataset import MaskedLMDataset
 from fairseq.data.legacy.masked_lm_dictionary import BertDictionary
-from fairseq.tasks import register_task, LegacyFairseqTask
-from fairseq import utils
+from fairseq.tasks import LegacyFairseqTask, register_task
 
 
 logger = logging.getLogger(__name__)
 
 
-@register_task('legacy_masked_lm')
+@register_task("legacy_masked_lm")
 class LegacyMaskedLMTask(LegacyFairseqTask):
     """
     Task for training Masked LM (BERT) model.
@@ -38,13 +30,22 @@ class LegacyMaskedLMTask(LegacyFairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('data', help='colon separated path to data directories list, \
-                            will be iterated upon during epochs in round-robin manner')
-        parser.add_argument('--tokens-per-sample', default=512, type=int,
-                            help='max number of total tokens over all segments'
-                                 ' per sample for BERT dataset')
-        parser.add_argument('--break-mode', default="doc", type=str, help='mode for breaking sentence')
-        parser.add_argument('--shuffle-dataset', action='store_true', default=False)
+        parser.add_argument(
+            "data",
+            help="colon separated path to data directories list, \
+                            will be iterated upon during epochs in round-robin manner",
+        )
+        parser.add_argument(
+            "--tokens-per-sample",
+            default=512,
+            type=int,
+            help="max number of total tokens over all segments"
+            " per sample for BERT dataset",
+        )
+        parser.add_argument(
+            "--break-mode", default="doc", type=str, help="mode for breaking sentence"
+        )
+        parser.add_argument("--shuffle-dataset", action="store_true", default=False)
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -56,10 +57,14 @@ class LegacyMaskedLMTask(LegacyFairseqTask):
         return BertDictionary.load(filename)
 
     @classmethod
-    def build_dictionary(cls, filenames, workers=1, threshold=-1, nwords=-1, padding_factor=8):
+    def build_dictionary(
+        cls, filenames, workers=1, threshold=-1, nwords=-1, padding_factor=8
+    ):
         d = BertDictionary()
         for filename in filenames:
-            Dictionary.add_file_to_dictionary(filename, d, tokenizer.tokenize_line, workers)
+            Dictionary.add_file_to_dictionary(
+                filename, d, tokenizer.tokenize_line, workers
+            )
         d.finalize(threshold=threshold, nwords=nwords, padding_factor=padding_factor)
         return d
 
@@ -69,12 +74,11 @@ class LegacyMaskedLMTask(LegacyFairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        """Setup the task.
-        """
+        """Setup the task."""
         paths = utils.split_paths(args.data)
         assert len(paths) > 0
-        dictionary = BertDictionary.load(os.path.join(paths[0], 'dict.txt'))
-        logger.info('dictionary: {} types'.format(len(dictionary)))
+        dictionary = BertDictionary.load(os.path.join(paths[0], "dict.txt"))
+        logger.info("dictionary: {} types".format(len(dictionary)))
 
         return cls(args, dictionary)
 
@@ -92,7 +96,7 @@ class LegacyMaskedLMTask(LegacyFairseqTask):
         logger.info("data_path", data_path)
 
         for k in itertools.count():
-            split_k = split + (str(k) if k > 0 else '')
+            split_k = split + (str(k) if k > 0 else "")
             path = os.path.join(data_path, split_k)
             ds = indexed_dataset.make_dataset(
                 path,
@@ -105,7 +109,9 @@ class LegacyMaskedLMTask(LegacyFairseqTask):
                 if k > 0:
                     break
                 else:
-                    raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
+                    raise FileNotFoundError(
+                        "Dataset not found: {} ({})".format(split, data_path)
+                    )
 
             with data_utils.numpy_seed(self.seed + k):
                 loaded_datasets.append(
@@ -119,7 +125,9 @@ class LegacyMaskedLMTask(LegacyFairseqTask):
                     )
                 )
 
-            logger.info('{} {} {} examples'.format(data_path, split_k, len(loaded_datasets[-1])))
+            logger.info(
+                "{} {} {} examples".format(data_path, split_k, len(loaded_datasets[-1]))
+            )
 
             if not combine:
                 break

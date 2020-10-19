@@ -5,14 +5,12 @@
 
 import logging
 import math
-import numpy as np
+from typing import List, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from typing import List, Tuple
-
 from fairseq import utils
 from fairseq.data.data_utils import compute_mask_indices
 from fairseq.models import BaseFairseqModel, register_model, register_model_architecture

@@ -6,8 +6,8 @@
 import math
 
 import torch.nn as nn
-
 from fairseq.modules import TransformerSentenceEncoder
+
 from .linformer_sentence_encoder_layer import LinformerSentenceEncoderLayer
 
 
@@ -117,7 +117,9 @@ class LinformerSentenceEncoder(TransformerSentenceEncoder):
         qn_block_size,
     ):
         if self.shared_layer_kv_compressed == 1:
-            compress_layer = nn.Linear(self.max_seq_len, self.max_seq_len // self.compressed)
+            compress_layer = nn.Linear(
+                self.max_seq_len, self.max_seq_len // self.compressed
+            )
             # intialize parameters for compressed layer
             nn.init.xavier_uniform_(compress_layer.weight, gain=1 / math.sqrt(2))
             if self.freeze_compress == 1:
@@ -139,8 +141,7 @@ class LinformerSentenceEncoder(TransformerSentenceEncoder):
             max_seq_len=self.max_seq_len,
             shared_kv_compressed=self.shared_kv_compressed,
             shared_compress_layer=(
-                None if self.shared_layer_kv_compressed == 0
-                else self.compress_layer
+                None if self.shared_layer_kv_compressed == 0 else self.compress_layer
             ),
             freeze_compress=self.freeze_compress,
         )
@@ -156,7 +157,8 @@ class LinformerSentenceEncoder(TransformerSentenceEncoder):
                 if self.shared_layer_kv_compressed:
                     for layer_idx in range(len(self.layers)):
                         new_k = prefix + "layers.{0}.shared_compress_layer.{1}".format(
-                            layer_idx, k[len(prefix + 'compress_layer.'):],
+                            layer_idx,
+                            k[len(prefix + "compress_layer.") :],
                         )
                         items_to_add[new_k] = state_dict[k]
 

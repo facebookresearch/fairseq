@@ -8,14 +8,12 @@ import logging
 import unittest
 
 import torch
-
 from fairseq.optim.adam import FairseqAdam
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 
 
-@unittest.skipIf(not torch.cuda.is_available(), 'test requires a GPU')
+@unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestMemoryEfficientFP16(unittest.TestCase):
-
     def setUp(self):
         logging.disable(logging.CRITICAL)
 
@@ -31,7 +29,7 @@ class TestMemoryEfficientFP16(unittest.TestCase):
         optimizer = FairseqAdam(
             argparse.Namespace(
                 lr=[0.00001],
-                adam_betas='(0.9, 0.999)',
+                adam_betas="(0.9, 0.999)",
                 adam_eps=1e-8,
                 weight_decay=0.0,
             ),
@@ -64,5 +62,5 @@ class TestMemoryEfficientFP16(unittest.TestCase):
                     self.assertTrue(v_i.dtype == torch.float32)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

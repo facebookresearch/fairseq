@@ -5,16 +5,20 @@
 
 import importlib
 import os
+
 from fairseq import registry
 
-build_agent, register_agent, MONOTONIC_AGENT, _ = registry.setup_registry('--agent-type')
+
+build_agent, register_agent, MONOTONIC_AGENT, _ = registry.setup_registry(
+    "--agent-type"
+)
 
 
-DEFAULT_EOS = '</s>'
+DEFAULT_EOS = "</s>"
 GET = 0
 SEND = 1
 
 for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        module = file[:file.find('.py')]
-        importlib.import_module('agents.' + module)
+    if file.endswith(".py") and not file.startswith("_"):
+        module = file[: file.find(".py")]
+        importlib.import_module("agents." + module)

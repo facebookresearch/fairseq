@@ -1,11 +1,11 @@
 import os.path as op
-from typing import Union, BinaryIO, Optional, Tuple
+from typing import BinaryIO, Optional, Tuple, Union
 
 import numpy as np
 
 
 def get_waveform(
-        path_or_fp: Union[str, BinaryIO], normalization=True
+    path_or_fp: Union[str, BinaryIO], normalization=True
 ) -> Tuple[np.ndarray, int]:
     """Get the waveform and sample rate of a 16-bit mono-channel WAV or FLAC.
 
@@ -15,15 +15,15 @@ def get_waveform(
     """
     if isinstance(path_or_fp, str):
         ext = op.splitext(op.basename(path_or_fp))[1]
-        if ext not in {'.flac', '.wav'}:
-            raise ValueError(f'Unsupported audio format: {ext}')
+        if ext not in {".flac", ".wav"}:
+            raise ValueError(f"Unsupported audio format: {ext}")
 
     try:
         import soundfile as sf
     except ImportError:
-        raise ImportError('Please install soundfile to load WAV/FLAC file')
+        raise ImportError("Please install soundfile to load WAV/FLAC file")
 
-    waveform, sample_rate = sf.read(path_or_fp, dtype='float32')
+    waveform, sample_rate = sf.read(path_or_fp, dtype="float32")
     if not normalization:
         waveform *= 2 ** 15  # denormalized to 16-bit signed integers
     return waveform, sample_rate
@@ -56,9 +56,11 @@ def _get_torchaudio_fbank(waveform, sample_rate, n_bins=80) -> Optional[np.ndarr
     try:
         import torch
         import torchaudio.compliance.kaldi as ta_kaldi
+
         waveform = torch.from_numpy(waveform).unsqueeze(0)
-        features = ta_kaldi.fbank(waveform, num_mel_bins=n_bins,
-                                  sample_frequency=sample_rate)
+        features = ta_kaldi.fbank(
+            waveform, num_mel_bins=n_bins, sample_frequency=sample_rate
+        )
         return features.numpy()
     except ImportError:
         return None
@@ -75,7 +77,9 @@ def get_fbank(path_or_fp: Union[str, BinaryIO], n_bins=80) -> np.ndarray:
     if features is None:
         features = _get_torchaudio_fbank(sound, sample_rate, n_bins)
     if features is None:
-        raise ImportError('Please install pyKaldi or torchaudio to enable '
-                          'online filterbank feature extraction')
+        raise ImportError(
+            "Please install pyKaldi or torchaudio to enable "
+            "online filterbank feature extraction"
+        )
 
     return features

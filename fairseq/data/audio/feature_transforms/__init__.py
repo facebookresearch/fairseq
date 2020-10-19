@@ -1,7 +1,7 @@
 import importlib
 import os
-from typing import Optional, Dict
 from abc import ABC, abstractmethod
+from typing import Dict, Optional
 
 
 class AudioFeatureTransform(ABC):
@@ -18,14 +18,16 @@ AUDIO_FEATURE_TRANSFORM_CLASS_NAMES = set()
 def register_audio_feature_transform(name):
     def register_audio_feature_transform_cls(cls):
         if name in AUDIO_FEATURE_TRANSFORM_REGISTRY:
-            raise ValueError(f'Cannot register duplicate transform ({name})')
+            raise ValueError(f"Cannot register duplicate transform ({name})")
         if not issubclass(cls, AudioFeatureTransform):
-            raise ValueError(f'Transform ({name}: {cls.__name__}) must extend '
-                             'AudioFeatureTransform')
+            raise ValueError(
+                f"Transform ({name}: {cls.__name__}) must extend "
+                "AudioFeatureTransform"
+            )
         if cls.__name__ in AUDIO_FEATURE_TRANSFORM_CLASS_NAMES:
             raise ValueError(
-                f'Cannot register audio feature transform with duplicate '
-                f'class name ({cls.__name__})'
+                f"Cannot register audio feature transform with duplicate "
+                f"class name ({cls.__name__})"
             )
         AUDIO_FEATURE_TRANSFORM_REGISTRY[name] = cls
         AUDIO_FEATURE_TRANSFORM_CLASS_NAMES.add(cls.__name__)
@@ -42,19 +44,19 @@ transforms_dir = os.path.dirname(__file__)
 for file in os.listdir(transforms_dir):
     path = os.path.join(transforms_dir, file)
     if (
-        not file.startswith('_')
-        and not file.startswith('.')
-        and (file.endswith('.py') or os.path.isdir(path))
+        not file.startswith("_")
+        and not file.startswith(".")
+        and (file.endswith(".py") or os.path.isdir(path))
     ):
-        name = file[:file.find('.py')] if file.endswith('.py') else file
-        importlib.import_module('fairseq.data.audio.feature_transforms.' + name)
+        name = file[: file.find(".py")] if file.endswith(".py") else file
+        importlib.import_module("fairseq.data.audio.feature_transforms." + name)
 
 
 class CompositeAudioFeatureTransform(AudioFeatureTransform):
     @classmethod
     def from_config_dict(cls, config=None):
         _config = {} if config is None else config
-        _transforms = _config.get('transforms')
+        _transforms = _config.get("transforms")
         if _transforms is None:
             return None
         transforms = [
@@ -72,6 +74,9 @@ class CompositeAudioFeatureTransform(AudioFeatureTransform):
         return x
 
     def __repr__(self):
-        format_string = [self.__class__.__name__ + '('] + \
-                        [f"    {t.__repr__()}" for t in self.transforms] + [')']
-        return '\n'.join(format_string)
+        format_string = (
+            [self.__class__.__name__ + "("]
+            + [f"    {t.__repr__()}" for t in self.transforms]
+            + [")"]
+        )
+        return "\n".join(format_string)

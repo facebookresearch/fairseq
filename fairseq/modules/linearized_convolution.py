@@ -5,10 +5,10 @@
 
 import torch
 import torch.nn.functional as F
-
 from fairseq import utils
-from .conv_tbc import ConvTBC
 from fairseq.incremental_decoding_utils import with_incremental_state
+
+from .conv_tbc import ConvTBC
 
 
 @with_incremental_state
@@ -26,17 +26,17 @@ class LinearizedConvolution(ConvTBC):
         self._linearized_weight = None
         self.register_backward_hook(self._clear_linearized_weight)
 
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
         state = ConvTBC.state_dict(self, destination, prefix, keep_vars=keep_vars)
         # don't store redundant _linearized_weight in checkpoints
-        if prefix + '_linearized_weight' in state:
-            del state[prefix + '_linearized_weight']
+        if prefix + "_linearized_weight" in state:
+            del state[prefix + "_linearized_weight"]
         return state
 
     def upgrade_state_dict_named(self, state_dict, name):
-        prefix = name + '.' if name != '' else ''
-        if prefix + '_linearized_weight' in state_dict:
-            del state_dict[prefix + '_linearized_weight']
+        prefix = name + "." if name != "" else ""
+        if prefix + "_linearized_weight" in state_dict:
+            del state_dict[prefix + "_linearized_weight"]
 
     def forward(self, input, incremental_state=None):
         """
@@ -52,7 +52,7 @@ class LinearizedConvolution(ConvTBC):
             output = super().forward(input)
             if self.kernel_size[0] > 1 and self.padding[0] > 0:
                 # remove future timesteps added by padding
-                output = output[:-self.padding[0], :, :]
+                output = output[: -self.padding[0], :, :]
             return output
 
         # reshape weight
@@ -83,17 +83,21 @@ class LinearizedConvolution(ConvTBC):
             self._set_input_buffer(incremental_state, input_buffer)
 
     def _get_input_buffer(self, incremental_state):
-        return utils.get_incremental_state(self, incremental_state, 'input_buffer')
+        return utils.get_incremental_state(self, incremental_state, "input_buffer")
 
     def _set_input_buffer(self, incremental_state, new_buffer):
-        return utils.set_incremental_state(self, incremental_state, 'input_buffer', new_buffer)
+        return utils.set_incremental_state(
+            self, incremental_state, "input_buffer", new_buffer
+        )
 
     def _get_linearized_weight(self):
         if self._linearized_weight is None:
             kw = self.kernel_size[0]
             weight = self.weight.transpose(2, 1).transpose(1, 0).contiguous()
             assert weight.size() == (self.out_channels, kw, self.in_channels)
-            self._linearized_weight = torch.nn.Parameter(weight.view(self.out_channels, -1))
+            self._linearized_weight = torch.nn.Parameter(
+                weight.view(self.out_channels, -1)
+            )
         return self._linearized_weight
 
     def _clear_linearized_weight(self, *args):

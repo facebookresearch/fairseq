@@ -12,13 +12,9 @@ class HFBertDictionary(Dictionary):
     Google's released bert. It doesn't have special tokens since they are included
     in dictionary file
     """
+
     def __init__(
-        self,
-        pad='[PAD]',
-        unk='[UNK]',
-        cls='[CLS]',
-        mask='[MASK]',
-        sep='[SEP]'
+        self, pad="[PAD]", unk="[UNK]", cls="[CLS]", mask="[MASK]", sep="[SEP]"
     ):
         (
             self.pad_word,
@@ -28,7 +24,15 @@ class HFBertDictionary(Dictionary):
             self.sep_word,
             self.eos_word,
             self.bos_word,
-        ) = pad, unk, cls, mask, sep, sep, sep
+        ) = (
+            pad,
+            unk,
+            cls,
+            mask,
+            sep,
+            sep,
+            sep,
+        )
         self.symbols = []
         self.count = []
         self.indices = {}

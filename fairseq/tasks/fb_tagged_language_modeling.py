@@ -9,22 +9,20 @@ import random
 
 import numpy as np
 import torch
-
+from fairseq import utils
 from fairseq.data import (
     BaseWrapperDataset,
     ColorizeDataset,
     ConcatDataset,
-    data_utils,
     MonolingualDataset,
     PrependDataset,
     ReplaceDataset,
     SubsampleDataset,
     TokenBlockDataset,
+    data_utils,
 )
 from fairseq.tasks import register_task
-
 from fairseq.tasks.language_modeling import LanguageModelingTask
-from fairseq import utils
 
 
 class ds_name_getter:

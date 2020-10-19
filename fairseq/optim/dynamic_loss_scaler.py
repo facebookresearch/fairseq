@@ -3,11 +3,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-class DynamicLossScaler(object):
 
+class DynamicLossScaler(object):
     def __init__(
-        self, init_scale=2.**15, scale_factor=2., scale_window=2000,
-        tolerance=0.05, threshold=None, min_loss_scale=1e-4
+        self,
+        init_scale=2.0 ** 15,
+        scale_factor=2.0,
+        scale_window=2000,
+        tolerance=0.05,
+        threshold=None,
+        min_loss_scale=1e-4,
     ):
         self.loss_scale = init_scale
         self.scale_factor = scale_factor
@@ -36,7 +41,7 @@ class DynamicLossScaler(object):
 
     def check_overflow(self, grad_norm):
         # detect inf and nan
-        if grad_norm == float('inf') or grad_norm != grad_norm:
+        if grad_norm == float("inf") or grad_norm != grad_norm:
             # overflow has occured
             prev_scale = self.loss_scale
             iter_since_rescale = self._iter - self._last_rescale_iter
@@ -53,11 +58,13 @@ class DynamicLossScaler(object):
                 # Use FloatingPointError as an uncommon error that parent
                 # functions can safely catch to stop training.
                 self.loss_scale = prev_scale
-                raise FloatingPointError((
-                    'Minimum loss scale reached ({}). Your loss is probably exploding. '
-                    'Try lowering the learning rate, using gradient clipping or '
-                    'increasing the batch size.'
-                ).format(self.min_loss_scale))
+                raise FloatingPointError(
+                    (
+                        "Minimum loss scale reached ({}). Your loss is probably exploding. "
+                        "Try lowering the learning rate, using gradient clipping or "
+                        "increasing the batch size."
+                    ).format(self.min_loss_scale)
+                )
 
             self._iter += 1
-            raise OverflowError('setting loss scale to: ' + str(self.loss_scale))
+            raise OverflowError("setting loss scale to: " + str(self.loss_scale))

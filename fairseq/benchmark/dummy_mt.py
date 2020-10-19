@@ -7,24 +7,22 @@ import logging
 
 import numpy as np
 import torch
-
 from fairseq.data import Dictionary, FairseqDataset
-from fairseq.tasks import register_task, LegacyFairseqTask
+from fairseq.tasks import LegacyFairseqTask, register_task
 
 
 logger = logging.getLogger(__name__)
 
 
-@register_task('dummy_mt')
+@register_task("dummy_mt")
 class DummyMTTask(LegacyFairseqTask):
-
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('--dict-size', default=49996, type=int)
-        parser.add_argument('--dataset-size', default=100000, type=int)
-        parser.add_argument('--src-len', default=30, type=int)
-        parser.add_argument('--tgt-len', default=30, type=int)
+        parser.add_argument("--dict-size", default=49996, type=int)
+        parser.add_argument("--dataset-size", default=100000, type=int)
+        parser.add_argument("--src-len", default=30, type=int)
+        parser.add_argument("--tgt-len", default=30, type=int)
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -41,8 +39,8 @@ class DummyMTTask(LegacyFairseqTask):
         """Setup the task. """
         dictionary = Dictionary()
         for i in range(args.dict_size):
-            dictionary.add_symbol('word{}'.format(i))
-        logger.info('dictionary: {} types'.format(len(dictionary)))
+            dictionary.add_symbol("word{}".format(i))
+        logger.info("dictionary: {} types".format(len(dictionary)))
 
         args.max_source_positions = args.src_len + dictionary.pad() + 2
         args.max_target_positions = args.tgt_len + dictionary.pad() + 2
@@ -62,17 +60,17 @@ class DummyMTTask(LegacyFairseqTask):
         tgt = torch.stack([self.dummy_tgt for _ in range(bsz)])
         self.datasets[split] = DummyDataset(
             {
-                'id': 1,
-                'net_input': {
-                    'src_tokens': torch.stack([self.dummy_src for _ in range(bsz)]),
-                    'src_lengths': torch.full(
-                        (bsz, ), self.args.src_len, dtype=torch.long
+                "id": 1,
+                "net_input": {
+                    "src_tokens": torch.stack([self.dummy_src for _ in range(bsz)]),
+                    "src_lengths": torch.full(
+                        (bsz,), self.args.src_len, dtype=torch.long
                     ),
-                    'prev_output_tokens': tgt.clone(),
+                    "prev_output_tokens": tgt.clone(),
                 },
-                'target': tgt,
-                'nsentences': bsz,
-                'ntokens': bsz * self.args.tgt_len,
+                "target": tgt,
+                "nsentences": bsz,
+                "ntokens": bsz * self.args.tgt_len,
             },
             num_items=self.args.dataset_size,
             item_size=item_size,
@@ -88,7 +86,6 @@ class DummyMTTask(LegacyFairseqTask):
 
 
 class DummyDataset(FairseqDataset):
-
     def __init__(self, batch, num_items, item_size):
         super().__init__()
         self.batch = batch

@@ -7,8 +7,8 @@
 import argparse
 import fileinput
 import hashlib
-from multiprocessing import Pool
 import sys
+from multiprocessing import Pool
 
 
 def get_hashes_and_lines(raw_line):
@@ -18,12 +18,12 @@ def get_hashes_and_lines(raw_line):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--workers', type=int, default=10)
-    parser.add_argument('files', nargs='*', help='input files')
+    parser.add_argument("--workers", type=int, default=10)
+    parser.add_argument("files", nargs="*", help="input files")
     args = parser.parse_args()
 
     seen = set()
-    with fileinput.input(args.files, mode='rb') as h:
+    with fileinput.input(args.files, mode="rb") as h:
         pool = Pool(args.workers)
         results = pool.imap_unordered(get_hashes_and_lines, h, 1000)
         for i, (hash, raw_line) in enumerate(results):
@@ -37,5 +37,5 @@ def main():
     print(file=sys.stderr, flush=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

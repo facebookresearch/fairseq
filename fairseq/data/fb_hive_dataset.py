@@ -3,12 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from datetime import date, datetime
 import logging
 import random
+from datetime import date, datetime
 from typing import List, Optional, Tuple
 
 from fairseq.data import FairseqDataset, FairseqIterableDataset
+
 
 KOSKI_THREADS = 16
 
@@ -30,8 +31,8 @@ def _set_up_dataframe(
 
     ctx = kd.create_ctx(
         use_case=kd.UseCase.PROD,
-        description='streaming data into fairseq models',
-        oncall='fairseq',
+        description="streaming data into fairseq models",
+        oncall="fairseq",
     )
     dataframe = kd.data_warehouse(
         namespace=namespace,
@@ -50,7 +51,7 @@ def _set_up_dataframe(
 
 
 def _date_from_string(date_string: str) -> date:
-    return datetime.strptime(date_string, '%Y-%m-%d').date()
+    return datetime.strptime(date_string, "%Y-%m-%d").date()
 
 
 def _date_where_clause(date_ranges) -> Optional[str]:
@@ -238,4 +239,4 @@ class StreamingHiveDataset(FairseqIterableDataset):
             date_clause,
             shuffle_clause,
         ]
-        return ' AND '.join([f"({x})" for x in clauses if x])
+        return " AND ".join([f"({x})" for x in clauses if x])

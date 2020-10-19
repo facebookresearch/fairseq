@@ -7,64 +7,99 @@ import logging
 import os
 
 import numpy as np
-
+from fairseq import utils
 from fairseq.data import (
-    data_utils,
     Dictionary,
     IdDataset,
     MaskTokensDataset,
     NestedDictionaryDataset,
     NumelDataset,
     NumSamplesDataset,
-    RightPadDataset,
     PrependTokenDataset,
+    RightPadDataset,
     SortDataset,
     TokenBlockDataset,
+    data_utils,
 )
-from fairseq.tasks import register_task, LegacyFairseqTask
-from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.data.encoders.utils import get_whole_word_mask
-from fairseq import utils
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
+from fairseq.tasks import LegacyFairseqTask, register_task
 
 
 logger = logging.getLogger(__name__)
 
 
-@register_task('masked_lm')
+@register_task("masked_lm")
 class MaskedLMTask(LegacyFairseqTask):
     """Task for training masked language models (e.g., BERT, RoBERTa)."""
 
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('data', help='colon separated path to data directories list, \
-                            will be iterated upon during epochs in round-robin manner')
-        parser.add_argument('--sample-break-mode', default='complete',
-                            choices=['none', 'complete', 'complete_doc', 'eos'],
-                            help='If omitted or "none", fills each sample with tokens-per-sample '
-                                 'tokens. If set to "complete", splits samples only at the end '
-                                 'of sentence, but may include multiple sentences per sample. '
-                                 '"complete_doc" is similar but respects doc boundaries. '
-                                 'If set to "eos", includes only one sentence per sample.')
-        parser.add_argument('--tokens-per-sample', default=512, type=int,
-                            help='max number of total tokens over all segments '
-                                 'per sample for BERT dataset')
-        parser.add_argument('--mask-prob', default=0.15, type=float,
-                            help='probability of replacing a token with mask')
-        parser.add_argument('--leave-unmasked-prob', default=0.1, type=float,
-                            help='probability that a masked token is unmasked')
-        parser.add_argument('--random-token-prob', default=0.1, type=float,
-                            help='probability of replacing a token with a random token')
-        parser.add_argument('--freq-weighted-replacement', default=False, action='store_true',
-                            help='sample random replacement words based on word frequencies')
-        parser.add_argument('--mask-whole-words', default=False, action='store_true',
-                            help='mask whole words; you may also want to set --bpe')
-        parser.add_argument('--shorten-method', default='none',
-                            choices=['none', 'truncate', 'random_crop'],
-                            help='if not none, shorten sequences that exceed --tokens-per-sample')
-        parser.add_argument('--shorten-data-split-list', default='',
-                            help='comma-separated list of dataset splits to apply shortening to, '
-                                 'e.g., "train,valid" (default: all dataset splits)')
+        parser.add_argument(
+            "data",
+            help="colon separated path to data directories list, \
+                            will be iterated upon during epochs in round-robin manner",
+        )
+        parser.add_argument(
+            "--sample-break-mode",
+            default="complete",
+            choices=["none", "complete", "complete_doc", "eos"],
+            help='If omitted or "none", fills each sample with tokens-per-sample '
+            'tokens. If set to "complete", splits samples only at the end '
+            "of sentence, but may include multiple sentences per sample. "
+            '"complete_doc" is similar but respects doc boundaries. '
+            'If set to "eos", includes only one sentence per sample.',
+        )
+        parser.add_argument(
+            "--tokens-per-sample",
+            default=512,
+            type=int,
+            help="max number of total tokens over all segments "
+            "per sample for BERT dataset",
+        )
+        parser.add_argument(
+            "--mask-prob",
+            default=0.15,
+            type=float,
+            help="probability of replacing a token with mask",
+        )
+        parser.add_argument(
+            "--leave-unmasked-prob",
+            default=0.1,
+            type=float,
+            help="probability that a masked token is unmasked",
+        )
+        parser.add_argument(
+            "--random-token-prob",
+            default=0.1,
+            type=float,
+            help="probability of replacing a token with a random token",
+        )
+        parser.add_argument(
+            "--freq-weighted-replacement",
+            default=False,
+            action="store_true",
+            help="sample random replacement words based on word frequencies",
+        )
+        parser.add_argument(
+            "--mask-whole-words",
+            default=False,
+            action="store_true",
+            help="mask whole words; you may also want to set --bpe",
+        )
+        parser.add_argument(
+            "--shorten-method",
+            default="none",
+            choices=["none", "truncate", "random_crop"],
+            help="if not none, shorten sequences that exceed --tokens-per-sample",
+        )
+        parser.add_argument(
+            "--shorten-data-split-list",
+            default="",
+            help="comma-separated list of dataset splits to apply shortening to, "
+            'e.g., "train,valid" (default: all dataset splits)',
+        )
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -72,14 +107,14 @@ class MaskedLMTask(LegacyFairseqTask):
         self.seed = args.seed
 
         # add mask token
-        self.mask_idx = dictionary.add_symbol('<mask>')
+        self.mask_idx = dictionary.add_symbol("<mask>")
 
     @classmethod
     def setup_task(cls, args, **kwargs):
         paths = utils.split_paths(args.data)
         assert len(paths) > 0
-        dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
-        logger.info('dictionary: {} types'.format(len(dictionary)))
+        dictionary = Dictionary.load(os.path.join(paths[0], "dict.txt"))
+        logger.info("dictionary: {} types".format(len(dictionary)))
         return cls(args, dictionary)
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
@@ -100,7 +135,9 @@ class MaskedLMTask(LegacyFairseqTask):
             combine=combine,
         )
         if dataset is None:
-            raise FileNotFoundError('Dataset not found: {} ({})'.format(split, split_path))
+            raise FileNotFoundError(
+                "Dataset not found: {} ({})".format(split, split_path)
+            )
 
         dataset = maybe_shorten_dataset(
             dataset,
@@ -120,14 +157,17 @@ class MaskedLMTask(LegacyFairseqTask):
             eos=self.source_dictionary.eos(),
             break_mode=self.args.sample_break_mode,
         )
-        logger.info('loaded {} blocks from: {}'.format(len(dataset), split_path))
+        logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
 
         # create masked input and targets
-        mask_whole_words = get_whole_word_mask(self.args, self.source_dictionary) \
-            if self.args.mask_whole_words else None
+        mask_whole_words = (
+            get_whole_word_mask(self.args, self.source_dictionary)
+            if self.args.mask_whole_words
+            else None
+        )
 
         src_dataset, tgt_dataset = MaskTokensDataset.apply_mask(
             dataset,
@@ -148,20 +188,20 @@ class MaskedLMTask(LegacyFairseqTask):
         self.datasets[split] = SortDataset(
             NestedDictionaryDataset(
                 {
-                    'id': IdDataset(),
-                    'net_input': {
-                        'src_tokens': RightPadDataset(
+                    "id": IdDataset(),
+                    "net_input": {
+                        "src_tokens": RightPadDataset(
                             src_dataset,
                             pad_idx=self.source_dictionary.pad(),
                         ),
-                        'src_lengths': NumelDataset(src_dataset, reduce=False),
+                        "src_lengths": NumelDataset(src_dataset, reduce=False),
                     },
-                    'target': RightPadDataset(
+                    "target": RightPadDataset(
                         tgt_dataset,
                         pad_idx=self.source_dictionary.pad(),
                     ),
-                    'nsentences': NumSamplesDataset(),
-                    'ntokens': NumelDataset(src_dataset, reduce=True),
+                    "nsentences": NumSamplesDataset(),
+                    "ntokens": NumelDataset(src_dataset, reduce=True),
                 },
                 sizes=[src_dataset.sizes],
             ),
@@ -179,17 +219,17 @@ class MaskedLMTask(LegacyFairseqTask):
                 self.args.tokens_per_sample - 1,  # one less for <s>
                 pad=self.source_dictionary.pad(),
                 eos=self.source_dictionary.eos(),
-                break_mode='eos',
+                break_mode="eos",
             ),
             pad_idx=self.source_dictionary.pad(),
         )
         src_dataset = PrependTokenDataset(src_dataset, self.source_dictionary.bos())
         src_dataset = NestedDictionaryDataset(
             {
-                'id': IdDataset(),
-                'net_input': {
-                    'src_tokens': src_dataset,
-                    'src_lengths': NumelDataset(src_dataset, reduce=False),
+                "id": IdDataset(),
+                "net_input": {
+                    "src_tokens": src_dataset,
+                    "src_lengths": NumelDataset(src_dataset, reduce=False),
                 },
             },
             sizes=src_lengths,

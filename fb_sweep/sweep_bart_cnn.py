@@ -10,33 +10,38 @@ def get_grid(args):
     total_num_udpates = 20000
     warmup_updates = 500
     num_data_loaders = 4
-    arch = 'bart_large'
-    task = 'translation'
-    criterion = 'label_smoothed_cross_entropy'
+    arch = "bart_large"
+    task = "translation"
+    criterion = "label_smoothed_cross_entropy"
 
     adam_eps = 1e-08
     weight_decay = 0.01
 
     update_freq = 4 if args.num_nodes == 1 else 1
     grid += [
-        hyperparam("--restore-file", "/private/home/namangoyal/src/fairseq_denoising_codepush/fairseq-py/bart.large/model.pt")
+        hyperparam(
+            "--restore-file",
+            "/private/home/namangoyal/src/fairseq_denoising_codepush/fairseq-py/bart.large/model.pt",
+        )
     ]
 
     # model settings
     grid += [
         hyperparam("--arch", arch, save_dir_key=lambda val: val),
         hyperparam("--task", task),
-        hyperparam('--criterion', criterion),
-        hyperparam('--source-lang', 'source'),
-        hyperparam('--target-lang', 'target'),
-        hyperparam('--truncate-source'),
-        hyperparam('--label-smoothing', 0.1, save_dir_key=lambda val: f"ls{val}"),
+        hyperparam("--criterion", criterion),
+        hyperparam("--source-lang", "source"),
+        hyperparam("--target-lang", "target"),
+        hyperparam("--truncate-source"),
+        hyperparam("--label-smoothing", 0.1, save_dir_key=lambda val: f"ls{val}"),
     ]
 
     grid += [
         hyperparam("--max-tokens", 2048, save_dir_key=lambda val: f"mt{val}"),
         hyperparam("--update-freq", update_freq, save_dir_key=lambda val: f"uf{val}"),
-        hyperparam("--max-update", total_num_udpates, save_dir_key=lambda val: f"mu{val}"),
+        hyperparam(
+            "--max-update", total_num_udpates, save_dir_key=lambda val: f"mu{val}"
+        ),
         hyperparam("--required-batch-size-multiple", 1),
     ]
     # regularization
@@ -60,7 +65,9 @@ def get_grid(args):
         hyperparam("--lr-scheduler", "polynomial_decay"),
         hyperparam("--lr", 3e-05, save_dir_key=lambda val: f"lr{val}"),
         hyperparam("--total-num-update", total_num_udpates),
-        hyperparam("--warmup-updates", warmup_updates, save_dir_key=lambda val: f"warm{val}"),
+        hyperparam(
+            "--warmup-updates", warmup_updates, save_dir_key=lambda val: f"warm{val}"
+        ),
     ]
     grid += [
         hyperparam("--fp16", save_dir_key=lambda val: "fp16"),
@@ -75,14 +82,14 @@ def get_grid(args):
     grid += [
         # hyperparam("--no-save"),
         hyperparam("--no-epoch-checkpoints"),
-        hyperparam('--reset-meters'),
-        hyperparam('--reset-optimizer')
+        hyperparam("--reset-meters"),
+        hyperparam("--reset-optimizer"),
     ]
 
     grid += [
-        hyperparam('--share-all-embeddings'),
-        hyperparam('--layernorm-embedding'),
-        hyperparam('--share-decoder-input-output-embed'),
+        hyperparam("--share-all-embeddings"),
+        hyperparam("--layernorm-embedding"),
+        hyperparam("--share-decoder-input-output-embed"),
     ]
 
     # logging settings
@@ -104,5 +111,6 @@ def postprocess_hyperparams(args, config):
     """Postprocess a given hyperparameter configuration."""
     pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     sweep.main(get_grid, postprocess_hyperparams)

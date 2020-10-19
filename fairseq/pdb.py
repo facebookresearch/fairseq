@@ -9,7 +9,7 @@ import pdb
 import sys
 
 
-__all__ = ['set_trace']
+__all__ = ["set_trace"]
 
 
 _stdin = [None]

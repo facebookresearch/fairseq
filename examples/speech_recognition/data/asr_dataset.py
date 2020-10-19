@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
+
 import numpy as np
 from fairseq.data import FairseqDataset
 
@@ -30,16 +31,22 @@ class AsrDataset(FairseqDataset):
     """
 
     def __init__(
-        self, aud_paths, aud_durations_ms, tgt,
-        tgt_dict, ids, speakers,
-        num_mel_bins=80, frame_length=25.0, frame_shift=10.0
+        self,
+        aud_paths,
+        aud_durations_ms,
+        tgt,
+        tgt_dict,
+        ids,
+        speakers,
+        num_mel_bins=80,
+        frame_length=25.0,
+        frame_shift=10.0,
     ):
         assert frame_length > 0
         assert frame_shift > 0
         assert all(x > frame_length for x in aud_durations_ms)
         self.frame_sizes = [
-            int(1 + (d - frame_length) / frame_shift)
-            for d in aud_durations_ms
+            int(1 + (d - frame_length) / frame_shift) for d in aud_durations_ms
         ]
 
         assert len(aud_paths) > 0
@@ -57,13 +64,17 @@ class AsrDataset(FairseqDataset):
         self.frame_shift = frame_shift
 
         self.s2s_collater = Seq2SeqCollater(
-            0, 1, pad_index=self.tgt_dict.pad(),
-            eos_index=self.tgt_dict.eos(), move_eos_to_beginning=True
+            0,
+            1,
+            pad_index=self.tgt_dict.pad(),
+            eos_index=self.tgt_dict.eos(),
+            move_eos_to_beginning=True,
         )
 
     def __getitem__(self, index):
         import torchaudio
         import torchaudio.compliance.kaldi as kaldi
+
         tgt_item = self.tgt[index] if self.tgt is not None else None
 
         path = self.aud_paths[index]
@@ -74,7 +85,7 @@ class AsrDataset(FairseqDataset):
             sound,
             num_mel_bins=self.num_mel_bins,
             frame_length=self.frame_length,
-            frame_shift=self.frame_shift
+            frame_shift=self.frame_shift,
         )
         output_cmvn = data_utils.apply_mv_norm(output)
 

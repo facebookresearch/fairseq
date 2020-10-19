@@ -7,14 +7,15 @@
 
 import argparse
 import logging
-import numpy as np
-import torch
 import traceback
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
+import torch
 from fairseq.data import FairseqDataset, FairseqIterableDataset, data_utils, encoders
 from fairseq.data.fb_conversations.fb_special_symbols import SpecialConversationSymbols
 from fairseq.data.fb_hive_dataset import HiveDataset
+
 
 logger = logging.getLogger("fairseq.fb_conversation_dataset")
 
@@ -53,9 +54,11 @@ def _tokenize_and_reformat_conversations(item, dictionary, encoder) -> Dict[str,
 
     # Verify data is in expected format
     assert len(item) == 4
-    assert (isinstance(item[0], str)
-            and isinstance(item[1], list)
-            and isinstance(item[2], int))
+    assert (
+        isinstance(item[0], str)
+        and isinstance(item[1], list)
+        and isinstance(item[2], int)
+    )
 
     def _reformat_msg(msg, sender_list, encoder):
         sender = msg[1]
@@ -82,7 +85,7 @@ def _tokenize_and_reformat_conversations(item, dictionary, encoder) -> Dict[str,
 
     try:
         # Convert text thread key into an int ('1:2' -> 12)
-        id = int(''.join(item[0].split(':')))
+        id = int("".join(item[0].split(":")))
         # Join all the messages into a single tensor separated by sender tags
         user_list = []
         convo_tensor = torch.cat(
@@ -92,12 +95,10 @@ def _tokenize_and_reformat_conversations(item, dictionary, encoder) -> Dict[str,
         boc = dictionary.index(SpecialConversationSymbols.BOC)
         eoc = dictionary.index(SpecialConversationSymbols.EOC)
         item = {
-            'id': id,
-            'source': torch.cat([
-                torch.IntTensor([boc]),
-                convo_tensor,
-                torch.IntTensor([eoc])
-            ]),
+            "id": id,
+            "source": torch.cat(
+                [torch.IntTensor([boc]), convo_tensor, torch.IntTensor([eoc])]
+            ),
         }
     except Exception as e:
         logger.error("Exception: {}\n{}".format(e, traceback.format_exc()))
@@ -124,7 +125,7 @@ def _torchify(item, dictionary) -> Dict[str, Any]:
             'target': tensor([4, 6, 31373, 612, 7, ..., 5])
         }
     """
-    tokenized_conversation = item['source'].long()
+    tokenized_conversation = item["source"].long()
     ntokens = len(tokenized_conversation)
     if ntokens > 1024 or ntokens < 20:
         logger.info("Skipped conversation with token length: {}".format(ntokens))
@@ -141,13 +142,13 @@ def _torchify(item, dictionary) -> Dict[str, Any]:
     )
     torch_item = {
         # Bound ID to 64 bit max to avoid overflow
-        'id': torch.LongTensor([item['id'] % (2 ** 63 - 1)]),
-        'ntokens': ntokens,
-        'net_input': {
-            'src_tokens': source,
-            'src_lengths': torch.LongTensor([ntokens]),
+        "id": torch.LongTensor([item["id"] % (2 ** 63 - 1)]),
+        "ntokens": ntokens,
+        "net_input": {
+            "src_tokens": source,
+            "src_lengths": torch.LongTensor([ntokens]),
         },
-        'target': target
+        "target": target,
     }
     return torch_item
 
@@ -188,17 +189,19 @@ class ConversationDataset(FairseqDataset, FairseqIterableDataset):
         self,
         dataset: HiveDataset,
         dictionary,
-        split_range: Tuple[float, float] = (0.0, 1.0)
+        split_range: Tuple[float, float] = (0.0, 1.0),
     ):
         super().__init__()
         self.dataset = dataset
         self.dictionary = dictionary
         self.split_range = split_range
-        self.bpe = encoders.build_bpe(argparse.Namespace(
-            bpe='gpt2',
-            gpt2_encoder_json='/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/encoder.json',
-            gpt2_vocab_bpe='/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/vocab.bpe'
-        ))
+        self.bpe = encoders.build_bpe(
+            argparse.Namespace(
+                bpe="gpt2",
+                gpt2_encoder_json="/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/encoder.json",
+                gpt2_vocab_bpe="/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/vocab.bpe",
+            )
+        )
 
     def __getitem__(self, index):
         if isinstance(index, (int, np.integer)):
@@ -207,7 +210,7 @@ class ConversationDataset(FairseqDataset, FairseqIterableDataset):
             return ConversationDataset(self.dataset[index], self.dictionary)
         else:
             raise TypeError(
-                'Index must be int or slice, not {}'.format(type(index).__name__)
+                "Index must be int or slice, not {}".format(type(index).__name__)
             )
 
     def size(self, index):
@@ -216,7 +219,7 @@ class ConversationDataset(FairseqDataset, FairseqIterableDataset):
         item = self[index]
         if item is None:
             return 0
-        return item['ntokens']
+        return item["ntokens"]
 
     def __len__(self):
         # We'll only look at a subset of the dataset as determined by the split

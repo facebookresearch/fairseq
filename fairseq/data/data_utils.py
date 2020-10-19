@@ -12,8 +12,7 @@ import itertools
 import logging
 import os
 import warnings
-
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -26,19 +25,26 @@ def infer_language_pair(path):
     """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
     src, dst = None, None
     for filename in os.listdir(path):
-        parts = filename.split('.')
-        if len(parts) >= 3 and len(parts[1].split('-')) == 2:
-            return parts[1].split('-')
+        parts = filename.split(".")
+        if len(parts) >= 3 and len(parts[1].split("-")) == 2:
+            return parts[1].split("-")
     return src, dst
 
 
-def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False,
-                   pad_to_length=None, pad_to_multiple=1):
+def collate_tokens(
+    values,
+    pad_idx,
+    eos_idx=None,
+    left_pad=False,
+    move_eos_to_beginning=False,
+    pad_to_length=None,
+    pad_to_multiple=1,
+):
     """Convert a list of 1d tensors into a padded 2d tensor."""
     size = max(v.size(0) for v in values)
     size = size if pad_to_length is None else max(size, pad_to_length)
     if pad_to_multiple != 1 and size % pad_to_multiple != 0:
-        size = int(((size-0.1)//pad_to_multiple + 1) * pad_to_multiple)
+        size = int(((size - 0.1) // pad_to_multiple + 1) * pad_to_multiple)
     res = values[0].new(len(values), size).fill_(pad_idx)
 
     def copy_tensor(src, dst):
@@ -54,11 +60,13 @@ def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_be
             dst.copy_(src)
 
     for i, v in enumerate(values):
-        copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
+        copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
 
 
-def load_indexed_dataset(path, dictionary=None, dataset_impl=None, combine=False, default='cached'):
+def load_indexed_dataset(
+    path, dictionary=None, dataset_impl=None, combine=False, default="cached"
+):
     """A helper function for loading indexed datasets.
 
     Args:
@@ -74,9 +82,10 @@ def load_indexed_dataset(path, dictionary=None, dataset_impl=None, combine=False
     """
     from fairseq.data.concat_dataset import ConcatDataset
     import fairseq.data.indexed_dataset as indexed_dataset
+
     datasets = []
     for k in itertools.count():
-        path_k = path + (str(k) if k > 0 else '')
+        path_k = path + (str(k) if k > 0 else "")
         path_k = indexed_dataset.get_indexed_dataset_to_local(path_k)
 
         dataset_impl_k = dataset_impl
@@ -90,7 +99,7 @@ def load_indexed_dataset(path, dictionary=None, dataset_impl=None, combine=False
         )
         if dataset is None:
             break
-        logger.info('loaded {} examples from: {}'.format(len(dataset), path_k))
+        logger.info("loaded {} examples from: {}".format(len(dataset), path_k))
         datasets.append(dataset)
         if not combine:
             break
@@ -148,8 +157,10 @@ def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=Fal
             assert isinstance(idx_size, dict)
             intersect_keys = set(max_positions.keys()) & set(idx_size.keys())
             return all(
-                all(a is None or b is None or a <= b
-                    for a, b in zip(idx_size[key], max_positions[key]))
+                all(
+                    a is None or b is None or a <= b
+                    for a, b in zip(idx_size[key], max_positions[key])
+                )
                 for key in intersect_keys
             )
         else:
@@ -166,6 +177,7 @@ def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=Fal
                 a is None or b is None or a <= b
                 for a, b in zip(size_fn(idx), max_positions)
             )
+
     ignored = []
     itr = collect_filtered(check_size, indices, ignored)
     indices = np.fromiter(itr, dtype=np.int64, count=-1)
@@ -186,37 +198,47 @@ def filter_by_size(indices, dataset, max_positions, raise_exception=False):
             any elements are filtered (default: False).
     """
     warnings.warn(
-        'data_utils.filter_by_size is deprecated. '
-        'Use `FairseqDataset::filter_indices_by_size` instead.',
-        stacklevel=2
+        "data_utils.filter_by_size is deprecated. "
+        "Use `FairseqDataset::filter_indices_by_size` instead.",
+        stacklevel=2,
     )
     if isinstance(max_positions, float) or isinstance(max_positions, int):
-        if hasattr(dataset, 'sizes') and isinstance(dataset.sizes, np.ndarray):
+        if hasattr(dataset, "sizes") and isinstance(dataset.sizes, np.ndarray):
             ignored = indices[dataset.sizes[indices] > max_positions].tolist()
             indices = indices[dataset.sizes[indices] <= max_positions]
-        elif hasattr(dataset, 'sizes') and isinstance(dataset.sizes, list) and len(dataset.sizes) == 1:
+        elif (
+            hasattr(dataset, "sizes")
+            and isinstance(dataset.sizes, list)
+            and len(dataset.sizes) == 1
+        ):
             ignored = indices[dataset.sizes[0][indices] > max_positions].tolist()
             indices = indices[dataset.sizes[0][indices] <= max_positions]
         else:
-            indices, ignored = _filter_by_size_dynamic(indices, dataset.size, max_positions)
+            indices, ignored = _filter_by_size_dynamic(
+                indices, dataset.size, max_positions
+            )
     else:
         indices, ignored = _filter_by_size_dynamic(indices, dataset.size, max_positions)
 
     if len(ignored) > 0 and raise_exception:
-        raise Exception((
-            'Size of sample #{} is invalid (={}) since max_positions={}, '
-            'skip this example with --skip-invalid-size-inputs-valid-test'
-        ).format(ignored[0], dataset.size(ignored[0]), max_positions))
+        raise Exception(
+            (
+                "Size of sample #{} is invalid (={}) since max_positions={}, "
+                "skip this example with --skip-invalid-size-inputs-valid-test"
+            ).format(ignored[0], dataset.size(ignored[0]), max_positions)
+        )
     if len(ignored) > 0:
-        logger.warning((
-            '{} samples have invalid sizes and will be skipped, '
-            'max_positions={}, first few sample ids={}'
-        ).format(len(ignored), max_positions, ignored[:10]))
+        logger.warning(
+            (
+                "{} samples have invalid sizes and will be skipped, "
+                "max_positions={}, first few sample ids={}"
+            ).format(len(ignored), max_positions, ignored[:10])
+        )
     return indices
 
 
 def filter_paired_dataset_indices_by_size(src_sizes, tgt_sizes, indices, max_sizes):
-    """ Filter a list of sample indices. Remove those that are longer
+    """Filter a list of sample indices. Remove those that are longer
         than specified in max_sizes.
 
     Args:
@@ -238,21 +260,26 @@ def filter_paired_dataset_indices_by_size(src_sizes, tgt_sizes, indices, max_siz
         ignored = indices[src_sizes[indices] > max_src_size]
     else:
         ignored = indices[
-            (src_sizes[indices] > max_src_size) |
-            (tgt_sizes[indices] > max_tgt_size)]
+            (src_sizes[indices] > max_src_size) | (tgt_sizes[indices] > max_tgt_size)
+        ]
     if len(ignored) > 0:
         if tgt_sizes is None:
             indices = indices[src_sizes[indices] <= max_src_size]
         else:
             indices = indices[
-                (src_sizes[indices] <= max_src_size) &
-                (tgt_sizes[indices] <= max_tgt_size)]
+                (src_sizes[indices] <= max_src_size)
+                & (tgt_sizes[indices] <= max_tgt_size)
+            ]
     return indices, ignored.tolist()
 
 
 def batch_by_size(
-    indices, num_tokens_fn, max_tokens=None, max_sentences=None,
-    required_batch_size_multiple=1, fixed_shapes=None,
+    indices,
+    num_tokens_fn,
+    max_tokens=None,
+    max_sentences=None,
+    required_batch_size_multiple=1,
+    fixed_shapes=None,
 ):
     """
     Yield mini-batches of indices bucketed by size. Batches may contain
@@ -274,12 +301,13 @@ def batch_by_size(
     """
     try:
         from fairseq.data.data_utils_fast import (
-            batch_by_size_fast, batch_fixed_shapes_fast,
+            batch_by_size_fast,
+            batch_fixed_shapes_fast,
         )
     except ImportError:
         raise ImportError(
-            'Please build Cython components with: `pip install --editable .` '
-            'or `python setup.py build_ext --inplace`'
+            "Please build Cython components with: `pip install --editable .` "
+            "or `python setup.py build_ext --inplace`"
         )
 
     max_tokens = max_tokens if max_tokens is not None else -1
@@ -291,14 +319,20 @@ def batch_by_size(
 
     if fixed_shapes is None:
         return batch_by_size_fast(
-            indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult,
+            indices,
+            num_tokens_fn,
+            max_tokens,
+            max_sentences,
+            bsz_mult,
         )
     else:
         fixed_shapes = np.array(fixed_shapes, dtype=np.int64)
-        sort_order = np.lexsort([
-            fixed_shapes[:, 1].argsort(),  # length
-            fixed_shapes[:, 0].argsort(),  # bsz
-        ])
+        sort_order = np.lexsort(
+            [
+                fixed_shapes[:, 1].argsort(),  # length
+                fixed_shapes[:, 0].argsort(),  # bsz
+            ]
+        )
         fixed_shapes_sorted = fixed_shapes[sort_order]
         return batch_fixed_shapes_fast(indices, num_tokens_fn, fixed_shapes_sorted)
 
@@ -306,26 +340,27 @@ def batch_by_size(
 def post_process(sentence: str, symbol: str):
     if symbol == "sentencepiece":
         sentence = sentence.replace(" ", "").replace("\u2581", " ").strip()
-    elif symbol == 'wordpiece':
+    elif symbol == "wordpiece":
         sentence = sentence.replace(" ", "").replace("_", " ").strip()
-    elif symbol == 'letter':
+    elif symbol == "letter":
         sentence = sentence.replace(" ", "").replace("|", " ").strip()
     elif symbol == "_EOW":
         sentence = sentence.replace(" ", "").replace("_EOW", " ").strip()
-    elif symbol is not None and symbol != 'none':
+    elif symbol is not None and symbol != "none":
         sentence = (sentence + " ").replace(symbol, "").rstrip()
     return sentence
 
+
 def compute_mask_indices(
-        shape: Tuple[int, int],
-        padding_mask: Optional[torch.Tensor],
-        mask_prob: float,
-        mask_length: int,
-        mask_type: str = "static",
-        mask_other: float = 0.0,
-        min_masks: int = 0,
-        no_overlap: bool = False,
-        min_space: int = 0,
+    shape: Tuple[int, int],
+    padding_mask: Optional[torch.Tensor],
+    mask_prob: float,
+    mask_length: int,
+    mask_type: str = "static",
+    mask_other: float = 0.0,
+    min_masks: int = 0,
+    no_overlap: bool = False,
+    min_space: int = 0,
 ) -> np.ndarray:
     """
     Computes random mask spans for a given shape
@@ -390,13 +425,14 @@ def compute_mask_indices(
 
         if no_overlap:
             mask_idc = []
+
             def arrange(s, e, length, keep_length):
-                span_start = np.random.randint(s, e-length)
+                span_start = np.random.randint(s, e - length)
                 mask_idc.extend(span_start + i for i in range(length))
 
                 new_parts = []
                 if span_start - s - min_space >= keep_length:
-                    new_parts.append((s, span_start-min_space+1))
+                    new_parts.append((s, span_start - min_space + 1))
                 if e - span_start - keep_length - min_space > keep_length:
                     new_parts.append((span_start + length + min_space, e))
                 return new_parts
@@ -404,7 +440,10 @@ def compute_mask_indices(
             parts = [(0, sz)]
             min_length = min(lengths)
             for length in sorted(lengths, reverse=True):
-                lens = np.fromiter((e - s if e-s >= length+min_space else 0 for s, e in parts), np.int)
+                lens = np.fromiter(
+                    (e - s if e - s >= length + min_space else 0 for s, e in parts),
+                    np.int,
+                )
                 l_sum = np.sum(lens)
                 if l_sum == 0:
                     break
@@ -416,7 +455,7 @@ def compute_mask_indices(
         else:
             min_len = min(lengths)
             if sz - min_len <= num_mask:
-                min_len  = sz - num_mask - 1
+                min_len = sz - num_mask - 1
 
             mask_idc = np.random.choice(sz - min_len, num_mask, replace=False)
 
@@ -442,10 +481,11 @@ def compute_mask_indices(
 def get_mem_usage():
     try:
         import psutil
+
         mb = 1024 * 1024
-        return f'used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb'
+        return f"used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb"
     except ImportError:
-        return 'N/A'
+        return "N/A"
 
 
 def lengths_to_padding_mask(lens: torch.LongTensor) -> torch.BoolTensor:

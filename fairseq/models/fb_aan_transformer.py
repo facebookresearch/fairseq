@@ -63,12 +63,12 @@ class AverageAttention(nn.Module):
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
     ):
         """Input shape: Time x Batch x Channel
-       ` mask_trick` is to use matrix multiplication instead of cumulative sum
-        to average the inputs.
-        Future timesteps can be masked with the
-        `mask_future_timesteps` argument. Padding elements can be excluded from
-        the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
-        batch x src_len, where padding elements are indicated by 1s.
+        ` mask_trick` is to use matrix multiplication instead of cumulative sum
+         to average the inputs.
+         Future timesteps can be masked with the
+         `mask_future_timesteps` argument. Padding elements can be excluded from
+         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
+         batch x src_len, where padding elements are indicated by 1s.
         """
 
         assert mask_future_timesteps or incremental_state is None

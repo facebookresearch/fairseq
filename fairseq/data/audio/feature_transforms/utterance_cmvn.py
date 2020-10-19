@@ -1,11 +1,11 @@
 import numpy as np
-
 from fairseq.data.audio.feature_transforms import (
-    AudioFeatureTransform, register_audio_feature_transform
+    AudioFeatureTransform,
+    register_audio_feature_transform,
 )
 
 
-@register_audio_feature_transform('utterance_cmvn')
+@register_audio_feature_transform("utterance_cmvn")
 class UtteranceCMVN(AudioFeatureTransform):
     """Utterance-level CMVN (cepstral mean and variance normalization)"""
 
@@ -13,16 +13,18 @@ class UtteranceCMVN(AudioFeatureTransform):
     def from_config_dict(cls, config=None):
         _config = {} if config is None else config
         return UtteranceCMVN(
-            _config.get('norm_means', True),
-            _config.get('norm_vars', True),
+            _config.get("norm_means", True),
+            _config.get("norm_vars", True),
         )
 
     def __init__(self, norm_means=True, norm_vars=True):
         self.norm_means, self.norm_vars = norm_means, norm_vars
 
     def __repr__(self):
-        return self.__class__.__name__ + \
-               f'(norm_means={self.norm_means}, norm_vars={self.norm_vars})'
+        return (
+            self.__class__.__name__
+            + f"(norm_means={self.norm_means}, norm_vars={self.norm_vars})"
+        )
 
     def __call__(self, x):
         mean = x.mean(axis=0)

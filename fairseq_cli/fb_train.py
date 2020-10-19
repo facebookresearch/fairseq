@@ -44,18 +44,20 @@ def get_fb_training_parser():
         "--manifold-max-parallel",
         default=8,
         type=int,
-        help="set ManifoldPathHandler max_parallel download number"
+        help="set ManifoldPathHandler max_parallel download number",
     )
     parser.add_argument(
         "--manifold-timeout-sec",
         default=1800,
         type=int,
-        help="set ManifoldPathHandler timeout seconds"
+        help="set ManifoldPathHandler timeout seconds",
     )
     parser.add_argument(
         "--manifold-has-user-data",
         default=True,
-        type=lambda x: x.lower() not in ('no', 'false', 'f', 'n', '0') if x is not None else None,
+        type=lambda x: x.lower() not in ("no", "false", "f", "n", "0")
+        if x is not None
+        else None,
         help="set ManifoldPathHandler has_user_data option",
     )
     parser.add_argument(
@@ -68,7 +70,7 @@ def get_fb_training_parser():
         "--manifold-ttl",
         default=None,
         type=int,
-        help="A manifold  resource's time-to-live, applied to all manifold written resources. By default, there is no TTL."
+        help="A manifold  resource's time-to-live, applied to all manifold written resources. By default, there is no TTL.",
     )
     # for manifold
     return parser
@@ -82,15 +84,19 @@ def init_manifold(args):
     # Note that if manifold_file_io.py is imported before current file, the following try
     # block will fail; the settings at manifold_file_io.py will take the priority.
     try:
-        PathManager.register_handler(ManifoldPathHandler(
-            max_parallel=args.manifold_max_parallel,
-            timeout_sec=args.manifold_timeout_sec,
-            has_user_data=args.manifold_has_user_data,
-            num_retries=args.manifold_num_retries,
-            ttl=args.manifold_ttl,
-            ))
-        logger.info(f"ManifoldPathHandler is set: max_parallel={args.manifold_max_parallel}, "
-                    f"timeout_sec={args.manifold_timeout_sec}; has_user_data={args.manifold_has_user_data}")
+        PathManager.register_handler(
+            ManifoldPathHandler(
+                max_parallel=args.manifold_max_parallel,
+                timeout_sec=args.manifold_timeout_sec,
+                has_user_data=args.manifold_has_user_data,
+                num_retries=args.manifold_num_retries,
+                ttl=args.manifold_ttl,
+            )
+        )
+        logger.info(
+            f"ManifoldPathHandler is set: max_parallel={args.manifold_max_parallel}, "
+            f"timeout_sec={args.manifold_timeout_sec}; has_user_data={args.manifold_has_user_data}"
+        )
     except KeyError:
         logging.warning("ManifoldPathHandler already registered.")
 

@@ -14,9 +14,9 @@ This version also supports the *no_sync* context manager, which allows faster
 training with `--update-freq`.
 """
 
+import copy
 from collections import OrderedDict
 from contextlib import contextmanager
-import copy
 
 import torch
 from torch import nn
@@ -42,7 +42,7 @@ class LegacyDistributedDataParallel(nn.Module):
             performing all-reduce (default: 256M).
     """
 
-    def __init__(self, module, world_size, process_group=None, buffer_size=2**28):
+    def __init__(self, module, world_size, process_group=None, buffer_size=2 ** 28):
         super().__init__()
 
         self.module = module
@@ -65,7 +65,6 @@ class LegacyDistributedDataParallel(nn.Module):
                 paramlists[device] = []
             paramlists[device] += [param]
         self.per_device_params = list(paramlists.values())
-
 
     def __getstate__(self):
         attrs = copy.copy(self.__dict__)
@@ -99,10 +98,10 @@ class LegacyDistributedDataParallel(nn.Module):
                 for p in params:
                     sz = p.numel()
                     if p.grad is not None:
-                        buffer[offset:offset+sz].copy_(p.grad.data.view(-1))
+                        buffer[offset : offset + sz].copy_(p.grad.data.view(-1))
                         nonzero_buffer = True
                     else:
-                        buffer[offset:offset+sz].zero_()
+                        buffer[offset : offset + sz].zero_()
                     offset += sz
             else:
                 # we only have a single grad to all-reduce
@@ -111,7 +110,7 @@ class LegacyDistributedDataParallel(nn.Module):
                     buffer = p.grad.data
                     nonzero_buffer = True
                 elif p.numel() <= self.buffer.numel():
-                    buffer = buffer[:p.numel()]
+                    buffer = buffer[: p.numel()]
                     buffer.zero_()
                 else:
                     buffer = torch.zeros_like(p)
@@ -126,9 +125,9 @@ class LegacyDistributedDataParallel(nn.Module):
             for p in params:
                 sz = p.numel()
                 if p.grad is not None:
-                    p.grad.data.copy_(buffer[offset:offset+sz].view_as(p))
+                    p.grad.data.copy_(buffer[offset : offset + sz].view_as(p))
                 else:
-                    p.grad = buffer[offset:offset+sz].view_as(p).clone()
+                    p.grad = buffer[offset : offset + sz].view_as(p).clone()
                 offset += sz
 
         def reduction_fn():
@@ -149,9 +148,11 @@ class LegacyDistributedDataParallel(nn.Module):
                     if param.grad is None:
                         param.grad = torch.zeros_like(param)
                     if param.grad.requires_grad:
-                        raise RuntimeError("DistributedDataParallel only works "
-                                           "with gradients that don't require "
-                                           "grad")
+                        raise RuntimeError(
+                            "DistributedDataParallel only works "
+                            "with gradients that don't require "
+                            "grad"
+                        )
                     sz = param.numel()
                     if sz > self.buffer.numel():
                         # all-reduce big params directly

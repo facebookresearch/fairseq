@@ -27,9 +27,19 @@ class PQEmbedding(nn.Module):
           the non-quantized nn.Embedding module for a standard training loop.
     """
 
-    def __init__(self, centroids, assignments, num_embeddings, embedding_dim,
-                     padding_idx=None, max_norm=None, norm_type=2.,
-                     scale_grad_by_freq=False, sparse=False, _weight=None):
+    def __init__(
+        self,
+        centroids,
+        assignments,
+        num_embeddings,
+        embedding_dim,
+        padding_idx=None,
+        max_norm=None,
+        norm_type=2.0,
+        scale_grad_by_freq=False,
+        sparse=False,
+        _weight=None,
+    ):
         super(PQEmbedding, self).__init__()
         self.block_size = centroids.size(1)
         self.n_centroids = centroids.size(0)
@@ -37,9 +47,13 @@ class PQEmbedding(nn.Module):
         self.embedding_dim = embedding_dim
         if padding_idx is not None:
             if padding_idx > 0:
-                assert padding_idx < self.num_embeddings, 'Padding_idx must be within num_embeddings'
+                assert (
+                    padding_idx < self.num_embeddings
+                ), "Padding_idx must be within num_embeddings"
             elif padding_idx < 0:
-                assert padding_idx >= -self.num_embeddings, 'Padding_idx must be within num_embeddings'
+                assert (
+                    padding_idx >= -self.num_embeddings
+                ), "Padding_idx must be within num_embeddings"
                 padding_idx = self.num_embeddings + padding_idx
         self.padding_idx = padding_idx
         self.max_norm = max_norm
@@ -67,21 +81,27 @@ class PQEmbedding(nn.Module):
 
     def forward(self, input):
         return F.embedding(
-            input, self.weight, self.padding_idx, self.max_norm,
-            self.norm_type, self.scale_grad_by_freq, self.sparse)
+            input,
+            self.weight,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
+            self.sparse,
+        )
 
     def extra_repr(self):
-        s = '{num_embeddings}, {embedding_dim}'
+        s = "{num_embeddings}, {embedding_dim}"
         if self.padding_idx is not None:
-            s += ', padding_idx={padding_idx}'
+            s += ", padding_idx={padding_idx}"
         if self.max_norm is not None:
-            s += ', max_norm={max_norm}'
+            s += ", max_norm={max_norm}"
         if self.norm_type != 2:
-            s += ', norm_type={norm_type}'
+            s += ", norm_type={norm_type}"
         if self.scale_grad_by_freq is not False:
-            s += ', scale_grad_by_freq={scale_grad_by_freq}'
+            s += ", scale_grad_by_freq={scale_grad_by_freq}"
         if self.sparse is not False:
-            s += ', sparse=True'
-        s += ', n_centroids={n_centroids}, block_size={block_size}'
+            s += ", sparse=True"
+        s += ", n_centroids={n_centroids}, block_size={block_size}"
 
         return s.format(**self.__dict__)

@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq.scoring import register_scorer, BaseScorer
+from fairseq.scoring import BaseScorer, register_scorer
 from fairseq.scoring.tokenizer import EvaluationTokenizer
 
 
@@ -15,7 +15,7 @@ class WerScorer(BaseScorer):
         try:
             import editdistance as ed
         except ImportError:
-            raise ImportError('Please install editdistance to use WER scorer')
+            raise ImportError("Please install editdistance to use WER scorer")
         self.ed = ed
         self.tokenizer = EvaluationTokenizer(
             tokenizer_type=self.args.wer_tokenizer,
@@ -52,7 +52,4 @@ class WerScorer(BaseScorer):
         return f"WER: {self.score():.2f}"
 
     def score(self):
-        return (
-            100.0 * self.distance / self.ref_length if self.ref_length > 0
-            else 0
-        )
+        return 100.0 * self.distance / self.ref_length if self.ref_length > 0 else 0

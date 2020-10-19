@@ -9,22 +9,33 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fairseq.modules.scalar_bias import scalar_bias
 from fairseq.modules.fairseq_dropout import FairseqDropout
+from fairseq.modules.scalar_bias import scalar_bias
 
 
 class SingleHeadAttention(nn.Module):
     """
     Single-head attention that supports Gating and Downsampling
     """
+
     def __init__(
-        self, out_channels, embed_dim, head_dim, head_index, dropout=0.,
-        bias=True, project_input=True, gated=False, downsample=False,
+        self,
+        out_channels,
+        embed_dim,
+        head_dim,
+        head_index,
+        dropout=0.0,
+        bias=True,
+        project_input=True,
+        gated=False,
+        downsample=False,
         num_heads=1,
     ):
         super().__init__()
         self.embed_dim = embed_dim
-        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
         self.head_index = head_index
         self.head_dim = head_dim
         self.project_input = project_input
@@ -58,11 +69,16 @@ class SingleHeadAttention(nn.Module):
         else:
             self.out_proj = Linear(out_proj_size, out_channels, bias=bias)
 
-        self.scaling = self.head_dim**-0.5
+        self.scaling = self.head_dim ** -0.5
 
     def forward(
-        self, query, key, value, mask_future_timesteps=False,
-        key_padding_mask=None, use_scalar_bias=False,
+        self,
+        query,
+        key,
+        value,
+        mask_future_timesteps=False,
+        key_padding_mask=None,
+        use_scalar_bias=False,
     ):
         """Input shape: Time x Batch x Channel
         Self-attention can be implemented by passing in the same arguments for
@@ -106,16 +122,17 @@ class SingleHeadAttention(nn.Module):
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         if mask_future_timesteps:
-            assert query.size() == key.size(), \
-                'mask_future_timesteps only applies to self-attention'
+            assert (
+                query.size() == key.size()
+            ), "mask_future_timesteps only applies to self-attention"
             attn_weights *= torch.tril(
                 attn_weights.data.new([1]).expand(tgt_len, tgt_len).clone(),
                 diagonal=-1,
-            )[:, ::self.head_index + 1 if self.downsample else 1].unsqueeze(0)
+            )[:, :: self.head_index + 1 if self.downsample else 1].unsqueeze(0)
             attn_weights += torch.triu(
                 attn_weights.data.new([-math.inf]).expand(tgt_len, tgt_len).clone(),
-                diagonal=0
-            )[:, ::self.head_index + 1 if self.downsample else 1].unsqueeze(0)
+                diagonal=0,
+            )[:, :: self.head_index + 1 if self.downsample else 1].unsqueeze(0)
         tgt_size = tgt_len
         if use_scalar_bias:
             attn_weights = scalar_bias(attn_weights, 2)
@@ -128,7 +145,9 @@ class SingleHeadAttention(nn.Module):
                 if self.downsample:
                     attn_weights = attn_weights.view(bsz, 1, tgt_len, src_len)
                 else:
-                    attn_weights = attn_weights.view(size, self.num_heads, tgt_len, src_len)
+                    attn_weights = attn_weights.view(
+                        size, self.num_heads, tgt_len, src_len
+                    )
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2),
                     -math.inf,
@@ -152,9 +171,17 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
     """
     Multi-headed attention with Gating and Downsampling
     """
+
     def __init__(
-        self, out_channels, embed_dim, num_heads, dropout=0., bias=True,
-        project_input=True, gated=False, downsample=False,
+        self,
+        out_channels,
+        embed_dim,
+        num_heads,
+        dropout=0.0,
+        bias=True,
+        project_input=True,
+        gated=False,
+        downsample=False,
     ):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -169,9 +196,16 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
             for index in range(self.num_heads):
                 attention_heads.append(
                     SingleHeadAttention(
-                        out_channels, self.embed_dim, self.head_dim, index,
-                        dropout, bias, self.project_input, self.gated,
-                        self.downsample, self.num_heads,
+                        out_channels,
+                        self.embed_dim,
+                        self.head_dim,
+                        index,
+                        dropout,
+                        bias,
+                        self.project_input,
+                        self.gated,
+                        self.downsample,
+                        self.num_heads,
                     )
                 )
             super().__init__(modules=attention_heads)
@@ -181,13 +215,26 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
             # if not being downsampled, we can do the heads with one linear layer instead of separate ones
             super().__init__()
             self.attention_module = SingleHeadAttention(
-                out_channels, self.embed_dim, self.head_dim, 1, dropout,
-                bias, self.project_input, self.gated, self.downsample, self.num_heads,
+                out_channels,
+                self.embed_dim,
+                self.head_dim,
+                1,
+                dropout,
+                bias,
+                self.project_input,
+                self.gated,
+                self.downsample,
+                self.num_heads,
             )
 
     def forward(
-        self, query, key, value, mask_future_timesteps=False,
-        key_padding_mask=None, use_scalar_bias=False,
+        self,
+        query,
+        key,
+        value,
+        mask_future_timesteps=False,
+        key_padding_mask=None,
+        use_scalar_bias=False,
     ):
         src_len, bsz, embed_dim = key.size()
         tgt_len = query.size(0)
@@ -205,7 +252,12 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
             for attention_head_number in range(self.num_heads):
                 # call the forward of each attention head
                 _attn, _attn_weight = self[attention_head_number](
-                    query, key, value, mask_future_timesteps, key_padding_mask, use_scalar_bias,
+                    query,
+                    key,
+                    value,
+                    mask_future_timesteps,
+                    key_padding_mask,
+                    use_scalar_bias,
                 )
                 attn.append(_attn)
                 attn_weights.append(_attn_weight)
@@ -214,13 +266,20 @@ class DownsampledMultiHeadAttention(nn.ModuleList):
             return full_attn, attn_weights[0].clone()
         else:
             _attn, _attn_weight = self.attention_module(
-                query, key, value, mask_future_timesteps, key_padding_mask, use_scalar_bias,
+                query,
+                key,
+                value,
+                mask_future_timesteps,
+                key_padding_mask,
+                use_scalar_bias,
             )
             attn.append(_attn)
             attn_weights.append(_attn_weight)
             full_attn = torch.cat(attn, dim=2)
             full_attn_weights = torch.cat(attn_weights)
-            full_attn_weights = full_attn_weights.view(bsz, self.num_heads, tgt_size, src_len)
+            full_attn_weights = full_attn_weights.view(
+                bsz, self.num_heads, tgt_size, src_len
+            )
             full_attn_weights = full_attn_weights.sum(dim=1) / self.num_heads
             return full_attn, full_attn_weights
 
@@ -229,15 +288,16 @@ class Downsample(nn.Module):
     """
     Selects every nth element, where n is the index
     """
+
     def __init__(self, index):
         super().__init__()
         self.index = index
 
     def forward(self, x):
-        return x[::self.index+1]
+        return x[:: self.index + 1]
 
 
-def Linear(in_features, out_features, dropout=0., bias=True):
+def Linear(in_features, out_features, dropout=0.0, bias=True):
     """Weight-normalized Linear layer (input: B x T x C)"""
     m = nn.Linear(in_features, out_features, bias=bias)
     m.weight.data.normal_(mean=0, std=math.sqrt((1 - dropout) / in_features))
@@ -245,12 +305,12 @@ def Linear(in_features, out_features, dropout=0., bias=True):
     return nn.utils.weight_norm(m)
 
 
-def GatedLinear(in_features, out_features, dropout=0., bias=True):
+def GatedLinear(in_features, out_features, dropout=0.0, bias=True):
     """Weight-normalized Linear layer (input: B x T x C) with interspersed GLU units"""
     return nn.Sequential(
-        Linear(in_features, out_features*4, dropout, bias),
+        Linear(in_features, out_features * 4, dropout, bias),
         nn.GLU(),
-        Linear(out_features*2, out_features*2, dropout, bias),
+        Linear(out_features * 2, out_features * 2, dropout, bias),
         nn.GLU(),
-        Linear(out_features, out_features, dropout, bias)
+        Linear(out_features, out_features, dropout, bias),
     )

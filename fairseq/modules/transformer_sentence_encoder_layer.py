@@ -7,15 +7,10 @@ from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
-
 from fairseq import utils
-from fairseq.modules import (
-    LayerNorm,
-    MultiheadAttention,
-)
-from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
-
+from fairseq.modules.quant_noise import quant_noise
 
 
 class TransformerSentenceEncoderLayer(nn.Module):
@@ -32,7 +27,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         dropout: float = 0.1,
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
-        activation_fn: str = 'relu',
+        activation_fn: str = "relu",
         export: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,
@@ -45,8 +40,12 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
         # Initialize parameters
         self.embedding_dim = embedding_dim
-        self.dropout_module = FairseqDropout(dropout, module_name=self.__class__.__name__)
-        self.activation_dropout_module = FairseqDropout(activation_dropout, module_name=self.__class__.__name__)
+        self.dropout_module = FairseqDropout(
+            dropout, module_name=self.__class__.__name__
+        )
+        self.activation_dropout_module = FairseqDropout(
+            activation_dropout, module_name=self.__class__.__name__
+        )
 
         # Initialize blocks
         self.activation_fn = utils.get_activation_fn(activation_fn)
@@ -79,14 +78,10 @@ class TransformerSentenceEncoderLayer(nn.Module):
         self.final_layer_norm = LayerNorm(self.embedding_dim, export=export)
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(
-            nn.Linear(input_dim, output_dim), q_noise, qn_block_size
-        )
+        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(
-            nn.Linear(input_dim, output_dim), q_noise, qn_block_size
-        )
+        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
 
     def build_self_attention(
         self,

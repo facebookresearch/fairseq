@@ -6,10 +6,9 @@
 from typing import Dict, List
 
 import torch
-from torch import nn
-
 from fairseq.models import FairseqLanguageModel
 from fairseq.utils import buffered_arange
+from torch import nn
 
 
 class ElmoTokenEmbedder(nn.Module):
@@ -30,8 +29,8 @@ class ElmoTokenEmbedder(nn.Module):
         tune_lm: bool = False,
         lm_frozen_layers: int = 0,
         lm_tune_embedding: bool = False,
-        weights_dropout: float = 0.,
-        final_dropout: float = 0.,
+        weights_dropout: float = 0.0,
+        final_dropout: float = 0.0,
         layer_norm: bool = True,
         affine_layer_norm: bool = False,
         projection_dim: int = None,
@@ -70,8 +69,8 @@ class ElmoTokenEmbedder(nn.Module):
 
         if self.use_boundary_tokens:
             # make sure the bos and eos are not remove in fine tuning case
-            assert (not self.remove_bos)
-            assert (not self.remove_eos)
+            assert not self.remove_bos
+            assert not self.remove_eos
 
         self.num_layers = len(language_model.decoder.forward_layers)
         if self.add_final_context:
@@ -90,7 +89,11 @@ class ElmoTokenEmbedder(nn.Module):
 
         self.weights_dropout = nn.Dropout(weights_dropout)
         self.final_dropout = nn.Dropout(final_dropout)
-        self.layer_norm = nn.LayerNorm(self.dim, elementwise_affine=affine_layer_norm) if layer_norm else None
+        self.layer_norm = (
+            nn.LayerNorm(self.dim, elementwise_affine=affine_layer_norm)
+            if layer_norm
+            else None
+        )
 
         if self.use_boundary_tokens:
             self.weights = None
@@ -101,8 +104,11 @@ class ElmoTokenEmbedder(nn.Module):
 
         self.apply_softmax = apply_softmax
 
-        self.projection = nn.Linear(self.dim, projection_dim,
-                                    bias=False) if projection_dim is not None and projection_dim != self.dim else None
+        self.projection = (
+            nn.Linear(self.dim, projection_dim, bias=False)
+            if projection_dim is not None and projection_dim != self.dim
+            else None
+        )
 
         trainable_params, non_trainable_params = self._get_params_by_trainability(
             lm_frozen_layers, lm_tune_embedding
@@ -137,8 +143,8 @@ class ElmoTokenEmbedder(nn.Module):
         else:
             non_trainable_lm_params.append(lm_params_by_layer[0])
 
-        trainable_lm_params.extend(lm_params_by_layer[lm_frozen_layers + 1:])
-        non_trainable_lm_params.extend(lm_params_by_layer[1: lm_frozen_layers + 1])
+        trainable_lm_params.extend(lm_params_by_layer[lm_frozen_layers + 1 :])
+        non_trainable_lm_params.extend(lm_params_by_layer[1 : lm_frozen_layers + 1])
 
         trainable_params = trainable_lm_params + [non_lm_params]
         non_trainable_params = [
@@ -196,10 +202,10 @@ class ElmoTokenEmbedder(nn.Module):
             eos_state = x[eos_idx_mask]  # batch_size * embeding_size
             return [torch.cat((bos_state.unsqueeze(1), eos_state.unsqueeze(1)), dim=1)]
 
-        assert 'inner_states' in model_out
+        assert "inner_states" in model_out
 
         # TBC -> BTC
-        states = [s.transpose(0, 1) for s in model_out['inner_states']]
+        states = [s.transpose(0, 1) for s in model_out["inner_states"]]
 
         has_final_predictive = len(states) % 2 == 0
 
@@ -232,13 +238,11 @@ class ElmoTokenEmbedder(nn.Module):
 
             states = new_states
         elif not self.add_final_predictive and has_final_predictive:
-                states = states[:-1]
+            states = states[:-1]
 
         return states
 
-    def _with_sentence_boundaries(
-            self,
-            input: torch.Tensor):
+    def _with_sentence_boundaries(self, input: torch.Tensor):
         """
         Args:
             input: the sentence Tensor
@@ -255,9 +259,21 @@ class ElmoTokenEmbedder(nn.Module):
 
         type_args = {"device": input.device, "dtype": input.dtype}
         zero_block = input.new(0, 0)
-        block_size = (input.size(0), 1, input.size(2)) if self.char_inputs else (input.size(0), 1)
-        bos_block = torch.full(block_size, self.eos_idx, **type_args) if self.add_bos else zero_block
-        pad_block = torch.full(block_size, self.padding_idx, **type_args) if self.add_eos else zero_block
+        block_size = (
+            (input.size(0), 1, input.size(2))
+            if self.char_inputs
+            else (input.size(0), 1)
+        )
+        bos_block = (
+            torch.full(block_size, self.eos_idx, **type_args)
+            if self.add_bos
+            else zero_block
+        )
+        pad_block = (
+            torch.full(block_size, self.padding_idx, **type_args)
+            if self.add_eos
+            else zero_block
+        )
 
         # add eos in the beginning and pad to the end of the sentence
         input = torch.cat([bos_block, input, pad_block], dim=1)
@@ -271,15 +287,27 @@ class ElmoTokenEmbedder(nn.Module):
 
             # index of the first pad
             if self.onnx_trace:
-                first_pads = torch._dim_arange(input, 1).type_as(input).view(1, -1).\
-                    repeat(input.size(0), 1).eq(max_len - num_pads)
+                first_pads = (
+                    torch._dim_arange(input, 1)
+                    .type_as(input)
+                    .view(1, -1)
+                    .repeat(input.size(0), 1)
+                    .eq(max_len - num_pads)
+                )
                 eos_indices = first_pads
                 if self.char_inputs:
                     eos_indices = eos_indices.unsqueeze(2).repeat(1, 1, input.size(-1))
-                input = torch.where(eos_indices, torch.Tensor([self.eos_idx]).type_as(input), input)
+                input = torch.where(
+                    eos_indices, torch.Tensor([self.eos_idx]).type_as(input), input
+                )
             else:
-                first_pads = buffered_arange(max_len).type_as(input).view(1, -1).\
-                    expand(input.size(0), -1).eq(max_len - num_pads)
+                first_pads = (
+                    buffered_arange(max_len)
+                    .type_as(input)
+                    .view(1, -1)
+                    .expand(input.size(0), -1)
+                    .eq(max_len - num_pads)
+                )
                 eos_indices = first_pads
                 if self.char_inputs:
                     eos_indices = eos_indices.unsqueeze(2).expand_as(input)
@@ -288,8 +316,8 @@ class ElmoTokenEmbedder(nn.Module):
         return input, first_pads
 
     def _without_sentence_boundaries(
-            self,
-            input: torch.Tensor,
+        self,
+        input: torch.Tensor,
     ):
         if self.remove_bos:
             # remove first token (beginning eos)
@@ -301,8 +329,8 @@ class ElmoTokenEmbedder(nn.Module):
         return input
 
     def forward(
-            self,
-            input: torch.Tensor,
+        self,
+        input: torch.Tensor,
     ):
         input, eos_idx_mask = self._with_sentence_boundaries(input)
 
@@ -316,7 +344,8 @@ class ElmoTokenEmbedder(nn.Module):
 
         if self.apply_softmax:
             w = torch.nn.functional.softmax(
-                self.weights, dim=0, dtype=torch.float32).type_as(self.weights)
+                self.weights, dim=0, dtype=torch.float32
+            ).type_as(self.weights)
         else:
             w = self.weights
 

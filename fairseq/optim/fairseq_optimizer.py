@@ -109,8 +109,8 @@ class FairseqOptimizer(object):
         if self.supports_step_with_scale:
             self.optimizer.step(closure, scale=scale)
         else:
-            if scale != 1.:
-                self.multiply_grads(1. / scale)
+            if scale != 1.0:
+                self.multiply_grads(1.0 / scale)
             self.optimizer.step(closure)
 
     def zero_grad(self):

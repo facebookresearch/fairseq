@@ -8,14 +8,16 @@
 
 import sys
 
-from indicnlp.tokenize.indic_tokenize import trivial_tokenize
 from indicnlp.normalize.indic_normalize import IndicNormalizerFactory
+from indicnlp.tokenize.indic_tokenize import trivial_tokenize
 
-factory=IndicNormalizerFactory()
-normalizer=factory.get_normalizer(sys.argv[1],remove_nuktas=False,nasals_mode='do_nothing')
+
+factory = IndicNormalizerFactory()
+normalizer = factory.get_normalizer(
+    sys.argv[1], remove_nuktas=False, nasals_mode="do_nothing"
+)
 
 for line in sys.stdin:
-    normalized_line=normalizer.normalize(line.strip())
-    tokenized_line=' '.join(trivial_tokenize(normalized_line, sys.argv[1]))
+    normalized_line = normalizer.normalize(line.strip())
+    tokenized_line = " ".join(trivial_tokenize(normalized_line, sys.argv[1]))
     print(tokenized_line)
-

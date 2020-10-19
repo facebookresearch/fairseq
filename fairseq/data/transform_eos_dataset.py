@@ -33,11 +33,11 @@ class TransformEosDataset(FairseqDataset):
         has_target=True,
     ):
         if not isinstance(dataset, FairseqDataset):
-            raise ValueError('dataset must be an instance of FairseqDataset')
+            raise ValueError("dataset must be an instance of FairseqDataset")
         if append_eos_to_src and remove_eos_from_src:
-            raise ValueError('cannot combine append_eos_to_src and remove_eos_from_src')
+            raise ValueError("cannot combine append_eos_to_src and remove_eos_from_src")
         if append_eos_to_tgt and remove_eos_from_tgt:
-            raise ValueError('cannot combine append_eos_to_tgt and remove_eos_from_tgt')
+            raise ValueError("cannot combine append_eos_to_tgt and remove_eos_from_tgt")
 
         self.dataset = dataset
         self.eos = torch.LongTensor([eos])
@@ -75,24 +75,23 @@ class TransformEosDataset(FairseqDataset):
         return len(self.dataset)
 
     def collater(self, samples):
-
         def transform(item):
             if self.append_eos_to_src:
-                self.eos = self.eos.to(device=item['source'].device)
-                self._check_src(item['source'], expect_eos=False)
-                item['source'] = torch.cat([item['source'], self.eos])
+                self.eos = self.eos.to(device=item["source"].device)
+                self._check_src(item["source"], expect_eos=False)
+                item["source"] = torch.cat([item["source"], self.eos])
             if self.remove_eos_from_src:
-                self.eos = self.eos.to(device=item['source'].device)
-                self._check_src(item['source'], expect_eos=True)
-                item['source'] = item['source'][:-1]
+                self.eos = self.eos.to(device=item["source"].device)
+                self._check_src(item["source"], expect_eos=True)
+                item["source"] = item["source"][:-1]
             if self.append_eos_to_tgt:
-                self.eos = self.eos.to(device=item['target'].device)
-                self._check_tgt(item['target'], expect_eos=False)
-                item['target'] = torch.cat([item['target'], self.eos])
+                self.eos = self.eos.to(device=item["target"].device)
+                self._check_tgt(item["target"], expect_eos=False)
+                item["target"] = torch.cat([item["target"], self.eos])
             if self.remove_eos_from_tgt:
-                self.eos = self.eos.to(device=item['target'].device)
-                self._check_tgt(item['target'], expect_eos=True)
-                item['target'] = item['target'][:-1]
+                self.eos = self.eos.to(device=item["target"].device)
+                self._check_tgt(item["target"], expect_eos=True)
+                item["target"] = item["target"][:-1]
             return item
 
         samples = list(map(transform, samples))
@@ -115,7 +114,7 @@ class TransformEosDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return getattr(self.dataset, 'supports_prefetch', False)
+        return getattr(self.dataset, "supports_prefetch", False)
 
     def prefetch(self, indices):
         return self.dataset.prefetch(indices)

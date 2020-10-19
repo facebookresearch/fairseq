@@ -11,11 +11,11 @@ on the aggregation context in which the logging occurs. See the
 :func:`aggregate` context manager for more details.
 """
 
-from collections import defaultdict, OrderedDict
 import contextlib
 import time
-from typing import Callable, Dict, List, Optional
 import uuid
+from collections import OrderedDict, defaultdict
+from typing import Callable, Dict, List, Optional
 
 from .meters import *
 
@@ -184,7 +184,7 @@ def log_start_time(key: str, priority: int = 40, round: Optional[int] = None):
         agg[key].start()
 
 
-def log_stop_time(key: str, weight: float = 0., prehook=None):
+def log_stop_time(key: str, weight: float = 0.0, prehook=None):
     """Log the duration of some event in seconds.
 
     The duration will be computed since :func:`log_start_time` was called.
@@ -279,10 +279,7 @@ def get_smoothed_values(name: str) -> Dict[str, float]:
 
 
 def state_dict():
-    return OrderedDict([
-        (name, agg.state_dict())
-        for name, agg in _aggregators.items()
-    ])
+    return OrderedDict([(name, agg.state_dict()) for name, agg in _aggregators.items()])
 
 
 def load_state_dict(state_dict):

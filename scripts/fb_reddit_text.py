@@ -15,9 +15,9 @@ import sys
 
 
 REPLACE_MAP = {
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
 }
 
 
@@ -30,7 +30,12 @@ def main():
         text = ""
 
         def try_add(key):
-            if key in json and json[key] != "" and json[key] != "[deleted]" and json[key] != "[removed]":
+            if (
+                key in json
+                and json[key] != ""
+                and json[key] != "[deleted]"
+                and json[key] != "[removed]"
+            ):
                 return json[key] + "\n"
             else:
                 return ""

@@ -7,7 +7,6 @@ from . import BaseWrapperDataset
 
 
 class ListDataset(BaseWrapperDataset):
-
     def __init__(self, dataset, sizes=None):
         super().__init__(dataset)
         self._sizes = sizes

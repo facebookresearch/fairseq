@@ -7,10 +7,10 @@ import argparse
 import os
 import random
 import sys
+from io import StringIO
+
 import torch
 import torch.nn.functional as F
-
-from io import StringIO
 from fairseq import options, utils
 from fairseq.data import Dictionary
 from fairseq.data.language_pair_dataset import collate
@@ -20,18 +20,11 @@ from fairseq.models import (
     FairseqIncrementalDecoder,
 )
 from fairseq.models.fairseq_encoder import EncoderOut
-from fairseq.tasks import LegacyFairseqTask
-from fairseq.tasks import FairseqTask
-from fairseq_cli import (
-    generate,
-    interactive,
-    preprocess,
-    train,
-    validate,
-)
+from fairseq.tasks import FairseqTask, LegacyFairseqTask
+from fairseq_cli import generate, interactive, preprocess, train, validate
 
 
-def dummy_dictionary(vocab_size, prefix='token_'):
+def dummy_dictionary(vocab_size, prefix="token_"):
     d = Dictionary()
     for i in range(vocab_size):
         token = prefix + str(i)
@@ -51,8 +44,8 @@ def dummy_dataloader(
 
     # add any missing data to samples
     for i, sample in enumerate(samples):
-        if 'id' not in sample:
-            sample['id'] = i
+        if "id" not in sample:
+            sample["id"] = i
 
     # create dataloader
     dataset = TestDataset(samples)
@@ -77,48 +70,86 @@ def sequence_generator_setup():
     src_lengths = torch.LongTensor([2, 2])
 
     args = argparse.Namespace()
-    unk = 0.
+    unk = 0.0
     args.beam_probs = [
         # step 0:
-        torch.FloatTensor([
-            # eos      w1   w2
-            # sentence 1:
-            [0.0, unk, 0.9, 0.1],  # beam 1
-            [0.0, unk, 0.9, 0.1],  # beam 2
-            # sentence 2:
-            [0.0, unk, 0.7, 0.3],
-            [0.0, unk, 0.7, 0.3],
-        ]),
+        torch.FloatTensor(
+            [
+                # eos      w1   w2
+                # sentence 1:
+                [0.0, unk, 0.9, 0.1],  # beam 1
+                [0.0, unk, 0.9, 0.1],  # beam 2
+                # sentence 2:
+                [0.0, unk, 0.7, 0.3],
+                [0.0, unk, 0.7, 0.3],
+            ]
+        ),
         # step 1:
-        torch.FloatTensor([
-            # eos      w1   w2       prefix
-            # sentence 1:
-            [1.0, unk, 0.0, 0.0],  # w1: 0.9  (emit: w1 <eos>: 0.9*1.0)
-            [0.0, unk, 0.9, 0.1],  # w2: 0.1
-            # sentence 2:
-            [0.25, unk, 0.35, 0.4],  # w1: 0.7  (don't emit: w1 <eos>: 0.7*0.25)
-            [0.00, unk, 0.10, 0.9],  # w2: 0.3
-        ]),
+        torch.FloatTensor(
+            [
+                # eos      w1   w2       prefix
+                # sentence 1:
+                [1.0, unk, 0.0, 0.0],  # w1: 0.9  (emit: w1 <eos>: 0.9*1.0)
+                [0.0, unk, 0.9, 0.1],  # w2: 0.1
+                # sentence 2:
+                [0.25, unk, 0.35, 0.4],  # w1: 0.7  (don't emit: w1 <eos>: 0.7*0.25)
+                [0.00, unk, 0.10, 0.9],  # w2: 0.3
+            ]
+        ),
         # step 2:
-        torch.FloatTensor([
-            # eos      w1   w2       prefix
-            # sentence 1:
-            [0.0, unk, 0.1, 0.9],  # w2 w1: 0.1*0.9
-            [0.6, unk, 0.2, 0.2],  # w2 w2: 0.1*0.1  (emit: w2 w2 <eos>: 0.1*0.1*0.6)
-            # sentence 2:
-            [0.60, unk, 0.4, 0.00],  # w1 w2: 0.7*0.4  (emit: w1 w2 <eos>: 0.7*0.4*0.6)
-            [0.01, unk, 0.0, 0.99],  # w2 w2: 0.3*0.9
-        ]),
+        torch.FloatTensor(
+            [
+                # eos      w1   w2       prefix
+                # sentence 1:
+                [0.0, unk, 0.1, 0.9],  # w2 w1: 0.1*0.9
+                [
+                    0.6,
+                    unk,
+                    0.2,
+                    0.2,
+                ],  # w2 w2: 0.1*0.1  (emit: w2 w2 <eos>: 0.1*0.1*0.6)
+                # sentence 2:
+                [
+                    0.60,
+                    unk,
+                    0.4,
+                    0.00,
+                ],  # w1 w2: 0.7*0.4  (emit: w1 w2 <eos>: 0.7*0.4*0.6)
+                [0.01, unk, 0.0, 0.99],  # w2 w2: 0.3*0.9
+            ]
+        ),
         # step 3:
-        torch.FloatTensor([
-            # eos      w1   w2       prefix
-            # sentence 1:
-            [1.0, unk, 0.0, 0.0],  # w2 w1 w2: 0.1*0.9*0.9  (emit: w2 w1 w2 <eos>: 0.1*0.9*0.9*1.0)
-            [1.0, unk, 0.0, 0.0],  # w2 w1 w1: 0.1*0.9*0.1  (emit: w2 w1 w1 <eos>: 0.1*0.9*0.1*1.0)
-            # sentence 2:
-            [0.1, unk, 0.5, 0.4],  # w2 w2 w2: 0.3*0.9*0.99  (emit: w2 w2 w2 <eos>: 0.3*0.9*0.99*0.1)
-            [1.0, unk, 0.0, 0.0],  # w1 w2 w1: 0.7*0.4*0.4  (emit: w1 w2 w1 <eos>: 0.7*0.4*0.4*1.0)
-        ]),
+        torch.FloatTensor(
+            [
+                # eos      w1   w2       prefix
+                # sentence 1:
+                [
+                    1.0,
+                    unk,
+                    0.0,
+                    0.0,
+                ],  # w2 w1 w2: 0.1*0.9*0.9  (emit: w2 w1 w2 <eos>: 0.1*0.9*0.9*1.0)
+                [
+                    1.0,
+                    unk,
+                    0.0,
+                    0.0,
+                ],  # w2 w1 w1: 0.1*0.9*0.1  (emit: w2 w1 w1 <eos>: 0.1*0.9*0.1*1.0)
+                # sentence 2:
+                [
+                    0.1,
+                    unk,
+                    0.5,
+                    0.4,
+                ],  # w2 w2 w2: 0.3*0.9*0.99  (emit: w2 w2 w2 <eos>: 0.3*0.9*0.99*0.1)
+                [
+                    1.0,
+                    unk,
+                    0.0,
+                    0.0,
+                ],  # w1 w2 w1: 0.7*0.4*0.4  (emit: w1 w2 w1 <eos>: 0.7*0.4*0.4*1.0)
+            ]
+        ),
     ]
 
     task = TestTranslationTask.setup_task(args, d, d)
@@ -132,18 +163,18 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
     def _create_dummy_data(filename):
         data = torch.rand(num_examples * maxlen)
         data = 97 + torch.floor(26 * data).int()
-        with open(os.path.join(data_dir, filename), 'w') as h:
+        with open(os.path.join(data_dir, filename), "w") as h:
             offset = 0
             for _ in range(num_examples):
                 ex_len = random.randint(1, maxlen)
-                ex_str = ' '.join(map(chr, data[offset:offset+ex_len]))
+                ex_str = " ".join(map(chr, data[offset : offset + ex_len]))
                 print(ex_str, file=h)
                 offset += ex_len
 
     def _create_dummy_alignment_data(filename_src, filename_tgt, filename):
-        with open(os.path.join(data_dir, filename_src), 'r') as src_f, \
-             open(os.path.join(data_dir, filename_tgt), 'r') as tgt_f, \
-             open(os.path.join(data_dir, filename), 'w') as h:
+        with open(os.path.join(data_dir, filename_src), "r") as src_f, open(
+            os.path.join(data_dir, filename_tgt), "r"
+        ) as tgt_f, open(os.path.join(data_dir, filename), "w") as h:
             for src, tgt in zip(src_f, tgt_f):
                 src_len = len(src.split())
                 tgt_len = len(tgt.split())
@@ -151,31 +182,42 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
                 num_alignments = random.randint(avg_len // 2, 2 * avg_len)
                 src_indices = torch.floor(torch.rand(num_alignments) * src_len).int()
                 tgt_indices = torch.floor(torch.rand(num_alignments) * tgt_len).int()
-                ex_str = ' '.join(["{}-{}".format(src, tgt) for src, tgt in zip(src_indices, tgt_indices)])
+                ex_str = " ".join(
+                    [
+                        "{}-{}".format(src, tgt)
+                        for src, tgt in zip(src_indices, tgt_indices)
+                    ]
+                )
                 print(ex_str, file=h)
 
-    _create_dummy_data('train.in')
-    _create_dummy_data('train.out')
-    _create_dummy_data('valid.in')
-    _create_dummy_data('valid.out')
-    _create_dummy_data('test.in')
-    _create_dummy_data('test.out')
+    _create_dummy_data("train.in")
+    _create_dummy_data("train.out")
+    _create_dummy_data("valid.in")
+    _create_dummy_data("valid.out")
+    _create_dummy_data("test.in")
+    _create_dummy_data("test.out")
 
     if alignment:
-        _create_dummy_alignment_data('train.in', 'train.out', 'train.align')
-        _create_dummy_alignment_data('valid.in', 'valid.out', 'valid.align')
-        _create_dummy_alignment_data('test.in', 'test.out', 'test.align')
+        _create_dummy_alignment_data("train.in", "train.out", "train.align")
+        _create_dummy_alignment_data("valid.in", "valid.out", "valid.align")
+        _create_dummy_alignment_data("test.in", "test.out", "test.align")
 
 
 def preprocess_lm_data(data_dir):
     preprocess_parser = options.get_preprocessing_parser()
-    preprocess_args = preprocess_parser.parse_args([
-        '--only-source',
-        '--trainpref', os.path.join(data_dir, 'train.out'),
-        '--validpref', os.path.join(data_dir, 'valid.out'),
-        '--testpref', os.path.join(data_dir, 'test.out'),
-        '--destdir', data_dir,
-    ])
+    preprocess_args = preprocess_parser.parse_args(
+        [
+            "--only-source",
+            "--trainpref",
+            os.path.join(data_dir, "train.out"),
+            "--validpref",
+            os.path.join(data_dir, "valid.out"),
+            "--testpref",
+            os.path.join(data_dir, "test.out"),
+            "--destdir",
+            data_dir,
+        ]
+    )
     preprocess.main(preprocess_args)
 
 
@@ -183,15 +225,24 @@ def preprocess_translation_data(data_dir, extra_flags=None):
     preprocess_parser = options.get_preprocessing_parser()
     preprocess_args = preprocess_parser.parse_args(
         [
-            '--source-lang', 'in',
-            '--target-lang', 'out',
-            '--trainpref', os.path.join(data_dir, 'train'),
-            '--validpref', os.path.join(data_dir, 'valid'),
-            '--testpref', os.path.join(data_dir, 'test'),
-            '--thresholdtgt', '0',
-            '--thresholdsrc', '0',
-            '--destdir', data_dir,
-        ] + (extra_flags or []),
+            "--source-lang",
+            "in",
+            "--target-lang",
+            "out",
+            "--trainpref",
+            os.path.join(data_dir, "train"),
+            "--validpref",
+            os.path.join(data_dir, "valid"),
+            "--testpref",
+            os.path.join(data_dir, "test"),
+            "--thresholdtgt",
+            "0",
+            "--thresholdsrc",
+            "0",
+            "--destdir",
+            data_dir,
+        ]
+        + (extra_flags or []),
     )
     preprocess.main(preprocess_args)
 
@@ -200,43 +251,72 @@ def preprocess_summarization_data(data_dir, extra_flags=None):
     preprocess_parser = options.get_preprocessing_parser()
     preprocess_args = preprocess_parser.parse_args(
         [
-            '--source-lang', 'in',
-            '--target-lang', 'out',
-            '--trainpref', os.path.join(data_dir, 'train'),
-            '--validpref', os.path.join(data_dir, 'valid'),
-            '--testpref', os.path.join(data_dir, 'test'),
-            '--thresholdtgt', '0',
-            '--thresholdsrc', '0',
-            '--joined-dictionary',
-            '--destdir', data_dir,
-        ] + (extra_flags or []),
+            "--source-lang",
+            "in",
+            "--target-lang",
+            "out",
+            "--trainpref",
+            os.path.join(data_dir, "train"),
+            "--validpref",
+            os.path.join(data_dir, "valid"),
+            "--testpref",
+            os.path.join(data_dir, "test"),
+            "--thresholdtgt",
+            "0",
+            "--thresholdsrc",
+            "0",
+            "--joined-dictionary",
+            "--destdir",
+            data_dir,
+        ]
+        + (extra_flags or []),
     )
     preprocess.main(preprocess_args)
 
 
-def train_translation_model(data_dir, arch, extra_flags=None, task='translation', run_validation=False,
-                            lang_flags=None, extra_valid_flags=None):
+def train_translation_model(
+    data_dir,
+    arch,
+    extra_flags=None,
+    task="translation",
+    run_validation=False,
+    lang_flags=None,
+    extra_valid_flags=None,
+):
     if lang_flags is None:
         lang_flags = [
-            '--source-lang', 'in',
-            '--target-lang', 'out',
+            "--source-lang",
+            "in",
+            "--target-lang",
+            "out",
         ]
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
         [
-            '--task', task,
+            "--task",
+            task,
             data_dir,
-            '--save-dir', data_dir,
-            '--arch', arch,
-            '--optimizer', 'nag',
-            '--lr', '0.05',
-            '--max-tokens', '500',
-            '--max-epoch', '1',
-            '--no-progress-bar',
-            '--distributed-world-size', '1',
-            '--num-workers', '0',
-        ] + lang_flags + (extra_flags or []),
+            "--save-dir",
+            data_dir,
+            "--arch",
+            arch,
+            "--optimizer",
+            "nag",
+            "--lr",
+            "0.05",
+            "--max-tokens",
+            "500",
+            "--max-epoch",
+            "1",
+            "--no-progress-bar",
+            "--distributed-world-size",
+            "1",
+            "--num-workers",
+            "0",
+        ]
+        + lang_flags
+        + (extra_flags or []),
     )
     train.main(train_args)
 
@@ -246,14 +326,21 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
         validate_args = options.parse_args_and_arch(
             validate_parser,
             [
-                '--task', task,
+                "--task",
+                task,
                 data_dir,
-                '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
-                '--valid-subset', 'valid',
-                '--max-tokens', '500',
-                '--no-progress-bar',
-                '--num-workers', '0',
-            ] + lang_flags + (extra_valid_flags or [])
+                "--path",
+                os.path.join(data_dir, "checkpoint_last.pt"),
+                "--valid-subset",
+                "valid",
+                "--max-tokens",
+                "500",
+                "--no-progress-bar",
+                "--num-workers",
+                "0",
+            ]
+            + lang_flags
+            + (extra_valid_flags or []),
         )
         validate.main(validate_args)
 
@@ -261,21 +348,28 @@ def train_translation_model(data_dir, arch, extra_flags=None, task='translation'
 def generate_main(data_dir, extra_flags=None):
     if extra_flags is None:
         extra_flags = [
-            '--print-alignment',
+            "--print-alignment",
         ]
     generate_parser = options.get_generation_parser()
     generate_args = options.parse_args_and_arch(
         generate_parser,
         [
             data_dir,
-            '--path', os.path.join(data_dir, 'checkpoint_last.pt'),
-            '--beam', '3',
-            '--batch-size', '64',
-            '--max-len-b', '5',
-            '--gen-subset', 'valid',
-            '--no-progress-bar',
-            '--num-workers', '0',
-        ] + (extra_flags or []),
+            "--path",
+            os.path.join(data_dir, "checkpoint_last.pt"),
+            "--beam",
+            "3",
+            "--batch-size",
+            "64",
+            "--max-len-b",
+            "5",
+            "--gen-subset",
+            "valid",
+            "--no-progress-bar",
+            "--num-workers",
+            "0",
+        ]
+        + (extra_flags or []),
     )
 
     # evaluate model in batch mode
@@ -283,16 +377,15 @@ def generate_main(data_dir, extra_flags=None):
 
     # evaluate model interactively
     generate_args.buffer_size = 0
-    generate_args.input = '-'
+    generate_args.input = "-"
     generate_args.batch_size = None
     orig_stdin = sys.stdin
-    sys.stdin = StringIO('h e l l o\n')
+    sys.stdin = StringIO("h e l l o\n")
     interactive.main(generate_args)
     sys.stdin = orig_stdin
 
 
 class TestDataset(torch.utils.data.Dataset):
-
     def __init__(self, data):
         super().__init__()
         self.data = data
@@ -306,7 +399,6 @@ class TestDataset(torch.utils.data.Dataset):
 
 
 class TestTranslationTask(LegacyFairseqTask):
-
     def __init__(self, args, src_dict, tgt_dict, model):
         super().__init__(args)
         self.src_dict = src_dict
@@ -369,8 +461,8 @@ class TestEncoder(FairseqEncoder):
 class TestIncrementalDecoder(FairseqIncrementalDecoder):
     def __init__(self, args, dictionary):
         super().__init__(dictionary)
-        assert hasattr(args, 'beam_probs') or hasattr(args, 'probs')
-        args.max_decoder_positions = getattr(args, 'max_decoder_positions', 100)
+        assert hasattr(args, "beam_probs") or hasattr(args, "probs")
+        args.max_decoder_positions = getattr(args, "max_decoder_positions", 100)
         self.args = args
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
@@ -384,18 +476,19 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
         # determine number of steps
         if incremental_state is not None:
             # cache step number
-            step = utils.get_incremental_state(self, incremental_state, 'step')
+            step = utils.get_incremental_state(self, incremental_state, "step")
             if step is None:
                 step = 0
-            utils.set_incremental_state(self, incremental_state, 'step', step + 1)
+            utils.set_incremental_state(self, incremental_state, "step", step + 1)
             steps = [step]
         else:
             steps = list(range(tgt_len))
 
         # define output in terms of raw probs
-        if hasattr(self.args, 'probs'):
-            assert self.args.probs.dim() == 3, \
-                'expected probs to have size bsz*steps*vocab'
+        if hasattr(self.args, "probs"):
+            assert (
+                self.args.probs.dim() == 3
+            ), "expected probs to have size bsz*steps*vocab"
             probs = self.args.probs.index_select(1, torch.LongTensor(steps))
         else:
             probs = torch.FloatTensor(bbsz, len(steps), vocab).zero_()
@@ -403,7 +496,7 @@ class TestIncrementalDecoder(FairseqIncrementalDecoder):
                 # args.beam_probs gives the probability for every vocab element,
                 # starting with eos, then unknown, and then the rest of the vocab
                 if step < len(self.args.beam_probs):
-                    probs[:, i, self.dictionary.eos():] = self.args.beam_probs[step]
+                    probs[:, i, self.dictionary.eos() :] = self.args.beam_probs[step]
                 else:
                     probs[:, i, self.dictionary.eos()] = 1.0
 
@@ -475,8 +568,8 @@ class TestAdditionalInputEncoder(FairseqEncoder):
         self.args = args
 
     def forward(self, src_tokens, src_lengths=None, **kwargs):
-        assert 'fancy_other_input' in kwargs
-        assert kwargs['fancy_other_input'] is not None
+        assert "fancy_other_input" in kwargs
+        assert kwargs["fancy_other_input"] is not None
         return EncoderOut(
             encoder_out=src_tokens,
             encoder_padding_mask=None,
@@ -508,8 +601,8 @@ class TestAdditionalInputModel(FairseqEncoderDecoderModel):
         return cls(encoder, decoder)
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
-        encoder_out = self.encoder(
-            src_tokens, src_lengths=src_lengths, **kwargs)
+        encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
         decoder_out = self.decoder(
-            prev_output_tokens, encoder_out=encoder_out, **kwargs)
+            prev_output_tokens, encoder_out=encoder_out, **kwargs
+        )
         return decoder_out

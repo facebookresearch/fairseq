@@ -7,13 +7,15 @@
 from fairseq.average_checkpoints import main
 from fairseq.file_io import PathManager
 
+
 # support fb specific path mananger
 try:
     from fvcore.fb.manifold import ManifoldPathHandler
+
     PathManager.register_handler(ManifoldPathHandler(max_parallel=16, timeout_sec=1800))
 except Exception:
     pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
