@@ -7,6 +7,7 @@ import contextlib
 import logging
 import os
 import random
+import sys
 import tempfile
 import unittest
 from io import StringIO
@@ -294,6 +295,7 @@ class TestTranslation(unittest.TestCase):
                             + dec_ltok_flag,
                         )
 
+    @unittest.skipIf(sys.platform.lower() == "darwin", "skip latent depth test on MacOS")
     def test_multilingual_translation_latent_depth(self):
         # test with latent depth in encoder, decoder, or both
         encoder_latent_layer = [[], ["--encoder-latent-layer"]]
