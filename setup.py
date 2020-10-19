@@ -127,51 +127,86 @@ if "clean" in sys.argv[1:]:
     )
 
 
-setup(
-    name="fairseq",
-    version="0.9.0",
-    description="Facebook AI Research Sequence-to-Sequence Toolkit",
-    url="https://github.com/pytorch/fairseq",
-    classifiers=[
-        "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.6",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    ],
-    long_description=readme,
-    long_description_content_type="text/markdown",
-    setup_requires=[
-        "cython",
-        "numpy",
-        "setuptools>=18.0",
-    ],
-    install_requires=[
-        "cffi",
-        "cython",
-        "dataclasses",
-        "editdistance",
-        "hydra-core",
-        "numpy",
-        "regex",
-        "sacrebleu>=1.4.12",
-        "torch",
-        "tqdm",
-    ],
-    dependency_links=dependency_links,
-    packages=find_packages(exclude=["scripts", "tests"]),
-    ext_modules=extensions,
-    test_suite="tests",
-    entry_points={
-        "console_scripts": [
-            "fairseq-eval-lm = fairseq_cli.eval_lm:cli_main",
-            "fairseq-generate = fairseq_cli.generate:cli_main",
-            "fairseq-interactive = fairseq_cli.interactive:cli_main",
-            "fairseq-preprocess = fairseq_cli.preprocess:cli_main",
-            "fairseq-score = fairseq_cli.score:cli_main",
-            "fairseq-train = fairseq_cli.train:cli_main",
-            "fairseq-validate = fairseq_cli.validate:cli_main",
+def do_setup(package_data):
+    setup(
+        name="fairseq",
+        version="0.9.0",
+        description="Facebook AI Research Sequence-to-Sequence Toolkit",
+        url="https://github.com/pytorch/fairseq",
+        classifiers=[
+            "Intended Audience :: Science/Research",
+            "License :: OSI Approved :: MIT License",
+            "Programming Language :: Python :: 3.6",
+            "Topic :: Scientific/Engineering :: Artificial Intelligence",
         ],
-    },
-    cmdclass=cmdclass,
-    zip_safe=False,
-)
+        long_description=readme,
+        long_description_content_type="text/markdown",
+        setup_requires=[
+            "cython",
+            "numpy",
+            "setuptools>=18.0",
+        ],
+        install_requires=[
+            "cffi",
+            "cython",
+            "dataclasses",
+            "editdistance",
+            "hydra-core",
+            "numpy",
+            "regex",
+            "sacrebleu>=1.4.12",
+            "torch",
+            "tqdm",
+        ],
+        dependency_links=dependency_links,
+        packages=find_packages(
+            exclude=[
+                "examples",
+                "examples.*",
+                "scripts",
+                "scripts.*",
+                "tests",
+                "tests.*",
+            ]
+        ),
+        package_data=package_data,
+        ext_modules=extensions,
+        test_suite="tests",
+        entry_points={
+            "console_scripts": [
+                "fairseq-eval-lm = fairseq_cli.eval_lm:cli_main",
+                "fairseq-generate = fairseq_cli.generate:cli_main",
+                "fairseq-interactive = fairseq_cli.interactive:cli_main",
+                "fairseq-preprocess = fairseq_cli.preprocess:cli_main",
+                "fairseq-score = fairseq_cli.score:cli_main",
+                "fairseq-train = fairseq_cli.train:cli_main",
+                "fairseq-validate = fairseq_cli.validate:cli_main",
+            ],
+        },
+        cmdclass=cmdclass,
+        zip_safe=False,
+    )
+
+
+def get_files(path, relative_to="fairseq"):
+    all_files = []
+    for root, _dirs, files in os.walk(path, followlinks=True):
+        root = os.path.relpath(root, relative_to)
+        for file in files:
+            if file.endswith(".pyc"):
+                continue
+            all_files.append(os.path.join(root, file))
+    return all_files
+
+
+try:
+    # symlink config and examples into fairseq package so package_data accepts them
+    os.symlink(os.path.join("..", "config"), "fairseq/config")
+    os.symlink(os.path.join("..", "examples"), "fairseq/examples")
+    package_data = {
+        "fairseq": get_files("fairseq/config") + get_files("fairseq/examples"),
+    }
+    do_setup(package_data)
+finally:
+    os.unlink("fairseq/config")
+    os.unlink("fairseq/examples")

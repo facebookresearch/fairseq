@@ -433,11 +433,17 @@ def import_user_module(args):
     if module_path is not None:
         module_path = os.path.abspath(args.user_dir)
         if not os.path.exists(module_path):
-            fairseq_rel_path = os.path.join(
-                os.path.dirname(__file__), "..", args.user_dir
-            )
+            fairseq_rel_path = os.path.join(os.path.dirname(__file__), args.user_dir)
             if os.path.exists(fairseq_rel_path):
                 module_path = fairseq_rel_path
+            else:
+                fairseq_rel_path = os.path.join(
+                    os.path.dirname(__file__), "..", args.user_dir
+                )
+                if os.path.exists(fairseq_rel_path):
+                    module_path = fairseq_rel_path
+                else:
+                    raise FileNotFoundError(module_path)
 
         # We want to import the module under a unique name so that it doesn't
         # collide with existing modules. At the same time we don't want to
