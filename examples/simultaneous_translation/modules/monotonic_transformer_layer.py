@@ -20,6 +20,56 @@ class TransformerMonotonicEncoderLayer(TransformerEncoderLayer):
         attn_mask = attn_mask.masked_fill(attn_mask.bool(), float('-inf'))
         return super().forward(x, encoder_padding_mask, attn_mask)
 
+    def incremental_forward(self, x, encoder_padding_mask, incremental_states):
+        if incremental_states["steps"]["src"] == 0:
+            prev_key_len = 0
+        else:
+            prev_key, prev_value = self.get_prev_key_value(incremental_states)
+            prev_key_len = prev_key.size(2)
+
+        seq_len = prev_key_len + x.size(0)
+
+        attn_mask = x.new_ones([x.size(0), seq_len]).triu(1)
+        attn_mask = attn_mask.masked_fill(attn_mask.bool(), -1e8)
+
+        residual = x
+
+
+        x, _ = self.self_attn(
+            query=x,
+            key=x,
+            value=x,
+            key_padding_mask=encoder_padding_mask,
+            attn_mask=attn_mask,
+            incremental_state=incremental_states
+        )
+
+        x = self.dropout_module(x)
+        x = residual + x
+        if not self.normalize_before:
+            x = self.self_attn_layer_norm(x)
+
+        residual = x
+
+        x = self.activation_fn(self.fc1(x))
+        x = self.activation_dropout_module(x)
+        x = self.fc2(x)
+        x = self.dropout_module(x)
+        x = residual + x
+        if not self.normalize_before:
+            x = self.final_layer_norm(x)
+        return x
+
+    def get_prev_key_value(self, incremental_states):
+        input_buffer = self.self_attn._get_input_buffer(incremental_states)
+        return input_buffer['prev_key'], input_buffer['prev_value']
+
+    def set_prev_key_value(self, incremental_states, key, value):
+        self.self_attn._set_input_buffer(
+            incremental_states,
+            {'prev_key': key, 'prev_value': value}
+        )
+
 
 class TransformerMonotonicDecoderLayer(TransformerDecoderLayer):
 
