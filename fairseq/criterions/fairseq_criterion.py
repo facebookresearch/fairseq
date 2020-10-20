@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 from fairseq import metrics, utils
 from fairseq.dataclass.utils import gen_parser_from_dataclass
+from omegaconf import DictConfig
 from torch.nn.modules.loss import _Loss
 
 
@@ -27,10 +28,8 @@ class FairseqCriterion(_Loss):
             gen_parser_from_dataclass(parser, dc())
 
     @classmethod
-    def build_criterion(cls, args, task):
+    def build_criterion(cls, cfg: DictConfig, task):
         """Construct a criterion from command-line args."""
-        # Criterions can override this, but for convenience we also try
-        # to automatically map argparse.Namespace keys to corresponding
         # arguments in the __init__.
         init_args = {}
         for p in inspect.signature(cls).parameters.values():
@@ -47,8 +46,8 @@ class FairseqCriterion(_Loss):
 
             if p.name == "task":
                 init_args["task"] = task
-            elif hasattr(args, p.name):
-                init_args[p.name] = getattr(args, p.name)
+            elif hasattr(cfg, p.name):
+                init_args[p.name] = getattr(cfg, p.name)
             elif p.default != p.empty:
                 pass  # we'll use the default value
             else:
@@ -70,7 +69,7 @@ class FairseqCriterion(_Loss):
 
     @staticmethod
     def aggregate_logging_outputs(
-        logging_outputs: List[Dict[str, Any]],
+        logging_outputs: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Aggregate logging outputs from data parallel training."""
         utils.deprecation_warning(

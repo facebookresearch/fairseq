@@ -3,21 +3,24 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+
 from fairseq.data.encoders import register_bpe
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_bpe("hf_byte_bpe")
+@dataclass
+class HuggingFaceByteLevelBPEConfig(FairseqDataclass):
+    bpe_merges: str = field(default="???", metadata={"help": "path to merges.txt"})
+    bpe_vocab: str = field(default="???", metadata={"help": "path to vocab.json"})
+    bpe_add_prefix_space: bool = field(
+        default=False, metadata={"help": "add prefix space before encoding"}
+    )
+
+
+@register_bpe("hf_byte_bpe", dataclass=HuggingFaceByteLevelBPEConfig)
 class HuggingFaceByteLevelBPE(object):
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--bpe-merges', help='path to merges.txt')
-        parser.add_argument('--bpe-vocab', help='path to vocab.json')
-        parser.add_argument('--bpe-add-prefix-space', action='store_true',
-                            help='add prefix space before encoding')
-        # fmt: on
-
-    def __init__(self, args):
+    def __init__(self, cfg):
         try:
             from tokenizers import ByteLevelBPETokenizer
         except ImportError:
@@ -26,9 +29,9 @@ class HuggingFaceByteLevelBPE(object):
             )
 
         self.bpe = ByteLevelBPETokenizer(
-            args.bpe_vocab,
-            args.bpe_merges,
-            add_prefix_space=getattr(args, "bpe_add_prefix_space", False),
+            cfg.bpe_vocab,
+            cfg.bpe_merges,
+            add_prefix_space=cfg.bpe_add_prefix_space,
         )
 
     def encode(self, x: str) -> str:

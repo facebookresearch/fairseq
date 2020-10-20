@@ -7,7 +7,8 @@ from collections import defaultdict
 from itertools import chain
 
 import torch
-from fairseq import optim, utils
+from fairseq import optim
+from omegaconf import DictConfig
 
 from .dynamic_loss_scaler import DynamicLossScaler
 
@@ -211,7 +212,7 @@ class _FP16OptimizerMixin(object):
                 for fp32_params in self.fp32_params.values():
                     fp32_params.grad.zero_()
             else:
-                raise ("self.fp32_params must be a tensor or dict")
+                raise RuntimeError("self.fp32_params must be a tensor or dict")
         else:
             for p32 in self.fp32_params:
                 p32.grad.zero_()
@@ -226,58 +227,60 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
     Wrap an *optimizer* to support FP16 (mixed precision) training.
     """
 
-    def __init__(self, args, params, fp32_optimizer, fp32_params):
-        super().__init__(args)
+    def __init__(self, cfg: DictConfig, params, fp32_optimizer, fp32_params, **kwargs):
+        super().__init__(cfg.optimizer)
         self.fp16_params = params
         self.fp32_optimizer = fp32_optimizer
         self.fp32_params = fp32_params
 
-        if getattr(args, "fp16_scale_window", None) is None:
-            if len(args.update_freq) > 1:
+        if getattr(cfg.common, "fp16_scale_window", None) is None:
+            if len(cfg.optimization.update_freq) > 1:
                 raise ValueError(
                     "--fp16-scale-window must be given explicitly when using a "
                     "custom --update-freq schedule"
                 )
             data_parallel_size = int(
-                args.distributed_world_size / args.model_parallel_size
+                cfg.distributed_training.distributed_world_size
+                / cfg.common.model_parallel_size
             )
-            scale_window = int(2 ** 14 / data_parallel_size / args.update_freq[0])
+            scale_window = int(
+                2 ** 14 / data_parallel_size / cfg.optimization.update_freq[0]
+            )
         else:
-            scale_window = args.fp16_scale_window
+            scale_window = cfg.common.fp16_scale_window
 
-        if not getattr(args, "bf16", False):
+        if not getattr(cfg.common, "bf16", False):
             self.scaler = DynamicLossScaler(
-                init_scale=args.fp16_init_scale,
+                init_scale=cfg.common.fp16_init_scale,
                 scale_window=scale_window,
-                tolerance=args.fp16_scale_tolerance,
-                threshold=args.threshold_loss_scale,
-                min_loss_scale=args.min_loss_scale,
+                tolerance=cfg.common.fp16_scale_tolerance,
+                threshold=cfg.common.threshold_loss_scale,
+                min_loss_scale=cfg.common.min_loss_scale,
             )
         else:
             # disable loss scaling for bfloat16
             self.scaler = None
 
     @classmethod
-    def build_optimizer(cls, args, params):
+    def build_optimizer(cls, cfg: DictConfig, params, **kwargs):
         """
         Args:
-            args (argparse.Namespace): fairseq args
+            cfg (omegaconf.DictConfig): fairseq args
             params (iterable): iterable of parameters to optimize
         """
-        flatten = not getattr(args, "fp16_no_flatten_grads", False)
-        if getattr(args, "bf16", False):
+        flatten = not getattr(cfg.common, "fp16_no_flatten_grads", False)
+        if getattr(cfg.common, "bf16", False):
             flatten = False  # mixed precision is faster on TPUs without flat grads
-        fp32_params = cls.build_fp32_params(args, params, flatten=flatten)
+        fp32_params = cls.build_fp32_params(cfg.optimizer, params, flatten=flatten)
         if flatten:
-            fp32_optimizer = optim.build_optimizer(args, [fp32_params])
+            fp32_optimizer = optim.build_optimizer(cfg.optimizer, [fp32_params])
         else:
-            fp32_optimizer = optim.build_optimizer(args, fp32_params)
+            fp32_optimizer = optim.build_optimizer(cfg.optimizer, fp32_params)
         if flatten and not fp32_optimizer.supports_flat_params:
             raise RuntimeError(
-                "chosen optimizer does not support flat params, "
-                "please set --fp16-no-flatten-grads"
+                f"chosen optimizer {fp32_optimizer.__class__.__name__} does not support flat params, please set --fp16-no-flatten-grads"
             )
-        return cls(args, params, fp32_optimizer, fp32_params)
+        return cls(cfg, params, fp32_optimizer, fp32_params, **kwargs)
 
     @property
     def optimizer(self):
@@ -427,49 +430,52 @@ class MemoryEfficientFP16Optimizer(
     *supports_memory_efficient_fp16* property.
     """
 
-    def __init__(self, args, params, optimizer):
+    def __init__(self, cfg: DictConfig, params, optimizer, **kwargs):
         if not optimizer.supports_memory_efficient_fp16:
             raise ValueError(
                 "Unsupported optimizer: {}".format(optimizer.__class__.__name__)
             )
 
-        super().__init__(args)
+        super().__init__(cfg.optimizer)
         self.wrapped_optimizer = optimizer
 
-        if getattr(args, "fp16_scale_window", None) is None:
-            if len(args.update_freq) > 1:
+        if getattr(cfg.common, "fp16_scale_window", None) is None:
+            if len(cfg.optimization.update_freq) > 1:
                 raise ValueError(
                     "--fp16-scale-window must be given explicitly when using a "
                     "custom --update-freq schedule"
                 )
             data_parallel_size = int(
-                args.distributed_world_size / args.model_parallel_size
+                cfg.distributed_training.distributed_world_size
+                / cfg.common.model_parallel_size
             )
-            scale_window = 2 ** 14 / data_parallel_size / args.update_freq[0]
+            scale_window = (
+                2 ** 14 / data_parallel_size / cfg.optimization.update_freq[0]
+            )
         else:
-            scale_window = args.fp16_scale_window
+            scale_window = cfg.common.fp16_scale_window
 
-        if not getattr(args, "bf16", False):
+        if not getattr(cfg.common, "bf16", False):
             self.scaler = DynamicLossScaler(
-                init_scale=args.fp16_init_scale,
+                init_scale=cfg.common.fp16_init_scale,
                 scale_window=scale_window,
-                tolerance=args.fp16_scale_tolerance,
-                threshold=args.threshold_loss_scale,
-                min_loss_scale=args.min_loss_scale,
+                tolerance=cfg.common.fp16_scale_tolerance,
+                threshold=cfg.common.threshold_loss_scale,
+                min_loss_scale=cfg.common.min_loss_scale,
             )
         else:
             # disable loss scaling for bfloat16
             self.scaler = None
 
     @classmethod
-    def build_optimizer(cls, args, params):
+    def build_optimizer(cls, cfg: DictConfig, params, **kwargs):
         """
         Args:
             args (argparse.Namespace): fairseq args
             params (iterable): iterable of parameters to optimize
         """
-        fp16_optimizer = optim.build_optimizer(args, params)
-        return cls(args, params, fp16_optimizer)
+        fp16_optimizer = optim.build_optimizer(cfg.optimizer, params)
+        return cls(cfg, params, fp16_optimizer, **kwargs)
 
     @property
     def optimizer(self):

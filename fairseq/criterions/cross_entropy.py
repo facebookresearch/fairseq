@@ -15,7 +15,7 @@ from omegaconf import II
 
 @dataclass
 class CrossEntropyCriterionConfig(FairseqDataclass):
-    sentence_avg: bool = II("params.optimization.sentence_avg")
+    sentence_avg: bool = II("optimization.sentence_avg")
 
 
 @register_criterion("cross_entropy", dataclass=CrossEntropyCriterionConfig)

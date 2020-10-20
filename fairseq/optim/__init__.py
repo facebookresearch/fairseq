@@ -6,8 +6,6 @@
 
 import importlib
 import os
-from argparse import Namespace
-from typing import Union
 
 from fairseq import registry
 from fairseq.optim.bmuf import FairseqBMUF  # noqa
@@ -19,14 +17,12 @@ from fairseq.optim.fp16_optimizer import FP16Optimizer, MemoryEfficientFP16Optim
 from fairseq.optim.shard import shard_
 from omegaconf import DictConfig
 
-
 __all__ = [
     "FairseqOptimizer",
     "FP16Optimizer",
     "MemoryEfficientFP16Optimizer",
     "shard_",
 ]
-
 
 (
     _build_optimizer,
@@ -37,12 +33,12 @@ __all__ = [
 
 
 def build_optimizer(
-    optimizer_cfg: Union[DictConfig, Namespace], params, *extra_args, **extra_kwargs
+        cfg: DictConfig, params, *extra_args, **extra_kwargs
 ):
     if all(isinstance(p, dict) for p in params):
         params = [t for p in params for t in p.values()]
     params = list(filter(lambda p: p.requires_grad, params))
-    return _build_optimizer(optimizer_cfg, params, *extra_args, **extra_kwargs)
+    return _build_optimizer(cfg, params, *extra_args, **extra_kwargs)
 
 
 # automatically import any Python files in the optim/ directory

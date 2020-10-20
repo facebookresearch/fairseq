@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
 from fairseq.data import encoders
+from omegaconf import open_dict
 
 
 logger = logging.getLogger(__name__)
@@ -24,13 +25,13 @@ class BARTHubInterface(nn.Module):
     Usage: https://github.com/pytorch/fairseq/tree/master/examples/bart
     """
 
-    def __init__(self, args, task, model):
+    def __init__(self, cfg, task, model):
         super().__init__()
-        self.args = args
+        self.cfg = cfg
         self.task = task
         self.model = model
 
-        self.bpe = encoders.build_bpe(args)
+        self.bpe = encoders.build_bpe(cfg.bpe)
 
         self.max_positions = min(
             utils.resolve_max_positions(
@@ -120,10 +121,11 @@ class BARTHubInterface(nn.Module):
         sample = self._build_sample(tokens)
 
         # build generator using current args as well as any kwargs
-        gen_args = copy.copy(self.args)
-        gen_args.beam = beam
-        for k, v in kwargs.items():
-            setattr(gen_args, k, v)
+        gen_args = copy.copy(self.cfg)
+        with open_dict(gen_args):
+            gen_args.beam = beam
+            for k, v in kwargs.items():
+                setattr(gen_args, k, v)
         generator = self.task.build_generator([self.model], gen_args)
         translations = self.task.inference_step(
             generator,

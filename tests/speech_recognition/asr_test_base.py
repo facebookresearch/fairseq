@@ -272,6 +272,7 @@ class TestFairseqEncoderDecoderModelBase(TestBaseFairseqModelBase):
         model_cls.add_args(parser)
 
         args = parser.parse_args([])
+
         if extra_args_setters is not None:
             for args_setter in extra_args_setters:
                 args_setter(args)
@@ -515,9 +516,7 @@ class CrossEntropyCriterionTestBase(unittest.TestCase):
     def setUp(self):
         args = self.setUpArgs()
         self.model = DummyEncoderModel(encoder=DummyEncoder())
-        self.criterion = self.criterion_cls.build_criterion(
-            args=args, task=DummyTask(args)
-        )
+        self.criterion = self.criterion_cls.build_criterion(args, task=DummyTask(args))
 
     def get_src_tokens(self, correct_prediction, aggregate):
         """

@@ -9,6 +9,7 @@ Train a network across multiple GPUs.
 
 from fairseq import distributed_utils
 from fairseq.trainer import Trainer
+from omegaconf import DictConfig
 
 
 try:
@@ -28,14 +29,14 @@ except (ImportError, ModuleNotFoundError):
 class MegatronTrainer(Trainer):
     """Main class for model parallel with data parallel training."""
 
-    def __init__(self, args, task, model, criterion):
+    def __init__(self, cfg: DictConfig, task, model, criterion, **kwargs):
         if not has_megatron_submodule:
             raise ImportError(
                 "\n\nPlease install the megatron submodule:"
                 "\n\n  git submodule update --init "
                 "fairseq/model_parallel/megatron"
             )
-        super().__init__(args, task, model, criterion)
+        super().__init__(cfg, task, model, criterion, **kwargs)
 
     @property
     def data_parallel_world_size(self):

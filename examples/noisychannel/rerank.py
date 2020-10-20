@@ -27,7 +27,13 @@ def score_target_hypo(
     print("lenpen", lenpen, "weight1", a, "weight2", b, "weight3", c)
     gen_output_lst, bitext1_lst, bitext2_lst, lm_res_lst = load_score_files(args)
     dict = dictionary.Dictionary()
-    scorer = bleu.Scorer(dict.pad(), dict.eos(), dict.unk())
+    scorer = scorer = bleu.Scorer(
+        bleu.BleuConfig(
+            pad=dict.pad(),
+            eos=dict.eos(),
+            unk=dict.unk(),
+        )
+    )
 
     ordered_hypos = {}
     ordered_targets = {}

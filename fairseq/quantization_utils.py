@@ -6,13 +6,14 @@
 import logging
 
 from fairseq.modules.quantization import pq, quantization_options, scalar
+from omegaconf import DictConfig
 
 
 logger = logging.getLogger(__name__)
 
 
-def quantize_model_scalar(model, args):
-    quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
+def quantize_model_scalar(model, model_cfg: DictConfig):
+    quant_noise_scalar = getattr(model_cfg, "quant_noise_scalar", 0) or 0
     if quant_noise_scalar > 0:
         # quantize_model edits the model in place
         scalar.quantize_model_(model, p=quant_noise_scalar, bits=8, update_step=1000)

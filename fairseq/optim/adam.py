@@ -5,6 +5,7 @@
 
 import logging
 import math
+from collections import Collection
 from dataclasses import dataclass, field
 from typing import List
 
@@ -14,7 +15,7 @@ import torch.optim
 from fairseq.dataclass import FairseqDataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from fairseq.optim.fused_adam import get_fused_adam_class
-from omegaconf import II
+from omegaconf import II, DictConfig
 
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,8 @@ class FairseqAdamConfig(FairseqDataclass):
         default=False, metadata={"help": "Use fairseq.optim.adam.Adam"}
     )
     # TODO common vars below in parent
-    tpu: bool = II("params.common.tpu")
-    lr: List[float] = II("params.optimization.lr")
+    tpu: bool = II("common.tpu")
+    lr: List[float] = II("optimization.lr")
 
 
 @register_optimizer("adam", dataclass=FairseqAdamConfig)
@@ -46,15 +47,15 @@ class FairseqAdam(FairseqOptimizer):
     analogous to torch.optim.AdamW from PyTorch.
     """
 
-    def __init__(self, args, params):
-        super().__init__(args)
+    def __init__(self, cfg: DictConfig, params):
+        super().__init__(cfg)
         fused_adam_cls = get_fused_adam_class()
         use_fused_adam = (
-            not getattr(args, "use_old_adam", False)
+            not getattr(cfg, "use_old_adam", False)
             and fused_adam_cls is not None
             and torch.cuda.is_available()
         )
-        if getattr(args, "tpu", False):
+        if getattr(cfg, "tpu", False):
             # on TPUs we use the Adam defined here, since it
             # automatically casts gradients to FP32
             self._optimizer = Adam(params, **self.optimizer_config)
@@ -73,10 +74,12 @@ class FairseqAdam(FairseqOptimizer):
         different learning rate.
         """
         return {
-            "lr": self.args.lr[0],
-            "betas": eval(self.args.adam_betas),
-            "eps": self.args.adam_eps,
-            "weight_decay": self.args.weight_decay,
+            "lr": self.cfg.lr[0]
+            if isinstance(self.cfg.lr, Collection)
+            else self.cfg.lr,
+            "betas": eval(self.cfg.adam_betas),
+            "eps": self.cfg.adam_eps,
+            "weight_decay": self.cfg.weight_decay,
         }
 
     def average_params(self):

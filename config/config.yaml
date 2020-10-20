@@ -1,7 +1,111 @@
+# @package _group_
+common:
+    no_progress_bar: false
+    log_interval: 100
+    log_format: null
+    tensorboard_logdir: null
+    seed: 1
+    cpu: false
+    tpu: false
+    bf16: false
+    fp16: false
+    memory_efficient_fp16: false
+    memory_efficient_bf16: false
+    fp16_no_flatten_grads: false
+    fp16_init_scale: 128
+    fp16_scale_window: null
+    fp16_scale_tolerance: 0.0
+    min_loss_scale: 1.0e-4
+    threshold_loss_scale: null
+    user_dir: null
+    empty_cache_freq: 0
+    all_gather_list_size: 16384
+    model_parallel_size: 1
+    quantization_config_path: null
+    profile: false
+distributed_training:
+    distributed_rank: 0
+    distributed_backend: "nccl"
+    distributed_init_method: null
+    distributed_port: -1
+    device_id: 0
+    local_rank: 0
+    distributed_no_spawn: false
+    ddp_backend: "c10d"
+    bucket_cap_mb: 25
+    fix_batches_to_gpus: false
+    find_unused_parameters: false
+    fast_stat_sync: false
+    broadcast_buffers: false
+    distributed_wrapper: "DDP"
+    slowmo_momentum: null
+    slowmo_algorithm: "LocalSGD"
+    localsgd_frequency: 3
+dataset:
+    num_workers: 1
+    skip_invalid_size_inputs_valid_test: false
+    max_tokens: null
+    batch_size: null
+    required_batch_size_multiple: 8
+    dataset_impl: null
+    data_buffer_size: 10
+    train_subset: "train"
+    valid_subset: "valid"
+    validate_interval: 1
+    fixed_validation_seed: null
+    disable_validation: false
+    curriculum: 0
+    gen_subset: "test"
+    num_shards: 1
+    shard_id: 0
+    max_tokens_valid: ${dataset.max_tokens}
+    batch_size_valid: ${dataset.batch_size}
+optimization:
+    max_epoch: 0
+    max_update: 0
+    clip_norm: 25.0
+    sentence_avg: false
+    update_freq: [ 1 ]
+    lr: [ 0.25 ]
+    min_lr: -1.0
+    use_bmuf: false
+checkpoint:
+    save_dir: "checkpoints"
+    restore_file: "checkpoint_last.pt"
+    reset_dataloader: false
+    reset_lr_scheduler: false
+    reset_meters: false
+    reset_optimizer: false
+    optimizer_overrides: "{}"
+    save_interval: 1
+    save_interval_updates: 0
+    keep_interval_updates: -1
+    keep_last_epochs: -1
+    keep_best_checkpoints: -1
+    no_save: false
+    no_epoch_checkpoints: false
+    no_last_checkpoints: false
+    no_save_optimizer_state: false
+    best_checkpoint_metric: "loss"
+    maximize_best_checkpoint_metric: false
+    patience: -1
+    checkpoint_suffix: ""
+bmuf:
+    block_lr: 1
+    block_momentum: 0.875
+    global_sync_iter: 50
+    warmup_iterations: 500
+    use_nbm: false
+    average_sync: false
 defaults:
-  - params: training_params
-  - task: language_modeling
-  - model: transformer_lm
-  - criterion: cross_entropy
-  - optimizer: adam
-  - lr_scheduler: inverse_sqrt
+    - task: language_modeling
+    - model: null
+    - criterion: null
+    - optimizer: null
+    - lr_scheduler: null
+    - bpe: null
+    - tokenizer: null
+    - scoring: null
+    - generation: null
+    - common_eval: null
+    - eval_lm: null

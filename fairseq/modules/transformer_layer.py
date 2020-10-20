@@ -32,20 +32,20 @@ class TransformerEncoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.embed_dim = args.encoder_embed_dim
-        self.quant_noise = getattr(args, "quant_noise_pq", 0)
-        self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8)
+        self.quant_noise = getattr(args, 'quant_noise_pq', 0)
+        self.quant_noise_block_size = getattr(args, 'quant_noise_pq_block_size', 8) or 8
         self.self_attn = self.build_self_attention(self.embed_dim, args)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
         self.dropout_module = FairseqDropout(
             args.dropout, module_name=self.__class__.__name__
         )
         self.activation_fn = utils.get_activation_fn(
-            activation=getattr(args, "activation_fn", "relu")
+            activation=getattr(args, 'activation_fn', 'relu') or "relu"
         )
-        activation_dropout_p = getattr(args, "activation_dropout", 0)
+        activation_dropout_p = getattr(args, "activation_dropout", 0) or 0
         if activation_dropout_p == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            activation_dropout_p = getattr(args, "relu_dropout", 0)
+            activation_dropout_p = getattr(args, "relu_dropout", 0) or 0
         self.activation_dropout_module = FairseqDropout(
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
@@ -197,10 +197,10 @@ class TransformerDecoderLayer(nn.Module):
             if getattr(args, "activation_fn", None) is not None
             else "relu"
         )
-        activation_dropout_p = getattr(args, "activation_dropout", 0)
+        activation_dropout_p = getattr(args, "activation_dropout", 0) or 0
         if activation_dropout_p == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            activation_dropout_p = getattr(args, "relu_dropout", 0)
+            activation_dropout_p = getattr(args, "relu_dropout", 0) or 0
         self.activation_dropout_module = FairseqDropout(
             float(activation_dropout_p), module_name=self.__class__.__name__
         )

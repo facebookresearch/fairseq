@@ -13,6 +13,7 @@ from typing import Callable, Optional
 
 import torch.fb.rendezvous.zeus  # noqa: F401
 from fairseq import distributed_utils, options
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.file_io import PathManager
 from fairseq_cli.train import main as fairseq_train_main
 from fvcore.fb.manifold import ManifoldPathHandler
@@ -134,10 +135,11 @@ def fb_main(
     init_manifold(args)
 
     def train_main():
+        cfg = convert_namespace_to_omegaconf(args)
         distributed_utils.distributed_main(
             device_id,
             fairseq_train_main,
-            args,
+            cfg,
             kwargs={
                 "after_distributed_init_fn": after_distributed_init_fn,
             },
@@ -168,7 +170,9 @@ if __name__ == "__main__":
     log_dir = args.log_dir if args.log_dir is not None else args.save_dir
     log_path = os.path.join(log_dir, "train.log")
 
-    distributed_utils.infer_init_method(args, force_distributed=True)
+    distributed_utils.infer_init_method(
+        convert_namespace_to_omegaconf(args), force_distributed=True
+    )
 
     start_rank = args.distributed_rank
     args.distributed_rank = None  # assign automatically

@@ -195,13 +195,14 @@ class ConversationDataset(FairseqDataset, FairseqIterableDataset):
         self.dataset = dataset
         self.dictionary = dictionary
         self.split_range = split_range
-        self.bpe = encoders.build_bpe(
-            argparse.Namespace(
-                bpe="gpt2",
-                gpt2_encoder_json="/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/encoder.json",
-                gpt2_vocab_bpe="/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/vocab.bpe",
-            )
+        from fairseq.data.encoders.gpt2_bpe import GPT2BPEConfig
+
+        bpe_cfg = GPT2BPEConfig(
+            gpt2_encoder_json="/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/encoder.json",
+            gpt2_vocab_bpe="/mnt/vol/gfsai-flash3-east/ai-group/users/myleott/gpt2_bpe/vocab.bpe",
         )
+        bpe_cfg._name = "gpt2"
+        self.bpe = encoders.build_bpe(bpe_cfg)
 
     def __getitem__(self, index):
         if isinstance(index, (int, np.integer)):

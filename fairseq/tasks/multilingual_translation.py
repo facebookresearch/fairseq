@@ -117,7 +117,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
         return cls(args, dicts, training)
 
     @classmethod
-    def prepare(cls, args, **kargs):
+    def update_args(cls, args):
         args.left_pad_source = utils.eval_bool(args.left_pad_source)
         args.left_pad_target = utils.eval_bool(args.left_pad_target)
 
@@ -127,6 +127,10 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             )
         if isinstance(args.lang_pairs, str):
             args.lang_pairs = args.lang_pairs.split(",")
+
+    @classmethod
+    def prepare(cls, args, **kargs):
+        cls.update_args(args)
         sorted_langs = sorted(
             list({x for lang_pair in args.lang_pairs for x in lang_pair.split("-")})
         )
@@ -297,6 +301,10 @@ class MultilingualTranslationTask(LegacyFairseqTask):
 
             if len(messages) > 0:
                 raise ValueError(" ".join(messages))
+
+        # Update args -> the fact that the constructor here
+        # changes the args object doesn't mean you get the same one here
+        self.update_args(args)
 
         # Check if task args are consistant with model args
         check_args()

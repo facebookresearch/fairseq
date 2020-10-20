@@ -6,6 +6,7 @@
 import logging
 import unittest
 
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.models.transformer import TransformerModel
 from tests.test_sequence_generator import get_dummy_task_and_parser
 
@@ -25,7 +26,8 @@ class TestInferenceDropout(unittest.TestCase):
     def test_sets_inference_dropout_to_true(self):
         self.args.retain_dropout = True
         self.transformer_model = TransformerModel.build_model(self.args, self.task)
-        self.transformer_model.prepare_for_inference_(self.args)
+        cfg = convert_namespace_to_omegaconf(self.args)
+        self.transformer_model.prepare_for_inference_(cfg)
         assert self.transformer_model.encoder.dropout_module.apply_during_inference
         assert self.transformer_model.decoder.dropout_module.apply_during_inference
         for layer in self.transformer_model.encoder.layers:
@@ -33,7 +35,8 @@ class TestInferenceDropout(unittest.TestCase):
 
     def test_inference_dropout_false_by_default(self):
         self.transformer_model = TransformerModel.build_model(self.args, self.task)
-        self.transformer_model.prepare_for_inference_(self.args)
+        cfg = convert_namespace_to_omegaconf(self.args)
+        self.transformer_model.prepare_for_inference_(cfg)
         assert not self.transformer_model.encoder.dropout_module.apply_during_inference
         assert not self.transformer_model.decoder.dropout_module.apply_during_inference
         for layer in self.transformer_model.encoder.layers:
@@ -59,7 +62,8 @@ class TestInferenceDropout(unittest.TestCase):
             "TransformerEncoderLayer",
         ]
         self.transformer_model = TransformerModel.build_model(self.args, self.task)
-        self.transformer_model.prepare_for_inference_(self.args)
+        cfg = convert_namespace_to_omegaconf(self.args)
+        self.transformer_model.prepare_for_inference_(cfg)
         assert self.transformer_model.encoder.dropout_module.apply_during_inference
         assert not self.transformer_model.decoder.dropout_module.apply_during_inference
         for layer in self.transformer_model.decoder.layers:

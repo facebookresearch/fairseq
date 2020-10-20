@@ -3,23 +3,24 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+
 from fairseq import file_utils
 from fairseq.data.encoders import register_bpe
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_bpe("fastbpe")
+@dataclass
+class fastBPEConfig(FairseqDataclass):
+    bpe_codes: str = field(default="???", metadata={"help": "path to fastBPE BPE"})
+
+
+@register_bpe("fastbpe", dataclass=fastBPEConfig)
 class fastBPE(object):
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--bpe-codes', type=str,
-                            help='path to fastBPE BPE')
-        # fmt: on
-
-    def __init__(self, args):
-        if args.bpe_codes is None:
+    def __init__(self, cfg):
+        if cfg.bpe_codes is None:
             raise ValueError("--bpe-codes is required for --bpe=fastbpe")
-        codes = file_utils.cached_path(args.bpe_codes)
+        codes = file_utils.cached_path(cfg.bpe_codes)
         try:
             import fastBPE
 

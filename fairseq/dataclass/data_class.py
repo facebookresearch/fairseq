@@ -3,32 +3,37 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import sys
 from argparse import Namespace
-from dataclasses import dataclass, field
+from dataclasses import _MISSING_TYPE, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 import torch
-from fairseq.criterions import CRITERION_DATACLASS_REGISTRY
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.dataclass.constants import (
     DDP_BACKEND_CHOICES,
     DISTRIBUTED_WRAPPER_CHOICES,
+    GENERATION_CONSTRAINTS_CHOICES,
+    GENERATION_DECODING_FORMAT_CHOICES,
     LOG_FORMAT_CHOICES,
     PIPELINE_CHECKPOINT_CHOICES,
     ZERO_SHARDING_CHOICES,
 )
 from fairseq.dataclass.utils import ChoiceEnum, FairseqDataclass
 from fairseq.models import ARCH_MODEL_REGISTRY, MODEL_DATACLASS_REGISTRY
-from fairseq.optim import OPTIMIZER_DATACLASS_REGISTRY
 from fairseq.optim.bmuf import FairseqBMUFConfig
-from fairseq.optim.lr_scheduler import LR_SCHEDULER_DATACLASS_REGISTRY
+from fairseq.registry import REGISTRIES
 from fairseq.tasks import TASK_DATACLASS_REGISTRY
 from hydra.core.config_store import ConfigStore
+from omegaconf import II
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
-class CommonParams(FairseqDataclass):
+class CommonConfig(FairseqDataclass):
     # This is the core dataclass including common parameters shared by all different jobs. Please append your params to other dataclasses if they were
     # used for a particular purpose or task, such as those dedicated for `distributed training`, `optimization`, etc.
     no_progress_bar: bool = field(
@@ -109,18 +114,6 @@ class CommonParams(FairseqDataclass):
     model_parallel_size: int = field(
         default=1, metadata={"help": "total number of GPUs to parallelize model over"}
     )
-    checkpoint_suffix: str = field(
-        default="", metadata={"help": "suffix to add to the checkpoint file name"}
-    )
-    checkpoint_shard_count: int = field(
-        default=1,
-        metadata={
-            "help": "Number of shards containing the checkpoint - "
-            "if the checkpoint is over 300GB, it is preferable "
-            "to split it into shards to prevent OOM on CPU while loading "
-            "the checkpoint"
-        },
-    )
     quantization_config_path: Optional[str] = field(
         default=None, metadata={"help": "path to quantization config file"}
     )
@@ -130,7 +123,7 @@ class CommonParams(FairseqDataclass):
 
 
 @dataclass
-class DistributedTrainingParams(FairseqDataclass):
+class DistributedTrainingConfig(FairseqDataclass):
     distributed_world_size: int = field(
         default=max(1, torch.cuda.device_count()),
         metadata={
@@ -229,7 +222,7 @@ class DistributedTrainingParams(FairseqDataclass):
         default=False,
         metadata={"help": "if set, use pipeline model parallelism across GPUs"},
     )
-    pipeline_balance: str = field(
+    pipeline_balance: Optional[str] = field(
         default=None,
         metadata={
             "help": "partition the model into N_K pieces, where each piece "
@@ -237,7 +230,7 @@ class DistributedTrainingParams(FairseqDataclass):
             "should equal the total number of layers in the model"
         },
     )
-    pipeline_devices: str = field(
+    pipeline_devices: Optional[str] = field(
         default=None,
         metadata={
             "help": "a list of device indices indicating which device to place "
@@ -245,10 +238,10 @@ class DistributedTrainingParams(FairseqDataclass):
             "equal the length of the --pipeline-balance argument"
         },
     )
-    pipeline_chunks: int = field(
+    pipeline_chunks: Optional[int] = field(
         default=0, metadata={"help": "microbatch count for pipeline model parallelism"}
     )
-    pipeline_encoder_balance: str = field(
+    pipeline_encoder_balance: Optional[str] = field(
         default=None,
         metadata={
             "help": "partition the pipeline parallel encoder into N_K pieces, where each piece "
@@ -256,7 +249,7 @@ class DistributedTrainingParams(FairseqDataclass):
             "should equal the total number of encoder layers in the model"
         },
     )
-    pipeline_encoder_devices: str = field(
+    pipeline_encoder_devices: Optional[str] = field(
         default=None,
         metadata={
             "help": "a list of device indices indicating which device to place "
@@ -264,7 +257,7 @@ class DistributedTrainingParams(FairseqDataclass):
             "equal the length of the --pipeline-encoder-balance argument"
         },
     )
-    pipeline_decoder_balance: str = field(
+    pipeline_decoder_balance: Optional[str] = field(
         default=None,
         metadata={
             "help": "partition the pipeline parallel decoder into N_K pieces, where each piece "
@@ -272,7 +265,7 @@ class DistributedTrainingParams(FairseqDataclass):
             "should equal the total number of decoder layers in the model"
         },
     )
-    pipeline_decoder_devices: str = field(
+    pipeline_decoder_devices: Optional[str] = field(
         default=None,
         metadata={
             "help": "a list of device indices indicating which device to place "
@@ -287,10 +280,11 @@ class DistributedTrainingParams(FairseqDataclass):
     zero_sharding: ZERO_SHARDING_CHOICES = field(
         default="none", metadata={"help": "ZeRO sharding"}
     )
+    tpu: bool = II("common.tpu")
 
 
 @dataclass
-class DatasetParams(FairseqDataclass):
+class DatasetConfig(FairseqDataclass):
     num_workers: int = field(
         default=1, metadata={"help": "how many subprocesses to use for data loading"}
     )
@@ -374,7 +368,7 @@ class DatasetParams(FairseqDataclass):
 
 
 @dataclass
-class OptimizationParams(FairseqDataclass):
+class OptimizationConfig(FairseqDataclass):
     max_epoch: int = field(
         default=0, metadata={"help": "force stop training at specified epoch"}
     )
@@ -421,7 +415,7 @@ class OptimizationParams(FairseqDataclass):
 
 
 @dataclass
-class CheckpointParams(FairseqDataclass):
+class CheckpointConfig(FairseqDataclass):
     save_dir: str = field(
         default="checkpoints", metadata={"help": "path to save checkpoints"}
     )
@@ -514,12 +508,217 @@ class CheckpointParams(FairseqDataclass):
             )
         },
     )
+    checkpoint_suffix: str = field(
+        default="", metadata={"help": "suffix to add to the checkpoint file name"}
+    )
+    checkpoint_shard_count: int = field(
+        default=1,
+        metadata={
+            "help": "Number of shards containing the checkpoint - "
+            "if the checkpoint is over 300GB, it is preferable "
+            "to split it into shards to prevent OOM on CPU while loading "
+            "the checkpoint"
+        },
+    )
+    model_parallel_size: int = II("common.model_parallel_size")
+    distributed_rank: int = II("distributed_training.distributed_rank")
 
 
 @dataclass
-class CommonEvalParams(FairseqDataclass):
+class GenerationConfig(FairseqDataclass):
+    beam: int = field(
+        default=5,
+        metadata={"help": "beam size"},
+    )
+    nbest: int = field(
+        default=1,
+        metadata={"help": "number of hypotheses to output"},
+    )
+    max_len_a: float = field(
+        default=0,
+        metadata={
+            "help": "generate sequences of maximum length ax + b, where x is the source length"
+        },
+    )
+    max_len_b: int = field(
+        default=200,
+        metadata={
+            "help": "generate sequences of maximum length ax + b, where x is the source length"
+        },
+    )
+    min_len: int = field(
+        default=1,
+        metadata={"help": "minimum generation length"},
+    )
+    match_source_len: bool = field(
+        default=False,
+        metadata={"help": "generations should match the source length"},
+    )
+    unnormalized: bool = field(
+        default=False,
+        metadata={"help": "compare unnormalized hypothesis scores"},
+    )
+    no_early_stop: bool = field(
+        default=False,
+        metadata={"help": "deprecated"},
+    )
+    no_beamable_mm: bool = field(
+        default=False,
+        metadata={"help": "don't use BeamableMM in attention layers"},
+    )
+    lenpen: float = field(
+        default=1,
+        metadata={
+            "help": "length penalty: <1.0 favors shorter, >1.0 favors longer sentences"
+        },
+    )
+    unkpen: float = field(
+        default=0,
+        metadata={
+            "help": "unknown word penalty: <0 produces more unks, >0 produces fewer"
+        },
+    )
+    replace_unk: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "perform unknown replacement (optionally with alignment dictionary)",
+            "argparse_const": "@@ ",
+        },
+    )
+    sacrebleu: bool = field(
+        default=False,
+        metadata={"help": "score with sacrebleu"},
+    )
+    score_reference: bool = field(
+        default=False,
+        metadata={"help": "just score the reference translation"},
+    )
+    prefix_size: int = field(
+        default=0,
+        metadata={"help": "initialize generation by target prefix of given length"},
+    )
+    no_repeat_ngram_size: int = field(
+        default=0,
+        metadata={
+            "help": "ngram blocking such that this size ngram cannot be repeated in the generation"
+        },
+    )
+    sampling: bool = field(
+        default=False,
+        metadata={"help": "sample hypotheses instead of using beam search"},
+    )
+    sampling_topk: int = field(
+        default=-1,
+        metadata={"help": "sample from top K likely next words instead of all words"},
+    )
+    sampling_topp: float = field(
+        default=-1.0,
+        metadata={
+            "help": "sample from the smallest set whose cumulative probability mass exceeds p for next words"
+        },
+    )
+    constraints: Optional[GENERATION_CONSTRAINTS_CHOICES] = field(
+        default=None,
+        metadata={
+            "help": "enables lexically constrained decoding",
+            "argparse_const": "ordered",
+        },
+    )
+    temperature: float = field(
+        default=1.0,
+        metadata={"help": "temperature for generation"},
+    )
+    diverse_beam_groups: int = field(
+        default=-1,
+        metadata={"help": "number of groups for Diverse Beam Search"},
+    )
+    diverse_beam_strength: float = field(
+        default=0.5,
+        metadata={"help": "strength of diversity penalty for Diverse Beam Search"},
+    )
+    diversity_rate: float = field(
+        default=-1.0,
+        metadata={"help": "strength of diversity penalty for Diverse Siblings Search"},
+    )
+    print_alignment: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, uses attention feedback to compute and print alignment to source tokens"
+        },
+    )
+    print_step: bool = field(
+        default=False,
+        metadata={"help": "print steps"},
+    )
+    lm_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "path to lm checkpoint for lm fusion"},
+    )
+    lm_weight: float = field(
+        default=0.0,
+        metadata={"help": "weight for lm probs for lm fusion"},
+    )
+
+    # arguments for iterative refinement generator
+    iter_decode_eos_penalty: float = field(
+        default=0.0,
+        metadata={"help": "if > 0.0, it penalized early-stopping in decoding."},
+    )
+    iter_decode_max_iter: int = field(
+        default=10,
+        metadata={"help": "maximum iterations for iterative refinement."},
+    )
+    iter_decode_force_max_iter: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, run exact the maximum number of iterations without early stop"
+        },
+    )
+    iter_decode_with_beam: int = field(
+        default=1,
+        metadata={
+            "help": "if > 1, model will generate translations varying by the lengths."
+        },
+    )
+    iter_decode_with_external_reranker: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, the last checkpoint are assumed to be a reranker to rescore the translations"
+        },
+    )
+    retain_iter_history: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, decoding returns the whole history of iterative refinement"
+        },
+    )
+    retain_dropout: bool = field(
+        default=False,
+        metadata={"help": "Use dropout at inference time"},
+    )
+    retain_dropout_modules: Optional[List[str]] = field(
+        default=None,
+        metadata={
+            "help": "if set, only retain dropout for the specified modules; "
+            "if not set, then dropout will be retained for all modules"
+        },
+    )
+    # special decoding format for advanced decoding.
+    decoding_format: Optional[GENERATION_DECODING_FORMAT_CHOICES] = field(
+        default=None,
+        metadata={"help": "special decoding format for advanced decoding."},
+    )
+    no_seed_provided: bool = field(
+        default=False,
+        metadata={"help": "if set, dont use seed for initializing random generators"},
+    )
+
+
+@dataclass
+class CommonEvalConfig(FairseqDataclass):
     path: Optional[str] = field(
-        default=None, metadata={"help": "path(s) to model file(s), colon separated"}
+        default=None,
+        metadata={"help": "path(s) to model file(s), colon separated"},
     )
     remove_bpe: Optional[str] = field(
         default=None,
@@ -541,7 +740,7 @@ class CommonEvalParams(FairseqDataclass):
 
 
 @dataclass
-class EvalLMParams(FairseqDataclass):
+class EvalLMConfig(FairseqDataclass):
     output_word_probs: bool = field(
         default=False,
         metadata={
@@ -569,37 +768,31 @@ class EvalLMParams(FairseqDataclass):
 
 
 @dataclass
-class TrainingConfig(FairseqDataclass):
-    """Config for training, a composition of training params"""
-
-    common: CommonParams = CommonParams()
-    distributed_training: DistributedTrainingParams = DistributedTrainingParams()
-    dataset: DatasetParams = DatasetParams()
-    optimization: OptimizationParams = OptimizationParams()
-    checkpoint: CheckpointParams = CheckpointParams()
-    bmuf: FairseqBMUFConfig = FairseqBMUFConfig()
-
-
-@dataclass
-class EvalLMConfig(FairseqDataclass):
-    """Config for eval lm, a composition of eval_lm params"""
-
-    common: CommonParams = CommonParams()
-    distributed_training: DistributedTrainingParams = DistributedTrainingParams()
-    dataset: DatasetParams = DatasetParams()
-    optimization: OptimizationParams = OptimizationParams()
-    checkpoint: CheckpointParams = CheckpointParams()
-    bmuf: FairseqBMUFConfig = FairseqBMUFConfig()
-    common_eval: CommonEvalParams = CommonEvalParams()
-    eval_lm: EvalLMParams = EvalLMParams()
+class InteractiveConfig(FairseqDataclass):
+    buffer_size: int = field(
+        default=0,
+        metadata={
+            "help": "read this many sentences into a buffer before processing them"
+        },
+    )
+    input: str = field(
+        default="-",
+        metadata={"help": "file to read from; use - for stdin"},
+    )
 
 
-def register_params_dataclass(
-    cs: ConfigStore, name: str, group: str, data_class: Type[FairseqDataclass]
-) -> None:
-    """register params dataclass in config store"""
-    node_ = data_class(_name=data_class.name())
-    cs.store(name=name, group=group, node=node_)
+CONFIGS = {
+    "common": CommonConfig,
+    "common_eval": CommonEvalConfig,
+    "distributed_training": DistributedTrainingConfig,
+    "dataset": DatasetConfig,
+    "optimization": OptimizationConfig,
+    "checkpoint": CheckpointConfig,
+    "bmuf": FairseqBMUFConfig,
+    "generation": GenerationConfig,
+    "eval_lm": EvalLMConfig,
+    "interactive": InteractiveConfig,
+}
 
 
 def register_module_dataclass(
@@ -608,100 +801,67 @@ def register_module_dataclass(
     """register dataclasses defined in modules in config store, for example, in migrated tasks, models, etc."""
     # note that if `group == model`, we register all model archs, not the model name.
     for k, v in registry.items():
-        if v is not None:
-            node_ = v(_name=k)
-            cs.store(name=k, group=group, node=node_)
+        node_ = v()
+        node_._name = k
+        cs.store(name=k, group=group, node=node_, provider="fairseq")
 
 
-def register_training_hydra_cfg(cs: ConfigStore, name: str = "default") -> None:
+def register_hydra_cfg(cs: ConfigStore, name: str = "default") -> None:
     """cs: config store instance, register common training configs"""
 
-    register_params_dataclass(
-        cs, name="training_params", group="params", data_class=TrainingConfig
-    )
+    for k, v in CONFIGS.items():
+        try:
+            cs.store(name=k, node=v())
+        except BaseException:
+            logger.error(f"{k} - {v()}")
+            raise
 
     register_module_dataclass(cs, TASK_DATACLASS_REGISTRY, "task")
     register_module_dataclass(cs, MODEL_DATACLASS_REGISTRY, "model")
-    register_module_dataclass(cs, CRITERION_DATACLASS_REGISTRY, "criterion")
-    register_module_dataclass(cs, OPTIMIZER_DATACLASS_REGISTRY, "optimizer")
-    register_module_dataclass(cs, LR_SCHEDULER_DATACLASS_REGISTRY, "lr_scheduler")
 
-
-def register_eval_lm_hydra_cfg(cs: ConfigStore, name: str = "default") -> None:
-    """cs: config store instance, register common training configs"""
-
-    register_params_dataclass(
-        cs, name="eval_lm_params", group="params", data_class=EvalLMConfig
-    )
-
-    register_module_dataclass(cs, TASK_DATACLASS_REGISTRY, "task")
-    register_module_dataclass(cs, CRITERION_DATACLASS_REGISTRY, "criterion")
-    register_module_dataclass(cs, OPTIMIZER_DATACLASS_REGISTRY, "optimizer")
-    register_module_dataclass(cs, LR_SCHEDULER_DATACLASS_REGISTRY, "lr_scheduler")
+    for k, v in REGISTRIES.items():
+        register_module_dataclass(cs, v["dataclass_registry"], k)
 
 
 def _override_attr(
     sub_node: str, data_class: Type[FairseqDataclass], args: Namespace
 ) -> List[str]:
     overrides = []
-    for k in data_class.__dataclass_fields__.keys():
-        if k == "_name":
+
+    def get_default(f):
+        if not isinstance(f.default_factory, _MISSING_TYPE):
+            return f.default_factory()
+        return f.default
+
+    for k, v in data_class.__dataclass_fields__.items():
+        if k.startswith("_"):
             # private member, skip
             continue
-        if not hasattr(args, k):
-            # print(f"cannot override {sub_node}.{k} since args does not have attribute {k}")
-            continue
-        if getattr(args, k) is None:
+
+        val = get_default(v) if not hasattr(args, k) else getattr(args, k)
+
+        if val is None:
             overrides.append("{}.{}=null".format(sub_node, k))
-        elif getattr(args, k) == "":
+        elif val == "":
             overrides.append("{}.{}=''".format(sub_node, k))
-        elif isinstance(getattr(args, k), str):
-            if (
-                getattr(args, k).startswith("[")
-                or getattr(args, k).startswith("(")
-                or getattr(args, k).startswith("{")
-                or ("," in getattr(args, k))
-            ):
-                overrides.append("{}.{}='{}'".format(sub_node, k, getattr(args, k)))
-            else:
-                overrides.append("{}.{}={}".format(sub_node, k, getattr(args, k)))
+        elif isinstance(val, str):
+            overrides.append("{}.{}='{}'".format(sub_node, k, val))
         else:
-            overrides.append("{}.{}={}".format(sub_node, k, getattr(args, k)))
+            overrides.append("{}.{}={}".format(sub_node, k, val))
     return overrides
 
 
-def override_training_args(args: Namespace) -> Tuple[List[str], List[str]]:
-    overrides = []
-
-    overrides.extend(_override_attr("params.common", CommonParams, args))
-    overrides.extend(_override_attr("params.dataset", DatasetParams, args))
-    overrides.extend(
-        _override_attr("params.distributed_training", DistributedTrainingParams, args)
-    )
-    overrides.extend(_override_attr("params.optimization", OptimizationParams, args))
-    overrides.extend(_override_attr("params.checkpoint", CheckpointParams, args))
-    overrides.extend(_override_attr("params.bmuf", FairseqBMUFConfig, args))
-    module_overrides, module_deletes = override_module_args(args)
-    overrides.extend(module_overrides)
-
-    return overrides, module_deletes
-
-
-def override_eval_lm_args(args: Namespace) -> Tuple[List[str], List[str]]:
-    overrides = []
-
-    overrides.extend(_override_attr("params.common", CommonParams, args))
-    overrides.extend(_override_attr("params.dataset", DatasetParams, args))
-    overrides.extend(
-        _override_attr("params.distributed_training", DistributedTrainingParams, args)
-    )
-    overrides.extend(_override_attr("params.common_eval", CommonEvalParams, args))
-    overrides.extend(_override_attr("params.eval_lm", EvalLMParams, args))
-    overrides.extend(_override_attr("params.bmuf", FairseqBMUFConfig, args))
-    module_overrides, module_deletes = override_module_args(args)
-    overrides.extend(module_overrides)
-
-    return overrides, module_deletes
+def migrate_registry(
+    name, value, registry, args, overrides, deletes, use_name_as_val=False
+):
+    if value in registry:
+        overrides.append("{}={}".format(name, value))
+        overrides.append("{}._name={}".format(name, value))
+        overrides.extend(_override_attr(name, registry[value], args))
+    elif use_name_as_val and value is not None:
+        overrides.append("{}={}".format(name, value))
+    else:
+        deletes.append(name)
 
 
 def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
@@ -709,53 +869,34 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
     overrides = []
     deletes = []
 
+    for k, v in CONFIGS.items():
+        overrides.extend(_override_attr(k, v, args))
+
     if args is not None:
-        assert (
-            hasattr(args, "task")
-            and hasattr(args, "criterion")
-            and hasattr(args, "optimizer")
-            and hasattr(args, "lr_scheduler")
-        )
-        if args.task in TASK_DATACLASS_REGISTRY:
-            overrides.append("task={}".format(args.task))
-            overrides.append("task._name={}".format(args.task))
-            overrides.extend(
-                _override_attr("task", TASK_DATACLASS_REGISTRY[args.task], args)
+        if hasattr(args, "task"):
+            migrate_registry(
+                "task", args.task, TASK_DATACLASS_REGISTRY, args, overrides, deletes
             )
         else:
             deletes.append("task")
-        if args.criterion in CRITERION_DATACLASS_REGISTRY:
-            overrides.append("criterion={}".format(args.criterion))
-            overrides.append("criterion._name={}".format(args.criterion))
-            overrides.extend(
-                _override_attr(
-                    "criterion", CRITERION_DATACLASS_REGISTRY[args.criterion], args
-                )
-            )
-        else:
-            deletes.append("criterion")
-        if args.optimizer in OPTIMIZER_DATACLASS_REGISTRY:
-            overrides.append("optimizer={}".format(args.optimizer))
-            overrides.append("optimizer._name={}".format(args.optimizer))
-            overrides.extend(
-                _override_attr(
-                    "optimizer", OPTIMIZER_DATACLASS_REGISTRY[args.optimizer], args
-                )
-            )
-        else:
-            deletes.append("optimizer")
-        if args.lr_scheduler in LR_SCHEDULER_DATACLASS_REGISTRY:
-            overrides.append("lr_scheduler={}".format(args.lr_scheduler))
-            overrides.append("lr_scheduler._name={}".format(args.lr_scheduler))
-            overrides.extend(
-                _override_attr(
-                    "lr_scheduler",
-                    LR_SCHEDULER_DATACLASS_REGISTRY[args.lr_scheduler],
+
+        # these options will be set to "None" if they have not yet been migrated
+        # so we can populate them with the entire flat args
+        CORE_REGISTRIES = {"criterion", "optimizer", "lr_scheduler"}
+
+        for k, v in REGISTRIES.items():
+            if hasattr(args, k):
+                migrate_registry(
+                    k,
+                    getattr(args, k),
+                    v["dataclass_registry"],
                     args,
+                    overrides,
+                    deletes,
+                    use_name_as_val=k not in CORE_REGISTRIES,
                 )
-            )
-        else:
-            deletes.append("lr_scheduler")
+            else:
+                deletes.append(k)
 
         no_dc = True
         if hasattr(args, "arch"):

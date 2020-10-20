@@ -13,7 +13,6 @@ For example, if we'd like to train a language model with transformer, we could p
 
 ```
 defaults:
-  - params: training_params
   - task: language_modeling
   - model: transformer_lm
   - criterion: cross_entropy
@@ -21,7 +20,7 @@ defaults:
   - lr_scheduler: inverse_sqrt
 ```
 
-- Provide generic parameters common across different training jobs: `config/params/training_params.yaml`
+- Provide generic parameters common across different jobs: `config.yaml`
 - Provide task parameters: `config/task/language_modeling.yaml`
 - Provide model parameters: `config/model/transformer_lm.yaml`
 - Provide criterion parameters: `config/criterion/cross_entropy.yaml`
@@ -41,7 +40,6 @@ Alternatively, if we need to override certain params from the command line, we c
 
 ```
 python fairseq_cli/train_hydra.py
-params=training_params \
 task=language_modeling \
 task.data=/private/home/abaevski/data/wiki103 \
 task.tokens_per_sample=512 \
@@ -56,17 +54,17 @@ lr_scheduler=inverse_sqrt \
 lr_scheduler.warmup_updates=4000 \
 lr_scheduler.warmup_init_lr=1e-07 \
 criterion=cross_entropy \
-params.common.fp16=true \
-params.common.log_format=json \
-params.common.log_interval=1 \
-params.dataset.max_tokens=1024 \
-params.dataset.num_workers=4 \
-params.optimization.update_freq=[16] \
-params.optimization.max_update=50000 \
-params.optimization.clip_norm=0.0 \
-params.optimization.lr=[0.0005] \
-params.checkpoint.save_dir=/checkpoint/mtian/transformer_wikitext-103-hydra-args-cli \
-params.checkpoint.save_interval_updates=10
+common.fp16=true \
+common.log_format=json \
+common.log_interval=1 \
+dataset.max_tokens=1024 \
+dataset.num_workers=4 \
+optimization.update_freq=[16] \
+optimization.max_update=50000 \
+optimization.clip_norm=0.0 \
+optimization.lr=[0.0005] \
+checkpoint.save_dir=/checkpoint/mtian/transformer_wikitext-103-hydra-args-cli \
+checkpoint.save_interval_updates=10
 ```
 
 ## Migrate existing/Creating new modules to hydra interface

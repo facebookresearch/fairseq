@@ -144,7 +144,9 @@ class BARTModel(TransformerModel):
             num_classes=num_classes,
             activation_fn=self.args.pooler_activation_fn,
             pooler_dropout=self.args.pooler_dropout,
-            do_spectral_norm=self.args.spectral_norm_classification_head,
+            do_spectral_norm=getattr(
+                self.args, "spectral_norm_classification_head", False
+            ),
         )
 
     def upgrade_state_dict_named(self, state_dict, name):

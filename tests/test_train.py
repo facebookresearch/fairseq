@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import torch
 from fairseq import checkpoint_utils, data
+from omegaconf import OmegaConf
 
 
 def mock_trainer(epoch, num_updates, iterations_in_epoch):
@@ -56,21 +57,29 @@ def get_trainer_and_epoch_itr(epoch, epoch_size, num_updates, iterations_in_epoc
     return trainer, epoch_itr
 
 
-def get_mock_args(finetune_from_model=None):
-    args_mock = MagicMock()
-    args_mock.optimizer_overrides = "{}"
-    args_mock.reset_dataloader = False
-    args_mock.reset_meters = False
-    args_mock.reset_optimizer = False
-    args_mock.reset_lr_scheduler = False
-    args_mock.finetune_from_model = finetune_from_model
-    args_mock.model_parallel_size = 1
-    return args_mock
+def get_mock_cfg(finetune_from_model):
+    cfg_mock = OmegaConf.create(
+        {
+            "checkpoint": {
+                "optimizer_overrides": "{}",
+                "reset_dataloader": False,
+                "reset_meters": False,
+                "reset_optimizer": False,
+                "reset_lr_scheduler": False,
+                "finetune_from_model": finetune_from_model,
+                "model_parallel_size": 1,
+            },
+            "common": {
+                "model_parallel_size": 1,
+            },
+        }
+    )
+    return cfg_mock
 
 
 class TestLoadCheckpoint(unittest.TestCase):
     def setUp(self):
-        self.args_mock = get_mock_args()
+        self.cfg_mock = get_mock_cfg(None)
         self.patches = {
             "os.makedirs": MagicMock(),
             "os.path.join": MagicMock(),
@@ -91,7 +100,9 @@ class TestLoadCheckpoint(unittest.TestCase):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 200, 50)
             trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
 
-            _, epoch_itr = checkpoint_utils.load_checkpoint(self.args_mock, trainer)
+            _, epoch_itr = checkpoint_utils.load_checkpoint(
+                self.cfg_mock.checkpoint, trainer
+            )
 
             self.assertEqual(epoch_itr.epoch, 2)
             self.assertEqual(epoch_itr.iterations_in_epoch, 50)
@@ -120,7 +131,9 @@ class TestLoadCheckpoint(unittest.TestCase):
             trainer, epoch_itr = get_trainer_and_epoch_itr(2, 150, 300, 150)
             trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
 
-            _, epoch_itr = checkpoint_utils.load_checkpoint(self.args_mock, trainer)
+            _, epoch_itr = checkpoint_utils.load_checkpoint(
+                self.cfg_mock.checkpoint, trainer
+            )
             itr = epoch_itr.next_epoch_itr(shuffle=False)
 
             self.assertEqual(epoch_itr.epoch, 3)
@@ -133,7 +146,9 @@ class TestLoadCheckpoint(unittest.TestCase):
             trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
             self.patches["os.path.isfile"].return_value = False
 
-            _, epoch_itr = checkpoint_utils.load_checkpoint(self.args_mock, trainer)
+            _, epoch_itr = checkpoint_utils.load_checkpoint(
+                self.cfg_mock.checkpoint, trainer
+            )
             itr = epoch_itr.next_epoch_itr(shuffle=False)
 
             self.assertEqual(epoch_itr.epoch, 1)
@@ -152,10 +167,12 @@ class TestLoadCheckpoint(unittest.TestCase):
                 "reset_dataloader",
             ]:
                 with self.subTest(arg=arg):
-                    args_mock = get_mock_args("/temp/checkpoint_pretrained.pt")
-                    setattr(args_mock, arg, True)
+                    cfg_mock = get_mock_cfg("/temp/checkpoint_pretrained.pt")
+                    cfg_mock["checkpoint"][arg] = True
                     with self.assertRaises(Exception) as context:
-                        _, _ = checkpoint_utils.load_checkpoint(args_mock, trainer)
+                        _, _ = checkpoint_utils.load_checkpoint(
+                            cfg_mock.checkpoint, trainer
+                        )
 
                     self.assertTrue(
                         "--finetune-from-model can not be set together with either --reset-optimizer"
@@ -168,8 +185,6 @@ class TestLoadCheckpoint(unittest.TestCase):
             trainer, epoch_itr = get_trainer_and_epoch_itr(1, 150, 0, 0)
             trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
             from_model_path = "/temp/checkpoint_pretrained.pt"
-            args_mock = get_mock_args(from_model_path)
-            args_mock.restore_file = "checkpoint_last.pt"
 
             def mock_finetune_exist(path):
                 if path == from_model_path:
@@ -180,7 +195,9 @@ class TestLoadCheckpoint(unittest.TestCase):
             self.patches[
                 "fairseq.file_io.PathManager.exists"
             ].side_effect = mock_finetune_exist
-            _, _ = checkpoint_utils.load_checkpoint(args_mock, trainer)
+            cfg_mock = get_mock_cfg(from_model_path)
+            cfg_mock.checkpoint.restore_file = "checkpoint_last.pt"
+            _, _ = checkpoint_utils.load_checkpoint(cfg_mock.checkpoint, trainer)
             (
                 checkpoint_path,
                 reset_optimizer,
@@ -197,8 +214,6 @@ class TestLoadCheckpoint(unittest.TestCase):
             trainer, epoch_itr = get_trainer_and_epoch_itr(1, 150, 0, 0)
             trainer.get_train_iterator = MagicMock(return_value=epoch_itr)
             from_model_path = "/temp/checkpoint_pretrained.pt"
-            args_mock = get_mock_args(from_model_path)
-            args_mock.restore_file = "checkpoint_last.pt"
 
             # launch second time
             # both restore_file=checkpoint_last.pt and finetune_from_model are set
@@ -211,7 +226,9 @@ class TestLoadCheckpoint(unittest.TestCase):
             self.patches[
                 "fairseq.file_io.PathManager.exists"
             ].side_effect = mock_finetune_exist
-            _, _ = checkpoint_utils.load_checkpoint(args_mock, trainer)
+            cfg_mock = get_mock_cfg(from_model_path)
+            cfg_mock.checkpoint.restore_file = "checkpoint_last.pt"
+            _, _ = checkpoint_utils.load_checkpoint(cfg_mock.checkpoint, trainer)
             (
                 checkpoint_path,
                 reset_optimizer,

@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 
+from dataclasses import dataclass, field
+
 from fairseq import file_utils
 from fairseq.data.encoders import register_bpe
 from fairseq.data.encoders.byte_utils import (
@@ -12,19 +14,20 @@ from fairseq.data.encoders.byte_utils import (
     byte_encode,
     smart_byte_decode,
 )
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_bpe("byte_bpe")
+@dataclass
+class ByteBpeConfig(FairseqDataclass):
+    sentencepiece_model_path: str = field(
+        default="???", metadata={"help": "path to sentencepiece model"}
+    )
+
+
+@register_bpe("byte_bpe", dataclass=ByteBpeConfig)
 class ByteBPE(object):
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--sentencepiece-model-path', type=str,
-                            help='path to sentencepiece model')
-        # fmt: on
-
-    def __init__(self, args):
-        vocab = file_utils.cached_path(args.sentencepiece_model_path)
+    def __init__(self, cfg):
+        vocab = file_utils.cached_path(cfg.sentencepiece_model_path)
         try:
             import sentencepiece as spm
 

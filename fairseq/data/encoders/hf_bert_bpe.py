@@ -3,22 +3,24 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+from typing import Optional
+
 from fairseq.data.encoders import register_bpe
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_bpe("bert")
+@dataclass
+class BertBPEConfig(FairseqDataclass):
+    bpe_cased: bool = field(default=False, metadata={"help": "set for cased BPE"})
+    bpe_vocab_file: Optional[str] = field(
+        default=None, metadata={"help": "bpe vocab file"}
+    )
+
+
+@register_bpe("bert", dataclass=BertBPEConfig)
 class BertBPE(object):
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--bpe-cased', action='store_true',
-                            help='set for cased BPE',
-                            default=False)
-        parser.add_argument('--bpe-vocab-file', type=str,
-                            help='bpe vocab file.')
-        # fmt: on
-
-    def __init__(self, args):
+    def __init__(self, cfg):
         try:
             from transformers import BertTokenizer
         except ImportError:
@@ -26,13 +28,13 @@ class BertBPE(object):
                 "Please install transformers with: pip install transformers"
             )
 
-        if "bpe_vocab_file" in args:
+        if cfg.bpe_vocab_file:
             self.bert_tokenizer = BertTokenizer(
-                args.bpe_vocab_file, do_lower_case=not args.bpe_cased
+                cfg.bpe_vocab_file, do_lower_case=not cfg.bpe_cased
             )
         else:
             vocab_file_name = (
-                "bert-base-cased" if args.bpe_cased else "bert-base-uncased"
+                "bert-base-cased" if cfg.bpe_cased else "bert-base-uncased"
             )
             self.bert_tokenizer = BertTokenizer.from_pretrained(vocab_file_name)
 

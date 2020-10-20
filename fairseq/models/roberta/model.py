@@ -494,7 +494,7 @@ def base_architecture(args):
     args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
     args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
     args.spectral_norm_classification_head = getattr(
-        args, "spectral_nrom_classification_head", False
+        args, "spectral_norm_classification_head", False
     )
 
 

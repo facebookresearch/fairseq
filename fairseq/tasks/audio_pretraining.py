@@ -79,7 +79,7 @@ class AudioPretrainingTask(LegacyFairseqTask):
         """Setup the task (e.g., load dictionaries).
 
         Args:
-            args (argparse.Namespace): parsed command-line arguments
+            args (omegaconf.DictConfig): parsed command-line arguments
         """
         return cls(args)
 

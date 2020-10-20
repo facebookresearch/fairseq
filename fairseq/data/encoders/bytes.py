@@ -15,7 +15,7 @@ from fairseq.data.encoders.byte_utils import (
 
 @register_bpe("bytes")
 class Bytes(object):
-    def __init__(self, args):
+    def __init__(self, *unused):
         pass
 
     @staticmethod

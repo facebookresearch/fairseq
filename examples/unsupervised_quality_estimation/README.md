@@ -85,7 +85,7 @@ Produce model scores for the generated translations using `--retain-dropout` opt
 ```
 CUDA_VISIBLE_DEVICES=${GPU} fairseq-generate ${TMP}/bin-repeated --path ${MODEL_DIR}/${LP}.pt --beam 5
  --source-lang $SRC_LANG --target-lang $TGT_LANG --no-progress-bar --unkpen 5 --score-reference --retain-dropout
- --retain-dropout-modules TransformerModel TransformerEncoder TransformerDecoder TransformerEncoderLayer
+ --retain-dropout-modules '["TransformerModel","TransformerEncoder","TransformerDecoder","TransformerEncoderLayer"]'
  TransformerDecoderLayer --seed 46 > $TMP/dropout.scoring.out
 
 grep ^H $TMP/dropout.scoring.out | cut -f2- > $TMP/dropout.scores

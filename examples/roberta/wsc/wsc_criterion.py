@@ -20,8 +20,8 @@ class WSCCriterion(LegacyFairseqCriterion):
             self.prediction_h = open(self.args.save_predictions, "w")
         else:
             self.prediction_h = None
-        self.bpe = encoders.build_bpe(args)
-        self.tokenizer = encoders.build_tokenizer(args)
+        self.bpe = encoders.build_bpe(args.bpe)
+        self.tokenizer = encoders.build_tokenizer(args.tokenizer)
 
     def __del__(self):
         if self.prediction_h is not None:
