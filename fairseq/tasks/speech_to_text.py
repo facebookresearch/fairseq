@@ -16,11 +16,6 @@ from fairseq.data.audio.speech_to_text_dataset import (
 from fairseq.tasks import LegacyFairseqTask, register_task
 
 
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
-)
 logger = logging.getLogger(__name__)
 
 
