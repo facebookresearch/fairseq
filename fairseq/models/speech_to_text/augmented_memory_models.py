@@ -47,10 +47,10 @@ class AugmentedMemoryConvTransformerModel(ConvTransformerModel):
             args, AugmentedMemoryConvTransformerEncoder(args)
         )
 
-        if getattr(args, "load_pretrained_encoder_from", None) is not None:
-            encoder = checkpoint_utils.load_pretrained_component_from_model(
-                component=encoder, checkpoint=args.load_pretrained_encoder_from
-            )
+        #if getattr(args, "load_pretrained_encoder_from", None) is not None:
+        #    encoder = checkpoint_utils.load_pretrained_component_from_model(
+        #        component=encoder, checkpoint=args.load_pretrained_encoder_from
+        #    )
 
         return encoder
 
