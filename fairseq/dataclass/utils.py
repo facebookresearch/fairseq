@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import ast
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING, dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -204,7 +204,10 @@ def gen_parser_from_dataclass(
                 continue
             if delete_default:
                 del kwargs["default"]
-        parser.add_argument(field_name, **kwargs)
+        try:
+            parser.add_argument(field_name, **kwargs)
+        except ArgumentError:
+            pass
 
 
 def _set_legacy_defaults(args, cls):
