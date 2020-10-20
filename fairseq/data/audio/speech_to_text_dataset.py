@@ -23,11 +23,6 @@ from fairseq.data.audio.audio_utils import get_fbank, get_waveform
 from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
 
 
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
-)
 logger = logging.getLogger(__name__)
 
 
