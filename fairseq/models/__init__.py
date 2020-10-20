@@ -7,8 +7,6 @@
 import argparse
 import importlib
 import os
-from argparse import Namespace
-from typing import Union
 
 import fairseq
 from fairseq.dataclass import FairseqDataclass
@@ -52,10 +50,10 @@ __all__ = [
 ]
 
 
-def build_model(model_cfg: Union[DictConfig, Namespace], task):
-    if isinstance(model_cfg, DictConfig):
-        return ARCH_MODEL_REGISTRY[model_cfg._name].build_model(model_cfg, task)
-    return ARCH_MODEL_REGISTRY[model_cfg.arch].build_model(model_cfg, task)
+def build_model(cfg: DictConfig, task):
+    if isinstance(cfg, DictConfig):
+        return ARCH_MODEL_REGISTRY[cfg._name].build_model(cfg, task)
+    return ARCH_MODEL_REGISTRY[cfg.arch].build_model(cfg, task)
 
 
 def register_model(name, dataclass=None):
@@ -92,7 +90,8 @@ def register_model(name, dataclass=None):
             )
 
         cls.__dataclass = dataclass
-        MODEL_DATACLASS_REGISTRY[name] = dataclass
+        if dataclass is not None:
+            MODEL_DATACLASS_REGISTRY[name] = dataclass
         return cls
 
     return register_model_cls
@@ -108,14 +107,13 @@ def register_model_architecture(model_name, arch_name):
     For example::
 
         @register_model_architecture('lstm', 'lstm_luong_wmt_en_de')
-        def lstm_luong_wmt_en_de(args):
-            args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 1000)
+        def lstm_luong_wmt_en_de(cfg):
+            args.encoder_embed_dim = getattr(cfg.model, 'encoder_embed_dim', 1000)
             (...)
 
-    The decorated function should take a single argument *args*, which is a
-    :class:`argparse.Namespace` of arguments parsed from the command-line. The
-    decorated function should modify these arguments in-place to match the
-    desired architecture.
+    The decorated function should take a single argument *cfg*, which is a
+    :class:`omegaconf.DictConfig`. The decorated function should modify these
+    arguments in-place to match the desired architecture.
 
     Args:
         model_name (str): the name of the Model (Model must already be

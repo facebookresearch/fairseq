@@ -78,7 +78,13 @@ def cli_main():
 
         def score(fdsys):
             with open(args.ref) as fdref:
-                scorer = bleu.Scorer(dict.pad(), dict.eos(), dict.unk())
+                scorer = bleu.Scorer(
+                    bleu.BleuConfig(
+                        pad=dict.pad(),
+                        eos=dict.eos(),
+                        unk=dict.unk(),
+                    )
+                )
                 for sys_tok, ref_tok in zip(readlines(fdsys), readlines(fdref)):
                     sys_tok = dict.encode_line(sys_tok)
                     ref_tok = dict.encode_line(ref_tok)

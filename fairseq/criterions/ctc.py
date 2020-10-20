@@ -10,24 +10,24 @@ from argparse import Namespace
 import torch
 import torch.nn.functional as F
 from fairseq import metrics, utils
-from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.criterions import LegacyFairseqCriterion, register_criterion
 from fairseq.data.data_utils import post_process
 from fairseq.logging.meters import safe_round
 
 
 @register_criterion("ctc")
-class CtcCriterion(FairseqCriterion):
-    def __init__(self, task, wer_args, zero_infinity, sentence_avg, remove_bpe):
-        super().__init__(task)
+class CtcCriterion(LegacyFairseqCriterion):
+    def __init__(self, args, task):
+        super().__init__(args, task)
         self.blank_idx = task.target_dictionary.bos()
         self.pad_idx = task.target_dictionary.pad()
         self.eos_idx = task.target_dictionary.eos()
-        self.post_process = remove_bpe if remove_bpe else "letter"
+        self.post_process = args.remove_bpe if args.remove_bpe else "letter"
 
-        if wer_args is not None:
+        if args.wer_args is not None:
             from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
 
-            wer_compute_kenlm, wer_lexicon, lm_w, ws_w = eval(wer_args)
+            wer_compute_kenlm, wer_lexicon, lm_w, ws_w = eval(args.wer_args)
 
             dec_args = Namespace()
             dec_args.nbest = 1
@@ -46,8 +46,8 @@ class CtcCriterion(FairseqCriterion):
         else:
             self.w2l_decoder = None
 
-        self.zero_infinity = zero_infinity
-        self.sentence_avg = sentence_avg
+        self.zero_infinity = args.zero_infinity
+        self.sentence_avg = args.sentence_avg
 
     @staticmethod
     def add_args(parser):

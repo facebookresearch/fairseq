@@ -7,8 +7,6 @@
 import argparse
 import importlib
 import os
-from argparse import Namespace
-from typing import Union
 
 from fairseq.dataclass import FairseqDataclass
 from omegaconf import DictConfig
@@ -22,10 +20,10 @@ TASK_REGISTRY = {}
 TASK_CLASS_NAMES = set()
 
 
-def setup_task(task_cfg: Union[DictConfig, Namespace], **kwargs):
-    if isinstance(task_cfg, DictConfig):
-        return TASK_REGISTRY[task_cfg._name].setup_task(task_cfg, **kwargs)
-    return TASK_REGISTRY[task_cfg.task].setup_task(task_cfg, **kwargs)
+def setup_task(cfg: DictConfig, **kwargs):
+    if isinstance(cfg, DictConfig):
+        return TASK_REGISTRY[cfg._name].setup_task(cfg, **kwargs)
+    return TASK_REGISTRY[cfg.task].setup_task(cfg, **kwargs)
 
 
 def register_task(name, dataclass=None):
@@ -70,7 +68,8 @@ def register_task(name, dataclass=None):
             )
 
         cls.__dataclass = dataclass
-        TASK_DATACLASS_REGISTRY[name] = dataclass
+        if dataclass is not None:
+            TASK_DATACLASS_REGISTRY[name] = dataclass
 
         return cls
 

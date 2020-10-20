@@ -20,7 +20,7 @@ from fairseq.models import (
     FairseqIncrementalDecoder,
 )
 from fairseq.models.fairseq_encoder import EncoderOut
-from fairseq.tasks import FairseqTask, LegacyFairseqTask
+from fairseq.tasks import LegacyFairseqTask
 from fairseq_cli import generate, interactive, preprocess, train, validate
 
 

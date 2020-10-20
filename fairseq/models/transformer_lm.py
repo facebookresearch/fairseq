@@ -159,7 +159,7 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
     max_target_positions: Optional[int] = II("task.max_target_positions")
-    tpu: bool = II("params.common.tpu")
+    tpu: bool = II("common.tpu")
 
 
 @register_model("transformer_lm", dataclass=TransformerLanguageModelConfig)

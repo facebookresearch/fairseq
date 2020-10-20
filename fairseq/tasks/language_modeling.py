@@ -28,7 +28,7 @@ from fairseq.data import (
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import LegacyFairseqTask, register_task
 from omegaconf import II
 
 
@@ -85,16 +85,16 @@ class LanguageModelingConfig(FairseqDataclass):
         },
     )
     # TODO common vars below add to parent
-    seed: int = II("params.common.seed")
+    seed: int = II("common.seed")
     dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = II(
-        "params.dataset.dataset_impl"
+        "dataset.dataset_impl"
     )
-    data_buffer_size: int = II("params.dataset.data_buffer_size")
-    tpu: bool = II("params.common.tpu")
+    data_buffer_size: int = II("dataset.data_buffer_size")
+    tpu: bool = II("common.tpu")
 
 
 @register_task("language_modeling", dataclass=LanguageModelingConfig)
-class LanguageModelingTask(FairseqTask):
+class LanguageModelingTask(LegacyFairseqTask):
     """
     Train a language model.
 

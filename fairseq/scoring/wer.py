@@ -3,14 +3,31 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+
+from fairseq.dataclass import FairseqDataclass
 from fairseq.scoring import BaseScorer, register_scorer
 from fairseq.scoring.tokenizer import EvaluationTokenizer
 
 
-@register_scorer("wer")
+@dataclass
+class WerScorerConfig(FairseqDataclass):
+    wer_tokenizer: EvaluationTokenizer.ALL_TOKENIZER_TYPES = field(
+        default="none", metadata={"help": "sacreBLEU tokenizer to use for evaluation"}
+    )
+    wer_remove_punct: bool = field(
+        default=False, metadata={"help": "remove punctuation"}
+    )
+    wer_char_level: bool = field(
+        default=False, metadata={"help": "evaluate at character level"}
+    )
+    wer_lowercase: bool = field(default=False, metadata={"help": "lowercasing"})
+
+
+@register_scorer("wer", dataclass=WerScorerConfig)
 class WerScorer(BaseScorer):
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, cfg):
+        super().__init__(cfg)
         self.reset()
         try:
             import editdistance as ed
@@ -18,25 +35,11 @@ class WerScorer(BaseScorer):
             raise ImportError("Please install editdistance to use WER scorer")
         self.ed = ed
         self.tokenizer = EvaluationTokenizer(
-            tokenizer_type=self.args.wer_tokenizer,
-            lowercase=self.args.wer_lowercase,
-            punctuation_removal=self.args.wer_remove_punct,
-            character_tokenization=self.args.wer_char_level,
+            tokenizer_type=self.cfg.wer_tokenizer,
+            lowercase=self.cfg.wer_lowercase,
+            punctuation_removal=self.cfg.wer_remove_punct,
+            character_tokenization=self.cfg.wer_char_level,
         )
-
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--wer-tokenizer', type=str, default='none',
-                            choices=EvaluationTokenizer.ALL_TOKENIZER_TYPES,
-                            help='sacreBLEU tokenizer to use for evaluation')
-        parser.add_argument('--wer-remove-punct', action='store_true',
-                            help='remove punctuation')
-        parser.add_argument('--wer-char-level', action='store_true',
-                            help='evaluate at character level')
-        parser.add_argument('--wer-lowercase', action='store_true',
-                            help='lowercasing')
-        # fmt: on
 
     def reset(self):
         self.distance = 0

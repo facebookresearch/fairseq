@@ -9,9 +9,9 @@ from fairseq.dataclass.utils import gen_parser_from_dataclass
 
 
 class FairseqOptimizer(object):
-    def __init__(self, args):
+    def __init__(self, cfg):
         super().__init__()
-        self.args = args
+        self.cfg = cfg
 
     @classmethod
     def add_args(cls, parser):

@@ -96,7 +96,7 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
             encoder_output_tuple = self.encoder(input)
             return self.decoder(encoder_output_tuple)
 
-    def prepare_for_inference_(self, args):
+    def prepare_for_inference_(self, cfg):
         if self.encoder is not None and self.decoder is not None:
             logger.info("Encoder and Decoder already initialized")
             return
@@ -111,9 +111,9 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                     decoder_module_list.append(module)
                 module_count += 1
         self.model = None
-        self.encoder = TransformerEncoder(args, None, None, encoder_module_list)
+        self.encoder = TransformerEncoder(cfg.model, None, None, encoder_module_list)
         self.decoder = TransformerDecoder(
-            args, None, None, decoder_module_list=decoder_module_list
+            cfg.model, None, None, decoder_module_list=decoder_module_list
         )
 
     @staticmethod
@@ -320,7 +320,7 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
         """Maximum length supported by the decoder."""
         return self.decoder_max_positions
 
-    def load_state_dict(self, state_dict, strict=True, args=None):
+    def load_state_dict(self, state_dict, strict=True, cfg=None):
         """Copies parameters and buffers from *state_dict* into this module and
         its descendants.
 

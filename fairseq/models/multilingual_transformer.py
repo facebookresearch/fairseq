@@ -194,14 +194,14 @@ class MultilingualTransformerModel(FairseqMultiModel):
         module_class = TransformerEncoder if is_encoder else TransformerDecoder
         return module_class(args, lang_dict, embed_tokens)
 
-    def load_state_dict(self, state_dict, strict=True, args=None):
+    def load_state_dict(self, state_dict, strict=True, model_cfg=None):
         state_dict_subset = state_dict.copy()
         for k, _ in state_dict.items():
             assert k.startswith("models.")
             lang_pair = k.split(".")[1]
             if lang_pair not in self.models:
                 del state_dict_subset[k]
-        super().load_state_dict(state_dict_subset, strict=strict, args=args)
+        super().load_state_dict(state_dict_subset, strict=strict, model_cfg=model_cfg)
 
 
 @register_model_architecture("multilingual_transformer", "multilingual_transformer")

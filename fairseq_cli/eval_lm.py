@@ -11,13 +11,19 @@ Evaluate the perplexity of a trained language model.
 import logging
 import math
 import os
+from argparse import Namespace
 
 import torch
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import LMContextWindowDataset
+from fairseq.dataclass.data_class import register_hydra_cfg
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
+from hydra.core.config_store import ConfigStore
+from hydra.experimental import initialize
+from omegaconf import DictConfig
 
 
 logging.basicConfig(
@@ -60,65 +66,60 @@ class WordStat(object):
         )
 
 
-def main(parsed_args, **unused_kwargs):
-    assert parsed_args.path is not None, "--path required for evaluation!"
+def main(cfg: DictConfig, override_args=None, **unused_kwargs):
+    if isinstance(cfg, Namespace):
+        cfg = convert_namespace_to_omegaconf(cfg)
 
-    if torch.cuda.is_available() and not parsed_args.cpu:
-        torch.cuda.set_device(parsed_args.device_id)
+    utils.import_user_module(cfg.common)
 
-    utils.import_user_module(parsed_args)
+    use_fp16 = cfg.common.fp16
+    use_cuda = torch.cuda.is_available() and not cfg.common.cpu
 
-    logger.info(parsed_args)
+    if use_cuda:
+        torch.cuda.set_device(cfg.distributed_training.device_id)
 
-    use_cuda = torch.cuda.is_available() and not parsed_args.cpu
+    if override_args is not None:
+        overrides = vars(override_args)
+        overrides.update(eval(getattr(override_args, "model_overrides", "{}")))
+    else:
+        overrides = None
 
-    task = tasks.setup_task(parsed_args)
+    logger.info(cfg)
 
     # Load ensemble
-    logger.info("loading model(s) from {}".format(parsed_args.path))
-    models, args = checkpoint_utils.load_model_ensemble(
-        parsed_args.path.split(os.pathsep),
-        arg_overrides=eval(parsed_args.model_overrides),
-        task=task,
-        suffix=getattr(parsed_args, "checkpoint_suffix", ""),
-        strict=(parsed_args.checkpoint_shard_count == 1),
-        num_shards=parsed_args.checkpoint_shard_count,
-    )
-
-    for arg in vars(parsed_args).keys():
-        if arg not in {
-            "self_target",
-            "future_target",
-            "past_target",
-            "tokens_per_sample",
-            "output_size_dictionary",
-            "add_bos_token",
-        }:
-            setattr(args, arg, getattr(parsed_args, arg))
+    logger.info("loading model(s) from {}".format(cfg.common_eval.path))
 
     # reduce tokens per sample by the required context window size
-    args.tokens_per_sample -= args.context_window
-    task = tasks.setup_task(args)
+    cfg.task.tokens_per_sample -= cfg.eval_lm.context_window
+
+    models, model_args, task = checkpoint_utils.load_model_ensemble_and_task(
+        [cfg.common_eval.path],
+        arg_overrides=overrides,
+        suffix=cfg.checkpoint.checkpoint_suffix,
+        strict=(cfg.checkpoint.checkpoint_shard_count == 1),
+        num_shards=cfg.checkpoint.checkpoint_shard_count,
+    )
 
     # Load dataset splits
-    task.load_dataset(args.gen_subset)
-    dataset = task.dataset(args.gen_subset)
-    if args.context_window > 0:
+    gen_subset = cfg.dataset.gen_subset
+    task.load_dataset(gen_subset)
+    dataset = task.dataset(gen_subset)
+    if cfg.eval_lm.context_window > 0:
         dataset = LMContextWindowDataset(
             dataset=dataset,
-            tokens_per_sample=args.tokens_per_sample,
-            context_window=args.context_window,
+            tokens_per_sample=cfg.task.tokens_per_sample,
+            context_window=cfg.eval_lm.context_window,
             pad_idx=task.source_dictionary.pad(),
         )
-    logger.info("{} {} {} examples".format(args.data, args.gen_subset, len(dataset)))
+    logger.info("{} {} {} examples".format(cfg.task.data, gen_subset, len(dataset)))
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
-        if args.fp16:
+        if use_fp16:
             model.half()
-        if use_cuda and not args.pipeline_model_parallel:
+        if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
-        model.prepare_for_inference_(args)
+        model.prepare_for_inference_(cfg)
 
     assert len(models) > 0
 
@@ -128,35 +129,41 @@ def main(parsed_args, **unused_kwargs):
 
     itr = task.get_batch_iterator(
         dataset=dataset,
-        max_tokens=args.max_tokens or 36000,
-        max_sentences=args.batch_size,
+        max_tokens=cfg.dataset.max_tokens or 36000,
+        max_sentences=cfg.dataset.batch_size,
         max_positions=utils.resolve_max_positions(
             *[model.max_positions() for model in models]
         ),
         ignore_invalid_inputs=True,
-        num_shards=args.num_shards,
-        shard_id=args.shard_id,
-        num_workers=args.num_workers,
-        data_buffer_size=args.data_buffer_size,
+        num_shards=max(
+            cfg.dataset.num_shards,
+            cfg.distributed_training.distributed_world_size,
+        ),
+        shard_id=max(
+            cfg.dataset.shard_id,
+            cfg.distributed_training.distributed_rank,
+        ),
+        num_workers=cfg.dataset.num_workers,
+        data_buffer_size=cfg.dataset.data_buffer_size,
     ).next_epoch_itr(shuffle=False)
     progress = progress_bar.progress_bar(
         itr,
-        log_format=args.log_format,
-        log_interval=args.log_interval,
-        default_log_format=("tqdm" if not args.no_progress_bar else "none"),
+        log_format=cfg.common.log_format,
+        log_interval=cfg.common.log_interval,
+        default_log_format=("tqdm" if not cfg.common.no_progress_bar else "simple"),
     )
 
     gen_timer = StopwatchMeter()
-    scorer = SequenceScorer(task.target_dictionary, args.softmax_batch)
+    scorer = SequenceScorer(task.target_dictionary, cfg.eval_lm.softmax_batch)
 
     score_sum = 0.0
     count = 0
 
-    if args.remove_bpe is not None:
-        if args.remove_bpe == "sentencepiece":
+    if cfg.common_eval.remove_bpe is not None:
+        if cfg.common_eval.remove_bpe == "sentencepiece":
             raise NotImplementedError
         else:
-            bpe_cont = args.remove_bpe.rstrip()
+            bpe_cont = cfg.common_eval.remove_bpe.rstrip()
             bpe_toks = {
                 i
                 for i in range(len(task.source_dictionary))
@@ -189,7 +196,7 @@ def main(parsed_args, **unused_kwargs):
             tgt_len = tokens.numel()
             pos_scores = hypo["positional_scores"].float()
 
-            if getattr(args, "add_bos_token", False):
+            if cfg.task.add_bos_token:
                 assert hypo["tokens"][0].item() == task.target_dictionary.bos()
                 tokens = tokens[1:]
                 pos_scores = pos_scores[1:]
@@ -212,7 +219,7 @@ def main(parsed_args, **unused_kwargs):
             score_sum += pos_scores.sum().cpu()
             count += pos_scores.numel() - skipped_toks
 
-            if args.output_word_probs or args.output_word_stats:
+            if cfg.eval_lm.output_word_probs or cfg.eval_lm.output_word_stats:
                 w = ""
                 word_prob = []
                 is_bpe = False
@@ -238,7 +245,7 @@ def main(parsed_args, **unused_kwargs):
                         )
                         is_bpe = False
                         w = ""
-                if args.output_word_probs:
+                if cfg.eval_lm.output_word_probs:
                     logger.info(
                         str(int(sample_id))
                         + " "
@@ -264,7 +271,7 @@ def main(parsed_args, **unused_kwargs):
         )
     )
 
-    if args.output_word_stats:
+    if cfg.eval_lm.output_word_stats:
         for ws in sorted(word_stats.values(), key=lambda x: x.count, reverse=True):
             logger.info(ws)
 
@@ -272,8 +279,16 @@ def main(parsed_args, **unused_kwargs):
 def cli_main():
     parser = options.get_eval_lm_parser()
     args = options.parse_args_and_arch(parser)
-    distributed_utils.call_main(args, main)
+
+    # only override args that are explicitly given on the command line
+    override_parser = options.get_validation_parser()
+    override_args = options.parse_args_and_arch(override_parser, suppress_defaults=True)
+
+    distributed_utils.call_main(args, main, override_args=override_args)
 
 
 if __name__ == "__main__":
+    cs = ConfigStore.instance()
+    register_hydra_cfg(cs)
+    initialize(config_path="../config", strict=True)
     cli_main()

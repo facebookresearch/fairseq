@@ -12,7 +12,7 @@ except ImportError:
     _has_fairscale = False
 
 
-def shard_(args, optimizer, group):
+def shard_(optimizer, group):
     if not _has_fairscale:
         raise ImportError(
             "\n\nPlease install the fairscale package:" "\n\n  pip install fairscale"

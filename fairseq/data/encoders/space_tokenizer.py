@@ -10,7 +10,7 @@ from fairseq.data.encoders import register_tokenizer
 
 @register_tokenizer("space")
 class SpaceTokenizer(object):
-    def __init__(self, source_lang=None, target_lang=None):
+    def __init__(self, *unused):
         self.space_tok = re.compile(r"\s+")
 
     def encode(self, x: str) -> str:

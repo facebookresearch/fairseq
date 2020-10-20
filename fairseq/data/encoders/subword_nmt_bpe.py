@@ -3,25 +3,25 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+
 from fairseq import file_utils
 from fairseq.data.encoders import register_bpe
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_bpe("subword_nmt")
+@dataclass
+class SubwordNMTBPEConfig(FairseqDataclass):
+    bpe_codes: str = field(default="???", metadata={"help": "path to subword NMT BPE"})
+    bpe_separator: str = field(default="@@", metadata={"help": "BPE separator"})
+
+
+@register_bpe("subword_nmt", dataclass=SubwordNMTBPEConfig)
 class SubwordNMTBPE(object):
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--bpe-codes', type=str,
-                            help='path to subword NMT BPE')
-        parser.add_argument('--bpe-separator', default='@@',
-                            help='BPE separator')
-        # fmt: on
-
-    def __init__(self, args):
-        if args.bpe_codes is None:
+    def __init__(self, cfg):
+        if cfg.bpe_codes is None:
             raise ValueError("--bpe-codes is required for --bpe=subword_nmt")
-        codes = file_utils.cached_path(args.bpe_codes)
+        codes = file_utils.cached_path(cfg.bpe_codes)
         try:
             from subword_nmt import apply_bpe
 
@@ -31,7 +31,7 @@ class SubwordNMTBPE(object):
                     "--codes",
                     codes,
                     "--separator",
-                    args.bpe_separator,
+                    cfg.bpe_separator,
                 ]
             )
             self.bpe = apply_bpe.BPE(

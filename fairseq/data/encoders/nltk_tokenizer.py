@@ -8,7 +8,7 @@ from fairseq.data.encoders import register_tokenizer
 
 @register_tokenizer("nltk")
 class NLTKTokenizer(object):
-    def __init__(self, source_lang=None, target_lang=None):
+    def __init__(self, *unused):
         try:
             from nltk.tokenize import word_tokenize
 

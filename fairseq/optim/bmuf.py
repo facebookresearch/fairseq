@@ -10,7 +10,7 @@ import torch.distributed as dist
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.optim.fairseq_optimizer import FairseqOptimizer
-from omegaconf import II
+from omegaconf import II, DictConfig
 
 
 @dataclass
@@ -38,7 +38,7 @@ class FairseqBMUFConfig(FairseqDataclass):
         },
     )
     distributed_world_size: int = II(
-        "params.distributed_training.distributed_world_size"
+        "distributed_training.distributed_world_size"
     )
 
 
@@ -52,20 +52,19 @@ class FairseqBMUF(FairseqOptimizer):
     model-update filtering
     """
 
-    def __init__(self, args, optimizer):
-
-        super().__init__(args)
+    def __init__(self, cfg: DictConfig, optimizer):
+        super().__init__(cfg)
         self._optimizer = optimizer
         self._num_updates = 0
-        self.sync_iter = self.args.global_sync_iter
-        self.block_momentum = self.args.block_momentum
-        self.block_lr = self.args.block_lr
+        self.sync_iter = cfg.global_sync_iter
+        self.block_momentum = cfg.block_momentum
+        self.block_lr = cfg.block_lr
         self._reset_local_data()
-        self.warmup_iteration = self.args.warmup_iterations
-        self.use_nbm = self.args.use_nbm
+        self.warmup_iteration = cfg.warmup_iterations
+        self.use_nbm = cfg.use_nbm
         self.initial_state = self._optimizer.state_dict()
-        self.average_sync = self.args.average_sync
-        self.world_size = self.args.distributed_world_size
+        self.average_sync = self.cfg.average_sync
+        self.world_size = self.cfg.distributed_world_size
 
     @staticmethod
     def add_args(parser):

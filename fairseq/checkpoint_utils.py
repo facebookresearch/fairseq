@@ -3,36 +3,42 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import ast
 import collections
 import logging
 import os
 import re
 import traceback
 from collections import OrderedDict
-from typing import Union
+from typing import Optional, Union
 
 import torch
+from fairseq.dataclass.utils import (
+    convert_namespace_to_omegaconf,
+    overwrite_args_by_name,
+)
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
+from omegaconf import DictConfig, open_dict
 from torch.serialization import default_restore_location
 
 
 logger = logging.getLogger(__name__)
 
 
-def save_checkpoint(args, trainer, epoch_itr, val_loss):
-    from fairseq import distributed_utils, meters
+def save_checkpoint(cfg: DictConfig, trainer, epoch_itr, val_loss):
+    from fairseq import meters
 
     # only one worker should attempt to create the required dir
-    if args.distributed_rank == 0:
-        os.makedirs(args.save_dir, exist_ok=True)
+    if cfg.distributed_rank == 0:
+        os.makedirs(cfg.save_dir, exist_ok=True)
 
     prev_best = getattr(save_checkpoint, "best", val_loss)
     if val_loss is not None:
-        best_function = max if args.maximize_best_checkpoint_metric else min
+        best_function = max if cfg.maximize_best_checkpoint_metric else min
         save_checkpoint.best = best_function(val_loss, prev_best)
 
-    if args.no_save:
+    if cfg.no_save:
         return
 
     trainer.consolidate_optimizer()
@@ -41,7 +47,7 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
         return
 
     def is_better(a, b):
-        return a >= b if args.maximize_best_checkpoint_metric else a <= b
+        return a >= b if cfg.maximize_best_checkpoint_metric else a <= b
 
     write_timer = meters.StopwatchMeter()
     write_timer.start()
@@ -50,38 +56,36 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
     end_of_epoch = epoch_itr.end_of_epoch()
     updates = trainer.get_num_updates()
 
-    suffix = getattr(args, "checkpoint_suffix", "")
+    suffix = cfg.checkpoint_suffix or ""
     checkpoint_conds = collections.OrderedDict()
     checkpoint_conds["checkpoint{}{}.pt".format(epoch, suffix)] = (
-        end_of_epoch
-        and not args.no_epoch_checkpoints
-        and epoch % args.save_interval == 0
+        end_of_epoch and not cfg.no_epoch_checkpoints and epoch % cfg.save_interval == 0
     )
     checkpoint_conds["checkpoint_{}_{}{}.pt".format(epoch, updates, suffix)] = (
         not end_of_epoch
-        and args.save_interval_updates > 0
-        and updates % args.save_interval_updates == 0
+        and cfg.save_interval_updates > 0
+        and updates % cfg.save_interval_updates == 0
     )
     checkpoint_conds["checkpoint_best{}.pt".format(suffix)] = val_loss is not None and (
         not hasattr(save_checkpoint, "best")
         or is_better(val_loss, save_checkpoint.best)
     )
-    if val_loss is not None and args.keep_best_checkpoints > 0:
+    if val_loss is not None and cfg.keep_best_checkpoints > 0:
         checkpoint_conds[
-            "checkpoint.best_{}_{:.2f}.pt".format(args.best_checkpoint_metric, val_loss)
+            "checkpoint.best_{}_{:.2f}.pt".format(cfg.best_checkpoint_metric, val_loss)
         ] = not hasattr(save_checkpoint, "best") or is_better(
             val_loss, save_checkpoint.best
         )
     checkpoint_conds[
         "checkpoint_last{}.pt".format(suffix)
-    ] = not args.no_last_checkpoints
+    ] = not cfg.no_last_checkpoints
 
     extra_state = {"train_iterator": epoch_itr.state_dict(), "val_loss": val_loss}
     if hasattr(save_checkpoint, "best"):
         extra_state.update({"best": save_checkpoint.best})
 
     checkpoints = [
-        os.path.join(args.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond
+        os.path.join(cfg.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond
     ]
     if len(checkpoints) > 0:
         trainer.save_checkpoint(checkpoints[0], extra_state)
@@ -95,51 +99,52 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
             )
         )
 
-    if not end_of_epoch and args.keep_interval_updates > 0:
+    if not end_of_epoch and cfg.keep_interval_updates > 0:
         # remove old checkpoints; checkpoints are sorted in descending order
         checkpoints = checkpoint_paths(
-            args.save_dir, pattern=r"checkpoint_\d+_(\d+)\.pt"
+            cfg.save_dir, pattern=r"checkpoint_\d+_(\d+)\.pt"
         )
-        for old_chk in checkpoints[args.keep_interval_updates :]:
+        for old_chk in checkpoints[cfg.keep_interval_updates :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
 
-    if args.keep_last_epochs > 0:
+    if cfg.keep_last_epochs > 0:
         # remove old epoch checkpoints; checkpoints are sorted in descending order
-        checkpoints = checkpoint_paths(args.save_dir, pattern=r"checkpoint(\d+)\.pt")
-        for old_chk in checkpoints[args.keep_last_epochs :]:
+        checkpoints = checkpoint_paths(cfg.save_dir, pattern=r"checkpoint(\d+)\.pt")
+        for old_chk in checkpoints[cfg.keep_last_epochs :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
 
-    if args.keep_best_checkpoints > 0:
+    if cfg.keep_best_checkpoints > 0:
         # only keep the best N checkpoints according to validation metric
         checkpoints = checkpoint_paths(
-            args.save_dir,
+            cfg.save_dir,
             pattern=r"checkpoint\.best_{}_(\d+\.?\d*)\.pt".format(
-                args.best_checkpoint_metric
+                cfg.best_checkpoint_metric
             ),
         )
-        if not args.maximize_best_checkpoint_metric:
+        if not cfg.maximize_best_checkpoint_metric:
             checkpoints = checkpoints[::-1]
-        for old_chk in checkpoints[args.keep_best_checkpoints :]:
+        for old_chk in checkpoints[cfg.keep_best_checkpoints :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
 
 
-def load_checkpoint(args, trainer, **passthrough_args):
+def load_checkpoint(cfg: DictConfig, trainer, **passthrough_args):
     """
     Load a checkpoint and restore the training iterator.
 
     *passthrough_args* will be passed through to
     ``trainer.get_train_iterator``.
     """
-    reset_optimizer = args.reset_optimizer
-    reset_lr_scheduler = args.reset_lr_scheduler
-    optimizer_overrides = eval(args.optimizer_overrides)
-    reset_meters = args.reset_meters
-    reset_dataloader = args.reset_dataloader
 
-    if getattr(args, "finetune_from_model", None) is not None and (
+    reset_optimizer = cfg.reset_optimizer
+    reset_lr_scheduler = cfg.reset_lr_scheduler
+    optimizer_overrides = ast.literal_eval(cfg.optimizer_overrides)
+    reset_meters = cfg.reset_meters
+    reset_dataloader = cfg.reset_dataloader
+
+    if cfg.finetune_from_model is not None and (
         reset_optimizer or reset_lr_scheduler or reset_meters or reset_dataloader
     ):
         raise ValueError(
@@ -147,19 +152,19 @@ def load_checkpoint(args, trainer, **passthrough_args):
             " or reset_lr_scheduler or reset_meters or reset_dataloader"
         )
 
-    suffix = getattr(args, "checkpoint_suffix", "")
+    suffix = cfg.checkpoint_suffix
     if (
-        args.restore_file == "checkpoint_last.pt"
+        cfg.restore_file == "checkpoint_last.pt"
     ):  # default value of restore_file is 'checkpoint_last.pt'
         checkpoint_path = os.path.join(
-            args.save_dir, "checkpoint_last{}.pt".format(suffix)
+            cfg.save_dir, "checkpoint_last{}.pt".format(suffix)
         )
         first_launch = not PathManager.exists(checkpoint_path)
-        if getattr(args, "finetune_from_model", None) is not None and first_launch:
+        if cfg.finetune_from_model is not None and first_launch:
             # if there is no last checkpoint to restore, start the finetune from pretrained model
             # else just use usual logic to load checkpoint, e.g. restart from last checkpoint and etc.
-            if PathManager.exists(args.finetune_from_model):
-                checkpoint_path = args.finetune_from_model
+            if PathManager.exists(cfg.finetune_from_model):
+                checkpoint_path = cfg.finetune_from_model
                 reset_optimizer = True
                 reset_lr_scheduler = True
                 reset_meters = True
@@ -170,19 +175,17 @@ def load_checkpoint(args, trainer, **passthrough_args):
                 )
             else:
                 raise ValueError(
-                    f"--funetune-from-model {args.finetune_from_model} does not exist"
+                    f"--funetune-from-model {cfg.finetune_from_model} does not exist"
                 )
-    elif getattr(args, "model_parallel_size", 1) > 1:
-        checkpoint_path = args.restore_file.replace(".pt", suffix + ".pt")
+    elif cfg.model_parallel_size > 1:
+        checkpoint_path = cfg.restore_file.replace(".pt", suffix + ".pt")
     else:
-        checkpoint_path = args.restore_file
+        checkpoint_path = cfg.restore_file
 
-    if args.restore_file != "checkpoint_last.pt" and getattr(
-        args, "finetune_from_model", None
-    ):
+    if cfg.restore_file != "checkpoint_last.pt" and cfg.finetune_from_model:
         raise ValueError(
             "--finetune-from-model and --restore-file (non-default value) "
-            "can not be specified together: " + str(args)
+            "can not be specified together: " + str(cfg)
         )
 
     extra_state = trainer.load_checkpoint(
@@ -225,10 +228,14 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
             f, map_location=lambda s, l: default_restore_location(s, "cpu")
         )
 
-    args = state["args"]
-    if arg_overrides is not None:
+    if "args" in state and state["args"] is not None and arg_overrides is not None:
+        args = state["args"]
         for arg_name, arg_val in arg_overrides.items():
             setattr(args, arg_name, arg_val)
+
+    if "cfg" in state and state["cfg"] is not None and arg_overrides is not None:
+        overwrite_args_by_name(state["cfg"], arg_overrides)
+
     state = _upgrade_state_dict(state)
     return state
 
@@ -274,19 +281,28 @@ def load_model_ensemble_and_task(
                 filename = filename.replace(".pt", suffix + ".pt")
             else:
                 filename = orig_filename[:-3] + f"_part{shard_idx}.pt"
+
             if not PathManager.exists(filename):
                 raise IOError("Model file not found: {}".format(filename))
             state = load_checkpoint_to_cpu(filename, arg_overrides)
-            if shard_idx == 0:
-                args = state["args"]
-                if task is None:
-                    task = tasks.setup_task(args)
+            if "args" in state and state["args"] is not None:
+                cfg = convert_namespace_to_omegaconf(state["args"])
+            elif "cfg" in state and state["cfg"] is not None:
+                cfg = state["cfg"]
+            else:
+                raise RuntimeError(
+                    f"Neither args nor cfg exist in state keys = {state.keys()}"
+                )
 
-                # build model for ensemble
-                model = task.build_model(args)
-            model.load_state_dict(state["model"], strict=strict, args=args)
+            if task is None:
+                task = tasks.setup_task(cfg.task)
+
+            # build model for ensemble
+            model = task.build_model(cfg.model)
+
+            model.load_state_dict(state["model"], strict=strict, model_cfg=cfg.model)
         ensemble.append(model)
-    return ensemble, args, task
+    return ensemble, cfg, task
 
 
 def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
@@ -323,7 +339,7 @@ def torch_persistent_save(obj, f):
 
 def save_state(
     filename,
-    args,
+    cfg: DictConfig,
     model_state_dict,
     criterion,
     optimizer,
@@ -331,6 +347,7 @@ def save_state(
     num_updates,
     optim_history=None,
     extra_state=None,
+    **kwargs,
 ):
     from fairseq import utils
 
@@ -339,7 +356,8 @@ def save_state(
     if extra_state is None:
         extra_state = {}
     state_dict = {
-        "args": args,
+        "cfg": cfg,
+        "args": kwargs.get("args", None),
         "model": model_state_dict or {},
         "optimizer_history": optim_history
         + [
@@ -354,11 +372,17 @@ def save_state(
     }
     if utils.has_parameters(criterion):
         state_dict["criterion"] = criterion.state_dict()
-    if not args.no_save_optimizer_state:
-        state_dict["last_optimizer_state"] = optimizer.state_dict()
 
-    # convert all state to CPU
-    state_dict = utils.move_to_cpu(state_dict)
+    if cfg is None:
+        cfg = state_dict["args"]
+        assert cfg is not None, "must provide cfg or args"
+
+    if isinstance(cfg, DictConfig):
+        no_save_optimizer_state = cfg.checkpoint.no_save_optimizer_state
+    else:
+        no_save_optimizer_state = cfg.no_save_optimizer_state
+    if not no_save_optimizer_state:
+        state_dict["last_optimizer_state"] = optimizer.state_dict()
 
     with PathManager.open(filename, "wb") as f:
         torch_persistent_save(state_dict, f)
@@ -403,46 +427,49 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if "num_updates" not in state["optimizer_history"][-1]:
         state["optimizer_history"][-1]["num_updates"] = 0
-    # old model checkpoints may not have separate source/target positions
-    if hasattr(state["args"], "max_positions") and not hasattr(
-        state["args"], "max_source_positions"
-    ):
-        state["args"].max_source_positions = state["args"].max_positions
-        state["args"].max_target_positions = state["args"].max_positions
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
             "epoch": state["extra_state"]["epoch"],
             "iterations_in_epoch": state["extra_state"].get("batch_offset", 0),
         }
-    # default to translation task
-    if not hasattr(state["args"], "task"):
-        state["args"].task = "translation"
-    # --raw-text and --lazy-load are deprecated
-    if getattr(state["args"], "raw_text", False):
-        state["args"].dataset_impl = "raw"
-    elif getattr(state["args"], "lazy_load", False):
-        state["args"].dataset_impl = "lazy"
-    # epochs start at 1
-    if state["extra_state"]["train_iterator"] is not None:
-        state["extra_state"]["train_iterator"]["epoch"] = max(
-            state["extra_state"]["train_iterator"].get("epoch", 1),
-            1,
-        )
 
-    # set any missing default values in the task, model or other registries
-    registry.set_defaults(state["args"], tasks.TASK_REGISTRY[state["args"].task])
-    registry.set_defaults(state["args"], models.ARCH_MODEL_REGISTRY[state["args"].arch])
-    for registry_name, REGISTRY in registry.REGISTRIES.items():
-        choice = getattr(state["args"], registry_name, None)
-        if choice is not None:
-            cls = REGISTRY["registry"][choice]
-            registry.set_defaults(state["args"], cls)
+    # old model checkpoints may not have separate source/target positions
+    # backward compatibility, cfg updates
+    if "args" in state and state["args"] is not None:
+        # default to translation task
+        if not hasattr(state["args"], "task"):
+            state["args"].task = "translation"
+        # --raw-text and --lazy-load are deprecated
+        if getattr(state["args"], "raw_text", False):
+            state["args"].dataset_impl = "raw"
+        elif getattr(state["args"], "lazy_load", False):
+            state["args"].dataset_impl = "lazy"
+        # epochs start at 1
+        if state["extra_state"]["train_iterator"] is not None:
+            state["extra_state"]["train_iterator"]["epoch"] = max(
+                state["extra_state"]["train_iterator"].get("epoch", 1), 1
+            )
+
+        state["cfg"] = convert_namespace_to_omegaconf(state["args"])
+
+    if "cfg" in state and state["cfg"] is not None:
+        with open_dict(state["cfg"]):
+            if state["cfg"].task is not None:
+                if hasattr(state["cfg"].task, "max_positions") and not hasattr(
+                    state["cfg"].task, "max_source_positions"
+                ):
+                    state["cfg"].task.max_source_positions = state[
+                        "cfg"
+                    ].task.max_positions
+                    state["cfg"].task.max_target_positions = state[
+                        "cfg"
+                    ].task.max_positions
 
     return state
 
 
-def prune_state_dict(state_dict, args):
+def prune_state_dict(state_dict, model_cfg: Optional[DictConfig]):
     """Prune the given state_dict if desired for LayerDrop
     (https://arxiv.org/abs/1909.11556).
 
@@ -453,16 +480,20 @@ def prune_state_dict(state_dict, args):
     It's called by functions that load models from checkpoints and does not
     need to be called directly.
     """
-    if not args or args.arch == "ptt_transformer":
+    arch = None
+    if model_cfg is not None:
+        arch = (
+            model_cfg._name
+            if isinstance(model_cfg, DictConfig)
+            else getattr(model_cfg, "arch", None)
+        )
+
+    if not model_cfg or arch is None or arch == "ptt_transformer":
         # args should not be none, but don't crash if it is.
         return state_dict
 
-    encoder_layers_to_keep = (
-        args.encoder_layers_to_keep if "encoder_layers_to_keep" in vars(args) else None
-    )
-    decoder_layers_to_keep = (
-        args.decoder_layers_to_keep if "decoder_layers_to_keep" in vars(args) else None
-    )
+    encoder_layers_to_keep = getattr(model_cfg, "encoder_layers_to_keep", None)
+    decoder_layers_to_keep = getattr(model_cfg, "decoder_layers_to_keep", None)
 
     if not encoder_layers_to_keep and not decoder_layers_to_keep:
         return state_dict
@@ -474,7 +505,7 @@ def prune_state_dict(state_dict, args):
 
     def create_pruning_pass(layers_to_keep, layer_name):
         keep_layers = sorted(
-            [int(layer_string) for layer_string in layers_to_keep.split(",")]
+            int(layer_string) for layer_string in layers_to_keep.split(",")
         )
         mapping_dict = {}
         for i in range(len(keep_layers)):
@@ -518,10 +549,12 @@ def prune_state_dict(state_dict, args):
 
     # Since layers are now pruned, *_layers_to_keep are no longer needed.
     # This is more of "It would make it work fix" rather than a proper fix.
-    if "encoder_layers_to_keep" in vars(args):
-        args.encoder_layers_to_keep = None
-    if "decoder_layers_to_keep" in vars(args):
-        args.decoder_layers_to_keep = None
+
+    with open_dict(model_cfg):
+        if hasattr(model_cfg, "encoder_layers_to_keep"):
+            model_cfg.encoder_layers_to_keep = None
+        if hasattr(model_cfg, "decoder_layers_to_keep"):
+            model_cfg.decoder_layers_to_keep = None
 
     return new_state_dict
 

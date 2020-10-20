@@ -12,33 +12,45 @@ import logging
 import math
 import os
 import sys
+from argparse import Namespace
 from itertools import chain
 
 import numpy as np
 import torch
 from fairseq import checkpoint_utils, options, scoring, tasks, utils
+from fairseq.data import encoders
+from fairseq.dataclass.data_class import register_hydra_cfg
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
+from hydra.core.config_store import ConfigStore
+from hydra.experimental import initialize
+from omegaconf import DictConfig
 
 
-def main(args):
-    assert args.path is not None, "--path required for generation!"
+def main(cfg: DictConfig):
+
+    if isinstance(cfg, Namespace):
+        cfg = convert_namespace_to_omegaconf(cfg)
+
+    assert cfg.common_eval.path is not None, "--path required for generation!"
     assert (
-        not args.sampling or args.nbest == args.beam
+        not cfg.generation.sampling or cfg.generation.nbest == cfg.generation.beam
     ), "--sampling requires --nbest to be equal to --beam"
     assert (
-        args.replace_unk is None or args.dataset_impl == "raw"
+        cfg.generation.replace_unk is None or cfg.dataset.dataset_impl == "raw"
     ), "--replace-unk requires a raw text dataset (--dataset-impl=raw)"
 
-    if args.results_path is not None:
-        os.makedirs(args.results_path, exist_ok=True)
+    if cfg.common_eval.results_path is not None:
+        os.makedirs(cfg.common_eval.results_path, exist_ok=True)
         output_path = os.path.join(
-            args.results_path, "generate-{}.txt".format(args.gen_subset)
+            cfg.common_eval.results_path,
+            "generate-{}.txt".format(cfg.dataset.gen_subset),
         )
         with open(output_path, "w", buffering=1, encoding="utf-8") as h:
-            return _main(args, h)
+            return _main(cfg, h)
     else:
-        return _main(args, sys.stdout)
+        return _main(cfg, sys.stdout)
 
 
 def get_symbols_to_strip_from_output(generator):
@@ -48,7 +60,7 @@ def get_symbols_to_strip_from_output(generator):
         return {generator.eos}
 
 
-def _main(args, output_file):
+def _main(cfg: DictConfig, output_file):
     logging.basicConfig(
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -57,22 +69,22 @@ def _main(args, output_file):
     )
     logger = logging.getLogger("fairseq_cli.generate")
 
-    utils.import_user_module(args)
+    utils.import_user_module(cfg.common)
 
-    if args.max_tokens is None and args.batch_size is None:
-        args.max_tokens = 12000
-    logger.info(args)
+    if cfg.dataset.max_tokens is None and cfg.dataset.batch_size is None:
+        cfg.dataset.max_tokens = 12000
+    logger.info(cfg)
 
     # Fix seed for stochastic decoding
-    if args.seed is not None and not args.no_seed_provided:
-        np.random.seed(args.seed)
-        utils.set_torch_seed(args.seed)
+    if cfg.common.seed is not None and not cfg.generation.no_seed_provided:
+        np.random.seed(cfg.common.seed)
+        utils.set_torch_seed(cfg.common.seed)
 
-    use_cuda = torch.cuda.is_available() and not args.cpu
+    use_cuda = torch.cuda.is_available() and not cfg.common.cpu
 
     # Load dataset splits
-    task = tasks.setup_task(args)
-    task.load_dataset(args.gen_subset)
+    task = tasks.setup_task(cfg.task)
+    task.load_dataset(cfg.dataset.gen_subset)
 
     # Set dictionaries
     try:
@@ -81,32 +93,30 @@ def _main(args, output_file):
         src_dict = None
     tgt_dict = task.target_dictionary
 
-    overrides = ast.literal_eval(args.model_overrides)
+    overrides = ast.literal_eval(cfg.common_eval.model_overrides)
 
     # Load ensemble
-    logger.info("loading model(s) from {}".format(args.path))
+    logger.info("loading model(s) from {}".format(cfg.common_eval.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
-        utils.split_paths(args.path),
+        utils.split_paths(cfg.common_eval.path),
         arg_overrides=overrides,
         task=task,
-        suffix=getattr(args, "checkpoint_suffix", ""),
-        strict=(args.checkpoint_shard_count == 1),
-        num_shards=args.checkpoint_shard_count,
+        suffix=cfg.checkpoint.checkpoint_suffix,
+        strict=(cfg.checkpoint.checkpoint_shard_count == 1),
+        num_shards=cfg.checkpoint.checkpoint_shard_count,
     )
 
-    if args.lm_path is not None:
-        overrides["data"] = args.data
+    if cfg.generation.lm_path is not None:
+        overrides["data"] = cfg.task.data
 
         try:
             lms, _ = checkpoint_utils.load_model_ensemble(
-                [args.lm_path],
-                arg_overrides=overrides,
-                task=None,
+                [cfg.generation.lm_path], arg_overrides=overrides, task=None
             )
         except:
             logger.warning(
                 f"Failed to load language model! Please make sure that the language model dict is the same "
-                f"as target dict and is located in the data dir ({args.data})"
+                f"as target dict and is located in the data dir ({cfg.task.data})"
             )
             raise
 
@@ -118,49 +128,50 @@ def _main(args, output_file):
     for model in chain(models, lms):
         if model is None:
             continue
-        if args.fp16:
+        if cfg.common.fp16:
             model.half()
-        if use_cuda and not args.pipeline_model_parallel:
+        if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
-        model.prepare_for_inference_(args)
+        model.prepare_for_inference_(cfg)
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
-    align_dict = utils.load_align_dict(args.replace_unk)
+    align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
     # Load dataset (possibly sharded)
     itr = task.get_batch_iterator(
-        dataset=task.dataset(args.gen_subset),
-        max_tokens=args.max_tokens,
-        max_sentences=args.batch_size,
+        dataset=task.dataset(cfg.dataset.gen_subset),
+        max_tokens=cfg.dataset.max_tokens,
+        max_sentences=cfg.dataset.batch_size,
         max_positions=utils.resolve_max_positions(
-            task.max_positions(), *[model.max_positions() for model in models]
+            task.max_positions(), *[m.max_positions() for m in models]
         ),
-        ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
-        required_batch_size_multiple=args.required_batch_size_multiple,
-        num_shards=args.num_shards,
-        shard_id=args.shard_id,
-        num_workers=args.num_workers,
-        data_buffer_size=args.data_buffer_size,
+        ignore_invalid_inputs=cfg.dataset.skip_invalid_size_inputs_valid_test,
+        required_batch_size_multiple=cfg.dataset.required_batch_size_multiple,
+        seed=cfg.common.seed,
+        num_shards=cfg.distributed_training.distributed_world_size,
+        shard_id=cfg.distributed_training.distributed_rank,
+        num_workers=cfg.dataset.num_workers,
+        data_buffer_size=cfg.dataset.data_buffer_size,
     ).next_epoch_itr(shuffle=False)
     progress = progress_bar.progress_bar(
         itr,
-        log_format=args.log_format,
-        log_interval=args.log_interval,
-        default_log_format=("tqdm" if not args.no_progress_bar else "none"),
+        log_format=cfg.common.log_format,
+        log_interval=cfg.common.log_interval,
+        default_log_format=("tqdm" if not cfg.common.no_progress_bar else "simple"),
     )
 
     # Initialize generator
     gen_timer = StopwatchMeter()
 
-    extra_gen_cls_kwargs = {"lm_model": lms[0], "lm_weight": args.lm_weight}
+    extra_gen_cls_kwargs = {"lm_model": lms[0], "lm_weight": cfg.generation.lm_weight}
     generator = task.build_generator(
-        models, args, extra_gen_cls_kwargs=extra_gen_cls_kwargs
+        models, cfg.task, extra_gen_cls_kwargs=extra_gen_cls_kwargs
     )
 
     # Handle tokenization and BPE
-    tokenizer = task.build_tokenizer(args)
-    bpe = task.build_bpe(args)
+    tokenizer = encoders.build_tokenizer(cfg.tokenizer)
+    bpe = encoders.build_bpe(cfg.bpe)
 
     def decode_fn(x):
         if bpe is not None:
@@ -169,7 +180,7 @@ def _main(args, output_file):
             x = tokenizer.decode(x)
         return x
 
-    scorer = scoring.build_scorer(args, tgt_dict)
+    scorer = scoring.build_scorer(cfg.scoring, tgt_dict)
 
     num_sentences = 0
     has_target = True
@@ -180,8 +191,8 @@ def _main(args, output_file):
             continue
 
         prefix_tokens = None
-        if args.prefix_size > 0:
-            prefix_tokens = sample["target"][:, : args.prefix_size]
+        if cfg.generation.prefix_size > 0:
+            prefix_tokens = sample["target"][:, : cfg.generation.prefix_size]
 
         constraints = None
         if "constraints" in sample:
@@ -217,19 +228,21 @@ def _main(args, output_file):
 
             # Either retrieve the original sentences or regenerate them from tokens.
             if align_dict is not None:
-                src_str = task.dataset(args.gen_subset).src.get_original_text(sample_id)
-                target_str = task.dataset(args.gen_subset).tgt.get_original_text(
+                src_str = task.dataset(cfg.dataset.gen_subset).src.get_original_text(
+                    sample_id
+                )
+                target_str = task.dataset(cfg.dataset.gen_subset).tgt.get_original_text(
                     sample_id
                 )
             else:
                 if src_dict is not None:
-                    src_str = src_dict.string(src_tokens, args.remove_bpe)
+                    src_str = src_dict.string(src_tokens, cfg.common_eval.remove_bpe)
                 else:
                     src_str = ""
                 if has_target:
                     target_str = tgt_dict.string(
                         target_tokens,
-                        args.remove_bpe,
+                        cfg.common_eval.remove_bpe,
                         escape_unk=True,
                         extra_symbols_to_ignore=get_symbols_to_strip_from_output(
                             generator
@@ -240,25 +253,25 @@ def _main(args, output_file):
             if has_target:
                 target_str = decode_fn(target_str)
 
-            if not args.quiet:
+            if not cfg.common_eval.quiet:
                 if src_dict is not None:
                     print("S-{}\t{}".format(sample_id, src_str), file=output_file)
                 if has_target:
                     print("T-{}\t{}".format(sample_id, target_str), file=output_file)
 
             # Process top predictions
-            for j, hypo in enumerate(hypos[i][: args.nbest]):
+            for j, hypo in enumerate(hypos[i][: cfg.generation.nbest]):
                 hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
                     hypo_tokens=hypo["tokens"].int().cpu(),
                     src_str=src_str,
                     alignment=hypo["alignment"],
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
-                    remove_bpe=args.remove_bpe,
+                    remove_bpe=cfg.common_eval.remove_bpe,
                     extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
                 detok_hypo_str = decode_fn(hypo_str)
-                if not args.quiet:
+                if not cfg.common_eval.quiet:
                     score = hypo["score"] / math.log(2)  # convert to base 2
                     # original hypothesis (after tokenization and BPE)
                     print(
@@ -286,7 +299,7 @@ def _main(args, output_file):
                         file=output_file,
                     )
 
-                    if args.print_alignment:
+                    if cfg.generation.print_alignment:
                         print(
                             "A-{}\t{}".format(
                                 sample_id,
@@ -300,13 +313,13 @@ def _main(args, output_file):
                             file=output_file,
                         )
 
-                    if args.print_step:
+                    if cfg.generation.print_step:
                         print(
                             "I-{}\t{}".format(sample_id, hypo["steps"]),
                             file=output_file,
                         )
 
-                    if getattr(args, "retain_iter_history", False):
+                    if cfg.generation.retain_iter_history:
                         for step, h in enumerate(hypo["history"]):
                             _, h_str, _ = utils.post_process_prediction(
                                 hypo_tokens=h["tokens"].int().cpu(),
@@ -323,7 +336,7 @@ def _main(args, output_file):
 
                 # Score only the top hypothesis
                 if has_target and j == 0:
-                    if align_dict is not None or args.remove_bpe is not None:
+                    if align_dict is not None or cfg.common_eval.remove_bpe is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tgt_dict.encode_line(
                             target_str, add_if_not_exist=True
@@ -353,8 +366,8 @@ def _main(args, output_file):
         )
     )
     if has_target:
-        if args.bpe and not args.sacrebleu:
-            if args.remove_bpe:
+        if cfg.bpe and not cfg.generation.sacrebleu:
+            if cfg.common_eval.remove_bpe:
                 logger.warning(
                     "BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization"
                 )
@@ -365,7 +378,7 @@ def _main(args, output_file):
         # use print to be consistent with other main outputs: S-, H-, T-, D- and so on
         print(
             "Generate {} with beam={}: {}".format(
-                args.gen_subset, args.beam, scorer.result_string()
+                cfg.dataset.gen_subset, cfg.generation.beam, scorer.result_string()
             ),
             file=output_file,
         )
@@ -380,4 +393,7 @@ def cli_main():
 
 
 if __name__ == "__main__":
+    cs = ConfigStore.instance()
+    register_hydra_cfg(cs)
+    initialize(config_path="../config", strict=True)
     cli_main()

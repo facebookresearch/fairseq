@@ -3,21 +3,24 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
+
 from fairseq import file_utils
 from fairseq.data.encoders import register_bpe
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_bpe("sentencepiece")
+@dataclass
+class SentencepieceConfig(FairseqDataclass):
+    sentencepiece_model: str = field(
+        default="???", metadata={"help": "path to sentencepiece model"}
+    )
+
+
+@register_bpe("sentencepiece", dataclass=SentencepieceConfig)
 class SentencepieceBPE(object):
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--sentencepiece-model', type=str,
-                            help='path to sentencepiece model')
-        # fmt: on
-
-    def __init__(self, args):
-        sentencepiece_model = file_utils.cached_path(args.sentencepiece_model)
+    def __init__(self, cfg):
+        sentencepiece_model = file_utils.cached_path(cfg.sentencepiece_model)
         try:
             import sentencepiece as spm
 

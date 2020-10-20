@@ -12,6 +12,7 @@ import torch
 from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass.utils import gen_parser_from_dataclass
+from omegaconf import DictConfig
 
 
 logger = logging.getLogger(__name__)
@@ -39,8 +40,8 @@ class FairseqTask(object):
         """
         return criterion.logging_outputs_can_be_summed()
 
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, cfg: DictConfig, **kwargs):
+        self.cfg = cfg
         self.datasets = {}
         self.dataset_to_epoch_iter = {}
 
@@ -78,16 +79,16 @@ class FairseqTask(object):
         return d
 
     @classmethod
-    def setup_task(cls, args, **kwargs):
+    def setup_task(cls, cfg: DictConfig, **kwargs):
         """Setup the task (e.g., load dictionaries).
 
         Args:
-            args (argparse.Namespace): parsed command-line arguments
+            cfg (omegaconf.DictConfig): parsed command-line arguments
         """
-        return cls(args, **kwargs)
+        return cls(cfg, **kwargs)
 
     def has_sharded_data(self, split):
-        return os.pathsep in getattr(self.args, "data", "")
+        return os.pathsep in getattr(self.cfg, "data", "")
 
     def load_dataset(self, split, combine=False, **kwargs):
         """Load a given dataset split.
@@ -254,39 +255,39 @@ class FairseqTask(object):
 
         return epoch_iter
 
-    def build_model(self, args):
+    def build_model(self, cfg: DictConfig):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
 
         Args:
-            args (argparse.Namespace): parsed command-line arguments
+            cfg (omegaconf.DictConfig): configuration object
 
         Returns:
             a :class:`~fairseq.models.BaseFairseqModel` instance
         """
         from fairseq import models, quantization_utils
 
-        model = models.build_model(args, self)
-        if getattr(args, "tpu", False):
+        model = models.build_model(cfg, self)
+        if getattr(cfg, "tpu", False):
             model.prepare_for_tpu_()
-        model = quantization_utils.quantize_model_scalar(model, args)
+        model = quantization_utils.quantize_model_scalar(model, cfg)
         return model
 
-    def build_criterion(self, args):
+    def build_criterion(self, cfg: DictConfig):
         """
         Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
         this task.
 
         Args:
-            args (argparse.Namespace): parsed command-line arguments
+            cfg (omegaconf.DictConfig): configration object
 
         Returns:
             a :class:`~fairseq.criterions.FairseqCriterion` instance
         """
         from fairseq import criterions
 
-        return criterions.build_criterion(args, self)
+        return criterions.build_criterion(cfg, self)
 
     def build_generator(
         self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None

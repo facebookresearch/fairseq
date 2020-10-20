@@ -17,13 +17,13 @@ class RobertaHubInterface(nn.Module):
     Usage: https://github.com/pytorch/fairseq/tree/master/examples/roberta
     """
 
-    def __init__(self, args, task, model):
+    def __init__(self, cfg, task, model):
         super().__init__()
-        self.args = args
+        self.cfg = cfg
         self.task = task
         self.model = model
 
-        self.bpe = encoders.build_bpe(args)
+        self.bpe = encoders.build_bpe(cfg.bpe)
 
         # this is useful for determining the device
         self.register_buffer("_float_tensor", torch.tensor([0], dtype=torch.float))
