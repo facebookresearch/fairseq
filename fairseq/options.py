@@ -150,6 +150,9 @@ def parse_args_and_arch(
             cls = REGISTRY["registry"][choice]
             if hasattr(cls, "add_args"):
                 cls.add_args(parser)
+            elif hasattr(cls, "__dataclass"):
+                gen_parser_from_dataclass(parser, cls.__dataclass())
+
     if hasattr(args, "task"):
         from fairseq.tasks import TASK_REGISTRY
 
