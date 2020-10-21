@@ -25,7 +25,11 @@ class UnidirectionalConvTransformerSimulSTAgent(FairseqSimulSTAgent):
             self.model.decoder.layers[0].encoder_attn, "pooling_ratio", None
         )
 
-        self.speech_segment_size_base = self.fixed_pooling_ratio * 40
+        self.read_stride = args.read_stride
+        if self.read_stride <= 0:
+           self.read_stride = self.fixed_pooling_ratio
+
+        self.speech_segment_size_base = self.read_stride * 40
 
         if self.fixed_pooling_ratio is None:
             logger.warn("No pooling ratio is provided, use 1.")
@@ -37,6 +41,16 @@ class UnidirectionalConvTransformerSimulSTAgent(FairseqSimulSTAgent):
         states.encoder_states = None
         states.incremental_states = dict()
         states.incremental_states['steps'] = {'src': 0, 'tgt': 1}
+
+
+    @staticmethod
+    def add_args(parser):
+        super(
+            UnidirectionalConvTransformerSimulSTAgent,
+            UnidirectionalConvTransformerSimulSTAgent
+        ).add_args(parser)
+        parser.add_argument("--read-stride", type=int, default=-1,
+                            help="Use a different k for inference")
 
     def update_model_encoder(self, states):
         """
