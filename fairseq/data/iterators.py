@@ -60,7 +60,11 @@ class CountingIterator(object):
             if self.n >= self.total:
                 raise RuntimeError(
                     "Mismatch between actual and expected iterable length. "
-                    "Please report this to the fairseq developers."
+                    "This may be caused by resuming training from a checkpoint using "
+                    "a different number of GPUs, in which case you can try the "
+                    "--reset-dataloader option. Alternatively you may have a train or "
+                    "validation set that is smaller than the number of GPUs. If none "
+                    "of these apply, please report this to the fairseq developers."
                 )
             self.n += 1
             yield x
