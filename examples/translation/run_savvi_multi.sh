@@ -20,7 +20,7 @@ fairseq-preprocess --source-lang de --target-lang en \
     --destdir data-bin/iwslt14.tokenized.de-en \
     --workers 20
 
-fairseq-train \
+CUDA_VISIBLE_DEVICES=0,1 fairseq-train \
     data-bin/iwslt14.tokenized.de-en \
     --arch transformer_iwslt_de_en --share-decoder-input-output-embed \
     --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
@@ -35,7 +35,7 @@ fairseq-train \
     --eval-bleu-remove-bpe \
     --eval-bleu-print-samples \
     --best-checkpoint-metric bleu --maximize-best-checkpoint-metric \
-    --save-dir output
+    --num-workers 2 --save-dir output 
 
 fairseq-generate data-bin/iwslt14.tokenized.de-en \
     --path checkpoints/checkpoint_best.pt --fp16 \
