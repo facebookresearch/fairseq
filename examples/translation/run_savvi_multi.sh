@@ -20,7 +20,7 @@ fairseq-preprocess --source-lang de --target-lang en \
     --destdir data-bin/iwslt14.tokenized.de-en \
     --workers 20
 
-CUDA_VISIBLE_DEVICES=0,1 fairseq-train \
+fairseq-train \
     data-bin/iwslt14.tokenized.de-en \
     --arch transformer_iwslt_de_en --share-decoder-input-output-embed \
     --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
