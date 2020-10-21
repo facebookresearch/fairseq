@@ -2,6 +2,8 @@
 pip install --upgrade pip
 pip install --editable .
 
+/usr/bin/python3 -c 'import sys, setuptools, tokenize; sys.argv[0] = '"'"'/savvihub/source/setup.py'"'"'; __file__='"'"'/savvihub/source/setup.py'"'"';f=getattr(tokenize, '"'"'open'"'"', open)(__file__);code=f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps --user --prefix=
+
 echo $PYTHONPATH
 export PYTHONPATH=$(echo $PYTHONPATH):/savvihub/source/
 echo $PYTHONPATH
