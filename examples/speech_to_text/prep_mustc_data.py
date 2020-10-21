@@ -22,6 +22,7 @@ from examples.speech_to_text.data_utils import (
     gen_config_yaml,
     gen_vocab,
     get_zip_manifest,
+    load_df_from_tsv,
     save_df_to_tsv,
 )
 from torch import Tensor
@@ -33,7 +34,6 @@ log = logging.getLogger(__name__)
 
 
 MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker"]
-TASKS = ["asr", "st"]
 
 
 class MUSTC(Dataset):
@@ -123,77 +123,102 @@ def process(args):
         zip_manifest = get_zip_manifest(args.data_root, f"en-{lang}/{zip_filename}")
         # Generate TSV manifest
         print("Generating manifest...")
-        train_text = {task: [] for task in TASKS}
+        train_text = []
         for split in MUSTC.SPLITS:
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
-            text = {task: [] for task in TASKS}
             dataset = MUSTC(args.data_root, lang, split)
             for wav, sr, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
                 manifest["id"].append(utt_id)
                 manifest["audio"].append(zip_manifest[utt_id])
                 duration_ms = int(wav.size(1) / sr * 1000)
                 manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
-                text["asr"].append(src_utt)
-                text["st"].append(tgt_utt)
+                manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
                 manifest["speaker"].append(speaker_id)
             if is_train_split:
-                for task in TASKS:
-                    train_text[task].extend(text[task])
-            for task in TASKS:
-                manifest["tgt_text"] = text[task]
-                df = pd.DataFrame.from_dict(manifest)
-                df = filter_manifest_df(df, is_train_split=is_train_split)
-                save_df_to_tsv(df, op.join(cur_root, f"{split}_{task}.tsv"))
+                train_text.extend(manifest["tgt_text"])
+            df = pd.DataFrame.from_dict(manifest)
+            df = filter_manifest_df(df, is_train_split=is_train_split)
+            save_df_to_tsv(df, op.join(cur_root, f"{split}_{args.task}.tsv"))
         # Generate vocab
-        for task in TASKS:
-            vocab_type, vocab_size = args.asr_vocab_type, args.asr_vocab_size
-            if task == "st":
-                vocab_type, vocab_size = args.st_vocab_type, args.st_vocab_size
-            vocab_size_str = "" if vocab_type == "char" else str(vocab_size)
-            spm_filename_prefix = f"spm_{vocab_type}{vocab_size_str}_{task}"
-            with NamedTemporaryFile(mode="w") as f:
-                for t in train_text[task]:
-                    f.write(t + "\n")
-                gen_vocab(
-                    f.name,
-                    op.join(cur_root, spm_filename_prefix),
-                    vocab_type,
-                    vocab_size,
-                )
-            # Generate config YAML
-            gen_config_yaml(
-                cur_root,
-                spm_filename_prefix + ".model",
-                yaml_filename=f"config_{task}.yaml",
-                specaugment_policy="lb",
+        v_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
+        spm_filename_prefix = f"spm_{args.vocab_type}{v_size_str}_{args.task}"
+        with NamedTemporaryFile(mode="w") as f:
+            for t in train_text:
+                f.write(t + "\n")
+            gen_vocab(
+                f.name,
+                op.join(cur_root, spm_filename_prefix),
+                args.vocab_type,
+                args.vocab_size,
             )
+        # Generate config YAML
+        gen_config_yaml(
+            cur_root,
+            spm_filename_prefix + ".model",
+            yaml_filename=f"config_{args.task}.yaml",
+            specaugment_policy="lb",
+        )
         # Clean up
         shutil.rmtree(feature_root)
+
+
+def process_joint(args):
+    assert all(
+        op.isdir(op.join(args.data_root, f"en-{lang}")) for lang in MUSTC.LANGUAGES
+    ), "do not have downloaded data available for all 8 languages"
+    cur_root = args.data_root
+    # Generate vocab
+    vocab_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
+    spm_filename_prefix = f"spm_{args.vocab_type}{vocab_size_str}_{args.task}"
+    with NamedTemporaryFile(mode="w") as f:
+        for lang in MUSTC.LANGUAGES:
+            tsv_path = op.join(cur_root, f"en-{lang}", f"train_{args.task}.tsv")
+            df = load_df_from_tsv(tsv_path)
+            for t in df["tgt_text"]:
+                f.write(t + "\n")
+        gen_vocab(
+            f.name,
+            op.join(cur_root, spm_filename_prefix),
+            args.vocab_type,
+            args.vocab_size,
+        )
+    # Generate config YAML
+    gen_config_yaml(
+        cur_root,
+        spm_filename_prefix + ".model",
+        yaml_filename=f"config_{args.task}.yaml",
+        specaugment_policy="lb",
+        prepend_tgt_lang_tag=(args.task == "st"),
+    )
+    # Make symbolic links to manifests
+    for lang in MUSTC.LANGUAGES:
+        for split in MUSTC.SPLITS:
+            src_path = op.join(cur_root, f"en-{lang}", f"{split}_{args.task}.tsv")
+            desc_path = op.join(cur_root, f"{split}_{lang}_{args.task}.tsv")
+            if not op.islink(desc_path):
+                os.symlink(src_path, desc_path)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", "-d", required=True, type=str)
     parser.add_argument(
-        "--asr-vocab-type",
+        "--vocab-type",
         default="unigram",
         required=True,
         type=str,
         choices=["bpe", "unigram", "char"],
     ),
-    parser.add_argument(
-        "--st-vocab-type",
-        default="unigram",
-        required=True,
-        type=str,
-        choices=["bpe", "unigram", "char"],
-    ),
-    parser.add_argument("--asr-vocab-size", default=5000, type=int)
-    parser.add_argument("--st-vocab-size", default=8000, type=int)
+    parser.add_argument("--vocab-size", default=8000, type=int)
+    parser.add_argument("--task", type=str, choices=["asr", "st"])
+    parser.add_argument("--joint", action="store_true", help="")
     args = parser.parse_args()
 
-    process(args)
+    if args.joint:
+        process_joint(args)
+    else:
+        process(args)
 
 
 if __name__ == "__main__":

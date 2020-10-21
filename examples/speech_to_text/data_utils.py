@@ -14,6 +14,7 @@ from multiprocessing import cpu_count
 from typing import Any, Dict, List
 
 import numpy as np
+import pandas as pd
 import sentencepiece as sp
 from fairseq.data.audio.audio_utils import _get_kaldi_fbank, _get_torchaudio_fbank
 from fairseq.data.audio.feature_transforms.utterance_cmvn import UtteranceCMVN
@@ -27,10 +28,7 @@ PAD_TOKEN, PAD_TOKEN_ID = "<pad>", 1
 
 
 def gen_vocab(
-    input_path: str,
-    output_path_prefix: str,
-    model_type="bpe",
-    vocab_size=1000,
+    input_path: str, output_path_prefix: str, model_type="bpe", vocab_size=1000,
 ):
     # Train SentencePiece Model
     arguments = [
@@ -128,27 +126,50 @@ def get_zip_manifest(zip_root, zip_filename):
 
 
 def gen_config_yaml(
-    data_root, spm_filename, yaml_filename="config.yaml", specaugment_policy="lb"
+    data_root,
+    spm_filename,
+    yaml_filename="config.yaml",
+    specaugment_policy="lb",
+    prepend_tgt_lang_tag=False,
+    sampling_alpha=1.0,
 ):
-    assert specaugment_policy in {"lb", "ld"}
     data_root = op.abspath(data_root)
     writer = S2TDataConfigWriter(op.join(data_root, yaml_filename))
     writer.set_audio_root(op.abspath(data_root))
     writer.set_vocab_filename(spm_filename.replace(".model", ".txt"))
     writer.set_input_channels(1)
     writer.set_input_feat_per_channel(80)
-    if specaugment_policy == "lb":
-        writer.set_specaugment_lb_policy()
-    else:
-        writer.set_specaugment_ld_policy()
+    specaugment_setters = {
+        "lb": writer.set_specaugment_lb_policy,
+        "ld": writer.set_specaugment_ld_policy,
+        "sm": writer.set_specaugment_sm_policy,
+        "ss": writer.set_specaugment_ss_policy,
+    }
+    assert specaugment_policy in specaugment_setters
+    specaugment_setters[specaugment_policy]()
     writer.set_bpe_tokenizer(
         {
             "bpe": "sentencepiece",
             "sentencepiece_model": op.join(data_root, spm_filename),
         }
     )
+    if prepend_tgt_lang_tag:
+        writer.set_prepend_tgt_lang_tag(True)
+    writer.set_sampling_alpha(sampling_alpha)
     writer.set_feature_transforms("_train", ["specaugment"])
     writer.flush()
+
+
+def load_df_from_tsv(path: str):
+    return pd.read_csv(
+        path,
+        sep="\t",
+        header=0,
+        encoding="utf-8",
+        escapechar="\\",
+        quoting=csv.QUOTE_NONE,
+        na_filter=False,
+    )
 
 
 def save_df_to_tsv(dataframe, path):
@@ -247,6 +268,26 @@ class S2TDataConfigWriter(object):
             time_mask_p=1.0,
         )
 
+    def set_specaugment_sm_policy(self):
+        self.set_specaugment(
+            time_wrap_w=0,
+            freq_mask_n=2,
+            freq_mask_f=15,
+            time_mask_n=2,
+            time_mask_t=70,
+            time_mask_p=0.2,
+        )
+
+    def set_specaugment_ss_policy(self):
+        self.set_specaugment(
+            time_wrap_w=0,
+            freq_mask_n=2,
+            freq_mask_f=27,
+            time_mask_n=2,
+            time_mask_t=70,
+            time_mask_p=0.2,
+        )
+
     def set_input_channels(self, input_channels=1):
         self.config["input_channels"] = input_channels
 
@@ -260,3 +301,9 @@ class S2TDataConfigWriter(object):
         if "transforms" not in self.config:
             self.config["transforms"] = {}
         self.config["transforms"][split] = transforms
+
+    def set_prepend_tgt_lang_tag(self, flag=True):
+        self.config["prepend_tgt_lang_tag"] = flag
+
+    def set_sampling_alpha(self, sampling_alpha=1.0):
+        self.config["sampling_alpha"] = sampling_alpha
