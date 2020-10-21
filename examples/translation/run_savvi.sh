@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 pip install --upgrade pip
-
-export PIP_TARGET_TEMP=($echo $PIP_TARGET)
-unset PIP_TARGET
 pip install --editable .
-export PIP_TARGET=($echo $PIP_TARGET_TEMP)
-unset PIP_TARGET_TEMP
-
-/usr/bin/python3 -c 'import sys, setuptools, tokenize; sys.argv[0] = '"'"'/savvihub/source/setup.py'"'"'; __file__='"'"'/savvihub/source/setup.py'"'"';f=getattr(tokenize, '"'"'open'"'"', open)(__file__);code=f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps --user --prefix=
 
 echo $PYTHONPATH
 export PYTHONPATH=$(echo $PYTHONPATH):/savvihub/source/
