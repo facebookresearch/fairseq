@@ -12,27 +12,16 @@ class LayerSelect(nn.Module):
     either (soft) weighting or (hard) selection of residual connection.
     https://arxiv.org/abs/2009.13102
     """
-
-    def __init__(self, num_layers, num_logits, args):
+    def __init__(self, num_layers, num_logits, soft_select=False, sampling_tau=5.):
         super(LayerSelect, self).__init__()
-        self.args = args
         self.layer_logits = torch.nn.Parameter(
             torch.Tensor(num_logits, num_layers),
             requires_grad=True,
         )
-        self.hard_select = not (hasattr(args, "soft_select") and args.soft_select)
-        self.tau = getattr(args, "sampling_tau", 5)
+        self.hard_select = not soft_select
+        self.tau = sampling_tau
         self.detach_grad = False
         self.layer_samples = [None] * num_logits
-
-    @staticmethod
-    def add_args(parser):
-        parser.add_argument(
-            "--soft-select",
-            action="store_true",
-            help="use soft samples in training an inference",
-        )
-        parser.add_argument("--sampling-tau", type=float, help="sampling temperature")
 
     def sample(self, logit_idx):
         """To leverage the efficiency of distributed training, samples for all
