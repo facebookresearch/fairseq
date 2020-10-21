@@ -68,7 +68,7 @@ class S2TDataConfig(object):
         a dictionary with `bpe` providing the tokenizer name and
         the other items providing the tokenizer-specific arguments.
         Tokenizers are defined in `fairseq.data.encoders.*`"""
-        return self.config.get("bpe_tokenizer", None)
+        return self.config.get("bpe_tokenizer", {"bpe": None})
 
     @property
     def prepend_tgt_lang_tag(self) -> bool:
@@ -246,10 +246,10 @@ class SpeechToTextDataset(FairseqDataset):
         assert (tgt_dict is None and tgt_texts is None) or (
             tgt_dict is not None and tgt_texts is not None
         )
-        self.tgt_dict = tgt_dict
-        self.check_tgt_lang_tag()
         self.src_texts, self.tgt_texts = src_texts, tgt_texts
         self.src_langs, self.tgt_langs = src_langs, tgt_langs
+        self.tgt_dict = tgt_dict
+        self.check_tgt_lang_tag()
         self.ids = ids
         self.shuffle = data_cfg.shuffle if is_train_split else False
 
