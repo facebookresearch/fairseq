@@ -6,14 +6,22 @@ https://arxiv.org/pdf/2006.09526.pdf
 
 CRISS is a multilingual sequence-to-sequnce pretraining method where mining and training processes are applied iteratively, improving cross-lingual alignment and translation ability at the same time.
 
+## Requirements:
+
+* faiss: https://github.com/facebookresearch/faiss
+* mosesdecoder: https://github.com/moses-smt/mosesdecoder
+* flores: https://github.com/facebookresearch/flores
+* LASER: https://github.com/facebookresearch/LASER
+
 ## Unsupervised Machine Translation
 ##### 1. Download and decompress CRISS checkpoints
 ```
 cd examples/criss
-wget https://dl.fbaipublicfiles.com/fairseq/models/criss/criss_checkpoints.tar.gz
+wget https://dl.fbaipublicfiles.com/criss/criss_3rd_checkpoints.tar.gz
 tar -xf criss_checkpoints.tar.gz
 ```
 ##### 2. Download and preprocess Flores test dataset
+Make sure to run all scripts from examples/criss directory
 ```
 bash download_and_preprocess_flores_test.sh
 ```
@@ -35,9 +43,11 @@ bash sentence_retrieval/sentence_retrieval_tatoeba.sh
 ```
 
 ## Mining
-##### 1. Mine pseudo-parallel
+##### 1. Install faiss
+Follow instructions on https://github.com/facebookresearch/faiss/blob/master/INSTALL.md
+##### 2. Mine pseudo-parallel data between Kazakh and English
 ```
-bash sentence_retrieval/sentence_retrieval_tatoeba.sh
+bash mining/mine_example.sh
 ```
 
 ## Citation

@@ -7,7 +7,7 @@
 #
 source_lang=kk_KZ
 target_lang=en_XX
-MODEL=criss_checkpoints/criss.2nd.pt
+MODEL=criss_checkpoints/criss.3rd.pt
 SPM=criss_checkpoints/sentence.bpe.model
 SPLIT=test
 LANG_DICT=criss_checkpoints/lang_dict.txt

@@ -10,7 +10,16 @@ DATA=data_tmp
 SPM_MODEL=criss_checkpoints/sentence.bpe.model
 DICT=criss_checkpoints/dict.txt
 
-git clone https://github.com/facebookresearch/LASER
+if [[ -f flores ]]; then
+  echo "flores already cloned"
+else
+  git clone https://github.com/facebookresearch/flores
+fi
+if [[ -f LASER ]]; then
+  echo "LASER already cloned"
+else
+  git clone https://github.com/facebookresearch/LASER
+fi
 mkdir -p data_tmp
 declare -A lang_tatoeba_map=( ["ar_AR"]="ara" ["de_DE"]="deu"  ["es_XX"]="spa" ["et_EE"]="est" ["fi_FI"]="fin" ["fr_XX"]="fra" ["hi_IN"]="hin" ["it_IT"]="ita" ["ja_XX"]="jpn" ["ko_KR"]="kor" ["kk_KZ"]="kaz" ["nl_XX"]="nld" ["ru_RU"]="rus" ["tr_TR"]="tur" ["vi_VN"]="vie" ["zh_CN"]="cmn")
 for lang in ar_AR de_DE es_XX et_EE fi_FI fr_XX hi_IN it_IT ja_XX kk_KZ ko_KR nl_XX ru_RU tr_TR vi_VN zh_CN; do
