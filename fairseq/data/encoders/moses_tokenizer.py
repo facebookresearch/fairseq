@@ -11,8 +11,8 @@ from fairseq.dataclass import FairseqDataclass
 
 @dataclass
 class MosesTokenizerConfig(FairseqDataclass):
-    source_lang: str = field(default="en", metadata={"help": "source language"})
-    target_lang: str = field(default="en", metadata={"help": "target language"})
+    moses_source_lang: str = field(default="en", metadata={"help": "source language"})
+    moses_target_lang: str = field(default="en", metadata={"help": "target language"})
     moses_no_dash_splits: bool = field(
         default=False, metadata={"help": "don't apply dash split rules"}
     )
@@ -30,8 +30,8 @@ class MosesTokenizer(object):
         try:
             from sacremoses import MosesTokenizer, MosesDetokenizer
 
-            self.tok = MosesTokenizer(cfg.source_lang)
-            self.detok = MosesDetokenizer(cfg.target_lang)
+            self.tok = MosesTokenizer(cfg.moses_source_lang)
+            self.detok = MosesDetokenizer(cfg.moses_target_lang)
         except ImportError:
             raise ImportError(
                 "Please install Moses tokenizer with: pip install sacremoses"

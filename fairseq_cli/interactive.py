@@ -318,7 +318,8 @@ def main(cfg: DictConfig):
 def cli_main():
     parser = options.get_interactive_generation_parser()
     args = options.parse_args_and_arch(parser)
-    distributed_utils.call_main(args, main)
+    cfg = convert_namespace_to_omegaconf(args)
+    distributed_utils.call_main(cfg, main)
 
 
 if __name__ == "__main__":

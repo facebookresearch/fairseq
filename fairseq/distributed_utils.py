@@ -282,6 +282,9 @@ def distributed_main(i, main, cfg: DictConfig, kwargs):
 
 
 def call_main(cfg: DictConfig, main, **kwargs):
+    if isinstance(cfg, Namespace):
+        cfg = convert_namespace_to_omegaconf(cfg)
+
     if cfg.distributed_training.distributed_init_method is None:
         infer_init_method(cfg.distributed_training)
 
