@@ -195,6 +195,7 @@ class ModelParallelRobertaEncoder(FairseqEncoder):
             encoder_normalize_before=False,
             apply_bert_init=False,
             activation_fn=args.activation_fn,
+            checkpoint_transformer_block=args.checkpoint_transformer_block,
         )
         self.lm_head = ModelParallelRobertaLMHead(
             embed_dim=args.encoder_embed_dim,
@@ -257,6 +258,7 @@ def base_architecture(args):
     args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
     args.encoder_layers_to_keep = getattr(args, 'encoder_layers_to_keep', None)
     args.encoder_layerdrop = getattr(args, 'encoder_layerdrop', 0.0)
+    args.checkpoint_transformer_block = getattr(args, 'checkpoint_transformer_block', False)
 
 
 @register_model_architecture('model_parallel_roberta', 'model_parallel_roberta_base')

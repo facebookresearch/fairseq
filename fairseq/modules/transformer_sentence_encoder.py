@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 from typing import Optional, Tuple
 
 import torch
@@ -16,6 +17,9 @@ from fairseq.modules import (
     TransformerSentenceEncoderLayer,
 )
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+
+
+logger = logging.getLogger(__name__)
 
 
 def init_bert_params(module):
@@ -97,6 +101,7 @@ class TransformerSentenceEncoder(nn.Module):
         traceable: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,
+        checkpoint_transformer_block: bool = False,
     ) -> None:
 
         super().__init__()
@@ -112,6 +117,12 @@ class TransformerSentenceEncoder(nn.Module):
         self.learned_pos_embedding = learned_pos_embedding
         self.traceable = traceable
         self.tpu = False  # whether we're on TPU
+        self.checkpoint_transformer_block = checkpoint_transformer_block
+
+        if self.checkpoint_transformer_block:
+            logger.warning("====================================")
+            logger.warning("Using checkpointing")
+            logger.warning("====================================")
 
         self.embed_tokens = self.build_embedding(
             self.vocab_size, self.embedding_dim, self.padding_idx
@@ -226,6 +237,7 @@ class TransformerSentenceEncoder(nn.Module):
         last_state_only: bool = False,
         positions: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        from fairseq.model_parallel.megatron.mpu import checkpoint
 
         # compute padding mask. This is needed for multi-head attention
         padding_mask = tokens.eq(self.padding_idx)
@@ -263,7 +275,15 @@ class TransformerSentenceEncoder(nn.Module):
             inner_states.append(x)
 
         for layer in self.layers:
-            x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            if self.checkpoint_transformer_block:
+                x = checkpoint(
+                    layer,
+                    x,
+                    None,  # self_attn_mask
+                    padding_mask,  # self_attn_padding_mask
+                )
+            else:
+                x = layer(x, self_attn_padding_mask=padding_mask)
             if not last_state_only:
                 inner_states.append(x)
 

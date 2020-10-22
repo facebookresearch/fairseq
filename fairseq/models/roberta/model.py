@@ -84,6 +84,10 @@ class RobertaModel(FairseqEncoderModel):
                             help='number of positional embeddings to learn')
         parser.add_argument('--load-checkpoint-heads', action='store_true',
                             help='(re-)register and load heads when loading checkpoints')
+        parser.add_argument('--untie-weights-roberta', action='store_true',
+                            help='Untie weights between embeddings and classifiers in RoBERTa')
+        parser.add_argument('--checkpoint-transformer-block', action='store_true',
+                            help='If True, use gradient checkpointing')
         # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
         parser.add_argument('--encoder-layerdrop', type=float, metavar='D', default=0,
                             help='LayerDrop probability for encoder')
@@ -96,8 +100,6 @@ class RobertaModel(FairseqEncoderModel):
                             help='block size of quantization noise at training time')
         parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
                             help='scalar quantization noise and scalar quantization at training time')
-        parser.add_argument('--untie-weights-roberta', action='store_true',
-                            help='Untie weights between embeddings and classifiers in RoBERTa')
 
     @classmethod
     def build_model(cls, args, task):
@@ -307,6 +309,7 @@ class RobertaEncoder(FairseqEncoder):
             activation_fn=args.activation_fn,
             q_noise=args.quant_noise_pq,
             qn_block_size=args.quant_noise_pq_block_size,
+            checkpoint_transformer_block=args.checkpoint_transformer_block,
         )
         args.untie_weights_roberta = getattr(args, 'untie_weights_roberta', False)
 
@@ -375,6 +378,7 @@ def base_architecture(args):
     args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
     args.encoder_layers_to_keep = getattr(args, 'encoder_layers_to_keep', None)
     args.encoder_layerdrop = getattr(args, 'encoder_layerdrop', 0.0)
+    args.checkpoint_transformer_block = getattr(args, 'checkpoint_transformer_block', False)
 
 
 @register_model_architecture('roberta', 'roberta_base')

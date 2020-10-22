@@ -76,4 +76,4 @@ class ModelParallelTransformerSentenceEncoderLayer(TransformerSentenceEncoderLay
         x = self.fc2(x)
         x = self.dropout_module(x)
         x = residual + x
-        return x, None
+        return x

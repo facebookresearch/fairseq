@@ -125,6 +125,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
+        del attn
         x = self.dropout_module(x)
         x = residual + x
         x = self.self_attn_layer_norm(x)
@@ -136,4 +137,4 @@ class TransformerSentenceEncoderLayer(nn.Module):
         x = self.dropout_module(x)
         x = residual + x
         x = self.final_layer_norm(x)
-        return x, attn
+        return x
