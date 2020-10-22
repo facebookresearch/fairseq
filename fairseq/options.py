@@ -141,6 +141,16 @@ def parse_args_and_arch(
         else:
             raise RuntimeError()
 
+    if hasattr(args, "task"):
+        from fairseq.tasks import TASK_REGISTRY
+
+        TASK_REGISTRY[args.task].add_args(parser)
+    if getattr(args, "use_bmuf", False):
+        # hack to support extra args for block distributed data parallelism
+        from fairseq.optim.bmuf import FairseqBMUF
+
+        FairseqBMUF.add_args(parser)
+
     # Add *-specific args to parser.
     from fairseq.registry import REGISTRIES
 
@@ -152,16 +162,6 @@ def parse_args_and_arch(
                 cls.add_args(parser)
             elif hasattr(cls, "__dataclass"):
                 gen_parser_from_dataclass(parser, cls.__dataclass())
-
-    if hasattr(args, "task"):
-        from fairseq.tasks import TASK_REGISTRY
-
-        TASK_REGISTRY[args.task].add_args(parser)
-    if getattr(args, "use_bmuf", False):
-        # hack to support extra args for block distributed data parallelism
-        from fairseq.optim.bmuf import FairseqBMUF
-
-        FairseqBMUF.add_args(parser)
 
     # Modify the parser a second time, since defaults may have been reset
     if modify_parser is not None:
