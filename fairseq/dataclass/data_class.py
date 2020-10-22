@@ -296,7 +296,11 @@ class DatasetConfig(FairseqDataclass):
         default=None, metadata={"help": "maximum number of tokens in a batch"}
     )
     batch_size: Optional[int] = field(
-        default=None, metadata={"help": "number of examples in a batch"}
+        default=None,
+        metadata={
+            "help": "number of examples in a batch",
+            "argparse_alias": "--max-sentences",
+        },
     )
     required_batch_size_multiple: int = field(
         default=8, metadata={"help": "batch size will be a multiplier of this value"}
@@ -349,7 +353,8 @@ class DatasetConfig(FairseqDataclass):
     batch_size_valid: Optional[int] = field(
         default=None,
         metadata={
-            "help": "batch size of the validation batch" " (defaults to --batch-size)"
+            "help": "batch size of the validation batch" " (defaults to --batch-size)",
+            "argparse_alias": "--max-sentences-valid",
         },
     )
     curriculum: int = field(
@@ -720,11 +725,13 @@ class CommonEvalConfig(FairseqDataclass):
         default=None,
         metadata={"help": "path(s) to model file(s), colon separated"},
     )
-    remove_bpe: Optional[str] = field(
+    post_process: Optional[str] = field(
         default=None,
         metadata={
-            "help": "remove BPE tokens before scoring (can be set to sentencepiece)",
+            "help": "post-process text by removing pre-processing such as BPE, letter segmentation, etc "
+            "(valid options are: sentencepiece, wordpiece, letter, _EOW, none, otherwise treated as BPE symbol)",
             "argparse_const": "@@ ",
+            "argparse_alias": "--remove-bpe",
         },
     )
     quiet: bool = field(default=False, metadata={"help": "only print final scores"})

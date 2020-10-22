@@ -159,11 +159,11 @@ def main(cfg: DictConfig, override_args=None, **unused_kwargs):
     score_sum = 0.0
     count = 0
 
-    if cfg.common_eval.remove_bpe is not None:
-        if cfg.common_eval.remove_bpe == "sentencepiece":
+    if cfg.common_eval.post_process is not None:
+        if cfg.common_eval.post_process == "sentencepiece":
             raise NotImplementedError
         else:
-            bpe_cont = cfg.common_eval.remove_bpe.rstrip()
+            bpe_cont = cfg.common_eval.post_process.rstrip()
             bpe_toks = {
                 i
                 for i in range(len(task.source_dictionary))

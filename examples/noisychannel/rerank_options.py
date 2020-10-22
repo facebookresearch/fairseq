@@ -64,7 +64,7 @@ def add_reranking_args(parser):
                        help='whether the first model group is a right to left model')
     group.add_argument('--right-to-left2', action='store_true',
                        help='whether the second model group is a right to left model')
-    group.add_argument('--remove-bpe', '--post-process', default='@@ ',
+    group.add_argument('--post-process', '--remove-bpe', default='@@ ',
                        help='the bpe symbol, used for the bitext and LM')
     group.add_argument('--prefix-len', default=None, type=int,
                        help='the length of the target prefix to use in rescoring (in terms of words wo bpe)')

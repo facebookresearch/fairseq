@@ -236,13 +236,13 @@ def _main(cfg: DictConfig, output_file):
                 )
             else:
                 if src_dict is not None:
-                    src_str = src_dict.string(src_tokens, cfg.common_eval.remove_bpe)
+                    src_str = src_dict.string(src_tokens, cfg.common_eval.post_process)
                 else:
                     src_str = ""
                 if has_target:
                     target_str = tgt_dict.string(
                         target_tokens,
-                        cfg.common_eval.remove_bpe,
+                        cfg.common_eval.post_process,
                         escape_unk=True,
                         extra_symbols_to_ignore=get_symbols_to_strip_from_output(
                             generator
@@ -267,7 +267,7 @@ def _main(cfg: DictConfig, output_file):
                     alignment=hypo["alignment"],
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
-                    remove_bpe=cfg.common_eval.remove_bpe,
+                    remove_bpe=cfg.common_eval.post_process,
                     extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
                 detok_hypo_str = decode_fn(hypo_str)
@@ -336,7 +336,7 @@ def _main(cfg: DictConfig, output_file):
 
                 # Score only the top hypothesis
                 if has_target and j == 0:
-                    if align_dict is not None or cfg.common_eval.remove_bpe is not None:
+                    if align_dict is not None or cfg.common_eval.post_process is not None:
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tgt_dict.encode_line(
                             target_str, add_if_not_exist=True
@@ -367,7 +367,7 @@ def _main(cfg: DictConfig, output_file):
     )
     if has_target:
         if cfg.bpe and not cfg.generation.sacrebleu:
-            if cfg.common_eval.remove_bpe:
+            if cfg.common_eval.post_process:
                 logger.warning(
                     "BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization"
                 )
