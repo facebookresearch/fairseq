@@ -37,7 +37,7 @@ def score_lm(args):
         predictions_bpe_file = args.nbest_list
 
     gen_output = rerank_utils.BitextOutputFromGen(
-        predictions_bpe_file, bpe_symbol=args.remove_bpe, nbest=using_nbest
+        predictions_bpe_file, bpe_symbol=args.post_process, nbest=using_nbest
     )
 
     if args.language_model is not None:

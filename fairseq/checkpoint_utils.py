@@ -451,6 +451,9 @@ def _upgrade_state_dict(state):
                 state["extra_state"]["train_iterator"].get("epoch", 1), 1
             )
 
+        if hasattr(state["args"], "remove_bpe"):
+            state["args"].post_process = state["args"].remove_bpe
+
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
     if "cfg" in state and state["cfg"] is not None:

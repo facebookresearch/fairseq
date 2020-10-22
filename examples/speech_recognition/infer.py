@@ -121,7 +121,7 @@ def process_predictions(
         if "words" in hypo:
             hyp_words = " ".join(hypo["words"])
         else:
-            hyp_words = post_process(hyp_pieces, args.remove_bpe)
+            hyp_words = post_process(hyp_pieces, args.post_process)
 
         if res_files is not None:
             print(
@@ -134,7 +134,7 @@ def process_predictions(
             )
 
         tgt_pieces = tgt_dict.string(target_tokens)
-        tgt_words = post_process(tgt_pieces, args.remove_bpe)
+        tgt_words = post_process(tgt_pieces, args.post_process)
 
         if res_files is not None:
             print(

@@ -260,13 +260,13 @@ def main(cfg: DictConfig):
         # sort output to match input order
         for id_, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
             if src_dict is not None:
-                src_str = src_dict.string(src_tokens, cfg.common_eval.remove_bpe)
+                src_str = src_dict.string(src_tokens, cfg.common_eval.post_process)
                 print("S-{}\t{}".format(id_, src_str))
                 print("W-{}\t{:.3f}\tseconds".format(id_, info["time"]))
                 for constraint in info["constraints"]:
                     print(
                         "C-{}\t{}".format(
-                            id_, tgt_dict.string(constraint, cfg.common_eval.remove_bpe)
+                            id_, tgt_dict.string(constraint, cfg.common_eval.post_process)
                         )
                     )
 
@@ -278,7 +278,7 @@ def main(cfg: DictConfig):
                     alignment=hypo["alignment"],
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
-                    remove_bpe=cfg.common_eval.remove_bpe,
+                    remove_bpe=cfg.common_eval.post_process,
                     extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
                 detok_hypo_str = decode_fn(hypo_str)

@@ -22,7 +22,7 @@ class CtcCriterion(LegacyFairseqCriterion):
         self.blank_idx = task.target_dictionary.bos()
         self.pad_idx = task.target_dictionary.pad()
         self.eos_idx = task.target_dictionary.eos()
-        self.post_process = args.remove_bpe if args.remove_bpe else "letter"
+        self.post_process = args.post_process if args.post_process else "letter"
 
         if args.wer_args is not None:
             from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
@@ -57,8 +57,8 @@ class CtcCriterion(LegacyFairseqCriterion):
         )
         try:
             parser.add_argument(
-                "--remove-bpe",
                 "--post-process",
+                "--remove-bpe",
                 default="letter",
                 help="remove BPE tokens before scoring (can be set to sentencepiece, letter, and more)",
             )
