@@ -4,10 +4,17 @@
 # LICENSE file in the root directory of this source tree.
 """isort:skip_file"""
 
-__all__ = ["pdb"]
-__version__ = "1.0.0a0"
-
+import os
 import sys
+
+try:
+    from .version import __version__  # noqa
+except ImportError:
+    version_txt = os.path.join(os.path.dirname(__file__), "version.txt")
+    with open(version_txt) as f:
+        __version__ = f.read().strip()
+
+__all__ = ["pdb"]
 
 # backwards compatibility to support `from fairseq.meters import AverageMeter`
 from fairseq.logging import meters, metrics, progress_bar  # noqa
