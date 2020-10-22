@@ -250,7 +250,6 @@ class RobertaModel(FairseqEncoderModel):
             load_checkpoint_heads=True,
             **kwargs,
         )
-        cls.upgrade_args(x["args"])
 
         logger.info(x["args"])
         return RobertaHubInterface(x["args"], x["task"], x["models"][0])
