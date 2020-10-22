@@ -131,6 +131,23 @@ bart.cuda()
 bart.predict('new_task', tokens)
 ```
 
+#### Filling masks:
+
+BART can be used to fill multiple `<mask>` tokens in the input.
+```python
+bart = torch.hub.load('pytorch/fairseq', 'bart.base')
+bart.eval()
+bart.fill_mask('The cat <mask> on the <mask>.', topk=3, beam=10)
+# [('The cat was on the ground.', tensor(-0.6183)), ('The cat was on the floor.', tensor(-0.6798)), ('The cat sleeps on the couch.', tensor(-0.6830))]
+```
+
+Note that by default we enforce the output length to match the input length.
+This can be disabled by setting ``match_source_len=False``:
+```
+bart.fill_mask('The cat <mask> on the <mask>.', topk=3, beam=10, match_source_len=False)
+# [('The cat was on the ground.', tensor(-0.6185)), ('The cat was asleep on the couch.', tensor(-0.6276)), ('The cat was on the floor.', tensor(-0.6800))]
+```
+
 #### Evaluating the `bart.large.mnli` model:
 
 Example python code snippet to evaluate accuracy on the MNLI `dev_matched` set.

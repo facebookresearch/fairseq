@@ -284,6 +284,49 @@ class TestRobertaHub(unittest.TestCase):
             self.assertEqual(len(all_layers), 25)
             self.assertTrue(torch.all(all_layers[-1] == last_layer_features))
 
+
+@unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+class TestBartHub(unittest.TestCase):
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
+    @torch.no_grad()
+    def test_bart_base(self):
+        with contextlib.redirect_stdout(StringIO()):
+            # Load BART
+            bart = fb_hub.load("bart.base")
+            bart.eval()  # disable dropout
+
+            # Test mask filling (beam = topk = 3)
+            res = bart.fill_mask("The cat <mask> on the <mask>.", topk=3)
+            self.assertEqual(len(res), 3)
+            self.assertEqual(res[0][0], "The cat was on the ground.")
+            self.assertEqual(res[1][0], "The cat was on the floor.")
+            self.assertEqual(res[2][0], "The cat was sitting on the couch")
+
+            # Test mask filling (beam = 10, topk = 3)
+            res = bart.fill_mask("The cat <mask> on the <mask>.", topk=3, beam=10)
+            self.assertEqual(len(res), 3)
+            self.assertEqual(res[0][0], "The cat was on the ground.")
+            self.assertEqual(res[1][0], "The cat was on the floor.")
+            self.assertEqual(res[2][0], "The cat sleeps on the couch.")
+
+            # Test mask filling (beam = 10, topk = 3, match_source_len = False)
+            res = bart.fill_mask(
+                "The cat <mask> on the <mask>.",
+                topk=3,
+                beam=10,
+                match_source_len=False,
+            )
+            self.assertEqual(len(res), 3)
+            self.assertEqual(res[0][0], "The cat was on the ground.")
+            self.assertEqual(res[1][0], "The cat was asleep on the couch.")
+            self.assertEqual(res[2][0], "The cat was on the floor.")
+
     @torch.no_grad()
     def test_bart_large(self):
         with contextlib.redirect_stdout(StringIO()):

@@ -293,7 +293,6 @@ class SequenceGenerator(nn.Module):
 
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
-            # print(f'step: {step}')
             if reorder_state is not None:
                 if batch_idxs is not None:
                     # update beam indices to take into account removed sentences
@@ -635,12 +634,11 @@ class SequenceGenerator(nn.Module):
             else:
                 cum_unfin.append(prev)
 
-        # set() is not supported in script export
-
         # The keys here are of the form "{sent}_{unfin_idx}", where
         # "unfin_idx" is the index in the current (possibly reduced)
         # list of sentences, and "sent" is the index in the original,
         # unreduced batch
+        # set() is not supported in script export
         sents_seen: Dict[str, Optional[Tensor]] = {}
 
         # For every finished beam item
@@ -651,7 +649,6 @@ class SequenceGenerator(nn.Module):
             unfin_idx = idx // beam_size
             # sentence index in the original (unreduced) batch
             sent = unfin_idx + cum_unfin[unfin_idx]
-            # print(f"{step} FINISHED {idx} {score} {sent}={unfin_idx} {cum_unfin}")
             # Cannot create dict for key type '(int, int)' in torchscript.
             # The workaround is to cast int to string
             seen = str(sent.item()) + "_" + str(unfin_idx.item())
