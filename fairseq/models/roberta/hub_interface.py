@@ -71,7 +71,7 @@ class RobertaHubInterface(nn.Module):
             tokens = tokens[1:]  # remove <s>
         eos_mask = tokens == self.task.source_dictionary.eos()
         doc_mask = eos_mask[1:] & eos_mask[:-1]
-        sentences = np.split(tokens, doc_mask.nonzero()[0] + 1)
+        sentences = np.split(tokens, doc_mask.nonzero(as_tuple=False)[0] + 1)
         sentences = [
             self.bpe.decode(self.task.source_dictionary.string(s)) for s in sentences
         ]
@@ -173,7 +173,7 @@ class RobertaHubInterface(nn.Module):
             add_if_not_exist=False,
         )
 
-        masked_index = (tokens == self.task.mask_idx).nonzero()
+        masked_index = (tokens == self.task.mask_idx).nonzero(as_tuple=False)
         if tokens.dim() == 1:
             tokens = tokens.unsqueeze(0)
 
