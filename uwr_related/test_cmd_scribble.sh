@@ -41,6 +41,7 @@ python train.py --distributed-world-size 1 --update-freq 2 \
   /pio/scratch/1/i283340/MGR/NewSetup/DistSup/data \
   --save-dir ../try_sl1 --num-workers 0 \
   --task scribblelens --criterion wav2vec --arch wav2vec2_scribblelens \
+  --valid-subset test --pad-to-multiples-of 4 `#--max-sample-size 256` \
   --log-keys '["prob_perplexity","code_perplexity","temp"]' --quantize-targets --extractor-mode default \
   --conv-feature-layers '[(64, (3, 3), (1, 2), (1, 1)), (128, (5, 5), (2, 2), (2, 2)), (256, (3,3), (1, 1), (1, 1)), (256, (3,3), (1, 2), (1, 1)), (512, (3,3), (1, 1), (1, 1)), (512, (3,3), (1, 2), (1, 1)), (512, (3,2), (2, 1), (1, 0))]' \
   --final-dim 256 \

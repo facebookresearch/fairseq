@@ -24,6 +24,7 @@ class RawHandwritingDataset(FairseqDataset):
         self,
         max_sample_size=None,
         min_sample_size=None,
+        pad_to_multiples_of=None,
         shuffle=True,
         min_length=0,
         pad=False,
@@ -39,6 +40,7 @@ class RawHandwritingDataset(FairseqDataset):
         )
         self.min_sample_size = min_sample_size
         self.min_length = min_length
+        self.pad_to_multiples_of = pad_to_multiples_of
         self.pad = pad
         self.shuffle = shuffle
         self.normalize = normalize
@@ -71,7 +73,11 @@ class RawHandwritingDataset(FairseqDataset):
         if diff <= 0:
             return wav
 
-        start = np.random.randint(0, diff + 1)
+        if self.shuffle:
+            start = np.random.randint(0, diff + 1)
+        else:
+            # Deterministically pick the middle part
+            start = (diff + 1) //2
         end = size - diff + start
         return wav[:, start:end]
         
@@ -86,15 +92,26 @@ class RawHandwritingDataset(FairseqDataset):
 
         sources = [s["source"] for s in samples]
         sizes = [s.shape[1] for s in sources]
+        heigths = [s.shape[0] for s in sources]
+        assert all([h==heigths[0] for h in heigths])
 
+        pad_to_multiples_of = self.pad_to_multiples_of
         if self.pad:
-            target_size = 1000 #min(max(sizes), self.max_sample_size)
+            target_size = min(max(sizes), self.max_sample_size)
+            if pad_to_multiples_of:
+                # round up to pad_to_multiples_of
+                target_size = ((target_size + pad_to_multiples_of - 1) // pad_to_multiples_of) * pad_to_multiples_of
         else:
-            target_size = 1000 #min(min(sizes), self.max_sample_size)
+            target_size = min(min(sizes), self.max_sample_size)
+            if pad_to_multiples_of:
+                # round down to pad_to_multiples_of
+                target_size = (target_size // pad_to_multiples_of) * pad_to_multiples_of
 
-        collated_sources = sources[0].new_zeros((len(sources), 32, 1000))  #target_size)
+        collated_sources = sources[0].new_zeros((len(sources), heigths[0], target_size))
+        pad_shape = list(collated_sources.shape)
+        pad_shape[1] = 1  # we mask all pixels in exactly the same way
         padding_mask = (
-            torch.BoolTensor(collated_sources.shape).fill_(False) if self.pad else None
+            torch.BoolTensor(size=pad_shape).fill_(False) if self.pad else None
         )
         for i, (source, size) in enumerate(zip(sources, sizes)):
             diff = size - target_size
@@ -103,12 +120,12 @@ class RawHandwritingDataset(FairseqDataset):
             elif diff < 0:
                 assert self.pad
                 collated_sources[i] = torch.cat(
-                    [source, source.new_full((32, -diff), 0.0)],
+                    [source, source.new_full((heigths[0], -diff), 0.0)],
                     dim=1
                 )
                 padding_mask[i, :, diff:] = True
             else:
-                collated_sources[i] = self.crop_to_max_size(source, 1000)  #target_size)
+                collated_sources[i] = self.crop_to_max_size(source, target_size)
 
         input = {"source": collated_sources}
         if self.pad:
@@ -142,8 +159,10 @@ class FileHandwritingDataset(RawHandwritingDataset):
     def __init__(
         self,
         dist_root,
+        split,
         max_sample_size=None,
         min_sample_size=None,
+        pad_to_multiples_of=None,
         shuffle=True,
         min_length=0,
         pad=False,
@@ -152,6 +171,7 @@ class FileHandwritingDataset(RawHandwritingDataset):
         super().__init__(
             max_sample_size=max_sample_size,
             min_sample_size=min_sample_size,
+            pad_to_multiples_of=pad_to_multiples_of,
             shuffle=shuffle,
             min_length=min_length,
             pad=pad,
@@ -161,14 +181,14 @@ class FileHandwritingDataset(RawHandwritingDataset):
             root=dist_root + '/scribblelens.corpus.v1.2.zip',           # Path to zip with images
             alignment_root=dist_root + '/scribblelens.paths.1.4b.zip',  # Path to the alignments, i.e. info aou char boundaries
             slice='tasman',                                     # Part of the data, here a single scribe https://en.wikipedia.org/wiki/Abel_Tasman
-            split='train',                                      # Train, test, valid or unsupervised. Train/Test/Valid have character transcripts, unspuervised has only images
+            split=split,                                      # Train, test, valid or unsupervised. Train/Test/Valid have character transcripts, unspuervised has only images
             # Not used in the simple ScribbleLens loader
             transcript_mode=5,                                  # Legacy space handling, has to be like that
             vocabulary=dist_root + '/tasman.alphabet.plus.space.mode5.json',  # Path
         )
 
         for data in self.dataset:
-            sizeHere = data['image'][:,:,0].shape
+            sizeHere = data['image'].shape
             #print(sizeHere)
             self.sizes.append(sizeHere[0])  # 1/2 dim TODO?
 
