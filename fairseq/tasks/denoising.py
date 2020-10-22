@@ -11,6 +11,10 @@ from fairseq.data import (
     AppendTokenDataset,
     DenoisingDataset,
     Dictionary,
+    IdDataset,
+    NestedDictionaryDataset,
+    NumelDataset,
+    PadDataset,
     PrependTokenDataset,
     StripTokenDataset,
     TokenBlockDataset,
@@ -18,6 +22,7 @@ from fairseq.data import (
 )
 from fairseq.data.encoders.utils import get_whole_word_mask
 from fairseq.tasks import LegacyFairseqTask, register_task
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -193,6 +198,41 @@ class DenoisingTask(LegacyFairseqTask):
                 split,
                 len(self.datasets[split]),
             )
+        )
+
+    def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):
+        """
+        Generate batches for inference. We assume that the input begins with a
+        bos symbol (`<s>`) and ends with an eos symbol (`</s>`).
+        """
+        pad = self.source_dictionary.pad()
+        eos = self.source_dictionary.eos()
+        src_dataset = TokenBlockDataset(
+            src_tokens,
+            src_lengths,
+            block_size=self.args.tokens_per_sample - 2,  # for <s> and </s>
+            pad=pad,
+            eos=eos,
+            break_mode=self.args.sample_break_mode,
+            document_sep_len=0,
+        )
+        prev_output_tokens = PrependTokenDataset(
+            StripTokenDataset(src_dataset, eos), eos
+        )
+        src_dataset = PadDataset(src_dataset, pad_idx=pad, left_pad=False)
+        return NestedDictionaryDataset(
+            {
+                "id": IdDataset(),
+                "net_input": {
+                    "src_tokens": src_dataset,
+                    "src_lengths": NumelDataset(src_dataset, reduce=False),
+                    "prev_output_tokens": PadDataset(
+                        prev_output_tokens, pad_idx=pad, left_pad=False
+                    ),
+                },
+                "target": src_dataset,
+            },
+            sizes=[np.array(src_lengths)],
         )
 
     def max_positions(self):
