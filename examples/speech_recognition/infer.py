@@ -18,6 +18,7 @@ import numpy as np
 import torch
 from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
 from fairseq.data.data_utils import post_process
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 
 
@@ -203,18 +204,25 @@ def load_models_and_criterions(
         else:
             state = model_state
 
-        args = state["args"]
+        if "cfg" in state:
+            cfg = state["cfg"]
+        else:
+            cfg = convert_namespace_to_omegaconf(state["args"])
+
         if task is None:
-            task = tasks.setup_task(args)
-        model = task.build_model(args)
+            if hasattr(cfg.task, 'data'):
+                cfg.task.data = data_path
+            task = tasks.setup_task(cfg.task)
+
+        model = task.build_model(cfg.model)
         model.load_state_dict(state["model"], strict=True)
         models.append(model)
 
-        criterion = task.build_criterion(args)
+        criterion = task.build_criterion(cfg.criterion)
         if "criterion" in state:
             criterion.load_state_dict(state["criterion"], strict=True)
         criterions.append(criterion)
-    return models, criterions, args
+    return models, criterions, task
 
 
 def optimize_models(args, use_cuda, models):
@@ -255,29 +263,15 @@ def main(args, task=None, model_state=None):
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-    if task is None:
-        # Load dataset splits
-        task = tasks.setup_task(args)
-        task.load_dataset(args.gen_subset)
-
-        logger.info(
-            "| {} {} {} examples".format(
-                args.data, args.gen_subset, len(task.dataset(args.gen_subset))
-            )
-        )
-
-    # Set dictionary
-    tgt_dict = task.target_dictionary
 
     logger.info("| decoding with criterion {}".format(args.criterion))
 
     # Load ensemble
-
     if args.load_emissions:
         models, criterions = [], []
     else:
         logger.info("| loading model(s) from {}".format(args.path))
-        models, criterions, _ = load_models_and_criterions(
+        models, criterions, task = load_models_and_criterions(
             args.path,
             data_path=args.data,
             arg_overrides=eval(args.model_overrides),  # noqa
@@ -285,6 +279,17 @@ def main(args, task=None, model_state=None):
             model_state=model_state,
         )
         optimize_models(args, use_cuda, models)
+
+    # Load dataset splits
+    task.load_dataset(args.gen_subset)
+    # Set dictionary
+    tgt_dict = task.target_dictionary
+
+    logger.info(
+        "| {} {} {} examples".format(
+            args.data, args.gen_subset, len(task.dataset(args.gen_subset))
+        )
+    )
 
     # hack to pass transitions to W2lDecoder
     if args.criterion == "asg_loss":
