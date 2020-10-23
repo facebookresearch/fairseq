@@ -51,6 +51,13 @@ class ScribblelensTask(LegacyFairseqTask):
         )
 
         parser.add_argument(
+            "--pad-to-multiples-of",
+            default=None,
+            type=int,
+            help="enforce that lengths of inputs are multiples of this",
+        )
+
+        parser.add_argument(
             "--enable-padding",
             action="store_true",
             help="pad shorter samples instead of cropping",
@@ -84,17 +91,20 @@ class ScribblelensTask(LegacyFairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        manifest = os.path.join(self.args.data, "{}.tsv".format(split))
         self.datasets[split] = FileHandwritingDataset(
             self.args.data,
+            split=split,
             max_sample_size=self.args.max_sample_size,
             min_sample_size=self.args.max_sample_size,
+            pad_to_multiples_of=self.args.pad_to_multiples_of,
             min_length=self.args.min_sample_size,
             pad=self.args.labels is not None or self.args.enable_padding,
+            
             normalize=self.args.normalize,
         )
 
         if self.args.labels:
+            assert False  ## TODO(JCh): we must load labels from scribblelens.
             dict_path = os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
             self._target_dictionary = Dictionary.load(dict_path)
             label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")
