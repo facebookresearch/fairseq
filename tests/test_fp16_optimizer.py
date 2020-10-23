@@ -5,6 +5,7 @@
 
 import argparse
 import copy
+import logging
 import unittest
 
 import torch
@@ -46,6 +47,10 @@ class TestGradientScaling(unittest.TestCase):
                 },
             }
         )
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
 
     def run_iter(self, model, params, optimizer):
         optimizer.zero_grad()
