@@ -19,7 +19,7 @@ import numpy as np
 import torch
 from fairseq import checkpoint_utils, options, scoring, tasks, utils
 from fairseq.data import encoders
-from fairseq.dataclass.data_class import register_hydra_cfg
+from fairseq.dataclass.initialize import register_hydra_cfg
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter

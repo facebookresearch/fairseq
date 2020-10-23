@@ -13,6 +13,7 @@ from collections import OrderedDict
 from typing import Optional, Union
 
 import torch
+from fairseq.dataclass.configs import CheckpointConfig, FairseqConfig
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
     overwrite_args_by_name,
@@ -26,7 +27,7 @@ from torch.serialization import default_restore_location
 logger = logging.getLogger(__name__)
 
 
-def save_checkpoint(cfg: DictConfig, trainer, epoch_itr, val_loss):
+def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     from fairseq import meters
 
     # only one worker should attempt to create the required dir
@@ -130,7 +131,7 @@ def save_checkpoint(cfg: DictConfig, trainer, epoch_itr, val_loss):
                 os.remove(old_chk)
 
 
-def load_checkpoint(cfg: DictConfig, trainer, **passthrough_args):
+def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
     """
     Load a checkpoint and restore the training iterator.
 
@@ -339,7 +340,7 @@ def torch_persistent_save(obj, f):
 
 def save_state(
     filename,
-    cfg: DictConfig,
+    cfg: FairseqConfig,
     model_state_dict,
     criterion,
     optimizer,

@@ -7,39 +7,9 @@ from dataclasses import dataclass, field
 
 import torch
 import torch.distributed as dist
-from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.configs import FairseqBMUFConfig
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.optim.fairseq_optimizer import FairseqOptimizer
-from omegaconf import II, DictConfig
-
-
-@dataclass
-class FairseqBMUFConfig(FairseqDataclass):
-    block_lr: float = field(
-        default=1, metadata={"help": "block learning rate for bmuf"}
-    )
-    block_momentum: float = field(
-        default=0.875, metadata={"help": "block momentum for bmuf"}
-    )
-    global_sync_iter: int = field(
-        default=50, metadata={"help": "Iteration for syncing global model"}
-    )
-    warmup_iterations: int = field(
-        default=500, metadata={"help": "warmup iterations for model to broadcast"}
-    )
-    use_nbm: bool = field(
-        default=False,
-        metadata={"help": "Specify whether you want to use classical BM / Nesterov BM"},
-    )
-    average_sync: bool = field(
-        default=False,
-        metadata={
-            "help": "Specify whether you want to average the local momentum after each sync"
-        },
-    )
-    distributed_world_size: int = II(
-        "distributed_training.distributed_world_size"
-    )
 
 
 class FairseqBMUF(FairseqOptimizer):
@@ -52,7 +22,7 @@ class FairseqBMUF(FairseqOptimizer):
     model-update filtering
     """
 
-    def __init__(self, cfg: DictConfig, optimizer):
+    def __init__(self, cfg: FairseqBMUFConfig, optimizer):
         super().__init__(cfg)
         self._optimizer = optimizer
         self._num_updates = 0

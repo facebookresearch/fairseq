@@ -18,18 +18,18 @@ from typing import Any, Dict, Mapping
 import torch
 import torch.distributed as dist
 from fairseq import utils
-from fairseq.dataclass.utils import convert_namespace_to_omegaconf
-from omegaconf import DictConfig, open_dict
+from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
+from omegaconf import open_dict
 
 
 logger = logging.getLogger(__name__)
 
 
-def is_master(cfg: DictConfig):
+def is_master(cfg: DistributedTrainingConfig):
     return cfg.distributed_rank == 0
 
 
-def infer_init_method(cfg: DictConfig, force_distributed=False):
+def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
     if cfg.distributed_init_method is not None or cfg.tpu:
         return
 
@@ -197,8 +197,10 @@ def infer_init_method(cfg: DictConfig, force_distributed=False):
             )
 
 
-def distributed_init(cfg: DictConfig):
+def distributed_init(cfg: FairseqConfig):
     if isinstance(cfg, Namespace):
+        from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+
         cfg = convert_namespace_to_omegaconf(cfg)
 
     if not cfg.common.tpu:
@@ -265,7 +267,7 @@ def distributed_init(cfg: DictConfig):
     return cfg.distributed_training.distributed_rank
 
 
-def distributed_main(i, main, cfg: DictConfig, kwargs):
+def distributed_main(i, main, cfg: FairseqConfig, kwargs):
     cfg.distributed_training.device_id = i
     if torch.cuda.is_available() and not cfg.common.cpu and not cfg.common.tpu:
         torch.cuda.set_device(cfg.distributed_training.device_id)
@@ -281,7 +283,7 @@ def distributed_main(i, main, cfg: DictConfig, kwargs):
     main(cfg, **kwargs)
 
 
-def call_main(cfg: DictConfig, main, **kwargs):
+def call_main(cfg: FairseqConfig, main, **kwargs):
     if cfg.distributed_training.distributed_init_method is None:
         infer_init_method(cfg.distributed_training)
 

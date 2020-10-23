@@ -3,15 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import logging
 import sys
-from argparse import Namespace
 from dataclasses import _MISSING_TYPE, dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, List, Optional
 
 import torch
-from fairseq.data.indexed_dataset import get_available_dataset_impl
+
 from fairseq.dataclass.constants import (
+    DATASET_IMPL_CHOICES,
     DDP_BACKEND_CHOICES,
     DISTRIBUTED_WRAPPER_CHOICES,
     GENERATION_CONSTRAINTS_CHOICES,
@@ -20,16 +19,64 @@ from fairseq.dataclass.constants import (
     PIPELINE_CHECKPOINT_CHOICES,
     ZERO_SHARDING_CHOICES,
 )
-from fairseq.dataclass.utils import ChoiceEnum, FairseqDataclass
-from fairseq.models import ARCH_MODEL_REGISTRY, MODEL_DATACLASS_REGISTRY
-from fairseq.optim.bmuf import FairseqBMUFConfig
-from fairseq.registry import REGISTRIES
-from fairseq.tasks import TASK_DATACLASS_REGISTRY
-from hydra.core.config_store import ConfigStore
+
 from omegaconf import II
 
 
-logger = logging.getLogger(__name__)
+@dataclass
+class FairseqDataclass:
+    """fairseq base dataclass that supported fetching attributes and metas"""
+
+    _name: Optional[str] = None
+
+    @staticmethod
+    def name():
+        return None
+
+    def _get_all_attributes(self) -> List[str]:
+        return [k for k in self.__dataclass_fields__.keys()]
+
+    def _get_meta(
+        self, attribute_name: str, meta: str, default: Optional[Any] = None
+    ) -> Any:
+        return self.__dataclass_fields__[attribute_name].metadata.get(meta, default)
+
+    def _get_name(self, attribute_name: str) -> str:
+        return self.__dataclass_fields__[attribute_name].name
+
+    def _get_default(self, attribute_name: str) -> Any:
+        if hasattr(self, attribute_name):
+            if str(getattr(self, attribute_name)).startswith("${"):
+                return str(getattr(self, attribute_name))
+            elif str(self.__dataclass_fields__[attribute_name].default).startswith(
+                "${"
+            ):
+                return str(self.__dataclass_fields__[attribute_name].default)
+            elif (
+                getattr(self, attribute_name)
+                != self.__dataclass_fields__[attribute_name].default
+            ):
+                return getattr(self, attribute_name)
+
+        f = self.__dataclass_fields__[attribute_name]
+        if not isinstance(f.default_factory, _MISSING_TYPE):
+            return f.default_factory()
+        return f.default
+
+    def _get_type(self, attribute_name: str) -> Any:
+        return self.__dataclass_fields__[attribute_name].type
+
+    def _get_help(self, attribute_name: str) -> Any:
+        return self._get_meta(attribute_name, "help")
+
+    def _get_argparse_const(self, attribute_name: str) -> Any:
+        return self._get_meta(attribute_name, "argparse_const")
+
+    def _get_argparse_alias(self, attribute_name: str) -> Any:
+        return self._get_meta(attribute_name, "argparse_alias")
+
+    def _get_choices(self, attribute_name: str) -> Any:
+        return self._get_meta(attribute_name, "choices")
 
 
 @dataclass
@@ -311,7 +358,7 @@ class DatasetConfig(FairseqDataclass):
             "help": "maximum sequence length in batch will be a multiplier of this value"
         },
     )
-    dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = field(
+    dataset_impl: Optional[DATASET_IMPL_CHOICES] = field(
         default=None, metadata={"help": "output dataset implementation"}
     )
     data_buffer_size: int = field(
@@ -527,6 +574,33 @@ class CheckpointConfig(FairseqDataclass):
     )
     model_parallel_size: int = II("common.model_parallel_size")
     distributed_rank: int = II("distributed_training.distributed_rank")
+
+
+@dataclass
+class FairseqBMUFConfig(FairseqDataclass):
+    block_lr: float = field(
+        default=1, metadata={"help": "block learning rate for bmuf"}
+    )
+    block_momentum: float = field(
+        default=0.875, metadata={"help": "block momentum for bmuf"}
+    )
+    global_sync_iter: int = field(
+        default=50, metadata={"help": "Iteration for syncing global model"}
+    )
+    warmup_iterations: int = field(
+        default=500, metadata={"help": "warmup iterations for model to broadcast"}
+    )
+    use_nbm: bool = field(
+        default=False,
+        metadata={"help": "Specify whether you want to use classical BM / Nesterov BM"},
+    )
+    average_sync: bool = field(
+        default=False,
+        metadata={
+            "help": "Specify whether you want to average the local momentum after each sync"
+        },
+    )
+    distributed_world_size: int = II("distributed_training.distributed_world_size")
 
 
 @dataclass
@@ -788,135 +862,15 @@ class InteractiveConfig(FairseqDataclass):
     )
 
 
-CONFIGS = {
-    "common": CommonConfig,
-    "common_eval": CommonEvalConfig,
-    "distributed_training": DistributedTrainingConfig,
-    "dataset": DatasetConfig,
-    "optimization": OptimizationConfig,
-    "checkpoint": CheckpointConfig,
-    "bmuf": FairseqBMUFConfig,
-    "generation": GenerationConfig,
-    "eval_lm": EvalLMConfig,
-    "interactive": InteractiveConfig,
-}
-
-
-def register_module_dataclass(
-    cs: ConfigStore, registry: Dict[str, Any], group: str
-) -> None:
-    """register dataclasses defined in modules in config store, for example, in migrated tasks, models, etc."""
-    # note that if `group == model`, we register all model archs, not the model name.
-    for k, v in registry.items():
-        node_ = v()
-        node_._name = k
-        cs.store(name=k, group=group, node=node_, provider="fairseq")
-
-
-def register_hydra_cfg(cs: ConfigStore, name: str = "default") -> None:
-    """cs: config store instance, register common training configs"""
-
-    for k, v in CONFIGS.items():
-        try:
-            cs.store(name=k, node=v())
-        except BaseException:
-            logger.error(f"{k} - {v()}")
-            raise
-
-    register_module_dataclass(cs, TASK_DATACLASS_REGISTRY, "task")
-    register_module_dataclass(cs, MODEL_DATACLASS_REGISTRY, "model")
-
-    for k, v in REGISTRIES.items():
-        register_module_dataclass(cs, v["dataclass_registry"], k)
-
-
-def _override_attr(
-    sub_node: str, data_class: Type[FairseqDataclass], args: Namespace
-) -> List[str]:
-    overrides = []
-
-    def get_default(f):
-        if not isinstance(f.default_factory, _MISSING_TYPE):
-            return f.default_factory()
-        return f.default
-
-    for k, v in data_class.__dataclass_fields__.items():
-        if k.startswith("_"):
-            # private member, skip
-            continue
-
-        val = get_default(v) if not hasattr(args, k) else getattr(args, k)
-
-        if val is None:
-            overrides.append("{}.{}=null".format(sub_node, k))
-        elif val == "":
-            overrides.append("{}.{}=''".format(sub_node, k))
-        elif isinstance(val, str):
-            overrides.append("{}.{}='{}'".format(sub_node, k, val))
-        else:
-            overrides.append("{}.{}={}".format(sub_node, k, val))
-    return overrides
-
-
-def migrate_registry(
-    name, value, registry, args, overrides, deletes, use_name_as_val=False
-):
-    if value in registry:
-        overrides.append("{}={}".format(name, value))
-        overrides.append("{}._name={}".format(name, value))
-        overrides.extend(_override_attr(name, registry[value], args))
-    elif use_name_as_val and value is not None:
-        overrides.append("{}={}".format(name, value))
-    else:
-        deletes.append(name)
-
-
-def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
-    """use the field in args to overrides those in cfg"""
-    overrides = []
-    deletes = []
-
-    for k, v in CONFIGS.items():
-        overrides.extend(_override_attr(k, v, args))
-
-    if args is not None:
-        if hasattr(args, "task"):
-            migrate_registry(
-                "task", args.task, TASK_DATACLASS_REGISTRY, args, overrides, deletes
-            )
-        else:
-            deletes.append("task")
-
-        # these options will be set to "None" if they have not yet been migrated
-        # so we can populate them with the entire flat args
-        CORE_REGISTRIES = {"criterion", "optimizer", "lr_scheduler"}
-
-        for k, v in REGISTRIES.items():
-            if hasattr(args, k):
-                migrate_registry(
-                    k,
-                    getattr(args, k),
-                    v["dataclass_registry"],
-                    args,
-                    overrides,
-                    deletes,
-                    use_name_as_val=k not in CORE_REGISTRIES,
-                )
-            else:
-                deletes.append(k)
-
-        no_dc = True
-        if hasattr(args, "arch"):
-            if args.arch in ARCH_MODEL_REGISTRY:
-                m_cls = ARCH_MODEL_REGISTRY[args.arch]
-                dc = getattr(m_cls, "__dataclass", None)
-                if dc is not None:
-                    overrides.append("model={}".format(args.arch))
-                    overrides.append("model._name={}".format(args.arch))
-                    # override model params with those exist in args
-                    overrides.extend(_override_attr("model", dc, args))
-                    no_dc = False
-        if no_dc:
-            deletes.append("model")
-
-    return overrides, deletes
+@dataclass
+class FairseqConfig(object):
+    common: CommonConfig = CommonConfig()
+    common_eval: CommonEvalConfig = CommonEvalConfig()
+    distributed_training: DistributedTrainingConfig = DistributedTrainingConfig()
+    dataset: DatasetConfig = DatasetConfig()
+    optimization: OptimizationConfig = OptimizationConfig()
+    checkpoint: CheckpointConfig = CheckpointConfig()
+    bmuf: FairseqBMUFConfig = FairseqBMUFConfig()
+    generation: GenerationConfig = GenerationConfig()
+    eval_lm: EvalLMConfig = EvalLMConfig()
+    interactive: InteractiveConfig = InteractiveConfig()

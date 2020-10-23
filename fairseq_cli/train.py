@@ -32,7 +32,7 @@ from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from omegaconf import DictConfig
 from hydra.experimental import initialize
-from fairseq.dataclass.data_class import register_hydra_cfg
+from fairseq.dataclass.initialize import register_hydra_cfg
 from fairseq.trainer import Trainer
 
 
