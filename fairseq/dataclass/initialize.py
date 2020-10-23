@@ -4,10 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+import os
 
 from typing import Dict, Any
 
 from hydra.core.config_store import ConfigStore
+from hydra.core.global_hydra import GlobalHydra
+from hydra.experimental import initialize
 
 from fairseq.dataclass.configs import FairseqConfig
 
@@ -17,6 +20,20 @@ from fairseq.registry import REGISTRIES
 
 
 logger = logging.getLogger(__name__)
+
+
+def hydra_init():
+    cs = ConfigStore.instance()
+    register_hydra_cfg(cs)
+
+    if not GlobalHydra().is_initialized():
+        # configs will be in fairseq/config after installation
+        config_path = os.path.join("..", "config")
+        if not os.path.exists(config_path):
+            # in case of "--editable" installs we need to go one dir up
+            config_path = os.path.join("..", "..", "config")
+
+        initialize(config_path=config_path, strict=True)
 
 
 def register_module_dataclass(

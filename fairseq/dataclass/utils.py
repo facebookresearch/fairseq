@@ -277,11 +277,6 @@ def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
     overrides, deletes = override_module_args(args)
 
     cfg_name = "config"
-    cfg_path = f"../../{cfg_name}"
-
-    if not GlobalHydra().is_initialized():
-        initialize(config_path=cfg_path)
-
     composed_cfg = compose(cfg_name, overrides=overrides, strict=False)
     for k in deletes:
         composed_cfg[k] = None
