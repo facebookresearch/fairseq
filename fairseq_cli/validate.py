@@ -13,7 +13,7 @@ from itertools import chain
 
 import torch
 from fairseq import checkpoint_utils, distributed_utils, options, utils
-from fairseq.dataclass.data_class import register_hydra_cfg
+from fairseq.dataclass.initialize import register_hydra_cfg
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import metrics, progress_bar
 from hydra.core.config_store import ConfigStore

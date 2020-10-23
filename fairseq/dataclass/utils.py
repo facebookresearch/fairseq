@@ -5,10 +5,12 @@
 
 import ast
 from argparse import ArgumentError, ArgumentParser, Namespace
-from dataclasses import _MISSING_TYPE, MISSING, dataclass
+from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Tuple, Type
 
+from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.configs import FairseqConfig
 from hydra.core.global_hydra import GlobalHydra
 from hydra.experimental import compose, initialize
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -25,78 +27,6 @@ def eval_str_list(x, x_type=float):
         return list(map(x_type, x))
     except TypeError:
         return [x_type(x)]
-
-
-class StrEnum(Enum):
-    def __str__(self):
-        return self.value
-
-    def __eq__(self, other: str):
-        return self.value == other
-
-    def __repr__(self):
-        return self.value
-
-
-def ChoiceEnum(choices: List[str]):
-    """return the Enum class used to enforce list of choices"""
-    return StrEnum("Choices", {k: k for k in choices})
-
-
-@dataclass
-class FairseqDataclass:
-    """fairseq base dataclass that supported fetching attributes and metas"""
-
-    _name: Optional[str] = None
-
-    @staticmethod
-    def name():
-        return None
-
-    def _get_all_attributes(self) -> List[str]:
-        return [k for k in self.__dataclass_fields__.keys()]
-
-    def _get_meta(
-        self, attribute_name: str, meta: str, default: Optional[Any] = None
-    ) -> Any:
-        return self.__dataclass_fields__[attribute_name].metadata.get(meta, default)
-
-    def _get_name(self, attribute_name: str) -> str:
-        return self.__dataclass_fields__[attribute_name].name
-
-    def _get_default(self, attribute_name: str) -> Any:
-        if hasattr(self, attribute_name):
-            if str(getattr(self, attribute_name)).startswith("${"):
-                return str(getattr(self, attribute_name))
-            elif str(self.__dataclass_fields__[attribute_name].default).startswith(
-                "${"
-            ):
-                return str(self.__dataclass_fields__[attribute_name].default)
-            elif (
-                getattr(self, attribute_name)
-                != self.__dataclass_fields__[attribute_name].default
-            ):
-                return getattr(self, attribute_name)
-
-        f = self.__dataclass_fields__[attribute_name]
-        if not isinstance(f.default_factory, _MISSING_TYPE):
-            return f.default_factory()
-        return f.default
-
-    def _get_type(self, attribute_name: str) -> Any:
-        return self.__dataclass_fields__[attribute_name].type
-
-    def _get_help(self, attribute_name: str) -> Any:
-        return self._get_meta(attribute_name, "help")
-
-    def _get_argparse_const(self, attribute_name: str) -> Any:
-        return self._get_meta(attribute_name, "argparse_const")
-
-    def _get_argparse_alias(self, attribute_name: str) -> Any:
-        return self._get_meta(attribute_name, "argparse_alias")
-
-    def _get_choices(self, attribute_name: str) -> Any:
-        return self._get_meta(attribute_name, "choices")
 
 
 def gen_parser_from_dataclass(
@@ -241,8 +171,107 @@ def _set_legacy_defaults(args, cls):
             setattr(args, key, default_value)
 
 
+def _override_attr(
+    sub_node: str, data_class: Type[FairseqDataclass], args: Namespace
+) -> List[str]:
+    overrides = []
+
+    def get_default(f):
+        if not isinstance(f.default_factory, _MISSING_TYPE):
+            return f.default_factory()
+        return f.default
+
+    for k, v in data_class.__dataclass_fields__.items():
+        if k.startswith("_"):
+            # private member, skip
+            continue
+
+        val = get_default(v) if not hasattr(args, k) else getattr(args, k)
+
+        if val is None:
+            overrides.append("{}.{}=null".format(sub_node, k))
+        elif val == "":
+            overrides.append("{}.{}=''".format(sub_node, k))
+        elif isinstance(val, str):
+            overrides.append("{}.{}='{}'".format(sub_node, k, val))
+        else:
+            overrides.append("{}.{}={}".format(sub_node, k, val))
+    return overrides
+
+
+def migrate_registry(
+    name, value, registry, args, overrides, deletes, use_name_as_val=False
+):
+    if value in registry:
+        overrides.append("{}={}".format(name, value))
+        overrides.append("{}._name={}".format(name, value))
+        overrides.extend(_override_attr(name, registry[value], args))
+    elif use_name_as_val and value is not None:
+        overrides.append("{}={}".format(name, value))
+    else:
+        deletes.append(name)
+
+
+def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
+    """use the field in args to overrides those in cfg"""
+    overrides = []
+    deletes = []
+
+    for k in FairseqConfig.__dataclass_fields__.keys():
+        overrides.extend(
+            _override_attr(k, FairseqConfig.__dataclass_fields__[k].type, args)
+        )
+
+    if args is not None:
+        if hasattr(args, "task"):
+            from fairseq.tasks import TASK_DATACLASS_REGISTRY
+
+            migrate_registry(
+                "task", args.task, TASK_DATACLASS_REGISTRY, args, overrides, deletes
+            )
+        else:
+            deletes.append("task")
+
+        # these options will be set to "None" if they have not yet been migrated
+        # so we can populate them with the entire flat args
+        CORE_REGISTRIES = {"criterion", "optimizer", "lr_scheduler"}
+
+        from fairseq.registry import REGISTRIES
+
+        for k, v in REGISTRIES.items():
+            if hasattr(args, k):
+                migrate_registry(
+                    k,
+                    getattr(args, k),
+                    v["dataclass_registry"],
+                    args,
+                    overrides,
+                    deletes,
+                    use_name_as_val=k not in CORE_REGISTRIES,
+                )
+            else:
+                deletes.append(k)
+
+        no_dc = True
+        if hasattr(args, "arch"):
+            from fairseq.models import ARCH_MODEL_REGISTRY
+
+            if args.arch in ARCH_MODEL_REGISTRY:
+                m_cls = ARCH_MODEL_REGISTRY[args.arch]
+                dc = getattr(m_cls, "__dataclass", None)
+                if dc is not None:
+                    overrides.append("model={}".format(args.arch))
+                    overrides.append("model._name={}".format(args.arch))
+                    # override model params with those exist in args
+                    overrides.extend(_override_attr("model", dc, args))
+                    no_dc = False
+        if no_dc:
+            deletes.append("model")
+
+    return overrides, deletes
+
+
 def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
-    from fairseq.dataclass.data_class import override_module_args
 
     # Here we are using field values provided in args to override counterparts inside config object
     overrides, deletes = override_module_args(args)

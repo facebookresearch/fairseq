@@ -17,12 +17,12 @@ from typing import Any, Dict, List
 
 import torch
 from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
+from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
-from omegaconf import DictConfig
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class Trainer(object):
     communication of the gradients across workers.
     """
 
-    def __init__(self, cfg: DictConfig, task, model, criterion, quantizer=None):
+    def __init__(self, cfg: FairseqConfig, task, model, criterion, quantizer=None):
 
         if isinstance(cfg, Namespace):
             logger.warning(

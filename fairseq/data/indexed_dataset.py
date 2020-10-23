@@ -3,13 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import os
 import shutil
 import struct
 from functools import lru_cache
 
 import numpy as np
 import torch
+from fairseq.dataclass.constants import DATASET_IMPL_CHOICES
 from fairseq.data.fasta_dataset import FastaDataset
 from fairseq.file_io import PathManager
 
@@ -24,7 +24,7 @@ def __best_fitting_dtype(vocab_size=None):
 
 
 def get_available_dataset_impl():
-    return ["raw", "lazy", "cached", "mmap", "fasta"]
+    return list(map(str, DATASET_IMPL_CHOICES))
 
 
 def infer_dataset_impl(path):

@@ -9,7 +9,7 @@ from typing import Callable, List, Optional
 import torch
 from fairseq import utils
 from fairseq.data.indexed_dataset import get_available_dataset_impl
-from fairseq.dataclass.data_class import (
+from fairseq.dataclass.configs import (
     CheckpointConfig,
     CommonConfig,
     CommonEvalConfig,

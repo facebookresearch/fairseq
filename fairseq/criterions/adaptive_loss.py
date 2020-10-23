@@ -11,7 +11,7 @@ from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.constants import DDP_BACKEND_CHOICES
-from omegaconf import II, DictConfig
+from omegaconf import II
 
 
 @dataclass
@@ -31,7 +31,7 @@ class AdaptiveLoss(FairseqCriterion):
         self.sentence_avg = sentence_avg
 
     @classmethod
-    def build_criterion(cls, cfg: DictConfig, task):
+    def build_criterion(cls, cfg: AdaptiveLossConfig, task):
         if cfg.ddp_backend == "c10d":
             raise Exception(
                 "AdaptiveLoss is not compatible with the c10d "
