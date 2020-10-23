@@ -112,7 +112,7 @@ class MaskTokensDataset(BaseWrapperDataset):
 
             if self.mask_whole_words is not None:
                 word_begins_mask = self.mask_whole_words.gather(0, item)
-                word_begins_idx = word_begins_mask.nonzero(as_tuple=False).view(-1)
+                word_begins_idx = word_begins_mask.nonzero().view(-1)
                 sz = len(word_begins_idx)
                 words = np.split(word_begins_mask, word_begins_idx)[1:]
                 assert len(words) == sz
