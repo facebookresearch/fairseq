@@ -325,7 +325,7 @@ class LevenshteinTransformerModel(TransformerModel):
                 return encoder_out
             else:
                 return self.encoder.reorder_encoder_out(
-                    encoder_out, mask.nonzero(as_tuple=False).squeeze()
+                    encoder_out, mask.nonzero().squeeze()
                 )
 
         @torch.jit.script
