@@ -31,6 +31,8 @@ def setup_registry(registry_name: str, base_class=None, default=None, required=F
             choice = cfg._name
         elif isinstance(cfg, str):
             choice = cfg
+            if choice in DATACLASS_REGISTRY:
+                cfg = DATACLASS_REGISTRY[choice]()
         else:
             choice = getattr(cfg, registry_name, None)
             if choice in DATACLASS_REGISTRY:

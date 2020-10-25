@@ -18,10 +18,6 @@ class BaseScorer(ABC):
         self.ref = []
         self.pred = []
 
-    @staticmethod
-    def add_args(parser):
-        pass
-
     def add_string(self, ref, pred):
         self.ref.append(ref)
         self.pred.append(pred)
