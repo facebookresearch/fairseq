@@ -269,6 +269,7 @@ def main(args, task=None, model_state=None):
     # Load ensemble
     if args.load_emissions:
         models, criterions = [], []
+        task = tasks.setup_task(args)
     else:
         logger.info("| loading model(s) from {}".format(args.path))
         models, criterions, task = load_models_and_criterions(
@@ -282,6 +283,7 @@ def main(args, task=None, model_state=None):
 
     # Load dataset splits
     task.load_dataset(args.gen_subset)
+
     # Set dictionary
     tgt_dict = task.target_dictionary
 
