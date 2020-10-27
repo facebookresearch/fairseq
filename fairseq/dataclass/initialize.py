@@ -30,8 +30,8 @@ def register_module_dataclass(
         cs.store(name=k, group=group, node=node_, provider="fairseq")
 
 
-def register_hydra_cfg(cs: ConfigStore, name: str = "default") -> None:
-    """cs: config store instance, register common training configs"""
+def hydra_init() -> None:
+    cs = ConfigStore.instance()
 
     for k in FairseqConfig.__dataclass_fields__:
         v = FairseqConfig.__dataclass_fields__[k].default
