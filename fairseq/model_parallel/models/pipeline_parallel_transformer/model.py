@@ -111,9 +111,9 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                     decoder_module_list.append(module)
                 module_count += 1
         self.model = None
-        self.encoder = TransformerEncoder(cfg.model, None, None, encoder_module_list)
+        self.encoder = TransformerEncoder(cfg.distributed_training, None, None, encoder_module_list)
         self.decoder = TransformerDecoder(
-            cfg.model, None, None, decoder_module_list=decoder_module_list
+            cfg.distributed_training, None, None, decoder_module_list=decoder_module_list
         )
 
     @staticmethod
@@ -320,7 +320,7 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
         """Maximum length supported by the decoder."""
         return self.decoder_max_positions
 
-    def load_state_dict(self, state_dict, strict=True, cfg=None):
+    def load_state_dict(self, state_dict, strict=True, model_cfg=None):
         """Copies parameters and buffers from *state_dict* into this module and
         its descendants.
 
@@ -429,17 +429,16 @@ class TransformerEncoder(FairseqEncoder):
             from fairscale.nn import Pipe
         except ImportError:
             raise ImportError("Please install fairscale with: pip install fairscale")
-        if encoder_module_list is None:
-            embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
-            layers = [TransformerEncoderLayer(args) for i in range(args.encoder_layers)]
+        self.use_pipeline = encoder_module_list is not None
+        if not self.use_pipeline:
+            self.embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
+            self.encoder_layers = nn.Sequential(*[TransformerEncoderLayer(args) for i in range(args.encoder_layers)])
             if isinstance(embed_tokens, nn.ModuleList):
                 emb_dim = sum(e.embedding_dim for e in embed_tokens)
             else:
                 emb_dim = embed_tokens.embedding_dim
-            final_layer_norm = TransformerEncoderLayerNorm(args, emb_dim)
-            encoder_module_list = [embedding_layer] + layers + [final_layer_norm]
-        self.use_pipeline = getattr(args, "pipeline_encoder_balance", None) is not None
-        if self.use_pipeline:
+            self.final_layer_norm = TransformerEncoderLayerNorm(args, emb_dim)
+        else:
             encoder_balance = utils.eval_str_list(
                 args.pipeline_encoder_balance, type=int
             )
@@ -457,10 +456,6 @@ class TransformerEncoder(FairseqEncoder):
                 chunks=args.pipeline_chunks,
                 checkpoint=args.pipeline_checkpoint,
             )
-        else:
-            self.embedding_layer = encoder_module_list[0]
-            self.encoder_layers = nn.Sequential(*encoder_module_list[1:-1])
-            self.final_layer_norm = encoder_module_list[-1]
 
     def forward(self, src_tokens, src_lengths):
         """
@@ -570,18 +565,17 @@ class TransformerDecoder(FairseqDecoder):
             from fairscale.nn import Pipe
         except ImportError:
             raise ImportError("Please install fairscale with: pip install fairscale")
-        if decoder_module_list is None:
-            embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
-            layers = [
+        self.use_pipeline = decoder_module_list is not None
+        if not self.use_pipeline:
+            self.embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
+            self.decoder_layers = nn.Sequential(*[
                 TransformerDecoderLayer(args, no_encoder_attn)
                 for _ in range(args.decoder_layers)
-            ]
-            decoder_output_layer = TransformerDecoderOutputLayer(
+            ])
+            self.decoder_output_layer = TransformerDecoderOutputLayer(
                 args, embed_tokens, dictionary
             )
-            decoder_module_list = [embedding_layer] + layers + [decoder_output_layer]
-        self.use_pipeline = getattr(args, "pipeline_decoder_balance", None) is not None
-        if self.use_pipeline:
+        else:
             decoder_balance = utils.eval_str_list(
                 args.pipeline_decoder_balance, type=int
             )
@@ -599,10 +593,6 @@ class TransformerDecoder(FairseqDecoder):
                 chunks=args.pipeline_chunks,
                 checkpoint=args.pipeline_checkpoint,
             )
-        else:
-            self.embedding_layer = decoder_module_list[0]
-            self.decoder_layers = nn.Sequential(*decoder_module_list[1:-1])
-            self.decoder_output_layer = decoder_module_list[-1]
 
     def forward(
         self,

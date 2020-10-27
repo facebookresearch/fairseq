@@ -116,11 +116,25 @@ If you use any of the resources listed here, please cite:
 
 ## Trained Models
 
-Looking for other trained models? Check back soon. 
+More models coming up soon.
 
-Model | Description | Download
----|---|---
-`12b_last_checkpoint` | 12B parameter model trained on many-to-many training data for 100 languages | [12b_last_checkpoint](https://dl.fbaipublicfiles.com/m2m_100/12b_last_checkpoint.pt)
+### 12B Model
+12B parameter model trained on many-to-many training data for 100 languages. We include the last checkpoint, average of last 5 checkpoints, average of last 10 checkpoints. There isn't a universally best choice out of these three, but all three versions are pretty close in accuracy. You can either sweep over the 3 checkpoints on a dev test and use the best performing checkpoint for final testing. Or the last checkpoint can be a good default choice.
+
+**Model Download Links**
+Configuration | 2 32GB GPUs | 4 16GB GPUs | 6 12GB GPUs | 8 8GB GPUs
+:--|:--|:--|:--|:--
+Last Checkpoint | [12b_last_chk_2_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_last_chk_2_gpus.pt) | [12b_last_chk_4_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_last_chk_4_gpus.pt) | [12b_last_chk_6_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_last_chk_6_gpus.pt) | [12b_last_chk_8_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_last_chk_8_gpus.pt)
+Average of last 5 checkpoints | [12b_avg5_chk_2_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg5_chk_2_gpus.pt) | [12b_avg5_chk_4_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg5_chk_4_gpus.pt) | [12b_avg5_chk_6_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg5_chk_6_gpus.pt) | [12b_avg5_chk_8_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg5_chk_8_gpus.pt)
+Average of last 10 checkpoints |  [12b_avg10_chk_2_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg10_chk_2_gpus.pt) | [12b_avg10_chk_4_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg10_chk_4_gpus.pt) | [12b_avg10_chk_6_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg10_chk_6_gpus.pt) | [12b_avg10_chk_8_gpus.pt](https://dl.fbaipublicfiles.com/m2m_100/12b_avg10_chk_8_gpus.pt)
+
+**Generation Arguments**
+Configuration | 2 32GB GPUs | 4 16GB GPUs | 6 12GB GPUs | 8 8GB GPUs
+:--|:--|:--|:--|:--
+`--pipeline-encoder-balance` | `[26]` | `[1,15,10]` | `[1,9,9,7]` | `[1,6,6,6,7]`
+`--pipeline-encoder-devices` | `[0]` | `[0,1,0]` | `[0,1,2,0]` | `[0,4,5,1,0]`
+`--pipeline-decoder-balance` | `[3,22,1]` | `[3,11,11,1]` | `[3,7,7,8,1]` | `[1,6,6,6,6,1]`
+`--pipeline-decoder-devices` | `[0,1,0]` | `[0,2,3,0]` | `[0,3,4,5,0]` |  `[0,2,6,7,3,0]`
 
 
 ## SentencePiece Model
@@ -162,16 +176,19 @@ fairseq-preprocess \
     --srcdict data_dict.128k.txt --tgtdict data_dict.128k.txt
 ```
 
-### Generation on a V100 GPU
+### Generation for the 12B model
+
+Note that generation can currently be run using 2 32GB / 4 16GB / 6 12GB / 8 8GB GPUs, and the corresponding model checkpoints and pipeline arguments can be found in the [12B Model Section](#12b-model).
+Generation on CPUs will be added in the future.
 
 ```bash
 wget https://dl.fbaipublicfiles.com/m2m_100/model_dict.128k.txt
 wget https://dl.fbaipublicfiles.com/m2m_100/language_pairs.txt
-wget https://dl.fbaipublicfiles.com/m2m_100/12b_last_checkpoint.pt
+wget https://dl.fbaipublicfiles.com/m2m_100/12b_last_chk_4_gpus.pt
 fairseq-generate \
     data_bin \
     --batch-size 1 \
-    --path 12b_last_checkpoint.pt \
+    --path 12b_last_chk_4_gpus.pt \
     --fixed-dictionary model_dict.128k.txt \
     -s de -t fr \
     --remove-bpe 'sentencepiece' \
@@ -185,10 +202,10 @@ fairseq-generate \
     --distributed-world-size 1 --distributed-no-spawn \
     --pipeline-model-parallel \
     --pipeline-chunks 1 \
-    --pipeline-encoder-balance '[26]' \
-    --pipeline-encoder-devices '[0]' \
-    --pipeline-decoder-balance '[1,24,1]' \
-    --pipeline-decoder-devices '[0,1,0]' > gen_out
+    --pipeline-encoder-balance '[1,15,10]' \
+    --pipeline-encoder-devices '[0,1,0]' \
+    --pipeline-decoder-balance '[3,11,11,1]' \
+    --pipeline-decoder-devices '[0,2,3,0]' > gen_out
 ```
 ## Evaluation with M2M-100
 
