@@ -9,7 +9,7 @@ import random
 import numpy as np
 from fairseq import options
 
-from . import rerank, rerank_options
+from examples.noisychannel import rerank, rerank_options
 
 
 def random_search(args):

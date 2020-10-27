@@ -249,11 +249,13 @@ def add_preprocess_args(parser):
     group.add_argument("-t", "--target-lang", default=None, metavar="TARGET",
                        help="target language")
     group.add_argument("--trainpref", metavar="FP", default=None,
-                       help="train file prefix")
+                       help="train file prefix (also used to build dictionaries)")
     group.add_argument("--validpref", metavar="FP", default=None,
-                       help="comma separated, valid file prefixes")
+                       help="comma separated, valid file prefixes "
+                            "(words missing from train set are replaced with <unk>)")
     group.add_argument("--testpref", metavar="FP", default=None,
-                       help="comma separated, test file prefixes")
+                       help="comma separated, test file prefixes "
+                            "(words missing from train set are replaced with <unk>)")
     group.add_argument("--align-suffix", metavar="FP", default=None,
                        help="alignment file suffix")
     group.add_argument("--destdir", metavar="DIR", default="data-bin",

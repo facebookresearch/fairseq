@@ -11,7 +11,7 @@ from fairseq import options
 from fairseq.data import dictionary
 from fairseq.scoring import bleu
 
-from . import (
+from examples.noisychannel import (
     rerank_generate,
     rerank_options,
     rerank_score_bw,
