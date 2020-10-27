@@ -59,7 +59,7 @@ class ScribblelensTask(LegacyFairseqTask):
 
         parser.add_argument(
             "--enable-padding",
-            action="store_true",
+            action="store_true",  
             help="pad shorter samples instead of cropping",
         )
 
@@ -104,10 +104,17 @@ class ScribblelensTask(LegacyFairseqTask):
         )
 
         if self.args.labels:
-            assert False  ## TODO(JCh): we must load labels from scribblelens.
+            #assert False  ## TODO(JCh): we must load labels from scribblelens.
+            # https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/README.md#fine-tune-a-pre-trained-model-with-ctc
+            # fairseq/examples/wav2vec/libri_labels.py
             dict_path = os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
-            self._target_dictionary = Dictionary.load(dict_path)
-            label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")
+            self._target_dictionary = Dictionary.load(dict_path)  
+            # this dictionary ^ seems to be a file with perhaps just words? or only one occurence? or sth? 
+            # seems what it does behind the hood is split the transcribed line into words and encode each word with some id, seems it assigns new ids from 0/1 for every new word it sees
+            # perhaps for letters can just be letter - 'a' or sth
+            # what if stuff will learn classification in a different order? need to add some additional layer or what? well, yeah, there needs to be some to predict letters from representations
+
+            label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")  # generated an example how this looks like
             labels = []
             with open(label_path, "r") as f:
                 for line in f:
