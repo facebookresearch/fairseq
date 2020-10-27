@@ -16,13 +16,10 @@ from argparse import Namespace
 import torch
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import LMContextWindowDataset
-from fairseq.dataclass.initialize import register_hydra_cfg
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
-from hydra.core.config_store import ConfigStore
-from hydra.experimental import initialize
 from omegaconf import DictConfig
 
 
@@ -288,7 +285,4 @@ def cli_main():
 
 
 if __name__ == "__main__":
-    cs = ConfigStore.instance()
-    register_hydra_cfg(cs)
-    initialize(config_path="../config", strict=True)
     cli_main()

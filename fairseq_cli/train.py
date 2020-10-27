@@ -16,7 +16,6 @@ from typing import Dict, Optional, Any, List, Tuple, Callable
 
 import numpy as np
 import torch
-from hydra.core.config_store import ConfigStore
 
 from fairseq import (
     checkpoint_utils,
@@ -31,8 +30,6 @@ from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from omegaconf import DictConfig
-from hydra.experimental import initialize
-from fairseq.dataclass.initialize import register_hydra_cfg
 from fairseq.trainer import Trainer
 
 
@@ -353,7 +350,4 @@ def cli_main(modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] 
 
 
 if __name__ == '__main__':
-    cs = ConfigStore.instance()
-    register_hydra_cfg(cs)
-    initialize(config_path="../config", strict=True)
     cli_main()

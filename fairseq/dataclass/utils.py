@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import ast
+import os
 from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
@@ -272,19 +273,21 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
 
 
 def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
+    """Convert a flat argparse.Namespace to a structured DictConfig."""
 
     # Here we are using field values provided in args to override counterparts inside config object
     overrides, deletes = override_module_args(args)
 
-    cfg_name = "config"
-    cfg_path = f"../../{cfg_name}"
+    # configs will be in fairseq/config after installation
+    config_path = os.path.join("..", "config")
+    if not os.path.exists(config_path):
+        # in case of "--editable" installs we need to go one dir up
+        config_path = os.path.join("..", "..", "config")
 
-    if not GlobalHydra().is_initialized():
-        initialize(config_path=cfg_path)
-
-    composed_cfg = compose(cfg_name, overrides=overrides, strict=False)
-    for k in deletes:
-        composed_cfg[k] = None
+    with initialize(config_path=config_path, strict=True):
+        composed_cfg = compose("config", overrides=overrides, strict=False)
+        for k in deletes:
+            composed_cfg[k] = None
 
     cfg = OmegaConf.create(
         OmegaConf.to_container(composed_cfg, resolve=True, enum_to_str=True)
