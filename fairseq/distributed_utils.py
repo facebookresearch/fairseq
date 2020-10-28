@@ -204,7 +204,7 @@ def distributed_init(cfg: FairseqConfig):
         cfg = convert_namespace_to_omegaconf(cfg)
 
     if not cfg.common.tpu:
-        if torch.distributed.is_initialized():
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
             warnings.warn(
                 "Distributed is already initialized, cannot initialize twice!"
             )
