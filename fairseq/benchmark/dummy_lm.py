@@ -28,6 +28,12 @@ class DummyLMTask(LegacyFairseqTask):
             help="max number of total tokens over all segments "
             "per sample for BERT dataset",
         )
+        parser.add_argument("--add-bos-token", action="store_true", help="unused")
+        parser.add_argument(
+            "--max-target-positions",
+            default=None,
+            help="max number of tokens in the target sequence",
+        )
 
     def __init__(self, args, dictionary):
         super().__init__(args)
