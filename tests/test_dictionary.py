@@ -4,11 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import io
-import tempfile
 import unittest
 
 import torch
 from fairseq.data import Dictionary
+
+from .temp_file import CustomNamedTemporaryFile
 
 
 class TestDictionary(unittest.TestCase):
@@ -67,7 +68,7 @@ class TestDictionary(unittest.TestCase):
         assertMatch(finalized_ids, ref_ids2)
 
         # write to disk and reload
-        with tempfile.NamedTemporaryFile(mode="w") as tmp_dict:
+        with CustomNamedTemporaryFile(mode='w') as tmp_dict:
             d.save(tmp_dict.name)
             d = Dictionary.load(tmp_dict.name)
             reload_ids = get_ids(d)

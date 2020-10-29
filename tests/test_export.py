@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-import tempfile
 import unittest
 
 import torch
@@ -13,6 +12,8 @@ from fairseq.data.dictionary import Dictionary
 from fairseq.models.transformer import TransformerModel
 from fairseq.modules import multihead_attention, sinusoidal_positional_embedding
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
+
+from .temp_file import CustomNamedTemporaryFile
 
 
 DEFAULT_TEST_VOCAB_SIZE = 100
@@ -59,7 +60,7 @@ def get_dummy_task_and_parser():
 
 
 def _test_save_and_load(scripted_module):
-    with tempfile.NamedTemporaryFile() as f:
+    with CustomNamedTemporaryFile() as f:
         scripted_module.save(f.name)
         torch.jit.load(f.name)
 
