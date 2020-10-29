@@ -314,7 +314,7 @@ def batch_by_size(
     max_sentences = max_sentences if max_sentences is not None else -1
     bsz_mult = required_batch_size_multiple
 
-    if not isinstance(indices, np.ndarray):
+    if not isinstance(indices, np.ndarray) or indices.dtype == np.int32:
         indices = np.fromiter(indices, dtype=np.int64, count=-1)
 
     if fixed_shapes is None:
