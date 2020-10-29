@@ -34,7 +34,6 @@ try:
         SmearingMode,
         Trie,
         LexiconDecoder,
-        LexiconFreeDecoder,
     )
 except:
     warnings.warn(
@@ -404,6 +403,7 @@ class W2lFairseqLMDecoder(W2lDecoder):
                 self.unit_lm,
             )
         else:
+            from wav2letter.decoder import LexiconFreeDecoder
             self.decoder = LexiconFreeDecoder(
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )
