@@ -32,6 +32,11 @@ try:
 except ImportError:
     multi_tensor_l2norm_available = False
 
+try:
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    xm = None
+
 
 logger = logging.getLogger(__name__)
 
@@ -535,23 +540,39 @@ def has_parameters(module):
         return False
 
 
-def set_torch_seed(seed):
-    # Set seed based on args.seed and the update number so that we get
-    # reproducible results when resuming from checkpoints
-    assert isinstance(seed, int)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
+def get_rng_state():
+    state = {"torch_rng_state": torch.get_rng_state()}
+    if xm is not None:
+        state["xla_rng_state"] = xm.get_rng_state()
+    if torch.cuda.is_available():
+        state["cuda_rng_state"] = torch.cuda.get_rng_state()
+    return state
 
 
-@contextlib.contextmanager
-def with_torch_seed(seed):
-    assert isinstance(seed, int)
-    rng_state = torch.get_rng_state()
-    cuda_rng_state = torch.cuda.get_rng_state()
-    set_torch_seed(seed)
-    yield
-    torch.set_rng_state(rng_state)
-    torch.cuda.set_rng_state(cuda_rng_state)
+def set_rng_state(state):
+    torch.set_rng_state(state["torch_rng_state"])
+    if xm is not None:
+        xm.set_rng_state(state["xla_rng_state"])
+    if torch.cuda.is_available():
+        torch.cuda.set_rng_state(state["cuda_rng_state"])
+
+
+class set_torch_seed(object):
+    def __init__(self, seed):
+        assert isinstance(seed, int)
+        self.rng_state = get_rng_state()
+
+        torch.manual_seed(seed)
+        if xm is not None:
+            xm.set_rng_state(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        set_rng_state(self.rng_state)
 
 
 def parse_alignment(line):
@@ -618,8 +639,6 @@ def new_arange(x, *size):
 
 
 def get_tpu_device(args):
-    import torch_xla.core.xla_model as xm
-
     return xm.xla_device()
 
 
