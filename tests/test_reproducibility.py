@@ -6,6 +6,7 @@
 import contextlib
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from io import StringIO
@@ -28,17 +29,18 @@ class TestReproducibility(unittest.TestCase):
             for log_record in logs.records[::-1]:
                 if search_string in log_record.msg:
                     return json.loads(log_record.msg)
+            return json.loads("{}")
 
         if extra_flags is None:
             extra_flags = []
 
         with tempfile.TemporaryDirectory(name) as data_dir:
-            with self.assertLogs() as logs:
+            with self.assertLogs('fairseq_cli.preprocess') as logs:
                 test_binaries.create_dummy_data(data_dir)
                 test_binaries.preprocess_translation_data(data_dir)
 
             # train epochs 1 and 2 together
-            with self.assertLogs() as logs:
+            with self.assertLogs('fairseq.logging.progress_bar') as logs:
                 test_binaries.train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",
@@ -58,11 +60,11 @@ class TestReproducibility(unittest.TestCase):
             valid_log = get_last_log_stats_containing_string(logs.records, "valid_loss")
 
             # train epoch 2, resuming from previous checkpoint 1
-            os.rename(
+            shutil.move(
                 os.path.join(data_dir, resume_checkpoint),
                 os.path.join(data_dir, "checkpoint_last.pt"),
             )
-            with self.assertLogs() as logs:
+            with self.assertLogs('fairseq.logging.progress_bar') as logs:
                 test_binaries.train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",
