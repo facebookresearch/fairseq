@@ -6,7 +6,7 @@ This example contains code to train Linformer models as described in our paper
 ## Training a new Linformer RoBERTa model
 
 You can mostly follow the [RoBERTa pretraining README](/examples/roberta/README.pretraining.md),
-updating your training command with `--user-dir examples/linformer/src --arch linformer_roberta_base`.
+updating your training command with `--user-dir examples/linformer/linformer_src --arch linformer_roberta_base`.
 
 ## Citation
 
