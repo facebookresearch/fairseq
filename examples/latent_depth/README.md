@@ -14,7 +14,7 @@ lang_pairs_str="eng-aze,eng-bel,eng-ces,eng-glg,eng-por,eng-rus,eng-slk,eng-tur"
 databin_dir=<path to binarized data>
 
 fairseq-train ${databin_dir} \
-  --user-dir, examples/latent_depth/src \
+  --user-dir examples/latent_depth/latent_depth_src \
   --lang-pairs "${lang_pairs_str}" \
   --arch multilingual_transformer_iwslt_de_en \
   --task multilingual_translation_latent_depth \

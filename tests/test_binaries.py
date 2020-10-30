@@ -320,7 +320,7 @@ class TestTranslation(unittest.TestCase):
                             task="multilingual_translation_latent_depth",
                             extra_flags=[
                                 "--user-dir",
-                                "examples/latent_depth/src",
+                                "examples/latent_depth/latent_depth_src",
                                 "--encoder-layers",
                                 "2",
                                 "--decoder-layers",
@@ -340,7 +340,7 @@ class TestTranslation(unittest.TestCase):
                             run_validation=True,
                             extra_valid_flags=[
                                 "--user-dir",
-                                "examples/latent_depth/src",
+                                "examples/latent_depth/latent_depth_src",
                             ]
                             + enc_ll_flag
                             + dec_ll_flag,
@@ -349,7 +349,7 @@ class TestTranslation(unittest.TestCase):
                             data_dir,
                             extra_flags=[
                                 "--user-dir",
-                                "examples/latent_depth/src",
+                                "examples/latent_depth/latent_depth_src",
                                 "--task",
                                 "multilingual_translation_latent_depth",
                                 "--lang-pairs",
@@ -465,7 +465,7 @@ class TestTranslation(unittest.TestCase):
                     "transformer_pointer_generator",
                     extra_flags=[
                         "--user-dir",
-                        "examples/pointer_generator/src",
+                        "examples/pointer_generator/pointer_generator_src",
                         "--encoder-layers",
                         "2",
                         "--decoder-layers",
@@ -482,11 +482,11 @@ class TestTranslation(unittest.TestCase):
                         "0",
                     ],
                     run_validation=True,
-                    extra_valid_flags=["--user-dir", "examples/pointer_generator/src"],
+                    extra_valid_flags=["--user-dir", "examples/pointer_generator/pointer_generator_src"],
                 )
                 generate_main(
                     data_dir,
-                    extra_flags=["--user-dir", "examples/pointer_generator/src"],
+                    extra_flags=["--user-dir", "examples/pointer_generator/pointer_generator_src"],
                 )
 
     def test_lightconv(self):
@@ -700,7 +700,7 @@ class TestTranslation(unittest.TestCase):
                         "--task",
                         "translation_moe",
                         "--user-dir",
-                        "examples/translation_moe/src",
+                        "examples/translation_moe/translation_moe_src",
                         "--method",
                         "hMoElp",
                         "--mean-pool-gating-network",
@@ -722,7 +722,7 @@ class TestTranslation(unittest.TestCase):
                         "--task",
                         "translation_moe",
                         "--user-dir",
-                        "examples/translation_moe/src",
+                        "examples/translation_moe/translation_moe_src",
                         "--method",
                         "hMoElp",
                         "--mean-pool-gating-network",
@@ -1058,7 +1058,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
                     "linformer_roberta_base",
                     extra_flags=[
                         "--user-dir",
-                        "examples/linformer/src",
+                        "examples/linformer/linformer_src",
                         "--encoder-layers",
                         "2",
                     ],
@@ -1075,7 +1075,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
                     data_dir,
                     "linformer_roberta_base",
                     num_classes=num_classes,
-                    extra_flags=["--user-dir", "examples/linformer/src"],
+                    extra_flags=["--user-dir", "examples/linformer/linformer_src"],
                 )
 
     def test_linformer_roberta_regression_single(self):
@@ -1095,7 +1095,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
                     extra_flags=[
                         "--regression-target",
                         "--user-dir",
-                        "examples/linformer/src",
+                        "examples/linformer/linformer_src",
                     ],
                 )
 
@@ -1116,7 +1116,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
                     extra_flags=[
                         "--regression-target",
                         "--user-dir",
-                        "examples/linformer/src",
+                        "examples/linformer/linformer_src",
                     ],
                 )
 
@@ -1198,7 +1198,7 @@ class TestMaskedLanguageModel(unittest.TestCase):
                     num_classes=num_classes,
                     extra_flags=[
                         "--user-dir",
-                        "examples/rxf/src",
+                        "examples/rxf/rxf_src",
                         "--criterion",
                         "sentence_prediction_r3f",
                         "--spectral-norm-classification-head",
