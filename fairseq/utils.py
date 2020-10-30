@@ -450,18 +450,21 @@ def import_user_module(args):
                 else:
                     raise FileNotFoundError(module_path)
 
-        # We want to import the module under a unique name so that it doesn't
-        # collide with existing modules. At the same time we don't want to
-        # import the module multiple times. The solution is to create a
-        # temporary directory and symlink the user_dir under a new name, which is
-        # a deterministic hash of the original module_path.
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            unique_mod_name = "fairseq_user_dir_{}".format(hash(module_path) % 100000)
-            os.symlink(module_path, os.path.join(tmpdirname, unique_mod_name))
+        # ensure that user modules are only imported once
+        import_user_module.memo = getattr(import_user_module, "memo", set())
+        if module_path not in import_user_module.memo:
+            import_user_module.memo.add(module_path)
 
-            sys.path.insert(0, tmpdirname)
-            importlib.import_module(unique_mod_name)
-            sys.path.remove(tmpdirname)
+            module_parent, module_name = os.path.split(module_path)
+            if module_name not in sys.modules:
+                sys.path.insert(0, module_parent)
+                importlib.import_module(module_name)
+            else:
+                raise ImportError(
+                    "Failed to import --user-dir={} because the corresponding module name "
+                    "({}) is not globally unique. Please rename the directory to "
+                    "something unique and try again.".format(module_path, module_name)
+                )
 
 
 def softmax(x, dim: int, onnx_trace: bool = False):
