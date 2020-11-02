@@ -62,6 +62,41 @@ class AudioPretrainingTask(LegacyFairseqTask):
         )
 
         parser.add_argument(
+            "--train-noise-dir",
+            default=None,
+            type=str,
+            help="noise dir to mix noise wav into train dataset",
+        )
+
+        parser.add_argument(
+            "--valid-noise-dir",
+            default=None,
+            type=str,
+            help="noise dir to mix noise wav into dev dataset",
+        )
+
+        parser.add_argument(
+            "--test-noise-dir",
+            default=None,
+            type=str,
+            help="noise dir to mix noise wav into test dataset",
+        )
+
+        parser.add_argument(
+            "--noise-min-snr-db",
+            default=3,
+            type=float,
+            help="noise min snr db",
+        )
+
+        parser.add_argument(
+            "--noise-max-snr-db",
+            default=40,
+            type=float,
+            help="noise max snr db",
+        )
+
+        parser.add_argument(
             "--labels",
             type=str,
             default=None,
@@ -97,6 +132,10 @@ class AudioPretrainingTask(LegacyFairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
         manifest = os.path.join(self.args.data, "{}.tsv".format(split))
+
+        noise_dir = kwargs.get('noise_dir')
+        if noise_dir is None:
+            noise_dir = getattr(self.args, '{}_noise_dir'.format(split))
         self.datasets[split] = FileAudioDataset(
             manifest,
             sample_rate=self.args.sample_rate,
@@ -105,6 +144,9 @@ class AudioPretrainingTask(LegacyFairseqTask):
             min_length=self.args.min_sample_size,
             pad=self.args.labels is not None or self.args.enable_padding,
             normalize=self.args.normalize,
+            noise_dir=noise_dir,
+            noise_min_snr_db=self.args.noise_min_snr_db,
+            noise_max_snr_db=self.args.noise_max_snr_db,
         )
 
         if self.args.labels:

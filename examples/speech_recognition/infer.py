@@ -278,10 +278,13 @@ def main(args, task=None, model_state=None):
             task=task,
             model_state=model_state,
         )
+        task.args.test_noise_dir = args.test_noise_dir
+        task.args.noise_min_snr_db = args.noise_min_snr_db
+        task.args.noise_max_snr_db = args.noise_max_snr_db
         optimize_models(args, use_cuda, models)
 
     # Load dataset splits
-    task.load_dataset(args.gen_subset)
+    task.load_dataset(args.gen_subset, noise_dir=args.test_noise_dir)
     # Set dictionary
     tgt_dict = task.target_dictionary
 

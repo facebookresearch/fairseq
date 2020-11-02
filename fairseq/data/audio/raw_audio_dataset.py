@@ -16,6 +16,7 @@ from .. import FairseqDataset
 
 
 logger = logging.getLogger(__name__)
+DBFS_COEF = 10.0 / torch.log10(torch.scalar_tensor(10.0))
 
 
 class RawAudioDataset(FairseqDataset):
@@ -28,6 +29,9 @@ class RawAudioDataset(FairseqDataset):
         min_length=0,
         pad=False,
         normalize=False,
+        noise_dir=None,
+        noise_min_snr_db=3,
+        noise_max_snr_db=40,
     ):
         super().__init__()
 
@@ -42,11 +46,51 @@ class RawAudioDataset(FairseqDataset):
         self.shuffle = shuffle
         self.normalize = normalize
 
+        if noise_dir:
+            assert os.path.exists(noise_dir)
+        self.noise_dir = os.path.abspath(noise_dir) if noise_dir else None
+        assert noise_min_snr_db != noise_max_snr_db
+        assert noise_min_snr_db > 0
+        if noise_min_snr_db > noise_max_snr_db:
+            noise_min_snr_db, noise_max_snr_db = noise_max_snr_db, noise_min_snr_db
+        self.noise_min_snr_db = noise_min_snr_db
+        self.noise_max_snr_db = noise_max_snr_db
+        self.noise_snr_range = noise_max_snr_db - noise_min_snr_db
+
+        def gen():
+            print("noise mixer config")
+            print("noise_dir", self.noise_dir)
+            print("noise_min_snr_db", self.noise_min_snr_db)
+            print("noise_max_snr_db", self.noise_max_snr_db)
+
+            import soundfile as sf
+            paths = []
+            for dirpath, dirnames, filenames in os.walk(self.noise_dir):
+                for filename in filenames:
+                    path = os.path.join(dirpath, filename)
+                    paths.append(path)
+
+            while True:
+                np.random.shuffle(paths)
+                for path in paths:
+                    try:
+                        wav, curr_sample_rate = sf.read(path)
+                        assert curr_sample_rate == self.sample_rate
+                        yield torch.from_numpy(wav).float()
+                    except Exception as err:
+                        print(err)
+                        continue
+
+        self.noise_generator = gen() if self.noise_dir else None
+
     def __getitem__(self, index):
         raise NotImplementedError()
 
     def __len__(self):
         return len(self.sizes)
+
+    def wav_to_dbfs(self, feats: torch.Tensor) -> torch.Tensor:
+        return DBFS_COEF * torch.log10(torch.dot(feats, feats) / len(feats) + 1e-8)
 
     def postprocess(self, feats, curr_sample_rate):
         if feats.dim() == 2:
@@ -56,6 +100,27 @@ class RawAudioDataset(FairseqDataset):
             raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
 
         assert feats.dim() == 1, feats.dim()
+
+        if self.noise_generator:
+            
+            noise: torch.Tensor = next(self.noise_generator)
+            
+            noise = noise.repeat(np.math.ceil(len(feats) / len(noise)))
+            delta_len = len(noise) - len(feats)
+
+            start = np.random.randint(delta_len) if delta_len > 0 else 0
+            end = start + len(feats)
+
+            seg_noise = noise[start:end]
+
+            feats_dbfs = self.wav_to_dbfs(feats)
+            seg_dbfs = self.wav_to_dbfs(seg_noise)
+            current_snr_db = feats_dbfs - seg_dbfs
+            target_snr_db = torch.rand(1) * self.noise_snr_range + self.noise_min_snr_db
+            gain_db = current_snr_db - target_snr_db
+            gain_ratio = torch.pow(10, gain_db / 20)
+
+            feats += seg_noise * gain_ratio
 
         if self.normalize:
             with torch.no_grad():
@@ -141,6 +206,9 @@ class FileAudioDataset(RawAudioDataset):
         min_length=0,
         pad=False,
         normalize=False,
+        noise_dir=None,
+        noise_min_snr_db=3,
+        noise_max_snr_db=40,
     ):
         super().__init__(
             sample_rate=sample_rate,
@@ -150,6 +218,9 @@ class FileAudioDataset(RawAudioDataset):
             min_length=min_length,
             pad=pad,
             normalize=normalize,
+            noise_dir=noise_dir,
+            noise_min_snr_db=noise_min_snr_db,
+            noise_max_snr_db=noise_max_snr_db,
         )
 
         self.fnames = []
