@@ -135,7 +135,7 @@ class AudioPretrainingTask(LegacyFairseqTask):
 
         noise_dir = kwargs.get('noise_dir')
         if noise_dir is None:
-            noise_dir = getattr(self.args, '{}_noise_dir'.format(split))
+            noise_dir = getattr(self.args, '{}_noise_dir'.format(split), None)
         self.datasets[split] = FileAudioDataset(
             manifest,
             sample_rate=self.args.sample_rate,

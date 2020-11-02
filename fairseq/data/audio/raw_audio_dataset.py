@@ -11,6 +11,11 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+try:
+    import soundfile as sf
+except ImportError as err:
+    print(err)
+    print('try: pip install soundfile')
 
 from .. import FairseqDataset
 
@@ -57,31 +62,27 @@ class RawAudioDataset(FairseqDataset):
         self.noise_max_snr_db = noise_max_snr_db
         self.noise_snr_range = noise_max_snr_db - noise_min_snr_db
 
-        def gen():
-            print("noise mixer config")
-            print("noise_dir", self.noise_dir)
-            print("noise_min_snr_db", self.noise_min_snr_db)
-            print("noise_max_snr_db", self.noise_max_snr_db)
+        self.noise_files = []
+        self.noise_files_len = 0
 
-            import soundfile as sf
-            paths = []
+        if self.noise_dir:
             for dirpath, dirnames, filenames in os.walk(self.noise_dir):
                 for filename in filenames:
                     path = os.path.join(dirpath, filename)
-                    paths.append(path)
+                    self.noise_files.append(path)
+            self.noise_files_len = len(self.noise_files)
 
-            while True:
-                np.random.shuffle(paths)
-                for path in paths:
-                    try:
-                        wav, curr_sample_rate = sf.read(path)
-                        assert curr_sample_rate == self.sample_rate
-                        yield torch.from_numpy(wav).float()
-                    except Exception as err:
-                        print(err)
-                        continue
+        # self.noise_generator = gen() if self.noise_dir else None
 
-        self.noise_generator = gen() if self.noise_dir else None
+    def sample_noise(self) -> torch.Tensor:
+        try:
+            path = self.noise_files[np.random.randint(self.noise_files_len)]
+            wav, curr_sample_rate = sf.read(path)
+            assert curr_sample_rate == self.sample_rate
+            return torch.from_numpy(wav).float()
+        except Exception as err:
+            print(err)
+            return self.sample_noise()
 
     def __getitem__(self, index):
         raise NotImplementedError()
@@ -101,9 +102,8 @@ class RawAudioDataset(FairseqDataset):
 
         assert feats.dim() == 1, feats.dim()
 
-        if self.noise_generator:
-            
-            noise: torch.Tensor = next(self.noise_generator)
+        if self.noise_files_len:            
+            noise: torch.Tensor = self.sample_noise()
             
             noise = noise.repeat(np.math.ceil(len(feats) / len(noise)))
             delta_len = len(noise) - len(feats)
@@ -240,8 +240,6 @@ class FileAudioDataset(RawAudioDataset):
         logger.info(f"loaded {len(self.fnames)}, skipped {skipped} samples")
 
     def __getitem__(self, index):
-        import soundfile as sf
-
         fname = os.path.join(self.root_dir, self.fnames[index])
         wav, curr_sample_rate = sf.read(fname)
         feats = torch.from_numpy(wav).float()
