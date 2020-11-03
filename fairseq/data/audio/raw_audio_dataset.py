@@ -104,6 +104,9 @@ class RawAudioDataset(FairseqDataset):
 
         if self.noise_files_len:            
             noise: torch.Tensor = self.sample_noise()
+
+            # peak protection
+            max_gain_ratio = 1.0 / torch.max(noise)
             
             noise = noise.repeat(np.math.ceil(len(feats) / len(noise)))
             delta_len = len(noise) - len(feats)
@@ -120,7 +123,7 @@ class RawAudioDataset(FairseqDataset):
             gain_db = current_snr_db - target_snr_db
             gain_ratio = torch.pow(10, gain_db / 20)
 
-            feats += seg_noise * gain_ratio
+            feats += seg_noise * min(gain_ratio, max_gain_ratio)
 
         if self.normalize:
             with torch.no_grad():
