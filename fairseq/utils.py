@@ -32,6 +32,11 @@ try:
 except ImportError:
     multi_tensor_l2norm_available = False
 
+try:
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    xm = None
+
 
 logger = logging.getLogger(__name__)
 
@@ -445,18 +450,21 @@ def import_user_module(args):
                 else:
                     raise FileNotFoundError(module_path)
 
-        # We want to import the module under a unique name so that it doesn't
-        # collide with existing modules. At the same time we don't want to
-        # import the module multiple times. The solution is to create a
-        # temporary directory and symlink the user_dir under a new name, which is
-        # a deterministic hash of the original module_path.
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            unique_mod_name = "fairseq_user_dir_{}".format(hash(module_path) % 100000)
-            os.symlink(module_path, os.path.join(tmpdirname, unique_mod_name))
+        # ensure that user modules are only imported once
+        import_user_module.memo = getattr(import_user_module, "memo", set())
+        if module_path not in import_user_module.memo:
+            import_user_module.memo.add(module_path)
 
-            sys.path.insert(0, tmpdirname)
-            importlib.import_module(unique_mod_name)
-            sys.path.remove(tmpdirname)
+            module_parent, module_name = os.path.split(module_path)
+            if module_name not in sys.modules:
+                sys.path.insert(0, module_parent)
+                importlib.import_module(module_name)
+            else:
+                raise ImportError(
+                    "Failed to import --user-dir={} because the corresponding module name "
+                    "({}) is not globally unique. Please rename the directory to "
+                    "something unique and try again.".format(module_path, module_name)
+                )
 
 
 def softmax(x, dim: int, onnx_trace: bool = False):
@@ -535,23 +543,39 @@ def has_parameters(module):
         return False
 
 
-def set_torch_seed(seed):
-    # Set seed based on args.seed and the update number so that we get
-    # reproducible results when resuming from checkpoints
-    assert isinstance(seed, int)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
+def get_rng_state():
+    state = {"torch_rng_state": torch.get_rng_state()}
+    if xm is not None:
+        state["xla_rng_state"] = xm.get_rng_state()
+    if torch.cuda.is_available():
+        state["cuda_rng_state"] = torch.cuda.get_rng_state()
+    return state
 
 
-@contextlib.contextmanager
-def with_torch_seed(seed):
-    assert isinstance(seed, int)
-    rng_state = torch.get_rng_state()
-    cuda_rng_state = torch.cuda.get_rng_state()
-    set_torch_seed(seed)
-    yield
-    torch.set_rng_state(rng_state)
-    torch.cuda.set_rng_state(cuda_rng_state)
+def set_rng_state(state):
+    torch.set_rng_state(state["torch_rng_state"])
+    if xm is not None:
+        xm.set_rng_state(state["xla_rng_state"])
+    if torch.cuda.is_available():
+        torch.cuda.set_rng_state(state["cuda_rng_state"])
+
+
+class set_torch_seed(object):
+    def __init__(self, seed):
+        assert isinstance(seed, int)
+        self.rng_state = get_rng_state()
+
+        torch.manual_seed(seed)
+        if xm is not None:
+            xm.set_rng_state(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        set_rng_state(self.rng_state)
 
 
 def parse_alignment(line):
@@ -618,8 +642,6 @@ def new_arange(x, *size):
 
 
 def get_tpu_device(args):
-    import torch_xla.core.xla_model as xm
-
     return xm.xla_device()
 
 

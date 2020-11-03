@@ -328,7 +328,7 @@ class Wav2VecEncoder(FairseqEncoder):
             state = checkpoint_utils.load_checkpoint_to_cpu(
                 args.w2v_path, arg_overrides
             )
-            w2v_args = state["args"]
+            w2v_args = state.get("args", None) or state["cfg"].model
         else:
             state = None
             w2v_args = args.w2v_args

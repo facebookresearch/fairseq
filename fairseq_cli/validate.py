@@ -133,7 +133,7 @@ def cli_main():
     override_parser = options.get_validation_parser()
     override_args = options.parse_args_and_arch(override_parser, suppress_defaults=True)
 
-    distributed_utils.call_main(args, main, override_args=override_args)
+    distributed_utils.call_main(convert_namespace_to_omegaconf(args), main, override_args=override_args)
 
 
 if __name__ == "__main__":

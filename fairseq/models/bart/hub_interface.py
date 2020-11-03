@@ -165,27 +165,27 @@ class BARTHubInterface(GeneratorHubInterface):
 
     def fill_mask(
         self,
-        masked_input: str,
+        masked_inputs: List[str],
         topk: int = 5,
         match_source_len: bool = True,
         **generate_kwargs
     ):
         masked_token = '<mask>'
-        assert masked_token in masked_input, \
-            "please add one {} token for the input".format(masked_token)
+        batch_tokens = []
+        for masked_input in masked_inputs:
+            assert masked_token in masked_input, \
+                "please add one {} token for the input".format(masked_token)
 
-        text_spans = masked_input.split(masked_token)
-        text_spans_bpe = (' {0} '.format(masked_token)).join(
-            [self.bpe.encode(text_span.rstrip()) for text_span in text_spans]
-        ).strip()
-        tokens = self.task.source_dictionary.encode_line(
-            '<s> ' + text_spans_bpe + ' </s>',
-            append_eos=False,
-            add_if_not_exist=False,
-        ).long()
-
-        if tokens.dim() == 1:
-            tokens = tokens.unsqueeze(0)
+            text_spans = masked_input.split(masked_token)
+            text_spans_bpe = (' {0} '.format(masked_token)).join(
+                [self.bpe.encode(text_span.rstrip()) for text_span in text_spans]
+            ).strip()
+            tokens = self.task.source_dictionary.encode_line(
+                '<s> ' + text_spans_bpe + ' </s>',
+                append_eos=False,
+                add_if_not_exist=False,
+            ).long()
+            batch_tokens.append(tokens)
 
         # ensure beam size is at least as big as topk
         generate_kwargs['beam'] = max(
@@ -193,9 +193,9 @@ class BARTHubInterface(GeneratorHubInterface):
             generate_kwargs.get('beam', -1),
         )
         generate_kwargs['match_source_len'] = match_source_len
-        hypos = self.generate(tokens, **generate_kwargs)[0]
+        batch_hypos = self.generate(batch_tokens, **generate_kwargs)
 
         return [
-            (self.decode(hypo['tokens']), hypo['score'])
-            for hypo in hypos[:topk]
+            [(self.decode(hypo['tokens']), hypo['score']) for hypo in hypos[:topk]]
+            for hypos in batch_hypos
         ]

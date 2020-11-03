@@ -100,7 +100,7 @@ bart.predict('mnli', tokens).argmax()  # 2: entailment
 ##### Register a new (randomly initialized) classification head:
 ```python
 bart.register_classification_head('new_task', num_classes=3)
-logprobs = bart.predict('new_task', tokens)  
+logprobs = bart.predict('new_task', tokens)
 ```
 
 ##### Batched prediction:
@@ -137,15 +137,23 @@ BART can be used to fill multiple `<mask>` tokens in the input.
 ```python
 bart = torch.hub.load('pytorch/fairseq', 'bart.base')
 bart.eval()
-bart.fill_mask('The cat <mask> on the <mask>.', topk=3, beam=10)
-# [('The cat was on the ground.', tensor(-0.6183)), ('The cat was on the floor.', tensor(-0.6798)), ('The cat sleeps on the couch.', tensor(-0.6830))]
+bart.fill_mask(['The cat <mask> on the <mask>.'], topk=3, beam=10)
+# [[('The cat was on the ground.', tensor(-0.6183)), ('The cat was on the floor.', tensor(-0.6798)), ('The cat sleeps on the couch.', tensor(-0.6830))]]
 ```
 
 Note that by default we enforce the output length to match the input length.
 This can be disabled by setting ``match_source_len=False``:
 ```
-bart.fill_mask('The cat <mask> on the <mask>.', topk=3, beam=10, match_source_len=False)
-# [('The cat was on the ground.', tensor(-0.6185)), ('The cat was asleep on the couch.', tensor(-0.6276)), ('The cat was on the floor.', tensor(-0.6800))]
+bart.fill_mask(['The cat <mask> on the <mask>.'], topk=3, beam=10, match_source_len=False)
+# [[('The cat was on the ground.', tensor(-0.6185)), ('The cat was asleep on the couch.', tensor(-0.6276)), ('The cat was on the floor.', tensor(-0.6800))]]
+```
+
+Example code to fill masks for a batch of sentences using GPU
+```
+bart.cuda()
+bart.fill_mask(['The cat <mask> on the <mask>.', 'The dog <mask> on the <mask>.'], topk=3, beam=10)
+# [[('The cat was on the ground.', tensor(-0.6183)), ('The cat was on the floor.', tensor(-0.6798)), ('The cat sleeps on the couch.', tensor(-0.6830))], [('The dog was on the ground.', tensor(-0.6190)), ('The dog lay on the ground.', tensor(-0.6711)),
+('The dog was asleep on the couch', tensor(-0.6796))]]
 ```
 
 #### Evaluating the `bart.large.mnli` model:

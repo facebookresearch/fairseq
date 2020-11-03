@@ -96,25 +96,35 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         # models.build_model(). This allows multitask type of sub-class can
         # build models other than the input lang_pairs
         self.model_lang_pairs = self.lang_pairs
+        self.source_langs = [d.split("-")[0] for d in self.lang_pairs]
+        self.target_langs = [d.split("-")[1] for d in self.lang_pairs]
+        self.check_dicts(self.dicts, self.source_langs, self.target_langs)
+
         self.sampling_method = SamplingMethod.build_sampler(args, self)
         self.data_manager = MultilingualDatasetManager.setup_data_manager(
             args, self.lang_pairs, langs, dicts, self.sampling_method
         )
 
     @classmethod
+    def check_dicts(cls, dicts, source_langs, target_langs):
+        src_dict = dicts[source_langs[0]]
+        tgt_dict = dicts[target_langs[0]]
+        for src_lang in source_langs:
+            assert (
+                src_dict == dicts[src_lang]
+            ), "Diffrent dictionary are specified for different source languages; "
+            "TranslationMultiSimpleEpochTask only supports one shared dictionary across all source languages"
+        for tgt_lang in target_langs:
+            assert (
+                tgt_dict == dicts[tgt_lang]
+            ), "Diffrent dictionary are specified for different target languages; "
+            "TranslationMultiSimpleEpochTask only supports one shared dictionary across all target languages"
+
+    @classmethod
     def setup_task(cls, args, **kwargs):
         langs, dicts, training = MultilingualDatasetManager.prepare(
             cls.load_dictionary, args, **kwargs
         )
-        dict0 = None
-        for _, lang_dict in dicts.items():
-            if dict0 is None:
-                dict0 = lang_dict
-            else:
-                assert (
-                    dict0 == lang_dict
-                ), "Diffrent dictionary are specified for different languages; "
-                "TranslationMultiSimpleEpochTask only supports one shared dictionary across all languages"
         return cls(args, langs, dicts, training)
 
     def has_sharded_data(self, split):
@@ -249,11 +259,11 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
 
     @property
     def source_dictionary(self):
-        return next(iter(self.dicts.values()))
+        return self.dicts[self.source_langs[0]]
 
     @property
     def target_dictionary(self):
-        return next(iter(self.dicts.values()))
+        return self.dicts[self.target_langs[0]]
 
     def create_batch_sampler_func(
         self,

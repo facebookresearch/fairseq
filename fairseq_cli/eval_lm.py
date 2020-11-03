@@ -14,7 +14,7 @@ import os
 from argparse import Namespace
 
 import torch
-from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
+from fairseq import checkpoint_utils, distributed_utils, options, utils
 from fairseq.data import LMContextWindowDataset
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
@@ -277,11 +277,7 @@ def cli_main():
     parser = options.get_eval_lm_parser()
     args = options.parse_args_and_arch(parser)
 
-    # only override args that are explicitly given on the command line
-    override_parser = options.get_validation_parser()
-    override_args = options.parse_args_and_arch(override_parser, suppress_defaults=True)
-
-    distributed_utils.call_main(args, main, override_args=override_args)
+    distributed_utils.call_main(convert_namespace_to_omegaconf(args), main)
 
 
 if __name__ == "__main__":

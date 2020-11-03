@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train RTE-bin \
     --find-unused-parameters \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
     --noise-type uniform --r3f-lambda 0.7 \
-    --user-dir examples/rxf;
+    --user-dir examples/rxf/rxf_src
 ```
 
 ## Citation

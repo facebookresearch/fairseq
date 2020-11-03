@@ -40,7 +40,8 @@ class BaseFairseqModel(nn.Module):
         """Add model-specific arguments to the parser."""
         dc = getattr(cls, "__dataclass", None)
         if dc is not None:
-            gen_parser_from_dataclass(parser, dc())
+            # do not set defaults so that settings defaults from various architectures still works
+            gen_parser_from_dataclass(parser, dc(), delete_default=True)
 
     @classmethod
     def build_model(cls, args, task):
