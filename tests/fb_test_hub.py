@@ -302,14 +302,14 @@ class TestBartHub(unittest.TestCase):
             bart.eval()  # disable dropout
 
             # Test mask filling (beam = topk = 3)
-            res = bart.fill_mask("The cat <mask> on the <mask>.", topk=3)
+            res = bart.fill_mask(["The cat <mask> on the <mask>."], topk=3)[0]
             self.assertEqual(len(res), 3)
             self.assertEqual(res[0][0], "The cat was on the ground.")
             self.assertEqual(res[1][0], "The cat was on the floor.")
             self.assertEqual(res[2][0], "The cat was sitting on the couch")
 
             # Test mask filling (beam = 10, topk = 3)
-            res = bart.fill_mask("The cat <mask> on the <mask>.", topk=3, beam=10)
+            res = bart.fill_mask(["The cat <mask> on the <mask>."], topk=3, beam=10)[0]
             self.assertEqual(len(res), 3)
             self.assertEqual(res[0][0], "The cat was on the ground.")
             self.assertEqual(res[1][0], "The cat was on the floor.")
@@ -317,15 +317,28 @@ class TestBartHub(unittest.TestCase):
 
             # Test mask filling (beam = 10, topk = 3, match_source_len = False)
             res = bart.fill_mask(
-                "The cat <mask> on the <mask>.",
+                ["The cat <mask> on the <mask>."],
                 topk=3,
                 beam=10,
                 match_source_len=False,
-            )
+            )[0]
             self.assertEqual(len(res), 3)
             self.assertEqual(res[0][0], "The cat was on the ground.")
             self.assertEqual(res[1][0], "The cat was asleep on the couch.")
             self.assertEqual(res[2][0], "The cat was on the floor.")
+
+            # Test mask filling (beam = 10, topk = 3) and batch size > 1
+            res = bart.fill_mask(["The cat <mask> on the <mask>.", "The dog <mask> on the <mask>."],
+                                 topk=3, beam=10)
+            self.assertEqual(len(res), 2)
+            self.assertEqual(len(res[0]), 3)
+            self.assertEqual(res[0][0][0], "The cat was on the ground.")
+            self.assertEqual(res[0][1][0], "The cat was on the floor.")
+            self.assertEqual(res[0][2][0], "The cat sleeps on the couch.")
+            self.assertEqual(len(res[1]), 3)
+            self.assertEqual(res[1][0][0], "The dog was on the ground.")
+            self.assertEqual(res[1][1][0], "The dog lay on the ground.")
+            self.assertEqual(res[1][2][0], "The dog was asleep on the couch")
 
     @torch.no_grad()
     def test_bart_large(self):
