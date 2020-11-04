@@ -34,6 +34,10 @@ class FairseqLRScheduler(object):
         """Load an LR scheduler state dict."""
         self.best = state_dict["best"]
 
+    def step_begin_epoch(self, epoch):
+        """Update the learning rate at the beginning of the given epoch."""
+        pass
+
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""
         if val_loss is not None:
