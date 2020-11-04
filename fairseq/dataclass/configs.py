@@ -102,6 +102,12 @@ class CommonConfig(FairseqDataclass):
             "of running tensorboard (default: no tensorboard logging)"
         },
     )
+    wandb_project: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Weights and Biases project name to use for logging"
+        },
+    )
     seed: int = field(
         default=1, metadata={"help": "pseudo random number generator seed"}
     )

@@ -33,6 +33,7 @@ def progress_bar(
     prefix: Optional[str] = None,
     tensorboard_logdir: Optional[str] = None,
     default_log_format: str = "tqdm",
+    wandb_project: Optional[str] = None,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -59,6 +60,9 @@ def progress_bar(
             bar = FbTbmfWrapper(bar, log_interval)
         except ImportError:
             bar = TensorboardProgressBarWrapper(bar, tensorboard_logdir)
+
+    if wandb_project:
+        bar = WandBProgressBarWrapper(bar, wandb_project)
 
     return bar
 
@@ -353,3 +357,50 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
             elif isinstance(stats[key], Number):
                 writer.add_scalar(key, stats[key], step)
         writer.flush()
+
+
+try:
+    import wandb
+except ImportError:
+    wandb = None
+
+
+class WandBProgressBarWrapper(BaseProgressBar):
+    """Log to Weights & Biases."""
+
+    def __init__(self, wrapped_bar, wandb_project):
+        self.wrapped_bar = wrapped_bar
+        if wandb is None:
+            logger.warning('wandb not found, pip install wandb')
+            return
+
+        # reinit=False to ensure if wandb.init() is called multiple times
+        # within one process it still references the same run
+        wandb.init(project=wandb_project, reinit=False)
+
+    def __iter__(self):
+        return iter(self.wrapped_bar)
+
+    def log(self, stats, tag=None, step=None):
+        """Log intermediate stats to tensorboard."""
+        self._log_to_wandb(stats, tag, step)
+        self.wrapped_bar.log(stats, tag=tag, step=step)
+
+    def print(self, stats, tag=None, step=None):
+        """Print end-of-epoch stats."""
+        self._log_to_wandb(stats, tag, step)
+        self.wrapped_bar.print(stats, tag=tag, step=step)
+
+    def _log_to_wandb(self, stats, tag=None, step=None):
+        if wandb is None:
+            return
+        if step is None:
+            step = stats['num_updates']
+
+        prefix = '' if tag is None else tag + '/'
+
+        for key in stats.keys() - {'num_updates'}:
+            if isinstance(stats[key], AverageMeter):
+                wandb.log({prefix + key: stats[key].val}, step=step)
+            elif isinstance(stats[key], Number):
+                wandb.log({prefix + key: stats[key]}, step=step)

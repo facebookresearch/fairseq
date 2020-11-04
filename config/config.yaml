@@ -4,6 +4,7 @@ common:
     log_interval: 100
     log_format: null
     tensorboard_logdir: null
+    wandb_project: null
     seed: 1
     cpu: false
     tpu: false
