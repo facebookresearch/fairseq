@@ -429,6 +429,8 @@ class Trainer(object):
         """Called at the beginning of each epoch."""
         logger.info("begin training epoch {}".format(epoch))
 
+        self.lr_step_begin_epoch(epoch)
+
         if self.quantizer is not None:
             self.quantizer.begin_epoch(epoch)
 
@@ -781,6 +783,12 @@ class Trainer(object):
 
     def zero_grad(self):
         self.optimizer.zero_grad()
+
+    def lr_step_begin_epoch(self, epoch):
+        """Adjust the learning rate at the beginning of the epoch."""
+        self.lr_scheduler.step_begin_epoch(epoch)
+        # prefer updating the LR based on the number of steps
+        return self.lr_step_update()
 
     def lr_step(self, epoch, val_loss=None):
         """Adjust the learning rate at the end of the epoch."""

@@ -63,7 +63,7 @@ dataset:
 optimization:
     max_epoch: 0
     max_update: 0
-    clip_norm: 25.0
+    clip_norm: 0.0
     sentence_avg: false
     update_freq: [ 1 ]
     lr: [ 0.25 ]
