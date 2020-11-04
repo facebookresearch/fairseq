@@ -289,12 +289,46 @@ class Trainer(object):
         optimizer_overrides=None,
         reset_meters=False,
     ):
-        """Load all training state from a checkpoint file."""
+        """
+        Load all training state from a checkpoint file.
+        rank = 0 will load the checkpoint, and then broadcast it to all
+        other ranks.
+        """
         extra_state, self._optim_history, last_optim_state = None, [], None
 
         bexists = PathManager.isfile(filename)
         if bexists:
-            state = checkpoint_utils.load_checkpoint_to_cpu(filename)
+            if self.data_parallel_rank == 0:
+                state = checkpoint_utils.load_checkpoint_to_cpu(filename)
+                last_optim_state = state.get("last_optimizer_state", None)
+
+                # If doing zero_sharding, do not broadcast global optimizer
+                # state. Later we will broadcast sharded states to each rank
+                # to avoid memory from exploding.
+                if (
+                    self.cfg.distributed_training.zero_sharding == "os"
+                    and "last_optimizer_state" in state
+                    and self.data_parallel_world_size > 1
+                ):
+                    state["last_optimizer_state"] = "SHARDED"
+            else:
+                last_optim_state = None
+                state = None
+
+            if self.data_parallel_world_size > 1:
+                group = (
+                    self.data_parallel_process_group
+                    if self.data_parallel_process_group is not None
+                    else torch.distributed.group.WORLD
+                )
+                state = distributed_utils.broadcast_object(
+                    state,
+                    src_rank=0,
+                    group=group,
+                )
+                if self.data_parallel_rank > 0:
+                    last_optim_state = state.get("last_optimizer_state", None)
+
             # load model parameters
             try:
                 self.get_model().load_state_dict(
@@ -309,10 +343,8 @@ class Trainer(object):
                     "Cannot load model parameters from checkpoint {}; "
                     "please ensure that the architectures match.".format(filename)
                 )
-
             extra_state = state["extra_state"]
             self._optim_history = state["optimizer_history"]
-            last_optim_state = state.get("last_optimizer_state", None)
 
         if last_optim_state is not None and not reset_optimizer:
             # rebuild optimizer after loading model, since params may have changed
@@ -329,6 +361,11 @@ class Trainer(object):
 
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim["lr_scheduler_state"])
+
+            if self.data_parallel_world_size > 1:
+                last_optim_state = self.optimizer.broadcast_global_state_dict(
+                    last_optim_state
+                )
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
             self.set_num_updates(last_optim["num_updates"])

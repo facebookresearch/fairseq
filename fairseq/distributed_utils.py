@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import io
 import logging
 import os
 import pickle
@@ -13,7 +14,7 @@ import subprocess
 import warnings
 from argparse import Namespace
 from collections import OrderedDict
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 import torch
 import torch.distributed as dist
@@ -455,3 +456,42 @@ def all_reduce_dict(data: Mapping[str, Any], device, group=None) -> Dict[str, An
         raise KeyError
 
     return OrderedDict([(key, get_from_stack(key)) for key in data_keys])
+
+
+# From fairscale/optim/utils.py
+def broadcast_object(
+    obj: Any,
+    src_rank: int,
+    group: object = dist.group.WORLD,
+    dist_device: Optional[torch.device] = None,
+) -> Any:
+    """
+    Either broadcast from master to the fleet (default),
+    or use the src setting as the original rank.
+    """
+    if dist_device is None:
+        if torch.distributed.get_backend(group) == "nccl":
+            dist_device = torch.device("cuda")
+        else:
+            dist_device = torch.device("cpu")
+
+    if dist.get_rank() == src_rank:
+        # Emit data
+        buffer = io.BytesIO()
+        torch.save(obj, buffer)
+        data = bytearray(buffer.getbuffer())
+        length_tensor = torch.LongTensor([len(data)]).to(dist_device)
+        data_send_tensor = torch.ByteTensor(data).to(dist_device)
+        dist.broadcast(length_tensor, src=src_rank, group=group, async_op=False)
+        dist.broadcast(data_send_tensor, src=src_rank, group=group, async_op=False)
+    else:
+        # Fetch from the source
+        length_tensor = torch.LongTensor([0]).to(dist_device)
+        dist.broadcast(length_tensor, src=src_rank, group=group, async_op=False)
+        data_recv_tensor = torch.empty(
+            [int(length_tensor.item())], dtype=torch.uint8, device=dist_device
+        )
+        dist.broadcast(data_recv_tensor, src=src_rank, group=group, async_op=False)
+        buffer = io.BytesIO(data_recv_tensor.cpu().numpy())
+        obj = torch.load(buffer, map_location=dist_device)
+    return obj
