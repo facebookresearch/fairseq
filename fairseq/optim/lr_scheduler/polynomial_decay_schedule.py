@@ -57,9 +57,8 @@ class PolynomialDecaySchedule(LegacyFairseqLRScheduler):
             next_lr = self.optimizer.get_lr()
         return next_lr
 
-    def step(self, epoch, val_loss=None):
-        """Update the learning rate at the end of the given epoch."""
-        super().step(epoch, val_loss)
+    def step_begin_epoch(self, epoch):
+        """Update the learning rate at the beginning of the given epoch."""
         self.lr = self.get_next_lr(epoch)
         self.optimizer.set_lr(self.warmup_factor * self.lr)
         return self.optimizer.get_lr()

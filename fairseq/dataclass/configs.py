@@ -434,7 +434,7 @@ class OptimizationConfig(FairseqDataclass):
         },
     )
     clip_norm: float = field(
-        default=25.0, metadata={"help": "clip threshold of gradients"}
+        default=0.0, metadata={"help": "clip threshold of gradients"}
     )
     sentence_avg: bool = field(
         default=False,

@@ -27,7 +27,7 @@ class FixedSchedule(LegacyFairseqLRScheduler):
         """Add arguments to the parser for this LR scheduler."""
         # fmt: off
         parser.add_argument('--force-anneal', '--fa', type=int, metavar='N',
-                            help='force annealing at specified epoch')
+                            help='force annealing at specified epoch (epochs start at 1)')
         parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
                             help='shrink factor for annealing, lr_new = (lr * lr_shrink)')
         parser.add_argument('--warmup-updates', default=0, type=int, metavar='N',
@@ -45,7 +45,7 @@ class FixedSchedule(LegacyFairseqLRScheduler):
         lrs = self.args.lr
         if self.args.force_anneal is None or epoch < self.args.force_anneal:
             # use fixed LR schedule
-            next_lr = lrs[min(epoch, len(lrs) - 1)]
+            next_lr = lrs[min(epoch - 1, len(lrs) - 1)]
         else:
             # annneal based on lr_shrink
             next_lr = lrs[-1] * self.args.lr_shrink ** (
@@ -53,9 +53,8 @@ class FixedSchedule(LegacyFairseqLRScheduler):
             )
         return next_lr
 
-    def step(self, epoch, val_loss=None):
-        """Update the learning rate at the end of the given epoch."""
-        super().step(epoch, val_loss)
+    def step_begin_epoch(self, epoch):
+        """Update the learning rate at the beginning of the given epoch."""
         self.lr = self.get_next_lr(epoch)
         self.optimizer.set_lr(self.warmup_factor * self.lr)
         return self.optimizer.get_lr()
