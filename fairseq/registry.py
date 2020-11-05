@@ -7,7 +7,7 @@ from argparse import Namespace
 
 from typing import Union
 from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.utils import populate_dataclass
+from fairseq.dataclass.utils import populate_dataclass, merge_with_parent
 from omegaconf import DictConfig
 
 REGISTRIES = {}
@@ -24,11 +24,19 @@ def setup_registry(registry_name: str, base_class=None, default=None, required=F
     # maintain a registry of all registries
     if registry_name in REGISTRIES:
         return  # registry already exists
-    REGISTRIES[registry_name] = {"registry": REGISTRY, "default": default, "dataclass_registry": DATACLASS_REGISTRY}
+    REGISTRIES[registry_name] = {
+        "registry": REGISTRY,
+        "default": default,
+        "dataclass_registry": DATACLASS_REGISTRY,
+    }
 
     def build_x(cfg: Union[DictConfig, str, Namespace], *extra_args, **extra_kwargs):
         if isinstance(cfg, DictConfig):
             choice = cfg._name
+
+            if choice and choice in DATACLASS_REGISTRY:
+                dc = DATACLASS_REGISTRY[choice]
+                cfg = merge_with_parent(dc(), cfg)
         elif isinstance(cfg, str):
             choice = cfg
             if choice in DATACLASS_REGISTRY:
@@ -40,7 +48,7 @@ def setup_registry(registry_name: str, base_class=None, default=None, required=F
 
         if choice is None:
             if required:
-                raise ValueError('{} is required!'.format(registry_name))
+                raise ValueError("{} is required!".format(registry_name))
             return None
 
         cls = REGISTRY[choice]
