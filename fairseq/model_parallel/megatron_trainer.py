@@ -36,22 +36,6 @@ class MegatronTrainer(Trainer):
             )
         super().__init__(cfg, task, model, criterion, **kwargs)
 
-    @property
-    def data_parallel_world_size(self):
-        return get_data_parallel_world_size()
-
-    @property
-    def data_parallel_process_group(self):
-        return distributed_utils.get_data_parallel_group()
-
-    @property
-    def data_parallel_rank(self):
-        return get_data_parallel_rank()
-
-    @property
-    def is_data_parallel_master(self):
-        return get_model_parallel_src_rank() == 0
-
     def clip_grad_norm(self, clip_norm):
         def _aggregate_model_parallel_grad_norm(total_norm):
             total_norm = total_norm ** 2

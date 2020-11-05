@@ -5,7 +5,10 @@
 
 import inspect
 
+import torch
 import torch.nn as nn
+
+from fairseq import distributed_utils
 from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
 
 
@@ -16,7 +19,7 @@ except ImportError:
     _GOSSIP_DISABLED = True
 
 
-def DistributedFairseqModel(args, model, process_group=None):
+def DistributedFairseqModel(args, model, process_group):
     """
     Wrap a *model* to support distributed data parallel training.
 
@@ -28,10 +31,18 @@ def DistributedFairseqModel(args, model, process_group=None):
     Args:
         args (argparse.Namespace): fairseq args
         model (BaseFairseqModel): model to wrap
+        process_group: the c10d process group to be used for distributed data
+            parallel all-reduction.
     """
     # determine which DDP class to extend
     assert isinstance(model, nn.Module)
-    if args.distributed_wrapper == "DDP" and args.ddp_backend == "c10d":
+    if args.tpu:
+        ddp_class = TPUDistributedDataParallel
+        init_kwargs = dict(
+            module=model,
+            process_group=process_group,
+        )
+    elif args.distributed_wrapper == "DDP" and args.ddp_backend == "c10d":
         ddp_class = nn.parallel.DistributedDataParallel
         init_kwargs = dict(
             module=model,
@@ -50,7 +61,6 @@ def DistributedFairseqModel(args, model, process_group=None):
         ddp_class = LegacyDistributedDataParallel
         init_kwargs = dict(
             module=model,
-            world_size=args.distributed_world_size,
             buffer_size=2 ** 28,
             process_group=process_group,
         )
@@ -101,3 +111,37 @@ def DistributedFairseqModel(args, model, process_group=None):
             return super().__getattr__(name)
 
     return _DistributedFairseqModel(**init_kwargs)
+
+
+class TPUDistributedDataParallel(nn.Module):
+
+    def __init__(self, module, process_group):
+        super().__init__()
+        self.module = module
+        self.process_group = process_group
+        self.world_size = distributed_utils.get_world_size(self.process_group)
+
+    def forward(self, *inputs, **kwargs):
+        return self.module(*inputs, **kwargs)
+
+    def all_reduce_grads(self):
+        gradients = []
+        for p in self.parameters():
+            if not p.requires_grad:
+                continue
+            if p.grad is None:
+                p.grad = torch.zeros_like(p)
+            if p.grad.requires_grad:
+                raise RuntimeError(
+                    "TPUDistributedDataParallel only works with gradients that don't "
+                    "require grad"
+                )
+            gradients.append(p.grad)
+
+        import torch_xla.core.xla_model as xm
+        xm.all_reduce(
+            'sum',
+            gradients,
+            scale=1. / self.world_size,
+            groups=self.process_group[1],
+        )

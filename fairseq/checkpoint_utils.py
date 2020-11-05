@@ -13,6 +13,7 @@ from collections import OrderedDict
 from typing import Optional, Union
 
 import torch
+from fairseq import utils
 from fairseq.dataclass.configs import CheckpointConfig, FairseqConfig
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
@@ -225,9 +226,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
 def load_checkpoint_to_cpu(path, arg_overrides=None):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility)."""
     with open(PathManager.get_local_path(path), "rb") as f:
-        state = torch.load(
-            f, map_location=lambda s, l: default_restore_location(s, "cpu")
-        )
+        state = torch.load(f, map_location=torch.device("cpu"))
 
     if "args" in state and state["args"] is not None and arg_overrides is not None:
         args = state["args"]
@@ -384,6 +383,9 @@ def save_state(
         no_save_optimizer_state = cfg.no_save_optimizer_state
     if not no_save_optimizer_state:
         state_dict["last_optimizer_state"] = optimizer.state_dict()
+
+    # keep everything on CPU
+    state_dict = utils.move_to_cpu(state_dict)
 
     with PathManager.open(filename, "wb") as f:
         torch_persistent_save(state_dict, f)

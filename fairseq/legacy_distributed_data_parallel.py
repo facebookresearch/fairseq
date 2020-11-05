@@ -34,20 +34,18 @@ class LegacyDistributedDataParallel(nn.Module):
 
     Args:
         module (~torch.nn.Module): module to be parallelized
-        world_size (int): number of parallel workers
-        process_group (optional): the c10d process group to be used for
-            distributed data all-reduction. If None, the default process group
-            will be used.
+        process_group: the c10d process group to be used for distributed data
+            parallel all-reduction.
         buffer_size (int, optional): number of elements to buffer before
             performing all-reduce (default: 256M).
     """
 
-    def __init__(self, module, world_size, process_group=None, buffer_size=2 ** 28):
+    def __init__(self, module, process_group, buffer_size=2 ** 28):
         super().__init__()
 
         self.module = module
-        self.world_size = world_size
         self.process_group = process_group
+        self.world_size = distributed_utils.get_world_size(self.process_group)
 
         # Never use a bigger buffer than the number of model params
         self.buffer_size = min(buffer_size, sum(p.numel() for p in module.parameters()))
@@ -84,7 +82,7 @@ class LegacyDistributedDataParallel(nn.Module):
     def forward(self, *inputs, **kwargs):
         return self.module(*inputs, **kwargs)
 
-    def all_reduce(self):
+    def all_reduce_grads(self):
         """
         This function must be called explicitly after backward to reduce
         gradients. There is no automatic hook like c10d.
