@@ -89,9 +89,21 @@ class Alphabet:
             if c not in self.chars:
                 print('Warning: blank token', c, 'not in vocab')
         self.translation_dict = dict(translation_dict)
-        self.unk = unk
-        self.blank = blank
-        self.space = space
+        self.unk_chars = unk
+        self.blank_chars = blank
+        self.space_chars = space
+        self.unk_index = self.ch2idx(unk[0])
+        self.blank_index = self.ch2idx(blank[0])
+        self.space_index = self.ch2idx(space[0])
+
+    def unk(self):
+        return self.unk_index
+
+    def blank(self):
+        return self.blank_index
+
+    def space(self):
+        return self.space_index
 
     def readDictionary(self, filename_):
         with open(filename_) as fp:
@@ -109,7 +121,7 @@ class Alphabet:
         return ch in self.chars
 
     def find_key(self, val):
-        return self.chars.inverse.get(val, self.unk[0])[0]
+        return self.chars.inverse.get(val, self.unk_chars[0])[0]
 
     def __len__(self):
         return len(self.chars)
@@ -121,7 +133,7 @@ class Alphabet:
         if idx is not None:
             return int(idx)
 
-        return self.chars[self.unk[0]]
+        return self.chars[self.unk_chars[0]]
 
     def idx2ch(self, idx_):
         return self.find_key(idx_)
@@ -162,7 +174,7 @@ class Alphabet:
                 newWord += ch
                 continue
 
-            if ch not in self.blank and ch not in self.space:
+            if ch not in self.blank_chars and ch not in self.space_chars:
                 newWord += ch
                 continue
 
@@ -178,6 +190,6 @@ class Alphabet:
     def removeZerosFromString(self, result):
         newWord = ""
         for ch in result:
-            if ch not in self.blank:
+            if ch not in self.blank_chars:
                 newWord = newWord + ch
         return newWord

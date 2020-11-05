@@ -1,0 +1,1 @@
+python libri_labels.py '/pio/scratch/1/i283340/MGR/NewSetup/data/LibriSpeech/train.tsv' --output-dir '/pio/scratch/1/i283340/MGR/NewSetup/data/LibriSpeech/' --output-name 'train1'

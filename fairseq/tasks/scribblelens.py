@@ -8,7 +8,7 @@
 import os
 import sys
 
-from fairseq.data import FileHandwritingDataset, Dictionary, AddTargetDataset
+from fairseq.data import FileHandwritingDataset, Dictionary, AddTargetDataset, HandwritingDictionary
 from . import LegacyFairseqTask, register_task
 
 
@@ -59,15 +59,17 @@ class ScribblelensTask(LegacyFairseqTask):
 
         parser.add_argument(
             "--enable-padding",
-            action="store_true",
-            help="pad shorter samples instead of cropping",
+            action="store_true",  
+            help="pad shorter samples instead of cropping",  # actually needed to be set to true
         )
 
         parser.add_argument(
             "--labels",
+            # type=bool,
+            # default=None,
             type=str,
-            default=None,
-            help="extension of the label file to load, if any",
+            #action="store_true",  
+            help="if to return also labels from dataset" #"extension of the label file to load, if any",
         )
 
     def __init__(self, args, source_dictionary=None):
@@ -91,39 +93,65 @@ class ScribblelensTask(LegacyFairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        self.datasets[split] = FileHandwritingDataset(
-            self.args.data,
-            split=split,
-            max_sample_size=self.args.max_sample_size,
-            min_sample_size=self.args.max_sample_size,
-            pad_to_multiples_of=self.args.pad_to_multiples_of,
-            min_length=self.args.min_sample_size,
-            pad=self.args.labels is not None or self.args.enable_padding,
-            
-            normalize=self.args.normalize,
-        )
-
-        if self.args.labels:
-            assert False  ## TODO(JCh): we must load labels from scribblelens.
-            dict_path = os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
-            self._target_dictionary = Dictionary.load(dict_path)
-            label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")
-            labels = []
-            with open(label_path, "r") as f:
-                for line in f:
-                    labels.append(line)
-
-            process_label = LabelEncoder(self.target_dictionary)
-
-            self.datasets[split] = AddTargetDataset(
-                self.datasets[split],
-                labels,
-                pad=self.target_dictionary.pad(),
-                eos=self.target_dictionary.eos(),
-                batch_targets=True,
-                process_label=process_label,
-                add_to_input=not self.is_ctc,
+        if not self.args.labels:
+            self.datasets[split] = FileHandwritingDataset(
+                self.args.data,
+                split=split,
+                max_sample_size=self.args.max_sample_size,
+                min_sample_size=self.args.max_sample_size,
+                pad_to_multiples_of=self.args.pad_to_multiples_of,
+                min_length=self.args.min_sample_size,
+                pad=self.args.labels is not None or self.args.enable_padding,
+                
+                normalize=self.args.normalize,
             )
+
+        else:
+
+            # TODO change this stuff!
+
+            #assert False  ## TODO(JCh): we must load labels from scribblelens.
+            # https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/README.md#fine-tune-a-pre-trained-model-with-ctc
+            # fairseq/examples/wav2vec/libri_labels.py
+
+            dict_path = FileHandwritingDataset.vocabularyPath(self.args.data)  #os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
+            self._target_dictionary = HandwritingDictionary(dict_path)  #Dictionary.load(dict_path)  
+
+            # this dictionary ^ seems to be a file with perhaps just words? or only one occurence? or sth? 
+            # seems what it does behind the hood is split the transcribed line into words and encode each word with some id, seems it assigns new ids from 0/1 for every new word it sees
+            # perhaps for letters can just be letter - 'a' or sth
+            # what if stuff will learn classification in a different order? need to add some additional layer or what? well, yeah, there needs to be some to predict letters from representations
+
+            # label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")  # generated an example how this looks like
+            # labels = []
+            # with open(label_path, "r") as f:
+            #     for line in f:
+            #         labels.append(line)
+
+            # process_label = LabelEncoder(self.target_dictionary)  // mayyybe TODO sth with that
+
+            self.datasets[split] = FileHandwritingDataset(
+                self.args.data,
+                split=split,
+                max_sample_size=self.args.max_sample_size,
+                min_sample_size=self.args.max_sample_size,
+                pad_to_multiples_of=self.args.pad_to_multiples_of,
+                min_length=self.args.min_sample_size,
+                pad=self.args.labels is not None or self.args.enable_padding,
+                
+                normalize=self.args.normalize,
+                labels=True,
+            )
+            
+            # AddTargetDataset(
+            #     self.datasets[split],
+            #     labels,
+            #     pad=self.target_dictionary.pad(),
+            #     eos=self.target_dictionary.eos(),
+            #     batch_targets=True,
+            #     process_label=process_label,
+            #     add_to_input=not self.is_ctc,
+            # )
 
     @property
     def source_dictionary(self):
