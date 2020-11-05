@@ -8,11 +8,11 @@ import os
 from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
+import inspect
 from typing import Any, Dict, List, Tuple, Type
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import FairseqConfig
-from hydra.core.global_hydra import GlobalHydra
 from hydra.experimental import compose, initialize
 from omegaconf import DictConfig, OmegaConf, open_dict
 
@@ -177,6 +177,9 @@ def _override_attr(
 ) -> List[str]:
     overrides = []
 
+    if not inspect.isclass(data_class) or not issubclass(data_class, FairseqDataclass):
+        return overrides
+
     def get_default(f):
         if not isinstance(f.default_factory, _MISSING_TYPE):
             return f.default_factory()
@@ -188,6 +191,12 @@ def _override_attr(
             continue
 
         val = get_default(v) if not hasattr(args, k) else getattr(args, k)
+
+        if getattr(v.type, "__origin__", None) is List:
+            # if type is int but val is float, then we will crash later - try to convert here
+            t_args = v.type.__args__
+            if len(t_args) == 1:
+                val = list(map(t_args[0], val))
 
         if val is None:
             overrides.append("{}.{}=null".format(sub_node, k))
@@ -255,13 +264,14 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
 
         no_dc = True
         if hasattr(args, "arch"):
-            from fairseq.models import ARCH_MODEL_REGISTRY
+            from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_MODEL_NAME_REGISTRY
 
             if args.arch in ARCH_MODEL_REGISTRY:
                 m_cls = ARCH_MODEL_REGISTRY[args.arch]
                 dc = getattr(m_cls, "__dataclass", None)
                 if dc is not None:
-                    overrides.append("model={}".format(args.arch))
+                    m_name = ARCH_MODEL_NAME_REGISTRY[args.arch]
+                    overrides.append("model={}".format(m_name))
                     overrides.append("model._name={}".format(args.arch))
                     # override model params with those exist in args
                     overrides.extend(_override_attr("model", dc, args))
@@ -358,3 +368,11 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
                 overwrite_args_by_name(cfg[k], overrides)
             elif k in overrides:
                 cfg[k] = overrides[k]
+
+
+def merge_with_parent(dc: FairseqDataclass, cfg: DictConfig):
+    dc_instance = DictConfig(dc)
+    dc_instance.__dict__["_parent"] = cfg.__dict__["_parent"]
+    cfg = OmegaConf.merge(dc_instance, cfg)
+    OmegaConf.set_struct(cfg, True)
+    return cfg

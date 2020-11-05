@@ -147,7 +147,8 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
 
     elif cfg.distributed_world_size > 1 or force_distributed:
         # fallback for single node with multiple GPUs
-        assert cfg.distributed_world_size <= torch.cuda.device_count()
+        assert cfg.distributed_world_size <= torch.cuda.device_count(), \
+            f"world size is {cfg.distributed_world_size} but have {torch.cuda.device_count()} available devices"
         port = random.randint(10000, 20000)
         cfg.distributed_init_method = "tcp://localhost:{port}".format(port=port)
 

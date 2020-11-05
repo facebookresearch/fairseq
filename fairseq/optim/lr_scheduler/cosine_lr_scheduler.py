@@ -74,7 +74,7 @@ class CosineSchedule(FairseqLRScheduler):
         if isinstance(cfg.lr, Collection) and len(cfg.lr) > 1:
             raise ValueError(
                 "Cannot use a fixed learning rate schedule with cosine."
-                " Consider --lr-scheduler=fixed instead."
+                f" Consider --lr-scheduler=fixed instead. ({cfg.lr})"
             )
 
         warmup_end_lr = cfg.max_lr

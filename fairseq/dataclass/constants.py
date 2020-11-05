@@ -17,6 +17,9 @@ class StrEnum(Enum):
     def __repr__(self):
         return self.value
 
+    def __hash__(self):
+        return hash(str(self))
+
 
 def ChoiceEnum(choices: List[str]):
     """return the Enum class used to enforce list of choices"""

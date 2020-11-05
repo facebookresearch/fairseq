@@ -158,8 +158,8 @@ class LanguageModelingTask(LegacyFairseqTask):
         dictionary, output_dictionary = cls.setup_dictionary(args, **kwargs)
 
         # upgrade old checkpoints
-        if hasattr(args, "exclude_self_target"):
-            args.self_target = not args.exclude_self_target
+        if getattr(args, "exclude_self_target", False):
+            args.self_target = False
 
         targets = []
         if getattr(args, "self_target", False):
@@ -176,7 +176,6 @@ class LanguageModelingTask(LegacyFairseqTask):
 
     def build_model(self, args):
         model = super().build_model(args)
-
         for target in self.targets:
             if target not in model.supported_targets:
                 raise ValueError(
