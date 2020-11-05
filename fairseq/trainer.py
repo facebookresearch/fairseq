@@ -116,7 +116,9 @@ class Trainer(object):
         if self.cuda:
             self.cuda_env = utils.CudaEnvironment()
             if self.data_parallel_world_size > 1:
-                self.cuda_env_arr = distributed_utils.all_gather_list(self.cuda_env)
+                self.cuda_env_arr = distributed_utils.all_gather_list(
+                    self.cuda_env, group=distributed_utils.get_global_group()
+                )
             else:
                 self.cuda_env_arr = [self.cuda_env]
             if self.data_parallel_rank == 0:
@@ -147,7 +149,7 @@ class Trainer(object):
         if self.tpu:
             return ("tpu", None)
         else:
-            return None
+            return distributed_utils.get_data_parallel_group()
 
     @property
     def data_parallel_rank(self):
@@ -325,6 +327,7 @@ class Trainer(object):
                     state,
                     src_rank=0,
                     group=group,
+                    dist_device=self.device,
                 )
                 if self.data_parallel_rank > 0:
                     last_optim_state = state.get("last_optimizer_state", None)

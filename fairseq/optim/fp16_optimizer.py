@@ -127,7 +127,10 @@ class _FP16OptimizerMixin(object):
                     if not p.requires_grad:
                         continue
                     if p.grad is not None:
-                        p32.grad.data.copy_(p.grad.data)
+                        if p32.grad is None:
+                            p32.grad = p.grad.data.float()
+                        else:
+                            p32.grad.data.copy_(p.grad.data)
                     else:
                         p32.grad = torch.zeros_like(p.data, dtype=torch.float)
 
