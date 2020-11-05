@@ -12,7 +12,7 @@ from fairseq_cli.train import cli_main
 
 if __name__ == '__main__':
     # import ptvsd
-    # ptvsd.enable_attach(('0.0.0.0', 7321))
+    # ptvsd.enable_attach(('0.0.0.0', 7309))
     # print("Attach debugger now")
     # ptvsd.wait_for_attach()
     cli_main()

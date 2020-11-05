@@ -31,6 +31,7 @@ import pandas as pd
 from . import aligner
 from . import utils
 from .alphabet import Alphabet
+from .handwriting_dictionary import HandwritingDictionary
 
 
 SCRIBE_RULES = '''writer-name	ID		directory
@@ -324,7 +325,10 @@ class ScribbleLensDataset(torch.utils.data.Dataset):
         if self.vocabulary != "" and not os.path.isfile(self.vocabulary):
             print ("ERROR: You specified a vocabulary that does not exist: " + str(self.vocabulary))
             sys.exit(4)
-        self.alphabet = Alphabet(self.vocabulary)
+        
+        # [!] changed    
+        self.alphabet = HandwritingDictionary(self.vocabulary)
+        
         self.vocab_size = len(self.alphabet)
         self.must_create_alphabet = (self.vocabulary == '')
         self.nLines = 0

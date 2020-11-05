@@ -14,6 +14,7 @@ from .append_token_dataset import AppendTokenDataset
 from .audio.raw_audio_dataset import FileAudioDataset
 
 from .handwriting.raw_handwriting_dataset import FileHandwritingDataset
+from .handwriting.handwriting_dictionary import HandwritingDictionary
 
 from .backtranslation_dataset import BacktranslationDataset
 from .bucket_pad_length_dataset import BucketPadLengthDataset
