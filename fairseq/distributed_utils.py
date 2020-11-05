@@ -14,7 +14,7 @@ import subprocess
 import warnings
 from argparse import Namespace
 from collections import OrderedDict
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import torch
 import torch.distributed as dist
@@ -22,10 +22,18 @@ from fairseq import utils
 from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
 from omegaconf import open_dict
 
+try:
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    xm = None
+
 
 # Flag to indicate if we're using Megatron
 # NOTE: this is a temporary hack until we move away from Megatron's model parallel init
 _USE_MEGATRON = False
+
+# Whether to use XLA ops (e.g., on TPUs) instead of CUDA ops.
+_USE_XLA = False
 
 
 logger = logging.getLogger(__name__)
@@ -241,9 +249,9 @@ def distributed_init(cfg: FairseqConfig):
 
         cfg.distributed_training.distributed_rank = torch.distributed.get_rank()
     else:
-        import torch_xla.core.xla_model as xm
-
         assert xm.xrt_world_size() == cfg.distributed_training.distributed_world_size
+        global _USE_XLA
+        _USE_XLA = True
         cfg.distributed_training.device_id = xm.get_local_ordinal()
         cfg.distributed_training.distributed_rank = xm.get_ordinal()
         xm.rendezvous("distributed_init")  # wait for all workers
@@ -257,7 +265,6 @@ def distributed_init(cfg: FairseqConfig):
     if cfg.common.model_parallel_size > 1:
         try:
             from fairseq.model_parallel.megatron.mpu import (
-                get_model_parallel_rank,
                 initialize_model_parallel,
                 model_parallel_cuda_manual_seed,
             )
@@ -273,6 +280,7 @@ def distributed_init(cfg: FairseqConfig):
         model_parallel_cuda_manual_seed(cfg.common.seed)
         model_part_number = get_model_parallel_rank()
         cfg.checkpoint.checkpoint_suffix += "-model_part-{0}".format(model_part_number)
+
     return cfg.distributed_training.distributed_rank
 
 
@@ -326,16 +334,55 @@ def call_main(cfg: FairseqConfig, main, **kwargs):
         main(cfg, **kwargs)
 
 
+def use_xla():
+    global _USE_XLA
+    return _USE_XLA
+
+
+def new_groups(grouped_ranks: List[List[int]]):
+    if use_xla():
+        return ("tpu", grouped_ranks)
+    else:
+        groups = [dist.new_group(g) for g in grouped_ranks]
+        my_group_idx = _find_my_group_index(grouped_ranks)
+        return groups[my_group_idx]
+
+
+def _find_my_group_index(grouped_ranks):
+    my_rank = get_global_rank()
+    for i, group in enumerate(grouped_ranks):
+        if my_rank in group:
+            return i
+    raise RuntimeError
+
+
+def _find_my_group(grouped_ranks):
+    index = _find_my_group_index(grouped_ranks)
+    return grouped_ranks[index]
+
+
 def get_rank(group):
-    return dist.get_rank(group=group)
+    if use_xla():
+        assert group[0] == "tpu"
+        my_group = _find_my_group(group[1])
+        return my_group.index(get_global_rank())
+    else:
+        return dist.get_rank(group=group)
 
 
 def get_world_size(group):
-    return dist.get_world_size(group=group)
+    if use_xla():
+        assert group[0] == "tpu"
+        my_group = _find_my_group(group[1])
+        return len(my_group)
+    else:
+        return dist.get_world_size(group=group)
 
 
 def get_global_group():
-    if torch.distributed.is_initialized():
+    if use_xla():
+        return new_groups([list(range(get_global_world_size()))])
+    elif torch.distributed.is_initialized():
         if not hasattr(get_global_group, "_global_group"):
             # ideally we could use torch.distributed.group.WORLD, but it seems
             # to cause random NCCL hangs in some cases
@@ -345,13 +392,42 @@ def get_global_group():
         return None
 
 
+def get_global_rank():
+    if use_xla():
+        return xm.get_ordinal()
+    elif torch.distributed.is_initialized():
+        return torch.distributed.get_rank()
+    else:
+        return 0
+
+
+def get_global_world_size():
+    if use_xla():
+        return xm.xrt_world_size()
+    elif torch.distributed.is_initialized():
+        return torch.distributed.get_world_size()
+    else:
+        return 1
+
+
 def get_data_parallel_group():
+    """Get the data parallel group the caller rank belongs to."""
     global _USE_MEGATRON
     if _USE_MEGATRON:
         from fairseq.model_parallel.megatron import mpu
         return mpu.get_data_parallel_group()
     else:
         return get_global_group()
+
+
+def get_data_parallel_rank():
+    """Return my rank for the data parallel group."""
+    return get_rank(get_data_parallel_group())
+
+
+def get_data_parallel_world_size():
+    """Return world size for the data parallel group."""
+    return get_world_size(get_data_parallel_group())
 
 
 def get_model_parallel_group():
@@ -363,13 +439,83 @@ def get_model_parallel_group():
         return None
 
 
-def all_reduce(tensor, group):
-    if isinstance(group, tuple) and group[0] == "tpu":
-        import torch_xla.core.xla_model as xm
+def get_model_parallel_rank():
+    """Return my rank for the model parallel group."""
+    return get_rank(get_model_parallel_group())
 
-        return xm.all_reduce("sum", [tensor], groups=group[1])
+
+def get_model_parallel_world_size():
+    """Return world size for the model parallel group."""
+    return get_world_size(get_model_parallel_group())
+
+
+def all_reduce(tensor, group, op="sum"):
+    if use_xla():
+        assert isinstance(group, tuple) and group[0] == "tpu"
+        tensor = [tensor]  # wrap in a list to make xm.all_reduce in-place
+        return xm.all_reduce(op, tensor, groups=group[1])[0]
     else:
-        return dist.all_reduce(tensor, group=group)
+        if op == "sum":
+            op = dist.ReduceOp.SUM
+        elif op == "max":
+            op = dist.ReduceOp.MAX
+        else:
+            raise NotImplementedError
+        dist.all_reduce(tensor, op=op, group=group)
+        return tensor
+
+
+def broadcast(tensor, src, group):
+    if use_xla():
+        # XLA doesn't support broadcast, hack it with all_reduce
+        if get_rank(group) != src:
+            tensor.zero_()
+        all_reduce(tensor, group)
+    else:
+        dist.broadcast(tensor, src=src, group=group)
+
+
+def all_to_all(tensor, group):
+    """Perform an all-to-all operation on a 1D Tensor."""
+    assert tensor.dim() == 1
+    split_count = get_world_size(group=group)
+    assert tensor.numel() % split_count == 0
+    if use_xla():
+        assert isinstance(group, tuple) and group[0] == "tpu"
+        return xm.all_to_all(
+            tensor,
+            split_dimension=0,
+            concat_dimension=0,
+            split_count=split_count,
+            groups=group[1],
+        )
+    else:
+        output = torch.zeros_like(tensor)
+        dist.all_to_all_single(output, tensor, group=group)
+        return output
+
+
+def all_gather(tensor, group, return_tensor=False):
+    """Perform an all-gather operation."""
+    if use_xla():
+        result = xm.all_gather(tensor, groups=group[1])
+        world_size = get_world_size(group=group)
+        result = result.view(world_size, *tensor.size())
+        if return_tensor:
+            return result
+        else:
+            return [result[i] for i in range(world_size)]
+    else:
+        world_size = get_world_size(group=group)
+        rank = get_rank(group=group)
+        tensor_list = [
+            tensor if i == rank else torch.empty_like(tensor) for i in range(world_size)
+        ]
+        dist.all_gather(tensor_list, tensor, group=group)
+        if return_tensor:
+            return torch.stack(tensor_list, dim=0)
+        else:
+            return tensor_list
 
 
 def all_gather_list(data, group=None, max_size=16384):
@@ -497,6 +643,8 @@ def broadcast_object(
     src_rank: int,
     group: object,
     dist_device: Optional[torch.device] = None,
+    dist_length_dtype: Optional[torch.dtype] = torch.long,
+    dist_dtype: Optional[torch.dtype] = torch.uint8,
 ) -> Any:
     """
     Either broadcast from master to the fleet (default),
@@ -513,18 +661,20 @@ def broadcast_object(
         buffer = io.BytesIO()
         torch.save(obj, buffer)
         data = bytearray(buffer.getbuffer())
-        length_tensor = torch.tensor([len(data)], dtype=torch.long, device=dist_device)
-        data_send_tensor = torch.tensor(data, dtype=torch.uint8, device=dist_device)
-        dist.broadcast(length_tensor, src=src_rank, group=group, async_op=False)
-        dist.broadcast(data_send_tensor, src=src_rank, group=group, async_op=False)
+        length_tensor = torch.tensor(
+            [len(data)], dtype=dist_length_dtype, device=dist_device
+        )
+        broadcast(length_tensor, src=src_rank, group=group)
+        data_send_tensor = torch.tensor(data, dtype=dist_dtype, device=dist_device)
+        broadcast(data_send_tensor, src=src_rank, group=group)
     else:
         # Fetch from the source
-        length_tensor = torch.tensor([0], dtype=torch.long, device=dist_device)
-        dist.broadcast(length_tensor, src=src_rank, group=group, async_op=False)
-        data_recv_tensor = torch.empty(
-            [int(length_tensor.item())], dtype=torch.uint8, device=dist_device
+        length_tensor = torch.tensor([0], dtype=dist_length_dtype, device=dist_device)
+        broadcast(length_tensor, src=src_rank, group=group)
+        data_recv_tensor = torch.zeros(
+            [int(length_tensor.item())], dtype=dist_dtype, device=dist_device
         )
-        dist.broadcast(data_recv_tensor, src=src_rank, group=group, async_op=False)
+        broadcast(data_recv_tensor, src=src_rank, group=group)
         buffer = io.BytesIO(data_recv_tensor.cpu().numpy())
         obj = torch.load(buffer, map_location="cpu")
     return obj

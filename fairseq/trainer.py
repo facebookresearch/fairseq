@@ -63,10 +63,6 @@ class Trainer(object):
         # copy model and criterion to current device/dtype
         self._criterion = criterion
         self._model = model
-        if self.tpu:
-            import torch_xla.core.xla_model as xm
-
-            self._model = xm.send_cpu_data_to_device(self._model, self.device)
         if cfg.common.fp16:
             self._criterion = self._criterion.half()
             self._model = self._model.half()
@@ -142,22 +138,25 @@ class Trainer(object):
 
     @property
     def data_parallel_world_size(self):
-        return self.cfg.distributed_training.distributed_world_size
+        if self.cfg.distributed_training.distributed_world_size == 1:
+            return 1
+        return distributed_utils.get_data_parallel_world_size()
 
     @property
     def data_parallel_process_group(self):
-        if self.tpu:
-            return ("tpu", None)
-        else:
-            return distributed_utils.get_data_parallel_group()
+        return distributed_utils.get_data_parallel_group()
 
     @property
     def data_parallel_rank(self):
-        return self.cfg.distributed_training.distributed_rank
+        if self.cfg.distributed_training.distributed_world_size == 1:
+            return 0
+        return distributed_utils.get_data_parallel_rank()
 
     @property
     def is_data_parallel_master(self):
-        return distributed_utils.is_master(self.cfg.distributed_training)
+        # NOTE: this returns true for all model parallel replicas with data
+        # parallel rank 0
+        return self.data_parallel_rank == 0
 
     @property
     def criterion(self):
@@ -166,7 +165,6 @@ class Trainer(object):
                 utils.has_parameters(self._criterion)
                 and self.data_parallel_world_size > 1
                 and not self.cfg.optimization.use_bmuf
-                and not self.tpu
             ):
                 self._wrapped_criterion = models.DistributedFairseqModel(
                     self.cfg.distributed_training,
@@ -183,7 +181,6 @@ class Trainer(object):
             if (
                 self.data_parallel_world_size > 1
                 and not self.cfg.optimization.use_bmuf
-                and not self.tpu
             ):
                 self._wrapped_model = models.DistributedFairseqModel(
                     self.cfg.distributed_training,
@@ -300,7 +297,12 @@ class Trainer(object):
 
         bexists = PathManager.isfile(filename)
         if bexists:
-            if self.data_parallel_rank == 0:
+            if (
+                self.data_parallel_rank == 0
+                # TPUs don't support broadcast yet, so load checkpoints
+                # on every worker for now
+                or self.tpu
+            ):
                 state = checkpoint_utils.load_checkpoint_to_cpu(filename)
                 last_optim_state = state.get("last_optimizer_state", None)
 
@@ -317,16 +319,15 @@ class Trainer(object):
                 last_optim_state = None
                 state = None
 
-            if self.data_parallel_world_size > 1:
-                group = (
-                    self.data_parallel_process_group
-                    if self.data_parallel_process_group is not None
-                    else torch.distributed.group.WORLD
-                )
+            if (
+                self.data_parallel_world_size > 1
+                # disable on TPUs until they support broadcast
+                and not self.tpu
+            ):
                 state = distributed_utils.broadcast_object(
                     state,
                     src_rank=0,
-                    group=group,
+                    group=self.data_parallel_process_group,
                     dist_device=self.device,
                 )
                 if self.data_parallel_rank > 0:
@@ -607,23 +608,17 @@ class Trainer(object):
                 total_train_time / self.data_parallel_world_size
             )
 
-        if hasattr(self.model, "all_reduce"):
-            self.model.all_reduce()
-
         overflow = False
         try:
-            if self.tpu and self.data_parallel_world_size > 1:
-                import torch_xla.core.xla_model as xm
-
-                gradients = xm._fetch_gradients(self.optimizer.optimizer)
-                xm.all_reduce(
-                    "sum", gradients, scale=1.0 / self.data_parallel_world_size
-                )
+            with torch.autograd.profiler.record_function("reduce-grads"):
+                self.optimizer.all_reduce_grads(self.model)
+                if utils.has_parameters(self.criterion):
+                    self.optimizer.all_reduce_grads(self.criterion)
 
             with torch.autograd.profiler.record_function("multiply-grads"):
-                # multiply gradients by (# GPUs / sample_size) since DDP
-                # already normalizes by the number of GPUs. Thus we get
-                # (sum_of_gradients / sample_size).
+                # multiply gradients by (data_parallel_size / sample_size) since
+                # DDP already normalizes by the number of data parallel workers.
+                # Thus we get (sum_of_gradients / sample_size) at the end.
                 if not self.cfg.optimization.use_bmuf:
                     self.optimizer.multiply_grads(
                         self.data_parallel_world_size / sample_size
@@ -683,6 +678,7 @@ class Trainer(object):
                     self.optimizer.optimizer
                 )
 
+        logging_output = None
         if (
             not overflow
             or self.cfg.distributed_training.distributed_wrapper == "SlowMo"

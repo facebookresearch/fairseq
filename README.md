@@ -31,7 +31,7 @@ We provide reference implementations of various sequence modeling papers:
   - Attention Is All You Need (Vaswani et al., 2017)
   - [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
   - [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
-  - [Adaptive Input Representations for Neural Language Modeling (Baevski and Auli, 2018)](examples/language_model/transformer_lm/README.md)
+  - [Adaptive Input Representations for Neural Language Modeling (Baevski and Auli, 2018)](examples/language_model/README.adaptive_inputs.md)
   - [Lexically constrained decoding with dynamic beam allocation (Post & Vilar, 2018)](examples/constrained_decoding/README.md)
   - [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
   - [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
@@ -171,7 +171,7 @@ We also have more detailed READMEs to reproduce results from specific papers:
 - [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
 - [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
 - [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
-- [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/conv_lm/README.md)
+- [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/README.conv.md)
 
 # Join the fairseq community
 

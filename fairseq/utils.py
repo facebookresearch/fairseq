@@ -641,7 +641,7 @@ def new_arange(x, *size):
     return torch.arange(size[-1], device=x.device).expand(*size).contiguous()
 
 
-def get_tpu_device(args):
+def get_tpu_device():
     return xm.xla_device()
 
 
