@@ -34,9 +34,7 @@ class RawAudioDataset(FairseqDataset):
         min_length=0,
         pad=False,
         normalize=False,
-        noise_dir=None,
-        noise_min_snr_db=3,
-        noise_max_snr_db=40,
+        wav_augment=None,
     ):
         super().__init__()
 
@@ -51,47 +49,18 @@ class RawAudioDataset(FairseqDataset):
         self.shuffle = shuffle
         self.normalize = normalize
 
-        if noise_dir:
-            assert os.path.exists(noise_dir)
-        self.noise_dir = os.path.abspath(noise_dir) if noise_dir else None
-        assert noise_min_snr_db != noise_max_snr_db
-        assert noise_min_snr_db > 0
-        if noise_min_snr_db > noise_max_snr_db:
-            noise_min_snr_db, noise_max_snr_db = noise_max_snr_db, noise_min_snr_db
-        self.noise_min_snr_db = noise_min_snr_db
-        self.noise_max_snr_db = noise_max_snr_db
-        self.noise_snr_range = noise_max_snr_db - noise_min_snr_db
-
-        self.noise_files = []
-        self.noise_files_len = 0
-
-        if self.noise_dir:
-            for dirpath, dirnames, filenames in os.walk(self.noise_dir):
-                for filename in filenames:
-                    path = os.path.join(dirpath, filename)
-                    self.noise_files.append(path)
-            self.noise_files_len = len(self.noise_files)
-
-        # self.noise_generator = gen() if self.noise_dir else None
-
-    def sample_noise(self) -> torch.Tensor:
-        try:
-            path = self.noise_files[np.random.randint(self.noise_files_len)]
-            wav, curr_sample_rate = sf.read(path)
-            assert curr_sample_rate == self.sample_rate
-            return torch.from_numpy(wav).float()
-        except Exception as err:
-            print(err)
-            return self.sample_noise()
+        self.chain = None
+        self.src_info = {"rate": sample_rate}
+        self.target_info = {"rate": sample_rate}
+        if wav_augment:
+            from fairseq.data.audio.wav_augment import chain_fatory
+            self.chain = chain_fatory(wav_augment)
 
     def __getitem__(self, index):
         raise NotImplementedError()
 
     def __len__(self):
         return len(self.sizes)
-
-    def wav_to_dbfs(self, feats: torch.Tensor) -> torch.Tensor:
-        return DBFS_COEF * torch.log10(torch.dot(feats, feats) / len(feats) + 1e-8)
 
     def postprocess(self, feats, curr_sample_rate):
         if feats.dim() == 2:
@@ -102,28 +71,10 @@ class RawAudioDataset(FairseqDataset):
 
         assert feats.dim() == 1, feats.dim()
 
-        if self.noise_files_len:            
-            noise: torch.Tensor = self.sample_noise()
-
-            # peak protection
-            max_gain_ratio = 1.0 / torch.max(noise)
-            
-            noise = noise.repeat(np.math.ceil(len(feats) / len(noise)))
-            delta_len = len(noise) - len(feats)
-
-            start = np.random.randint(delta_len) if delta_len > 0 else 0
-            end = start + len(feats)
-
-            seg_noise = noise[start:end]
-
-            feats_dbfs = self.wav_to_dbfs(feats)
-            seg_dbfs = self.wav_to_dbfs(seg_noise)
-            current_snr_db = feats_dbfs - seg_dbfs
-            target_snr_db = torch.rand(1) * self.noise_snr_range + self.noise_min_snr_db
-            gain_db = current_snr_db - target_snr_db
-            gain_ratio = torch.pow(10, gain_db / 20)
-
-            feats += seg_noise * min(gain_ratio, max_gain_ratio)
+        if self.chain:
+            feats = self.chain.apply(feats.unsqueeze(
+                0), self.src_info, self.target_info)
+            feats = feats[0, :]
 
         if self.normalize:
             with torch.no_grad():
@@ -209,9 +160,7 @@ class FileAudioDataset(RawAudioDataset):
         min_length=0,
         pad=False,
         normalize=False,
-        noise_dir=None,
-        noise_min_snr_db=3,
-        noise_max_snr_db=40,
+        wav_augment=None,
     ):
         super().__init__(
             sample_rate=sample_rate,
@@ -221,9 +170,7 @@ class FileAudioDataset(RawAudioDataset):
             min_length=min_length,
             pad=pad,
             normalize=normalize,
-            noise_dir=noise_dir,
-            noise_min_snr_db=noise_min_snr_db,
-            noise_max_snr_db=noise_max_snr_db,
+            wav_augment=wav_augment,
         )
 
         self.fnames = []

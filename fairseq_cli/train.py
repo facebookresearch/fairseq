@@ -68,7 +68,7 @@ def main(cfg: DictConfig) -> None:
     task = tasks.setup_task(cfg.task)
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     for valid_sub_split in cfg.dataset.valid_subset.split(','):
-        task.load_dataset(valid_sub_split, combine=False, epoch=1, noise_dir=task.args.valid_noise_dir)
+        task.load_dataset(valid_sub_split, combine=False, epoch=1, wav_augment=task.args.valid_wav_augment)
 
     # Build model and criterion
     model = task.build_model(cfg.model)

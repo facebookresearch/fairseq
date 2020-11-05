@@ -376,7 +376,7 @@ class Trainer(object):
                 epoch=epoch,
                 combine=combine,
                 data_selector=data_selector,
-                noise_dir=self.task.args.train_noise_dir,
+                wav_augment=self.task.args.train_wav_augment,
             )
         batch_iterator = self.task.get_batch_iterator(
             dataset=self.task.dataset(self.cfg.dataset.train_subset),
