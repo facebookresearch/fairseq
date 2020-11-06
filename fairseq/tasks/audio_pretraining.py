@@ -8,7 +8,7 @@
 import os
 import sys
 
-from fairseq.data import AddTargetDataset, Dictionary, FileAudioDataset
+from fairseq.data import AddTargetDataset, Dictionary, FileAudioDataset, AudioAugmentDataset
 
 from . import LegacyFairseqTask, register_task
 
@@ -119,9 +119,6 @@ class AudioPretrainingTask(LegacyFairseqTask):
         """
         manifest = os.path.join(self.args.data, "{}.tsv".format(split))
 
-        wav_augment = kwargs.get('wav_augment')
-        if wav_augment is None:
-            wav_augment = getattr(self.args, '{}_wav_augment'.format(split), None)
         self.datasets[split] = FileAudioDataset(
             manifest,
             sample_rate=self.args.sample_rate,
@@ -130,8 +127,15 @@ class AudioPretrainingTask(LegacyFairseqTask):
             min_length=self.args.min_sample_size,
             pad=self.args.labels is not None or self.args.enable_padding,
             normalize=self.args.normalize,
-            wav_augment=wav_augment,
         )
+
+        wav_augment = kwargs.get('wav_augment')
+        if wav_augment is None:
+            wav_augment = getattr(self.args, '{}_wav_augment'.format(split), None)
+
+        if wav_augment is not None:
+            self.datasets[split] = AudioAugmentDataset(self.datasets[split], wav_augment)
+        
 
         if self.args.labels:
             label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")

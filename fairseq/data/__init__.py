@@ -13,6 +13,7 @@ from .base_wrapper_dataset import BaseWrapperDataset
 from .add_target_dataset import AddTargetDataset
 from .append_token_dataset import AppendTokenDataset
 from .audio.raw_audio_dataset import FileAudioDataset
+from .audio.wav_augment import AudioAugmentDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .bucket_pad_length_dataset import BucketPadLengthDataset
 from .colorize_dataset import ColorizeDataset
@@ -67,6 +68,7 @@ from .iterators import (
 __all__ = [
     "AddTargetDataset",
     "AppendTokenDataset",
+    "AudioAugmentDataset",
     "BacktranslationDataset",
     "BaseWrapperDataset",
     "BucketPadLengthDataset",

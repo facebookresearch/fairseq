@@ -11,17 +11,11 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
-try:
-    import soundfile as sf
-except ImportError as err:
-    print(err)
-    print('try: pip install soundfile')
 
 from .. import FairseqDataset
 
 
 logger = logging.getLogger(__name__)
-DBFS_COEF = 10.0 / torch.log10(torch.scalar_tensor(10.0))
 
 
 class RawAudioDataset(FairseqDataset):
@@ -34,7 +28,6 @@ class RawAudioDataset(FairseqDataset):
         min_length=0,
         pad=False,
         normalize=False,
-        wav_augment=None,
     ):
         super().__init__()
 
@@ -48,13 +41,6 @@ class RawAudioDataset(FairseqDataset):
         self.pad = pad
         self.shuffle = shuffle
         self.normalize = normalize
-
-        self.chain = None
-        self.src_info = {"rate": sample_rate}
-        self.target_info = {"rate": sample_rate}
-        if wav_augment:
-            from fairseq.data.audio.wav_augment import chain_fatory
-            self.chain = chain_fatory(wav_augment)
 
     def __getitem__(self, index):
         raise NotImplementedError()
@@ -70,11 +56,6 @@ class RawAudioDataset(FairseqDataset):
             raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
 
         assert feats.dim() == 1, feats.dim()
-
-        if self.chain:
-            feats = self.chain.apply(feats.unsqueeze(
-                0), self.src_info, self.target_info)
-            feats = feats[0, :]
 
         if self.normalize:
             with torch.no_grad():
@@ -160,7 +141,6 @@ class FileAudioDataset(RawAudioDataset):
         min_length=0,
         pad=False,
         normalize=False,
-        wav_augment=None,
     ):
         super().__init__(
             sample_rate=sample_rate,
@@ -170,7 +150,6 @@ class FileAudioDataset(RawAudioDataset):
             min_length=min_length,
             pad=pad,
             normalize=normalize,
-            wav_augment=wav_augment,
         )
 
         self.fnames = []
@@ -190,6 +169,8 @@ class FileAudioDataset(RawAudioDataset):
         logger.info(f"loaded {len(self.fnames)}, skipped {skipped} samples")
 
     def __getitem__(self, index):
+        import soundfile as sf
+
         fname = os.path.join(self.root_dir, self.fnames[index])
         wav, curr_sample_rate = sf.read(fname)
         feats = torch.from_numpy(wav).float()
