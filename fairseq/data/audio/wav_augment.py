@@ -75,7 +75,7 @@ class AdditiveNoise:
         gain_db = current_snr - target_snr
         gain_ratio = torch.pow(10, gain_db / 20)
 
-        noised = x + seg_noise * gain_ratio
+        noised = x + seg_noise * min(gain_ratio, max_gain_ratio)
 
         # peak protection
         compress_gain = 1.0 / torch.max(noised)
