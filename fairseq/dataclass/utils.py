@@ -294,7 +294,7 @@ def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
         # in case of "--editable" installs we need to go one dir up
         config_path = os.path.join("..", "..", "config")
 
-    with initialize(config_path=config_path, strict=True):
+    with initialize(config_path=config_path):
         composed_cfg = compose("config", overrides=overrides, strict=False)
         for k in deletes:
             composed_cfg[k] = None
@@ -362,12 +362,20 @@ def populate_dataclass(
 def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
     # this will be deprecated when we get rid of argparse and model_overrides logic
 
+    from fairseq.registry import REGISTRIES
+
     with open_dict(cfg):
         for k in cfg.keys():
-            if isinstance(cfg[k], DictConfig):
+            # "k in cfg" will return false if its a "mandatory value (e.g. ???)"
+            if k in cfg and isinstance(cfg[k], DictConfig):
                 overwrite_args_by_name(cfg[k], overrides)
             elif k in overrides:
-                cfg[k] = overrides[k]
+                if k in REGISTRIES and overrides[k] in REGISTRIES[k]["dataclass_registry"]:
+                    cfg[k] = DictConfig(REGISTRIES[k]["dataclass_registry"][overrides[k]])
+                    overwrite_args_by_name(cfg[k], overrides)
+                    cfg[k]._name = overrides[k]
+                else:
+                    cfg[k] = overrides[k]
 
 
 def merge_with_parent(dc: FairseqDataclass, cfg: DictConfig):
