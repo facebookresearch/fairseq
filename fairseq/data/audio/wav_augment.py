@@ -6,6 +6,7 @@ import os
 import torch
 import numpy as np
 import re
+from functools import partial
 
 try:
     from augment import EffectChain
@@ -107,9 +108,9 @@ def parse_value(value):
             min_val, max_val = max_val, min_val
 
         if isinstance(min_val, int):
-            value = lambda: np.random.randint(min_val, max_val)
+            value = partial(np.random.randint, min_val, max_val)
         elif isinstance(min_val, float):
-            value = lambda: np.random.uniform(min_val, max_val)
+            value = partial(np.random.uniform, min_val, max_val)
         else:
             raise "{} parsing error".format(value)
     elif re.findall(r'^[0-9\-]+$', value):
