@@ -33,7 +33,9 @@ def upgrade_bert_args(args):
     args.final_dim = args.mlp_mi
     args.latent_groups = args.latent_var_banks
     args.extractor_mode = "layer_norm" if args.normalize else "default"
-    del args.latent_dim
+
+    if hasattr(args, "latent_dim"):
+        del args.latent_dim
 
 
 def update_prefix(model_dict, prefix, new_prefix):
@@ -80,7 +82,7 @@ def main():
 
     if args.type == "ctc":
         cp["args"].arch = "wav2vec_ctc"
-        bert_path = cp["args"].bert_path
+        bert_path = getattr(cp["args"], 'bert_path', getattr(cp["args"], 'w2v_path', None))
 
         if not os.path.exists(bert_path):
             bert_path = "/checkpoint/abaevski/asr/speechbert_raw_big/spb_librspeech_big_v2.qtz.mlp768.pq.lv320.lvb2.ab0.9_0.98.lr0.0003.wu20000.mask10.mprob0.65.mstd0.mpl15.drp_i0.2.drp_f0.2.in0.0.nt_gaus.nnf0.ng512.fgm0.1.nep.qini.qini1.pen0_0_0.1_10.cpl1.ld0.1.uf1.mu250000.s5.ngpu128/checkpoint_best.pt"
@@ -88,7 +90,9 @@ def main():
         bcp = torch.load(bert_path, map_location="cpu")
         upgrade_bert_args(bcp["args"])
         cp["args"].w2v_args = bcp["args"]
-        del cp["args"].bert_path
+
+        if hasattr(cp["args"], "bert_path"):
+            del cp["args"].bert_path
 
         update_prefix(cp["model"], "bert", "w2v_encoder")
         update_prefix(cp["model"], "w2v_encoder.bert_model", "w2v_encoder.w2v_model")

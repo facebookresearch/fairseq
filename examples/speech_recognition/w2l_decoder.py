@@ -20,6 +20,8 @@ import torch
 from examples.speech_recognition.data.replabels import unpack_replabels
 from fairseq import tasks
 from fairseq.utils import apply_to_sample
+from omegaconf import open_dict
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 
 
 try:
@@ -347,11 +349,17 @@ class W2lFairseqLMDecoder(W2lDecoder):
         self.idx_to_wrd = {}
 
         checkpoint = torch.load(args.kenlm_model, map_location="cpu")
-        lm_args = checkpoint["args"]
-        lm_args.data = osp.dirname(args.kenlm_model)
-        print(lm_args)
-        task = tasks.setup_task(lm_args)
-        model = task.build_model(lm_args)
+
+        if "cfg" in checkpoint and checkpoint["cfg"] is not None:
+            lm_args = checkpoint["cfg"]
+        else:
+            lm_args = convert_namespace_to_omegaconf(checkpoint["args"])
+
+        with open_dict(lm_args.task):
+            lm_args.task.data = osp.dirname(args.kenlm_model)
+
+        task = tasks.setup_task(lm_args.task)
+        model = task.build_model(lm_args.model)
         model.load_state_dict(checkpoint["model"], strict=False)
 
         self.trie = Trie(self.vocab_size, self.silence)
