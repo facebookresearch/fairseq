@@ -100,13 +100,21 @@ def parse_value(value):
         min_val, max_val = [parse_value(v) for v in value.split('~')]
         assert min_val != max_val, \
             "uniform mix/max value are the same: {}".format(min_val)
+        assert type(min_val) == type(max_val), \
+            "min_val and max_val should be the same datatype but got: {}({}) {}({})".format(
+                min_val, type(min_val), max_val, type(max_val))
         if min_val > max_val:
             min_val, max_val = max_val, min_val
 
-        value = lambda: np.random.uniform(min_val, max_val)
-    elif value.isnumeric():
+        if isinstance(min_val, int):
+            value = lambda: np.random.randint(min_val, max_val)
+        elif isinstance(min_val, float):
+            value = lambda: np.random.uniform(min_val, max_val)
+        else:
+            raise "{} parsing error".format(value)
+    elif re.findall(r'^[0-9\-]+$', value):
         value = int(value)
-    elif re.findall(r'^[\.0-9]+$', value):
+    elif re.findall(r'^[\.0-9\-]+$', value):
         value = float(value)
     return value
 
