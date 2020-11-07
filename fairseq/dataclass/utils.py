@@ -290,9 +290,6 @@ def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
 
     # configs will be in fairseq/config after installation
     config_path = os.path.join("..", "config")
-    if not os.path.exists(config_path):
-        # in case of "--editable" installs we need to go one dir up
-        config_path = os.path.join("..", "..", "config")
 
     with initialize(config_path=config_path):
         composed_cfg = compose("config", overrides=overrides, strict=False)
