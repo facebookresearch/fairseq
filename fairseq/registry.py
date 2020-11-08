@@ -8,6 +8,7 @@ from argparse import Namespace
 from typing import Union
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import populate_dataclass, merge_with_parent
+from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig
 
 REGISTRIES = {}
@@ -82,9 +83,16 @@ def setup_registry(registry_name: str, base_class=None, default=None, required=F
                 )
 
             cls.__dataclass = dataclass
-            REGISTRY[name] = cls
             if cls.__dataclass is not None:
                 DATACLASS_REGISTRY[name] = cls.__dataclass
+
+                cs = ConfigStore.instance()
+                node = dataclass()
+                node._name = name
+                cs.store(name=name, group=registry_name, node=node, provider="fairseq")
+
+            REGISTRY[name] = cls
+
             return cls
 
         return register_x_cls

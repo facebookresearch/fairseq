@@ -160,9 +160,13 @@ class SampledMultiDataset(FairseqDataset):
         ratios = torch.DoubleTensor(ratios)
         if torch.distributed.is_initialized():
             if torch.cuda.is_available():
-                distributed_utils.all_reduce(ratios.cuda())
+                distributed_utils.all_reduce(
+                    ratios.cuda(), group=distributed_utils.get_data_parallel_group()
+                )
             else:
-                distributed_utils.all_reduce(ratios)
+                distributed_utils.all_reduce(
+                    ratios, group=distributed_utils.get_data_parallel_group()
+                )
             ret = ratios.cpu()
             ret = ret.numpy()
         return ret

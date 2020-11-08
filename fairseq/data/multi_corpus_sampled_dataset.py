@@ -143,3 +143,10 @@ class MultiCorpusSampledDataset(FairseqDataset):
             dataset.prefetch(
                 [self._map_index_to_dataset(key, index) for index in indices]
             )
+
+    @property
+    def supports_fetch_outside_dataloader(self):
+        return all(
+            self.datasets[key].supports_fetch_outside_dataloader
+            for key in self.datasets
+        )

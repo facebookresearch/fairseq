@@ -94,6 +94,11 @@ class FairseqOptimizer(object):
         """Computes the sum of gradients of the given tensor w.r.t. graph leaves."""
         loss.backward()
 
+    def all_reduce_grads(self, module):
+        """Manually all-reduce gradients (if required)."""
+        if hasattr(module, "all_reduce_grads"):
+            module.all_reduce_grads()
+
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
         for p in self.params:

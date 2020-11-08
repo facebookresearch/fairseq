@@ -6,6 +6,7 @@
 
 import hydra
 from omegaconf import OmegaConf
+import os
 
 from fairseq.dataclass.initialize import hydra_init
 from fairseq_cli.train import main as pre_main
@@ -19,7 +20,7 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../config", config_name="config")
+@hydra.main(config_path=os.path.join("..", "fairseq", "config"), config_name="config")
 def hydra_main(cfg: FairseqConfig) -> None:
 
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True, enum_to_str=True))

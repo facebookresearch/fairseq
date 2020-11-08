@@ -10,6 +10,7 @@ import os
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import merge_with_parent
+from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig
 
 from .fairseq_task import FairseqTask, LegacyFairseqTask  # noqa
@@ -85,6 +86,11 @@ def register_task(name, dataclass=None):
         cls.__dataclass = dataclass
         if dataclass is not None:
             TASK_DATACLASS_REGISTRY[name] = dataclass
+
+            cs = ConfigStore.instance()
+            node = dataclass()
+            node._name = name
+            cs.store(name=name, group="task", node=node, provider="fairseq")
 
         return cls
 

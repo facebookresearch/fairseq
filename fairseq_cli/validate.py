@@ -115,6 +115,7 @@ def main(cfg: DictConfig, override_args=None):
             log_outputs = distributed_utils.all_gather_list(
                 log_outputs,
                 max_size=cfg.common.all_gather_list_size,
+                group=distributed_utils.get_data_parallel_group(),
             )
             log_outputs = list(chain.from_iterable(log_outputs))
 

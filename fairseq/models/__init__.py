@@ -11,6 +11,7 @@ import os
 import fairseq
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import merge_with_parent
+from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 
 from .composite_encoder import CompositeEncoder
@@ -120,6 +121,11 @@ def register_model(name, dataclass=None):
         cls.__dataclass = dataclass
         if dataclass is not None:
             MODEL_DATACLASS_REGISTRY[name] = dataclass
+
+            cs = ConfigStore.instance()
+            node = dataclass()
+            node._name = name
+            cs.store(name=name, group="model", node=node, provider="fairseq")
         return cls
 
     return register_model_cls

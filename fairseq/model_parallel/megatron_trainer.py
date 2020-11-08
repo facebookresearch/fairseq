@@ -13,10 +13,8 @@ from fairseq.dataclass.configs import FairseqConfig
 
 try:
     from fairseq.model_parallel.megatron.mpu import (
-        get_data_parallel_group,
         get_data_parallel_rank,
         get_data_parallel_world_size,
-        get_model_parallel_group,
         get_model_parallel_src_rank,
         get_cuda_rng_tracker,
     )
@@ -38,26 +36,12 @@ class MegatronTrainer(Trainer):
             )
         super().__init__(cfg, task, model, criterion, **kwargs)
 
-    @property
-    def data_parallel_world_size(self):
-        return get_data_parallel_world_size()
-
-    @property
-    def data_parallel_process_group(self):
-        return get_data_parallel_group()
-
-    @property
-    def data_parallel_rank(self):
-        return get_data_parallel_rank()
-
-    @property
-    def is_data_parallel_master(self):
-        return get_model_parallel_src_rank() == 0
-
     def clip_grad_norm(self, clip_norm):
         def _aggregate_model_parallel_grad_norm(total_norm):
             total_norm = total_norm ** 2
-            distributed_utils.all_reduce(total_norm, group=get_model_parallel_group())
+            distributed_utils.all_reduce(
+                total_norm, group=distributed_utils.get_model_parallel_group()
+            )
             total_norm = total_norm ** 0.5
             return total_norm
 
@@ -71,7 +55,7 @@ class MegatronTrainer(Trainer):
         extra_state['rng_tracker_states'] \
             = get_cuda_rng_tracker().get_states()
         super().save_checkpoint(filename, extra_state)
-    
+
     def load_checkpoint(
         self,
         filename,
