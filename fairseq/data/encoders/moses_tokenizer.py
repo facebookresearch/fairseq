@@ -24,7 +24,7 @@ class MosesTokenizerConfig(FairseqDataclass):
 
 @register_tokenizer("moses", dataclass=MosesTokenizerConfig)
 class MosesTokenizer(object):
-    def __init__(self, cfg):
+    def __init__(self, cfg: MosesTokenizerConfig):
         self.cfg = cfg
 
         try:
