@@ -50,6 +50,10 @@ def gen_parser_from_dataclass(
     def interpret_dc_type(field_type):
         if isinstance(field_type, str):
             raise RuntimeError("field should be a type")
+
+        if field_type == Any:
+            return str
+
         typestring = str(field_type)
         if re.match(r"(typing.|^)Union\[(.*), NoneType\]$", typestring):
             return field_type.__args__[0]
@@ -127,8 +131,13 @@ def gen_parser_from_dataclass(
 
     for k in dataclass_instance._get_all_attributes():
         field_name = argparse_name(dataclass_instance._get_name(k))
+        field_type = dataclass_instance._get_type(k)
         if field_name is None:
             continue
+        elif inspect.isclass(field_type) and issubclass(field_type, FairseqDataclass):
+            gen_parser_from_dataclass(parser, field_type(), delete_default)
+            continue
+
         kwargs = get_kwargs_from_dc(dataclass_instance, k)
 
         field_args = [field_name]
@@ -197,13 +206,14 @@ def _override_attr(
             t_args = v.type.__args__
             if len(t_args) == 1:
                 val = list(map(t_args[0], val))
-
         if val is None:
             overrides.append("{}.{}=null".format(sub_node, k))
         elif val == "":
             overrides.append("{}.{}=''".format(sub_node, k))
         elif isinstance(val, str):
             overrides.append("{}.{}='{}'".format(sub_node, k, val))
+        elif isinstance(val, FairseqDataclass):
+            overrides += _override_attr(f"{sub_node}.{k}", type(val), args)
         else:
             overrides.append("{}.{}={}".format(sub_node, k, val))
     return overrides

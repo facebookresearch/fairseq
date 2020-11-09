@@ -52,7 +52,7 @@ __all__ = [
 ]
 
 
-def build_model(cfg: DictConfig, task):
+def build_model(cfg: FairseqDataclass, task):
 
     model = None
     model_type = getattr(cfg, "_name", None) or getattr(cfg, "arch", None)
