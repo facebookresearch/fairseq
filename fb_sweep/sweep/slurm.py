@@ -63,6 +63,7 @@ def copy_all_python_files(
         for d in recurse_dirs.split(","):
             yield from iglob(os.path.join(source, d, "**/*.py"), recursive=True)
             yield from iglob(os.path.join(source, d, "**/*.so"), recursive=True)
+            yield from iglob(os.path.join(source, d, "**/*.yaml"), recursive=True)
 
     for filepath in all_pys(recurse_dirs):
         directory, filename = os.path.split(filepath)
@@ -91,6 +92,7 @@ def launch_train(args, config):
             code_snapshot_hash,
             args.snapshot_recurse_dirs,
         )
+        os.environ["PYTHONPATH"] = destination + ":" + os.environ.get("PYTHONPATH", "")
 
     # compute save_dir
     save_dir_key = ".".join(
