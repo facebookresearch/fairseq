@@ -88,7 +88,6 @@ def split_non_tensors(
     """
     if isinstance(mixed, torch.Tensor):
         return (mixed,), None
-    assert isinstance(mixed, tuple)
     tensors = []
     packed_non_tensors = {"is_tensor": [], "objects": []}
     for o in mixed:
@@ -151,7 +150,6 @@ class CheckpointFunction(torch.autograd.Function):
         if isinstance(outputs, torch.Tensor):
             return outputs
         else:
-            assert isinstance(outputs, tuple)
             # Autograd Functions don't like non-Tensor outputs. We can split the
             # non-Tensor and Tensor outputs, returning the former by reference
             # through *parent_ctx_dict* and returning the latter directly.
