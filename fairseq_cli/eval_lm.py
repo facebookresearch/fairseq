@@ -14,7 +14,7 @@ import os
 from argparse import Namespace
 
 import torch
-from fairseq import checkpoint_utils, distributed_utils, options, utils
+from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import LMContextWindowDataset
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
@@ -63,7 +63,7 @@ class WordStat(object):
         )
 
 
-def main(cfg: DictConfig, override_args=None, **unused_kwargs):
+def main(cfg: DictConfig, **unused_kwargs):
     if isinstance(cfg, Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 
@@ -75,12 +75,6 @@ def main(cfg: DictConfig, override_args=None, **unused_kwargs):
     if use_cuda:
         torch.cuda.set_device(cfg.distributed_training.device_id)
 
-    if override_args is not None:
-        overrides = vars(override_args)
-        overrides.update(eval(getattr(override_args, "model_overrides", "{}")))
-    else:
-        overrides = None
-
     logger.info(cfg)
 
     # Load ensemble
@@ -89,12 +83,17 @@ def main(cfg: DictConfig, override_args=None, **unused_kwargs):
     # reduce tokens per sample by the required context window size
     cfg.task.tokens_per_sample -= cfg.eval_lm.context_window
 
+    # Initialize the task using the current *cfg*
+    task = tasks.setup_task(cfg.task)
+
+    # Initialize the model (but not the task) using the checkpoint's *cfg*
     models, model_args, task = checkpoint_utils.load_model_ensemble_and_task(
         [cfg.common_eval.path],
-        arg_overrides=overrides,
+        arg_overrides=eval(cfg.common_eval.model_overrides),
         suffix=cfg.checkpoint.checkpoint_suffix,
         strict=(cfg.checkpoint.checkpoint_shard_count == 1),
         num_shards=cfg.checkpoint.checkpoint_shard_count,
+        task=task,
     )
 
     # Load dataset splits
@@ -193,7 +192,7 @@ def main(cfg: DictConfig, override_args=None, **unused_kwargs):
             tgt_len = tokens.numel()
             pos_scores = hypo["positional_scores"].float()
 
-            if cfg.task.add_bos_token:
+            if getattr(cfg.task, "add_bos_token", False):
                 assert hypo["tokens"][0].item() == task.target_dictionary.bos()
                 tokens = tokens[1:]
                 pos_scores = pos_scores[1:]
