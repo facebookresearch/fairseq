@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LanguageModelingConfig(FairseqDataclass):
-    # TODO common var add to parent
     data: Optional[str] = field(
         default=None, metadata={"help": "path to data directory"}
     )
