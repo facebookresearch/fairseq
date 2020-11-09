@@ -86,9 +86,10 @@ def gen_parser_from_dataclass(
                 kwargs["required"] = True
             if field_choices is not None:
                 kwargs["choices"] = field_choices
-            if (isinstance(inter_type, type) and issubclass(inter_type, List)) or (
-                "List" in str(inter_type)
-            ):
+            if (
+                isinstance(inter_type, type)
+                and (issubclass(inter_type, List) or issubclass(inter_type, Tuple))
+            ) or ("List" in str(inter_type) or "Tuple" in str(inter_type)):
                 if "int" in str(inter_type):
                     kwargs["type"] = lambda x: eval_str_list(x, int)
                 elif "float" in str(inter_type):
@@ -96,7 +97,9 @@ def gen_parser_from_dataclass(
                 elif "str" in str(inter_type):
                     kwargs["type"] = lambda x: eval_str_list(x, str)
                 else:
-                    raise NotImplementedError()
+                    raise NotImplementedError(
+                        "parsing of type " + str(inter_type) + " is not implemented"
+                    )
                 if field_default is not MISSING:
                     kwargs["default"] = (
                         ",".join(map(str, field_default))
@@ -216,6 +219,7 @@ def _override_attr(
             overrides += _override_attr(f"{sub_node}.{k}", type(val), args)
         else:
             overrides.append("{}.{}={}".format(sub_node, k, val))
+
     return overrides
 
 
@@ -377,8 +381,13 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
             if k in cfg and isinstance(cfg[k], DictConfig):
                 overwrite_args_by_name(cfg[k], overrides)
             elif k in overrides:
-                if k in REGISTRIES and overrides[k] in REGISTRIES[k]["dataclass_registry"]:
-                    cfg[k] = DictConfig(REGISTRIES[k]["dataclass_registry"][overrides[k]])
+                if (
+                    k in REGISTRIES
+                    and overrides[k] in REGISTRIES[k]["dataclass_registry"]
+                ):
+                    cfg[k] = DictConfig(
+                        REGISTRIES[k]["dataclass_registry"][overrides[k]]
+                    )
                     overwrite_args_by_name(cfg[k], overrides)
                     cfg[k]._name = overrides[k]
                 else:
