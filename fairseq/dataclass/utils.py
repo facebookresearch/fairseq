@@ -5,6 +5,7 @@
 
 import ast
 import os
+import re
 from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
@@ -30,13 +31,25 @@ def eval_str_list(x, x_type=float):
         return [x_type(x)]
 
 
+def interpret_dc_type(field_type):
+    if isinstance(field_type, str):
+        raise RuntimeError("field should be a type")
+
+    if field_type == Any:
+        return str
+
+    typestring = str(field_type)
+    if re.match(r"(typing.|^)Union\[(.*), NoneType\]$", typestring):
+        return field_type.__args__[0]
+    return field_type
+
+
 def gen_parser_from_dataclass(
     parser: ArgumentParser,
     dataclass_instance: FairseqDataclass,
     delete_default: bool = False,
 ) -> None:
     """convert a dataclass instance to tailing parser arguments"""
-    import re
 
     def argparse_name(name: str):
         if name == "data":
@@ -46,18 +59,6 @@ def gen_parser_from_dataclass(
             # private member, skip
             return None
         return "--" + name.replace("_", "-")
-
-    def interpret_dc_type(field_type):
-        if isinstance(field_type, str):
-            raise RuntimeError("field should be a type")
-
-        if field_type == Any:
-            return str
-
-        typestring = str(field_type)
-        if re.match(r"(typing.|^)Union\[(.*), NoneType\]$", typestring):
-            return field_type.__args__[0]
-        return field_type
 
     def get_kwargs_from_dc(
         dataclass_instance: FairseqDataclass, k: str
@@ -204,11 +205,25 @@ def _override_attr(
 
         val = get_default(v) if not hasattr(args, k) else getattr(args, k)
 
+        field_type = interpret_dc_type(v.type)
+        if (
+            isinstance(val, str)
+            and not val.startswith("${")  # not interpolation
+            and field_type != str
+            and not issubclass(field_type, Enum)  # not choices enum
+        ):
+            # upgrade old models that stored complex parameters as string
+            val = ast.literal_eval(val)
+
+        if isinstance(val, tuple):
+            val = list(val)
+
         if getattr(v.type, "__origin__", None) is List:
             # if type is int but val is float, then we will crash later - try to convert here
             t_args = v.type.__args__
             if len(t_args) == 1:
                 val = list(map(t_args[0], val))
+
         if val is None:
             overrides.append("{}.{}=null".format(sub_node, k))
         elif val == "":
