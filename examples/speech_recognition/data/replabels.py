@@ -6,13 +6,13 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Replabel transforms for use with wav2letter's ASG criterion.
+Replabel transforms for use with flashlight's ASG criterion.
 """
 
 
 def replabel_symbol(i):
     """
-    Replabel symbols used in wav2letter, currently just "1", "2", ...
+    Replabel symbols used in flashlight, currently just "1", "2", ...
     This prevents training with numeral tokens, so this might change in the future
     """
     return str(i)

@@ -277,7 +277,7 @@ def main(args, task=None, model_state=None):
             return W2lFairseqLMDecoder(args, task.target_dictionary)
         else:
             print(
-                "only wav2letter decoders with (viterbi, kenlm, fairseqlm) options are supported at the moment"
+                "only flashlight decoders with (viterbi, kenlm, fairseqlm) options are supported at the moment"
             )
 
     # please do not touch this unless you test both generate.py and infer.py with audio_pretraining task

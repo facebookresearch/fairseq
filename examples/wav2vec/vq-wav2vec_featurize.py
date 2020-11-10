@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Helper script to pre-compute embeddings for a wav2letter++ dataset
+Helper script to pre-compute embeddings for a flashlight (previously called wav2letter++) dataset
 """
 
 import argparse

@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Wav2letter decoders.
+Flashlight decoders.
 """
 
 import gc
@@ -25,11 +25,11 @@ from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 
 
 try:
-    from wav2letter.common import create_word_dict, load_words
-    from wav2letter.criterion import CpuViterbiPath, get_data_ptr_as_bytes
-    from wav2letter.decoder import (
+    from flashlight.lib.text.dictionary import create_word_dict, load_words
+    from flashlight.lib.sequence.criterion import CpuViterbiPath, get_data_ptr_as_bytes
+    from flashlight.lib.text.decoder import (
         CriterionType,
-        DecoderOptions,
+        LexiconDecoderOptions,
         KenLM,
         LM,
         LMState,
@@ -39,7 +39,7 @@ try:
     )
 except:
     warnings.warn(
-        "wav2letter python bindings are required to use this functionality. Please install from https://github.com/facebookresearch/wav2letter/wiki/Python-bindings"
+        "flashlight python bindings are required to use this functionality. Please install from https://github.com/facebookresearch/flashlight/tree/master/bindings/python"
     )
     LM = object
     LMState = object
@@ -156,18 +156,18 @@ class W2lKenLMDecoder(W2lDecoder):
                 self.trie.insert(spelling_idxs, word_idx, score)
         self.trie.smear(SmearingMode.MAX)
 
-        self.decoder_opts = DecoderOptions(
-            args.beam,
-            int(getattr(args, "beam_size_token", len(tgt_dict))),
-            args.beam_threshold,
-            args.lm_weight,
-            args.word_score,
-            args.unk_weight,
-            args.sil_weight,
-            0,
-            False,
-            self.criterion_type,
+        self.decoder_opts = LexiconDecoderOptions(
+            beam_size=args.beam,
+            beam_size_token=int(getattr(args, "beam_size_token", len(tgt_dict))),
+            beam_threshold=args.beam_threshold,
+            lm_weight=args.lm_weight,
+            word_score=args.word_score,
+            unk_score=args.unk_weight,
+            sil_score=args.sil_weight,
+            log_add=False,
+            criterion_type=self.criterion_type,
         )
+
 
         if self.asg_transitions is None:
             N = 768
@@ -368,17 +368,16 @@ class W2lFairseqLMDecoder(W2lDecoder):
         self.unk_word = self.word_dict.unk()
         self.lm = FairseqLM(self.word_dict, model)
 
-        self.decoder_opts = DecoderOptions(
-            args.beam,
-            int(getattr(args, "beam_size_token", len(tgt_dict))),
-            args.beam_threshold,
-            args.lm_weight,
-            args.word_score,
-            args.unk_weight,
-            args.sil_weight,
-            0,
-            False,
-            self.criterion_type,
+        self.decoder_opts = LexiconDecoderOptions(
+            beam_size=args.beam,
+            beam_size_token=int(getattr(args, "beam_size_token", len(tgt_dict))),
+            beam_threshold=args.beam_threshold,
+            lm_weight=args.lm_weight,
+            word_score=args.word_score,
+            unk_score=args.unk_weight,
+            sil_score=args.sil_weight,
+            log_add=False,
+            criterion_type=self.criterion_type,
         )
 
         if self.lexicon:
@@ -411,7 +410,7 @@ class W2lFairseqLMDecoder(W2lDecoder):
                 self.unit_lm,
             )
         else:
-            from wav2letter.decoder import LexiconFreeDecoder
+            from flashlight.lib.text.decoder import LexiconFreeDecoder
             self.decoder = LexiconFreeDecoder(
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )
