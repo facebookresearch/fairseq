@@ -5,7 +5,7 @@
 
 import logging
 import math
-from collections import Collection
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import List
 
