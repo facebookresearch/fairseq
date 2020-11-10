@@ -5,8 +5,10 @@
 
 import inspect
 
+import torch
 import torch.nn as nn
 
+from fairseq import distributed_utils
 from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
 
 
@@ -17,7 +19,7 @@ except ImportError:
     _GOSSIP_DISABLED = True
 
 
-def DistributedFairseqModel(args, model, process_group=None):
+def DistributedFairseqModel(args, model, process_group):
     """
     Wrap a *model* to support distributed data parallel training.
 
@@ -29,10 +31,18 @@ def DistributedFairseqModel(args, model, process_group=None):
     Args:
         args (argparse.Namespace): fairseq args
         model (BaseFairseqModel): model to wrap
+        process_group: the c10d process group to be used for distributed data
+            parallel all-reduction.
     """
     # determine which DDP class to extend
     assert isinstance(model, nn.Module)
-    if args.distributed_wrapper == 'DDP' and args.ddp_backend == 'c10d':
+    if args.tpu:
+        ddp_class = TPUDistributedDataParallel
+        init_kwargs = dict(
+            module=model,
+            process_group=process_group,
+        )
+    elif args.distributed_wrapper == "DDP" and args.ddp_backend == "c10d":
         ddp_class = nn.parallel.DistributedDataParallel
         init_kwargs = dict(
             module=model,
@@ -43,23 +53,22 @@ def DistributedFairseqModel(args, model, process_group=None):
             process_group=process_group,
         )
         # Maintain backward compatibility
-        if 'check_reduction' in inspect.getargspec(ddp_class)[0]:
-            init_kwargs['check_reduction'] = True
-        if 'find_unused_parameters' in inspect.getargspec(ddp_class)[0]:
-            init_kwargs['find_unused_parameters'] = args.find_unused_parameters
-    elif args.distributed_wrapper == 'DDP' and args.ddp_backend == 'no_c10d':
+        if "check_reduction" in inspect.getargspec(ddp_class)[0]:
+            init_kwargs["check_reduction"] = True
+        if "find_unused_parameters" in inspect.getargspec(ddp_class)[0]:
+            init_kwargs["find_unused_parameters"] = args.find_unused_parameters
+    elif args.distributed_wrapper == "DDP" and args.ddp_backend == "no_c10d":
         ddp_class = LegacyDistributedDataParallel
         init_kwargs = dict(
             module=model,
-            world_size=args.distributed_world_size,
-            buffer_size=2**28,
+            buffer_size=2 ** 28,
             process_group=process_group,
         )
-    elif args.distributed_wrapper == 'SlowMo':
+    elif args.distributed_wrapper == "SlowMo":
         if _GOSSIP_DISABLED:
             raise ImportError(
-                'Cannot find gossip library. Please install from: '
-                'github.com/facebookresearch/stochastic_gradient_push'
+                "Cannot find gossip library. Please install from: "
+                "github.com/facebookresearch/stochastic_gradient_push"
             )
         ddp_class = gossip.GossipDataParallel
 
@@ -82,11 +91,11 @@ def DistributedFairseqModel(args, model, process_group=None):
             broadcast_buffers=args.broadcast_buffers,
             nprocs_per_node=args.nprocs_per_node,
             slowmo_momentum=args.slowmo_momentum,
-            localsgd=(args.slowmo_algorithm == 'LocalSGD'),
-            localsgd_frequency=args.localsgd_frequency
+            localsgd=(args.slowmo_algorithm == "LocalSGD"),
+            localsgd_frequency=args.localsgd_frequency,
         )
     else:
-        raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)
+        raise ValueError("Unknown --ddp-backend: " + args.ddp_backend)
 
     class _DistributedFairseqModel(ddp_class):
         """Extend DistributedDataParallel to check for missing
@@ -96,9 +105,43 @@ def DistributedFairseqModel(args, model, process_group=None):
             super().__init__(*args, **kwargs)
 
         def __getattr__(self, name):
-            wrapped_module = super().__getattr__('module')
+            wrapped_module = super().__getattr__("module")
             if hasattr(wrapped_module, name):
                 return getattr(wrapped_module, name)
             return super().__getattr__(name)
 
     return _DistributedFairseqModel(**init_kwargs)
+
+
+class TPUDistributedDataParallel(nn.Module):
+
+    def __init__(self, module, process_group):
+        super().__init__()
+        self.module = module
+        self.process_group = process_group
+        self.world_size = distributed_utils.get_world_size(self.process_group)
+
+    def forward(self, *inputs, **kwargs):
+        return self.module(*inputs, **kwargs)
+
+    def all_reduce_grads(self):
+        gradients = []
+        for p in self.parameters():
+            if not p.requires_grad:
+                continue
+            if p.grad is None:
+                p.grad = torch.zeros_like(p)
+            if p.grad.requires_grad:
+                raise RuntimeError(
+                    "TPUDistributedDataParallel only works with gradients that don't "
+                    "require grad"
+                )
+            gradients.append(p.grad)
+
+        import torch_xla.core.xla_model as xm
+        xm.all_reduce(
+            'sum',
+            gradients,
+            scale=1. / self.world_size,
+            groups=self.process_group[1],
+        )

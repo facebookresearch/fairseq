@@ -14,13 +14,12 @@ import os
 from shutil import copy
 
 import h5py
-import soundfile as sf
 import numpy as np
+import soundfile as sf
 import torch
-from torch import nn
 import tqdm
-
 from fairseq.models.wav2vec.wav2vec import Wav2VecModel
+from torch import nn
 
 
 def read_audio(fname):
@@ -33,7 +32,6 @@ def read_audio(fname):
 
 
 class PretrainedWav2VecModel(nn.Module):
-
     def __init__(self, fname):
         super().__init__()
 
@@ -55,32 +53,33 @@ class PretrainedWav2VecModel(nn.Module):
 
 
 class EmbeddingWriterConfig(argparse.ArgumentParser):
-
     def __init__(self):
         super().__init__("Pre-compute embeddings for wav2letter++ datasets")
 
         kwargs = {"action": "store", "type": str, "required": True}
 
-        self.add_argument("--input", "-i",
-                          help="Input Directory", **kwargs)
-        self.add_argument("--output", "-o",
-                          help="Output Directory", **kwargs)
-        self.add_argument("--model",
-                          help="Path to model checkpoint", **kwargs)
-        self.add_argument("--split",
-                          help="Dataset Splits", nargs='+', **kwargs)
-        self.add_argument("--ext", default="wav", required=False,
-                          help="Audio file extension")
+        self.add_argument("--input", "-i", help="Input Directory", **kwargs)
+        self.add_argument("--output", "-o", help="Output Directory", **kwargs)
+        self.add_argument("--model", help="Path to model checkpoint", **kwargs)
+        self.add_argument("--split", help="Dataset Splits", nargs="+", **kwargs)
+        self.add_argument(
+            "--ext", default="wav", required=False, help="Audio file extension"
+        )
 
-        self.add_argument("--no-copy-labels", action="store_true",
-                          help="Do not copy label files. Useful for large datasets, use --targetdir in wav2letter then.")
-        self.add_argument("--use-feat", action="store_true",
-                          help="Use the feature vector ('z') instead of context vector ('c') for features")
-        self.add_argument("--gpu",
-                          help="GPU to use", default=0, type=int)
+        self.add_argument(
+            "--no-copy-labels",
+            action="store_true",
+            help="Do not copy label files. Useful for large datasets, use --targetdir in wav2letter then.",
+        )
+        self.add_argument(
+            "--use-feat",
+            action="store_true",
+            help="Use the feature vector ('z') instead of context vector ('c') for features",
+        )
+        self.add_argument("--gpu", help="GPU to use", default=0, type=int)
 
 
-class Prediction():
+class Prediction:
     """ Lightweight wrapper around a fairspeech embedding model """
 
     def __init__(self, fname, gpu=0):
@@ -95,7 +94,7 @@ class Prediction():
         return z.squeeze(0).cpu().numpy(), c.squeeze(0).cpu().numpy()
 
 
-class H5Writer():
+class H5Writer:
     """ Write features as hdf5 file in wav2letter++ compatible format """
 
     def __init__(self, fname):
@@ -112,7 +111,7 @@ class H5Writer():
 
 
 class EmbeddingDatasetWriter(object):
-    """ Given a model and a wav2letter++ dataset, pre-compute and store embeddings
+    """Given a model and a wav2letter++ dataset, pre-compute and store embeddings
 
     Args:
         input_root, str :
@@ -123,13 +122,17 @@ class EmbeddingDatasetWriter(object):
             Dataset split
     """
 
-    def __init__(self, input_root, output_root, split,
-                 model_fname,
-                 extension="wav",
-                 gpu=0,
-                 verbose=False,
-                 use_feat=False,
-                 ):
+    def __init__(
+        self,
+        input_root,
+        output_root,
+        split,
+        model_fname,
+        extension="wav",
+        gpu=0,
+        verbose=False,
+        use_feat=False,
+    ):
 
         assert os.path.exists(model_fname)
 
@@ -143,8 +146,9 @@ class EmbeddingDatasetWriter(object):
         self.extension = extension
         self.use_feat = use_feat
 
-        assert os.path.exists(self.input_path), \
-            "Input path '{}' does not exist".format(self.input_path)
+        assert os.path.exists(self.input_path), "Input path '{}' does not exist".format(
+            self.input_path
+        )
 
     def _progress(self, iterable, **kwargs):
         if self.verbose:
@@ -176,7 +180,11 @@ class EmbeddingDatasetWriter(object):
     def copy_labels(self):
         self.require_output_path()
 
-        labels = list(filter(lambda x: self.extension not in x, glob.glob(self.get_input_path("*"))))
+        labels = list(
+            filter(
+                lambda x: self.extension not in x, glob.glob(self.get_input_path("*"))
+            )
+        )
         for fname in tqdm.tqdm(labels):
             copy(fname, self.output_path)
 
@@ -191,10 +199,16 @@ class EmbeddingDatasetWriter(object):
 
         paths = self.input_fnames
 
-        fnames_context = map(lambda x: os.path.join(self.output_path, x.replace("." + self.extension, ".h5context")), \
-                             map(os.path.basename, paths))
+        fnames_context = map(
+            lambda x: os.path.join(
+                self.output_path, x.replace("." + self.extension, ".h5context")
+            ),
+            map(os.path.basename, paths),
+        )
 
-        for name, target_fname in self._progress(zip(paths, fnames_context), total=len(self)):
+        for name, target_fname in self._progress(
+            zip(paths, fnames_context), total=len(self)
+        ):
             wav, sr = read_audio(name)
             z, c = self.model(wav)
             feat = z if self.use_feat else c
@@ -204,7 +218,8 @@ class EmbeddingDatasetWriter(object):
     def __repr__(self):
 
         return "EmbeddingDatasetWriter ({n_files} files)\n\tinput:\t{input_root}\n\toutput:\t{output_root}\n\tsplit:\t{split})".format(
-            n_files=len(self), **self.__dict__)
+            n_files=len(self), **self.__dict__
+        )
 
 
 if __name__ == "__main__":

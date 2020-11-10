@@ -40,16 +40,19 @@ class RoundRobinZipDatasets(FairseqDataset):
         self._ordered_indices = None
 
     def _map_index(self, key, index):
-        assert self._ordered_indices is not None, \
-            'Must call RoundRobinZipDatasets.ordered_indices() first'
+        assert (
+            self._ordered_indices is not None
+        ), "Must call RoundRobinZipDatasets.ordered_indices() first"
         return self._ordered_indices[key][index % len(self.datasets[key])]
 
     def __getitem__(self, index):
         if self.eval_key is None:
-            return OrderedDict([
-                (key, dataset[self._map_index(key, index)])
-                for key, dataset in self.datasets.items()
-            ])
+            return OrderedDict(
+                [
+                    (key, dataset[self._map_index(key, index)])
+                    for key, dataset in self.datasets.items()
+                ]
+            )
         else:
             # at evaluation time it's useful to pass-through batches from a single key
             return self.datasets[self.eval_key][self._map_index(self.eval_key, index)]
@@ -62,10 +65,12 @@ class RoundRobinZipDatasets(FairseqDataset):
         if len(samples) == 0:
             return None
         if self.eval_key is None:
-            return OrderedDict([
-                (key, dataset.collater([sample[key] for sample in samples]))
-                for key, dataset in self.datasets.items()
-            ])
+            return OrderedDict(
+                [
+                    (key, dataset.collater([sample[key] for sample in samples]))
+                    for key, dataset in self.datasets.items()
+                ]
+            )
         else:
             # at evaluation time it's useful to pass-through batches from a single key
             return self.datasets[self.eval_key].collater(samples)
@@ -92,16 +97,18 @@ class RoundRobinZipDatasets(FairseqDataset):
             # Call the underlying dataset's ordered_indices() here, so that we
             # get the same random ordering as we would have from using the
             # underlying dataset directly.
-            self._ordered_indices = OrderedDict([
-                (key, dataset.ordered_indices())
-                for key, dataset in self.datasets.items()
-            ])
+            self._ordered_indices = OrderedDict(
+                [
+                    (key, dataset.ordered_indices())
+                    for key, dataset in self.datasets.items()
+                ]
+            )
         return np.arange(len(self))
 
     @property
     def supports_prefetch(self):
         return all(
-            getattr(dataset, 'supports_prefetch', False)
+            getattr(dataset, "supports_prefetch", False)
             for dataset in self.datasets.values()
         )
 

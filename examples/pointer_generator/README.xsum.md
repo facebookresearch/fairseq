@@ -77,7 +77,7 @@ update_freq=4
 pointer_layer=-2
 
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 fairseq-train bin \
-    --user-dir examples/pointer_generator/src \
+    --user-dir examples/pointer_generator/pointer_generator_src \
     --max-tokens "$max_tokens" \
     --task translation \
     --source-lang src --target-lang tgt \
@@ -125,7 +125,7 @@ max_length=60
 length_penalty=1.0
 
 fairseq-interactive bin \
-    --user-dir examples/pointer_generator/src \
+    --user-dir examples/pointer_generator/pointer_generator_src \
     --batch-size "$batch_size" \
     --task translation \
     --source-lang src --target-lang tgt \

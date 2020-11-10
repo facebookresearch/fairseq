@@ -27,8 +27,10 @@ from fairseq.modules import (
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
+from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
+
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -150,6 +152,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='add layernorm to embedding')
         parser.add_argument('--no-scale-embedding', action='store_true',
                             help='if True, dont scale embeddings')
+        parser.add_argument('--checkpoint-activations', action='store_true',
+                            help='checkpoint activations at each layer, which saves GPU '
+                                 'memory usage at the cost of some additional compute')
         # args for "Cross+Self-Attention for Transformer Models" (Peitz et al., 2019)
         parser.add_argument('--no-cross-attention', default=False, action='store_true',
                             help='do not perform cross-attention')
@@ -308,7 +313,9 @@ class TransformerEncoder(FairseqEncoder):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
 
-        self.dropout_module = FairseqDropout(args.dropout, module_name=self.__class__.__name__)
+        self.dropout_module = FairseqDropout(
+            args.dropout, module_name=self.__class__.__name__
+        )
         self.encoder_layerdrop = args.encoder_layerdrop
 
         embed_dim = embed_tokens.embedding_dim
@@ -359,11 +366,18 @@ class TransformerEncoder(FairseqEncoder):
             self.layer_norm = None
 
     def build_encoder_layer(self, args):
-        return TransformerEncoderLayer(args)
+        layer = TransformerEncoderLayer(args)
+        if getattr(args, "checkpoint_activations", False):
+            layer = checkpoint_wrapper(layer)
+        return layer
 
-    def forward_embedding(self, src_tokens):
+    def forward_embedding(
+        self, src_tokens, token_embedding: Optional[torch.Tensor] = None
+    ):
         # embed tokens and positions
-        x = embed = self.embed_scale * self.embed_tokens(src_tokens)
+        if token_embedding is None:
+            token_embedding = self.embed_tokens(src_tokens)
+        x = embed = self.embed_scale * token_embedding
         if self.embed_positions is not None:
             x = embed + self.embed_positions(src_tokens)
         if self.layernorm_embedding is not None:
@@ -373,7 +387,13 @@ class TransformerEncoder(FairseqEncoder):
             x = self.quant_noise(x)
         return x, embed
 
-    def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False):
+    def forward(
+        self,
+        src_tokens,
+        src_lengths,
+        return_all_hiddens: bool = False,
+        token_embeddings: Optional[torch.Tensor] = None,
+    ):
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -382,6 +402,8 @@ class TransformerEncoder(FairseqEncoder):
                 shape `(batch)`
             return_all_hiddens (bool, optional): also return all of the
                 intermediate hidden states (default: False).
+            token_embeddings (torch.Tensor, optional): precomputed embeddings
+                default `None` will recompute embeddings
 
         Returns:
             namedtuple:
@@ -395,7 +417,7 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
-        x, encoder_embedding = self.forward_embedding(src_tokens)
+        x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
@@ -531,7 +553,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.register_buffer("version", torch.Tensor([3]))
         self._future_mask = torch.empty(0)
 
-        self.dropout_module = FairseqDropout(args.dropout, module_name=self.__class__.__name__)
+        self.dropout_module = FairseqDropout(
+            args.dropout, module_name=self.__class__.__name__
+        )
         self.decoder_layerdrop = args.decoder_layerdrop
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
@@ -561,10 +585,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             if embed_dim != input_embed_dim
             else None
         )
-
         self.embed_positions = (
             PositionalEmbedding(
-                args.max_target_positions,
+                self.max_target_positions,
                 embed_dim,
                 self.padding_idx,
                 learned=args.decoder_learned_pos,
@@ -633,7 +656,10 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
-        return TransformerDecoderLayer(args, no_encoder_attn)
+        layer = TransformerDecoderLayer(args, no_encoder_attn)
+        if getattr(args, "checkpoint_activations", False):
+            layer = checkpoint_wrapper(layer)
+        return layer
 
     def forward(
         self,
@@ -945,6 +971,15 @@ def base_architecture(args):
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
     args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
+    args.checkpoint_activations = getattr(args, "checkpoint_activations", False)
+
+    args.encoder_layers_to_keep = getattr(args, "encoder_layers_to_keep", None)
+    args.decoder_layers_to_keep = getattr(args, "decoder_layers_to_keep", None)
+    args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0)
+    args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0)
+    args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
+    args.quant_noise_pq_block_size = getattr(args, "quant_noise_pq_block_size", 8)
+    args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
 
 
 @register_model_architecture("transformer", "transformer_iwslt_de_en")

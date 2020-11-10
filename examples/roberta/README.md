@@ -276,7 +276,6 @@ print('| Accuracy: ', float(ncorrect)/float(nsamples))
 - [Finetuning on custom classification tasks (e.g., IMDB)](README.custom_classification.md)
 - [Finetuning on Winograd Schema Challenge (WSC)](wsc/README.md)
 - [Finetuning on Commonsense QA (CQA)](commonsense_qa/README.md)
-- Finetuning on SQuAD: coming soon
 
 ## Pretraining using your own data
 

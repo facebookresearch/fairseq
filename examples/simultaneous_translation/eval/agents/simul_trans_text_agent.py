@@ -3,10 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . simul_trans_agent import SimulTransAgent
-from . import DEFAULT_EOS, GET
-from . import register_agent
-from . word_splitter import SPLITTER_DICT
+from . import DEFAULT_EOS, GET, register_agent
+from .simul_trans_agent import SimulTransAgent
+from .word_splitter import SPLITTER_DICT
 
 
 @register_agent("simul_trans_text")
@@ -15,11 +14,11 @@ class SimulTransTextAgent(SimulTransAgent):
         self.word_splitter = {}
 
         self.word_splitter["src"] = SPLITTER_DICT[args.src_splitter_type](
-                getattr(args, f"src_splitter_path")
-            )
+            getattr(args, f"src_splitter_path")
+        )
         self.word_splitter["tgt"] = SPLITTER_DICT[args.tgt_splitter_type](
-                getattr(args, f"tgt_splitter_path")
-            )
+            getattr(args, f"tgt_splitter_path")
+        )
 
     def load_dictionary(self, task):
         self.dict = {}
@@ -37,12 +36,16 @@ class SimulTransTextAgent(SimulTransAgent):
             tokens = self.word_splitter["src"].split(new_word)
             # Get indices from dictionary
             # You can change to you own dictionary
-            indices = self.dict["src"].encode_line(
-                tokens,
-                line_tokenizer=lambda x: x,
-                add_if_not_exist=False,
-                append_eos=False
-            ).tolist()
+            indices = (
+                self.dict["src"]
+                .encode_line(
+                    tokens,
+                    line_tokenizer=lambda x: x,
+                    add_if_not_exist=False,
+                    append_eos=False,
+                )
+                .tolist()
+            )
         else:
             tokens = [new_word]
             indices = [self.dict["src"].eos()]
@@ -61,11 +64,11 @@ class SimulTransTextAgent(SimulTransAgent):
 
         # At leat one word is read
         if len(states["tokens"]["src"]) == 0:
-            return {'key': GET, 'value': None}
+            return {"key": GET, "value": None}
 
         # Only request new word if there is no buffered tokens
         if len(states["tokens"]["src"]) <= states["steps"]["src"]:
-            return {'key': GET, 'value': None}
+            return {"key": GET, "value": None}
 
         return None
 

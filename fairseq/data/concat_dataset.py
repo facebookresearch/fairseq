@@ -49,7 +49,7 @@ class ConcatDataset(FairseqDataset):
 
     def collater(self, samples, **extra_args):
         # For now only supports datasets with same underlying collater implementations
-        if hasattr(self.datasets[0], 'collater'):
+        if hasattr(self.datasets[0], "collater"):
             return self.datasets[0].collater(samples, **extra_args)
         else:
             return default_collate(samples, **extra_args)
@@ -92,14 +92,16 @@ class ConcatDataset(FairseqDataset):
             # special handling for concatenating lang_pair_datasets
             indices = np.arange(len(self))
             sizes = self.sizes
-            tgt_sizes = sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
-            src_sizes = sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+            tgt_sizes = (
+                sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
+            )
+            src_sizes = (
+                sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+            )
             # sort by target length, then source length
             if tgt_sizes is not None:
-                indices = indices[
-                    np.argsort(tgt_sizes[indices], kind='mergesort')
-                ]
-            return indices[np.argsort(src_sizes[indices], kind='mergesort')]
+                indices = indices[np.argsort(tgt_sizes[indices], kind="mergesort")]
+            return indices[np.argsort(src_sizes[indices], kind="mergesort")]
         else:
             return np.argsort(self.sizes)
 
@@ -107,7 +109,7 @@ class ConcatDataset(FairseqDataset):
         frm = 0
         for to, ds in zip(self.cumulative_sizes, self.datasets):
             real_size = len(ds)
-            if getattr(ds, 'supports_prefetch', False):
+            if getattr(ds, "supports_prefetch", False):
                 ds.prefetch([(i - frm) % real_size for i in indices if frm <= i < to])
             frm = to
 
@@ -118,5 +120,5 @@ class ConcatDataset(FairseqDataset):
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
         for ds in self.datasets:
-            if hasattr(ds, 'set_epoch'):
+            if hasattr(ds, "set_epoch"):
                 ds.set_epoch(epoch)

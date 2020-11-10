@@ -7,32 +7,34 @@ import logging
 
 import numpy as np
 import torch
-
 from fairseq.data import Dictionary, FairseqDataset
-from fairseq.tasks import register_task, LegacyFairseqTask
+from fairseq.tasks import LegacyFairseqTask, register_task
 
 
 logger = logging.getLogger(__name__)
 
 
-@register_task('dummy_masked_lm')
+@register_task("dummy_masked_lm")
 class DummyMaskedLMTask(LegacyFairseqTask):
-
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('--dict-size', default=49995, type=int)
-        parser.add_argument('--dataset-size', default=100000, type=int)
-        parser.add_argument('--tokens-per-sample', default=512, type=int,
-                            help='max number of total tokens over all segments '
-                                 'per sample for BERT dataset')
+        parser.add_argument("--dict-size", default=49995, type=int)
+        parser.add_argument("--dataset-size", default=100000, type=int)
+        parser.add_argument(
+            "--tokens-per-sample",
+            default=512,
+            type=int,
+            help="max number of total tokens over all segments "
+            "per sample for BERT dataset",
+        )
 
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
 
         # add mask token
-        self.mask_idx = dictionary.add_symbol('<mask>')
+        self.mask_idx = dictionary.add_symbol("<mask>")
         dictionary.pad_to_multiple_(8)  # often faster if divisible by 8
 
         mask_idx = 0
@@ -52,8 +54,8 @@ class DummyMaskedLMTask(LegacyFairseqTask):
         """Setup the task. """
         dictionary = Dictionary()
         for i in range(args.dict_size):
-            dictionary.add_symbol('word{}'.format(i))
-        logger.info('dictionary: {} types'.format(len(dictionary)))
+            dictionary.add_symbol("word{}".format(i))
+        logger.info("dictionary: {} types".format(len(dictionary)))
         return cls(args, dictionary)
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
@@ -67,16 +69,16 @@ class DummyMaskedLMTask(LegacyFairseqTask):
             bsz = max(1, self.args.max_tokens // self.args.tokens_per_sample)
         self.datasets[split] = DummyDataset(
             {
-                'id': 1,
-                'net_input': {
-                    'src_tokens': torch.stack([self.dummy_src for _ in range(bsz)]),
-                    'src_lengths': torch.full(
-                        (bsz, ), self.args.tokens_per_sample, dtype=torch.long
+                "id": 1,
+                "net_input": {
+                    "src_tokens": torch.stack([self.dummy_src for _ in range(bsz)]),
+                    "src_lengths": torch.full(
+                        (bsz,), self.args.tokens_per_sample, dtype=torch.long
                     ),
                 },
-                'target': torch.stack([self.dummy_tgt for _ in range(bsz)]),
-                'nsentences': bsz,
-                'ntokens': bsz * self.args.tokens_per_sample,
+                "target": torch.stack([self.dummy_tgt for _ in range(bsz)]),
+                "nsentences": bsz,
+                "ntokens": bsz * self.args.tokens_per_sample,
             },
             num_items=self.args.dataset_size,
             item_size=self.args.tokens_per_sample,
@@ -92,7 +94,6 @@ class DummyMaskedLMTask(LegacyFairseqTask):
 
 
 class DummyDataset(FairseqDataset):
-
     def __init__(self, batch, num_items, item_size):
         super().__init__()
         self.batch = batch

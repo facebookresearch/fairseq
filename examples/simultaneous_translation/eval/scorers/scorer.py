@@ -3,16 +3,17 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from vizseq.scorers.bleu import BLEUScorer
-from vizseq.scorers.ter import TERScorer
-from vizseq.scorers.meteor import METEORScorer
-from examples.simultaneous_translation.eval.eval_latency import LatencyScorer
-from collections import defaultdict
 import json
 import os
+from collections import defaultdict
+
+from examples.simultaneous_translation.eval.eval_latency import LatencyScorer
+from vizseq.scorers.bleu import BLEUScorer
+from vizseq.scorers.meteor import METEORScorer
+from vizseq.scorers.ter import TERScorer
 
 
-DEFAULT_EOS = '</s>'
+DEFAULT_EOS = "</s>"
 
 
 class SimulScorer(object):
@@ -23,7 +24,7 @@ class SimulScorer(object):
             self.output_files = {
                 "text": os.path.join(args.output, "text"),
                 "delay": os.path.join(args.output, "delay"),
-                "scores": os.path.join(args.output, "scores")
+                "scores": os.path.join(args.output, "scores"),
             }
         else:
             self.output_files = None
@@ -52,14 +53,7 @@ class SimulScorer(object):
 
     def recv_hyp(self, sent_id, list_of_tokens):
         for token in list_of_tokens:
-            self.translations[
-                sent_id
-            ].append(
-                (
-                    token,
-                    self.steps[sent_id]
-                )
-            )
+            self.translations[sent_id].append((token, self.steps[sent_id]))
 
     def reset(self):
         self.steps = defaultdict(int)
@@ -76,8 +70,9 @@ class SimulScorer(object):
             delays += [[t[1] for t in self.translations[i]]]
 
         bleu_score = BLEUScorer(
-            sent_level=False, corpus_level=True,
-            extra_args={'bleu_tokenizer': self.tokenizer}
+            sent_level=False,
+            corpus_level=True,
+            extra_args={"bleu_tokenizer": self.tokenizer},
         ).score(translations, [self.data["tgt"]])
 
         ter_score = TERScorer(sent_level=False, corpus_level=True).score(
@@ -92,16 +87,16 @@ class SimulScorer(object):
                 {"src_len": src_len, "delays": delay}
                 for src_len, delay in zip(self.src_lengths(), delays)
             ],
-            start_from_zero=False
+            start_from_zero=False,
         )
 
         scores = {
-            'BLEU': bleu_score[0],
-            'TER': ter_score[0],
-            'METEOR': meteor_score[0],
-            'DAL': latency_score['differentiable_average_lagging'],
-            'AL': latency_score['average_lagging'],
-            'AP': latency_score['average_proportion'],
+            "BLEU": bleu_score[0],
+            "TER": ter_score[0],
+            "METEOR": meteor_score[0],
+            "DAL": latency_score["differentiable_average_lagging"],
+            "AL": latency_score["average_lagging"],
+            "AP": latency_score["average_proportion"],
         }
 
         if self.output_files is not None:
@@ -109,9 +104,9 @@ class SimulScorer(object):
                 os.makedirs(self.output_dir, exist_ok=True)
                 self.write_results_to_file(translations, delays, scores)
             except BaseException as be:
-                print(f'Failed to write results to {self.output_dir}.')
+                print(f"Failed to write results to {self.output_dir}.")
                 print(be)
-                print('Skip writing predictions')
+                print("Skip writing predictions")
 
         return scores
 
@@ -125,12 +120,8 @@ class SimulScorer(object):
             with open(self.output_files["delay"], "w") as f:
                 for i, delay in enumerate(delays):
                     f.write(
-                        json.dumps(
-                            {
-                                "src_len": self.src_lengths()[i],
-                                "delays": delay
-                            }
-                        ) + "\n"
+                        json.dumps({"src_len": self.src_lengths()[i], "delays": delay})
+                        + "\n"
                     )
 
         with open(self.output_files["scores"], "w") as f:
@@ -163,7 +154,7 @@ class SimulScorer(object):
                 list_to_return.append(
                     {
                         "path": item["input"]["path"].strip(),
-                        "length": item["input"]["length_ms"]
+                        "length": item["input"]["length_ms"],
                     }
                 )
         return list_to_return

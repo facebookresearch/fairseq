@@ -6,12 +6,13 @@
 
 import argparse
 
-from fairseq.data import data_utils, Dictionary, indexed_dataset
+from fairseq.data import Dictionary, data_utils, indexed_dataset
 
 
 def get_parser():
     parser = argparse.ArgumentParser(
-        description='writes text from binarized file to stdout')
+        description="writes text from binarized file to stdout"
+    )
     # fmt: off
     parser.add_argument('--dataset-impl', help='dataset implementation',
                         choices=indexed_dataset.get_available_dataset_impl())
@@ -31,17 +32,17 @@ def main():
         args.input,
         dictionary,
         dataset_impl=args.dataset_impl,
-        default='lazy',
+        default="lazy",
     )
 
     for tensor_line in dataset:
         if dictionary is None:
-            line = ' '.join([str(int(x)) for x in tensor_line])
+            line = " ".join([str(int(x)) for x in tensor_line])
         else:
             line = dictionary.string(tensor_line)
 
         print(line)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -6,14 +6,14 @@
 from fairseq import options
 
 
-def get_reranking_parser(default_task='translation'):
-    parser = options.get_parser('Generation and reranking', default_task)
+def get_reranking_parser(default_task="translation"):
+    parser = options.get_parser("Generation and reranking", default_task)
     add_reranking_args(parser)
     return parser
 
 
-def get_tuning_parser(default_task='translation'):
-    parser = options.get_parser('Reranking tuning', default_task)
+def get_tuning_parser(default_task="translation"):
+    parser = options.get_parser("Reranking tuning", default_task)
     add_reranking_args(parser)
     add_tuning_args(parser)
     return parser
@@ -64,7 +64,7 @@ def add_reranking_args(parser):
                        help='whether the first model group is a right to left model')
     group.add_argument('--right-to-left2', action='store_true',
                        help='whether the second model group is a right to left model')
-    group.add_argument('--remove-bpe', '--post-process', default='@@ ',
+    group.add_argument('--post-process', '--remove-bpe', default='@@ ',
                        help='the bpe symbol, used for the bitext and LM')
     group.add_argument('--prefix-len', default=None, type=int,
                        help='the length of the target prefix to use in rescoring (in terms of words wo bpe)')
@@ -103,24 +103,47 @@ def add_reranking_args(parser):
                        help='the fraction of the source prefix to use in rescoring (in terms of words wo bpe)')
     group.add_argument('--normalize', action='store_true',
                        help='whether to normalize by src and target len')
-
+    # fmt: on
     return group
 
 
 def add_tuning_args(parser):
     group = parser.add_argument_group("Tuning")
 
-    group.add_argument('--lower-bound', default=[-0.7], nargs='+', type=float,
-                       help='lower bound of search space')
-    group.add_argument('--upper-bound', default=[3], nargs='+', type=float,
-                       help='upper bound of search space')
-    group.add_argument('--tune-param', default=['lenpen'], nargs='+',
-                       choices=['lenpen', 'weight1', 'weight2', 'weight3'],
-                       help='the parameter(s) to tune')
-    group.add_argument('--tune-subset', default='valid', choices=['valid', 'test', 'train'],
-                       help='the subset to tune on ')
-    group.add_argument('--num-trials', default=1000, type=int,
-                       help='number of trials to do for random search')
-    group.add_argument('--share-weights', action='store_true',
-                       help='share weight2 and weight 3')
+    group.add_argument(
+        "--lower-bound",
+        default=[-0.7],
+        nargs="+",
+        type=float,
+        help="lower bound of search space",
+    )
+    group.add_argument(
+        "--upper-bound",
+        default=[3],
+        nargs="+",
+        type=float,
+        help="upper bound of search space",
+    )
+    group.add_argument(
+        "--tune-param",
+        default=["lenpen"],
+        nargs="+",
+        choices=["lenpen", "weight1", "weight2", "weight3"],
+        help="the parameter(s) to tune",
+    )
+    group.add_argument(
+        "--tune-subset",
+        default="valid",
+        choices=["valid", "test", "train"],
+        help="the subset to tune on ",
+    )
+    group.add_argument(
+        "--num-trials",
+        default=1000,
+        type=int,
+        help="number of trials to do for random search",
+    )
+    group.add_argument(
+        "--share-weights", action="store_true", help="share weight2 and weight 3"
+    )
     return group

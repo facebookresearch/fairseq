@@ -37,7 +37,7 @@ class IntEmbedding(nn.Module):
         embedding_dim,
         padding_idx=None,
         max_norm=None,
-        norm_type=2.,
+        norm_type=2.0,
         scale_grad_by_freq=False,
         sparse=False,
         _weight=None,
@@ -51,9 +51,13 @@ class IntEmbedding(nn.Module):
         self.embedding_dim = embedding_dim
         if padding_idx is not None:
             if padding_idx > 0:
-                assert padding_idx < self.num_embeddings, 'Padding_idx must be within num_embeddings'
+                assert (
+                    padding_idx < self.num_embeddings
+                ), "Padding_idx must be within num_embeddings"
             elif padding_idx < 0:
-                assert padding_idx >= -self.num_embeddings, 'Padding_idx must be within num_embeddings'
+                assert (
+                    padding_idx >= -self.num_embeddings
+                ), "Padding_idx must be within num_embeddings"
                 padding_idx = self.num_embeddings + padding_idx
         self.padding_idx = padding_idx
         self.max_norm = max_norm
@@ -63,8 +67,10 @@ class IntEmbedding(nn.Module):
             self.weight = nn.Parameter(torch.Tensor(num_embeddings, embedding_dim))
             self.reset_parameters()
         else:
-            assert list(_weight.shape) == [num_embeddings, embedding_dim], \
-                'Shape of weight does not match num_embeddings and embedding_dim'
+            assert list(_weight.shape) == [
+                num_embeddings,
+                embedding_dim,
+            ], "Shape of weight does not match num_embeddings and embedding_dim"
             self.weight = nn.Parameter(_weight)
         self.sparse = sparse
 
@@ -106,27 +112,36 @@ class IntEmbedding(nn.Module):
         noise = (weight_quantized - self.weight).masked_fill(mask.bool(), 0)
 
         # using straight-through estimator (STE)
-        clamp_low = - self.scale * self.zero_point
+        clamp_low = -self.scale * self.zero_point
         clamp_high = self.scale * (2 ** self.bits - 1 - self.zero_point)
-        weight = torch.clamp(self.weight, clamp_low.item(), clamp_high.item()) + noise.detach()
+        weight = (
+            torch.clamp(self.weight, clamp_low.item(), clamp_high.item())
+            + noise.detach()
+        )
 
         # return output
         output = F.embedding(
-            input, weight, self.padding_idx, self.max_norm,
-            self.norm_type, self.scale_grad_by_freq, self.sparse)
+            input,
+            weight,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
+            self.sparse,
+        )
         return output
 
     def extra_repr(self):
-        s = '{num_embeddings}, {embedding_dim}'
+        s = "{num_embeddings}, {embedding_dim}"
         if self.padding_idx is not None:
-            s += ', padding_idx={padding_idx}'
+            s += ", padding_idx={padding_idx}"
         if self.max_norm is not None:
-            s += ', max_norm={max_norm}'
+            s += ", max_norm={max_norm}"
         if self.norm_type != 2:
-            s += ', norm_type={norm_type}'
+            s += ", norm_type={norm_type}"
         if self.scale_grad_by_freq is not False:
-            s += ', scale_grad_by_freq={scale_grad_by_freq}'
+            s += ", scale_grad_by_freq={scale_grad_by_freq}"
         if self.sparse is not False:
-            s += ', sparse=True'
-        s += 'quant_noise={p}, bits={bits}, method={method}'
+            s += ", sparse=True"
+        s += "quant_noise={p}, bits={bits}, method={method}"
         return s.format(**self.__dict__)

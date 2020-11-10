@@ -3,10 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq.optim import register_optimizer, LegacyFairseqOptimizer
+from fairseq.optim import LegacyFairseqOptimizer, register_optimizer
 
 
-@register_optimizer('lamb')
+@register_optimizer("lamb")
 class FairseqLAMB(LegacyFairseqOptimizer):
     """LAMB optimizer."""
 
@@ -14,9 +14,10 @@ class FairseqLAMB(LegacyFairseqOptimizer):
         super().__init__(args)
         try:
             from apex.optimizers import FusedLAMB
+
             self._optimizer = FusedLAMB(params, **self.optimizer_config)
         except ImportError:
-            raise ImportError('Please install apex to use LAMB optimizer')
+            raise ImportError("Please install apex to use LAMB optimizer")
 
     @staticmethod
     def add_args(parser):
@@ -39,10 +40,10 @@ class FairseqLAMB(LegacyFairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'betas': eval(self.args.lamb_betas),
-            'eps': self.args.lamb_eps,
-            'weight_decay': self.args.weight_decay,
+            "lr": self.args.lr[0],
+            "betas": eval(self.args.lamb_betas),
+            "eps": self.args.lamb_eps,
+            "weight_decay": self.args.weight_decay,
         }
 
     @property

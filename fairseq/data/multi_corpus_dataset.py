@@ -157,3 +157,10 @@ class MultiCorpusDataset(FairseqDataset):
     @property
     def supports_prefetch(self):
         return False
+
+    @property
+    def supports_fetch_outside_dataloader(self):
+        return all(
+            self.datasets[key].supports_fetch_outside_dataloader
+            for key in self.datasets
+        )

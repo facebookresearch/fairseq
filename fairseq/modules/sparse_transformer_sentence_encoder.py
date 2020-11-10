@@ -5,7 +5,9 @@
 
 import torch.nn as nn
 from fairseq.modules import TransformerSentenceEncoder
-from fairseq.modules.sparse_transformer_sentence_encoder_layer import SparseTransformerSentenceEncoderLayer
+from fairseq.modules.sparse_transformer_sentence_encoder_layer import (
+    SparseTransformerSentenceEncoderLayer,
+)
 
 
 class SparseTransformerSentenceEncoder(TransformerSentenceEncoder):
@@ -43,12 +45,27 @@ class SparseTransformerSentenceEncoder(TransformerSentenceEncoder):
     ) -> None:
 
         super().__init__(
-            padding_idx, vocab_size, num_encoder_layers, embedding_dim,
-            ffn_embedding_dim, num_attention_heads, dropout, attention_dropout,
-            activation_dropout, max_seq_len, num_segments, use_position_embeddings,
-            offset_positions_by_padding, encoder_normalize_before, apply_bert_init,
-            activation_fn, learned_pos_embedding, embed_scale, freeze_embeddings,
-            n_trans_layers_to_freeze, export
+            padding_idx,
+            vocab_size,
+            num_encoder_layers,
+            embedding_dim,
+            ffn_embedding_dim,
+            num_attention_heads,
+            dropout,
+            attention_dropout,
+            activation_dropout,
+            max_seq_len,
+            num_segments,
+            use_position_embeddings,
+            offset_positions_by_padding,
+            encoder_normalize_before,
+            apply_bert_init,
+            activation_fn,
+            learned_pos_embedding,
+            embed_scale,
+            freeze_embeddings,
+            n_trans_layers_to_freeze,
+            export,
         )
 
         self.layers = nn.ModuleList(

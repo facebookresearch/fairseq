@@ -40,25 +40,19 @@ class TestConcatDataset(unittest.TestCase):
         )
 
     def test_concat_dataset_basics(self):
-        d = ConcatDataset(
-            [self.dataset_1, self.dataset_2]
-        )
-        assert(len(d) == 2)
-        assert(d[0]['source'][0] == 1)
-        assert(d[1]['source'][0] == 2)
+        d = ConcatDataset([self.dataset_1, self.dataset_2])
+        assert len(d) == 2
+        assert d[0]["source"][0] == 1
+        assert d[1]["source"][0] == 2
 
-        d = ConcatDataset(
-            [self.dataset_1, self.dataset_2], sample_ratios=[1, 2]
-        )
-        assert(len(d) == 3)
-        assert(d[0]['source'][0] == 1)
-        assert(d[1]['source'][0] == 2)
-        assert(d[2]['source'][0] == 2)
+        d = ConcatDataset([self.dataset_1, self.dataset_2], sample_ratios=[1, 2])
+        assert len(d) == 3
+        assert d[0]["source"][0] == 1
+        assert d[1]["source"][0] == 2
+        assert d[2]["source"][0] == 2
 
-        d = ConcatDataset(
-            [self.dataset_1, self.dataset_2], sample_ratios=[2, 1]
-        )
-        assert(len(d) == 3)
-        assert(d[0]['source'][0] == 1)
-        assert(d[1]['source'][0] == 1)
-        assert(d[2]['source'][0] == 2)
+        d = ConcatDataset([self.dataset_1, self.dataset_2], sample_ratios=[2, 1])
+        assert len(d) == 3
+        assert d[0]["source"][0] == 1
+        assert d[1]["source"][0] == 1
+        assert d[2]["source"][0] == 2

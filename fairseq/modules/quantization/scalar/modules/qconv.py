@@ -118,9 +118,12 @@ class IntConv2d(_ConvNd):
         noise = (weight_quantized - self.weight).masked_fill(mask.bool(), 0)
 
         # using straight-through estimator (STE)
-        clamp_low = - self.scale * self.zero_point
+        clamp_low = -self.scale * self.zero_point
         clamp_high = self.scale * (2 ** self.bits - 1 - self.zero_point)
-        weight = torch.clamp(self.weight, clamp_low.item(), clamp_high.item()) + noise.detach()
+        weight = (
+            torch.clamp(self.weight, clamp_low.item(), clamp_high.item())
+            + noise.detach()
+        )
 
         # return output
         output = self._conv_forward(input, weight)

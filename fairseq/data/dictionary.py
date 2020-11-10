@@ -251,8 +251,7 @@ class Dictionary(object):
                         "Duplicate words can overwrite earlier ones by adding the "
                         "#fairseq:overwrite flag at the end of the corresponding row "
                         "in the dictionary file. If using the Camembert model, please "
-                        "download an updated copy of the model file."
-                        .format(word)
+                        "download an updated copy of the model file.".format(word)
                     )
                 self.add_symbol(word, n=count, overwrite=overwrite)
             except ValueError:

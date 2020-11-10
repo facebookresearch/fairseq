@@ -7,7 +7,6 @@ from . import BaseWrapperDataset
 
 
 class OffsetTokensDataset(BaseWrapperDataset):
-
     def __init__(self, dataset, offset):
         super().__init__(dataset)
         self.offset = offset

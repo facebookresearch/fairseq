@@ -3,21 +3,17 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from examples.simultaneous_translation.utils.latency import LatencyTraining
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
-    LabelSmoothedCrossEntropyCriterion
-)
-
-from examples.simultaneous_translation.utils.latency import (
-    LatencyTraining
+    LabelSmoothedCrossEntropyCriterion,
 )
 
 
-@register_criterion('latency_augmented_label_smoothed_cross_entropy')
+@register_criterion("latency_augmented_label_smoothed_cross_entropy")
 class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
     LabelSmoothedCrossEntropyCriterion
 ):
-
     def __init__(self, args, task):
         super().__init__(args, task)
         self.eps = args.label_smoothing
@@ -40,7 +36,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
     def add_args(parser):
         super(
             LatencyAugmentedLabelSmoothedCrossEntropyCriterion,
-            LatencyAugmentedLabelSmoothedCrossEntropyCriterion
+            LatencyAugmentedLabelSmoothedCrossEntropyCriterion,
         ).add_args(parser)
         """Add criterion-specific arguments to the parser."""
         # fmt: off
@@ -69,7 +65,8 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
 
         # Get latency loss
         latency_loss = self.latency_train.loss(
-            attn_list, source_padding_mask, target_padding_mask)
+            attn_list, source_padding_mask, target_padding_mask
+        )
 
         loss += latency_loss
 

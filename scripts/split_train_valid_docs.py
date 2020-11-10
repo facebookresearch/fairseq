@@ -15,12 +15,13 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input')
-    parser.add_argument('sample_output', help='train output file')
-    parser.add_argument('remainder_output', help='valid output file')
-    parser.add_argument('-k', type=int, help="remainder size")
-    parser.add_argument('--lines', action='store_true',
-                        help='split lines instead of docs')
+    parser.add_argument("input")
+    parser.add_argument("sample_output", help="train output file")
+    parser.add_argument("remainder_output", help="valid output file")
+    parser.add_argument("-k", type=int, help="remainder size")
+    parser.add_argument(
+        "--lines", action="store_true", help="split lines instead of docs"
+    )
     args = parser.parse_args()
 
     assert args.k is not None
@@ -43,7 +44,7 @@ def main():
         num_docs[0] += 1
         doc.clear()
 
-    with open(args.input, 'r', encoding='utf-8') as h:
+    with open(args.input, "r", encoding="utf-8") as h:
         doc = []
         for i, line in enumerate(h):
             if line.strip() == "":  # empty line indicates new document
@@ -62,7 +63,7 @@ def main():
 
     assert len(sample) == args.k
 
-    with open(args.sample_output, 'w', encoding='utf-8') as out:
+    with open(args.sample_output, "w", encoding="utf-8") as out:
         first = True
         for doc in sample:
             if not first and not args.lines:
@@ -71,7 +72,7 @@ def main():
             for line in doc:
                 out.write(line)
 
-    with open(args.remainder_output, 'w', encoding='utf-8') as out:
+    with open(args.remainder_output, "w", encoding="utf-8") as out:
         first = True
         for doc in remainder:
             if not first and not args.lines:
@@ -81,5 +82,5 @@ def main():
                 out.write(line)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

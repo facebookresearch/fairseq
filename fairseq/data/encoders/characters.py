@@ -6,13 +6,14 @@
 
 from fairseq.data.encoders import register_bpe
 
+
 SPACE = chr(32)
 SPACE_ESCAPE = chr(9601)
 
 
-@register_bpe('characters')
+@register_bpe("characters")
 class Characters(object):
-    def __init__(self, args):
+    def __init__(self, *unused):
         pass
 
     @staticmethod
@@ -26,4 +27,4 @@ class Characters(object):
 
     @staticmethod
     def decode(x: str) -> str:
-        return x.replace(SPACE, '').replace(SPACE_ESCAPE, SPACE)
+        return x.replace(SPACE, "").replace(SPACE_ESCAPE, SPACE)

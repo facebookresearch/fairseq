@@ -6,28 +6,47 @@
 
 import importlib
 import os
+from abc import ABC, abstractmethod
 
 from fairseq import registry
+from omegaconf import DictConfig
 
 
-_build_scoring, register_scoring, SCORING_REGISTRY, _ = registry.setup_registry(
+class BaseScorer(ABC):
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.ref = []
+        self.pred = []
+
+    def add_string(self, ref, pred):
+        self.ref.append(ref)
+        self.pred.append(pred)
+
+    @abstractmethod
+    def score(self) -> float:
+        pass
+
+    @abstractmethod
+    def result_string(self) -> str:
+        pass
+
+
+_build_scorer, register_scorer, SCORER_REGISTRY, _ = registry.setup_registry(
     "--scoring", default="bleu"
 )
 
 
-def build_scorer(args, tgt_dict):
-    from fairseq import utils
+def build_scorer(choice, tgt_dict):
+    if isinstance(choice, DictConfig):
+        choice = choice._name
 
-    if args.sacrebleu:
-        utils.deprecation_warning(
-            "--sacrebleu is deprecated. Please use --scoring sacrebleu instead."
-        )
-        args.scoring = "sacrebleu"
-    if args.scoring == "bleu":
+    if choice == "bleu":
         from fairseq.scoring import bleu
-        return bleu.Scorer(tgt_dict.pad(), tgt_dict.eos(), tgt_dict.unk())
-    else:
-        return _build_scoring(args)
+
+        return bleu.Scorer(
+            bleu.BleuConfig(pad=tgt_dict.pad(), eos=tgt_dict.eos(), unk=tgt_dict.unk())
+        )
+    return _build_scorer(choice)
 
 
 # automatically import any Python files in the current directory

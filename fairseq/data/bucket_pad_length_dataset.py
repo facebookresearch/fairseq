@@ -5,7 +5,6 @@
 
 import numpy as np
 import torch.nn.functional as F
-
 from fairseq.data import BaseWrapperDataset
 
 
@@ -40,7 +39,7 @@ class BucketPadLengthDataset(BaseWrapperDataset):
             np.percentile(
                 sizes,
                 np.linspace(0, 100, num_buckets + 1),
-                interpolation='lower',
+                interpolation="lower",
             )[1:]
         )
 

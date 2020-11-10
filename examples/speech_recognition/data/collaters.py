@@ -12,18 +12,18 @@
 
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-import numpy as np
 
+import numpy as np
 import torch
 from fairseq.data import data_utils as fairseq_data_utils
 
 
 class Seq2SeqCollater(object):
     """
-        Implements collate function mainly for seq2seq tasks
-        This expects each sample to contain feature (src_tokens) and
-        targets.
-        This collator is also used for aligned training task.
+    Implements collate function mainly for seq2seq tasks
+    This expects each sample to contain feature (src_tokens) and
+    targets.
+    This collator is also used for aligned training task.
     """
 
     def __init__(

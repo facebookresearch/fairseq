@@ -5,9 +5,9 @@
 
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import (
+    TransformerModel,
     base_architecture,
     transformer_wmt_en_de_big,
-    TransformerModel,
 )
 
 

@@ -9,12 +9,12 @@ from . import FairseqDataset
 
 
 class ConcatSentencesDataset(FairseqDataset):
-
     def __init__(self, *datasets):
         super().__init__()
         self.datasets = datasets
-        assert all(len(ds) == len(datasets[0]) for ds in datasets), \
-            'datasets must have the same length'
+        assert all(
+            len(ds) == len(datasets[0]) for ds in datasets
+        ), "datasets must have the same length"
 
     def __getitem__(self, index):
         return torch.cat([ds[index] for ds in self.datasets])
@@ -40,17 +40,15 @@ class ConcatSentencesDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return any(
-            getattr(ds, 'supports_prefetch', False) for ds in self.datasets
-        )
+        return any(getattr(ds, "supports_prefetch", False) for ds in self.datasets)
 
     def prefetch(self, indices):
         for ds in self.datasets:
-            if getattr(ds, 'supports_prefetch', False):
+            if getattr(ds, "supports_prefetch", False):
                 ds.prefetch(indices)
 
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
         for ds in self.datasets:
-            if hasattr(ds, 'set_epoch'):
+            if hasattr(ds, "set_epoch"):
                 ds.set_epoch(epoch)

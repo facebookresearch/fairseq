@@ -7,14 +7,12 @@ import math
 
 import torch
 import torch.nn.functional as F
-
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
 
-@register_criterion('sentence_prediction')
+@register_criterion("sentence_prediction")
 class SentencePredictionCriterion(FairseqCriterion):
-
     def __init__(self, task, classification_head_name, regression_target):
         super().__init__(task)
         self.classification_head_name = classification_head_name
@@ -37,12 +35,12 @@ class SentencePredictionCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         assert (
-            hasattr(model, 'classification_heads')
+            hasattr(model, "classification_heads")
             and self.classification_head_name in model.classification_heads
-        ), 'model must provide sentence classification head for --criterion=sentence_prediction'
+        ), "model must provide sentence classification head for --criterion=sentence_prediction"
 
         logits, _ = model(
-            **sample['net_input'],
+            **sample["net_input"],
             features_only=True,
             classification_head_name=self.classification_head_name,
         )
@@ -51,39 +49,45 @@ class SentencePredictionCriterion(FairseqCriterion):
 
         if not self.regression_target:
             lprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
-            loss = F.nll_loss(lprobs, targets, reduction='sum')
+            loss = F.nll_loss(lprobs, targets, reduction="sum")
         else:
             logits = logits.view(-1).float()
             targets = targets.float()
-            loss = F.mse_loss(logits, targets, reduction='sum')
+            loss = F.mse_loss(logits, targets, reduction="sum")
 
         logging_output = {
-            'loss': loss.data,
-            'ntokens': sample['ntokens'],
-            'nsentences': sample_size,
-            'sample_size': sample_size,
+            "loss": loss.data,
+            "ntokens": sample["ntokens"],
+            "nsentences": sample_size,
+            "sample_size": sample_size,
         }
         if not self.regression_target:
             preds = logits.argmax(dim=1)
-            logging_output['ncorrect'] = (preds == targets).sum()
+            logging_output["ncorrect"] = (preds == targets).sum()
 
         return loss, sample_size, logging_output
 
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        loss_sum = sum(log.get('loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
+        loss_sum = sum(log.get("loss", 0) for log in logging_outputs)
+        ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
+        nsentences = sum(log.get("nsentences", 0) for log in logging_outputs)
+        sample_size = sum(log.get("sample_size", 0) for log in logging_outputs)
 
-        metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_scalar(
+            "loss", loss_sum / sample_size / math.log(2), sample_size, round=3
+        )
         if sample_size != ntokens:
-            metrics.log_scalar('nll_loss', loss_sum / ntokens / math.log(2), ntokens, round=3)
+            metrics.log_scalar(
+                "nll_loss", loss_sum / ntokens / math.log(2), ntokens, round=3
+            )
 
-        if len(logging_outputs) > 0 and 'ncorrect' in logging_outputs[0]:
-            ncorrect = sum(log.get('ncorrect', 0) for log in logging_outputs)
-            metrics.log_scalar('accuracy', 100.0 * ncorrect / nsentences, nsentences, round=1)
+        if len(logging_outputs) > 0 and "ncorrect" in logging_outputs[0]:
+            ncorrect = sum(log.get("ncorrect", 0) for log in logging_outputs)
+            metrics.log_scalar(
+                "accuracy", 100.0 * ncorrect / nsentences, nsentences, round=1
+            )
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:

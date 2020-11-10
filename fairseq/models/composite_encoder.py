@@ -43,7 +43,9 @@ class CompositeEncoder(FairseqEncoder):
     def reorder_encoder_out(self, encoder_out, new_order):
         """Reorder encoder output according to new_order."""
         for key in self.encoders:
-            encoder_out[key] = self.encoders[key].reorder_encoder_out(encoder_out[key], new_order)
+            encoder_out[key] = self.encoders[key].reorder_encoder_out(
+                encoder_out[key], new_order
+            )
         return encoder_out
 
     def max_positions(self):

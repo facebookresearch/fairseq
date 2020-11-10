@@ -1,0 +1,13 @@
+# @package _group_
+defaults:
+    - task: language_modeling
+    - model: null
+    - criterion: cross_entropy
+    - optimizer: adam
+    - lr_scheduler: cosine
+    - bpe: null
+    - tokenizer: null
+    - scoring: null
+    - generation: null
+    - common_eval: null
+    - eval_lm: null

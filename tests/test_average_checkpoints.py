@@ -5,16 +5,14 @@
 
 import collections
 import os
+import shutil
 import tempfile
 import unittest
-import shutil
 
 import numpy as np
 import torch
-from torch import nn
-
-
 from scripts.average_checkpoints import average_checkpoints
+from torch import nn
 
 
 class ModelWithSharedParameter(nn.Module):
@@ -37,33 +35,33 @@ class TestAverageCheckpoints(unittest.TestCase):
     def test_average_checkpoints(self):
         params_0 = collections.OrderedDict(
             [
-                ('a', torch.DoubleTensor([100.0])),
-                ('b', torch.FloatTensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])),
-                ('c', torch.IntTensor([7, 8, 9])),
+                ("a", torch.DoubleTensor([100.0])),
+                ("b", torch.FloatTensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])),
+                ("c", torch.IntTensor([7, 8, 9])),
             ]
         )
         params_1 = collections.OrderedDict(
             [
-                ('a', torch.DoubleTensor([1.0])),
-                ('b', torch.FloatTensor([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]])),
-                ('c', torch.IntTensor([2, 2, 2])),
+                ("a", torch.DoubleTensor([1.0])),
+                ("b", torch.FloatTensor([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]])),
+                ("c", torch.IntTensor([2, 2, 2])),
             ]
         )
         params_avg = collections.OrderedDict(
             [
-                ('a', torch.DoubleTensor([50.5])),
-                ('b', torch.FloatTensor([[1.0, 1.5, 2.0], [2.5, 3.0, 3.5]])),
+                ("a", torch.DoubleTensor([50.5])),
+                ("b", torch.FloatTensor([[1.0, 1.5, 2.0], [2.5, 3.0, 3.5]])),
                 # We expect truncation for integer division
-                ('c', torch.IntTensor([4, 5, 5])),
+                ("c", torch.IntTensor([4, 5, 5])),
             ]
         )
 
         fd_0, path_0 = tempfile.mkstemp()
         fd_1, path_1 = tempfile.mkstemp()
-        torch.save(collections.OrderedDict([('model', params_0)]), path_0)
-        torch.save(collections.OrderedDict([('model', params_1)]), path_1)
+        torch.save(collections.OrderedDict([("model", params_0)]), path_0)
+        torch.save(collections.OrderedDict([("model", params_1)]), path_1)
 
-        output = average_checkpoints([path_0, path_1])['model']
+        output = average_checkpoints([path_0, path_1])["model"]
 
         os.close(fd_0)
         os.remove(path_0)
@@ -71,28 +69,27 @@ class TestAverageCheckpoints(unittest.TestCase):
         os.remove(path_1)
 
         for (k_expected, v_expected), (k_out, v_out) in zip(
-                params_avg.items(), output.items()):
+            params_avg.items(), output.items()
+        ):
             self.assertEqual(
-                k_expected, k_out, 'Key mismatch - expected {} but found {}. '
-                '(Expected list of keys: {} vs actual list of keys: {})'.format(
+                k_expected,
+                k_out,
+                "Key mismatch - expected {} but found {}. "
+                "(Expected list of keys: {} vs actual list of keys: {})".format(
                     k_expected, k_out, params_avg.keys(), output.keys()
-                )
+                ),
             )
             np.testing.assert_allclose(
                 v_expected.numpy(),
                 v_out.numpy(),
-                err_msg='Tensor value mismatch for key {}'.format(k_expected)
+                err_msg="Tensor value mismatch for key {}".format(k_expected),
             )
 
     def test_average_checkpoints_with_shared_parameters(self):
-
         def _construct_model_with_shared_parameters(path, value):
             m = ModelWithSharedParameter()
             nn.init.constant_(m.FC1.weight, value)
-            torch.save(
-                {'model': m.state_dict()},
-                path
-            )
+            torch.save({"model": m.state_dict()}, path)
             return m
 
         tmpdir = tempfile.mkdtemp()
@@ -112,32 +109,26 @@ class TestAverageCheckpoints(unittest.TestCase):
         new_model = average_checkpoints(paths)
         self.assertTrue(
             torch.equal(
-                new_model['model']['embedding.weight'],
-                (m1.embedding.weight +
-                 m2.embedding.weight +
-                 m3.embedding.weight) / 3.0
+                new_model["model"]["embedding.weight"],
+                (m1.embedding.weight + m2.embedding.weight + m3.embedding.weight) / 3.0,
             )
         )
 
         self.assertTrue(
             torch.equal(
-                new_model['model']['FC1.weight'],
-                (m1.FC1.weight +
-                 m2.FC1.weight +
-                 m3.FC1.weight) / 3.0
+                new_model["model"]["FC1.weight"],
+                (m1.FC1.weight + m2.FC1.weight + m3.FC1.weight) / 3.0,
             )
         )
 
         self.assertTrue(
             torch.equal(
-                new_model['model']['FC2.weight'],
-                (m1.FC2.weight +
-                 m2.FC2.weight +
-                 m3.FC2.weight) / 3.0
+                new_model["model"]["FC2.weight"],
+                (m1.FC2.weight + m2.FC2.weight + m3.FC2.weight) / 3.0,
             )
         )
         shutil.rmtree(tmpdir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

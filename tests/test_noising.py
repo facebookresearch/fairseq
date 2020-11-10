@@ -408,7 +408,10 @@ class TestDataNoising(unittest.TestCase):
             self.assert_no_eos_at_end(x=x_noised, x_len=l_noised, eos=vocab.eos())
 
     def _get_noising_dataset_batch(
-        self, src_tokens_no_pad, src_dict, append_eos_to_tgt=False,
+        self,
+        src_tokens_no_pad,
+        src_dict,
+        append_eos_to_tgt=False,
     ):
         """
         Constructs a NoisingDataset and the corresponding
@@ -433,7 +436,8 @@ class TestDataNoising(unittest.TestCase):
             src=noising_dataset, tgt=tgt, src_sizes=None, src_dict=src_dict
         )
         language_pair_dataset = TransformEosDataset(
-            language_pair_dataset, src_dict.eos(),
+            language_pair_dataset,
+            src_dict.eos(),
             append_eos_to_tgt=append_eos_to_tgt,
         )
 

@@ -91,7 +91,7 @@ std::vector<at::Tensor> lightconv_cuda_forward(at::Tensor input, at::Tensor filt
 }
 """
 
-    with open("lightconv_cuda_forward.cu", 'w') as forward:
+    with open("lightconv_cuda_forward.cu", "w") as forward:
         forward.write(head)
         for seq in seqs:
             forward.write(sequence_if.format(seq=seq))
@@ -261,7 +261,7 @@ std::vector<at::Tensor> lightconv_cuda_backward(
     thresh = [32, 32, 64, 128, 256, -1, -1, -1]
     max_mem = [-1, -1, -1, -1, -1, 192, 96, 64]
 
-    with open("lightconv_cuda_backward.cu", 'w') as backward:
+    with open("lightconv_cuda_backward.cu", "w") as backward:
         backward.write(head)
         for (k, t, mem) in zip(kernels, thresh, max_mem):
             backward.write(case_k.format(k=k))

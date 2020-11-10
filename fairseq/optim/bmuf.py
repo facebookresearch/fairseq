@@ -7,39 +7,9 @@ from dataclasses import dataclass, field
 
 import torch
 import torch.distributed as dist
-from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.configs import FairseqBMUFConfig
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.optim.fairseq_optimizer import FairseqOptimizer
-from omegaconf import II
-
-
-@dataclass
-class FairseqBMUFConfig(FairseqDataclass):
-    block_lr: float = field(
-        default=1, metadata={"help": "block learning rate for bmuf"}
-    )
-    block_momentum: float = field(
-        default=0.875, metadata={"help": "block momentum for bmuf"}
-    )
-    global_sync_iter: int = field(
-        default=50, metadata={"help": "Iteration for syncing global model"}
-    )
-    warmup_iterations: int = field(
-        default=500, metadata={"help": "warmup iterations for model to broadcast"}
-    )
-    use_nbm: bool = field(
-        default=False,
-        metadata={"help": "Specify whether you want to use classical BM / Nesterov BM"},
-    )
-    average_sync: bool = field(
-        default=False,
-        metadata={
-            "help": "Specify whether you want to average the local momentum after each sync"
-        },
-    )
-    distributed_world_size: int = II(
-        "params.distributed_training.distributed_world_size"
-    )
 
 
 class FairseqBMUF(FairseqOptimizer):
@@ -52,20 +22,19 @@ class FairseqBMUF(FairseqOptimizer):
     model-update filtering
     """
 
-    def __init__(self, args, optimizer):
-
-        super().__init__(args)
+    def __init__(self, cfg: FairseqBMUFConfig, optimizer):
+        super().__init__(cfg)
         self._optimizer = optimizer
         self._num_updates = 0
-        self.sync_iter = self.args.global_sync_iter
-        self.block_momentum = self.args.block_momentum
-        self.block_lr = self.args.block_lr
+        self.sync_iter = cfg.global_sync_iter
+        self.block_momentum = cfg.block_momentum
+        self.block_lr = cfg.block_lr
         self._reset_local_data()
-        self.warmup_iteration = self.args.warmup_iterations
-        self.use_nbm = self.args.use_nbm
+        self.warmup_iteration = cfg.warmup_iterations
+        self.use_nbm = cfg.use_nbm
         self.initial_state = self._optimizer.state_dict()
-        self.average_sync = self.args.average_sync
-        self.world_size = self.args.distributed_world_size
+        self.average_sync = self.cfg.average_sync
+        self.world_size = self.cfg.distributed_world_size
 
     @staticmethod
     def add_args(parser):

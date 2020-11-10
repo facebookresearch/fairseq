@@ -5,10 +5,10 @@
 
 import torch.optim
 
-from . import register_optimizer, LegacyFairseqOptimizer
+from . import LegacyFairseqOptimizer, register_optimizer
 
 
-@register_optimizer('sgd')
+@register_optimizer("sgd")
 class SGD(LegacyFairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args)
@@ -33,9 +33,9 @@ class SGD(LegacyFairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'momentum': self.args.momentum,
-            'weight_decay': self.args.weight_decay,
+            "lr": self.args.lr[0],
+            "momentum": self.args.momentum,
+            "weight_decay": self.args.weight_decay,
         }
 
     @property

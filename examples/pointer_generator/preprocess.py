@@ -10,8 +10,8 @@ from itertools import zip_longest
 
 def replace_oovs(source_in, target_in, vocabulary, source_out, target_out):
     """Replaces out-of-vocabulary words in source and target text with <unk-N>,
-  where N in is the position of the word in the source sequence.
-  """
+    where N in is the position of the word in the source sequence.
+    """
 
     def format_unk(pos):
         return "<unk-{}>".format(pos)

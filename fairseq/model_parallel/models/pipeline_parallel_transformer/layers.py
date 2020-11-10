@@ -3,31 +3,35 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from collections import namedtuple
 import math
+from collections import namedtuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from fairseq import options, utils
 from fairseq.modules import (
     AdaptiveSoftmax,
     LayerNorm,
-    PositionalEmbedding,
     MultiheadAttention,
+    PositionalEmbedding,
 )
 
-EncoderOut = namedtuple('TransformerEncoderOut', [
-    'encoder_out',  # T x B x C
-    'encoder_padding_mask',  # B x T
-    'encoder_embedding',  # B x T x C
-    'encoder_states',  # List[T x B x C]
-])
+
+EncoderOut = namedtuple(
+    "TransformerEncoderOut",
+    [
+        "encoder_out",  # T x B x C
+        "encoder_padding_mask",  # B x T
+        "encoder_embedding",  # B x T x C
+        "encoder_states",  # List[T x B x C]
+    ],
+)
 
 
 class TransformerEncoderEmbedding(nn.Module):
     """ Encoder Embedding + Positional Embedding """
+
     def __init__(self, args, embed_tokens):
         super().__init__()
         self.dropout = args.dropout
@@ -40,11 +44,17 @@ class TransformerEncoderEmbedding(nn.Module):
             self.padding_idx = embed_tokens.padding_idx
             embed_dim = embed_tokens.embedding_dim
         self.embed_scale = math.sqrt(embed_dim)
-        self.embed_positions = PositionalEmbedding(
-            args.max_source_positions, embed_dim, self.padding_idx,
-            learned=args.encoder_learned_pos,
-        ) if not args.no_token_positional_embeddings else None
-        if getattr(args, 'layernorm_embedding', False):
+        self.embed_positions = (
+            PositionalEmbedding(
+                args.max_source_positions,
+                embed_dim,
+                self.padding_idx,
+                learned=args.encoder_learned_pos,
+            )
+            if not args.no_token_positional_embeddings
+            else None
+        )
+        if getattr(args, "layernorm_embedding", False):
             self.layernorm_embedding = LayerNorm(embed_dim)
         else:
             self.layernorm_embedding = None
@@ -77,9 +87,10 @@ class TransformerEncoderEmbedding(nn.Module):
 
 class TransformerEncoderLayerNorm(nn.Module):
     """
-        Layer norm at the the end of all encoder layers if
-        args.encoder_enormalize_before = True
+    Layer norm at the the end of all encoder layers if
+    args.encoder_enormalize_before = True
     """
+
     def __init__(self, args, embed_dim):
         super().__init__()
         if args.encoder_normalize_before:
@@ -99,30 +110,45 @@ class TransformerEncoderLayerNorm(nn.Module):
 
 class TransformerDecoderEmbedding(nn.Module):
     """ Decoder Embedding + Positional Embedding """
+
     def __init__(self, args, embed_tokens):
         super().__init__()
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
-        input_embed_dim = sum(e.embedding_dim for e in embed_tokens) \
-            if isinstance(embed_tokens, nn.ModuleList) \
+        input_embed_dim = (
+            sum(e.embedding_dim for e in embed_tokens)
+            if isinstance(embed_tokens, nn.ModuleList)
             else embed_tokens.embedding_dim
+        )
         embed_dim = args.decoder_embed_dim
         self.output_embed_dim = args.decoder_output_dim
 
-        padding_idx = embed_tokens[0].padding_idx \
-            if isinstance(embed_tokens, nn.ModuleList) \
+        padding_idx = (
+            embed_tokens[0].padding_idx
+            if isinstance(embed_tokens, nn.ModuleList)
             else embed_tokens.padding_idx
+        )
         self.max_target_positions = args.max_target_positions
 
         self.embed_tokens = embed_tokens
         self.embed_scale = math.sqrt(embed_dim)  # todo: try with input_embed_dim
 
-        self.project_in_dim = Linear(input_embed_dim, embed_dim, bias=False) if embed_dim != input_embed_dim else None
+        self.project_in_dim = (
+            Linear(input_embed_dim, embed_dim, bias=False)
+            if embed_dim != input_embed_dim
+            else None
+        )
 
-        self.embed_positions = PositionalEmbedding(
-            args.max_target_positions, embed_dim, padding_idx,
-            learned=args.decoder_learned_pos,
-        ) if not args.no_token_positional_embeddings else None
+        self.embed_positions = (
+            PositionalEmbedding(
+                args.max_target_positions,
+                embed_dim,
+                padding_idx,
+                learned=args.decoder_learned_pos,
+            )
+            if not args.no_token_positional_embeddings
+            else None
+        )
 
     def forward(self, input):
         mt_task = False
@@ -147,10 +173,14 @@ class TransformerDecoderEmbedding(nn.Module):
             encoder_padding_mask = None
             incremental_state = None
 
-        positions = self.embed_positions(
-            prev_output_tokens,
-            incremental_state=incremental_state,
-        ) if self.embed_positions is not None else None
+        positions = (
+            self.embed_positions(
+                prev_output_tokens,
+                incremental_state=incremental_state,
+            )
+            if self.embed_positions is not None
+            else None
+        )
 
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]
@@ -190,8 +220,11 @@ class TransformerDecoderOutputLayer(nn.Module):
         self.output_embed_dim = args.decoder_output_dim
         embed_dim = args.decoder_embed_dim
 
-        self.project_out_dim = Linear(embed_dim, self.output_embed_dim, bias=False) \
-            if embed_dim != self.output_embed_dim and not args.tie_adaptive_weights else None
+        self.project_out_dim = (
+            Linear(embed_dim, self.output_embed_dim, bias=False)
+            if embed_dim != self.output_embed_dim and not args.tie_adaptive_weights
+            else None
+        )
         self.adaptive_softmax = None
         if args.adaptive_softmax_cutoff is not None:
             assert not isinstance(embed_tokens, nn.ModuleList)
@@ -205,10 +238,16 @@ class TransformerDecoderOutputLayer(nn.Module):
                 tie_proj=args.tie_adaptive_proj,
             )
         elif not self.share_input_output_embed:
-            self.embed_tokens = nn.Parameter(torch.Tensor(len(dictionary), self.output_embed_dim))
-            nn.init.normal_(self.embed_tokens, mean=0, std=self.output_embed_dim ** -0.5)
+            self.embed_tokens = nn.Parameter(
+                torch.Tensor(len(dictionary), self.output_embed_dim)
+            )
+            nn.init.normal_(
+                self.embed_tokens, mean=0, std=self.output_embed_dim ** -0.5
+            )
 
-        if args.decoder_normalize_before and not getattr(args, 'no_decoder_final_norm', False):
+        if args.decoder_normalize_before and not getattr(
+            args, "no_decoder_final_norm", False
+        ):
             self.layer_norm = LayerNorm(embed_dim)
         else:
             self.layer_norm = None
@@ -245,7 +284,7 @@ class TransformerDecoderOutputLayer(nn.Module):
                             output = F.linear(features[:, :, sidx:eidx], emb.weight)
                         else:
                             output += F.linear(features[:, :, sidx:eidx], emb.weight)
-                    
+
                     return output
                 else:
                     return F.linear(features, self.embed_tokens.weight)
@@ -273,18 +312,20 @@ class TransformerEncoderLayer(nn.Module):
         super().__init__()
         self.embed_dim = args.encoder_embed_dim
         self.self_attn = MultiheadAttention(
-            self.embed_dim, args.encoder_attention_heads,
-            dropout=args.attention_dropout, self_attention=True
+            self.embed_dim,
+            args.encoder_attention_heads,
+            dropout=args.attention_dropout,
+            self_attention=True,
         )
         self.self_attn_layer_norm = LayerNorm(self.embed_dim)
         self.dropout = args.dropout
         self.activation_fn = utils.get_activation_fn(
-            activation=getattr(args, 'activation_fn', 'relu')
+            activation=getattr(args, "activation_fn", "relu")
         )
-        self.activation_dropout = getattr(args, 'activation_dropout', 0)
+        self.activation_dropout = getattr(args, "activation_dropout", 0)
         if self.activation_dropout == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            self.activation_dropout = getattr(args, 'relu_dropout', 0)
+            self.activation_dropout = getattr(args, "relu_dropout", 0)
         self.normalize_before = args.encoder_normalize_before
         self.fc1 = Linear(self.embed_dim, args.encoder_ffn_embed_dim)
         self.fc2 = Linear(args.encoder_ffn_embed_dim, self.embed_dim)
@@ -296,17 +337,12 @@ class TransformerEncoderLayer(nn.Module):
         `...self_attn_layer_norm.weight` and `...layer_norms.1.weight` to
         `...final_layer_norm.weight`
         """
-        layer_norm_map = {
-            '0': 'self_attn_layer_norm',
-            '1': 'final_layer_norm'
-        }
+        layer_norm_map = {"0": "self_attn_layer_norm", "1": "final_layer_norm"}
         for old, new in layer_norm_map.items():
-            for m in ('weight', 'bias'):
-                k = '{}.layer_norms.{}.{}'.format(name, old, m)
+            for m in ("weight", "bias"):
+                k = "{}.layer_norms.{}.{}".format(name, old, m)
                 if k in state_dict:
-                    state_dict[
-                        '{}.{}.{}'.format(name, new, m)
-                    ] = state_dict[k]
+                    state_dict["{}.{}.{}".format(name, new, m)] = state_dict[k]
                     del state_dict[k]
 
     def forward(self, input):
@@ -330,7 +366,9 @@ class TransformerEncoderLayer(nn.Module):
         prev_output_tokens = input[2]
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
-        x, _ = self.self_attn(query=x, key=x, value=x, key_padding_mask=encoder_padding_mask)
+        x, _ = self.self_attn(
+            query=x, key=x, value=x, key_padding_mask=encoder_padding_mask
+        )
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, after=True)
@@ -370,7 +408,9 @@ class TransformerDecoderLayer(nn.Module):
             (default: False).
     """
 
-    def __init__(self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False):
+    def __init__(
+        self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False
+    ):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
         self.self_attn = MultiheadAttention(
@@ -379,22 +419,22 @@ class TransformerDecoderLayer(nn.Module):
             dropout=args.attention_dropout,
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
-            self_attention=True
+            self_attention=True,
         )
         self.dropout = args.dropout
         self.activation_fn = utils.get_activation_fn(
-            activation=getattr(args, 'activation_fn', 'relu')
+            activation=getattr(args, "activation_fn", "relu")
         )
-        self.activation_dropout = getattr(args, 'activation_dropout', 0)
+        self.activation_dropout = getattr(args, "activation_dropout", 0)
         if self.activation_dropout == 0:
             # for backwards compatibility with models that use args.relu_dropout
-            self.activation_dropout = getattr(args, 'relu_dropout', 0)
+            self.activation_dropout = getattr(args, "relu_dropout", 0)
         self.normalize_before = args.decoder_normalize_before
 
         # use layerNorm rather than FusedLayerNorm for exporting.
         # char_inputs can be used to determint this.
         # TODO  remove this once we update apex with the fix
-        export = getattr(args, 'char_inputs', False)
+        export = getattr(args, "char_inputs", False)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
 
         if no_encoder_attn:
@@ -404,8 +444,8 @@ class TransformerDecoderLayer(nn.Module):
             self.encoder_attn = MultiheadAttention(
                 self.embed_dim,
                 args.decoder_attention_heads,
-                kdim=getattr(args, 'encoder_embed_dim', None),
-                vdim=getattr(args, 'encoder_embed_dim', None),
+                kdim=getattr(args, "encoder_embed_dim", None),
+                vdim=getattr(args, "encoder_embed_dim", None),
                 dropout=args.attention_dropout,
                 encoder_decoder_attention=True,
             )
@@ -520,10 +560,18 @@ class TransformerDecoderLayer(nn.Module):
 
     def buffered_future_mask(self, tensor):
         dim = tensor.size(0)
-        if not hasattr(self, '_future_mask') or self._future_mask is None or self._future_mask.device != tensor.device:
-            self._future_mask = torch.triu(utils.fill_with_neg_inf(tensor.new(dim, dim)), 1)
+        if (
+            not hasattr(self, "_future_mask")
+            or self._future_mask is None
+            or self._future_mask.device != tensor.device
+        ):
+            self._future_mask = torch.triu(
+                utils.fill_with_neg_inf(tensor.new(dim, dim)), 1
+            )
         if self._future_mask.size(0) < dim:
-            self._future_mask = torch.triu(utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1)
+            self._future_mask = torch.triu(
+                utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1
+            )
         return self._future_mask[:dim, :dim]
 
     def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
@@ -548,5 +596,5 @@ def Linear(in_features, out_features, bias=True):
     m = nn.Linear(in_features, out_features, bias)
     nn.init.xavier_uniform_(m.weight)
     if bias:
-        nn.init.constant_(m.bias, 0.)
+        nn.init.constant_(m.bias, 0.0)
     return m

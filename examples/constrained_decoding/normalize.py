@@ -16,11 +16,12 @@ def main(args):
         print(normalizer.normalize(line.rstrip()), flush=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--lang', '-l', default='en')
-    parser.add_argument('--penn', '-p', action='store_true')
+    parser.add_argument("--lang", "-l", default="en")
+    parser.add_argument("--penn", "-p", action="store_true")
     args = parser.parse_args()
 
     main(args)

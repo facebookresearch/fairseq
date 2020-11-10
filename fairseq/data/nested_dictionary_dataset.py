@@ -15,14 +15,14 @@ def _flatten(dico, prefix=None):
     """Flatten a nested dictionary."""
     new_dico = OrderedDict()
     if isinstance(dico, dict):
-        prefix = prefix + '.' if prefix is not None else ''
+        prefix = prefix + "." if prefix is not None else ""
         for k, v in dico.items():
             if v is None:
                 continue
             new_dico.update(_flatten(v, prefix + k))
     elif isinstance(dico, list):
         for i, v in enumerate(dico):
-            new_dico.update(_flatten(v, prefix + '.[' + str(i) + ']'))
+            new_dico.update(_flatten(v, prefix + ".[" + str(i) + "]"))
     else:
         new_dico = OrderedDict({prefix: dico})
     return new_dico
@@ -32,10 +32,10 @@ def _unflatten(dico):
     """Unflatten a flattened dictionary into a nested dictionary."""
     new_dico = OrderedDict()
     for full_k, v in dico.items():
-        full_k = full_k.split('.')
+        full_k = full_k.split(".")
         node = new_dico
         for k in full_k[:-1]:
-            if k.startswith('[') and k.endswith(']'):
+            if k.startswith("[") and k.endswith("]"):
                 k = int(k[1:-1])
             if k not in node:
                 node[k] = OrderedDict()
@@ -45,7 +45,6 @@ def _unflatten(dico):
 
 
 class NestedDictionaryDataset(FairseqDataset):
-
     def __init__(self, defn, sizes=None):
         super().__init__()
         self.defn = _flatten(defn)
@@ -53,11 +52,17 @@ class NestedDictionaryDataset(FairseqDataset):
 
         first = None
         for v in self.defn.values():
-            if not isinstance(v, (FairseqDataset, torch.utils.data.Dataset, )):
-                raise ValueError('Expected Dataset but found: {}'.format(v.__class__))
+            if not isinstance(
+                v,
+                (
+                    FairseqDataset,
+                    torch.utils.data.Dataset,
+                ),
+            ):
+                raise ValueError("Expected Dataset but found: {}".format(v.__class__))
             first = first or v
             if len(v) > 0:
-                assert len(v) == len(first), 'dataset lengths must match'
+                assert len(v) == len(first), "dataset lengths must match"
 
         self._len = len(first)
 
@@ -107,7 +112,7 @@ class NestedDictionaryDataset(FairseqDataset):
     def prefetch(self, indices):
         """Prefetch the data required for this epoch."""
         for ds in self.defn.values():
-            if getattr(ds, 'supports_prefetch', False):
+            if getattr(ds, "supports_prefetch", False):
                 ds.prefetch(indices)
 
     @property

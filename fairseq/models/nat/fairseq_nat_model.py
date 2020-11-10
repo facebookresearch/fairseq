@@ -4,9 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-import torch
 
-from fairseq.models.transformer import TransformerModel, TransformerEncoder, TransformerDecoder
+import torch
+from fairseq.models.transformer import (
+    TransformerDecoder,
+    TransformerEncoder,
+    TransformerModel,
+)
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 
@@ -22,22 +26,31 @@ def ensemble_encoder(func):
             return torch.stack(outs, -1) if outs[0] is not None else None
 
         return _encoder_out._replace(
-            encoder_out=stack('encoder_out'),
-            encoder_embedding=stack('encoder_embedding'),
-            encoder_states=stack('encoder_states')
+            encoder_out=stack("encoder_out"),
+            encoder_embedding=stack("encoder_embedding"),
+            encoder_states=stack("encoder_states"),
         )
+
     return wrapper
 
 
 def ensemble_decoder(func):
     def wrapper(self, normalize=False, encoder_out=None, *args, **kwargs):
         if self.ensemble_models is None or len(self.ensemble_models) == 1:
-            return func(self, normalize=normalize, encoder_out=encoder_out, *args, **kwargs)
+            return func(
+                self, normalize=normalize, encoder_out=encoder_out, *args, **kwargs
+            )
 
         action_outs = [
-            func(model, normalize=normalize, encoder_out=encoder_out._replace(
-                encoder_out=encoder_out.encoder_out[:, :, :, i]
-            ), *args, **kwargs)
+            func(
+                model,
+                normalize=normalize,
+                encoder_out=encoder_out._replace(
+                    encoder_out=encoder_out.encoder_out[:, :, :, i]
+                ),
+                *args,
+                **kwargs
+            )
             for i, model in enumerate(self.ensemble_models)
         ]
 
@@ -51,19 +64,19 @@ def ensemble_decoder(func):
             if i == 0 and normalize:
                 ensembled_outs += [
                     torch.logsumexp(
-                        torch.stack([a[i] for a in action_outs], -1),
-                        dim=-1) - math.log(len(self.ensemble_models))
+                        torch.stack([a[i] for a in action_outs], -1), dim=-1
+                    )
+                    - math.log(len(self.ensemble_models))
                 ]
             elif action_outs[0][i] is not None:
-                ensembled_outs += [
-                    torch.stack([a[i] for a in action_outs], -1)
-                ]
+                ensembled_outs += [torch.stack([a[i] for a in action_outs], -1)]
             else:
                 ensembled_outs += [None]
 
         if len(ensembled_outs) == 1:
             return ensembled_outs[0]
         return tuple(ensembled_outs)
+
     return wrapper
 
 
@@ -71,6 +84,7 @@ class FairseqNATModel(TransformerModel):
     """
     Abstract class for all nonautoregressive-based models
     """
+
     def __init__(self, args, encoder, decoder):
         super().__init__(args, encoder, decoder)
         self.tgt_dict = decoder.dictionary

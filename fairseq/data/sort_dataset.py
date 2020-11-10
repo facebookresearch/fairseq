@@ -9,7 +9,6 @@ from . import BaseWrapperDataset
 
 
 class SortDataset(BaseWrapperDataset):
-
     def __init__(self, dataset, sort_order):
         super().__init__(dataset)
         if not isinstance(sort_order, (list, tuple)):

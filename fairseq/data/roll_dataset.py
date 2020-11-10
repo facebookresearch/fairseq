@@ -9,7 +9,6 @@ from . import BaseWrapperDataset
 
 
 class RollDataset(BaseWrapperDataset):
-
     def __init__(self, dataset, shifts):
         super().__init__(dataset)
         self.shifts = shifts

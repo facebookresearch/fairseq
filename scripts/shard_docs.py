@@ -14,21 +14,23 @@ import contextlib
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input')
-    parser.add_argument('--num-shards', type=int)
+    parser.add_argument("input")
+    parser.add_argument("--num-shards", type=int)
     args = parser.parse_args()
 
     assert args.num_shards is not None and args.num_shards > 1
 
-    with open(args.input, 'r', encoding='utf-8') as h:
+    with open(args.input, "r", encoding="utf-8") as h:
         with contextlib.ExitStack() as stack:
             outputs = [
-                stack.enter_context(open(args.input + ".shard" + str(i), "w", encoding="utf-8"))
+                stack.enter_context(
+                    open(args.input + ".shard" + str(i), "w", encoding="utf-8")
+                )
                 for i in range(args.num_shards)
             ]
 
             doc = []
-            first_doc = [True]*args.num_shards
+            first_doc = [True] * args.num_shards
 
             def output_doc(i):
                 if not first_doc[i]:
@@ -48,5 +50,5 @@ def main():
             output_doc(num_docs % args.num_shards)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

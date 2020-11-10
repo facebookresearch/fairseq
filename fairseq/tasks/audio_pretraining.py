@@ -5,11 +5,23 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import editdistance
 import os
 import sys
+import torch
 
-from fairseq.data import FileAudioDataset, Dictionary, AddTargetDataset
-from . import LegacyFairseqTask, register_task
+from dataclasses import dataclass, field
+from typing import Optional, Any
+from omegaconf import MISSING
+
+from fairseq.data import AddTargetDataset, Dictionary, FileAudioDataset, encoders
+from fairseq.data.data_utils import post_process
+from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.configs import GenerationConfig
+
+from . import FairseqTask, register_task
+from .. import utils
+from ..logging import metrics
 
 
 class LabelEncoder(object):
@@ -22,67 +34,94 @@ class LabelEncoder(object):
         )
 
 
-@register_task("audio_pretraining")
-class AudioPretrainingTask(LegacyFairseqTask):
-    """
+@dataclass
+class AudioPretrainingConfig(FairseqDataclass):
+    data: str = field(default=MISSING, metadata={"help": "path to data directory"})
+    labels: Optional[str] = field(
+        default=None,
+        metadata={"help": "extension of the label file to load, used for fine-tuning"},
+    )
+    sample_rate: int = field(
+        default=16_000,
+        metadata={
+            "help": "target sample rate. audio files will be up/down sampled to this rate"
+        },
+    )
+    normalize: bool = field(
+        default=False,
+        metadata={"help": "if set, normalizes input to have 0 mean and unit variance"},
+    )
+    enable_padding: bool = field(
+        default=False, metadata={"help": "pad shorter samples instead of cropping"}
+    )
+    max_sample_size: Optional[int] = field(
+        default=None, metadata={"help": "max sample size to crop to for batching"}
+    )
+    min_sample_size: Optional[int] = field(
+        default=None, metadata={"help": "min sample size to crop to for batching"}
+    )
 
-    """
+    # Options for reporting WER metrics during validation. Only applicable to
+    # Seq2Seq models during fine-tuning
+    eval_wer: bool = field(
+        default=False, metadata={"help": "compute WER for Seq2Seq models"}
+    )
+    eval_wer_config: GenerationConfig = field(
+        default_factory=lambda: GenerationConfig(),
+        metadata={"help": "beam search config for evaluating wer during training"},
+    )
+    eval_wer_tokenizer: Any = field(
+        default="space",
+        metadata={"help": "tokenizer config for evaluating wer during training"},
+    )
+    eval_wer_post_process: str = field(
+        default="letter",
+        metadata={
+            "help": "remove BPE tokens before scoring (can be sentencepiece, letter, and more)"
+        },
+    )
+    autoregressive: bool = field(
+        default=False,
+        metadata={
+            "help": "required for autoregressive decoders (like seq2seq models); "
+            "adds 'prev_output_tokens' to input and appends eos to target"
+        },
+    )
 
-    @staticmethod
-    def add_args(parser):
-        """Add task-specific arguments to the parser."""
-        parser.add_argument("data", help="path to data directory")
-        parser.add_argument(
-            "--sample-rate",
-            default=16000,
-            type=int,
-            help="target sample rate. audio files will be up/down sampled to this rate",
-        )
-        parser.add_argument(
-            "--normalize",
-            action="store_true",
-            help="if set, normalizes input to have 0 mean and unit variance",
-        )
-        parser.add_argument(
-            "--max-sample-size",
-            default=None,
-            type=int,
-            help="max sample size to crop to for batching. default = min sample length",
-        )
-        parser.add_argument(
-            "--min-sample-size",
-            default=None,
-            type=int,
-            help="min sample size to crop to for batching. default = same as --max-sample-size",
-        )
 
-        parser.add_argument(
-            "--enable-padding",
-            action="store_true",
-            help="pad shorter samples instead of cropping",
-        )
+@register_task("audio_pretraining", dataclass=AudioPretrainingConfig)
+class AudioPretrainingTask(FairseqTask):
+    """"""
 
-        parser.add_argument(
-            "--labels",
-            type=str,
-            default=None,
-            help="extension of the label file to load, if any",
-        )
+    cfg: AudioPretrainingConfig
 
-    def __init__(self, args, source_dictionary=None):
-        super().__init__(args)
-        self._target_dictionary = None
+    def __init__(
+        self,
+        cfg: AudioPretrainingConfig,
+        source_dictionary=None,
+        target_dictionary=None,
+    ):
+        super().__init__(cfg)
+        self._target_dictionary = target_dictionary
         self._source_dictionary = source_dictionary
-        self.is_ctc = args.criterion == "ctc"
+        if cfg.eval_wer:
+            assert cfg.labels is not None, "eval_wer can only be set during fine-tuning"
 
     @classmethod
-    def setup_task(cls, args, **kwargs):
+    def setup_task(cls, cfg: AudioPretrainingConfig, **kwargs):
         """Setup the task (e.g., load dictionaries).
 
         Args:
-            args (argparse.Namespace): parsed command-line arguments
+            cfg (AudioPretrainingConfig): configuration of this task
         """
-        return cls(args)
+
+        if cfg.labels:
+            dict_path = os.path.join(cfg.data, f"dict.{cfg.labels}.txt")
+            target_dictionary = Dictionary.load(dict_path)
+        else:
+            target_dictionary = None
+
+        return cls(cfg, target_dictionary=target_dictionary)
 
     def load_dataset(self, split, **kwargs):
         """Load a given dataset split.
@@ -90,21 +129,19 @@ class AudioPretrainingTask(LegacyFairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        manifest = os.path.join(self.args.data, "{}.tsv".format(split))
+        manifest = os.path.join(self.cfg.data, "{}.tsv".format(split))
         self.datasets[split] = FileAudioDataset(
             manifest,
-            sample_rate=self.args.sample_rate,
-            max_sample_size=self.args.max_sample_size,
-            min_sample_size=self.args.max_sample_size,
-            min_length=self.args.min_sample_size,
-            pad=self.args.labels is not None or self.args.enable_padding,
-            normalize=self.args.normalize,
+            sample_rate=self.cfg.sample_rate,
+            max_sample_size=self.cfg.max_sample_size,
+            min_sample_size=self.cfg.max_sample_size,
+            min_length=self.cfg.min_sample_size,
+            pad=self.cfg.labels is not None or self.cfg.enable_padding,
+            normalize=self.cfg.normalize,
         )
 
-        if self.args.labels:
-            dict_path = os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
-            self._target_dictionary = Dictionary.load(dict_path)
-            label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")
+        if self.cfg.labels:
+            label_path = os.path.join(self.cfg.data, f"{split}.{self.cfg.labels}")
             labels = []
             with open(label_path, "r") as f:
                 for line in f:
@@ -119,7 +156,7 @@ class AudioPretrainingTask(LegacyFairseqTask):
                 eos=self.target_dictionary.eos(),
                 batch_targets=True,
                 process_label=process_label,
-                add_to_input=not self.is_ctc,
+                add_to_input=self.cfg.autoregressive,
             )
 
     @property
@@ -137,11 +174,105 @@ class AudioPretrainingTask(LegacyFairseqTask):
         return (sys.maxsize, sys.maxsize)
 
     def filter_indices_by_size(
-            self,
-            indices,
-            dataset,
-            max_positions=None,
-            ignore_invalid_inputs=False,
+        self,
+        indices,
+        dataset,
+        max_positions=None,
+        ignore_invalid_inputs=False,
     ):
         # we do not need to filter by size in this task as dataloaders take care of this
         return indices
+
+    def valid_step(self, sample, model, criterion):
+        loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
+
+        if self.cfg.eval_wer and self.cfg.autoregressive:
+            metrics = self._inference_with_wer(self.sequence_generator, sample, model)
+            logging_output["_num_char_errors"] = metrics["num_char_errors"]
+            logging_output["_num_chars"] = metrics["num_chars"]
+            logging_output["_num_word_errors"] = metrics["num_word_errors"]
+            logging_output["_num_words"] = metrics["num_words"]
+        return loss, sample_size, logging_output
+
+    def build_model(self, model_cfg: FairseqDataclass):
+        model = super().build_model(model_cfg)
+
+        if self.cfg.eval_wer and self.cfg.autoregressive:
+            self.sequence_generator = self.build_generator(
+                [model],
+                self.cfg.eval_wer_config,
+            )
+            if self.cfg.eval_wer_tokenizer:
+                self.tokenizer = encoders.build_tokenizer(self.cfg.eval_wer_tokenizer)
+        return model
+
+    def _inference_with_wer(self, generator, sample, model):
+        def decode(toks, escape_unk=True):
+            s = self.target_dictionary.string(
+                toks.int().cpu(),
+                self.cfg.eval_wer_post_process,
+                escape_unk=escape_unk,
+                extra_symbols_to_ignore={generator.eos},
+            )
+            if self.tokenizer:
+                s = self.tokenizer.decode(s)
+            return s
+
+        num_word_errors, num_char_errors = 0, 0
+        num_chars, num_words = 0, 0
+        gen_out = self.inference_step(generator, [model], sample, None)
+        for i in range(len(gen_out)):
+            hyp = decode(gen_out[i][0]["tokens"])
+            ref = decode(
+                utils.strip_pad(sample["target"][i], self.target_dictionary.pad()),
+                escape_unk=True,
+            )
+            hyp = post_process(hyp, self.cfg.eval_wer_post_process).strip("_")
+            ref = post_process(ref, self.cfg.eval_wer_post_process).strip("_")
+            num_char_errors += editdistance.eval(hyp, ref)
+            num_chars += len(ref)
+            hyp_words = hyp.split("_")
+            ref_words = ref.split("_")
+            num_word_errors += editdistance.eval(hyp_words, ref_words)
+            num_words += len(ref_words)
+
+        return {
+            "num_char_errors": num_char_errors,
+            "num_chars": num_chars,
+            "num_word_errors": num_word_errors,
+            "num_words": num_words,
+        }
+
+    def reduce_metrics(self, logging_outputs, criterion):
+        super().reduce_metrics(logging_outputs, criterion)
+
+        zero = torch.scalar_tensor(0.0)
+        num_char_errors = sum(
+            log.get("_num_char_errors", zero) for log in logging_outputs
+        )
+        num_chars = sum(log.get("_num_chars", zero) for log in logging_outputs)
+        num_word_errors = sum(
+            log.get("_num_word_errors", zero) for log in logging_outputs
+        )
+        num_words = sum(log.get("_num_words", zero) for log in logging_outputs)
+        metrics.log_scalar("_num_char_errors", num_char_errors)
+        metrics.log_scalar("_num_chars", num_chars)
+        metrics.log_scalar("_num_word_errors", num_word_errors)
+        metrics.log_scalar("_num_words", num_words)
+        if num_words > 0:
+            metrics.log_derived(
+                "uer",
+                lambda meters: meters["_num_char_errors"].sum
+                * 100.0
+                / meters["_num_chars"].sum
+                if meters["_num_chars"].sum > 0
+                else float("nan"),
+            )
+            metrics.log_derived(
+                "wer",
+                lambda meters: meters["_num_word_errors"].sum
+                * 100.0
+                / meters["_num_words"].sum
+                if meters["_num_words"].sum > 0
+                else float("nan"),
+            )
