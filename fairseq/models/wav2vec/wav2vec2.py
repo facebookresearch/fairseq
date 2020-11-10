@@ -296,7 +296,7 @@ class Wav2Vec2Model(BaseFairseqModel):
                 self.input_quantizer = GumbelVectorQuantizer(
                     dim=self.embed,
                     num_vars=cfg.latent_vars,
-                    temp=eval(cfg.latent_temp),
+                    temp=cfg.latent_temp,
                     groups=cfg.latent_groups,
                     combine_groups=False,
                     vq_dim=vq_dim,
