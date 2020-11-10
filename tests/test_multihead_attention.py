@@ -3,8 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
 import unittest
+
+import torch
 from fairseq.modules.multihead_attention import MultiheadAttention
 
 
@@ -47,8 +48,8 @@ class TestMultiheadAttention(unittest.TestCase):
             if key_padding_mask is not None:
                 self.assertTrue(
                     torch.all(torch.eq(key_padding_mask, c[2])),
-                    f'Unexpected resultant key padding mask: {key_padding_mask}'
-                    f' given current: {c[0]} and previous: {c[1]}',
+                    f"Unexpected resultant key padding mask: {key_padding_mask}"
+                    f" given current: {c[0]} and previous: {c[1]}",
                 )
                 self.assertEqual(key_padding_mask.size(0), bsz)
                 self.assertEqual(key_padding_mask.size(1), src_len)
@@ -56,5 +57,5 @@ class TestMultiheadAttention(unittest.TestCase):
                 self.assertIsNone(c[2])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -141,6 +141,9 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     no_scale_embedding: bool = field(
         default=False, metadata={"help": "if True, dont scale embeddings"}
     )
+    checkpoint_activations: bool = field(
+        default=False, metadata={"help": "checkpoint activations at each layer"}
+    )
     quant_noise_pq: float = field(
         default=0.0,
         metadata={"help": "iterative PQ quantization noise at training time"},
@@ -159,7 +162,7 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
     max_target_positions: Optional[int] = II("task.max_target_positions")
-    tpu: bool = II("params.common.tpu")
+    tpu: bool = II("common.tpu")
 
 
 @register_model("transformer_lm", dataclass=TransformerLanguageModelConfig)
@@ -246,7 +249,6 @@ class TransformerLanguageModel(FairseqLanguageModel):
         return embed_tokens
 
 
-@register_model_architecture("transformer_lm", "transformer_lm")
 def base_lm_architecture(args):
     # backward compatibility for older model checkpoints
     if hasattr(args, "no_tie_adaptive_proj"):
@@ -304,6 +306,7 @@ def base_lm_architecture(args):
 
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
+    args.checkpoint_activations = getattr(args, "checkpoint_activations", False)
 
 
 @register_model_architecture("transformer_lm", "transformer_lm_big")

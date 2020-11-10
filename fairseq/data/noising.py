@@ -3,32 +3,34 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
 import numpy as np
-
+import torch
 from fairseq.data import data_utils
 
 
 class WordNoising(object):
     """Generate a noisy version of a sentence, without changing words themselves."""
+
     def __init__(self, dictionary, bpe_cont_marker="@@", bpe_end_marker=None):
         self.dictionary = dictionary
         self.bpe_end = None
         if bpe_cont_marker:
-            self.bpe_end = np.array([
-                not self.dictionary[i].endswith(bpe_cont_marker)
-                for i in range(len(self.dictionary))
-            ])
+            self.bpe_end = np.array(
+                [
+                    not self.dictionary[i].endswith(bpe_cont_marker)
+                    for i in range(len(self.dictionary))
+                ]
+            )
         elif bpe_end_marker:
-            self.bpe_end = np.array([
-                self.dictionary[i].endswith(bpe_end_marker)
-                for i in range(len(self.dictionary))
-            ])
+            self.bpe_end = np.array(
+                [
+                    self.dictionary[i].endswith(bpe_end_marker)
+                    for i in range(len(self.dictionary))
+                ]
+            )
 
         self.get_word_idx = (
-            self._get_bpe_word_idx
-            if self.bpe_end is not None
-            else self._get_token_idx
+            self._get_bpe_word_idx if self.bpe_end is not None else self._get_token_idx
         )
 
     def noising(self, x, lengths, noising_prob=0.0):
@@ -44,7 +46,7 @@ class WordNoising(object):
         # x: (T x B)
         bpe_end = self.bpe_end[x]
 
-        if (x.size(0) == 1 and x.size(1) == 1):
+        if x.size(0) == 1 and x.size(1) == 1:
             # Special case when we only have one word in x. If x = [[N]],
             # bpe_end is a scalar (bool) instead of a 2-dim array of bools,
             # which makes the sum operation below fail.
@@ -70,7 +72,13 @@ class WordDropout(WordNoising):
     then dropped words will be removed. Otherwise, it will be replaced by the
     blank_idx."""
 
-    def __init__(self, dictionary, default_dropout_prob=0.1, bpe_cont_marker="@@", bpe_end_marker=None):
+    def __init__(
+        self,
+        dictionary,
+        default_dropout_prob=0.1,
+        bpe_cont_marker="@@",
+        bpe_end_marker=None,
+    ):
         super().__init__(dictionary, bpe_cont_marker, bpe_end_marker)
         self.default_dropout_prob = default_dropout_prob
 
@@ -108,13 +116,12 @@ class WordDropout(WordNoising):
             else:
                 keep = np.random.rand(num_words) >= dropout_prob
 
-            words = x[:lengths[i], i].tolist()
+            words = x[: lengths[i], i].tolist()
 
             # TODO: speed up the following loop
             # drop words from the input according to keep
             new_s = [
-                w if keep[word_idx[j, i]] else blank_idx
-                for j, w in enumerate(words)
+                w if keep[word_idx[j, i]] else blank_idx for j, w in enumerate(words)
             ]
             new_s = [w for w in new_s if w is not None]
             # we need to have at least one word in the sentence (more than the
@@ -132,11 +139,10 @@ class WordDropout(WordNoising):
         # re-construct input
         modified_lengths = torch.LongTensor(modified_lengths)
         modified_x = torch.LongTensor(
-            modified_lengths.max(),
-            modified_lengths.size(0)
+            modified_lengths.max(), modified_lengths.size(0)
         ).fill_(self.dictionary.pad())
         for i in range(modified_lengths.size(0)):
-            modified_x[:modified_lengths[i], i].copy_(torch.LongTensor(sentences[i]))
+            modified_x[: modified_lengths[i], i].copy_(torch.LongTensor(sentences[i]))
 
         return modified_x, modified_lengths
 
@@ -144,7 +150,13 @@ class WordDropout(WordNoising):
 class WordShuffle(WordNoising):
     """Shuffle words by no more than k positions."""
 
-    def __init__(self, dictionary, default_max_shuffle_distance=3, bpe_cont_marker="@@", bpe_end_marker=None):
+    def __init__(
+        self,
+        dictionary,
+        default_max_shuffle_distance=3,
+        bpe_cont_marker="@@",
+        bpe_end_marker=None,
+    ):
         super().__init__(dictionary, bpe_cont_marker, bpe_end_marker)
         self.default_max_shuffle_distance = 3
 
@@ -189,6 +201,7 @@ class UnsupervisedMTNoising(WordNoising):
     Implements the default configuration for noising in UnsupervisedMT
     (github.com/facebookresearch/UnsupervisedMT)
     """
+
     def __init__(
         self,
         dictionary,
@@ -275,8 +288,13 @@ class NoisingDataset(torch.utils.data.Dataset):
         self.src_dataset = src_dataset
         self.src_dict = src_dict
         self.seed = seed
-        self.noiser = noiser if noiser is not None else noising_class(
-            dictionary=src_dict, **kwargs,
+        self.noiser = (
+            noiser
+            if noiser is not None
+            else noising_class(
+                dictionary=src_dict,
+                **kwargs,
+            )
         )
 
     def __getitem__(self, index):

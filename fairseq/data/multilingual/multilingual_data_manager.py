@@ -6,6 +6,7 @@
 import itertools
 import json
 import logging
+import math
 import os
 from collections import OrderedDict, defaultdict
 
@@ -87,7 +88,6 @@ class MultilingualDatasetManager(object):
             type=csv_str_list,
             help="a list of languages comma sperated languages which can appear in lang-pairs; "
             "note that the ordering determines language token IDs",
-            action=FileContentsAction,
         )
         parser.add_argument(
             "--lang-dict",
@@ -196,6 +196,12 @@ class MultilingualDatasetManager(object):
             default=None,
         )
         parser.add_argument(
+            "--fixed-dictionary",
+            help="Fixed dictionary to use with model path",
+            default=None,
+            type=str,
+        )
+        parser.add_argument(
             "--langtoks-specs",
             help='a list of comma separated data types that a set of language tokens to be specialized for, \
                             e.g. "main,dae,mined". There will be a set of language tokens added to the vocab to \
@@ -260,7 +266,9 @@ class MultilingualDatasetManager(object):
             langs = sorted(langs)
             logger.info(f"inferred language list: {langs}")
         elif args.lang_dict:
-            with open(PathManager.get_local_path(args.lang_dict), "r", encoding="utf-8") as f:
+            with open(
+                PathManager.get_local_path(args.lang_dict), "r", encoding="utf-8"
+            ) as f:
                 langs = [lang.strip() for lang in f.readlines() if lang.strip()]
                 logger.info(
                     f"loaded language list from {args.lang_dict} as they are ordered in file"
@@ -281,6 +289,17 @@ class MultilingualDatasetManager(object):
         return not (self.args.extra_data and "mono_dae" in self.args.extra_data) and (
             not self.args.lang_tok_replacing_bos_eos
         )
+
+    def estimate_global_pass_epoch(self, epoch):
+        if self.args.virtual_epoch_size is None or self.args.virtual_data_size is None:
+            return None
+        # one epoch more for remaining data in each shard
+        virtual_epochs_per_shard = math.ceil(
+            self.args.virtual_data_size / self.args.virtual_epoch_size
+        )
+        # note that fairseq epoch / shard_epoch starts from 1
+        shard_epoch = (epoch - 1) // virtual_epochs_per_shard + 1
+        return shard_epoch
 
     @classmethod
     def prepare(cls, load_dictionary, args, **kargs):
@@ -346,16 +365,19 @@ class MultilingualDatasetManager(object):
         paths = utils.split_paths(args.data)
         assert len(paths) > 0
         for lang in langs_to_load_dicts:
-            dicts[lang] = load_dictionary(
-                os.path.join(paths[0], "dict.{}.txt".format(lang))
-            )
-            augment_dictionary(
-                dictionary=dicts[lang],
-                language_list=language_list,
-                lang_tok_style=args.lang_tok_style,
-                langtoks_specs=args.langtoks_specs,
-                extra_data=args.extra_data,
-            )
+            if args.fixed_dictionary is not None:
+                dicts[lang] = load_dictionary(args.fixed_dictionary)
+            else:
+                dicts[lang] = load_dictionary(
+                    os.path.join(paths[0], "dict.{}.txt".format(lang))
+                )
+                augment_dictionary(
+                    dictionary=dicts[lang],
+                    language_list=language_list,
+                    lang_tok_style=args.lang_tok_style,
+                    langtoks_specs=args.langtoks_specs,
+                    extra_data=args.extra_data,
+                )
             if len(dicts) > 0:
                 assert dicts[lang].pad() == dicts[langs_to_load_dicts[0]].pad()
                 assert dicts[lang].eos() == dicts[langs_to_load_dicts[0]].eos()
@@ -791,7 +813,7 @@ class MultilingualDatasetManager(object):
             for f in files:
                 if f.startswith(split) and f.endswith(".idx"):
                     # idx files of the form "{split}.{src}-{tgt}.{lang}.idx"
-                    direction = f.split('.')[-3]
+                    direction = f.split(".")[-3]
                     directions.add(direction)
             for direction in directions:
                 shards[direction] += 1

@@ -3,28 +3,27 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from argparse import Namespace
-import json
 import itertools
+import json
 import logging
 import os
-from fairseq import options
-import numpy as np
+from argparse import Namespace
 
-from fairseq import metrics, utils
+import numpy as np
+from fairseq import metrics, options, utils
 from fairseq.data import (
     AppendTokenDataset,
     ConcatDataset,
-    data_utils,
-    encoders,
-    indexed_dataset,
     LanguagePairDataset,
     PrependTokenDataset,
     StripTokenDataset,
     TruncateDataset,
+    data_utils,
+    encoders,
+    indexed_dataset,
 )
+from fairseq.tasks import LegacyFairseqTask, register_task
 
-from fairseq.tasks import register_task, LegacyFairseqTask
 
 EVAL_BLEU_ORDER = 4
 
@@ -33,40 +32,53 @@ logger = logging.getLogger(__name__)
 
 
 def load_langpair_dataset(
-    data_path, split,
-    src, src_dict,
-    tgt, tgt_dict,
-    combine, dataset_impl, upsample_primary,
-    left_pad_source, left_pad_target, max_source_positions,
-    max_target_positions, prepend_bos=False, load_alignments=False,
-    truncate_source=False, append_source_id=False,
+    data_path,
+    split,
+    src,
+    src_dict,
+    tgt,
+    tgt_dict,
+    combine,
+    dataset_impl,
+    upsample_primary,
+    left_pad_source,
+    left_pad_target,
+    max_source_positions,
+    max_target_positions,
+    prepend_bos=False,
+    load_alignments=False,
+    truncate_source=False,
+    append_source_id=False,
     num_buckets=0,
     shuffle=True,
     pad_to_multiple=1,
 ):
-
     def split_exists(split, src, tgt, lang, data_path):
-        filename = os.path.join(data_path, '{}.{}-{}.{}'.format(split, src, tgt, lang))
+        filename = os.path.join(data_path, "{}.{}-{}.{}".format(split, src, tgt, lang))
         return indexed_dataset.dataset_exists(filename, impl=dataset_impl)
 
     src_datasets = []
     tgt_datasets = []
 
     for k in itertools.count():
-        split_k = split + (str(k) if k > 0 else '')
+        split_k = split + (str(k) if k > 0 else "")
 
         # infer langcode
         if split_exists(split_k, src, tgt, src, data_path):
-            prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, src, tgt))
+            prefix = os.path.join(data_path, "{}.{}-{}.".format(split_k, src, tgt))
         elif split_exists(split_k, tgt, src, src, data_path):
-            prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
+            prefix = os.path.join(data_path, "{}.{}-{}.".format(split_k, tgt, src))
         else:
             if k > 0:
                 break
             else:
-                raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
+                raise FileNotFoundError(
+                    "Dataset not found: {} ({})".format(split, data_path)
+                )
 
-        src_dataset = data_utils.load_indexed_dataset(prefix + src, src_dict, dataset_impl)
+        src_dataset = data_utils.load_indexed_dataset(
+            prefix + src, src_dict, dataset_impl
+        )
         if truncate_source:
             src_dataset = AppendTokenDataset(
                 TruncateDataset(
@@ -77,13 +89,17 @@ def load_langpair_dataset(
             )
         src_datasets.append(src_dataset)
 
-        tgt_dataset = data_utils.load_indexed_dataset(prefix + tgt, tgt_dict, dataset_impl)
+        tgt_dataset = data_utils.load_indexed_dataset(
+            prefix + tgt, tgt_dict, dataset_impl
+        )
         if tgt_dataset is not None:
             tgt_datasets.append(tgt_dataset)
 
-        logger.info('{} {} {}-{} {} examples'.format(
-            data_path, split_k, src, tgt, len(src_datasets[-1])
-        ))
+        logger.info(
+            "{} {} {}-{} {} examples".format(
+                data_path, split_k, src, tgt, len(src_datasets[-1])
+            )
+        )
 
         if not combine:
             break
@@ -110,31 +126,42 @@ def load_langpair_dataset(
 
     eos = None
     if append_source_id:
-        src_dataset = AppendTokenDataset(src_dataset, src_dict.index('[{}]'.format(src)))
+        src_dataset = AppendTokenDataset(
+            src_dataset, src_dict.index("[{}]".format(src))
+        )
         if tgt_dataset is not None:
-            tgt_dataset = AppendTokenDataset(tgt_dataset, tgt_dict.index('[{}]'.format(tgt)))
-        eos = tgt_dict.index('[{}]'.format(tgt))
+            tgt_dataset = AppendTokenDataset(
+                tgt_dataset, tgt_dict.index("[{}]".format(tgt))
+            )
+        eos = tgt_dict.index("[{}]".format(tgt))
 
     align_dataset = None
     if load_alignments:
-        align_path = os.path.join(data_path, '{}.align.{}-{}'.format(split, src, tgt))
+        align_path = os.path.join(data_path, "{}.align.{}-{}".format(split, src, tgt))
         if indexed_dataset.dataset_exists(align_path, impl=dataset_impl):
-            align_dataset = data_utils.load_indexed_dataset(align_path, None, dataset_impl)
+            align_dataset = data_utils.load_indexed_dataset(
+                align_path, None, dataset_impl
+            )
 
     tgt_dataset_sizes = tgt_dataset.sizes if tgt_dataset is not None else None
     return LanguagePairDataset(
-        src_dataset, src_dataset.sizes, src_dict,
-        tgt_dataset, tgt_dataset_sizes, tgt_dict,
+        src_dataset,
+        src_dataset.sizes,
+        src_dict,
+        tgt_dataset,
+        tgt_dataset_sizes,
+        tgt_dict,
         left_pad_source=left_pad_source,
         left_pad_target=left_pad_target,
-        align_dataset=align_dataset, eos=eos,
+        align_dataset=align_dataset,
+        eos=eos,
         num_buckets=num_buckets,
         shuffle=shuffle,
         pad_to_multiple=pad_to_multiple,
     )
 
 
-@register_task('translation')
+@register_task("translation")
 class TranslationTask(LegacyFairseqTask):
     """
     Translate from one (source) language to another (target) language.
@@ -227,18 +254,26 @@ class TranslationTask(LegacyFairseqTask):
         assert len(paths) > 0
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
-            args.source_lang, args.target_lang = data_utils.infer_language_pair(paths[0])
+            args.source_lang, args.target_lang = data_utils.infer_language_pair(
+                paths[0]
+            )
         if args.source_lang is None or args.target_lang is None:
-            raise Exception('Could not infer language pair, please provide it explicitly')
+            raise Exception(
+                "Could not infer language pair, please provide it explicitly"
+            )
 
         # load dictionaries
-        src_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.source_lang)))
-        tgt_dict = cls.load_dictionary(os.path.join(paths[0], 'dict.{}.txt'.format(args.target_lang)))
+        src_dict = cls.load_dictionary(
+            os.path.join(paths[0], "dict.{}.txt".format(args.source_lang))
+        )
+        tgt_dict = cls.load_dictionary(
+            os.path.join(paths[0], "dict.{}.txt".format(args.target_lang))
+        )
         assert src_dict.pad() == tgt_dict.pad()
         assert src_dict.eos() == tgt_dict.eos()
         assert src_dict.unk() == tgt_dict.unk()
-        logger.info('[{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
-        logger.info('[{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict)))
+        logger.info("[{}] dictionary: {} types".format(args.source_lang, len(src_dict)))
+        logger.info("[{}] dictionary: {} types".format(args.target_lang, len(tgt_dict)))
 
         return cls(args, src_dict, tgt_dict)
 
@@ -259,8 +294,14 @@ class TranslationTask(LegacyFairseqTask):
         src, tgt = self.args.source_lang, self.args.target_lang
 
         self.datasets[split] = load_langpair_dataset(
-            data_path, split, src, self.src_dict, tgt, self.tgt_dict,
-            combine=combine, dataset_impl=self.args.dataset_impl,
+            data_path,
+            split,
+            src,
+            self.src_dict,
+            tgt,
+            self.tgt_dict,
+            combine=combine,
+            dataset_impl=self.args.dataset_impl,
             upsample_primary=self.args.upsample_primary,
             left_pad_source=self.args.left_pad_source,
             left_pad_target=self.args.left_pad_target,
@@ -269,45 +310,52 @@ class TranslationTask(LegacyFairseqTask):
             load_alignments=self.args.load_alignments,
             truncate_source=self.args.truncate_source,
             num_buckets=self.args.num_batch_buckets,
-            shuffle=(split != 'test'),
+            shuffle=(split != "test"),
             pad_to_multiple=self.args.required_seq_len_multiple,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
-        return LanguagePairDataset(src_tokens, src_lengths, self.source_dictionary,
-                                   tgt_dict=self.target_dictionary,
-                                   constraints=constraints)
+        return LanguagePairDataset(
+            src_tokens,
+            src_lengths,
+            self.source_dictionary,
+            tgt_dict=self.target_dictionary,
+            constraints=constraints,
+        )
 
     def build_model(self, args):
         model = super().build_model(args)
-        if getattr(args, 'eval_bleu', False):
-            assert getattr(args, 'eval_bleu_detok', None) is not None, (
-                '--eval-bleu-detok is required if using --eval-bleu; '
-                'try --eval-bleu-detok=moses (or --eval-bleu-detok=space '
-                'to disable detokenization, e.g., when using sentencepiece)'
+        if getattr(args, "eval_bleu", False):
+            assert getattr(args, "eval_bleu_detok", None) is not None, (
+                "--eval-bleu-detok is required if using --eval-bleu; "
+                "try --eval-bleu-detok=moses (or --eval-bleu-detok=space "
+                "to disable detokenization, e.g., when using sentencepiece)"
             )
-            detok_args = json.loads(getattr(args, 'eval_bleu_detok_args', '{}') or '{}')
-            self.tokenizer = encoders.build_tokenizer(Namespace(
-                tokenizer=getattr(args, 'eval_bleu_detok', None),
-                **detok_args
-            ))
+            detok_args = json.loads(getattr(args, "eval_bleu_detok_args", "{}") or "{}")
+            self.tokenizer = encoders.build_tokenizer(
+                Namespace(
+                    tokenizer=getattr(args, "eval_bleu_detok", None), **detok_args
+                )
+            )
 
-            gen_args = json.loads(getattr(args, 'eval_bleu_args', '{}') or '{}')
-            self.sequence_generator = self.build_generator([model], Namespace(**gen_args))
+            gen_args = json.loads(getattr(args, "eval_bleu_args", "{}") or "{}")
+            self.sequence_generator = self.build_generator(
+                [model], Namespace(**gen_args)
+            )
         return model
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         if self.args.eval_bleu:
             bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
-            logging_output['_bleu_sys_len'] = bleu.sys_len
-            logging_output['_bleu_ref_len'] = bleu.ref_len
+            logging_output["_bleu_sys_len"] = bleu.sys_len
+            logging_output["_bleu_ref_len"] = bleu.ref_len
             # we split counts into separate entries so that they can be
             # summed efficiently across workers using fast-stat-sync
             assert len(bleu.counts) == EVAL_BLEU_ORDER
             for i in range(EVAL_BLEU_ORDER):
-                logging_output['_bleu_counts_' + str(i)] = bleu.counts[i]
-                logging_output['_bleu_totals_' + str(i)] = bleu.totals[i]
+                logging_output["_bleu_counts_" + str(i)] = bleu.counts[i]
+                logging_output["_bleu_totals_" + str(i)] = bleu.totals[i]
         return loss, sample_size, logging_output
 
     def reduce_metrics(self, logging_outputs, criterion):
@@ -319,34 +367,35 @@ class TranslationTask(LegacyFairseqTask):
 
             counts, totals = [], []
             for i in range(EVAL_BLEU_ORDER):
-                counts.append(sum_logs('_bleu_counts_' + str(i)))
-                totals.append(sum_logs('_bleu_totals_' + str(i)))
+                counts.append(sum_logs("_bleu_counts_" + str(i)))
+                totals.append(sum_logs("_bleu_totals_" + str(i)))
 
             if max(totals) > 0:
                 # log counts as numpy arrays -- log_scalar will sum them correctly
-                metrics.log_scalar('_bleu_counts', np.array(counts))
-                metrics.log_scalar('_bleu_totals', np.array(totals))
-                metrics.log_scalar('_bleu_sys_len', sum_logs('_bleu_sys_len'))
-                metrics.log_scalar('_bleu_ref_len', sum_logs('_bleu_ref_len'))
+                metrics.log_scalar("_bleu_counts", np.array(counts))
+                metrics.log_scalar("_bleu_totals", np.array(totals))
+                metrics.log_scalar("_bleu_sys_len", sum_logs("_bleu_sys_len"))
+                metrics.log_scalar("_bleu_ref_len", sum_logs("_bleu_ref_len"))
 
                 def compute_bleu(meters):
                     import inspect
                     import sacrebleu
+
                     fn_sig = inspect.getfullargspec(sacrebleu.compute_bleu)[0]
-                    if 'smooth_method' in fn_sig:
-                        smooth = {'smooth_method': 'exp'}
+                    if "smooth_method" in fn_sig:
+                        smooth = {"smooth_method": "exp"}
                     else:
-                        smooth = {'smooth': 'exp'}
+                        smooth = {"smooth": "exp"}
                     bleu = sacrebleu.compute_bleu(
-                        correct=meters['_bleu_counts'].sum,
-                        total=meters['_bleu_totals'].sum,
-                        sys_len=meters['_bleu_sys_len'].sum,
-                        ref_len=meters['_bleu_ref_len'].sum,
+                        correct=meters["_bleu_counts"].sum,
+                        total=meters["_bleu_totals"].sum,
+                        sys_len=meters["_bleu_sys_len"].sum,
+                        ref_len=meters["_bleu_ref_len"].sum,
                         **smooth
                     )
                     return round(bleu.score, 2)
 
-                metrics.log_derived('bleu', compute_bleu)
+                metrics.log_derived("bleu", compute_bleu)
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
@@ -374,9 +423,7 @@ class TranslationTask(LegacyFairseqTask):
                 # BLEU scores. Instead, we use a somewhat more verbose
                 # alternative that is unlikely to appear in the real
                 # reference, but doesn't get split into multiple tokens.
-                unk_string=(
-                    "UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"
-                ),
+                unk_string=("UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"),
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
@@ -385,15 +432,17 @@ class TranslationTask(LegacyFairseqTask):
         gen_out = self.inference_step(generator, [model], sample, prefix_tokens=None)
         hyps, refs = [], []
         for i in range(len(gen_out)):
-            hyps.append(decode(gen_out[i][0]['tokens']))
-            refs.append(decode(
-                utils.strip_pad(sample['target'][i], self.tgt_dict.pad()),
-                escape_unk=True,  # don't count <unk> as matches to the hypo
-            ))
+            hyps.append(decode(gen_out[i][0]["tokens"]))
+            refs.append(
+                decode(
+                    utils.strip_pad(sample["target"][i], self.tgt_dict.pad()),
+                    escape_unk=True,  # don't count <unk> as matches to the hypo
+                )
+            )
         if self.args.eval_bleu_print_samples:
-            logger.info('example hypothesis: ' + hyps[0])
-            logger.info('example reference: ' + refs[0])
+            logger.info("example hypothesis: " + hyps[0])
+            logger.info("example reference: " + refs[0])
         if self.args.eval_tokenized_bleu:
-            return sacrebleu.corpus_bleu(hyps, [refs], tokenize='none')
+            return sacrebleu.corpus_bleu(hyps, [refs], tokenize="none")
         else:
             return sacrebleu.corpus_bleu(hyps, [refs])

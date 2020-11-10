@@ -7,6 +7,7 @@ Base classes for various fairseq models.
 """
 
 import logging
+from argparse import Namespace
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -15,8 +16,12 @@ import torch.nn.functional as F
 from fairseq import utils
 from fairseq.checkpoint_utils import prune_state_dict
 from fairseq.data import Dictionary
-from fairseq.dataclass.utils import gen_parser_from_dataclass
+from fairseq.dataclass.utils import (
+    convert_namespace_to_omegaconf,
+    gen_parser_from_dataclass,
+)
 from fairseq.models import FairseqDecoder, FairseqEncoder
+from omegaconf import DictConfig
 from torch import Tensor
 
 
@@ -35,7 +40,8 @@ class BaseFairseqModel(nn.Module):
         """Add model-specific arguments to the parser."""
         dc = getattr(cls, "__dataclass", None)
         if dc is not None:
-            gen_parser_from_dataclass(parser, dc())
+            # do not set defaults so that settings defaults from various architectures still works
+            gen_parser_from_dataclass(parser, dc(), delete_default=True)
 
     @classmethod
     def build_model(cls, args, task):
@@ -69,6 +75,8 @@ class BaseFairseqModel(nn.Module):
         if hasattr(self, "decoder"):
             return self.decoder.get_normalized_probs(net_output, log_probs, sample)
         elif torch.is_tensor(net_output):
+            # syntactic sugar for simple models which don't have a decoder
+            # (e.g., the classification tutorial)
             logits = net_output.float()
             if log_probs:
                 return F.log_softmax(logits, dim=-1)
@@ -84,15 +92,26 @@ class BaseFairseqModel(nn.Module):
         """Maximum length supported by the model."""
         return None
 
-    def load_state_dict(self, state_dict, strict=True, args=None):
+    def load_state_dict(
+        self,
+        state_dict,
+        strict=True,
+        model_cfg: Optional[DictConfig] = None,
+        args: Optional[Namespace] = None,
+    ):
         """Copies parameters and buffers from *state_dict* into this module and
         its descendants.
 
         Overrides the method in :class:`nn.Module`. Compared with that method
         this additionally "upgrades" *state_dicts* from old checkpoints.
         """
+
+        if model_cfg is None and args is not None:
+            logger.warn("using 'args' is deprecated, please update your code to use dataclass config")
+            model_cfg = convert_namespace_to_omegaconf(args).model
+
         self.upgrade_state_dict(state_dict)
-        new_state_dict = prune_state_dict(state_dict, args)
+        new_state_dict = prune_state_dict(state_dict, model_cfg)
         return super().load_state_dict(new_state_dict, strict)
 
     def upgrade_state_dict(self, state_dict):
@@ -131,18 +150,18 @@ class BaseFairseqModel(nn.Module):
 
         self.apply(_apply)
 
-    def prepare_for_inference_(self, args):
+    def prepare_for_inference_(self, cfg: DictConfig):
         """Prepare model for inference."""
         kwargs = {}
         kwargs["beamable_mm_beam_size"] = (
-            None if getattr(args, "no_beamable_mm", False) else getattr(args, "beam", 5)
+            None
+            if getattr(cfg.generation, "no_beamable_mm", False)
+            else getattr(cfg.generation, "beam", 5)
         )
-        kwargs["need_attn"] = getattr(args, "print_alignment", False)
-        if hasattr(args, "retain_dropout"):
-            kwargs["retain_dropout"] = args.retain_dropout
-            kwargs["retain_dropout_modules"] = getattr(
-                args, "retain_dropout_modules", None
-            )
+        kwargs["need_attn"] = getattr(cfg.generation, "print_alignment", False)
+        if getattr(cfg.generation, "retain_dropout", False):
+            kwargs["retain_dropout"] = cfg.generation.retain_dropout
+            kwargs["retain_dropout_modules"] = cfg.generation.retain_dropout_modules
         self.make_generation_fast_(**kwargs)
 
     def make_generation_fast_(self, **kwargs):
@@ -158,7 +177,7 @@ class BaseFairseqModel(nn.Module):
         def apply_remove_weight_norm(module):
             try:
                 nn.utils.remove_weight_norm(module)
-            except ValueError:  # this module didn't have weight norm
+            except (AttributeError, ValueError):  # this module didn't have weight norm
                 return
 
         self.apply(apply_remove_weight_norm)
@@ -220,11 +239,6 @@ class BaseFairseqModel(nn.Module):
         self.apply(apply_prepare_for_tpu_)
 
     @classmethod
-    def upgrade_args(cls, args):
-        if hasattr(args, 'max_sentences') and not hasattr(args, 'batch_size'):
-            args.batch_size = args.max_sentences
-
-    @classmethod
     def from_pretrained(
         cls,
         model_name_or_path,
@@ -262,9 +276,6 @@ class BaseFairseqModel(nn.Module):
             archive_map=cls.hub_models(),
             **kwargs,
         )
-
-        cls.upgrade_args(x["args"])
-
         logger.info(x["args"])
         return hub_utils.GeneratorHubInterface(x["args"], x["task"], x["models"])
 
@@ -435,15 +446,26 @@ class FairseqMultiModel(BaseFairseqModel):
     def forward_decoder(self, prev_output_tokens, **kwargs):
         return self.decoder(prev_output_tokens, **kwargs)
 
-    def load_state_dict(self, state_dict, strict=True, args=None):
+    def load_state_dict(
+        self,
+        state_dict,
+        strict=True,
+        model_cfg=None,
+        args: Optional[Namespace] = None,
+    ):
         """Copies parameters and buffers from *state_dict* into this module and
         its descendants.
 
         Overrides the method in :class:`nn.Module`. Compared with that method
         this additionally "upgrades" *state_dicts* from old checkpoints.
         """
+
+        if model_cfg is None and args is not None:
+            logger.warn("using 'args' is deprecated, please update your code to use dataclass config")
+            model_cfg = convert_namespace_to_omegaconf(args).model
+
         self.upgrade_state_dict(state_dict)
-        new_state_dict = prune_state_dict(state_dict, args)
+        new_state_dict = prune_state_dict(state_dict, model_cfg)
         return super().load_state_dict(new_state_dict, strict)
 
 

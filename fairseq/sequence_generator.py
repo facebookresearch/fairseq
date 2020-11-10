@@ -34,7 +34,7 @@ class SequenceGenerator(nn.Module):
         eos=None,
         symbols_to_strip_from_output=None,
         lm_model=None,
-        lm_weight=1.0
+        lm_weight=1.0,
     ):
         """Generates translations of a given source sentence.
 
@@ -69,7 +69,9 @@ class SequenceGenerator(nn.Module):
         self.eos = tgt_dict.eos() if eos is None else eos
         self.symbols_to_strip_from_output = (
             symbols_to_strip_from_output.union({self.eos})
-            if symbols_to_strip_from_output is not None else {self.eos})
+            if symbols_to_strip_from_output is not None
+            else {self.eos}
+        )
         self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
@@ -92,7 +94,9 @@ class SequenceGenerator(nn.Module):
         # We only need to set src_lengths in LengthConstrainedBeamSearch.
         # As a module attribute, setting it would break in multithread
         # settings when the model is shared.
-        self.should_set_src_lengths = hasattr(self.search, 'needs_src_lengths') and self.search.needs_src_lengths
+        self.should_set_src_lengths = (
+            hasattr(self.search, "needs_src_lengths") and self.search.needs_src_lengths
+        )
 
         self.model.eval()
 
@@ -188,19 +192,21 @@ class SequenceGenerator(nn.Module):
         )
         net_input = sample["net_input"]
 
-        if 'src_tokens' in net_input:
-            src_tokens = net_input['src_tokens']
+        if "src_tokens" in net_input:
+            src_tokens = net_input["src_tokens"]
             # length of the source text being the character length except EndOfSentence and pad
-            src_lengths = (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
-        elif 'source' in net_input:
-            src_tokens = net_input['source']
             src_lengths = (
-                net_input['padding_mask'].size(-1) - net_input['padding_mask'].sum(-1)
-                if net_input['padding_mask'] is not None
+                (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
+            )
+        elif "source" in net_input:
+            src_tokens = net_input["source"]
+            src_lengths = (
+                net_input["padding_mask"].size(-1) - net_input["padding_mask"].sum(-1)
+                if net_input["padding_mask"] is not None
                 else torch.tensor(src_tokens.size(-1)).to(src_tokens)
             )
         else:
-            raise Exception('expected src_tokens or source in net input')
+            raise Exception("expected src_tokens or source in net input")
 
         # bsz: total number of sentences in beam
         # Note that src_tokens may have more than 2 dimenions (i.e. audio features)
@@ -208,7 +214,9 @@ class SequenceGenerator(nn.Module):
         beam_size = self.beam_size
 
         if constraints is not None and not self.search.supports_constraints:
-            raise NotImplementedError("Target-side constraints were provided, but search method doesn't support them")
+            raise NotImplementedError(
+                "Target-side constraints were provided, but search method doesn't support them"
+            )
 
         # Initialize constraints, when active
         self.search.init_constraints(constraints, beam_size)
@@ -276,9 +284,15 @@ class SequenceGenerator(nn.Module):
 
         reorder_state: Optional[Tensor] = None
         batch_idxs: Optional[Tensor] = None
+
+        original_batch_idxs: Optional[Tensor] = None
+        if "id" in sample and isinstance(sample["id"], Tensor):
+            original_batch_idxs = sample["id"]
+        else:
+            original_batch_idxs = torch.arange(0, bsz).type_as(tokens)
+
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
-            # print(f'step: {step}')
             if reorder_state is not None:
                 if batch_idxs is not None:
                     # update beam indices to take into account removed sentences
@@ -288,6 +302,7 @@ class SequenceGenerator(nn.Module):
                     reorder_state.view(-1, beam_size).add_(
                         corr.unsqueeze(-1) * beam_size
                     )
+                    original_batch_idxs = original_batch_idxs[batch_idxs]
                 self.model.reorder_incremental_state(incremental_states, reorder_state)
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
@@ -358,6 +373,8 @@ class SequenceGenerator(nn.Module):
                 step,
                 lprobs.view(bsz, -1, self.vocab_size),
                 scores.view(bsz, beam_size, -1)[:, :, :step],
+                tokens[:, : step + 1],
+                original_batch_idxs,
             )
 
             # cand_bbsz_idx contains beam indices for the top candidate
@@ -401,6 +418,8 @@ class SequenceGenerator(nn.Module):
             assert num_remaining_sent >= 0
             if num_remaining_sent == 0:
                 break
+            if self.search.stop_on_max_len and step >= max_len:
+                break
             assert step < max_len
 
             # Remove finalized sentences (ones for which {beam_size}
@@ -409,10 +428,14 @@ class SequenceGenerator(nn.Module):
                 new_bsz = bsz - len(finalized_sents)
 
                 # construct batch_idxs which holds indices of batches to keep for the next pass
-                batch_mask = torch.ones(bsz, dtype=torch.bool, device=cand_indices.device)
+                batch_mask = torch.ones(
+                    bsz, dtype=torch.bool, device=cand_indices.device
+                )
                 batch_mask[finalized_sents] = False
                 # TODO replace `nonzero(as_tuple=False)` after TorchScript supports it
-                batch_idxs = torch.arange(bsz, device=cand_indices.device).masked_select(batch_mask)
+                batch_idxs = torch.arange(
+                    bsz, device=cand_indices.device
+                ).masked_select(batch_mask)
 
                 # Choose the subset of the hypothesized constraints that will continue
                 self.search.prune_sentences(batch_idxs)
@@ -507,10 +530,14 @@ class SequenceGenerator(nn.Module):
 
         # sort by score descending
         for sent in range(len(finalized)):
-            scores = torch.tensor([float(elem["score"].item()) for elem in finalized[sent]])
+            scores = torch.tensor(
+                [float(elem["score"].item()) for elem in finalized[sent]]
+            )
             _, sorted_scores_indices = torch.sort(scores, descending=True)
             finalized[sent] = [finalized[sent][ssi] for ssi in sorted_scores_indices]
-            finalized[sent] = torch.jit.annotate(List[Dict[str, Tensor]], finalized[sent])
+            finalized[sent] = torch.jit.annotate(
+                List[Dict[str, Tensor]], finalized[sent]
+            )
         return finalized
 
     def _prefix_tokens(
@@ -607,12 +634,11 @@ class SequenceGenerator(nn.Module):
             else:
                 cum_unfin.append(prev)
 
-        # set() is not supported in script export
-
         # The keys here are of the form "{sent}_{unfin_idx}", where
         # "unfin_idx" is the index in the current (possibly reduced)
         # list of sentences, and "sent" is the index in the original,
         # unreduced batch
+        # set() is not supported in script export
         sents_seen: Dict[str, Optional[Tensor]] = {}
 
         # For every finished beam item
@@ -623,7 +649,6 @@ class SequenceGenerator(nn.Module):
             unfin_idx = idx // beam_size
             # sentence index in the original (unreduced) batch
             sent = unfin_idx + cum_unfin[unfin_idx]
-            # print(f"{step} FINISHED {idx} {score} {sent}={unfin_idx} {cum_unfin}")
             # Cannot create dict for key type '(int, int)' in torchscript.
             # The workaround is to cast int to string
             seen = str(sent.item()) + "_" + str(unfin_idx.item())
@@ -775,10 +800,7 @@ class EnsembleModel(nn.Module):
     def forward_encoder(self, net_input: Dict[str, Tensor]):
         if not self.has_encoder():
             return None
-        return [
-            model.encoder.forward_torchscript(net_input)
-            for model in self.models
-        ]
+        return [model.encoder.forward_torchscript(net_input) for model in self.models]
 
     @torch.jit.export
     def forward_decoder(
@@ -903,9 +925,12 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
         src_tokens = sample["net_input"]["src_tokens"]
         bsz = src_tokens.shape[0]
         beam_size = self.beam_size
-        src_tokens, src_lengths, prev_output_tokens, tgt_tokens = self._prepare_batch_for_alignment(
-            sample, finalized
-        )
+        (
+            src_tokens,
+            src_lengths,
+            prev_output_tokens,
+            tgt_tokens,
+        ) = self._prepare_batch_for_alignment(sample, finalized)
         if any(getattr(m, "full_context_alignment", False) for m in self.model.models):
             attn = self.model.forward_align(src_tokens, src_lengths, prev_output_tokens)
         else:
@@ -915,9 +940,9 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
             ]
 
         if src_tokens.device != "cpu":
-            src_tokens = src_tokens.to('cpu')
-            tgt_tokens = tgt_tokens.to('cpu')
-            attn = [i.to('cpu') for i in attn]
+            src_tokens = src_tokens.to("cpu")
+            tgt_tokens = tgt_tokens.to("cpu")
+            attn = [i.to("cpu") for i in attn]
 
         # Process the attn matrix to extract hard alignments.
         for i in range(bsz * beam_size):

@@ -8,9 +8,10 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from fairseq import utils
-from torch import Tensor, nn
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
+from torch import Tensor, nn
+
 
 try:
     from fairseq.model_parallel.megatron.mpu import (
@@ -19,6 +20,7 @@ try:
         ColumnParallelLinear,
         RowParallelLinear,
     )
+
     has_megatron_submodule = True
 except (ImportError, ModuleNotFoundError):
     has_megatron_submodule = False
@@ -46,9 +48,9 @@ class ModelParallelMultiheadAttention(nn.Module):
         super().__init__()
         if not has_megatron_submodule:
             raise ImportError(
-                '\n\nPlease install the megatron submodule:'
-                '\n\n  git submodule update --init '
-                'fairseq/model_parallel/megatron'
+                "\n\nPlease install the megatron submodule:"
+                "\n\n  git submodule update --init "
+                "fairseq/model_parallel/megatron"
             )
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -74,14 +76,22 @@ class ModelParallelMultiheadAttention(nn.Module):
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
-        assert not self.self_attention or self.qkv_same_dim, (
-            "Self-attention requires query, key and value to be of the same size"
-        )
+        assert (
+            not self.self_attention or self.qkv_same_dim
+        ), "Self-attention requires query, key and value to be of the same size"
 
-        self.k_proj = ColumnParallelLinear(self.kdim, embed_dim, bias=bias, gather_output=False)
-        self.v_proj = ColumnParallelLinear(self.vdim, embed_dim, bias=bias, gather_output=False)
-        self.q_proj = ColumnParallelLinear(embed_dim, embed_dim, bias=bias, gather_output=False)
-        self.out_proj = RowParallelLinear(embed_dim, embed_dim, bias=bias, input_is_parallel=True)
+        self.k_proj = ColumnParallelLinear(
+            self.kdim, embed_dim, bias=bias, gather_output=False
+        )
+        self.v_proj = ColumnParallelLinear(
+            self.vdim, embed_dim, bias=bias, gather_output=False
+        )
+        self.q_proj = ColumnParallelLinear(
+            embed_dim, embed_dim, bias=bias, gather_output=False
+        )
+        self.out_proj = RowParallelLinear(
+            embed_dim, embed_dim, bias=bias, input_is_parallel=True
+        )
 
         self.tpu = False
 
@@ -145,7 +155,6 @@ class ModelParallelMultiheadAttention(nn.Module):
             v = self.v_proj(value)
         q *= self.scaling
 
-
         q = (
             q.contiguous()
             .view(tgt_len, bsz * self.num_heads_partition, self.head_dim)
@@ -169,7 +178,9 @@ class ModelParallelMultiheadAttention(nn.Module):
             if "prev_key" in saved_state:
                 _prev_key = saved_state["prev_key"]
                 assert _prev_key is not None
-                prev_key = _prev_key.view(bsz * self.num_heads_partition, -1, self.head_dim)
+                prev_key = _prev_key.view(
+                    bsz * self.num_heads_partition, -1, self.head_dim
+                )
                 if static_kv:
                     k = prev_key
                 else:
@@ -178,7 +189,9 @@ class ModelParallelMultiheadAttention(nn.Module):
             if "prev_value" in saved_state:
                 _prev_value = saved_state["prev_value"]
                 assert _prev_value is not None
-                prev_value = _prev_value.view(bsz * self.num_heads_partition, -1, self.head_dim)
+                prev_value = _prev_value.view(
+                    bsz * self.num_heads_partition, -1, self.head_dim
+                )
                 if static_kv:
                     v = prev_value
                 else:
@@ -188,16 +201,22 @@ class ModelParallelMultiheadAttention(nn.Module):
             if "prev_key_padding_mask" in saved_state:
                 prev_key_padding_mask = saved_state["prev_key_padding_mask"]
             assert k is not None and v is not None
-            key_padding_mask = ModelParallelMultiheadAttention._append_prev_key_padding_mask(
-                key_padding_mask=key_padding_mask,
-                prev_key_padding_mask=prev_key_padding_mask,
-                batch_size=bsz,
-                src_len=k.size(1),
-                static_kv=static_kv,
+            key_padding_mask = (
+                ModelParallelMultiheadAttention._append_prev_key_padding_mask(
+                    key_padding_mask=key_padding_mask,
+                    prev_key_padding_mask=prev_key_padding_mask,
+                    batch_size=bsz,
+                    src_len=k.size(1),
+                    static_kv=static_kv,
+                )
             )
 
-            saved_state["prev_key"] = k.view(bsz, self.num_heads_partition, -1, self.head_dim)
-            saved_state["prev_value"] = v.view(bsz, self.num_heads_partition, -1, self.head_dim)
+            saved_state["prev_key"] = k.view(
+                bsz, self.num_heads_partition, -1, self.head_dim
+            )
+            saved_state["prev_value"] = v.view(
+                bsz, self.num_heads_partition, -1, self.head_dim
+            )
             saved_state["prev_key_padding_mask"] = key_padding_mask
             # In this branch incremental_state is never None
             assert incremental_state is not None
@@ -216,7 +235,11 @@ class ModelParallelMultiheadAttention(nn.Module):
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
 
-        assert list(attn_weights.size()) == [bsz * self.num_heads_partition, tgt_len, src_len]
+        assert list(attn_weights.size()) == [
+            bsz * self.num_heads_partition,
+            tgt_len,
+            src_len,
+        ]
 
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
@@ -224,20 +247,23 @@ class ModelParallelMultiheadAttention(nn.Module):
 
         if key_padding_mask is not None:
             # don't attend to padding symbols
-            attn_weights = attn_weights.view(bsz, self.num_heads_partition, tgt_len, src_len)
+            attn_weights = attn_weights.view(
+                bsz, self.num_heads_partition, tgt_len, src_len
+            )
             if not self.tpu:
                 attn_weights = attn_weights.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool), float("-inf")
+                    key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
+                    float("-inf"),
                 )
             else:
                 attn_weights = attn_weights.transpose(0, 2)
-                attn_weights = attn_weights.masked_fill(key_padding_mask, float('-inf'))
+                attn_weights = attn_weights.masked_fill(key_padding_mask, float("-inf"))
                 attn_weights = attn_weights.transpose(0, 2)
-            attn_weights = attn_weights.view(bsz * self.num_heads_partition, tgt_len, src_len)
+            attn_weights = attn_weights.view(
+                bsz * self.num_heads_partition, tgt_len, src_len
+            )
 
-        attn_weights_float = utils.softmax(
-            attn_weights, dim=-1
-        )
+        attn_weights_float = utils.softmax(attn_weights, dim=-1)
         attn_weights = attn_weights_float.type_as(attn_weights)
 
         with get_cuda_rng_tracker().fork():
@@ -245,7 +271,11 @@ class ModelParallelMultiheadAttention(nn.Module):
 
         assert v is not None
         attn = torch.bmm(attn_probs, v)
-        assert list(attn.size()) == [bsz * self.num_heads_partition, tgt_len, self.head_dim]
+        assert list(attn.size()) == [
+            bsz * self.num_heads_partition,
+            tgt_len,
+            self.head_dim,
+        ]
         embed_dim_partition = embed_dim // self.model_parallel_size
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim_partition)
         attn = self.out_proj(attn)

@@ -6,7 +6,6 @@
 import logging
 
 import numpy as np
-
 from fairseq.data import BaseWrapperDataset, plasma_utils
 
 
@@ -112,7 +111,7 @@ class ResamplingDataset(BaseWrapperDataset):
         return False
 
     def set_epoch(self, epoch):
-        logger.debug('ResamplingDataset.set_epoch: {}'.format(epoch))
+        logger.debug("ResamplingDataset.set_epoch: {}".format(epoch))
         super().set_epoch(epoch)
 
         if epoch == self._cur_epoch:

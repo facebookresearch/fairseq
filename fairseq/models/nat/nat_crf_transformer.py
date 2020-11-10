@@ -4,8 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 
-from fairseq.models.nat import NATransformerModel, base_architecture
 from fairseq.models import register_model, register_model_architecture
+from fairseq.models.nat import NATransformerModel, base_architecture
 from fairseq.modules import DynamicCRF
 
 
@@ -16,7 +16,7 @@ class NACRFTransformerModel(NATransformerModel):
         self.crf_layer = DynamicCRF(
             num_embedding=len(self.tgt_dict),
             low_rank=args.crf_lowrank_approx,
-            beam_size=args.crf_beam_approx
+            beam_size=args.crf_beam_approx,
         )
 
     @property
@@ -26,12 +26,21 @@ class NACRFTransformerModel(NATransformerModel):
     @staticmethod
     def add_args(parser):
         NATransformerModel.add_args(parser)
-        parser.add_argument("--crf-lowrank-approx", type=int,
-                            help="the dimension of low-rank approximation of transition")
-        parser.add_argument("--crf-beam-approx", type=int,
-                            help="the beam size for apporixmating the normalizing factor")
-        parser.add_argument("--word-ins-loss-factor", type=float,
-                            help="weights on NAT loss used to co-training with CRF loss.")
+        parser.add_argument(
+            "--crf-lowrank-approx",
+            type=int,
+            help="the dimension of low-rank approximation of transition",
+        )
+        parser.add_argument(
+            "--crf-beam-approx",
+            type=int,
+            help="the beam size for apporixmating the normalizing factor",
+        )
+        parser.add_argument(
+            "--word-ins-loss-factor",
+            type=float,
+            help="weights on NAT loss used to co-training with CRF loss.",
+        )
 
     def forward(
         self, src_tokens, src_lengths, prev_output_tokens, tgt_tokens, **kwargs
@@ -40,14 +49,19 @@ class NACRFTransformerModel(NATransformerModel):
         encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
 
         # length prediction
-        length_out = self.decoder.forward_length(normalize=False, encoder_out=encoder_out)
-        length_tgt = self.decoder.forward_length_prediction(length_out, encoder_out, tgt_tokens)
+        length_out = self.decoder.forward_length(
+            normalize=False, encoder_out=encoder_out
+        )
+        length_tgt = self.decoder.forward_length_prediction(
+            length_out, encoder_out, tgt_tokens
+        )
 
         # decoding
         word_ins_out = self.decoder(
             normalize=False,
             prev_output_tokens=prev_output_tokens,
-            encoder_out=encoder_out)
+            encoder_out=encoder_out,
+        )
         word_ins_tgt, word_ins_mask = tgt_tokens, tgt_tokens.ne(self.pad)
 
         # compute the log-likelihood of CRF
@@ -56,17 +70,19 @@ class NACRFTransformerModel(NATransformerModel):
 
         return {
             "word_ins": {
-                "out": word_ins_out, "tgt": word_ins_tgt,
-                "mask": word_ins_mask, "ls": self.args.label_smoothing,
-                "nll_loss": True, "factor": self.args.word_ins_loss_factor
+                "out": word_ins_out,
+                "tgt": word_ins_tgt,
+                "mask": word_ins_mask,
+                "ls": self.args.label_smoothing,
+                "nll_loss": True,
+                "factor": self.args.word_ins_loss_factor,
             },
-            "word_crf": {
-                "loss": crf_nll
-            },
+            "word_crf": {"loss": crf_nll},
             "length": {
-                "out": length_out, "tgt": length_tgt,
-                "factor": self.decoder.length_loss_factor
-            }
+                "out": length_out,
+                "tgt": length_tgt,
+                "factor": self.decoder.length_loss_factor,
+            },
         }
 
     def forward_decoder(self, decoder_out, encoder_out, decoding_format=None, **kwargs):
@@ -77,9 +93,7 @@ class NACRFTransformerModel(NATransformerModel):
         # execute the decoder and get emission scores
         output_masks = output_tokens.ne(self.pad)
         word_ins_out = self.decoder(
-            normalize=False,
-            prev_output_tokens=output_tokens,
-            encoder_out=encoder_out
+            normalize=False, prev_output_tokens=output_tokens, encoder_out=encoder_out
         )
 
         # run viterbi decoding through CRF
@@ -93,7 +107,7 @@ class NACRFTransformerModel(NATransformerModel):
             output_tokens=output_tokens,
             output_scores=output_scores,
             attn=None,
-            history=history
+            history=history,
         )
 
 

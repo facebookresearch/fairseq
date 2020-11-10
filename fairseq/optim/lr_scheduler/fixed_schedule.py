@@ -3,10 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . import register_lr_scheduler, LegacyFairseqLRScheduler
+from . import LegacyFairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler('fixed')
+@register_lr_scheduler("fixed")
 class FixedSchedule(LegacyFairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
@@ -14,11 +14,11 @@ class FixedSchedule(LegacyFairseqLRScheduler):
         super().__init__(args, optimizer)
 
         # set defaults
-        args.warmup_updates = getattr(args, 'warmup_updates', 0) or 0
+        args.warmup_updates = getattr(args, "warmup_updates", 0) or 0
 
         self.lr = args.lr[0]
         if args.warmup_updates > 0:
-            self.warmup_factor = 1. / args.warmup_updates
+            self.warmup_factor = 1.0 / args.warmup_updates
         else:
             self.warmup_factor = 1
 
@@ -27,7 +27,7 @@ class FixedSchedule(LegacyFairseqLRScheduler):
         """Add arguments to the parser for this LR scheduler."""
         # fmt: off
         parser.add_argument('--force-anneal', '--fa', type=int, metavar='N',
-                            help='force annealing at specified epoch')
+                            help='force annealing at specified epoch (epochs start at 1)')
         parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
                             help='shrink factor for annealing, lr_new = (lr * lr_shrink)')
         parser.add_argument('--warmup-updates', default=0, type=int, metavar='N',
@@ -35,25 +35,26 @@ class FixedSchedule(LegacyFairseqLRScheduler):
         # fmt: on
 
     def state_dict(self):
-        return {'lr': self.lr}
+        return {"lr": self.lr}
 
     def load_state_dict(self, state_dict):
-        if 'lr' in state_dict:
-            self.lr = state_dict['lr']
+        if "lr" in state_dict:
+            self.lr = state_dict["lr"]
 
     def get_next_lr(self, epoch):
         lrs = self.args.lr
         if self.args.force_anneal is None or epoch < self.args.force_anneal:
             # use fixed LR schedule
-            next_lr = lrs[min(epoch, len(lrs) - 1)]
+            next_lr = lrs[min(epoch - 1, len(lrs) - 1)]
         else:
             # annneal based on lr_shrink
-            next_lr = lrs[-1] * self.args.lr_shrink ** (epoch + 1 - self.args.force_anneal)
+            next_lr = lrs[-1] * self.args.lr_shrink ** (
+                epoch + 1 - self.args.force_anneal
+            )
         return next_lr
 
-    def step(self, epoch, val_loss=None):
-        """Update the learning rate at the end of the given epoch."""
-        super().step(epoch, val_loss)
+    def step_begin_epoch(self, epoch):
+        """Update the learning rate at the beginning of the given epoch."""
         self.lr = self.get_next_lr(epoch)
         self.optimizer.set_lr(self.warmup_factor * self.lr)
         return self.optimizer.get_lr()

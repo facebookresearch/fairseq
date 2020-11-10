@@ -11,23 +11,24 @@ Evaluate the perplexity of a trained language model.
 import logging
 import math
 import os
+from argparse import Namespace
 
 import torch
-
-from fairseq import checkpoint_utils, options, tasks, utils
+from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.data import LMContextWindowDataset
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.sequence_scorer import SequenceScorer
-from fairseq import distributed_utils
+from omegaconf import DictConfig
 
 
 logging.basicConfig(
-    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    level=os.environ.get('LOGLEVEL', 'INFO').upper(),
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=os.environ.get("LOGLEVEL", "INFO").upper(),
 )
-logger = logging.getLogger('fairseq_cli.eval_lm')
+logger = logging.getLogger("fairseq_cli.eval_lm")
 
 
 class WordStat(object):
@@ -40,10 +41,10 @@ class WordStat(object):
         self.missing_next_words = 0
 
     def add(self, log_prob, next_word_prob):
-        """ increments counters for the sum of log probs of current word and next
-            word (given context ending at current word). Since the next word might be at the end of the example,
-            or it might be not counted because it is not an ending subword unit,
-            also keeps track of how many of those we have seen """
+        """increments counters for the sum of log probs of current word and next
+        word (given context ending at current word). Since the next word might be at the end of the example,
+        or it might be not counted because it is not an ending subword unit,
+        also keeps track of how many of those we have seen"""
         if next_word_prob is not None:
             self.next_word_prob += next_word_prob
         else:
@@ -52,99 +53,113 @@ class WordStat(object):
         self.count += 1
 
     def __str__(self):
-        return '{}\t{}\t{}\t{}\t{}\t{}'.format(self.word, self.count, self.log_prob, self.is_bpe,
-                                               self.next_word_prob, self.count - self.missing_next_words)
+        return "{}\t{}\t{}\t{}\t{}\t{}".format(
+            self.word,
+            self.count,
+            self.log_prob,
+            self.is_bpe,
+            self.next_word_prob,
+            self.count - self.missing_next_words,
+        )
 
 
-def main(parsed_args, **unused_kwargs):
-    assert parsed_args.path is not None, '--path required for evaluation!'
+def main(cfg: DictConfig, **unused_kwargs):
+    if isinstance(cfg, Namespace):
+        cfg = convert_namespace_to_omegaconf(cfg)
 
-    if torch.cuda.is_available() and not parsed_args.cpu:
-        torch.cuda.set_device(parsed_args.device_id)
+    utils.import_user_module(cfg.common)
 
-    utils.import_user_module(parsed_args)
+    use_fp16 = cfg.common.fp16
+    use_cuda = torch.cuda.is_available() and not cfg.common.cpu
 
-    logger.info(parsed_args)
+    if use_cuda:
+        torch.cuda.set_device(cfg.distributed_training.device_id)
 
-    use_cuda = torch.cuda.is_available() and not parsed_args.cpu
-
-    task = tasks.setup_task(parsed_args)
+    logger.info(cfg)
 
     # Load ensemble
-    logger.info('loading model(s) from {}'.format(parsed_args.path))
-    models, args = checkpoint_utils.load_model_ensemble(
-        parsed_args.path.split(os.pathsep),
-        arg_overrides=eval(parsed_args.model_overrides),
-        task=task,
-        suffix=getattr(parsed_args, "checkpoint_suffix", ""),
-    )
-
-    for arg in vars(parsed_args).keys():
-        if arg not in {
-            'self_target', 'future_target', 'past_target', 'tokens_per_sample',
-            'output_size_dictionary', 'add_bos_token',
-        }:
-            setattr(args, arg, getattr(parsed_args, arg))
+    logger.info("loading model(s) from {}".format(cfg.common_eval.path))
 
     # reduce tokens per sample by the required context window size
-    args.tokens_per_sample -= args.context_window
-    task = tasks.setup_task(args)
+    cfg.task.tokens_per_sample -= cfg.eval_lm.context_window
+
+    # Initialize the task using the current *cfg*
+    task = tasks.setup_task(cfg.task)
+
+    # Initialize the model (but not the task) using the checkpoint's *cfg*
+    models, model_args, task = checkpoint_utils.load_model_ensemble_and_task(
+        [cfg.common_eval.path],
+        arg_overrides=eval(cfg.common_eval.model_overrides),
+        suffix=cfg.checkpoint.checkpoint_suffix,
+        strict=(cfg.checkpoint.checkpoint_shard_count == 1),
+        num_shards=cfg.checkpoint.checkpoint_shard_count,
+        task=task,
+    )
 
     # Load dataset splits
-    task.load_dataset(args.gen_subset)
-    dataset = task.dataset(args.gen_subset)
-    if args.context_window > 0:
+    gen_subset = cfg.dataset.gen_subset
+    task.load_dataset(gen_subset)
+    dataset = task.dataset(gen_subset)
+    if cfg.eval_lm.context_window > 0:
         dataset = LMContextWindowDataset(
             dataset=dataset,
-            tokens_per_sample=args.tokens_per_sample,
-            context_window=args.context_window,
+            tokens_per_sample=cfg.task.tokens_per_sample,
+            context_window=cfg.eval_lm.context_window,
             pad_idx=task.source_dictionary.pad(),
         )
-    logger.info('{} {} {} examples'.format(args.data, args.gen_subset, len(dataset)))
+    logger.info("{} {} {} examples".format(cfg.task.data, gen_subset, len(dataset)))
 
     # Optimize ensemble for generation and set the source and dest dicts on the model (required by scorer)
     for model in models:
-        model.prepare_for_inference_(args)
-        if args.fp16:
+        if use_fp16:
             model.half()
-        if use_cuda:
+        if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
+        model.prepare_for_inference_(cfg)
 
     assert len(models) > 0
 
-    logger.info('num. model params: {}'.format(sum(p.numel() for p in models[0].parameters())))
+    logger.info(
+        "num. model params: {}".format(sum(p.numel() for p in models[0].parameters()))
+    )
 
     itr = task.get_batch_iterator(
         dataset=dataset,
-        max_tokens=args.max_tokens or 36000,
-        max_sentences=args.batch_size,
-        max_positions=utils.resolve_max_positions(*[
-            model.max_positions() for model in models
-        ]),
+        max_tokens=cfg.dataset.max_tokens or 36000,
+        max_sentences=cfg.dataset.batch_size,
+        max_positions=utils.resolve_max_positions(
+            *[model.max_positions() for model in models]
+        ),
         ignore_invalid_inputs=True,
-        num_shards=args.num_shards,
-        shard_id=args.shard_id,
-        num_workers=args.num_workers,
-        data_buffer_size=args.data_buffer_size,
+        num_shards=max(
+            cfg.dataset.num_shards,
+            cfg.distributed_training.distributed_world_size,
+        ),
+        shard_id=max(
+            cfg.dataset.shard_id,
+            cfg.distributed_training.distributed_rank,
+        ),
+        num_workers=cfg.dataset.num_workers,
+        data_buffer_size=cfg.dataset.data_buffer_size,
     ).next_epoch_itr(shuffle=False)
     progress = progress_bar.progress_bar(
         itr,
-        log_format=args.log_format,
-        log_interval=args.log_interval,
-        default_log_format=('tqdm' if not args.no_progress_bar else 'none'),
+        log_format=cfg.common.log_format,
+        log_interval=cfg.common.log_interval,
+        default_log_format=("tqdm" if not cfg.common.no_progress_bar else "simple"),
     )
 
     gen_timer = StopwatchMeter()
-    scorer = SequenceScorer(task.target_dictionary, args.softmax_batch)
+    scorer = SequenceScorer(task.target_dictionary, cfg.eval_lm.softmax_batch)
 
-    score_sum = 0.
+    score_sum = 0.0
     count = 0
 
-    if args.remove_bpe is not None:
-        if args.remove_bpe == 'sentencepiece':
+    if cfg.common_eval.post_process is not None:
+        if cfg.common_eval.post_process == "sentencepiece":
             raise NotImplementedError
         else:
-            bpe_cont = args.remove_bpe.rstrip()
+            bpe_cont = cfg.common_eval.post_process.rstrip()
             bpe_toks = {
                 i
                 for i in range(len(task.source_dictionary))
@@ -160,25 +175,25 @@ def main(parsed_args, **unused_kwargs):
     wps_meter = TimeMeter()
 
     for sample in progress:
-        if 'net_input' not in sample:
+        if "net_input" not in sample:
             continue
 
         sample = utils.move_to_cuda(sample) if use_cuda else sample
 
         gen_timer.start()
         hypos = scorer.generate(models, sample)
-        gen_timer.stop(sample['ntokens'])
+        gen_timer.stop(sample["ntokens"])
 
         for i, hypos_i in enumerate(hypos):
             hypo = hypos_i[0]
-            sample_id = sample['id'][i]
+            sample_id = sample["id"][i]
 
-            tokens = hypo['tokens']
+            tokens = hypo["tokens"]
             tgt_len = tokens.numel()
-            pos_scores = hypo['positional_scores'].float()
+            pos_scores = hypo["positional_scores"].float()
 
-            if getattr(args, 'add_bos_token', False):
-                assert hypo['tokens'][0].item() == task.target_dictionary.bos()
+            if getattr(cfg.task, "add_bos_token", False):
+                assert hypo["tokens"][0].item() == task.target_dictionary.bos()
                 tokens = tokens[1:]
                 pos_scores = pos_scores[1:]
 
@@ -190,18 +205,18 @@ def main(parsed_args, **unused_kwargs):
                         pos_scores[i + 1] += pos_scores[i]
                         pos_scores[i] = 0
 
-            inf_scores = pos_scores.eq(float('inf')) | pos_scores.eq(float('-inf'))
+            inf_scores = pos_scores.eq(float("inf")) | pos_scores.eq(float("-inf"))
             if inf_scores.any():
                 logger.info(
-                    'skipping tokens with inf scores:',
-                    task.target_dictionary.string(tokens[inf_scores.nonzero()])
+                    "skipping tokens with inf scores:",
+                    task.target_dictionary.string(tokens[inf_scores.nonzero()]),
                 )
                 pos_scores = pos_scores[(~inf_scores).nonzero()]
             score_sum += pos_scores.sum().cpu()
             count += pos_scores.numel() - skipped_toks
 
-            if args.output_word_probs or args.output_word_stats:
-                w = ''
+            if cfg.eval_lm.output_word_probs or cfg.eval_lm.output_word_stats:
+                w = ""
                 word_prob = []
                 is_bpe = False
                 for i in range(len(tokens)):
@@ -221,27 +236,38 @@ def main(parsed_args, **unused_kwargs):
                                 break
                             ind += 1
 
-                        word_stats.setdefault(w, WordStat(w, is_bpe)).add(pos_scores[i].item(), next_prob)
+                        word_stats.setdefault(w, WordStat(w, is_bpe)).add(
+                            pos_scores[i].item(), next_prob
+                        )
                         is_bpe = False
-                        w = ''
-                if args.output_word_probs:
+                        w = ""
+                if cfg.eval_lm.output_word_probs:
                     logger.info(
-                        str(int(sample_id)) + " "
-                        + ('\t'.join('{} [{:2f}]'.format(x[0], x[1]) for x in word_prob))
+                        str(int(sample_id))
+                        + " "
+                        + (
+                            "\t".join(
+                                "{} [{:2f}]".format(x[0], x[1]) for x in word_prob
+                            )
+                        )
                     )
 
-        wps_meter.update(sample['ntokens'])
-        progress.log({'wps': round(wps_meter.avg)})
+        wps_meter.update(sample["ntokens"])
+        progress.log({"wps": round(wps_meter.avg)})
 
     avg_nll_loss = -score_sum / count / math.log(2)  # convert to base 2
-    logger.info('Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)'.format(
-        gen_timer.n, gen_timer.sum, 1. / gen_timer.avg
-    ))
-    logger.info('Loss (base 2): {:.4f}, Perplexity: {:.2f}'.format(
-        avg_nll_loss, 2**avg_nll_loss
-    ))
+    logger.info(
+        "Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)".format(
+            gen_timer.n, gen_timer.sum, 1.0 / gen_timer.avg
+        )
+    )
+    logger.info(
+        "Loss (base 2): {:.4f}, Perplexity: {:.2f}".format(
+            avg_nll_loss, 2 ** avg_nll_loss
+        )
+    )
 
-    if args.output_word_stats:
+    if cfg.eval_lm.output_word_stats:
         for ws in sorted(word_stats.values(), key=lambda x: x.count, reverse=True):
             logger.info(ws)
 
@@ -249,8 +275,9 @@ def main(parsed_args, **unused_kwargs):
 def cli_main():
     parser = options.get_eval_lm_parser()
     args = options.parse_args_and_arch(parser)
-    distributed_utils.call_main(args, main)
+
+    distributed_utils.call_main(convert_namespace_to_omegaconf(args), main)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli_main()

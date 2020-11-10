@@ -9,21 +9,27 @@ from fairseq.utils import new_arange
 
 # -------------- Helper Functions --------------------------------------------------- #
 
+
 def load_libnat():
     try:
         from fairseq import libnat_cuda
+
         return libnat_cuda, True
 
     except ImportError as e:
-        print(str(e) + '... fall back to CPU version')
+        print(str(e) + "... fall back to CPU version")
 
         try:
             from fairseq import libnat
+
             return libnat, False
 
         except ImportError as e:
             import sys
-            sys.stderr.write("ERROR: missing libnat_cuda. run `python setup.py build_ext --inplace`\n")
+
+            sys.stderr.write(
+                "ERROR: missing libnat_cuda. run `python setup.py build_ext --inplace`\n"
+            )
             raise e
 
 
@@ -34,14 +40,18 @@ def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
         in_masks = in_tokens.ne(padding_idx)
         out_masks = out_tokens.ne(padding_idx)
         mask_ins_targets, masked_tgt_masks = libnat.generate_insertion_labels(
-            out_tokens.int(), libnat.levenshtein_distance(
-                in_tokens.int(), out_tokens.int(),
-                in_masks.sum(1).int(), out_masks.sum(1).int()
-            )
+            out_tokens.int(),
+            libnat.levenshtein_distance(
+                in_tokens.int(),
+                out_tokens.int(),
+                in_masks.sum(1).int(),
+                out_masks.sum(1).int(),
+            ),
         )
         masked_tgt_masks = masked_tgt_masks.bool() & out_masks
-        mask_ins_targets = mask_ins_targets.type_as(
-            in_tokens)[:, 1:in_masks.size(1)].masked_fill_(~in_masks[:, 1:], 0)
+        mask_ins_targets = mask_ins_targets.type_as(in_tokens)[
+            :, 1 : in_masks.size(1)
+        ].masked_fill_(~in_masks[:, 1:], 0)
         masked_tgt_tokens = out_tokens.masked_fill(masked_tgt_masks, unk_idx)
         return masked_tgt_masks, masked_tgt_tokens, mask_ins_targets
 
@@ -73,7 +83,8 @@ def _get_ins_targets(in_tokens, out_tokens, padding_idx, unk_idx):
                 mask_label + [0 for _ in range(out_seq_len - len(mask_label))]
             )
         mask_ins_targets = [
-            mask_input[1:-1] + [0 for _ in range(in_seq_len - 1 - len(mask_input[1:-1]))]
+            mask_input[1:-1]
+            + [0 for _ in range(in_seq_len - 1 - len(mask_input[1:-1]))]
             for mask_input in mask_inputs
         ]
 
@@ -100,18 +111,23 @@ def _get_del_targets(in_tokens, out_tokens, padding_idx):
         word_del_targets = libnat.generate_deletion_labels(
             in_tokens.int(),
             libnat.levenshtein_distance(
-                in_tokens.int(), out_tokens.int(),
-                in_masks.sum(1).int(), out_masks.sum(1).int()
-            )
+                in_tokens.int(),
+                out_tokens.int(),
+                in_masks.sum(1).int(),
+                out_masks.sum(1).int(),
+            ),
         )
-        word_del_targets = word_del_targets.type_as(in_tokens).masked_fill_(~in_masks, 0)
+        word_del_targets = word_del_targets.type_as(in_tokens).masked_fill_(
+            ~in_masks, 0
+        )
         return word_del_targets
 
     def _get_del_targets_cpu(in_tokens, out_tokens, padding_idx):
         out_seq_len = out_tokens.size(1)
         with torch.cuda.device_of(in_tokens):
             in_tokens_list = [
-                [t for t in s if t != padding_idx] for i, s in enumerate(in_tokens.tolist())
+                [t for t in s if t != padding_idx]
+                for i, s in enumerate(in_tokens.tolist())
             ]
             out_tokens_list = [
                 [t for t in s if t != padding_idx]
@@ -149,10 +165,7 @@ def _apply_ins_masks(
 
     out_lengths = in_lengths + mask_ins_pred.sum(1)
     out_max_len = out_lengths.max()
-    out_masks = (
-        new_arange(out_lengths, out_max_len)[None, :]
-        < out_lengths[:, None]
-    )
+    out_masks = new_arange(out_lengths, out_max_len)[None, :] < out_lengths[:, None]
 
     reordering = (mask_ins_pred + in_masks[:, 1:].long()).cumsum(1)
     out_tokens = (
@@ -173,9 +186,7 @@ def _apply_ins_masks(
     return out_tokens, out_scores
 
 
-def _apply_ins_words(
-    in_tokens, in_scores, word_ins_pred, word_ins_scores, unk_idx
-):
+def _apply_ins_words(in_tokens, in_scores, word_ins_pred, word_ins_scores, unk_idx):
     word_ins_masks = in_tokens.eq(unk_idx)
     out_tokens = in_tokens.masked_scatter(word_ins_masks, word_ins_pred[word_ins_masks])
 
@@ -200,11 +211,7 @@ def _apply_del_words(
     word_del_pred.masked_fill_(~in_masks, 1)
     word_del_pred.masked_fill_(bos_eos_masks, 0)
 
-    reordering = (
-        new_arange(in_tokens)
-        .masked_fill_(word_del_pred, max_len)
-        .sort(1)[1]
-    )
+    reordering = new_arange(in_tokens).masked_fill_(word_del_pred, max_len).sort(1)[1]
 
     out_tokens = in_tokens.masked_fill(word_del_pred, padding_idx).gather(1, reordering)
 
@@ -216,7 +223,7 @@ def _apply_del_words(
     if in_attn is not None:
         _mask = word_del_pred[:, :, None].expand_as(in_attn)
         _reordering = reordering[:, :, None].expand_as(in_attn)
-        out_attn = in_attn.masked_fill(_mask, 0.).gather(1, _reordering)
+        out_attn = in_attn.masked_fill(_mask, 0.0).gather(1, _reordering)
 
     return out_tokens, out_scores, out_attn
 
@@ -250,7 +257,9 @@ def _skip_encoder_out(encoder, encoder_out, mask):
     if not mask.any():
         return encoder_out
     else:
-        return encoder.reorder_encoder_out(encoder_out, mask.nonzero(as_tuple=False).squeeze())
+        return encoder.reorder_encoder_out(
+            encoder_out, mask.nonzero(as_tuple=False).squeeze()
+        )
 
 
 def _fill(x, mask, y, padding_idx):
@@ -276,9 +285,9 @@ def _fill(x, mask, y, padding_idx):
     elif x.size(1) > y.size(1):
         x[mask] = padding_idx
         if x.dim() == 2:
-            x[mask, :y.size(1)] = y
+            x[mask, : y.size(1)] = y
         else:
-            x[mask, :y.size(1), :] = y
+            x[mask, : y.size(1), :] = y
     else:
         x[mask] = y
     return x

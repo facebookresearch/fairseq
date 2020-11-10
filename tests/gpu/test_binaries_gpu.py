@@ -139,7 +139,7 @@ def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fa
             "--ddp-backend",
             "no_c10d",
             "--num-workers",
-            0,
+            "0",
         ]
         + (extra_flags or []),
     )
@@ -177,7 +177,7 @@ def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fa
             "--ddp-backend",
             "no_c10d",
             "--num-workers",
-            0,
+            "0",
             "--quant-noise-scalar",
             "0.5",
         ]
@@ -215,7 +215,7 @@ def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fa
             "--ddp-backend",
             "no_c10d",
             "--num-workers",
-            0,
+            "0",
             "--restore-file",
             os.path.join(data_dir, "checkpoint_last.pt"),
             "--reset-optimizer",

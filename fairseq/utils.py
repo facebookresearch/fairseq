@@ -6,10 +6,11 @@
 import argparse
 import contextlib
 import copy
-import importlib.util
+import importlib
 import logging
 import os
 import sys
+import tempfile
 import warnings
 from itertools import accumulate
 from typing import Callable, Dict, List, Optional
@@ -30,6 +31,11 @@ try:
     multi_tensor_l2norm_available = True
 except ImportError:
     multi_tensor_l2norm_available = False
+
+try:
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    xm = None
 
 
 logger = logging.getLogger(__name__)
@@ -432,23 +438,33 @@ def import_user_module(args):
     if module_path is not None:
         module_path = os.path.abspath(args.user_dir)
         if not os.path.exists(module_path):
-            fairseq_rel_path = os.path.join(
-                os.path.dirname(__file__), "..", args.user_dir
-            )
+            fairseq_rel_path = os.path.join(os.path.dirname(__file__), args.user_dir)
             if os.path.exists(fairseq_rel_path):
                 module_path = fairseq_rel_path
-        module_parent, module_name = os.path.split(module_path)
+            else:
+                fairseq_rel_path = os.path.join(
+                    os.path.dirname(__file__), "..", args.user_dir
+                )
+                if os.path.exists(fairseq_rel_path):
+                    module_path = fairseq_rel_path
+                else:
+                    raise FileNotFoundError(module_path)
 
-        if module_name in sys.modules:
-            module_bak = sys.modules[module_name]
-            del sys.modules[module_name]
-        else:
-            module_bak = None
-        sys.path.insert(0, module_parent)
-        importlib.import_module(module_name)
-        sys.modules["fairseq_user_dir"] = sys.modules[module_name]
-        if module_bak is not None and module_name != "fairseq_user_dir":
-            sys.modules[module_name] = module_bak
+        # ensure that user modules are only imported once
+        import_user_module.memo = getattr(import_user_module, "memo", set())
+        if module_path not in import_user_module.memo:
+            import_user_module.memo.add(module_path)
+
+            module_parent, module_name = os.path.split(module_path)
+            if module_name not in sys.modules:
+                sys.path.insert(0, module_parent)
+                importlib.import_module(module_name)
+            else:
+                raise ImportError(
+                    "Failed to import --user-dir={} because the corresponding module name "
+                    "({}) is not globally unique. Please rename the directory to "
+                    "something unique and try again.".format(module_path, module_name)
+                )
 
 
 def softmax(x, dim: int, onnx_trace: bool = False):
@@ -527,23 +543,39 @@ def has_parameters(module):
         return False
 
 
-def set_torch_seed(seed):
-    # Set seed based on args.seed and the update number so that we get
-    # reproducible results when resuming from checkpoints
-    assert isinstance(seed, int)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
+def get_rng_state():
+    state = {"torch_rng_state": torch.get_rng_state()}
+    if xm is not None:
+        state["xla_rng_state"] = xm.get_rng_state()
+    if torch.cuda.is_available():
+        state["cuda_rng_state"] = torch.cuda.get_rng_state()
+    return state
 
 
-@contextlib.contextmanager
-def with_torch_seed(seed):
-    assert isinstance(seed, int)
-    rng_state = torch.get_rng_state()
-    cuda_rng_state = torch.cuda.get_rng_state()
-    set_torch_seed(seed)
-    yield
-    torch.set_rng_state(rng_state)
-    torch.cuda.set_rng_state(cuda_rng_state)
+def set_rng_state(state):
+    torch.set_rng_state(state["torch_rng_state"])
+    if xm is not None:
+        xm.set_rng_state(state["xla_rng_state"])
+    if torch.cuda.is_available():
+        torch.cuda.set_rng_state(state["cuda_rng_state"])
+
+
+class set_torch_seed(object):
+    def __init__(self, seed):
+        assert isinstance(seed, int)
+        self.rng_state = get_rng_state()
+
+        torch.manual_seed(seed)
+        if xm is not None:
+            xm.set_rng_state(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        set_rng_state(self.rng_state)
 
 
 def parse_alignment(line):
@@ -609,9 +641,7 @@ def new_arange(x, *size):
     return torch.arange(size[-1], device=x.device).expand(*size).contiguous()
 
 
-def get_tpu_device(args):
-    import torch_xla.core.xla_model as xm
-
+def get_tpu_device():
     return xm.xla_device()
 
 

@@ -4,9 +4,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
-import re
 import argparse
+import re
+import sys
 
 
 class OOVIndexError(IndexError):
@@ -25,8 +25,8 @@ class OOVIndexError(IndexError):
 
 def replace_oovs(source_in, target_in, target_out):
     """Replaces <unk-N> tokens in the target text with the corresponding word in
-  the source text.
-  """
+    the source text.
+    """
 
     oov_re = re.compile("^<unk-([0-9]+)>$")
 

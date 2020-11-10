@@ -212,7 +212,7 @@ following contents::
 
 
   @register_task('simple_classification')
-  class SimpleClassificationTask(FairseqTask):
+  class SimpleClassificationTask(LegacyFairseqTask):
 
       @staticmethod
       def add_args(parser):

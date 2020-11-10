@@ -27,16 +27,16 @@ def logsumexp(x, dim=1):
 
 class DynamicCRF(nn.Module):
     """Dynamic CRF layer is used to approximate the traditional
-       Conditional Random Fields (CRF)
-       $P(y | x) = 1/Z(x) exp(sum_i s(y_i, x) + sum_i t(y_{i-1}, y_i, x))$
+    Conditional Random Fields (CRF)
+    $P(y | x) = 1/Z(x) exp(sum_i s(y_i, x) + sum_i t(y_{i-1}, y_i, x))$
 
-       where in this function, we assume the emition scores (s) are given,
-       and the transition score is a |V| x |V| matrix $M$
+    where in this function, we assume the emition scores (s) are given,
+    and the transition score is a |V| x |V| matrix $M$
 
-       in the following two aspects:
-        (1) it used a low-rank approximation for the transition matrix:
-            $M = E_1 E_2^T$
-        (2) it used a beam to estimate the normalizing factor Z(x)
+    in the following two aspects:
+     (1) it used a low-rank approximation for the transition matrix:
+         $M = E_1 E_2^T$
+     (2) it used a beam to estimate the normalizing factor Z(x)
     """
 
     def __init__(self, num_embedding, low_rank=32, beam_size=64):
@@ -51,7 +51,8 @@ class DynamicCRF(nn.Module):
 
     def extra_repr(self):
         return "vocab_size={}, low_rank={}, beam_size={}".format(
-            self.vocb, self.rank, self.beam)
+            self.vocb, self.rank, self.beam
+        )
 
     def forward(self, emissions, targets, masks, beam=None):
         """
@@ -104,26 +105,27 @@ class DynamicCRF(nn.Module):
         beam = beam if beam is not None else self.beam
         batch_size, seq_len = emissions.size()[:2]
         if targets is not None:
-            _emissions = emissions.scatter(2, targets[:, :, None], np.float('inf'))
+            _emissions = emissions.scatter(2, targets[:, :, None], np.float("inf"))
             beam_targets = _emissions.topk(beam, 2)[1]
             beam_emission_scores = emissions.gather(2, beam_targets)
         else:
             beam_emission_scores, beam_targets = emissions.topk(beam, 2)
         beam_transition_score1 = self.E1(beam_targets[:, :-1])  # B x (T-1) x K x D
-        beam_transition_score2 = self.E2(beam_targets[:, 1:])   # B x (T-1) x K x D
+        beam_transition_score2 = self.E2(beam_targets[:, 1:])  # B x (T-1) x K x D
         beam_transition_matrix = torch.bmm(
             beam_transition_score1.view(-1, beam, self.rank),
-            beam_transition_score2.view(-1, beam, self.rank).transpose(1, 2))
+            beam_transition_score2.view(-1, beam, self.rank).transpose(1, 2),
+        )
         beam_transition_matrix = beam_transition_matrix.view(batch_size, -1, beam, beam)
 
         # compute the normalizer in the log-space
         score = beam_emission_scores[:, 0]  # B x K
         for i in range(1, seq_len):
-            next_score = score[:, :, None] + beam_transition_matrix[:, i-1]
+            next_score = score[:, :, None] + beam_transition_matrix[:, i - 1]
             next_score = logsumexp(next_score, dim=1) + beam_emission_scores[:, i]
 
             if masks is not None:
-                score = torch.where(masks[:, i:i+1], next_score, score)
+                score = torch.where(masks[:, i : i + 1], next_score, score)
             else:
                 score = next_score
 
@@ -137,10 +139,11 @@ class DynamicCRF(nn.Module):
         batch_size, seq_len = emissions.size()[:2]
         beam_emission_scores, beam_targets = emissions.topk(beam, 2)
         beam_transition_score1 = self.E1(beam_targets[:, :-1])  # B x (T-1) x K x D
-        beam_transition_score2 = self.E2(beam_targets[:, 1:])   # B x (T-1) x K x D
+        beam_transition_score2 = self.E2(beam_targets[:, 1:])  # B x (T-1) x K x D
         beam_transition_matrix = torch.bmm(
             beam_transition_score1.view(-1, beam, self.rank),
-            beam_transition_score2.view(-1, beam, self.rank).transpose(1, 2))
+            beam_transition_score2.view(-1, beam, self.rank).transpose(1, 2),
+        )
         beam_transition_matrix = beam_transition_matrix.view(batch_size, -1, beam, beam)
 
         traj_tokens, traj_scores = [], []
@@ -148,17 +151,19 @@ class DynamicCRF(nn.Module):
 
         # compute the normalizer in the log-space
         score = beam_emission_scores[:, 0]  # B x K
-        dummy = torch.arange(beam, device=score.device).expand(*score.size()).contiguous()
+        dummy = (
+            torch.arange(beam, device=score.device).expand(*score.size()).contiguous()
+        )
 
         for i in range(1, seq_len):
             traj_scores.append(score)
-            _score = score[:, :, None] + beam_transition_matrix[:, i-1]
+            _score = score[:, :, None] + beam_transition_matrix[:, i - 1]
             _score, _index = _score.max(dim=1)
             _score = _score + beam_emission_scores[:, i]
 
             if masks is not None:
-                score = torch.where(masks[:, i: i+1], _score, score)
-                index = torch.where(masks[:, i: i+1], _index, dummy)
+                score = torch.where(masks[:, i : i + 1], _score, score)
+                index = torch.where(masks[:, i : i + 1], _index, dummy)
             else:
                 score, index = _score, _index
             traj_tokens.append(index)

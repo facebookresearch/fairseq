@@ -9,18 +9,22 @@ from collections.abc import Iterable
 
 import torch
 import torch.nn as nn
+from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
 from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
+    FairseqEncoderDecoderModel,
     FairseqEncoderModel,
     FairseqIncrementalDecoder,
-    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
-from fairseq.modules import LinearizedConvolution
-from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
-from fairseq.modules import TransformerDecoderLayer, TransformerEncoderLayer, VGGBlock
+from fairseq.modules import (
+    LinearizedConvolution,
+    TransformerDecoderLayer,
+    TransformerEncoderLayer,
+    VGGBlock,
+)
 
 
 @register_model("asr_vggtransformer")
@@ -29,6 +33,7 @@ class VGGTransformerModel(FairseqEncoderDecoderModel):
     Transformers with convolutional context for ASR
     https://arxiv.org/abs/1904.11660
     """
+
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
@@ -251,6 +256,7 @@ class VGGTransformerEncoder(FairseqEncoder):
         self.conv_layers = nn.ModuleList()
         self.in_channels = in_channels
         self.input_dim = input_feat_per_channel
+        self.pooling_kernel_sizes = []
 
         if vggblock_config is not None:
             for _, config in enumerate(vggblock_config):
@@ -272,6 +278,7 @@ class VGGTransformerEncoder(FairseqEncoder):
                         layer_norm=layer_norm,
                     )
                 )
+                self.pooling_kernel_sizes.append(pooling_kernel_size)
                 in_channels = out_channels
                 input_feat_per_channel = self.conv_layers[-1].output_dim
 
@@ -336,9 +343,9 @@ class VGGTransformerEncoder(FairseqEncoder):
         x = x.transpose(1, 2).transpose(0, 1)
         x = x.contiguous().view(output_seq_len, bsz, -1)
 
-        subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
-        # TODO: shouldn't subsampling_factor determined in advance ?
-        input_lengths = (src_lengths.float() / subsampling_factor).ceil().long()
+        input_lengths = src_lengths.clone()
+        for s in self.pooling_kernel_sizes:
+            input_lengths = (input_lengths.float() / s).ceil().long()
 
         encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
             input_lengths, batch_first=True
@@ -346,6 +353,7 @@ class VGGTransformerEncoder(FairseqEncoder):
         if not encoder_padding_mask.any():
             encoder_padding_mask = None
 
+        subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
         attn_mask = self.lengths_to_attn_mask(input_lengths, subsampling_factor)
 
         transformer_layer_idx = 0
@@ -394,9 +402,9 @@ class VGGTransformerEncoder(FairseqEncoder):
             input_dim, num_heads = config[:2]
             if input_dim % num_heads != 0:
                 msg = (
-                    "ERROR in transformer config {}:".format(config)
+                    "ERROR in transformer config {}: ".format(config)
                     + "input dimension {} ".format(input_dim)
-                    + "not dividable by number of heads".format(num_heads)
+                    + "not dividable by number of heads {}".format(num_heads)
                 )
                 raise ValueError(msg)
 
@@ -459,7 +467,7 @@ class VGGTransformerEncoder(FairseqEncoder):
         if len(transformer_sampling) != num_layers:
             raise ValueError(
                 "transformer_sampling {} does not match with the number "
-                + "of layers {}".format(transformer_sampling, num_layers)
+                "of layers {}".format(transformer_sampling, num_layers)
             )
 
         for layer, value in enumerate(transformer_sampling):
@@ -599,18 +607,22 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self.layers = nn.ModuleList()
         if conv_config[-1][0] != transformer_config[0][0]:
             self.layers.append(Linear(conv_config[-1][0], transformer_config[0][0]))
-        self.layers.append(TransformerDecoderLayer(
-            prepare_transformer_decoder_params(*transformer_config[0])
-        ))
+        self.layers.append(
+            TransformerDecoderLayer(
+                prepare_transformer_decoder_params(*transformer_config[0])
+            )
+        )
 
         for i in range(1, len(transformer_config)):
             if transformer_config[i - 1][0] != transformer_config[i][0]:
                 self.layers.append(
                     Linear(transformer_config[i - 1][0], transformer_config[i][0])
                 )
-            self.layers.append(TransformerDecoderLayer(
-                prepare_transformer_decoder_params(*transformer_config[i])
-            ))
+            self.layers.append(
+                TransformerDecoderLayer(
+                    prepare_transformer_decoder_params(*transformer_config[i])
+                )
+            )
         self.fc_out = Linear(transformer_config[-1][0], vocab_size)
 
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
@@ -709,6 +721,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if incremental_state:
             x = x.transpose(0, 1)
         return x
+
 
 @register_model("asr_vggtransformer_encoder")
 class VGGTransformerEncoderModel(FairseqEncoderModel):

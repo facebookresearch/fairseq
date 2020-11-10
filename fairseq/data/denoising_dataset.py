@@ -3,11 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import numpy as np
-import torch
 import math
 
-from . import data_utils, FairseqDataset
+import numpy as np
+import torch
+
+from . import FairseqDataset, data_utils
 
 
 def collate(
@@ -34,53 +35,59 @@ def collate(
             pad_to_length=pad_to_length,
         )
 
-    id = torch.LongTensor([s['id'] for s in samples])
+    id = torch.LongTensor([s["id"] for s in samples])
     src_tokens = merge(
-        'source', left_pad=left_pad_source,
-        pad_to_length=pad_to_length['source'] if pad_to_length is not None else None,
+        "source",
+        left_pad=left_pad_source,
+        pad_to_length=pad_to_length["source"] if pad_to_length is not None else None,
     )
     # sort by descending source length
-    src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
+    src_lengths = torch.LongTensor([s["source"].numel() for s in samples])
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
 
     prev_output_tokens = None
     target = None
-    if samples[0].get('target', None) is not None:
+    if samples[0].get("target", None) is not None:
         target = merge(
-            'target', left_pad=left_pad_target,
-            pad_to_length=pad_to_length['target'] if pad_to_length is not None else None,
+            "target",
+            left_pad=left_pad_target,
+            pad_to_length=pad_to_length["target"]
+            if pad_to_length is not None
+            else None,
         )
         target = target.index_select(0, sort_order)
-        ntokens = sum(len(s['target']) for s in samples)
+        ntokens = sum(len(s["target"]) for s in samples)
 
         if input_feeding:
             # we create a shifted version of targets for feeding the
             # previous output token(s) into the next decoder step
             prev_output_tokens = merge(
-                'target',
+                "target",
                 left_pad=left_pad_target,
                 move_eos_to_beginning=True,
-                pad_to_length=pad_to_length['target'] if pad_to_length is not None else None,
+                pad_to_length=pad_to_length["target"]
+                if pad_to_length is not None
+                else None,
             )
             prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
-        ntokens = sum(len(s['source']) for s in samples)
+        ntokens = sum(len(s["source"]) for s in samples)
 
     batch = {
-        'id': id,
-        'ntokens': ntokens,
-        'net_input': {
-            'src_tokens': src_tokens,
-            'src_lengths': src_lengths,
+        "id": id,
+        "ntokens": ntokens,
+        "net_input": {
+            "src_tokens": src_tokens,
+            "src_lengths": src_lengths,
         },
-        'target': target,
-        'nsentences': samples[0]['source'].size(0),
-        'sort_order': sort_order,
+        "target": target,
+        "nsentences": samples[0]["source"].size(0),
+        "sort_order": sort_order,
     }
     if prev_output_tokens is not None:
-        batch['net_input']['prev_output_tokens'] = prev_output_tokens
+        batch["net_input"]["prev_output_tokens"] = prev_output_tokens
 
     return batch
 
@@ -130,25 +137,25 @@ class DenoisingDataset(FairseqDataset):
         self.insert_ratio = args.insert
         self.rotate_ratio = args.rotate
         self.permute_sentence_ratio = args.permute_sentences
-        self.eos = (eos if eos is not None else vocab.eos())
+        self.eos = eos if eos is not None else vocab.eos()
         self.item_transform_func = item_transform_func
 
-        if args.bpe != 'gpt2':
+        if args.bpe != "gpt2":
             self.full_stop_index = self.vocab.eos()
         else:
-            assert args.bpe == 'gpt2'
-            self.full_stop_index = self.vocab.index('13')
+            assert args.bpe == "gpt2"
+            self.full_stop_index = self.vocab.index("13")
 
         self.replace_length = args.replace_length
         if self.replace_length not in [-1, 0, 1]:
-            raise ValueError(f'invalid arg: replace_length={self.replace_length}')
-        if args.mask_length not in ['subword', 'word', 'span-poisson']:
-            raise ValueError(f'invalid arg: mask-length={args.mask_length}')
-        if args.mask_length == 'subword' and args.replace_length not in [0, 1]:
-            raise ValueError(f'if using subwords, use replace-length=1 or 0')
+            raise ValueError(f"invalid arg: replace_length={self.replace_length}")
+        if args.mask_length not in ["subword", "word", "span-poisson"]:
+            raise ValueError(f"invalid arg: mask-length={args.mask_length}")
+        if args.mask_length == "subword" and args.replace_length not in [0, 1]:
+            raise ValueError(f"if using subwords, use replace-length=1 or 0")
 
         self.mask_span_distribution = None
-        if args.mask_length == 'span-poisson':
+        if args.mask_length == "span-poisson":
             _lambda = args.poisson_lambda
 
             lambda_to_the_k = 1
@@ -158,7 +165,7 @@ class DenoisingDataset(FairseqDataset):
             for k in range(0, 128):
                 ps.append(e_to_the_minus_lambda * lambda_to_the_k / k_factorial)
                 lambda_to_the_k *= _lambda
-                k_factorial *= (k + 1)
+                k_factorial *= k + 1
                 if ps[-1] < 0.0000001:
                     break
             ps = torch.FloatTensor(ps)
@@ -200,16 +207,16 @@ class DenoisingDataset(FairseqDataset):
         assert source[0] == self.vocab.bos()
         assert source[-1] == self.eos
         return {
-            'id': index,
-            'source': source,
-            'target': target,
+            "id": index,
+            "source": source,
+            "target": target,
         }
 
     def __len__(self):
         return len(self.dataset)
 
     def permute_sentences(self, source, p=1.0):
-        full_stops = (source == self.full_stop_index)
+        full_stops = source == self.full_stop_index
         # Pretend it ends with a full stop so last span is a sentence
         full_stops[-2] = 1
 
@@ -226,8 +233,8 @@ class DenoisingDataset(FairseqDataset):
         # Ignore <bos> at start
         index = 1
         for i in ordering:
-            sentence = source[(sentence_ends[i - 1] if i > 0 else 1):sentence_ends[i]]
-            result[index:index + sentence.size(0)] = sentence
+            sentence = source[(sentence_ends[i - 1] if i > 0 else 1) : sentence_ends[i]]
+            result[index : index + sentence.size(0)] = sentence
             index += sentence.size(0)
         return result
 
@@ -253,7 +260,13 @@ class DenoisingDataset(FairseqDataset):
             # Make sure we have enough to mask
             cum_length = torch.cumsum(lengths, 0)
             while cum_length[-1] < num_to_mask:
-                lengths = torch.cat([lengths, self.mask_span_distribution.sample(sample_shape=(num_to_mask,))], dim=0)
+                lengths = torch.cat(
+                    [
+                        lengths,
+                        self.mask_span_distribution.sample(sample_shape=(num_to_mask,)),
+                    ],
+                    dim=0,
+                )
                 cum_length = torch.cumsum(lengths, 0)
 
             # Trim to masking budget
@@ -276,19 +289,25 @@ class DenoisingDataset(FairseqDataset):
             lengths = torch.ones((num_to_mask,)).long()
         assert is_word_start[-1] == 0
         word_starts = is_word_start.nonzero(as_tuple=False)
-        indices = word_starts[torch.randperm(word_starts.size(0))[:num_to_mask]].squeeze(1)
+        indices = word_starts[
+            torch.randperm(word_starts.size(0))[:num_to_mask]
+        ].squeeze(1)
         mask_random = torch.FloatTensor(num_to_mask).uniform_() < self.random_ratio
 
         source_length = source.size(0)
         assert source_length - 1 not in indices
         to_keep = torch.ones(source_length, dtype=torch.bool)
-        is_word_start[-1] = 255 # acts as a long length, so spans don't go over the end of doc
+        is_word_start[
+            -1
+        ] = 255  # acts as a long length, so spans don't go over the end of doc
         if self.replace_length == 0:
             to_keep[indices] = 0
         else:
             # keep index, but replace it with [MASK]
             source[indices] = self.mask_idx
-            source[indices[mask_random]] = torch.randint(1, len(self.vocab), size=(mask_random.sum(),))
+            source[indices[mask_random]] = torch.randint(
+                1, len(self.vocab), size=(mask_random.sum(),)
+            )
 
         if self.mask_span_distribution is not None:
             assert len(lengths.size()) == 1
@@ -307,7 +326,9 @@ class DenoisingDataset(FairseqDataset):
                 else:
                     # keep index, but replace it with [MASK]
                     source[indices] = self.mask_idx
-                    source[indices[mask_random]] = torch.randint(1, len(self.vocab), size=(mask_random.sum(),))
+                    source[indices[mask_random]] = torch.randint(
+                        1, len(self.vocab), size=(mask_random.sum(),)
+                    )
         else:
             # A bit faster when all lengths are 1
             while indices.size(0) > 0:
@@ -320,7 +341,9 @@ class DenoisingDataset(FairseqDataset):
                 else:
                     # keep index, but replace it with [MASK]
                     source[indices] = self.mask_idx
-                    source[indices[mask_random]] = torch.randint(1, len(self.vocab), size=(mask_random.sum(),))
+                    source[indices[mask_random]] = torch.randint(
+                        1, len(self.vocab), size=(mask_random.sum(),)
+                    )
 
                 assert source_length - 1 not in indices
 
@@ -360,7 +383,9 @@ class DenoisingDataset(FairseqDataset):
 
         num_random = int(math.ceil(n * self.random_ratio))
         result[noise_indices[num_random:]] = self.mask_idx
-        result[noise_indices[:num_random]] = torch.randint(low=1, high=len(self.vocab), size=(num_random,))
+        result[noise_indices[:num_random]] = torch.randint(
+            low=1, high=len(self.vocab), size=(num_random,)
+        )
 
         result[~noise_mask] = tokens
 
@@ -375,8 +400,8 @@ class DenoisingDataset(FairseqDataset):
             dict: a mini-batch of data
         """
         return collate(
-            samples, self.vocab.pad(), self.eos, self.vocab,
-            pad_to_length=pad_to_length)
+            samples, self.vocab.pad(), self.eos, self.vocab, pad_to_length=pad_to_length
+        )
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
@@ -395,7 +420,7 @@ class DenoisingDataset(FairseqDataset):
             indices = np.random.permutation(len(self))
         else:
             indices = np.arange(len(self))
-        return indices[np.argsort(self.sizes[indices], kind='mergesort')]
+        return indices[np.argsort(self.sizes[indices], kind="mergesort")]
 
     def prefetch(self, indices):
         self.src.prefetch(indices)
@@ -404,8 +429,8 @@ class DenoisingDataset(FairseqDataset):
     @property
     def supports_prefetch(self):
         return (
-            hasattr(self.src, 'supports_prefetch')
+            hasattr(self.src, "supports_prefetch")
             and self.src.supports_prefetch
-            and hasattr(self.tgt, 'supports_prefetch')
+            and hasattr(self.tgt, "supports_prefetch")
             and self.tgt.supports_prefetch
         )

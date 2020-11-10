@@ -40,6 +40,7 @@ class BPEWordSplitter(object):
     def __init__(self, model_path):
         super().__init__()
         from subword_nmt.apply_bpe import BPE
+
         with open(model_path) as f:
             self.model = BPE(f)
 
@@ -48,7 +49,7 @@ class BPEWordSplitter(object):
 
     def end_idx_last_full_word(self, tokens):
         # Begin of word indices
-        bow_indices = [0] + [i + 1 for i, t in enumerate(tokens[1:]) if t[-2:] != '@@']
+        bow_indices = [0] + [i + 1 for i, t in enumerate(tokens[1:]) if t[-2:] != "@@"]
 
         if len(bow_indices) < 2:
             return 0
@@ -63,6 +64,7 @@ class SentencePieceModelWordSplitter(object):
     def __init__(self, model_path):
         super().__init__()
         import sentencepiece as spm
+
         self.model = spm.SentencePieceProcessor()
         self.model.Load(model_path)
 
@@ -71,7 +73,7 @@ class SentencePieceModelWordSplitter(object):
 
     def end_idx_last_full_word(self, tokens):
         # Begin of word indices
-        bow_indices = [i for i, t in enumerate(tokens) if t[0] == '\u2581']
+        bow_indices = [i for i, t in enumerate(tokens) if t[0] == "\u2581"]
 
         if len(bow_indices) < 2:
             return 0

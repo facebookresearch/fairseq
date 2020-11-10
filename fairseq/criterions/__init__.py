@@ -2,11 +2,10 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+"""isort:skip_file"""
 
 import importlib
 import os
-from argparse import Namespace
-from typing import Union
 
 from fairseq import registry
 from fairseq.criterions.fairseq_criterion import (  # noqa
@@ -26,8 +25,8 @@ from omegaconf import DictConfig
 )
 
 
-def build_criterion(criterion_cfg: Union[DictConfig, Namespace], task):
-    return build_criterion_(criterion_cfg, task)
+def build_criterion(cfg: DictConfig, task):
+    return build_criterion_(cfg, task)
 
 
 # automatically import any Python files in the criterions/ directory

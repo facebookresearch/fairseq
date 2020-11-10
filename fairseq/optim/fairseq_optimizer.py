@@ -9,9 +9,9 @@ from fairseq.dataclass.utils import gen_parser_from_dataclass
 
 
 class FairseqOptimizer(object):
-    def __init__(self, args):
+    def __init__(self, cfg):
         super().__init__()
-        self.args = args
+        self.cfg = cfg
 
     @classmethod
     def add_args(cls, parser):
@@ -94,6 +94,11 @@ class FairseqOptimizer(object):
         """Computes the sum of gradients of the given tensor w.r.t. graph leaves."""
         loss.backward()
 
+    def all_reduce_grads(self, module):
+        """Manually all-reduce gradients (if required)."""
+        if hasattr(module, "all_reduce_grads"):
+            module.all_reduce_grads()
+
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
         for p in self.params:
@@ -109,8 +114,8 @@ class FairseqOptimizer(object):
         if self.supports_step_with_scale:
             self.optimizer.step(closure, scale=scale)
         else:
-            if scale != 1.:
-                self.multiply_grads(1. / scale)
+            if scale != 1.0:
+                self.multiply_grads(1.0 / scale)
             self.optimizer.step(closure)
 
     def zero_grad(self):
@@ -143,6 +148,16 @@ class FairseqOptimizer(object):
 
     def average_params(self):
         pass
+
+    def broadcast_global_state_dict(self, state_dict):
+        """
+        Broadcasts a global state dict to all ranks.
+        Useful for optimizers that shard state between ranks.
+        """
+        if hasattr(self.optimizer, "broadcast_global_state_dict"):
+            return self.optimizer.broadcast_global_state_dict(state_dict)
+        else:
+            return state_dict
 
 
 class LegacyFairseqOptimizer(FairseqOptimizer):

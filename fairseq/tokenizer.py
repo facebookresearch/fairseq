@@ -5,6 +5,7 @@
 
 import re
 
+
 SPACE_NORMALIZER = re.compile(r"\s+")
 
 

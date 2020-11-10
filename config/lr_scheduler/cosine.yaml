@@ -1,7 +1,0 @@
-# @package _group_
-warmup_updates: 0
-warmup_init_lr: -1
-max_lr: 1.0
-t_mult: 1.0
-lr_period_updates: -1
-lr_shrink: 0.1

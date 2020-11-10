@@ -7,7 +7,6 @@ import math
 
 import torch
 import torch.nn.functional as F
-
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
@@ -18,8 +17,9 @@ def compute_cross_entropy_loss(logits, targets, ignore_index=-100):
     ignore_index is the same as the default value for F.cross_entropy in
     pytorch.
     """
-    assert logits.size(0) == targets.size(-1), \
-        "Logits and Targets tensor shapes don't match up"
+    assert logits.size(0) == targets.size(
+        -1
+    ), "Logits and Targets tensor shapes don't match up"
 
     loss = F.nll_loss(
         F.log_softmax(logits, -1, dtype=torch.float32),
@@ -30,7 +30,7 @@ def compute_cross_entropy_loss(logits, targets, ignore_index=-100):
     return loss
 
 
-@register_criterion('legacy_masked_lm_loss')
+@register_criterion("legacy_masked_lm_loss")
 class LegacyMaskedLmLoss(FairseqCriterion):
     """
     Implementation for the loss used in masked language model (MLM) training.
@@ -57,11 +57,18 @@ class LegacyMaskedLmLoss(FairseqCriterion):
     def add_args(parser):
         """Args for MaskedLM Loss"""
         # Default for masked_lm_only is False so as to not break BERT training
-        parser.add_argument('--masked-lm-only', default=False,
-                            action='store_true', help='compute MLM loss only')
-        parser.add_argument('--nsp-loss-weight', default=1.0, type=float,
-                            help='weight for next sentence prediction'
-                                 ' loss (default 1)')
+        parser.add_argument(
+            "--masked-lm-only",
+            default=False,
+            action="store_true",
+            help="compute MLM loss only",
+        )
+        parser.add_argument(
+            "--nsp-loss-weight",
+            default=1.0,
+            type=float,
+            help="weight for next sentence prediction" " loss (default 1)",
+        )
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
@@ -74,22 +81,21 @@ class LegacyMaskedLmLoss(FairseqCriterion):
 
         # reshape lm_logits from (N,T,C) to (N*T,C)
         lm_logits = lm_logits.view(-1, lm_logits.size(-1))
-        lm_targets = sample['lm_target'].view(-1)
-        lm_loss = compute_cross_entropy_loss(
-            lm_logits, lm_targets, self.padding_idx)
+        lm_targets = sample["lm_target"].view(-1)
+        lm_loss = compute_cross_entropy_loss(lm_logits, lm_targets, self.padding_idx)
 
         # compute the number of tokens for which loss is computed. This is used
         # to normalize the loss
         ntokens = utils.strip_pad(lm_targets, self.padding_idx).numel()
         loss = lm_loss / ntokens
-        nsentences = sample['nsentences']
+        nsentences = sample["nsentences"]
         # nsentences = 0
 
         # Compute sentence loss if masked_lm_only is False
         sentence_loss = None
         if not self.masked_lm_only:
-            sentence_logits = output_metadata['sentence_logits']
-            sentence_targets = sample['sentence_target'].view(-1)
+            sentence_logits = output_metadata["sentence_logits"]
+            sentence_targets = sample["sentence_target"].view(-1)
             # This needs to be recomputed due to some differences between
             # TokenBlock and BlockPair dataset. This can be resolved with a
             # refactor of BERTModel which we will do in the future.
@@ -102,7 +108,8 @@ class LegacyMaskedLmLoss(FairseqCriterion):
             # refactor in the BERT model.
             if sentence_logits is not None:
                 sentence_loss = compute_cross_entropy_loss(
-                    sentence_logits, sentence_targets)
+                    sentence_logits, sentence_targets
+                )
 
                 loss += self.nsp_loss_weight * (sentence_loss / nsentences)
 
@@ -111,36 +118,54 @@ class LegacyMaskedLmLoss(FairseqCriterion):
         # here sample_size is just used for logging
         sample_size = 1
         logging_output = {
-            'loss': utils.item(loss.data) if reduce else loss.data,
-            'lm_loss': utils.item(lm_loss.data) if reduce else lm_loss.data,
+            "loss": utils.item(loss.data) if reduce else loss.data,
+            "lm_loss": utils.item(lm_loss.data) if reduce else lm_loss.data,
             # sentence loss is not always computed
-            'sentence_loss': (
-                (
-                    utils.item(sentence_loss.data) if reduce
-                    else sentence_loss.data
-                ) if sentence_loss is not None else 0.0
+            "sentence_loss": (
+                (utils.item(sentence_loss.data) if reduce else sentence_loss.data)
+                if sentence_loss is not None
+                else 0.0
             ),
-            'ntokens': ntokens,
-            'nsentences': nsentences,
-            'sample_size': sample_size,
+            "ntokens": ntokens,
+            "nsentences": nsentences,
+            "sample_size": sample_size,
         }
         return loss, sample_size, logging_output
 
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
-        lm_loss_sum = sum(log.get('lm_loss', 0) for log in logging_outputs)
-        sentence_loss_sum = sum(
-            log.get('sentence_loss', 0) for log in logging_outputs)
-        ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
-        nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
-        sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
-        agg_loss = sum(log.get('loss', 0) for log in logging_outputs)
+        lm_loss_sum = sum(log.get("lm_loss", 0) for log in logging_outputs)
+        sentence_loss_sum = sum(log.get("sentence_loss", 0) for log in logging_outputs)
+        ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
+        nsentences = sum(log.get("nsentences", 0) for log in logging_outputs)
+        sample_size = sum(log.get("sample_size", 0) for log in logging_outputs)
+        agg_loss = sum(log.get("loss", 0) for log in logging_outputs)
 
-        metrics.log_scalar('loss', agg_loss / sample_size / math.log(2) if sample_size > 0 else 0., sample_size, round=3)
-        metrics.log_scalar('lm_loss', lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0., ntokens, round=3)
-        metrics.log_scalar('sentence_loss', sentence_loss_sum / nsentences / math.log(2) if nsentences > 0 else 0., nsentences, round=3)
-        metrics.log_scalar('nll_loss', lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0., ntokens, round=3)
+        metrics.log_scalar(
+            "loss",
+            agg_loss / sample_size / math.log(2) if sample_size > 0 else 0.0,
+            sample_size,
+            round=3,
+        )
+        metrics.log_scalar(
+            "lm_loss",
+            lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.0,
+            ntokens,
+            round=3,
+        )
+        metrics.log_scalar(
+            "sentence_loss",
+            sentence_loss_sum / nsentences / math.log(2) if nsentences > 0 else 0.0,
+            nsentences,
+            round=3,
+        )
+        metrics.log_scalar(
+            "nll_loss",
+            lm_loss_sum / ntokens / math.log(2) if ntokens > 0 else 0.0,
+            ntokens,
+            round=3,
+        )
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
