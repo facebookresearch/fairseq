@@ -210,7 +210,7 @@ def _override_attr(
             isinstance(val, str)
             and not val.startswith("${")  # not interpolation
             and field_type != str
-            and not issubclass(field_type, Enum)  # not choices enum
+            and inspect.isclass(field_type) and not issubclass(field_type, Enum)  # not choices enum
         ):
             # upgrade old models that stored complex parameters as string
             val = ast.literal_eval(val)
@@ -229,6 +229,7 @@ def _override_attr(
         elif val == "":
             overrides.append("{}.{}=''".format(sub_node, k))
         elif isinstance(val, str):
+            val = val.replace("'", r"\'")
             overrides.append("{}.{}='{}'".format(sub_node, k, val))
         elif isinstance(val, FairseqDataclass):
             overrides += _override_attr(f"{sub_node}.{k}", type(val), args)
@@ -373,7 +374,7 @@ def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
 
 
 def populate_dataclass(
-    args: Namespace, dataclass: FairseqDataclass
+    dataclass: FairseqDataclass, args: Namespace,
 ) -> FairseqDataclass:
     for k in dataclass.__dataclass_fields__.keys():
         if k.startswith("_"):
@@ -382,7 +383,7 @@ def populate_dataclass(
         if hasattr(args, k):
             setattr(dataclass, k, getattr(args, k))
 
-        return dataclass
+    return dataclass
 
 
 def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
@@ -395,6 +396,9 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
             # "k in cfg" will return false if its a "mandatory value (e.g. ???)"
             if k in cfg and isinstance(cfg[k], DictConfig):
                 overwrite_args_by_name(cfg[k], overrides)
+            elif k in cfg and isinstance(cfg[k], Namespace):
+                for override_key, val in overrides.items():
+                    setattr(cfg[k], override_key, val)
             elif k in overrides:
                 if (
                     k in REGISTRIES
@@ -409,7 +413,7 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
                     cfg[k] = overrides[k]
 
 
-def merge_with_parent(dc: FairseqDataclass, cfg: DictConfig):
+def merge_with_parent(dc: FairseqDataclass, cfg: FairseqDataclass):
     dc_instance = DictConfig(dc)
     dc_instance.__dict__["_parent"] = cfg.__dict__["_parent"]
     cfg = OmegaConf.merge(dc_instance, cfg)

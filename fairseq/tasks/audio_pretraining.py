@@ -71,7 +71,7 @@ class AudioPretrainingConfig(FairseqDataclass):
         metadata={"help": "beam search config for evaluating wer during training"},
     )
     eval_wer_tokenizer: Any = field(
-        default="space",
+        default=None,
         metadata={"help": "tokenizer config for evaluating wer during training"},
     )
     eval_wer_post_process: str = field(
@@ -185,7 +185,6 @@ class AudioPretrainingTask(FairseqTask):
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
-
         if self.cfg.eval_wer and self.cfg.autoregressive:
             metrics = self._inference_with_wer(self.sequence_generator, sample, model)
             logging_output["_num_char_errors"] = metrics["num_char_errors"]
@@ -204,15 +203,16 @@ class AudioPretrainingTask(FairseqTask):
             )
             if self.cfg.eval_wer_tokenizer:
                 self.tokenizer = encoders.build_tokenizer(self.cfg.eval_wer_tokenizer)
+            else:
+                self.tokenizer = None
         return model
 
     def _inference_with_wer(self, generator, sample, model):
-        def decode(toks, escape_unk=True):
+        def decode(toks):
             s = self.target_dictionary.string(
                 toks.int().cpu(),
                 self.cfg.eval_wer_post_process,
-                escape_unk=escape_unk,
-                extra_symbols_to_ignore={generator.eos},
+                escape_unk=True,
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
@@ -225,14 +225,11 @@ class AudioPretrainingTask(FairseqTask):
             hyp = decode(gen_out[i][0]["tokens"])
             ref = decode(
                 utils.strip_pad(sample["target"][i], self.target_dictionary.pad()),
-                escape_unk=True,
             )
-            hyp = post_process(hyp, self.cfg.eval_wer_post_process).strip("_")
-            ref = post_process(ref, self.cfg.eval_wer_post_process).strip("_")
             num_char_errors += editdistance.eval(hyp, ref)
             num_chars += len(ref)
-            hyp_words = hyp.split("_")
-            ref_words = ref.split("_")
+            hyp_words = hyp.split()
+            ref_words = ref.split()
             num_word_errors += editdistance.eval(hyp_words, ref_words)
             num_words += len(ref_words)
 

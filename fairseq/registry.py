@@ -45,7 +45,7 @@ def setup_registry(registry_name: str, base_class=None, default=None, required=F
         else:
             choice = getattr(cfg, registry_name, None)
             if choice in DATACLASS_REGISTRY:
-                cfg = populate_dataclass(cfg, DATACLASS_REGISTRY[choice]())
+                cfg = populate_dataclass(DATACLASS_REGISTRY[choice](), cfg)
 
         if choice is None:
             if required:

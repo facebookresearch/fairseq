@@ -8,11 +8,9 @@ import argparse
 import importlib
 import os
 
-import fairseq
 from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.utils import merge_with_parent
+from fairseq.dataclass.utils import merge_with_parent, populate_dataclass
 from hydra.core.config_store import ConfigStore
-from omegaconf import DictConfig, OmegaConf
 
 from .composite_encoder import CompositeEncoder
 from .distributed_fairseq_model import DistributedFairseqModel
@@ -78,7 +76,10 @@ def build_model(cfg: FairseqDataclass, task):
     if model_type in MODEL_DATACLASS_REGISTRY:
         # set defaults from dataclass. note that arch name and model name can be the same
         dc = MODEL_DATACLASS_REGISTRY[model_type]
-        cfg = merge_with_parent(dc(), cfg)
+        if isinstance(cfg, argparse.Namespace):
+            cfg = populate_dataclass(dc(), cfg)
+        else:
+            cfg = merge_with_parent(dc(), cfg)
 
     assert model is not None, f"Could not infer model type from {cfg}"
 
