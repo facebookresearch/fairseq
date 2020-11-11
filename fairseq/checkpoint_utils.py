@@ -239,7 +239,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
 
 
 def load_model_ensemble(
-    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1
+    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1, state=None
 ):
     """Loads an ensemble of models.
 
@@ -259,12 +259,13 @@ def load_model_ensemble(
         strict,
         suffix,
         num_shards,
+        state,
     )
     return ensemble, args
 
 
 def load_model_ensemble_and_task(
-    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1
+    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1, state=None
 ):
     from fairseq import tasks
 
@@ -272,8 +273,10 @@ def load_model_ensemble_and_task(
         strict and num_shards > 1
     ), "Cannot load state dict with strict=True and checkpoint shards > 1"
     ensemble = []
+    cfg = None
     for filename in filenames:
         orig_filename = filename
+        assert num_shards > 0
         for shard_idx in range(num_shards):
             if num_shards == 1:
                 filename = filename.replace(".pt", suffix + ".pt")
@@ -282,7 +285,8 @@ def load_model_ensemble_and_task(
 
             if not PathManager.exists(filename):
                 raise IOError("Model file not found: {}".format(filename))
-            state = load_checkpoint_to_cpu(filename, arg_overrides)
+            if state is None:
+                state = load_checkpoint_to_cpu(filename, arg_overrides)
             if "args" in state and state["args"] is not None:
                 cfg = convert_namespace_to_omegaconf(state["args"])
             elif "cfg" in state and state["cfg"] is not None:

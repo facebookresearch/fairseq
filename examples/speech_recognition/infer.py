@@ -8,6 +8,7 @@
 Run inference for pre-processed data with a trained model.
 """
 
+import ast
 import logging
 import math
 import os
@@ -18,7 +19,6 @@ import numpy as np
 import torch
 from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
 from fairseq.data.data_utils import post_process
-from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 
 
@@ -178,53 +178,6 @@ def prepare_result_files(args):
     }
 
 
-def load_models_and_criterions(
-    filenames, data_path, arg_overrides=None, task=None, model_state=None
-):
-    models = []
-    criterions = []
-
-    if arg_overrides is None:
-        arg_overrides = {}
-
-    arg_overrides["wer_args"] = None
-    arg_overrides["data"] = data_path
-
-    if filenames is None:
-        assert model_state is not None
-        filenames = [0]
-    else:
-        filenames = filenames.split(":")
-
-    for filename in filenames:
-        if model_state is None:
-            if not os.path.exists(filename):
-                raise IOError("Model file not found: {}".format(filename))
-            state = checkpoint_utils.load_checkpoint_to_cpu(filename, arg_overrides)
-        else:
-            state = model_state
-
-        if "cfg" in state:
-            cfg = state["cfg"]
-        else:
-            cfg = convert_namespace_to_omegaconf(state["args"])
-
-        if task is None:
-            if hasattr(cfg.task, 'data'):
-                cfg.task.data = data_path
-            task = tasks.setup_task(cfg.task)
-
-        model = task.build_model(cfg.model)
-        model.load_state_dict(state["model"], strict=True)
-        models.append(model)
-
-        criterion = task.build_criterion(cfg.criterion)
-        if "criterion" in state:
-            criterion.load_state_dict(state["criterion"], strict=True)
-        criterions.append(criterion)
-    return models, criterions, task
-
-
 def optimize_models(args, use_cuda, models):
     """Optimize ensemble for generation"""
     for model in models:
@@ -266,23 +219,26 @@ def main(args, task=None, model_state=None):
 
     logger.info("| decoding with criterion {}".format(args.criterion))
 
+    task = tasks.setup_task(args)
+
     # Load ensemble
     if args.load_emissions:
         models, criterions = [], []
-        task = tasks.setup_task(args)
+        task.load_dataset(args.gen_subset)
     else:
         logger.info("| loading model(s) from {}".format(args.path))
-        models, criterions, task = load_models_and_criterions(
-            args.path,
-            data_path=args.data,
-            arg_overrides=eval(args.model_overrides),  # noqa
+        models, saved_cfg = checkpoint_utils.load_model_ensemble(
+            utils.split_paths(args.path),
+            arg_overrides=ast.literal_eval(args.model_overrides),
             task=task,
-            model_state=model_state,
+            suffix=args.checkpoint_suffix,
+            strict=(args.checkpoint_shard_count == 1),
+            num_shards=args.checkpoint_shard_count,
+            state=model_state,
         )
         optimize_models(args, use_cuda, models)
+        task.load_dataset(args.gen_subset, task_cfg=saved_cfg.task)
 
-    # Load dataset splits
-    task.load_dataset(args.gen_subset)
 
     # Set dictionary
     tgt_dict = task.target_dictionary
@@ -295,8 +251,9 @@ def main(args, task=None, model_state=None):
 
     # hack to pass transitions to W2lDecoder
     if args.criterion == "asg_loss":
-        trans = criterions[0].asg.trans.data
-        args.asg_transitions = torch.flatten(trans).tolist()
+        raise NotImplementedError("asg_loss is currently not supported")
+        # trans = criterions[0].asg.trans.data
+        # args.asg_transitions = torch.flatten(trans).tolist()
 
     # Load dataset (possibly sharded)
     itr = get_dataset_itr(args, task, models)

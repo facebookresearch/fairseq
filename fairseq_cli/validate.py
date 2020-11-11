@@ -51,7 +51,7 @@ def main(cfg: DictConfig, override_args=None):
 
     # Load ensemble
     logger.info("loading model(s) from {}".format(cfg.common_eval.path))
-    models, model_args, task = checkpoint_utils.load_model_ensemble_and_task(
+    models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
         [cfg.common_eval.path],
         arg_overrides=overrides,
         suffix=cfg.checkpoint.checkpoint_suffix,
@@ -66,15 +66,15 @@ def main(cfg: DictConfig, override_args=None):
             model.cuda()
 
     # Print args
-    logger.info(model_args)
+    logger.info(saved_cfg)
 
     # Build criterion
-    criterion = task.build_criterion(model_args.criterion)
+    criterion = task.build_criterion(saved_cfg.criterion)
     criterion.eval()
 
     for subset in cfg.dataset.valid_subset.split(","):
         try:
-            task.load_dataset(subset, combine=False, epoch=1)
+            task.load_dataset(subset, combine=False, epoch=1, task_cfg=saved_cfg)
             dataset = task.dataset(subset)
         except KeyError:
             raise Exception("Cannot find dataset: " + subset)

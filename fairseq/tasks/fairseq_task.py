@@ -91,11 +91,20 @@ class FairseqTask(object):
     def has_sharded_data(self, split):
         return os.pathsep in getattr(self.cfg, "data", "")
 
-    def load_dataset(self, split, combine=False, **kwargs):
+    def load_dataset(
+        self,
+        split: str,
+        combine: bool = False,
+        task_cfg: FairseqDataclass = None,
+        **kwargs
+    ):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
+            combine (bool): combines a split segmented into pieces into one dataset
+            task_cfg (FairseqDataclass): optional task configuration stored in the checkpoint that can be used
+                                         to load datasets
         """
         raise NotImplementedError
 

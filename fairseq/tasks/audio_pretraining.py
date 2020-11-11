@@ -10,6 +10,7 @@ import os
 import sys
 import torch
 
+from argparse import Namespace
 from dataclasses import dataclass, field
 from typing import Optional, Any
 from omegaconf import MISSING
@@ -123,25 +124,28 @@ class AudioPretrainingTask(FairseqTask):
 
         return cls(cfg, target_dictionary=target_dictionary)
 
-    def load_dataset(self, split, **kwargs):
-        """Load a given dataset split.
+    def load_dataset(self, split: str, task_cfg: FairseqDataclass = None, **kwargs):
+        data_path = self.cfg.data
+        task_cfg = task_cfg or self.cfg
 
-        Args:
-            split (str): name of the split (e.g., train, valid, test)
-        """
-        manifest = os.path.join(self.cfg.data, "{}.tsv".format(split))
+        # upgrade old task
+        if isinstance(task_cfg, Namespace):
+            if not hasattr(task_cfg, "autoregressive"):
+                task_cfg.autoregressive = not task_cfg.criterion == 'ctc'
+
+        manifest = os.path.join(data_path, "{}.tsv".format(split))
         self.datasets[split] = FileAudioDataset(
             manifest,
-            sample_rate=self.cfg.sample_rate,
+            sample_rate=task_cfg.sample_rate,
             max_sample_size=self.cfg.max_sample_size,
             min_sample_size=self.cfg.max_sample_size,
             min_length=self.cfg.min_sample_size,
-            pad=self.cfg.labels is not None or self.cfg.enable_padding,
-            normalize=self.cfg.normalize,
+            pad=task_cfg.labels is not None or task_cfg.enable_padding,
+            normalize=task_cfg.normalize,
         )
 
-        if self.cfg.labels:
-            label_path = os.path.join(self.cfg.data, f"{split}.{self.cfg.labels}")
+        if task_cfg.labels:
+            label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
             labels = []
             with open(label_path, "r") as f:
                 for line in f:
@@ -156,7 +160,7 @@ class AudioPretrainingTask(FairseqTask):
                 eos=self.target_dictionary.eos(),
                 batch_targets=True,
                 process_label=process_label,
-                add_to_input=self.cfg.autoregressive,
+                add_to_input=task_cfg.autoregressive,
             )
 
     @property
