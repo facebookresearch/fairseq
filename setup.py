@@ -168,7 +168,7 @@ def do_setup(package_data):
                 "tests",
                 "tests.*",
             ]
-        ),
+        ) + ["fairseq.model_parallel.megatron.mpu"],
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",
@@ -201,12 +201,15 @@ def get_files(path, relative_to="fairseq"):
 
 try:
     # symlink config and examples into fairseq package so package_data accepts them
-    os.symlink(os.path.join("..", "config"), "fairseq/config")
-    os.symlink(os.path.join("..", "examples"), "fairseq/examples")
+    installed = os.path.exists("fairseq/config")
+    if not installed and "build_ext" not in sys.argv[1:]:
+        os.symlink(os.path.join("..", "config"), "fairseq/config")
+        os.symlink(os.path.join("..", "examples"), "fairseq/examples")
     package_data = {
         "fairseq": get_files("fairseq/config") + get_files("fairseq/examples"),
     }
     do_setup(package_data)
 finally:
-    os.unlink("fairseq/config")
-    os.unlink("fairseq/examples")
+    if not installed and "build_ext" not in sys.argv[1:]:
+        os.unlink("fairseq/config")
+        os.unlink("fairseq/examples")
