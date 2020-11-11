@@ -255,10 +255,10 @@ def main(cfg: DictConfig, **unused_kwargs):
         wps_meter.update(sample["ntokens"])
         progress.log({"wps": round(wps_meter.avg)})
 
-    avg_nll_loss = -score_sum / count / math.log(2)  # convert to base 2
+    avg_nll_loss = -score_sum / count / math.log(2) if count > 0 else 0  # convert to base 2
     logger.info(
         "Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)".format(
-            gen_timer.n, gen_timer.sum, 1.0 / gen_timer.avg
+            gen_timer.n, gen_timer.sum, 1.0 / gen_timer.avg if gen_timer.avg > 0 else 0
         )
     )
     logger.info(
