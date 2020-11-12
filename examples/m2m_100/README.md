@@ -14,8 +14,8 @@ sacrebleu -t wmt14 -l fr-en --echo src > wmt.test.fr-en.fr
 sacrebleu -t wmt14 -l fr-en --echo ref > wmt.test.fr-en.en
 
 # WAT
-wget http://lotus.kuee.kyoto-u.ac.jp/WAT/my-en-data/wat2019.my-en.zip
-unzip wat2019.my-en.zip
+wget http://lotus.kuee.kyoto-u.ac.jp/WAT/my-en-data/wat2020.my-en.zip
+unzip wat2020.my-en.zip
 
 # FLORES
 # download from: https://github.com/facebookresearch/flores
@@ -116,7 +116,22 @@ If you use any of the resources listed here, please cite:
 
 ## Trained Models
 
-More models coming up soon.
+### 418M and 1.2B Model
+We include the last checkpoint for both of these models. 
+
+```bash
+wget https://dl.fbaipublicfiles.com/m2m_100/model_dict.128k.txt
+wget https://dl.fbaipublicfiles.com/m2m_100/language_pairs_small_models.txt 
+
+# 418M parameter model
+wget https://dl.fbaipublicfiles.com/m2m_100/418M_last_checkpoint.pt 
+
+# 1.2B parameter model
+wget https://dl.fbaipublicfiles.com/m2m_100/1.2B_last_checkpoint.pt
+
+# Generation:
+fairseq-generate $binarized_data_path --batch-size 32 --path $path_to_model -s en -t fr --remove-bpe 'sentencepiece' --beam 5 --task translation_multi_simple_epoch --lang-pairs language_pairs_small_models --decoder-langtok --encoder-langtok src --gen-subset test > gen_out
+```
 
 ### 12B Model
 12B parameter model trained on many-to-many training data for 100 languages. We include the last checkpoint, average of last 5 checkpoints, average of last 10 checkpoints. There isn't a universally best choice out of these three, but all three versions are pretty close in accuracy. You can either sweep over the 3 checkpoints on a dev test and use the best performing checkpoint for final testing. Or the last checkpoint can be a good default choice.
