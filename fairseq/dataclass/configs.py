@@ -208,7 +208,10 @@ class DistributedTrainingConfig(FairseqDataclass):
     )
     local_rank: int = field(
         default=0,
-        metadata={"help": "which GPU to use (usually configured automatically)"},
+        metadata={
+            "help": "which GPU to use (usually configured automatically)",
+            "argparse_alias": "--local_rank",
+        },
     )
     distributed_no_spawn: bool = field(
         default=False,

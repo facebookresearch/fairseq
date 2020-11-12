@@ -249,7 +249,6 @@ class TransformerLanguageModel(FairseqLanguageModel):
         return embed_tokens
 
 
-@register_model_architecture("transformer_lm", "transformer_lm")
 def base_lm_architecture(args):
     # backward compatibility for older model checkpoints
     if hasattr(args, "no_tie_adaptive_proj"):

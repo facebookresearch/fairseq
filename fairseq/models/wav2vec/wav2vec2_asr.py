@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from argparse import Namespace
 import contextlib
 import copy
 import math
@@ -12,6 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import checkpoint_utils, tasks, utils
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.models import (
     BaseFairseqModel,
     FairseqEncoder,
@@ -328,18 +330,24 @@ class Wav2VecEncoder(FairseqEncoder):
             state = checkpoint_utils.load_checkpoint_to_cpu(
                 args.w2v_path, arg_overrides
             )
-            args.w2v_args = w2v_args = state.get("args", None) or state["cfg"].model
+            w2v_args = state.get("cfg", None)
+            if w2v_args is None:
+                w2v_args = convert_namespace_to_omegaconf(state["args"])
+            args.w2v_args = w2v_args
         else:
             state = None
             w2v_args = args.w2v_args
+            if isinstance(w2v_args, Namespace):
+                args.w2v_args = w2v_args = convert_namespace_to_omegaconf(w2v_args)
 
         assert (
-            args.normalize == w2v_args.normalize
-        ), "Fine-tuning works best when data normalization is the same"
+            args.normalize == w2v_args.task.normalize
+        ), "Fine-tuning works best when data normalization is the same. " \
+           "Please check that --normalize is set or unset for both"
 
-        w2v_args.data = args.data
-        task = tasks.setup_task(w2v_args)
-        model = task.build_model(w2v_args)
+        w2v_args.task.data = args.data
+        task = tasks.setup_task(w2v_args.task)
+        model = task.build_model(w2v_args.model)
 
         if state is not None and not args.no_pretrained_weights:
             model.load_state_dict(state["model"], strict=True)
@@ -348,7 +356,7 @@ class Wav2VecEncoder(FairseqEncoder):
 
         super().__init__(task.source_dictionary)
 
-        d = w2v_args.encoder_embed_dim
+        d = w2v_args.model.encoder_embed_dim
 
         self.w2v_model = model
 

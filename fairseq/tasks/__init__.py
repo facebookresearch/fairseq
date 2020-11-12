@@ -9,8 +9,8 @@ import importlib
 import os
 
 from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.utils import merge_with_parent
-from omegaconf import DictConfig
+from fairseq.dataclass.utils import merge_with_parent, populate_dataclass
+from hydra.core.config_store import ConfigStore
 
 from .fairseq_task import FairseqTask, LegacyFairseqTask  # noqa
 
@@ -21,13 +21,16 @@ TASK_REGISTRY = {}
 TASK_CLASS_NAMES = set()
 
 
-def setup_task(cfg: DictConfig, **kwargs):
+def setup_task(cfg: FairseqDataclass, **kwargs):
     task = None
     task_name = getattr(cfg, "task", None)
 
     if isinstance(task_name, str):
         # legacy tasks
         task = TASK_REGISTRY[task_name]
+        if task_name in TASK_DATACLASS_REGISTRY:
+            dc = TASK_DATACLASS_REGISTRY[task_name]
+            cfg = populate_dataclass(dc(), cfg)
     else:
         task_name = getattr(cfg, "_name", None)
 
@@ -85,6 +88,11 @@ def register_task(name, dataclass=None):
         cls.__dataclass = dataclass
         if dataclass is not None:
             TASK_DATACLASS_REGISTRY[name] = dataclass
+
+            cs = ConfigStore.instance()
+            node = dataclass()
+            node._name = name
+            cs.store(name=name, group="task", node=node, provider="fairseq")
 
         return cls
 

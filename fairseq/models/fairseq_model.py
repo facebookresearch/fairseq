@@ -177,7 +177,7 @@ class BaseFairseqModel(nn.Module):
         def apply_remove_weight_norm(module):
             try:
                 nn.utils.remove_weight_norm(module)
-            except ValueError:  # this module didn't have weight norm
+            except (AttributeError, ValueError):  # this module didn't have weight norm
                 return
 
         self.apply(apply_remove_weight_norm)

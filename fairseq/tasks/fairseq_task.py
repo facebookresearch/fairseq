@@ -11,6 +11,7 @@ from argparse import Namespace
 import torch
 from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
+from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from omegaconf import DictConfig
 
@@ -40,7 +41,7 @@ class FairseqTask(object):
         """
         return criterion.logging_outputs_can_be_summed()
 
-    def __init__(self, cfg: DictConfig, **kwargs):
+    def __init__(self, cfg: FairseqDataclass, **kwargs):
         self.cfg = cfg
         self.datasets = {}
         self.dataset_to_epoch_iter = {}
@@ -90,11 +91,20 @@ class FairseqTask(object):
     def has_sharded_data(self, split):
         return os.pathsep in getattr(self.cfg, "data", "")
 
-    def load_dataset(self, split, combine=False, **kwargs):
+    def load_dataset(
+        self,
+        split: str,
+        combine: bool = False,
+        task_cfg: FairseqDataclass = None,
+        **kwargs
+    ):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
+            combine (bool): combines a split segmented into pieces into one dataset
+            task_cfg (FairseqDataclass): optional task configuration stored in the checkpoint that can be used
+                                         to load datasets
         """
         raise NotImplementedError
 
@@ -255,13 +265,13 @@ class FairseqTask(object):
 
         return epoch_iter
 
-    def build_model(self, cfg: DictConfig):
+    def build_model(self, cfg: FairseqDataclass):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
 
         Args:
-            cfg (omegaconf.DictConfig): configuration object
+            cfg (FairseqDataclass): configuration object
 
         Returns:
             a :class:`~fairseq.models.BaseFairseqModel` instance

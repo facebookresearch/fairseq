@@ -10,10 +10,17 @@ import os
 import sys
 import torch
 
+from argparse import Namespace
+from dataclasses import dataclass, field
+from typing import Optional, Any
+from omegaconf import MISSING
+
 from fairseq.data import AddTargetDataset, Dictionary, FileAudioDataset, encoders
 from fairseq.data.data_utils import post_process
+from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.configs import GenerationConfig
 
-from . import LegacyFairseqTask, register_task
+from . import FairseqTask, register_task
 from .. import utils
 from ..logging import metrics
 
@@ -28,107 +35,117 @@ class LabelEncoder(object):
         )
 
 
-@register_task("audio_pretraining")
-class AudioPretrainingTask(LegacyFairseqTask):
+@dataclass
+class AudioPretrainingConfig(FairseqDataclass):
+    data: str = field(default=MISSING, metadata={"help": "path to data directory"})
+    labels: Optional[str] = field(
+        default=None,
+        metadata={"help": "extension of the label file to load, used for fine-tuning"},
+    )
+    sample_rate: int = field(
+        default=16_000,
+        metadata={
+            "help": "target sample rate. audio files will be up/down sampled to this rate"
+        },
+    )
+    normalize: bool = field(
+        default=False,
+        metadata={"help": "if set, normalizes input to have 0 mean and unit variance"},
+    )
+    enable_padding: bool = field(
+        default=False, metadata={"help": "pad shorter samples instead of cropping"}
+    )
+    max_sample_size: Optional[int] = field(
+        default=None, metadata={"help": "max sample size to crop to for batching"}
+    )
+    min_sample_size: Optional[int] = field(
+        default=None, metadata={"help": "min sample size to crop to for batching"}
+    )
+
+    # Options for reporting WER metrics during validation. Only applicable to
+    # Seq2Seq models during fine-tuning
+    eval_wer: bool = field(
+        default=False, metadata={"help": "compute WER for Seq2Seq models"}
+    )
+    eval_wer_config: GenerationConfig = field(
+        default_factory=lambda: GenerationConfig(),
+        metadata={"help": "beam search config for evaluating wer during training"},
+    )
+    eval_wer_tokenizer: Any = field(
+        default=None,
+        metadata={"help": "tokenizer config for evaluating wer during training"},
+    )
+    eval_wer_post_process: str = field(
+        default="letter",
+        metadata={
+            "help": "remove BPE tokens before scoring (can be sentencepiece, letter, and more)"
+        },
+    )
+    autoregressive: bool = field(
+        default=False,
+        metadata={
+            "help": "required for autoregressive decoders (like seq2seq models); "
+            "adds 'prev_output_tokens' to input and appends eos to target"
+        },
+    )
+
+
+@register_task("audio_pretraining", dataclass=AudioPretrainingConfig)
+class AudioPretrainingTask(FairseqTask):
     """"""
 
-    @staticmethod
-    def add_args(parser):
-        """Add task-specific arguments to the parser."""
-        parser.add_argument("data", help="path to data directory")
-        parser.add_argument(
-            "--sample-rate",
-            default=16000,
-            type=int,
-            help="target sample rate. audio files will be up/down sampled to this rate",
-        )
-        parser.add_argument(
-            "--normalize",
-            action="store_true",
-            help="if set, normalizes input to have 0 mean and unit variance",
-        )
-        parser.add_argument(
-            "--max-sample-size",
-            default=None,
-            type=int,
-            help="max sample size to crop to for batching. default = min sample length",
-        )
-        parser.add_argument(
-            "--min-sample-size",
-            default=None,
-            type=int,
-            help="min sample size to crop to for batching. default = same as --max-sample-size",
-        )
+    cfg: AudioPretrainingConfig
 
-        parser.add_argument(
-            "--enable-padding",
-            action="store_true",
-            help="pad shorter samples instead of cropping",
-        )
-
-        parser.add_argument(
-            "--labels",
-            type=str,
-            default=None,
-            help="extension of the label file to load, if any",
-        )
-
-        # Options for reporting WER metrics during validation. Only applicable to
-        # Seq2Seq models during fine-tuning
-        parser.add_argument(
-            "--eval-wer",
-            action="store_true",
-            help="compute WER for Seq2Seq models",
-        )
-        parser.add_argument(
-            "--eval-wer-remove-bpe",
-            default="letter",
-            help="remove BPE tokens before scoring (can be sentencepiece, letter, and more)",
-        )
-
-    def __init__(self, args, source_dictionary=None, target_dictionary=None):
-        super().__init__(args)
+    def __init__(
+        self,
+        cfg: AudioPretrainingConfig,
+        source_dictionary=None,
+        target_dictionary=None,
+    ):
+        super().__init__(cfg)
         self._target_dictionary = target_dictionary
         self._source_dictionary = source_dictionary
-        self.is_ctc = args.criterion == "ctc"
-        if getattr(self.args, "eval_wer", False):
-            assert args.labels is not None, "eval_wer can only be set during fine-tuning"
+        if cfg.eval_wer:
+            assert cfg.labels is not None, "eval_wer can only be set during fine-tuning"
 
     @classmethod
-    def setup_task(cls, args, **kwargs):
+    def setup_task(cls, cfg: AudioPretrainingConfig, **kwargs):
         """Setup the task (e.g., load dictionaries).
 
         Args:
-            args (omegaconf.DictConfig): parsed command-line arguments
+            cfg (AudioPretrainingConfig): configuration of this task
         """
 
-        if args.labels:
-            dict_path = os.path.join(args.data, f"dict.{args.labels}.txt")
+        if cfg.labels:
+            dict_path = os.path.join(cfg.data, f"dict.{cfg.labels}.txt")
             target_dictionary = Dictionary.load(dict_path)
         else:
             target_dictionary = None
 
-        return cls(args, target_dictionary=target_dictionary)
+        return cls(cfg, target_dictionary=target_dictionary)
 
-    def load_dataset(self, split, **kwargs):
-        """Load a given dataset split.
+    def load_dataset(self, split: str, task_cfg: FairseqDataclass = None, **kwargs):
+        data_path = self.cfg.data
+        task_cfg = task_cfg or self.cfg
 
-        Args:
-            split (str): name of the split (e.g., train, valid, test)
-        """
-        manifest = os.path.join(self.args.data, "{}.tsv".format(split))
+        # upgrade old task
+        if isinstance(task_cfg, Namespace):
+            if not hasattr(task_cfg, "autoregressive"):
+                task_cfg.autoregressive = not task_cfg.criterion == 'ctc'
+
+        manifest = os.path.join(data_path, "{}.tsv".format(split))
         self.datasets[split] = FileAudioDataset(
             manifest,
-            sample_rate=self.args.sample_rate,
-            max_sample_size=self.args.max_sample_size,
-            min_sample_size=self.args.max_sample_size,
-            min_length=self.args.min_sample_size,
-            pad=self.args.labels is not None or self.args.enable_padding,
-            normalize=self.args.normalize,
+            sample_rate=task_cfg.sample_rate,
+            max_sample_size=self.cfg.max_sample_size,
+            min_sample_size=self.cfg.max_sample_size,
+            min_length=self.cfg.min_sample_size,
+            pad=task_cfg.labels is not None or task_cfg.enable_padding,
+            normalize=task_cfg.normalize,
         )
 
-        if self.args.labels:
-            label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")
+        if task_cfg.labels:
+            label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
             labels = []
             with open(label_path, "r") as f:
                 for line in f:
@@ -143,7 +160,7 @@ class AudioPretrainingTask(LegacyFairseqTask):
                 eos=self.target_dictionary.eos(),
                 batch_targets=True,
                 process_label=process_label,
-                add_to_input=not self.is_ctc,
+                add_to_input=task_cfg.autoregressive,
             )
 
     @property
@@ -172,8 +189,7 @@ class AudioPretrainingTask(LegacyFairseqTask):
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
-
-        if getattr(self.args, "eval_wer", False) and not self.is_ctc:
+        if self.cfg.eval_wer and self.cfg.autoregressive:
             metrics = self._inference_with_wer(self.sequence_generator, sample, model)
             logging_output["_num_char_errors"] = metrics["num_char_errors"]
             logging_output["_num_chars"] = metrics["num_chars"]
@@ -181,21 +197,26 @@ class AudioPretrainingTask(LegacyFairseqTask):
             logging_output["_num_words"] = metrics["num_words"]
         return loss, sample_size, logging_output
 
-    def build_model(self, args):
-        model = super().build_model(args)
+    def build_model(self, model_cfg: FairseqDataclass):
+        model = super().build_model(model_cfg)
 
-        if getattr(args, 'eval_wer', False) and not self.is_ctc:
-            self.sequence_generator = self.build_generator([model], args, )
-            self.tokenizer = encoders.build_tokenizer(args)
+        if self.cfg.eval_wer and self.cfg.autoregressive:
+            self.sequence_generator = self.build_generator(
+                [model],
+                self.cfg.eval_wer_config,
+            )
+            if self.cfg.eval_wer_tokenizer:
+                self.tokenizer = encoders.build_tokenizer(self.cfg.eval_wer_tokenizer)
+            else:
+                self.tokenizer = None
         return model
 
     def _inference_with_wer(self, generator, sample, model):
-        def decode(toks, escape_unk=True):
+        def decode(toks):
             s = self.target_dictionary.string(
                 toks.int().cpu(),
-                self.args.eval_wer_remove_bpe,
-                escape_unk=escape_unk,
-                extra_symbols_to_ignore={generator.eos},
+                self.cfg.eval_wer_post_process,
+                escape_unk=True,
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
@@ -208,17 +229,14 @@ class AudioPretrainingTask(LegacyFairseqTask):
             hyp = decode(gen_out[i][0]["tokens"])
             ref = decode(
                 utils.strip_pad(sample["target"][i], self.target_dictionary.pad()),
-                escape_unk=True,
             )
-            hyp = post_process(hyp, self.args.eval_wer_remove_bpe).strip("_")
-            ref = post_process(ref, self.args.eval_wer_remove_bpe).strip("_")
             num_char_errors += editdistance.eval(hyp, ref)
             num_chars += len(ref)
-            hyp_words = hyp.split("_")
-            ref_words = ref.split("_")
+            hyp_words = hyp.split()
+            ref_words = ref.split()
             num_word_errors += editdistance.eval(hyp_words, ref_words)
             num_words += len(ref_words)
-        
+
         return {
             "num_char_errors": num_char_errors,
             "num_chars": num_chars,
@@ -229,10 +247,14 @@ class AudioPretrainingTask(LegacyFairseqTask):
     def reduce_metrics(self, logging_outputs, criterion):
         super().reduce_metrics(logging_outputs, criterion)
 
-        zero = torch.scalar_tensor(0.)
-        num_char_errors = sum(log.get("_num_char_errors", zero) for log in logging_outputs)
+        zero = torch.scalar_tensor(0.0)
+        num_char_errors = sum(
+            log.get("_num_char_errors", zero) for log in logging_outputs
+        )
         num_chars = sum(log.get("_num_chars", zero) for log in logging_outputs)
-        num_word_errors = sum(log.get("_num_word_errors", zero) for log in logging_outputs)
+        num_word_errors = sum(
+            log.get("_num_word_errors", zero) for log in logging_outputs
+        )
         num_words = sum(log.get("_num_words", zero) for log in logging_outputs)
         metrics.log_scalar("_num_char_errors", num_char_errors)
         metrics.log_scalar("_num_chars", num_chars)
@@ -241,11 +263,17 @@ class AudioPretrainingTask(LegacyFairseqTask):
         if num_words > 0:
             metrics.log_derived(
                 "uer",
-                lambda meters: meters["_num_char_errors"].sum * 100.0 / meters["_num_chars"].sum
-                if meters["_num_chars"].sum > 0 else float("nan")
+                lambda meters: meters["_num_char_errors"].sum
+                * 100.0
+                / meters["_num_chars"].sum
+                if meters["_num_chars"].sum > 0
+                else float("nan"),
             )
             metrics.log_derived(
                 "wer",
-                lambda meters: meters["_num_word_errors"].sum * 100.0 / meters["_num_words"].sum
-                if meters["_num_words"].sum > 0 else float("nan")
+                lambda meters: meters["_num_word_errors"].sum
+                * 100.0
+                / meters["_num_words"].sum
+                if meters["_num_words"].sum > 0
+                else float("nan"),
             )
