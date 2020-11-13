@@ -6,6 +6,7 @@
 BART: Denoising Sequence-to-Sequence Pre-training for
 Natural Language Generation, Translation, and Comprehension
 """
+from typing import Optional
 
 import logging
 
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 @register_model("bart")
 class BARTModel(TransformerModel):
+    __jit_unused_properties__ = ["supported_targets"]
+
     @classmethod
     def hub_models(cls):
         return {
@@ -41,6 +44,8 @@ class BARTModel(TransformerModel):
         self.apply(init_bert_params)
 
         self.classification_heads = nn.ModuleDict()
+        if hasattr(self.encoder, "dictionary"):
+            self.eos: int = self.encoder.dictionary.eos()
 
     @staticmethod
     def add_args(parser):
@@ -71,10 +76,12 @@ class BARTModel(TransformerModel):
         src_tokens,
         src_lengths,
         prev_output_tokens,
-        features_only=False,
-        classification_head_name=None,
-        token_embeddings=None,
-        **kwargs,
+        features_only: bool = False,
+        classification_head_name: Optional[str] = None,
+        token_embeddings: Optional[torch.Tensor] = None,
+        return_all_hiddens: bool = True,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
     ):
         if classification_head_name is not None:
             features_only = True
@@ -83,22 +90,27 @@ class BARTModel(TransformerModel):
             src_tokens,
             src_lengths=src_lengths,
             token_embeddings=token_embeddings,
-            **kwargs,
+            return_all_hiddens=return_all_hiddens
         )
         x, extra = self.decoder(
             prev_output_tokens,
             encoder_out=encoder_out,
             features_only=features_only,
-            **kwargs,
+            alignment_layer=alignment_layer,
+            alignment_heads=alignment_heads,
+            src_lengths=src_lengths,
+            return_all_hiddens=return_all_hiddens,
         )
-
+        eos: int = self.eos
         if classification_head_name is not None:
             sentence_representation = x[
-                src_tokens.eq(self.encoder.dictionary.eos()), :
+                src_tokens.eq(eos), :
             ].view(x.size(0), -1, x.size(-1))[:, -1, :]
-            x = self.classification_heads[classification_head_name](
-                sentence_representation
-            )
+            for k, head in self.classification_heads.items():
+                # for torch script only supports iteration
+                if k == classification_head_name:
+                    x = head(sentence_representation)
+                    break
         return x, extra
 
     @classmethod
