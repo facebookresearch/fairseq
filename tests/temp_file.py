@@ -10,7 +10,8 @@ class CustomNamedTemporaryFile:
     > Whether the name can be used to open the file a second time, while the named temporary file is still open,
     > varies across platforms (it can be so used on Unix; it cannot on Windows NT or later).
     """
-    def __init__(self, mode='wb', delete=True):
+
+    def __init__(self, mode="wb", delete=True):
         self._mode = mode
         self._delete = delete
 

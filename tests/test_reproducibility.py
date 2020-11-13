@@ -35,12 +35,12 @@ class TestReproducibility(unittest.TestCase):
             extra_flags = []
 
         with tempfile.TemporaryDirectory(name) as data_dir:
-            with self.assertLogs('fairseq_cli.preprocess') as logs:
+            with self.assertLogs("fairseq_cli.preprocess") as logs:
                 test_binaries.create_dummy_data(data_dir)
                 test_binaries.preprocess_translation_data(data_dir)
 
             # train epochs 1 and 2 together
-            with self.assertLogs('fairseq.logging.progress_bar') as logs:
+            with self.assertLogs("fairseq.logging.progress_bar") as logs:
                 test_binaries.train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",
@@ -64,7 +64,7 @@ class TestReproducibility(unittest.TestCase):
                 os.path.join(data_dir, resume_checkpoint),
                 os.path.join(data_dir, "checkpoint_last.pt"),
             )
-            with self.assertLogs('fairseq.logging.progress_bar') as logs:
+            with self.assertLogs("fairseq.logging.progress_bar") as logs:
                 test_binaries.train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",

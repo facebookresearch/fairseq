@@ -46,7 +46,6 @@ class BinaryTestCase(unittest.TestCase):
 
 
 class TestTranslation(BinaryTestCase):
-
     def test_fconv(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
@@ -58,14 +57,18 @@ class TestTranslation(BinaryTestCase):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir, ["--dataset-impl", "raw"])
-            train_translation_model(self.data_dir, "fconv_iwslt_de_en", ["--dataset-impl", "raw"])
+            train_translation_model(
+                self.data_dir, "fconv_iwslt_de_en", ["--dataset-impl", "raw"]
+            )
             generate_main(self.data_dir, ["--dataset-impl", "raw"])
 
     def test_update_freq(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "fconv_iwslt_de_en", ["--update-freq", "3"])
+            train_translation_model(
+                self.data_dir, "fconv_iwslt_de_en", ["--update-freq", "3"]
+            )
             generate_main(self.data_dir)
 
     def test_max_positions(self):
@@ -73,16 +76,22 @@ class TestTranslation(BinaryTestCase):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
             with self.assertRaises(Exception) as context:
-                train_translation_model(self.data_dir, "fconv_iwslt_de_en", ["--max-target-positions", "5"])
+                train_translation_model(
+                    self.data_dir, "fconv_iwslt_de_en", ["--max-target-positions", "5"]
+                )
             self.assertTrue(
                 "skip this example with --skip-invalid-size-inputs-valid-test"
                 in str(context.exception)
             )
-            train_translation_model(self.data_dir, "fconv_iwslt_de_en", [
-                "--max-target-positions",
-                "5",
-                "--skip-invalid-size-inputs-valid-test",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "fconv_iwslt_de_en",
+                [
+                    "--max-target-positions",
+                    "5",
+                    "--skip-invalid-size-inputs-valid-test",
+                ],
+            )
             with self.assertRaises(Exception) as context:
                 generate_main(self.data_dir)
             generate_main(self.data_dir, ["--skip-invalid-size-inputs-valid-test"])
@@ -92,45 +101,60 @@ class TestTranslation(BinaryTestCase):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
             train_translation_model(self.data_dir, "fconv_iwslt_de_en")
-            generate_main(self.data_dir, [
-                "--sampling",
-                "--temperature",
-                "2",
-                "--beam",
-                "2",
-                "--nbest",
-                "2",
-            ])
-            generate_main(self.data_dir, [
-                "--sampling",
-                "--sampling-topk",
-                "3",
-                "--beam",
-                "2",
-                "--nbest",
-                "2",
-            ])
-            generate_main(self.data_dir, [
-                "--sampling",
-                "--sampling-topp",
-                "0.2",
-                "--beam",
-                "2",
-                "--nbest",
-                "2",
-            ])
-            generate_main(self.data_dir, [
-                "--diversity-rate",
-                "0.5",
-                "--beam",
-                "6",
-            ])
+            generate_main(
+                self.data_dir,
+                [
+                    "--sampling",
+                    "--temperature",
+                    "2",
+                    "--beam",
+                    "2",
+                    "--nbest",
+                    "2",
+                ],
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--sampling",
+                    "--sampling-topk",
+                    "3",
+                    "--beam",
+                    "2",
+                    "--nbest",
+                    "2",
+                ],
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--sampling",
+                    "--sampling-topp",
+                    "0.2",
+                    "--beam",
+                    "2",
+                    "--nbest",
+                    "2",
+                ],
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--diversity-rate",
+                    "0.5",
+                    "--beam",
+                    "6",
+                ],
+            )
             with self.assertRaises(ValueError):
-                generate_main(self.data_dir, [
-                    "--diverse-beam-groups",
-                    "4",
-                    "--match-source-len",
-                ])
+                generate_main(
+                    self.data_dir,
+                    [
+                        "--diverse-beam-groups",
+                        "4",
+                        "--match-source-len",
+                    ],
+                )
             generate_main(self.data_dir, ["--prefix-size", "2"])
             generate_main(self.data_dir, ["--retain-dropout"])
 
@@ -138,69 +162,87 @@ class TestTranslation(BinaryTestCase):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "fconv_iwslt_de_en", [
-                "--eval-bleu",
-                "--eval-bleu-print-samples",
-                "--eval-bleu-remove-bpe",
-                "--eval-bleu-detok",
-                "space",
-                "--eval-bleu-args",
-                '{"beam": 4, "min_len": 10}',
-            ])
+            train_translation_model(
+                self.data_dir,
+                "fconv_iwslt_de_en",
+                [
+                    "--eval-bleu",
+                    "--eval-bleu-print-samples",
+                    "--eval-bleu-remove-bpe",
+                    "--eval-bleu-detok",
+                    "space",
+                    "--eval-bleu-args",
+                    '{"beam": 4, "min_len": 10}',
+                ],
+            )
 
     def test_lstm(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "lstm_wiseman_iwslt_de_en", [
-                "--encoder-layers",
-                "2",
-                "--decoder-layers",
-                "2",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-                "--decoder-out-embed-dim",
-                "8",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "lstm_wiseman_iwslt_de_en",
+                [
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--decoder-out-embed-dim",
+                    "8",
+                ],
+            )
             generate_main(self.data_dir)
 
     def test_lstm_bidirectional(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "lstm", [
-                "--encoder-layers",
-                "2",
-                "--encoder-bidirectional",
-                "--encoder-hidden-size",
-                "16",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-                "--decoder-out-embed-dim",
-                "8",
-                "--decoder-layers",
-                "2",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "lstm",
+                [
+                    "--encoder-layers",
+                    "2",
+                    "--encoder-bidirectional",
+                    "--encoder-hidden-size",
+                    "16",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--decoder-out-embed-dim",
+                    "8",
+                    "--decoder-layers",
+                    "2",
+                ],
+            )
             generate_main(self.data_dir)
+
 
     def test_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "transformer_iwslt_de_en", [
-                "--encoder-layers",
-                "2",
-                "--decoder-layers",
-                "2",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-            ], run_validation=True)
+            train_translation_model(
+                self.data_dir,
+                "transformer_iwslt_de_en",
+                [
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                ],
+                run_validation=True,
+            )
             generate_main(self.data_dir)
 
     def test_transformer_with_activation_checkpointing(self):
@@ -322,7 +364,6 @@ class TestTranslation(BinaryTestCase):
                                                              + enc_ll_flag
                                                              + dec_ll_flag)
 
-
     def test_translation_multi_simple_epoch_no_vepoch(self):
         # test with all combinations of encoder/decoder lang tokens
         with contextlib.redirect_stdout(StringIO()):
@@ -382,165 +423,216 @@ class TestTranslation(BinaryTestCase):
             dec_ltok_flag = ["--decoder-langtok"]
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir, extra_flags=[])
-            train_translation_model(self.data_dir, arch="transformer", extra_flags=[
-                                                                                       "--encoder-layers",
-                                                                                       "2",
-                                                                                       "--decoder-layers",
-                                                                                       "2",
-                                                                                       "--encoder-embed-dim",
-                                                                                       "8",
-                                                                                       "--decoder-embed-dim",
-                                                                                       "8",
-                                                                                       "--sampling-method",
-                                                                                       "temperature",
-                                                                                       "--sampling-temperature",
-                                                                                       "1.5",
-                                                                                       "--virtual-epoch-size",
-                                                                                       "1000",
-                                                                                   ]
-                                                                                   + enc_ltok_flag
-                                                                                   + dec_ltok_flag,
-                                    task="translation_multi_simple_epoch", run_validation=True,
-                                    lang_flags=["--lang-pairs", "in-out"],
-                                    extra_valid_flags=enc_ltok_flag + dec_ltok_flag)
-            generate_main(self.data_dir, extra_flags=[
-                                                         "--task",
-                                                         "translation_multi_simple_epoch",
-                                                         "--lang-pairs",
-                                                         "in-out",
-                                                         "--source-lang",
-                                                         "in",
-                                                         "--target-lang",
-                                                         "out",
-                                                     ]
-                                                     + enc_ltok_flag
-                                                     + dec_ltok_flag)
+            train_translation_model(
+                self.data_dir,
+                arch="transformer",
+                extra_flags=[
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--sampling-method",
+                    "temperature",
+                    "--sampling-temperature",
+                    "1.5",
+                    "--virtual-epoch-size",
+                    "1000",
+                ]
+                + enc_ltok_flag
+                + dec_ltok_flag,
+                task="translation_multi_simple_epoch",
+                run_validation=True,
+                lang_flags=["--lang-pairs", "in-out"],
+                extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
+            )
+            generate_main(
+                self.data_dir,
+                extra_flags=[
+                    "--task",
+                    "translation_multi_simple_epoch",
+                    "--lang-pairs",
+                    "in-out",
+                    "--source-lang",
+                    "in",
+                    "--target-lang",
+                    "out",
+                ]
+                + enc_ltok_flag
+                + dec_ltok_flag,
+            )
 
     def test_transformer_cross_self_attention(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "transformer_iwslt_de_en", [
-                "--encoder-layers",
-                "2",
-                "--decoder-layers",
-                "2",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-                "--no-cross-attention",
-                "--cross-self-attention",
-            ], run_validation=True)
+            train_translation_model(
+                self.data_dir,
+                "transformer_iwslt_de_en",
+                [
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--no-cross-attention",
+                    "--cross-self-attention",
+                ],
+                run_validation=True,
+            )
             generate_main(self.data_dir, extra_flags=[])
 
     def test_transformer_pointer_generator(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_summarization_data(self.data_dir)
-            train_translation_model(self.data_dir, "transformer_pointer_generator", extra_flags=[
-                "--user-dir",
-                "examples/pointer_generator/pointer_generator_src",
-                "--encoder-layers",
-                "2",
-                "--decoder-layers",
-                "2",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-                "--alignment-layer",
-                "-1",
-                "--alignment-heads",
-                "1",
-                "--source-position-markers",
-                "0",
-            ], run_validation=True, extra_valid_flags=["--user-dir",
-                                                       "examples/pointer_generator/pointer_generator_src"])
-            generate_main(self.data_dir, extra_flags=["--user-dir", "examples/pointer_generator/pointer_generator_src"])
+            train_translation_model(
+                self.data_dir,
+                "transformer_pointer_generator",
+                extra_flags=[
+                    "--user-dir",
+                    "examples/pointer_generator/pointer_generator_src",
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--alignment-layer",
+                    "-1",
+                    "--alignment-heads",
+                    "1",
+                    "--source-position-markers",
+                    "0",
+                ],
+                run_validation=True,
+                extra_valid_flags=[
+                    "--user-dir",
+                    "examples/pointer_generator/pointer_generator_src",
+                ],
+            )
+            generate_main(
+                self.data_dir,
+                extra_flags=[
+                    "--user-dir",
+                    "examples/pointer_generator/pointer_generator_src",
+                ],
+            )
 
     def test_lightconv(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "lightconv_iwslt_de_en", [
-                "--encoder-conv-type",
-                "lightweight",
-                "--decoder-conv-type",
-                "lightweight",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "lightconv_iwslt_de_en",
+                [
+                    "--encoder-conv-type",
+                    "lightweight",
+                    "--decoder-conv-type",
+                    "lightweight",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                ],
+            )
             generate_main(self.data_dir)
 
     def test_dynamicconv(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "lightconv_iwslt_de_en", [
-                "--encoder-conv-type",
-                "dynamic",
-                "--decoder-conv-type",
-                "dynamic",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "lightconv_iwslt_de_en",
+                [
+                    "--encoder-conv-type",
+                    "dynamic",
+                    "--decoder-conv-type",
+                    "dynamic",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                ],
+            )
             generate_main(self.data_dir)
 
     def test_cmlm_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir, ["--joined-dictionary"])
-            train_translation_model(self.data_dir, "cmlm_transformer", [
-                "--apply-bert-init",
-                "--criterion",
-                "nat_loss",
-                "--noise",
-                "full_mask",
-                "--pred-length-offset",
-                "--length-loss-factor",
-                "0.1",
-            ], task="translation_lev")
-            generate_main(self.data_dir, [
-                "--task",
-                "translation_lev",
-                "--iter-decode-max-iter",
-                "9",
-                "--iter-decode-eos-penalty",
-                "0",
-                "--print-step",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "cmlm_transformer",
+                [
+                    "--apply-bert-init",
+                    "--criterion",
+                    "nat_loss",
+                    "--noise",
+                    "full_mask",
+                    "--pred-length-offset",
+                    "--length-loss-factor",
+                    "0.1",
+                ],
+                task="translation_lev",
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "translation_lev",
+                    "--iter-decode-max-iter",
+                    "9",
+                    "--iter-decode-eos-penalty",
+                    "0",
+                    "--print-step",
+                ],
+            )
 
     def test_nonautoregressive_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir, ["--joined-dictionary"])
-            train_translation_model(self.data_dir, "nonautoregressive_transformer", [
-                "--apply-bert-init",
-                "--src-embedding-copy",
-                "--criterion",
-                "nat_loss",
-                "--noise",
-                "full_mask",
-                "--pred-length-offset",
-                "--length-loss-factor",
-                "0.1",
-            ], task="translation_lev")
-            generate_main(self.data_dir, [
-                "--task",
-                "translation_lev",
-                "--iter-decode-max-iter",
-                "0",
-                "--iter-decode-eos-penalty",
-                "0",
-                "--print-step",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "nonautoregressive_transformer",
+                [
+                    "--apply-bert-init",
+                    "--src-embedding-copy",
+                    "--criterion",
+                    "nat_loss",
+                    "--noise",
+                    "full_mask",
+                    "--pred-length-offset",
+                    "--length-loss-factor",
+                    "0.1",
+                ],
+                task="translation_lev",
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "translation_lev",
+                    "--iter-decode-max-iter",
+                    "0",
+                    "--iter-decode-eos-penalty",
+                    "0",
+                    "--print-step",
+                ],
+            )
 
     # def test_nat_crf_transformer(self):
     #     with contextlib.redirect_stdout(StringIO()):
@@ -566,128 +658,161 @@ class TestTranslation(BinaryTestCase):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir, ["--joined-dictionary"])
-            train_translation_model(self.data_dir, "iterative_nonautoregressive_transformer", [
-                "--apply-bert-init",
-                "--src-embedding-copy",
-                "--criterion",
-                "nat_loss",
-                "--noise",
-                "full_mask",
-                "--stochastic-approx",
-                "--dae-ratio",
-                "0.5",
-                "--train-step",
-                "3",
-            ], task="translation_lev")
-            generate_main(self.data_dir, [
-                "--task",
-                "translation_lev",
-                "--iter-decode-max-iter",
-                "9",
-                "--iter-decode-eos-penalty",
-                "0",
-                "--print-step",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "iterative_nonautoregressive_transformer",
+                [
+                    "--apply-bert-init",
+                    "--src-embedding-copy",
+                    "--criterion",
+                    "nat_loss",
+                    "--noise",
+                    "full_mask",
+                    "--stochastic-approx",
+                    "--dae-ratio",
+                    "0.5",
+                    "--train-step",
+                    "3",
+                ],
+                task="translation_lev",
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "translation_lev",
+                    "--iter-decode-max-iter",
+                    "9",
+                    "--iter-decode-eos-penalty",
+                    "0",
+                    "--print-step",
+                ],
+            )
 
     def test_insertion_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir, ["--joined-dictionary"])
-            train_translation_model(self.data_dir, "insertion_transformer", [
-                "--apply-bert-init",
-                "--criterion",
-                "nat_loss",
-                "--noise",
-                "random_mask",
-            ], task="translation_lev")
-            generate_main(self.data_dir, [
-                "--task",
-                "translation_lev",
-                "--iter-decode-max-iter",
-                "9",
-                "--iter-decode-eos-penalty",
-                "0",
-                "--print-step",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "insertion_transformer",
+                [
+                    "--apply-bert-init",
+                    "--criterion",
+                    "nat_loss",
+                    "--noise",
+                    "random_mask",
+                ],
+                task="translation_lev",
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "translation_lev",
+                    "--iter-decode-max-iter",
+                    "9",
+                    "--iter-decode-eos-penalty",
+                    "0",
+                    "--print-step",
+                ],
+            )
 
     def test_mixture_of_experts(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
             preprocess_translation_data(self.data_dir)
-            train_translation_model(self.data_dir, "transformer_iwslt_de_en", [
-                "--task",
-                "translation_moe",
-                "--user-dir",
-                "examples/translation_moe/translation_moe_src",
-                "--method",
-                "hMoElp",
-                "--mean-pool-gating-network",
-                "--num-experts",
-                "3",
-                "--encoder-layers",
-                "2",
-                "--decoder-layers",
-                "2",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-            ])
-            generate_main(self.data_dir, [
-                "--task",
-                "translation_moe",
-                "--user-dir",
-                "examples/translation_moe/translation_moe_src",
-                "--method",
-                "hMoElp",
-                "--mean-pool-gating-network",
-                "--num-experts",
-                "3",
-                "--gen-expert",
-                "0",
-            ])
+            train_translation_model(
+                self.data_dir,
+                "transformer_iwslt_de_en",
+                [
+                    "--task",
+                    "translation_moe",
+                    "--user-dir",
+                    "examples/translation_moe/translation_moe_src",
+                    "--method",
+                    "hMoElp",
+                    "--mean-pool-gating-network",
+                    "--num-experts",
+                    "3",
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                ],
+            )
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "translation_moe",
+                    "--user-dir",
+                    "examples/translation_moe/translation_moe_src",
+                    "--method",
+                    "hMoElp",
+                    "--mean-pool-gating-network",
+                    "--num-experts",
+                    "3",
+                    "--gen-expert",
+                    "0",
+                ],
+            )
 
     def test_alignment(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir, alignment=True)
             preprocess_translation_data(self.data_dir, ["--align-suffix", "align"])
-            train_translation_model(self.data_dir, "transformer_align", [
-                "--encoder-layers",
-                "2",
-                "--decoder-layers",
-                "2",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-                "--load-alignments",
-                "--alignment-layer",
-                "1",
-                "--criterion",
-                "label_smoothed_cross_entropy_with_alignment",
-            ], run_validation=True)
+            train_translation_model(
+                self.data_dir,
+                "transformer_align",
+                [
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--load-alignments",
+                    "--alignment-layer",
+                    "1",
+                    "--criterion",
+                    "label_smoothed_cross_entropy_with_alignment",
+                ],
+                run_validation=True,
+            )
             generate_main(self.data_dir)
 
     def test_alignment_full_context(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir, alignment=True)
             preprocess_translation_data(self.data_dir, ["--align-suffix", "align"])
-            train_translation_model(self.data_dir, "transformer_align", [
-                "--encoder-layers",
-                "2",
-                "--decoder-layers",
-                "2",
-                "--encoder-embed-dim",
-                "8",
-                "--decoder-embed-dim",
-                "8",
-                "--load-alignments",
-                "--alignment-layer",
-                "1",
-                "--criterion",
-                "label_smoothed_cross_entropy_with_alignment",
-                "--full-context-alignment",
-            ], run_validation=True)
+            train_translation_model(
+                self.data_dir,
+                "transformer_align",
+                [
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--load-alignments",
+                    "--alignment-layer",
+                    "1",
+                    "--criterion",
+                    "label_smoothed_cross_entropy_with_alignment",
+                    "--full-context-alignment",
+                ],
+                run_validation=True,
+            )
             generate_main(self.data_dir)
 
 
@@ -718,7 +843,11 @@ class TestCombinationTranslation(BinaryTestCase, metaclass=ABCMeta):
 class TestTranslationMultiSingleEpoch(TestCombinationTranslation):
     @property
     def enc_it(self):
-        self.encoder_langtok_flags = [[], ["--encoder-langtok", "src"], ["--encoder-langtok", "tgt"]]
+        self.encoder_langtok_flags = [
+            [],
+            ["--encoder-langtok", "src"],
+            ["--encoder-langtok", "tgt"],
+        ]
         return self.encoder_langtok_flags
 
     @property
@@ -735,40 +864,50 @@ class TestTranslationMultiSingleEpoch(TestCombinationTranslation):
                     enc_ltok_flag = self.encoder_langtok_flags[i]
                     dec_ltok_flag = self.decoder_langtok_flags[j]
                     create_dummy_data(data_dir)
-                    preprocess_translation_data(data_dir, extra_flags=["--joined-dictionary"])
-                    train_translation_model(data_dir, arch="transformer", extra_flags=[
-                                                                                               "--encoder-layers",
-                                                                                               "2",
-                                                                                               "--decoder-layers",
-                                                                                               "2",
-                                                                                               "--encoder-embed-dim",
-                                                                                               "8",
-                                                                                               "--decoder-embed-dim",
-                                                                                               "8",
-                                                                                               "--sampling-method",
-                                                                                               "temperature",
-                                                                                               "--sampling-temperature",
-                                                                                               "1.5",
-                                                                                               "--virtual-epoch-size",
-                                                                                               "1000",
-                                                                                           ]
-                                                                                           + enc_ltok_flag
-                                                                                           + dec_ltok_flag,
-                                            task="translation_multi_simple_epoch", run_validation=True,
-                                            lang_flags=["--lang-pairs", "in-out,out-in"],
-                                            extra_valid_flags=enc_ltok_flag + dec_ltok_flag)
-                    generate_main(data_dir, extra_flags=[
-                                                                 "--task",
-                                                                 "translation_multi_simple_epoch",
-                                                                 "--lang-pairs",
-                                                                 "in-out,out-in",
-                                                                 "--source-lang",
-                                                                 "in",
-                                                                 "--target-lang",
-                                                                 "out",
-                                                             ]
-                                                             + enc_ltok_flag
-                                                             + dec_ltok_flag)
+                    preprocess_translation_data(
+                        data_dir, extra_flags=["--joined-dictionary"]
+                    )
+                    train_translation_model(
+                        data_dir,
+                        arch="transformer",
+                        extra_flags=[
+                            "--encoder-layers",
+                            "2",
+                            "--decoder-layers",
+                            "2",
+                            "--encoder-embed-dim",
+                            "8",
+                            "--decoder-embed-dim",
+                            "8",
+                            "--sampling-method",
+                            "temperature",
+                            "--sampling-temperature",
+                            "1.5",
+                            "--virtual-epoch-size",
+                            "1000",
+                        ]
+                        + enc_ltok_flag
+                        + dec_ltok_flag,
+                        task="translation_multi_simple_epoch",
+                        run_validation=True,
+                        lang_flags=["--lang-pairs", "in-out,out-in"],
+                        extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
+                    )
+                    generate_main(
+                        data_dir,
+                        extra_flags=[
+                            "--task",
+                            "translation_multi_simple_epoch",
+                            "--lang-pairs",
+                            "in-out,out-in",
+                            "--source-lang",
+                            "in",
+                            "--target-lang",
+                            "out",
+                        ]
+                        + enc_ltok_flag
+                        + dec_ltok_flag,
+                    )
 
 
 class TestMultilingualTranslationLatentDepth(TestCombinationTranslation):
@@ -782,7 +921,10 @@ class TestMultilingualTranslationLatentDepth(TestCombinationTranslation):
         self.decoder_latent_layer = [[], ["--decoder-latent-layer"]]
         return self.decoder_latent_layer
 
-    @unittest.skipIf(sys.platform.lower() in {"darwin", "win32"}, "skip latent depth test on MacOS and Windows")
+    @unittest.skipIf(
+        sys.platform.lower() in {"darwin", "win32"},
+        "skip latent depth test on MacOS and Windows",
+    )
     def test_multilingual_translation_latent_depth(self):
         # test with latent depth in encoder, decoder, or both
 
@@ -795,52 +937,67 @@ class TestMultilingualTranslationLatentDepth(TestCombinationTranslation):
                     enc_ll_flag = self.encoder_latent_layer[i]
                     dec_ll_flag = self.decoder_latent_layer[j]
                     create_dummy_data(data_dir)
-                    preprocess_translation_data(data_dir, extra_flags=["--joined-dictionary"])
-                    train_translation_model(data_dir, arch="latent_multilingual_transformer", extra_flags=[
-                                                                                                              "--user-dir",
-                                                                                                              "examples/latent_depth/latent_depth_src",
-                                                                                                              "--encoder-layers",
-                                                                                                              "2",
-                                                                                                              "--decoder-layers",
-                                                                                                              "2",
-                                                                                                              "--encoder-embed-dim",
-                                                                                                              "8",
-                                                                                                              "--decoder-embed-dim",
-                                                                                                              "8",
-                                                                                                              "--share-encoders",
-                                                                                                              "--share-decoders",
-                                                                                                              "--sparsity-weight",
-                                                                                                              "0.1",
-                                                                                                          ]
-                                                                                                          + enc_ll_flag
-                                                                                                          + dec_ll_flag,
-                                            task="multilingual_translation_latent_depth", run_validation=True,
-                                            lang_flags=["--lang-pairs", "in-out,out-in"], extra_valid_flags=[
-                                                                                                                "--user-dir",
-                                                                                                                "examples/latent_depth/latent_depth_src",
-                                                                                                            ]
-                                                                                                            + enc_ll_flag
-                                                                                                            + dec_ll_flag)
-                generate_main(self.data_dir, extra_flags=[
-                                                             "--user-dir",
-                                                             "examples/latent_depth/latent_depth_src",
-                                                             "--task",
-                                                             "multilingual_translation_latent_depth",
-                                                             "--lang-pairs",
-                                                             "in-out,out-in",
-                                                             "--source-lang",
-                                                             "in",
-                                                             "--target-lang",
-                                                             "out",
-                                                         ]
-                                                         + enc_ll_flag
-                                                         + dec_ll_flag)
+                    preprocess_translation_data(
+                        data_dir, extra_flags=["--joined-dictionary"]
+                    )
+                    train_translation_model(
+                        data_dir,
+                        arch="latent_multilingual_transformer",
+                        extra_flags=[
+                            "--user-dir",
+                            "examples/latent_depth/latent_depth_src",
+                            "--encoder-layers",
+                            "2",
+                            "--decoder-layers",
+                            "2",
+                            "--encoder-embed-dim",
+                            "8",
+                            "--decoder-embed-dim",
+                            "8",
+                            "--share-encoders",
+                            "--share-decoders",
+                            "--sparsity-weight",
+                            "0.1",
+                        ]
+                        + enc_ll_flag
+                        + dec_ll_flag,
+                        task="multilingual_translation_latent_depth",
+                        run_validation=True,
+                        lang_flags=["--lang-pairs", "in-out,out-in"],
+                        extra_valid_flags=[
+                            "--user-dir",
+                            "examples/latent_depth/latent_depth_src",
+                        ]
+                        + enc_ll_flag
+                        + dec_ll_flag,
+                    )
+                generate_main(
+                    self.data_dir,
+                    extra_flags=[
+                        "--user-dir",
+                        "examples/latent_depth/latent_depth_src",
+                        "--task",
+                        "multilingual_translation_latent_depth",
+                        "--lang-pairs",
+                        "in-out,out-in",
+                        "--source-lang",
+                        "in",
+                        "--target-lang",
+                        "out",
+                    ]
+                    + enc_ll_flag
+                    + dec_ll_flag,
+                )
 
 
 class TestMultilingualTranslationTransformer(TestCombinationTranslation):
     @property
     def enc_it(self):
-        self.encoder_langtok_flags = [[],["--encoder-langtok", "src"],["--encoder-langtok", "tgt"]]
+        self.encoder_langtok_flags = [
+            [],
+            ["--encoder-langtok", "src"],
+            ["--encoder-langtok", "tgt"],
+        ]
         return self.encoder_langtok_flags
 
     @property
@@ -858,36 +1015,44 @@ class TestMultilingualTranslationTransformer(TestCombinationTranslation):
                     dec_ltok_flag = self.decoder_langtok_flags[j]
                     create_dummy_data(data_dir)
                     preprocess_translation_data(data_dir)
-                    train_translation_model(data_dir, arch="multilingual_transformer", extra_flags=[
-                                                                                                            "--encoder-layers",
-                                                                                                            "2",
-                                                                                                            "--decoder-layers",
-                                                                                                            "2",
-                                                                                                            "--encoder-embed-dim",
-                                                                                                            "8",
-                                                                                                            "--decoder-embed-dim",
-                                                                                                            "8",
-                                                                                                        ]
-                                                                                                        + enc_ltok_flag
-                                                                                                        + dec_ltok_flag,
-                                            task="multilingual_translation", run_validation=True,
-                                            lang_flags=["--lang-pairs", "in-out,out-in"],
-                                            extra_valid_flags=enc_ltok_flag + dec_ltok_flag)
-                    generate_main(data_dir, extra_flags=[
-                                                                 "--task",
-                                                                 "multilingual_translation",
-                                                                 "--lang-pairs",
-                                                                 "in-out,out-in",
-                                                                 "--source-lang",
-                                                                 "in",
-                                                                 "--target-lang",
-                                                                 "out",
-                                                             ]
-                                                             + enc_ltok_flag
-                                                             + dec_ltok_flag)
+                    train_translation_model(
+                        data_dir,
+                        arch="multilingual_transformer",
+                        extra_flags=[
+                            "--encoder-layers",
+                            "2",
+                            "--decoder-layers",
+                            "2",
+                            "--encoder-embed-dim",
+                            "8",
+                            "--decoder-embed-dim",
+                            "8",
+                        ]
+                        + enc_ltok_flag
+                        + dec_ltok_flag,
+                        task="multilingual_translation",
+                        run_validation=True,
+                        lang_flags=["--lang-pairs", "in-out,out-in"],
+                        extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
+                    )
+                    generate_main(
+                        data_dir,
+                        extra_flags=[
+                            "--task",
+                            "multilingual_translation",
+                            "--lang-pairs",
+                            "in-out,out-in",
+                            "--source-lang",
+                            "in",
+                            "--target-lang",
+                            "out",
+                        ]
+                        + enc_ltok_flag
+                        + dec_ltok_flag,
+                    )
+
 
 class TestStories(BinaryTestCase):
-
     def test_fconv_self_att_wp(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
@@ -938,7 +1103,6 @@ class TestStories(BinaryTestCase):
 
 
 class TestLanguageModeling(BinaryTestCase):
-
     def test_fconv_lm(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
@@ -958,14 +1122,17 @@ class TestLanguageModeling(BinaryTestCase):
                 ],
             )
             eval_lm_main(self.data_dir)
-            generate_main(self.data_dir, [
-                "--task",
-                "language_modeling",
-                "--sample-break-mode",
-                "eos",
-                "--tokens-per-sample",
-                "500",
-            ])
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "language_modeling",
+                    "--sample-break-mode",
+                    "eos",
+                    "--tokens-per-sample",
+                    "500",
+                ],
+            )
 
     def test_transformer_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -978,14 +1145,17 @@ class TestLanguageModeling(BinaryTestCase):
                 run_validation=True,
             )
             eval_lm_main(self.data_dir)
-            generate_main(self.data_dir, [
-                "--task",
-                "language_modeling",
-                "--sample-break-mode",
-                "eos",
-                "--tokens-per-sample",
-                "500",
-            ])
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "language_modeling",
+                    "--sample-break-mode",
+                    "eos",
+                    "--tokens-per-sample",
+                    "500",
+                ],
+            )
 
     def test_transformer_lm_with_adaptive_softmax(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -1028,14 +1198,17 @@ class TestLanguageModeling(BinaryTestCase):
                 run_validation=True,
             )
             eval_lm_main(self.data_dir)
-            generate_main(self.data_dir, [
-                "--task",
-                "language_modeling",
-                "--sample-break-mode",
-                "eos",
-                "--tokens-per-sample",
-                "500",
-            ])
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "language_modeling",
+                    "--sample-break-mode",
+                    "eos",
+                    "--tokens-per-sample",
+                    "500",
+                ],
+            )
 
     def test_lstm_lm(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -1048,14 +1221,17 @@ class TestLanguageModeling(BinaryTestCase):
                 run_validation=True,
             )
             eval_lm_main(self.data_dir)
-            generate_main(self.data_dir, [
-                "--task",
-                "language_modeling",
-                "--sample-break-mode",
-                "eos",
-                "--tokens-per-sample",
-                "500",
-            ])
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "language_modeling",
+                    "--sample-break-mode",
+                    "eos",
+                    "--tokens-per-sample",
+                    "500",
+                ],
+            )
 
     def test_lstm_lm_residuals(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -1068,44 +1244,47 @@ class TestLanguageModeling(BinaryTestCase):
                 run_validation=True,
             )
             eval_lm_main(self.data_dir)
-            generate_main(self.data_dir, [
-                "--task",
-                "language_modeling",
-                "--sample-break-mode",
-                "eos",
-                "--tokens-per-sample",
-                "500",
-            ])
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "language_modeling",
+                    "--sample-break-mode",
+                    "eos",
+                    "--tokens-per-sample",
+                    "500",
+                ],
+            )
 
 
     @unittest.skipIf(not has_hf_transformers, "skip test if transformers is missing")
     def test_transformer_xl_bptt_lm(self):
         with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_transformer_xl_bptt_lm") as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_lm_data(data_dir)
-                task_flags = [
-                    "--user-dir",
-                    "examples/truncated_bptt",
-                    "--task",
-                    "truncated_bptt_lm",
-                    "--batch-size",
+            create_dummy_data(self.data_dir)
+            preprocess_lm_data(self.data_dir)
+            task_flags = [
+                "--user-dir",
+                "examples/truncated_bptt",
+                "--task",
+                "truncated_bptt_lm",
+                "--batch-size",
+                "2",
+                "--tokens-per-sample",
+                "50",
+            ]
+            train_language_model(
+                data_dir=self.data_dir,
+                arch="transformer_xl",
+                extra_flags=task_flags + [
+                    "--n-layer",
                     "2",
-                    "--tokens-per-sample",
-                    "50",
-                ]
-                train_language_model(
-                    data_dir=data_dir,
-                    arch="transformer_xl",
-                    extra_flags=task_flags + [
-                        "--n-layer",
-                        "2",
-                    ],
-                    task="truncated_bptt_lm",
-                    run_validation=True,
-                    extra_valid_flags=task_flags,
-                )
-                eval_lm_main(data_dir, extra_flags=task_flags)
+                ],
+                task="truncated_bptt_lm",
+                run_validation=True,
+                extra_valid_flags=task_flags,
+            )
+            eval_lm_main(self.data_dir, extra_flags=task_flags)
+
 
 class TestMaskedLanguageModel(BinaryTestCase):
     def setUp(self):
@@ -1125,14 +1304,16 @@ class TestMaskedLanguageModel(BinaryTestCase):
 
     def test_roberta_masked_lm(self):
         with contextlib.redirect_stdout(StringIO()):
-                create_dummy_data(self.data_dir)
-                preprocess_lm_data(self.data_dir)
-                train_masked_lm(
-                    self.data_dir, "roberta_base", extra_flags=[
-                        "--encoder-layers",
-                        "2",
-                    ]
-                )
+            create_dummy_data(self.data_dir)
+            preprocess_lm_data(self.data_dir)
+            train_masked_lm(
+                self.data_dir,
+                "roberta_base",
+                extra_flags=[
+                    "--encoder-layers",
+                    "2",
+                ],
+            )
 
     def test_roberta_sentence_prediction(self):
         num_classes = 3
@@ -1236,53 +1417,55 @@ class TestMaskedLanguageModel(BinaryTestCase):
 
     def _test_pretrained_masked_lm_for_translation(self, learned_pos_emb, encoder_only):
         with contextlib.redirect_stdout(StringIO()):
-                create_dummy_data(self.data_dir)
-                preprocess_lm_data(self.data_dir)
-                train_legacy_masked_language_model(
-                    self.data_dir,
-                    arch="masked_lm",
-                    extra_args=("--encoder-learned-pos",) if learned_pos_emb else (),
+            create_dummy_data(self.data_dir)
+            preprocess_lm_data(self.data_dir)
+            train_legacy_masked_language_model(
+                self.data_dir,
+                arch="masked_lm",
+                extra_args=("--encoder-learned-pos",) if learned_pos_emb else (),
+            )
+            create_dummy_data(self.translation_dir)
+            preprocess_translation_data(
+                self.translation_dir, extra_flags=["--joined-dictionary"]
+            )
+            # Train transformer with data_dir/checkpoint_last.pt
+            train_translation_model(
+                self.translation_dir,
+                arch="transformer_from_pretrained_xlm",
+                extra_flags=[
+                    "--decoder-layers",
+                    "1",
+                    "--decoder-embed-dim",
+                    "32",
+                    "--decoder-attention-heads",
+                    "1",
+                    "--decoder-ffn-embed-dim",
+                    "32",
+                    "--encoder-layers",
+                    "1",
+                    "--encoder-embed-dim",
+                    "32",
+                    "--encoder-attention-heads",
+                    "1",
+                    "--encoder-ffn-embed-dim",
+                    "32",
+                    "--pretrained-xlm-checkpoint",
+                    "{}/checkpoint_last.pt".format(self.data_dir),
+                    "--activation-fn",
+                    "gelu",
+                    "--max-source-positions",
+                    "500",
+                    "--max-target-positions",
+                    "500",
+                ]
+                + (
+                    ["--encoder-learned-pos", "--decoder-learned-pos"]
+                    if learned_pos_emb
+                    else []
                 )
-                create_dummy_data(self.translation_dir)
-                preprocess_translation_data(self.translation_dir, extra_flags=["--joined-dictionary"])
-                # Train transformer with data_dir/checkpoint_last.pt
-                train_translation_model(self.translation_dir, arch="transformer_from_pretrained_xlm", extra_flags=[
-                                                                                                                 "--decoder-layers",
-                                                                                                                 "1",
-                                                                                                                 "--decoder-embed-dim",
-                                                                                                                 "32",
-                                                                                                                 "--decoder-attention-heads",
-                                                                                                                 "1",
-                                                                                                                 "--decoder-ffn-embed-dim",
-                                                                                                                 "32",
-                                                                                                                 "--encoder-layers",
-                                                                                                                 "1",
-                                                                                                                 "--encoder-embed-dim",
-                                                                                                                 "32",
-                                                                                                                 "--encoder-attention-heads",
-                                                                                                                 "1",
-                                                                                                                 "--encoder-ffn-embed-dim",
-                                                                                                                 "32",
-                                                                                                                 "--pretrained-xlm-checkpoint",
-                                                                                                                 "{}/checkpoint_last.pt".format(
-                                                                                                                     self.data_dir),
-                                                                                                                 "--activation-fn",
-                                                                                                                 "gelu",
-                                                                                                                 "--max-source-positions",
-                                                                                                                 "500",
-                                                                                                                 "--max-target-positions",
-                                                                                                                 "500",
-                                                                                                             ]
-                                                                                                             + (
-                                                                                                                 [
-                                                                                                                     "--encoder-learned-pos",
-                                                                                                                     "--decoder-learned-pos"]
-                                                                                                                 if learned_pos_emb
-                                                                                                                 else []
-                                                                                                             )
-                                                                                                             + ([
-                                                                                                                    "--init-encoder-only"] if encoder_only else []),
-                                        task="translation_from_pretrained_xlm")
+                + (["--init-encoder-only"] if encoder_only else []),
+                task="translation_from_pretrained_xlm",
+            )
 
     def test_pretrained_masked_lm_for_translation_learned_pos_emb(self):
         self._test_pretrained_masked_lm_for_translation(True, False)
@@ -1380,18 +1563,20 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
 
 
 class TestOptimizers(BinaryTestCase):
-
     def test_optimizers(self):
         with contextlib.redirect_stdout(StringIO()):
-                # Use just a bit of data and tiny model to keep this test runtime reasonable
-                create_dummy_data(self.data_dir, num_examples=10, maxlen=5)
-                preprocess_translation_data(self.data_dir)
-                optimizers = ["adafactor", "adam", "nag", "adagrad", "sgd", "adadelta"]
-                last_checkpoint = os.path.join(self.data_dir, "checkpoint_last.pt")
-                for optimizer in optimizers:
-                    if os.path.exists(last_checkpoint):
-                        os.remove(last_checkpoint)
-                    train_translation_model(self.data_dir, "lstm", [
+            # Use just a bit of data and tiny model to keep this test runtime reasonable
+            create_dummy_data(self.data_dir, num_examples=10, maxlen=5)
+            preprocess_translation_data(self.data_dir)
+            optimizers = ["adafactor", "adam", "nag", "adagrad", "sgd", "adadelta"]
+            last_checkpoint = os.path.join(self.data_dir, "checkpoint_last.pt")
+            for optimizer in optimizers:
+                if os.path.exists(last_checkpoint):
+                    os.remove(last_checkpoint)
+                train_translation_model(
+                    self.data_dir,
+                    "lstm",
+                    [
                         "--required-batch-size-multiple",
                         "1",
                         "--encoder-layers",
@@ -1402,8 +1587,9 @@ class TestOptimizers(BinaryTestCase):
                         "1",
                         "--optimizer",
                         optimizer,
-                    ])
-                    generate_main(self.data_dir)
+                    ],
+                )
+                generate_main(self.data_dir)
 
 
 def create_dummy_roberta_head_data(
@@ -1472,7 +1658,7 @@ def train_masked_lm(data_dir, arch, extra_flags=None):
             "no_c10d",
             "--num-workers",
             "0",
-    ]
+        ]
         + (extra_flags or []),
     )
     train.main(train_args)
@@ -1515,7 +1701,7 @@ def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
             "no_c10d",
             "--num-workers",
             "0",
-    ]
+        ]
         + (extra_flags or []),
     )
     train.main(train_args)
@@ -1552,7 +1738,7 @@ def train_language_model(
             "no_c10d",
             "--num-workers",
             "0",
-    ]
+        ]
         + (extra_flags or []),
     )
     train.main(train_args)

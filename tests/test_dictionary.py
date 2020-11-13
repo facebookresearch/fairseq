@@ -68,7 +68,7 @@ class TestDictionary(unittest.TestCase):
         assertMatch(finalized_ids, ref_ids2)
 
         # write to disk and reload
-        with CustomNamedTemporaryFile(mode='w') as tmp_dict:
+        with CustomNamedTemporaryFile(mode="w") as tmp_dict:
             d.save(tmp_dict.name)
             d = Dictionary.load(tmp_dict.name)
             reload_ids = get_ids(d)
