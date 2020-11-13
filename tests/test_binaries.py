@@ -972,7 +972,7 @@ class TestMultilingualTranslationLatentDepth(TestCombinationTranslation):
                         + dec_ll_flag,
                     )
                 generate_main(
-                    self.data_dir,
+                    data_dir,
                     extra_flags=[
                         "--user-dir",
                         "examples/latent_depth/latent_depth_src",
