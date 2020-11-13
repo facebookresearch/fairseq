@@ -24,6 +24,8 @@ from tests.utils import (
     train_translation_model,
 )
 
+from abc import ABCMeta, abstractmethod
+
 
 try:
     import transformers  # noqa
@@ -203,26 +205,25 @@ class TestTranslation(BinaryTestCase):
 
     def test_transformer_with_activation_checkpointing(self):
         with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_transformer_with_act_cpt") as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_translation_data(data_dir)
-                train_translation_model(
-                    data_dir,
-                    "transformer_iwslt_de_en",
-                    [
-                        "--encoder-layers",
-                        "2",
-                        "--decoder-layers",
-                        "2",
-                        "--encoder-embed-dim",
-                        "8",
-                        "--decoder-embed-dim",
-                        "8",
-                        "--checkpoint-activations",
-                    ],
-                    run_validation=True,
-                )
-                generate_main(data_dir)
+            create_dummy_data(self.data_dir)
+            preprocess_translation_data(self.data_dir)
+            train_translation_model(
+                self.data_dir,
+                "transformer_iwslt_de_en",
+                [
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--checkpoint-activations",
+                ],
+                run_validation=True,
+            )
+            generate_main(self.data_dir)
 
     def test_multilingual_transformer(self):
         # test with all combinations of encoder/decoder lang tokens
@@ -321,54 +322,6 @@ class TestTranslation(BinaryTestCase):
                                                              + enc_ll_flag
                                                              + dec_ll_flag)
 
-    def test_translation_multi_simple_epoch(self):
-        # test with all combinations of encoder/decoder lang tokens
-        encoder_langtok_flags = [
-            [],
-            ["--encoder-langtok", "src"],
-            ["--encoder-langtok", "tgt"],
-        ]
-        decoder_langtok_flags = [[], ["--decoder-langtok"]]
-        with contextlib.redirect_stdout(StringIO()):
-            for i in range(len(encoder_langtok_flags)):
-                for j in range(len(decoder_langtok_flags)):
-                    enc_ltok_flag = encoder_langtok_flags[i]
-                    dec_ltok_flag = decoder_langtok_flags[j]
-                    create_dummy_data(self.data_dir)
-                    preprocess_translation_data(self.data_dir, extra_flags=["--joined-dictionary"])
-                    train_translation_model(self.data_dir, arch="transformer", extra_flags=[
-                                                                                               "--encoder-layers",
-                                                                                               "2",
-                                                                                               "--decoder-layers",
-                                                                                               "2",
-                                                                                               "--encoder-embed-dim",
-                                                                                               "8",
-                                                                                               "--decoder-embed-dim",
-                                                                                               "8",
-                                                                                               "--sampling-method",
-                                                                                               "temperature",
-                                                                                               "--sampling-temperature",
-                                                                                               "1.5",
-                                                                                               "--virtual-epoch-size",
-                                                                                               "1000",
-                                                                                           ]
-                                                                                           + enc_ltok_flag
-                                                                                           + dec_ltok_flag,
-                                            task="translation_multi_simple_epoch", run_validation=True,
-                                            lang_flags=["--lang-pairs", "in-out,out-in"],
-                                            extra_valid_flags=enc_ltok_flag + dec_ltok_flag)
-                    generate_main(self.data_dir, extra_flags=[
-                                                                 "--task",
-                                                                 "translation_multi_simple_epoch",
-                                                                 "--lang-pairs",
-                                                                 "in-out,out-in",
-                                                                 "--source-lang",
-                                                                 "in",
-                                                                 "--target-lang",
-                                                                 "out",
-                                                             ]
-                                                             + enc_ltok_flag
-                                                             + dec_ltok_flag)
 
     def test_translation_multi_simple_epoch_no_vepoch(self):
         # test with all combinations of encoder/decoder lang tokens
@@ -737,6 +690,201 @@ class TestTranslation(BinaryTestCase):
             ], run_validation=True)
             generate_main(self.data_dir)
 
+
+class TestCombinationTranslation(BinaryTestCase, metaclass=ABCMeta):
+    @property
+    @abstractmethod
+    def enc_it(self):
+        pass
+
+    @property
+    @abstractmethod
+    def dec_it(self):
+        pass
+
+    def setUp(self):
+        super().setUp()
+        self.data_dirs = {}
+        for i in range(len(self.enc_it)):
+            for j in range(len(self.dec_it)):
+                self.data_dirs[f"{i}_{j}"] = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        super().tearDown()
+        for val in self.data_dirs.values():
+            val.cleanup()
+
+
+class TestTranslationMultiSingleEpoch(TestCombinationTranslation):
+    @property
+    def enc_it(self):
+        self.encoder_langtok_flags = [[], ["--encoder-langtok", "src"], ["--encoder-langtok", "tgt"]]
+        return self.encoder_langtok_flags
+
+    @property
+    def dec_it(self):
+        self.decoder_langtok_flags = [[], ["--decoder-langtok"]]
+        return self.decoder_langtok_flags
+
+    def test_translation_multi_simple_epoch(self):
+        # test with all combinations of encoder/decoder lang tokens
+        with contextlib.redirect_stdout(StringIO()):
+            for i in range(len(self.encoder_langtok_flags)):
+                for j in range(len(self.decoder_langtok_flags)):
+                    data_dir = self.data_dirs[f"{i}_{j}"].name
+                    enc_ltok_flag = self.encoder_langtok_flags[i]
+                    dec_ltok_flag = self.decoder_langtok_flags[j]
+                    create_dummy_data(data_dir)
+                    preprocess_translation_data(data_dir, extra_flags=["--joined-dictionary"])
+                    train_translation_model(data_dir, arch="transformer", extra_flags=[
+                                                                                               "--encoder-layers",
+                                                                                               "2",
+                                                                                               "--decoder-layers",
+                                                                                               "2",
+                                                                                               "--encoder-embed-dim",
+                                                                                               "8",
+                                                                                               "--decoder-embed-dim",
+                                                                                               "8",
+                                                                                               "--sampling-method",
+                                                                                               "temperature",
+                                                                                               "--sampling-temperature",
+                                                                                               "1.5",
+                                                                                               "--virtual-epoch-size",
+                                                                                               "1000",
+                                                                                           ]
+                                                                                           + enc_ltok_flag
+                                                                                           + dec_ltok_flag,
+                                            task="translation_multi_simple_epoch", run_validation=True,
+                                            lang_flags=["--lang-pairs", "in-out,out-in"],
+                                            extra_valid_flags=enc_ltok_flag + dec_ltok_flag)
+                    generate_main(data_dir, extra_flags=[
+                                                                 "--task",
+                                                                 "translation_multi_simple_epoch",
+                                                                 "--lang-pairs",
+                                                                 "in-out,out-in",
+                                                                 "--source-lang",
+                                                                 "in",
+                                                                 "--target-lang",
+                                                                 "out",
+                                                             ]
+                                                             + enc_ltok_flag
+                                                             + dec_ltok_flag)
+
+
+class TestMultilingualTranslationLatentDepth(TestCombinationTranslation):
+    @property
+    def enc_it(self):
+        self.encoder_latent_layer = [[], ["--encoder-latent-layer"]]
+        return self.encoder_latent_layer
+
+    @property
+    def dec_it(self):
+        self.decoder_latent_layer = [[], ["--decoder-latent-layer"]]
+        return self.decoder_latent_layer
+
+    @unittest.skipIf(sys.platform.lower() in {"darwin", "win32"}, "skip latent depth test on MacOS and Windows")
+    def test_multilingual_translation_latent_depth(self):
+        # test with latent depth in encoder, decoder, or both
+
+        with contextlib.redirect_stdout(StringIO()):
+            for i in range(len(self.encoder_latent_layer)):
+                for j in range(len(self.decoder_latent_layer)):
+                    data_dir = self.data_dirs[f"{i}_{j}"].name
+                    if i == 0 and j == 0:
+                        continue
+                    enc_ll_flag = self.encoder_latent_layer[i]
+                    dec_ll_flag = self.decoder_latent_layer[j]
+                    create_dummy_data(data_dir)
+                    preprocess_translation_data(data_dir, extra_flags=["--joined-dictionary"])
+                    train_translation_model(data_dir, arch="latent_multilingual_transformer", extra_flags=[
+                                                                                                              "--user-dir",
+                                                                                                              "examples/latent_depth/latent_depth_src",
+                                                                                                              "--encoder-layers",
+                                                                                                              "2",
+                                                                                                              "--decoder-layers",
+                                                                                                              "2",
+                                                                                                              "--encoder-embed-dim",
+                                                                                                              "8",
+                                                                                                              "--decoder-embed-dim",
+                                                                                                              "8",
+                                                                                                              "--share-encoders",
+                                                                                                              "--share-decoders",
+                                                                                                              "--sparsity-weight",
+                                                                                                              "0.1",
+                                                                                                          ]
+                                                                                                          + enc_ll_flag
+                                                                                                          + dec_ll_flag,
+                                            task="multilingual_translation_latent_depth", run_validation=True,
+                                            lang_flags=["--lang-pairs", "in-out,out-in"], extra_valid_flags=[
+                                                                                                                "--user-dir",
+                                                                                                                "examples/latent_depth/latent_depth_src",
+                                                                                                            ]
+                                                                                                            + enc_ll_flag
+                                                                                                            + dec_ll_flag)
+                generate_main(self.data_dir, extra_flags=[
+                                                             "--user-dir",
+                                                             "examples/latent_depth/latent_depth_src",
+                                                             "--task",
+                                                             "multilingual_translation_latent_depth",
+                                                             "--lang-pairs",
+                                                             "in-out,out-in",
+                                                             "--source-lang",
+                                                             "in",
+                                                             "--target-lang",
+                                                             "out",
+                                                         ]
+                                                         + enc_ll_flag
+                                                         + dec_ll_flag)
+
+
+class TestMultilingualTranslationTransformer(TestCombinationTranslation):
+    @property
+    def enc_it(self):
+        self.encoder_langtok_flags = [[],["--encoder-langtok", "src"],["--encoder-langtok", "tgt"]]
+        return self.encoder_langtok_flags
+
+    @property
+    def dec_it(self):
+        self.decoder_langtok_flags = [[], ["--decoder-langtok"]]
+        return self.decoder_langtok_flags
+
+    def test_multilingual_transformer(self):
+        # test with all combinations of encoder/decoder lang tokens
+        with contextlib.redirect_stdout(StringIO()):
+            for i in range(len(self.encoder_langtok_flags)):
+                for j in range(len(self.decoder_langtok_flags)):
+                    data_dir = self.data_dirs[f"{i}_{j}"].name
+                    enc_ltok_flag = self.encoder_langtok_flags[i]
+                    dec_ltok_flag = self.decoder_langtok_flags[j]
+                    create_dummy_data(data_dir)
+                    preprocess_translation_data(data_dir)
+                    train_translation_model(data_dir, arch="multilingual_transformer", extra_flags=[
+                                                                                                            "--encoder-layers",
+                                                                                                            "2",
+                                                                                                            "--decoder-layers",
+                                                                                                            "2",
+                                                                                                            "--encoder-embed-dim",
+                                                                                                            "8",
+                                                                                                            "--decoder-embed-dim",
+                                                                                                            "8",
+                                                                                                        ]
+                                                                                                        + enc_ltok_flag
+                                                                                                        + dec_ltok_flag,
+                                            task="multilingual_translation", run_validation=True,
+                                            lang_flags=["--lang-pairs", "in-out,out-in"],
+                                            extra_valid_flags=enc_ltok_flag + dec_ltok_flag)
+                    generate_main(data_dir, extra_flags=[
+                                                                 "--task",
+                                                                 "multilingual_translation",
+                                                                 "--lang-pairs",
+                                                                 "in-out,out-in",
+                                                                 "--source-lang",
+                                                                 "in",
+                                                                 "--target-lang",
+                                                                 "out",
+                                                             ]
+                                                             + enc_ltok_flag
+                                                             + dec_ltok_flag)
 
 class TestStories(BinaryTestCase):
 
