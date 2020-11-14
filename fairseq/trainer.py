@@ -632,12 +632,16 @@ class Trainer(object):
                 grad_norm = self.clip_grad_norm(self.cfg.optimization.clip_norm)
 
             # check that grad norms are consistent across workers
-            if (
-                not self.cfg.optimization.use_bmuf
-                and self.cfg.distributed_training.distributed_wrapper != "SlowMo"
-                and not self.tpu
-            ):
-                self._check_grad_norms(grad_norm)
+            # on tpu check tensor is slow
+            if not self.tpu:
+                if (
+                    not self.cfg.optimization.use_bmuf
+                    and self.cfg.distributed_training.distributed_wrapper != "SlowMo"
+                ):
+                    self._check_grad_norms(grad_norm)
+                if not torch.isfinite(grad_norm).all():
+                    # check local gradnorm single GPU case, trigger NanDetector
+                    raise FloatingPointError("gradients are Nan/Inf")
 
             with torch.autograd.profiler.record_function("optimizer"):
                 # take an optimization step
@@ -1078,7 +1082,7 @@ class Trainer(object):
             def is_consistent(tensor):
                 max_abs_diff = torch.max(torch.abs(tensor - tensor[0]))
                 return (
-                    not torch.isfinite(tensor).any()
+                    torch.isfinite(tensor).all()
                     or (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
                 )
 
@@ -1090,7 +1094,8 @@ class Trainer(object):
                 error_detail = "grad_norm across the workers:\n{}\n".format(
                     pretty_detail
                 )
-                raise RuntimeError(
+                # use FloatingPointError to trigger NanDetector
+                raise FloatingPointError(
                     "Fatal error: gradients are inconsistent between workers. "
                     "Try --ddp-backend=no_c10d. "
                     "Or are you mixing up different generation of GPUs in training?"
