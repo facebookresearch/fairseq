@@ -496,7 +496,6 @@ def base_architecture(args):
     args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
     args.encoder_layers_to_keep = getattr(args, "encoder_layers_to_keep", None)
     args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
-    args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
     args.untie_weights_roberta = getattr(args, "untie_weights_roberta", False)
     args.spectral_norm_classification_head = getattr(
         args, "spectral_norm_classification_head", False
