@@ -42,8 +42,9 @@ class BinaryTestCase(unittest.TestCase):
         logging.disable(logging.CRITICAL)
 
     def tearDown(self):
-        self._tmp_dir.cleanup()
-
+        # self._tmp_dir is cleaned up automatically on gc.
+        # intentionally passing for Windows
+        pass
 
 class TestTranslation(BinaryTestCase):
     def test_fconv(self):
@@ -836,9 +837,9 @@ class TestCombinationTranslation(BinaryTestCase, metaclass=ABCMeta):
 
     def tearDown(self):
         super().tearDown()
-        for val in self.data_dirs.values():
-            val.cleanup()
-
+        # self.data_dirs.values() are cleaned up on gc.
+        # intentionally passing for Windows
+        pass
 
 class TestTranslationMultiSingleEpoch(TestCombinationTranslation):
     @property
@@ -1294,7 +1295,8 @@ class TestMaskedLanguageModel(BinaryTestCase):
 
     def tearDown(self):
         super().tearDown()
-        self._translation_dir.cleanup()
+        # self._translation_dir is cleaned up automatically on gc.
+        # intentionally passing for Windows
 
     def test_legacy_masked_lm(self):
         with contextlib.redirect_stdout(StringIO()):
