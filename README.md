@@ -34,6 +34,7 @@ We provide reference implementations of various sequence modeling papers:
   + [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
   + [Adaptive Input Representations for Neural Language Modeling (Baevski and Auli, 2018)](examples/language_model/README.adaptive_inputs.md)
   + [Lexically constrained decoding with dynamic beam allocation (Post & Vilar, 2018)](examples/constrained_decoding/README.md)
+  + [Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context](examples/truncated_bptt/README.md)
   + [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
   + [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
   + [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
@@ -59,8 +60,9 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
-* November 2020: Adopted [Hydra](https://github.com/facebookresearch/hydra) as a configuration framework;
-[added documentation explaining how to use it for new and existing projects](docs/hydra_integration.md)
+* November 2020: Adopted the [Hydra](https://github.com/facebookresearch/hydra) configuration framework
+  * [see documentation explaining how to use it for new and existing projects](docs/hydra_integration.md)
+* November 2020: [fairseq 0.10.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.10.0)
 * October 2020: [Added R3F/R4F (Better Fine-Tuning) code](examples/rxf/README.md)
 * October 2020: [Deep Transformer with Latent Depth code released](examples/latent_depth/README.md)
 * October 2020: [Added CRISS models and code](examples/criss/README.md)
@@ -69,13 +71,13 @@ We provide reference implementations of various sequence modeling papers:
 * August 2020: [Added lexically constrained decoding](examples/constrained_decoding/README.md)
 * August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
 * July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)
+
+<details><summary>Previous updates</summary><p>
+
 * May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
 * April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
 * April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
 * April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
-
-<details><summary>Previous updates</summary><p>
-
 * March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
 * February 2020: [mBART model and code released](examples/mbart/README.md)
 * February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/master/examples/backtranslation#training-your-own-model-wmt18-english-german)
@@ -99,10 +101,10 @@ We provide reference implementations of various sequence modeling papers:
   + beam search
   + Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
   + sampling (unconstrained, top-k and top-p/nucleus)
-  + lexically constrained decoding ([Post & Vilar, 2018](examples/constrained_decoding/README.md))
-* large mini-batch training even on a single GPU via delayed updates
-* mixed precision training (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
-* extensible: easily register new models, criterions, tasks, optimizers and learning rate schedulers
+  + [lexically constrained decoding](examples/constrained_decoding/README.md) (Post & Vilar, 2018)
+* [gradient accumulation](https://fairseq.readthedocs.io/en/latest/getting_started.html#large-mini-batch-training-with-delayed-updates) enables training with large mini-batches even on a single GPU
+* [mixed precision training](https://fairseq.readthedocs.io/en/latest/getting_started.html#training-with-half-precision-floating-point-fp16) (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
+* [extensible](https://fairseq.readthedocs.io/en/latest/overview.html): easily register new models, criterions, tasks, optimizers and learning rate schedulers
 * [flexible configuration](docs/hydra_integration.md) based on [Hydra](https://github.com/facebookresearch/hydra) allowing a combination of code, command-line and file based configuration
 
 We also provide [pre-trained models for translation and language modeling](#pre-trained-models-and-examples)
@@ -131,6 +133,9 @@ pip install --editable ./
 
 # on MacOS:
 # CFLAGS="-stdlib=libc++" pip install --editable ./
+
+# to install the latest stable release (0.10.0)
+# pip install fairseq==0.10.0
 ```
 
 * **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library:
