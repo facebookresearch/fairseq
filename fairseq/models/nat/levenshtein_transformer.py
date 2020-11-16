@@ -256,7 +256,7 @@ class LevenshteinTransformerModel(FairseqNATModel):
 
         initial_output_scores = initial_output_tokens.new_zeros(
             *initial_output_tokens.size()
-        ).type_as(encoder_out.encoder_out)
+        ).type_as(encoder_out["encoder_out"][0])
 
         return DecoderOut(
             output_tokens=initial_output_tokens,
@@ -357,8 +357,15 @@ class LevenshteinTransformerDecoder(FairseqNATDecoder):
         for _, layer in enumerate(layers[:early_exit]):
             x, attn, _ = layer(
                 x,
-                encoder_out.encoder_out if encoder_out is not None else None,
-                encoder_out.encoder_padding_mask if encoder_out is not None else None,
+                encoder_out["encoder_out"][0]
+                if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
+                else None,
+                encoder_out["encoder_padding_mask"][0]
+                if (
+                    encoder_out is not None
+                    and len(encoder_out["encoder_padding_mask"]) > 0
+                )
+                else None,
                 self_attn_mask=None,
                 self_attn_padding_mask=decoder_padding_mask,
             )

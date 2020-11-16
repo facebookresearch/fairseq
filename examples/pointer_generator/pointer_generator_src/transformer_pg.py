@@ -185,14 +185,14 @@ class TransformerPointerGeneratorEncoder(TransformerEncoder):
                   `(batch, src_len)`
         """
         encoder_out = super().forward(src_tokens, src_lengths, **kwargs)
-        return EncoderOut(
-            encoder_out=encoder_out.encoder_out,  # T x B x C
-            encoder_padding_mask=encoder_out.encoder_padding_mask,  # B x T
-            encoder_embedding=encoder_out.encoder_embedding,  # B x T x C
-            encoder_states=encoder_out.encoder_states,  # List[T x B x C]
-            src_tokens=src_tokens,  # B x T
-            src_lengths=None,
-        )
+        return {
+            "encoder_out": encoder_out["encoder_out"],  # T x B x C
+            "encoder_padding_mask": encoder_out["encoder_padding_mask"],  # B x T
+            "encoder_embedding": encoder_out["encoder_embedding"],  # B x T x C
+            "encoder_states": encoder_out["encoder_states"],  # List[T x B x C]
+            "src_tokens": [src_tokens],  # B x T
+            "src_lengths": [],
+        }
 
 
 class TransformerPointerGeneratorDecoder(TransformerDecoder):
@@ -284,7 +284,7 @@ class TransformerPointerGeneratorDecoder(TransformerDecoder):
             predictors = torch.cat((prev_output_embed, x), 2)
             p_gens = self.project_p_gens(predictors)
             p_gens = torch.sigmoid(p_gens)
-            x = self.output_layer(x, extra["attn"][0], encoder_out.src_tokens, p_gens)
+            x = self.output_layer(x, extra["attn"][0], encoder_out["src_tokens"][0], p_gens)
         return x, extra
 
     def output_layer(self, features, attn, src_tokens, p_gens, **kwargs):

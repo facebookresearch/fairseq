@@ -7,7 +7,6 @@ import math
 from typing import Dict, List, Optional
 
 import torch
-from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.sequence_generator import EnsembleModel
 from torch import Tensor
 
@@ -29,13 +28,13 @@ class FBEnsembleModelWithFork(EnsembleModel):
             torch.jit._fork(model.encoder.forward_torchscript, net_input)
             for model in self.models
         ]
-        return [EncoderOut(*torch.jit._wait(fut)) for fut in futures]
+        return [torch.jit._wait(fut) for fut in futures]
 
     @torch.jit.export
     def forward_decoder(
         self,
         tokens,
-        encoder_outs: List[EncoderOut],
+        encoder_outs: List[Dict[str, List[Tensor]]],
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
         temperature: float = 1.0,
     ):

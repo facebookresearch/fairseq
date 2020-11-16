@@ -26,15 +26,15 @@ class MeanPoolGatingNetwork(torch.nn.Module):
 
     def forward(self, encoder_out):
         if not (
-            hasattr(encoder_out, "encoder_out")
-            and hasattr(encoder_out, "encoder_padding_mask")
-            and encoder_out.encoder_out.size(2) == self.embed_dim
+            "encoder_out" in encoder_out
+            and "encoder_padding_mask" in encoder_out
+            and encoder_out["encoder_out"][0].size(2) == self.embed_dim
         ):
             raise ValueError("Unexpected format for encoder_out")
 
         # mean pooling over time
-        encoder_padding_mask = encoder_out.encoder_padding_mask  # B x T
-        encoder_out = encoder_out.encoder_out.transpose(0, 1)  # B x T x C
+        encoder_padding_mask = encoder_out["encoder_padding_mask"][0]  # B x T
+        encoder_out = encoder_out["encoder_out"][0].transpose(0, 1)    # B x T x C
         if encoder_padding_mask is not None:
             encoder_out = encoder_out.clone()  # required because of transpose above
             encoder_out[encoder_padding_mask] = 0
