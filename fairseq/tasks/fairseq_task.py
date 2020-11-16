@@ -7,6 +7,7 @@ import logging
 import os
 import warnings
 from argparse import Namespace
+from typing import List
 
 import torch
 from fairseq import metrics, search, tokenizer, utils
@@ -436,6 +437,11 @@ class FairseqTask(object):
         with torch.no_grad():
             loss, sample_size, logging_output = criterion(model, sample)
         return loss, sample_size, logging_output
+
+    def build_dataset_for_inference(
+        self, src_tokens: List[torch.Tensor], src_lengths: List[int], **kwargs
+    ) -> torch.utils.data.Dataset:
+        raise NotImplementedError
 
     def inference_step(
         self, generator, models, sample, prefix_tokens=None, constraints=None

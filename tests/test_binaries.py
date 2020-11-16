@@ -25,6 +25,14 @@ from tests.utils import (
 )
 
 
+try:
+    import transformers  # noqa
+
+    has_hf_transformers = True
+except ImportError:
+    has_hf_transformers = False
+
+
 class TestTranslation(unittest.TestCase):
     def setUp(self):
         logging.disable(logging.CRITICAL)
@@ -963,6 +971,36 @@ class TestLanguageModeling(unittest.TestCase):
                     ],
                 )
 
+    def test_transformer_lm_with_adaptive_softmax(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer_lm_with_adaptive_softmax") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_language_model(
+                    data_dir,
+                    "transformer_lm",
+                    [
+                        "--add-bos-token",
+                        "--criterion",
+                        "adaptive_loss",
+                        "--adaptive-softmax-cutoff",
+                        "5,10,15",
+                    ],
+                    run_validation=True,
+                )
+                eval_lm_main(data_dir)
+                generate_main(
+                    data_dir,
+                    [
+                        "--task",
+                        "language_modeling",
+                        "--sample-break-mode",
+                        "eos",
+                        "--tokens-per-sample",
+                        "500",
+                    ],
+                )
+
     def test_lightconv_lm(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_lightconv_lm") as data_dir:
@@ -1034,6 +1072,35 @@ class TestLanguageModeling(unittest.TestCase):
                         "500",
                     ],
                 )
+
+    @unittest.skipIf(not has_hf_transformers, "skip test if transformers is missing")
+    def test_transformer_xl_bptt_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer_xl_bptt_lm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                task_flags = [
+                    "--user-dir",
+                    "examples/truncated_bptt",
+                    "--task",
+                    "truncated_bptt_lm",
+                    "--batch-size",
+                    "2",
+                    "--tokens-per-sample",
+                    "50",
+                ]
+                train_language_model(
+                    data_dir=data_dir,
+                    arch="transformer_xl",
+                    extra_flags=task_flags + [
+                        "--n-layer",
+                        "2",
+                    ],
+                    task="truncated_bptt_lm",
+                    run_validation=True,
+                    extra_valid_flags=task_flags,
+                )
+                eval_lm_main(data_dir, extra_flags=task_flags)
 
 
 class TestMaskedLanguageModel(unittest.TestCase):
@@ -1478,13 +1545,15 @@ def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
     train.main(train_args)
 
 
-def train_language_model(data_dir, arch, extra_flags=None, run_validation=False):
+def train_language_model(
+    data_dir, arch, extra_flags=None, run_validation=False, extra_valid_flags=None, task="language_modeling"
+):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
         [
             "--task",
-            "language_modeling",
+            task,
             data_dir,
             "--arch",
             arch,
@@ -1492,10 +1561,6 @@ def train_language_model(data_dir, arch, extra_flags=None, run_validation=False)
             "adam",
             "--lr",
             "0.0001",
-            "--criterion",
-            "adaptive_loss",
-            "--adaptive-softmax-cutoff",
-            "5,10,15",
             "--max-tokens",
             "500",
             "--tokens-per-sample",
@@ -1523,7 +1588,7 @@ def train_language_model(data_dir, arch, extra_flags=None, run_validation=False)
             validate_parser,
             [
                 "--task",
-                "language_modeling",
+                task,
                 data_dir,
                 "--path",
                 os.path.join(data_dir, "checkpoint_last.pt"),
@@ -1534,12 +1599,13 @@ def train_language_model(data_dir, arch, extra_flags=None, run_validation=False)
                 "--no-progress-bar",
                 "--num-workers",
                 "0",
-            ],
+            ]
+            + (extra_valid_flags or []),
         )
         validate.main(validate_args)
 
 
-def eval_lm_main(data_dir):
+def eval_lm_main(data_dir, extra_flags=None):
     eval_lm_parser = options.get_eval_lm_parser()
     eval_lm_args = options.parse_args_and_arch(
         eval_lm_parser,
@@ -1550,7 +1616,7 @@ def eval_lm_main(data_dir):
             "--no-progress-bar",
             "--num-workers",
             "0",
-        ],
+        ] + (extra_flags or []),
     )
     eval_lm.main(eval_lm_args)
 
