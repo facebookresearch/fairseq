@@ -163,7 +163,7 @@ class NATransformerModel(FairseqNATModel):
 
         initial_output_scores = initial_output_tokens.new_zeros(
             *initial_output_tokens.size()
-        ).type_as(encoder_out.encoder_out)
+        ).type_as(encoder_out["encoder_out"][0])
 
         return DecoderOut(
             output_tokens=initial_output_tokens,
@@ -233,8 +233,11 @@ class NATransformerDecoder(FairseqNATDecoder):
 
     @ensemble_decoder
     def forward_length(self, normalize, encoder_out):
-        enc_feats = encoder_out.encoder_out  # T x B x C
-        src_masks = encoder_out.encoder_padding_mask  # B x T or None
+        enc_feats = encoder_out["encoder_out"][0]  # T x B x C
+        if len(encoder_out["encoder_padding_mask"]) > 0:
+            src_masks = encoder_out["encoder_padding_mask"][0]  # B x T
+        else:
+            src_masks = None
         enc_feats = _mean_pooling(enc_feats, src_masks)
         if self.sg_length_pred:
             enc_feats = enc_feats.detach()
@@ -264,8 +267,11 @@ class NATransformerDecoder(FairseqNATDecoder):
         """
         # embedding
         if embedding_copy:
-            src_embd = encoder_out.encoder_embedding
-            src_mask = encoder_out.encoder_padding_mask
+            src_embd = encoder_out["encoder_embedding"][0]
+            if len(encoder_out["encoder_padding_mask"]) > 0:
+                src_mask = encoder_out["encoder_padding_mask"][0]
+            else:
+                src_mask = None
             src_mask = (
                 ~src_mask
                 if src_mask is not None
@@ -297,8 +303,15 @@ class NATransformerDecoder(FairseqNATDecoder):
 
             x, attn, _ = layer(
                 x,
-                encoder_out.encoder_out if encoder_out is not None else None,
-                encoder_out.encoder_padding_mask if encoder_out is not None else None,
+                encoder_out["encoder_out"][0]
+                if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
+                else None,
+                encoder_out["encoder_padding_mask"][0]
+                if (
+                    encoder_out is not None
+                    and len(encoder_out["encoder_padding_mask"]) > 0
+                )
+                else None,
                 self_attn_mask=None,
                 self_attn_padding_mask=decoder_padding_mask,
             )
@@ -353,8 +366,11 @@ class NATransformerDecoder(FairseqNATDecoder):
         return copied_embedding
 
     def forward_length_prediction(self, length_out, encoder_out, tgt_tokens=None):
-        enc_feats = encoder_out.encoder_out  # T x B x C
-        src_masks = encoder_out.encoder_padding_mask  # B x T or None
+        enc_feats = encoder_out["encoder_out"][0]  # T x B x C
+        if len(encoder_out["encoder_padding_mask"]) > 0:
+            src_masks = encoder_out["encoder_padding_mask"][0]  # B x T
+        else:
+            src_masks = None
         if self.pred_length_offset:
             if src_masks is None:
                 src_lengs = enc_feats.new_ones(enc_feats.size(1)).fill_(

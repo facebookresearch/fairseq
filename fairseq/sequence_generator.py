@@ -11,7 +11,6 @@ import torch.nn as nn
 from fairseq import search, utils
 from fairseq.data import data_utils
 from fairseq.models import FairseqIncrementalDecoder
-from fairseq.models.fairseq_encoder import EncoderOut
 from torch import Tensor
 
 
@@ -806,13 +805,13 @@ class EnsembleModel(nn.Module):
     def forward_decoder(
         self,
         tokens,
-        encoder_outs: List[EncoderOut],
+        encoder_outs: List[Dict[str, List[Tensor]]],
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
         temperature: float = 1.0,
     ):
         log_probs = []
         avg_attn: Optional[Tensor] = None
-        encoder_out: Optional[EncoderOut] = None
+        encoder_out: Optional[Dict[str, List[Tensor]]] = None
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
@@ -868,7 +867,7 @@ class EnsembleModel(nn.Module):
         return avg_probs, avg_attn
 
     @torch.jit.export
-    def reorder_encoder_out(self, encoder_outs: Optional[List[EncoderOut]], new_order):
+    def reorder_encoder_out(self, encoder_outs: Optional[List[Dict[str, List[Tensor]]]], new_order):
         """
         Reorder encoder output according to *new_order*.
 
@@ -879,7 +878,7 @@ class EnsembleModel(nn.Module):
         Returns:
             *encoder_out* rearranged according to *new_order*
         """
-        new_outs: List[EncoderOut] = []
+        new_outs: List[Dict[str, List[Tensor]]] = []
         if not self.has_encoder():
             return new_outs
         for i, model in enumerate(self.models):
