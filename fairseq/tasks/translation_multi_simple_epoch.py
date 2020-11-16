@@ -138,12 +138,16 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         """
         if split in self.datasets:
             dataset = self.datasets[split]
-            if self.has_sharded_data(split) and dataset.load_next_shard:
-                shard_epoch = dataset.shard_epoch
-            else:
-                # no need to load next shard so skip loading
-                # also this avoid always loading from beginning of the data
-                return
+            if self.has_sharded_data(split):
+                if self.args.virtual_epoch_size is not None:
+                    if dataset.load_next_shard:
+                        shard_epoch = dataset.shard_epoch
+                    else:
+                        # no need to load next shard so skip loading
+                        # also this avoid always loading from beginning of the data
+                        return
+                else:
+                    shard_epoch = epoch
         else:
             # estimate the shard epoch from virtual data size and virtual epoch size
             shard_epoch = self.data_manager.estimate_global_pass_epoch(epoch)
@@ -153,7 +157,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             del self.datasets[split]
             logger.info("old dataset deleted manually")
             logger.info(f"mem usage: {data_utils.get_mem_usage()}")
-        self.datasets[split] = self.data_manager.load_sampled_multi_epoch_dataset(
+        self.datasets[split] = self.data_manager.load_dataset(
             split,
             self.training,
             epoch=epoch,
