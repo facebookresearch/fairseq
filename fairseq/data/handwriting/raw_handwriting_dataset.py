@@ -225,13 +225,12 @@ class RawHandwritingDataset(FairseqDataset):
             collated_labels = torch.IntTensor(size=(len(collated_labels_nontensor), max([len(i) for i in collated_labels_nontensor]))).fill_(self.label_pad_idx)
             for i, label in enumerate(collated_labels_nontensor):
                 collated_labels[i][:len(label)] = torch.tensor(label)
-            # TODO check collate labels to common length in a tensor
+            
             # TODO EOS stuff (?)
 
             # zeros where None
             target_lengths = torch.LongTensor([len(t) if t is not None else 0 for t in collated_labels_nontensor])
 
-            abcd = 1
             # [!] stuff with "_available" tells if data "\is actually present in the tensors or are there some defaults or sth
             return {
                 "id": torch.LongTensor([s["id"] for s in samples]), 
@@ -262,12 +261,10 @@ class RawHandwritingDataset(FairseqDataset):
             end = int(round(chars_begin + (j+2)*for_1_letter))
         return collated_label
 
-    def get_letter_ranges(self, full_alignments_original, full_label_original, cut_start=None, cut_end=None):
+    def get_letter_ranges(self, full_alignments_original, full_label_original, cut_start_original=None, cut_end_original=None):
 
-        if cut_start is None:
-            cut_start = 0
-        if cut_end is None:
-            cut_end = len(full_alignments_original) - 1
+        cut_start = 0 if cut_start_original is None else cut_start_original
+        cut_end = len(full_alignments_original) - 1 if cut_end_original is None else cut_end_original
 
         last_idx = self.label_blank_idx
         full_alignments = torch.cat([full_alignments_original, full_alignments_original.new_full((1,), self.label_pad_idx)])  # for no special case 
@@ -349,7 +346,7 @@ class RawHandwritingDataset(FairseqDataset):
 
         # no blanks, no need to span stuff; spaces according to alignment
 
-        if cut_start is not None or cut_end is not None:
+        if cut_start_original is not None or cut_end_original is not None:
             return collated_labels_with_ranges, ((max_end_before if max_end_before >= 0 else None), (min_begin_after if min_begin_after < cut_end - cut_start + 1 else None))
         else:
             return collated_labels_with_ranges
@@ -358,7 +355,7 @@ class RawHandwritingDataset(FairseqDataset):
     # modifies initial collated_alignments if needed
     def collate_labels(self, full_alignments_original, collated_alignments, full_label_original, cut_start, cut_end):  #, full_text):  # label is a list, text is a string
         
-        collated_labels_with_ranges, (mask_to, mask_from) = self.get_letter_ranges(full_alignments_original, full_label_original, cut_start=cut_start, cut_end=cut_end)
+        collated_labels_with_ranges, (mask_to, mask_from) = self.get_letter_ranges(full_alignments_original, full_label_original, cut_start_original=cut_start, cut_end_original=cut_end)
 
         # mask_to & mask_from are indices
 
