@@ -135,3 +135,5 @@ def processTranscriptLine(line_, alphabet_, mode_ = 2, buildAlphabetMode_= True,
     return result
 # End of processTranscriptLine()
 
+def num_between(num, start, end):
+    return num >= start and num <= end

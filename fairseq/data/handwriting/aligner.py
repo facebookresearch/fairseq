@@ -290,6 +290,7 @@ class Aligner:
                 symbolBoundaries_[t] = [ newIdx, symbolBoundaries_[t][1] ]
 
         # Optional insert of blanks between repeats like 'oo'
+        # [!] this is actually used like that, and symbol alignment alg when cropping should care for that (and new one should do now)
         if (symbolBoundaries_ is not None ) and insertSeparators_:
             self.insertBlanksAsSymbolSeperators(newPath, symbolBoundaries_)
 
