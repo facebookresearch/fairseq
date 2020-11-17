@@ -370,52 +370,49 @@ class TestTranslation(BinaryTestCase):
         with contextlib.redirect_stdout(StringIO()):
             enc_ltok_flag = ["--encoder-langtok", "src"]
             dec_ltok_flag = ["--decoder-langtok"]
-            with tempfile.TemporaryDirectory(
-                "test_translation_multi_simple_epoch_dict"
-            ) as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_translation_data(
-                    data_dir, extra_flags=[]
-                )
-                train_translation_model(
-                    data_dir,
-                    arch="transformer",
-                    task="translation_multi_simple_epoch",
-                    extra_flags=[
-                        "--encoder-layers",
-                        "2",
-                        "--decoder-layers",
-                        "2",
-                        "--encoder-embed-dim",
-                        "8",
-                        "--decoder-embed-dim",
-                        "8",
-                        "--sampling-method",
-                        "temperature",
-                        "--sampling-temperature",
-                        "1.5",
-                    ]
-                    + enc_ltok_flag
-                    + dec_ltok_flag,
-                    lang_flags=["--lang-pairs", "in-out"],
-                    run_validation=True,
-                    extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
-                )
-                generate_main(
-                    data_dir,
-                    extra_flags=[
-                        "--task",
-                        "translation_multi_simple_epoch",
-                        "--lang-pairs",
-                        "in-out",
-                        "--source-lang",
-                        "in",
-                        "--target-lang",
-                        "out",
-                    ]
-                    + enc_ltok_flag
-                    + dec_ltok_flag,
-                )
+            create_dummy_data(self.data_dir)
+            preprocess_translation_data(
+                self.data_dir, extra_flags=[]
+            )
+            train_translation_model(
+                self.data_dir,
+                arch="transformer",
+                task="translation_multi_simple_epoch",
+                extra_flags=[
+                    "--encoder-layers",
+                    "2",
+                    "--decoder-layers",
+                    "2",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--sampling-method",
+                    "temperature",
+                    "--sampling-temperature",
+                    "1.5",
+                ]
+                + enc_ltok_flag
+                + dec_ltok_flag,
+                lang_flags=["--lang-pairs", "in-out"],
+                run_validation=True,
+                extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
+            )
+            generate_main(
+                self.data_dir,
+                extra_flags=[
+                    "--task",
+                    "translation_multi_simple_epoch",
+                    "--lang-pairs",
+                    "in-out",
+                    "--source-lang",
+                    "in",
+                    "--target-lang",
+                    "out",
+                ]
+                + enc_ltok_flag
+                + dec_ltok_flag,
+            )
 
     def test_translation_multi_simple_epoch_dicts(self):
         # test with all combinations of encoder/decoder lang tokens
@@ -1160,33 +1157,32 @@ class TestLanguageModeling(BinaryTestCase):
 
     def test_transformer_lm_with_adaptive_softmax(self):
         with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_transformer_lm_with_adaptive_softmax") as data_dir:
-                create_dummy_data(data_dir)
-                preprocess_lm_data(data_dir)
-                train_language_model(
-                    data_dir,
-                    "transformer_lm",
-                    [
-                        "--add-bos-token",
-                        "--criterion",
-                        "adaptive_loss",
-                        "--adaptive-softmax-cutoff",
-                        "5,10,15",
-                    ],
-                    run_validation=True,
-                )
-                eval_lm_main(data_dir)
-                generate_main(
-                    data_dir,
-                    [
-                        "--task",
-                        "language_modeling",
-                        "--sample-break-mode",
-                        "eos",
-                        "--tokens-per-sample",
-                        "500",
-                    ],
-                )
+            create_dummy_data(self.data_dir)
+            preprocess_lm_data(self.data_dir)
+            train_language_model(
+                self.data_dir,
+                "transformer_lm",
+                [
+                    "--add-bos-token",
+                    "--criterion",
+                    "adaptive_loss",
+                    "--adaptive-softmax-cutoff",
+                    "5,10,15",
+                ],
+                run_validation=True,
+            )
+            eval_lm_main(self.data_dir)
+            generate_main(
+                self.data_dir,
+                [
+                    "--task",
+                    "language_modeling",
+                    "--sample-break-mode",
+                    "eos",
+                    "--tokens-per-sample",
+                    "500",
+                ],
+            )
 
     def test_lightconv_lm(self):
         with contextlib.redirect_stdout(StringIO()):
