@@ -1,0 +1,5 @@
+# @package _group_
+activation: gelu
+vq_type: gumbel
+vq_depth: 2
+combine_groups: true

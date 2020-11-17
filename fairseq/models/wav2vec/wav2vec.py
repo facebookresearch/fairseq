@@ -3,14 +3,18 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from dataclasses import dataclass, field
 import logging
 import math
+from typing import Optional, Tuple
+from omegaconf import II
 import sys
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fairseq.models import BaseFairseqModel, register_model, register_model_architecture
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.models import BaseFairseqModel, register_model
 from fairseq.modules import (
     Fp32GroupNorm,
     Fp32LayerNorm,
@@ -18,264 +22,208 @@ from fairseq.modules import (
     KmeansVectorQuantizer,
     TransposeLast,
 )
+from fairseq.tasks import FairseqTask
 from fairseq.utils import buffered_arange
 
 
 logger = logging.getLogger(__name__)
 
 
-@register_model("wav2vec")
+AGGREGATOR_CHOICES = ChoiceEnum(["cnn", "gru"])
+PROJECT_FEATURES_CHOICES = ChoiceEnum(["none", "same", "new"])
+ACTIVATION_CHOICES = ChoiceEnum(["relu", "gelu"])
+VQ_TYPE_CHOICES = ChoiceEnum(["none", "gumbel", "kmeans"])
+
+
+@dataclass
+class Wav2VecConfig(FairseqDataclass):
+    prediction_steps: int = field(
+        default=12, metadata={"help": "number of steps ahead to predict"}
+    )
+    sample_distance: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "sample distance from target. does not work properly with cross-sampling"
+        },
+    )
+    cross_sample_negatives: int = field(
+        default=0, metadata={"help": "num of cross sampled negatives"}
+    )
+    num_negatives: int = field(
+        default=10, metadata={"help": "num of cross sampled negatives"}
+    )
+    conv_feature_layers: str = field(
+        default="[(512, 10, 5), (512, 8, 4), (512, 4, 2), (512, 4, 2), (512, 4, 2), (512, 1, 1), (512, 1, 1), (512, 1, 1)]",
+        metadata={
+            "help": "convolutional feature extraction layers [(dim, kernel_size, stride), ...]"
+        },
+    )
+    conv_aggregator_layers: str = field(
+        default="[(512, 2, 1), (512, 3, 1), (512, 4, 1), (512, 5, 1), (512, 6, 1), (512, 7, 1), (512, 8, 1), (512, 9, 1), (512, 10, 1), (512, 11, 1), (512, 12, 1), (512, 13, 1)]",
+        metadata={
+            "help": "convolutional aggregator layers [(dim, kernel_size, stride), ...]"
+        },
+    )
+    dropout: float = field(
+        default=0.0, metadata={"help": "dropout to apply within the model"}
+    )
+    dropout_features: float = field(
+        default=0.0, metadata={"help": "dropout to apply to the features"}
+    )
+    dropout_agg: float = field(
+        default=0.0, metadata={"help": "dropout to apply after aggregation step"}
+    )
+    aggregator: AGGREGATOR_CHOICES = field(
+        default="cnn", metadata={"help": "type of aggregator to use"}
+    )
+    gru_dim: int = field(default=512, metadata={"help": "GRU dimensionality"})
+    no_conv_bias: bool = field(
+        default=False, metadata={"help": "if set, does not learn bias for conv layers"}
+    )
+    agg_zero_pad: bool = field(
+        default=False,
+        metadata={"help": "if set, zero pads in aggregator instead of repl pad"},
+    )
+    skip_connections_feat: bool = field(
+        default=False,
+        metadata={"help": "if set, adds skip connections to the feature extractor"},
+    )
+    skip_connections_agg: bool = field(
+        default=True,
+        metadata={"help": "if set, adds skip connections to the aggregator"},
+    )
+    residual_scale: float = field(
+        default=0.5, metadata={"help": "scales residual by sqrt(value)"}
+    )
+    log_compression: bool = field(
+        default=True,
+        metadata={"help": "if set, adds a log compression to feature extractor"},
+    )
+    balanced_classes: bool = field(
+        default=False,
+        metadata={"help": "if set, loss is scaled to balance for number of negatives"},
+    )
+    project_features: PROJECT_FEATURES_CHOICES = field(
+        default="none",
+        metadata={
+            "help": "if not none, features are projected using the (same or new) aggregator"
+        },
+    )
+    non_affine_group_norm: bool = field(
+        default=False, metadata={"help": "if set, group norm is not affine"}
+    )
+    offset: str = field(
+        default="auto",
+        metadata={
+            "help": "if set to 'auto', it is computed automatically from the receptive field, else set to int value"
+        },
+    )
+    activation: ACTIVATION_CHOICES = field(
+        default="relu",
+        metadata={
+            "help": "if set to 'auto', it is computed automatically from the receptive field, else set to int value"
+        },
+    )
+    vq_type: VQ_TYPE_CHOICES = field(
+        default="none", metadata={"help": "which type of quantizer to use"}
+    )
+    vq_vars: int = field(
+        default=320,
+        metadata={"help": "project to this many vector quantized variables per group"},
+    )
+    vq_groups: int = field(
+        default=2, metadata={"help": "number of groups of latent variables"}
+    )
+    vq_dim: int = field(
+        default=0,
+        metadata={
+            "help": "uses this dimensionality for quantized vectors. 0 to use model dim // groups"
+        },
+    )
+    vq_depth: int = field(
+        default=1, metadata={"help": "number of layers for vq weight projection"}
+    )
+    combine_groups: bool = field(
+        default=False, metadata={"help": "if set, variables are shared among groups"}
+    )
+    vq_temp: Tuple[float, float, float] = field(
+        default=(2.0, 0.5, 0.999995),
+        metadata={
+            "help": "temperature for latent variable sampling with gumbel softmax. should be a tuple of 3 values (start, end, decay)"
+        },
+    )
+    vq_gamma: float = field(
+        default=0.25,
+        metadata={"help": "gamma parameter for kmeans style vector quantization"},
+    )
+    infonce: bool = II("criterion.infonce")
+
+
+@register_model("wav2vec", dataclass=Wav2VecConfig)
 class Wav2VecModel(BaseFairseqModel):
-    @staticmethod
-    def add_args(parser):
-        """Add model-specific arguments to the parser."""
-        parser.add_argument(
-            "--prediction-steps",
-            type=int,
-            metavar="N",
-            help="number of steps ahead to predict",
-        )
-        parser.add_argument(
-            "--sample-distance",
-            type=int,
-            metavar="N",
-            help="sample distance from target. does not work properly with cross-sampling",
-        )
-        parser.add_argument(
-            "--cross-sample-negatives",
-            type=int,
-            metavar="N",
-            help="num of cross sampled negatives",
-        )
-        parser.add_argument(
-            "--num-negatives", type=int, metavar="N", help="number of negative examples"
-        )
-        parser.add_argument(
-            "--conv-feature-layers",
-            type=str,
-            metavar="EXPR",
-            help="convolutional feature extraction layers [(dim, kernel_size, stride), ...]",
-        )
-        parser.add_argument(
-            "--conv-aggregator-layers",
-            type=str,
-            metavar="EXPR",
-            help="convolutional feature extraction layers [(dim, kernel_size, stride), ...]",
-        )
-        parser.add_argument(
-            "--dropout",
-            type=float,
-            metavar="D",
-            help="dropout to apply within the model",
-        )
-        parser.add_argument(
-            "--dropout-features",
-            type=float,
-            metavar="D",
-            help="dropout to apply to the features",
-        )
-        parser.add_argument(
-            "--dropout-agg",
-            type=float,
-            metavar="D",
-            help="dropout to apply after aggregation step",
-        )
-        parser.add_argument(
-            "--encoder", type=str, choices=["cnn"], help="type of encoder to use"
-        )
-        parser.add_argument(
-            "--aggregator",
-            type=str,
-            choices=["cnn", "gru"],
-            help="type of aggregator to use",
-        )
-        parser.add_argument(
-            "--gru-dim", type=int, metavar="N", help="GRU dimensionality"
-        )
-
-        parser.add_argument(
-            "--no-conv-bias",
-            action="store_true",
-            help="if set, does not learn bias for conv layers",
-        )
-        parser.add_argument(
-            "--agg-zero-pad",
-            action="store_true",
-            help="if set, zero pads in aggregator instead of repl pad",
-        )
-
-        parser.add_argument(
-            "--skip-connections-feat",
-            action="store_true",
-            help="if set, adds skip connections to the feature extractor",
-        )
-        parser.add_argument(
-            "--skip-connections-agg",
-            action="store_true",
-            help="if set, adds skip connections to the aggregator",
-        )
-        parser.add_argument(
-            "--residual-scale",
-            type=float,
-            metavar="D",
-            help="scales residual by sqrt(value)",
-        )
-
-        parser.add_argument(
-            "--log-compression",
-            action="store_true",
-            help="if set, adds a log compression to feature extractor",
-        )
-
-        parser.add_argument(
-            "--balanced-classes",
-            action="store_true",
-            help="if set, loss is scaled to balance for number of negatives",
-        )
-
-        parser.add_argument(
-            "--project-features",
-            choices=["none", "same", "new"],
-            help="if not none, features are projected using the (same or new) aggregator",
-        )
-
-        parser.add_argument(
-            "--non-affine-group-norm",
-            action="store_true",
-            help="if set, group norm is not affine",
-        )
-
-        parser.add_argument(
-            "--offset",
-            help="if set, introduces an offset from target to predictions. "
-            'if set to "auto", it is computed automatically from the receptive field',
-        )
-
-        parser.add_argument(
-            "--activation",
-            type=str,
-            choices=["relu", "gelu"],
-            help="which activation function to use",
-        )
-
-        parser.add_argument(
-            "--vq-type",
-            type=str,
-            choices=["none", "gumbel", "kmeans"],
-            help="which type of quantizer to use",
-        )
-        parser.add_argument(
-            "--vq-vars",
-            type=int,
-            metavar="N",
-            help="if set, project to this many vector quantized variables per group",
-        )
-        parser.add_argument(
-            "--vq-groups",
-            type=int,
-            metavar="N",
-            help="number of groups of latent variables",
-        )
-        parser.add_argument(
-            "--vq-dim",
-            type=int,
-            metavar="N",
-            help="uses this dimensionality for quantized vectors",
-        )
-        parser.add_argument(
-            "--vq-depth",
-            type=int,
-            metavar="N",
-            help="number of layers for vq weight projection",
-        )
-        parser.add_argument(
-            "--combine-groups",
-            action="store_true",
-            help="if set, variables are shared among groups",
-        )
-        parser.add_argument(
-            "--vq-temp",
-            type=str,
-            metavar="TEMP",
-            help="temperature for latent variable sampling with gumbel softmax. should be a tuple of 3 values (start, end, decay)",
-        )
-        parser.add_argument(
-            "--vq-gamma",
-            type=float,
-            metavar="D",
-            help="gamma parameter for kmeans style vector quantization",
-        )
-
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(cls, cfg: Wav2VecConfig, task: FairseqTask):
         """Build a new model instance."""
 
-        # make sure all arguments are present in older models
-        base_wav2vec_architecture(args)
-
-        model = Wav2VecModel(args)
+        model = Wav2VecModel(cfg)
         logger.info(model)
         return model
 
-    def __init__(self, args):
+    def __init__(self, cfg: Wav2VecConfig):
         super().__init__()
 
-        self.prediction_steps = args.prediction_steps
-        offset = args.offset
+        self.prediction_steps = cfg.prediction_steps
+        offset = cfg.offset
 
-        if args.activation == "relu":
+        if cfg.activation == "relu":
             activation = nn.ReLU()
-        elif args.activation == "gelu":
+        elif cfg.activation == "gelu":
             activation = nn.GELU()
         else:
-            raise Exception("unknown activation " + args.activation)
+            raise Exception("unknown activation " + cfg.activation)
 
-        if args.encoder == "cnn":
-            feature_enc_layers = eval(args.conv_feature_layers)
-            self.feature_extractor = ConvFeatureExtractionModel(
-                conv_layers=feature_enc_layers,
-                dropout=0.0,
-                log_compression=args.log_compression,
-                skip_connections=args.skip_connections_feat,
-                residual_scale=args.residual_scale,
-                non_affine_group_norm=args.non_affine_group_norm,
-                activation=activation,
-            )
-            embed = feature_enc_layers[-1][0]
-        else:
-            raise Exception("unknown encoder type " + args.encoder)
+        feature_enc_layers = eval(cfg.conv_feature_layers)
+        self.feature_extractor = ConvFeatureExtractionModel(
+            conv_layers=feature_enc_layers,
+            dropout=0.0,
+            log_compression=cfg.log_compression,
+            skip_connections=cfg.skip_connections_feat,
+            residual_scale=cfg.residual_scale,
+            non_affine_group_norm=cfg.non_affine_group_norm,
+            activation=activation,
+        )
+        embed = feature_enc_layers[-1][0]
 
         self.vector_quantizer = None
-        if args.vq_type == "gumbel":
+        if cfg.vq_type == "gumbel":
             self.vector_quantizer = GumbelVectorQuantizer(
                 dim=embed,
-                num_vars=args.vq_vars,
-                temp=eval(args.vq_temp),
-                groups=args.vq_groups,
-                combine_groups=args.combine_groups,
-                vq_dim=args.vq_dim if args.vq_dim > 0 else embed,
+                num_vars=cfg.vq_vars,
+                temp=cfg.vq_temp,
+                groups=cfg.vq_groups,
+                combine_groups=cfg.combine_groups,
+                vq_dim=cfg.vq_dim if cfg.vq_dim > 0 else embed,
                 time_first=False,
                 activation=activation,
-                weight_proj_depth=args.vq_depth,
+                weight_proj_depth=cfg.vq_depth,
                 weight_proj_factor=2,
             )
-        elif args.vq_type == "kmeans":
+        elif cfg.vq_type == "kmeans":
             self.vector_quantizer = KmeansVectorQuantizer(
                 dim=embed,
-                num_vars=args.vq_vars,
-                groups=args.vq_groups,
-                combine_groups=args.combine_groups,
-                vq_dim=args.vq_dim if args.vq_dim > 0 else embed,
+                num_vars=cfg.vq_vars,
+                groups=cfg.vq_groups,
+                combine_groups=cfg.combine_groups,
+                vq_dim=cfg.vq_dim if cfg.vq_dim > 0 else embed,
                 time_first=False,
-                gamma=args.vq_gamma,
+                gamma=cfg.vq_gamma,
             )
         else:
             assert (
-                args.vq_type == "none" or args.vq_type is None
+                cfg.vq_type == "none" or cfg.vq_type is None
             ), "Unknown quantizer type"
 
-        if args.offset == "auto":
-            assert args.encoder == "cnn"
+        if cfg.offset == "auto":
             jin = 0
             rin = 0
             for _, k, stride in feature_enc_layers:
@@ -291,34 +239,34 @@ class Wav2VecModel(BaseFairseqModel):
         offset = int(offset)
 
         def make_aggregator():
-            if args.aggregator == "cnn":
-                agg_layers = eval(args.conv_aggregator_layers)
+            if cfg.aggregator == "cnn":
+                agg_layers = eval(cfg.conv_aggregator_layers)
                 agg_dim = agg_layers[-1][0]
                 feature_aggregator = ConvAggegator(
                     conv_layers=agg_layers,
                     embed=embed,
-                    dropout=args.dropout,
-                    skip_connections=args.skip_connections_agg,
-                    residual_scale=args.residual_scale,
-                    non_affine_group_norm=args.non_affine_group_norm,
-                    conv_bias=not args.no_conv_bias,
-                    zero_pad=args.agg_zero_pad,
+                    dropout=cfg.dropout,
+                    skip_connections=cfg.skip_connections_agg,
+                    residual_scale=cfg.residual_scale,
+                    non_affine_group_norm=cfg.non_affine_group_norm,
+                    conv_bias=not cfg.no_conv_bias,
+                    zero_pad=cfg.agg_zero_pad,
                     activation=activation,
                 )
-            elif args.aggregator == "gru":
-                agg_dim = args.gru_dim
+            elif cfg.aggregator == "gru":
+                agg_dim = cfg.gru_dim
                 feature_aggregator = nn.Sequential(
                     TransposeLast(),
                     nn.GRU(
                         input_size=embed,
                         hidden_size=agg_dim,
                         num_layers=1,
-                        dropout=args.dropout,
+                        dropout=cfg.dropout,
                     ),
                     TransposeLast(deconstruct_idx=0),
                 )
             else:
-                raise Exception("unknown aggregator type " + args.aggregator)
+                raise Exception("unknown aggregator type " + cfg.aggregator)
 
             return feature_aggregator, agg_dim
 
@@ -327,24 +275,24 @@ class Wav2VecModel(BaseFairseqModel):
         self.wav2vec_predictions = Wav2VecPredictionsModel(
             in_dim=agg_dim,
             out_dim=embed,
-            prediction_steps=args.prediction_steps,
-            n_negatives=args.num_negatives,
-            cross_sample_negatives=args.cross_sample_negatives,
-            sample_distance=args.sample_distance,
-            dropout=args.dropout,
+            prediction_steps=cfg.prediction_steps,
+            n_negatives=cfg.num_negatives,
+            cross_sample_negatives=cfg.cross_sample_negatives,
+            sample_distance=cfg.sample_distance,
+            dropout=cfg.dropout,
             offset=offset,
-            balanced_classes=args.balanced_classes,
-            infonce=args.infonce,
+            balanced_classes=cfg.balanced_classes,
+            infonce=cfg.infonce,
         )
 
-        self.dropout_feats = nn.Dropout(p=args.dropout_features)
-        self.dropout_agg = nn.Dropout(p=args.dropout_agg)
+        self.dropout_feats = nn.Dropout(p=cfg.dropout_features)
+        self.dropout_agg = nn.Dropout(p=cfg.dropout_agg)
 
-        if args.project_features == "none":
+        if cfg.project_features == "none":
             self.project_features = None
-        elif args.project_features == "same":
+        elif cfg.project_features == "same":
             self.project_features = self.feature_aggregator
-        elif args.project_features == "new":
+        elif cfg.project_features == "new":
             self.project_features, _ = make_aggregator()
 
     def forward(self, source):
@@ -680,56 +628,3 @@ class Wav2VecPredictionsModel(nn.Module):
                 labels = (labels, weights)
 
         return predictions, labels
-
-
-@register_model_architecture("wav2vec", "wav2vec")
-def base_wav2vec_architecture(args):
-    conv_feature_layers = "[(512, 10, 5)]"
-    conv_feature_layers += " + [(512, 8, 4)]"
-    conv_feature_layers += " + [(512, 4, 2)] * 3"
-    args.conv_feature_layers = getattr(args, "conv_feature_layers", conv_feature_layers)
-
-    args.conv_aggregator_layers = getattr(
-        args, "conv_aggregator_layers", "[(512, 3, 1)] * 9"
-    )
-
-    args.prediction_steps = getattr(args, "prediction_steps", 12)
-    args.num_negatives = getattr(args, "num_negatives", 1)
-    args.sample_distance = getattr(args, "sample_distance", None)
-    args.cross_sample_negatives = getattr(args, "cross_sample_negatives", 0)
-
-    args.dropout = getattr(args, "dropout", 0.0)
-    args.dropout_features = getattr(args, "dropout_features", 0.0)
-    args.dropout_agg = getattr(args, "dropout_agg", 0.0)
-    args.encoder = getattr(args, "encoder", "cnn")
-    args.aggregator = getattr(args, "aggregator", "cnn")
-
-    args.skip_connections_feat = getattr(args, "skip_connections_feat", False)
-    args.skip_connections_agg = getattr(args, "skip_connections_agg", False)
-    args.residual_scale = getattr(args, "residual_scale", 0.5)
-
-    args.gru_dim = getattr(args, "gru_dim", 512)
-
-    args.no_conv_bias = getattr(args, "no_conv_bias", False)
-    args.agg_zero_pad = getattr(args, "agg_zero_pad", False)
-
-    args.log_compression = getattr(args, "log_compression", False)
-
-    args.balanced_classes = getattr(args, "balanced_classes", False)
-    args.infonce = getattr(args, "infonce", False)
-    args.project_features = getattr(args, "project_features", "none")
-
-    args.non_affine_group_norm = getattr(args, "non_affine_group_norm", False)
-
-    args.offset = getattr(args, "offset", "auto")
-
-    args.activation = getattr(args, "activation", "relu")
-
-    args.vq_type = getattr(args, "vq_type", "none")
-    args.vq_vars = getattr(args, "vq_vars", 320)
-    args.vq_groups = getattr(args, "vq_groups", 2)
-    args.vq_dim = getattr(args, "vq_dim", 0)
-    args.vq_depth = getattr(args, "vq_depth", 1)
-    args.combine_groups = getattr(args, "combine_groups", False)
-    args.vq_temp = getattr(args, "vq_temp", "(2.0, 0.5, 0.999995)")
-    args.vq_gamma = getattr(args, "vq_gamma", 0.25)
