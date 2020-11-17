@@ -4,33 +4,42 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 import torch
 import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.dataclass import FairseqDataclass
 from fairseq.logging.meters import safe_round
 
 
-@register_criterion("wav2vec")
+@dataclass
+class Wav2VecCriterionConfig(FairseqDataclass):
+    infonce: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, uses cross entropy instead of binary cross entropy (i.e. InfoNCE loss)"
+        },
+    )
+    loss_weights: Optional[List[float]] = field(
+        default=None,
+        metadata={"help": "weights for additional loss terms (not first one)"},
+    )
+    log_keys: List[str] = field(
+        default_factory=lambda: [],
+        metadata={"help": "output keys to log"},
+    )
+
+
+@register_criterion("wav2vec", dataclass=Wav2VecCriterionConfig)
 class Wav2vecCriterion(FairseqCriterion):
     def __init__(self, task, infonce=False, loss_weights=None, log_keys=None):
         super().__init__(task)
         self.infonce = infonce
-        self.loss_weights = None if loss_weights is None else eval(loss_weights)
-        self.log_keys = [] if log_keys is None else eval(log_keys)
-
-    @staticmethod
-    def add_args(parser):
-        """Add criterion-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('--infonce', action='store_true',
-                            help='if set, uses cross entropy instead of binary cross entropy (i.e. InfoNCE loss)')
-        parser.add_argument('--loss-weights', type=str, default=None,
-                            help='weights for additional loss terms (not first one)')
-        parser.add_argument('--log-keys', type=str, default=None,
-                            help='output keys to log')
-        # fmt: on
+        self.loss_weights = loss_weights
+        self.log_keys = [] if log_keys is None else log_keys
 
     def forward(self, model, sample, reduce=True, log_pred=False):
         """Compute the loss for the given sample.
