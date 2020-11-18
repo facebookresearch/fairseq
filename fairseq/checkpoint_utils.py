@@ -267,6 +267,8 @@ def load_model_ensemble(
 def load_model_ensemble_and_task(
     filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1, state=None
 ):
+    assert state is None or len(filenames) == 1
+
     from fairseq import tasks
 
     assert not (
@@ -303,6 +305,10 @@ def load_model_ensemble_and_task(
             model = task.build_model(cfg.model)
 
             model.load_state_dict(state["model"], strict=strict, model_cfg=cfg.model)
+
+            # reset state so it gets loaded for the next model in ensemble
+            state = None
+
         ensemble.append(model)
     return ensemble, cfg, task
 
