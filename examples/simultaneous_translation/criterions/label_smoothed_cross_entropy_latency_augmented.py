@@ -14,7 +14,7 @@ from fairseq.criterions.label_smoothed_cross_entropy import (
 class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
     LabelSmoothedCrossEntropyCriterion
 ):
-     def __init__(self,
+    def __init__(self,
         task,
         sentence_avg, 
         label_smoothing,
