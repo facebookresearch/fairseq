@@ -108,19 +108,11 @@ class ScribblelensTask(LegacyFairseqTask):
 
         else:
 
-            # TODO change this stuff!
-
-            #assert False  ## TODO(JCh): we must load labels from scribblelens.
             # https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/README.md#fine-tune-a-pre-trained-model-with-ctc
-            # fairseq/examples/wav2vec/libri_labels.py
+            # fairseq/examples/wav2vec/libri_labels.py   - some example of labels for librispeech, how it worked with commented out code
 
             dict_path = FileHandwritingDataset.vocabularyPath(self.args.data)  #os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
             self._target_dictionary = HandwritingDictionary(dict_path)  #Dictionary.load(dict_path)  
-
-            # this dictionary ^ seems to be a file with perhaps just words? or only one occurence? or sth? 
-            # seems what it does behind the hood is split the transcribed line into words and encode each word with some id, seems it assigns new ids from 0/1 for every new word it sees
-            # perhaps for letters can just be letter - 'a' or sth
-            # what if stuff will learn classification in a different order? need to add some additional layer or what? well, yeah, there needs to be some to predict letters from representations
 
             # label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")  # generated an example how this looks like
             # labels = []
@@ -128,7 +120,7 @@ class ScribblelensTask(LegacyFairseqTask):
             #     for line in f:
             #         labels.append(line)
 
-            # process_label = LabelEncoder(self.target_dictionary)  // mayyybe TODO sth with that
+            # process_label = LabelEncoder(self.target_dictionary)  // now encoded from the start (but text also available)
 
             self.datasets[split] = FileHandwritingDataset(
                 self.args.data,
