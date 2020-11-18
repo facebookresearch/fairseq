@@ -33,6 +33,10 @@ class ScribblelensTask(LegacyFairseqTask):
         """Add task-specific arguments to the parser."""
         parser.add_argument("data", help="path to data directory")
         parser.add_argument(
+            "--vocab-path", 
+            default=None, 
+            help="path to data directory")
+        parser.add_argument(
             "--normalize",
             action="store_true",
             help="if set, normalizes input to have 0 mean and unit variance",
@@ -67,8 +71,8 @@ class ScribblelensTask(LegacyFairseqTask):
             "--labels",
             # type=bool,
             # default=None,
-            type=str,
-            #action="store_true",  
+            #type=str,
+            action="store_true",  
             help="if to return also labels from dataset" #"extension of the label file to load, if any",
         )
 
@@ -93,9 +97,13 @@ class ScribblelensTask(LegacyFairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
+
+        vocab_path = self.args.vocab_path if self.args.vocab_path is not None else self.args.data + '/tasman.alphabet.plus.space.mode5.json'
+
         if not self.args.labels:
             self.datasets[split] = FileHandwritingDataset(
                 self.args.data,
+                vocab_path=vocab_path,
                 split=split,
                 max_sample_size=self.args.max_sample_size,
                 min_sample_size=self.args.max_sample_size,
@@ -111,8 +119,8 @@ class ScribblelensTask(LegacyFairseqTask):
             # https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/README.md#fine-tune-a-pre-trained-model-with-ctc
             # fairseq/examples/wav2vec/libri_labels.py   - some example of labels for librispeech, how it worked with commented out code
 
-            dict_path = FileHandwritingDataset.vocabularyPath(self.args.data)  #os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
-            self._target_dictionary = HandwritingDictionary(dict_path)  #Dictionary.load(dict_path)  
+            #dict_path = FileHandwritingDataset.vocabularyPath(self.args.data)  #os.path.join(self.args.data, f"dict.{self.args.labels}.txt")
+            self._target_dictionary = HandwritingDictionary(vocab_path)  #Dictionary.load(dict_path)  
 
             # label_path = os.path.join(self.args.data, f"{split}.{self.args.labels}")  # generated an example how this looks like
             # labels = []
@@ -124,6 +132,7 @@ class ScribblelensTask(LegacyFairseqTask):
 
             self.datasets[split] = FileHandwritingDataset(
                 self.args.data,
+                vocab_path=vocab_path,
                 split=split,
                 max_sample_size=self.args.max_sample_size,
                 min_sample_size=self.args.max_sample_size,

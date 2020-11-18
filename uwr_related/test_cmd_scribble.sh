@@ -36,9 +36,10 @@
 #   --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
 #   --enable_padding  # crashes without that, needs to make all lines same-size
 
-
+# [!] needs to be run from fairseq main folder
 python train.py --distributed-world-size 1 --update-freq 2 \
-  /pio/scratch/1/i283340/MGR/NewSetup/DistSup/data \
+  /pio/scratch/1/i283340/MGR/NewSetup/DistSup/data `#path to Scribblelens data folder` \
+  --vocab-path ./fairseq/data/handwriting/tasman.alphabet.plus.space.mode5.json `#alphabet file` \
   --save-dir ../try_sl1 --num-workers 0 \
   --task scribblelens --criterion wav2vec --arch wav2vec2_scribblelens \
   --valid-subset test --pad-to-multiples-of 4 `#--max-sample-size 256` \
@@ -55,4 +56,5 @@ python train.py --distributed-world-size 1 --update-freq 2 \
   `#--max-sample-size 250000 --min-sample-size 32000` \
   --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 --max-tokens 10000 --max-update 400000 \
   --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+  --labels `#can be removed for no labels` \
   --enable-padding # crashes without that, needs to make all lines same-size
