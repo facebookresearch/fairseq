@@ -180,7 +180,7 @@ class GeneratorHubInterface(nn.Module):
         if verbose:
 
             def getarg(name, default):
-                return getattr(gen_args, name, getattr(self.args, name, default))
+                return getattr(gen_args, name, getattr(self.cfg, name, default))
 
             for source_tokens, target_hypotheses in zip(tokenized_sentences, outputs):
                 src_str_with_unk = self.string(source_tokens)
