@@ -170,7 +170,7 @@ cdef class DatasetSearcher(object):
                 self.current_offset += to_consume
                 self.current_i += to_consume
             else:
-                assert remaining > 0
+                assert remaining >= 0
                 self.current_i += remaining
                 self.current_index += 1
                 self.current_offset = 0
