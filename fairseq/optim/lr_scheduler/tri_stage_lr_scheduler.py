@@ -5,11 +5,47 @@
 
 import math
 
-from . import LegacyFairseqLRScheduler, register_lr_scheduler
+from dataclasses import dataclass, field
+from typing import Optional, List, Tuple
+from omegaconf import II
+
+from fairseq.dataclass import FairseqDataclass
+from . import FairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler("tri_stage")
-class TriStageLRSchedule(LegacyFairseqLRScheduler):
+@dataclass
+class TriStageLRScheduleConfig(FairseqDataclass):
+    warmup_steps: int = field(
+        default=0,
+        metadata={"help": "warmup the learning rate linearly for the first N updates"},
+    )
+    hold_steps: int = field(
+        default=0,
+        metadata={"help": "steps in hold stage"},
+    )
+    decay_steps: int = field(
+        default=0,
+        metadata={"help": "steps in decay stages"},
+    )
+    phase_ratio: Optional[Tuple[float, float, float]] = field(
+        default=None,
+        metadata={"help": "if set, automatically sets warmup/hold/decay steps to the ratio specified here "
+                          "from max_updates. the ratios must add up to 1.0"},
+    )
+    init_lr_scale: float = field(
+        default=0.01,
+        metadata={"help": "initial learning rate scale during warmup phase"},
+    )
+    final_lr_scale: float = field(
+        default=0.01,
+        metadata={"help": "final learning rate scale"},
+    )
+    max_update: float = II("optimization.max_update")
+    lr: List[float] = II("optimization.lr")
+    
+
+@register_lr_scheduler("tri_stage", dataclass=TriStageLRScheduleConfig)
+class TriStageLRScheduleConfig(FairseqLRScheduler):
     """Tristage learning rate schedulr
 
     Implement the learning rate scheduler in https://arxiv.org/pdf/1904.08779.pdf
@@ -29,91 +65,59 @@ class TriStageLRSchedule(LegacyFairseqLRScheduler):
 
     During warmup::
 
-      init_lr = args.init_lr_scale * args.lr
-      lrs = torch.linspace(init_lr, args.lr, args.warmup_steps)
+      init_lr = cfg.init_lr_scale * cfg.lr
+      lrs = torch.linspace(init_lr, cfg.lr, cfg.warmup_steps)
       lr = lrs[update_num]
 
     During hold::
 
-      lr = args.lr
+      lr = cfg.lr
 
     During decay::
 
-      decay_factor = - math.log(args.final_lr_scale) / args.decay_steps
-      lr = args.lr * exp(- (update_num - warmup_steps - decay_steps) * decay_factor)
+      decay_factor = - math.log(cfg.final_lr_scale) / cfg.decay_steps
+      lr = cfg.lr * exp(- (update_num - warmup_steps - decay_steps) * decay_factor)
 
     After that::
 
-      lr = args.lr * args.final_lr_scale
+      lr = cfg.lr * cfg.final_lr_scale
     """
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
-        if len(args.lr) > 1:
+    def __init__(self, cfg: TriStageLRScheduleConfig, optimizer):
+        super().__init__(cfg, optimizer)
+        if len(cfg.lr) > 1:
             raise ValueError(
                 "Cannot use a fixed learning rate schedule with tri-stage lr."
                 " Consider --lr-scheduler=fixed instead."
             )
 
         # calculate LR at each point
-        self.peak_lr = args.lr[0]
-        self.init_lr = args.init_lr_scale * args.lr[0]
-        self.final_lr = args.final_lr_scale * args.lr[0]
+        self.peak_lr = cfg.lr[0]
+        self.init_lr = cfg.init_lr_scale * cfg.lr[0]
+        self.final_lr = cfg.final_lr_scale * cfg.lr[0]
 
-        # remember the steps at each stage
-        self.warmup_steps = args.warmup_steps
-        self.hold_steps = args.hold_steps
-        self.decay_steps = args.decay_steps
+        if cfg.phase_ratio is not None:
+            assert sum(cfg.phase_ratio) == 1, 'phase ratios must add up to 1'
+            self.warmup_steps = int(cfg.max_update * cfg.phase_ratio[0])
+            self.hold_steps = int(cfg.max_update * cfg.phase_ratio[1])
+            self.decay_steps = int(cfg.max_update * cfg.phase_ratio[2])
+        else:
+            self.warmup_steps = cfg.warmup_steps
+            self.hold_steps = cfg.hold_steps
+            self.decay_steps = cfg.decay_steps
+            
+        assert self.warmup_steps + self.hold_steps + self.decay_steps > 0, "please specify steps or phase_ratio"
 
         self.warmup_rate = (
             (self.peak_lr - self.init_lr) / self.warmup_steps
             if self.warmup_steps != 0
             else 0
         )
-        self.decay_factor = -math.log(args.final_lr_scale) / args.decay_steps
+        self.decay_factor = -math.log(cfg.final_lr_scale) / self.decay_steps
 
         # initial learning rate
         self.lr = self.init_lr
         self.optimizer.set_lr(self.lr)
-
-    @staticmethod
-    def add_args(parser):
-        """Add arguments to the parser for this LR scheduler."""
-        # fmt: off
-        parser.add_argument(
-            '--warmup-steps',
-            default=4000,
-            type=int,
-            metavar='N',
-            help='warmup the learning rate linearly for the first N updates'
-        )
-        parser.add_argument(
-            '--hold-steps',
-            default=20000,
-            type=int,
-            metavar='N',
-            help='steps in hold stage.'
-        )
-        parser.add_argument(
-            '--decay-steps',
-            default=60000,
-            type=int,
-            metavar='N',
-            help='steps in decay stages'
-        )
-        parser.add_argument(
-            '--init-lr-scale',
-            default=0.01,
-            type=float,
-            help="""
-    initial learning rate scale during warmup phase; default is 0.01""")
-        parser.add_argument(
-            '--final-lr-scale',
-            default=0.01,
-            type=float,
-            help="final learning rate scale; default to 0.01"
-        )
-        # fmt: on
 
     def _decide_stage(self, update_step):
         """
