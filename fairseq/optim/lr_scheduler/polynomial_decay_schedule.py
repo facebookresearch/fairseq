@@ -3,53 +3,60 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from . import LegacyFairseqLRScheduler, register_lr_scheduler
+from dataclasses import dataclass, field
+from typing import Optional, List
+from omegaconf import II
+
+from fairseq.dataclass import FairseqDataclass
+from . import FairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler("polynomial_decay")
-class PolynomialDecaySchedule(LegacyFairseqLRScheduler):
+@dataclass
+class PolynomialDecayScheduleConfig(FairseqDataclass):
+    warmup_updates: int = field(
+        default=0,
+        metadata={"help": "warmup the learning rate linearly for the first N updates"},
+    )
+    force_anneal: Optional[int] = field(
+        default=None,
+        metadata={"help": "force annealing at specified epoch"},
+    )
+    end_learning_rate: float = field(
+        default=0.0,
+        metadata={"help": "learning rate to decay to"},
+    )
+    power: float = field(
+        default=1.0,
+        metadata={"help": "decay exponent"},
+    )
+    total_num_update: float = II("optimization.max_update")
+    lr: List[float] = II("optimization.lr")
+
+
+@register_lr_scheduler("polynomial_decay", dataclass=PolynomialDecayScheduleConfig)
+class PolynomialDecaySchedule(FairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
+    cfg: PolynomialDecayScheduleConfig
 
-        # set defaults
-        args.warmup_updates = getattr(args, "warmup_updates", 0) or 0
+    def __init__(self, cfg: PolynomialDecayScheduleConfig, optimizer):
+        super().__init__(cfg, optimizer)
 
-        self.lr = args.lr[0]
-        if args.warmup_updates > 0:
-            self.warmup_factor = 1.0 / args.warmup_updates
+        assert cfg.total_num_update > 0
+
+        self.lr = cfg.lr[0]
+        if cfg.warmup_updates > 0:
+            self.warmup_factor = 1.0 / cfg.warmup_updates
         else:
             self.warmup_factor = 1
-        self.end_learning_rate = args.end_learning_rate
-        self.total_num_update = args.total_num_update
-        self.power = args.power
+        self.end_learning_rate = cfg.end_learning_rate
+        self.total_num_update = cfg.total_num_update
+        self.power = cfg.power
         self.optimizer.set_lr(self.warmup_factor * self.lr)
 
-    @staticmethod
-    def add_args(parser):
-        """Add arguments to the parser for this LR scheduler."""
-        parser.add_argument(
-            "--force-anneal",
-            "--fa",
-            type=int,
-            metavar="N",
-            help="force annealing at specified epoch",
-        )
-        parser.add_argument(
-            "--warmup-updates",
-            default=0,
-            type=int,
-            metavar="N",
-            help="warmup the learning rate linearly for the first N updates",
-        )
-        parser.add_argument("--end-learning-rate", default=0.0, type=float)
-        parser.add_argument("--power", default=1.0, type=float)
-        parser.add_argument("--total-num-update", default=1000000, type=int)
-
     def get_next_lr(self, epoch):
-        lrs = self.args.lr
-        if self.args.force_anneal is None or epoch < self.args.force_anneal:
+        lrs = self.cfg.lr
+        if self.cfg.force_anneal is None or epoch < self.cfg.force_anneal:
             # use fixed LR schedule
             next_lr = lrs[min(epoch, len(lrs) - 1)]
         else:
@@ -65,13 +72,13 @@ class PolynomialDecaySchedule(LegacyFairseqLRScheduler):
 
     def step_update(self, num_updates):
         """Update the learning rate after each update."""
-        if self.args.warmup_updates > 0 and num_updates <= self.args.warmup_updates:
-            self.warmup_factor = num_updates / float(self.args.warmup_updates)
+        if self.cfg.warmup_updates > 0 and num_updates <= self.cfg.warmup_updates:
+            self.warmup_factor = num_updates / float(self.cfg.warmup_updates)
             lr = self.warmup_factor * self.lr
         elif num_updates >= self.total_num_update:
             lr = self.end_learning_rate
         else:
-            warmup = self.args.warmup_updates
+            warmup = self.cfg.warmup_updates
             lr_range = self.lr - self.end_learning_rate
             pct_remaining = 1 - (num_updates - warmup) / (
                 self.total_num_update - warmup
