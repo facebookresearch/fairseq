@@ -157,7 +157,11 @@ def gen_parser_from_dataclass(
             if isinstance(kwargs["default"], str) and kwargs["default"].startswith(
                 "${"
             ):
-                continue
+                if kwargs["help"] is None:
+                    # this is a field with a name that will be added elsewhere
+                    continue
+                else:
+                    del kwargs["default"]
             if delete_default:
                 del kwargs["default"]
         try:
