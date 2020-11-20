@@ -56,8 +56,10 @@ This configuration was used for the base model trained on the Librispeech datase
 Note that the input is expected to be single channel, sampled at 16 kHz
 
 ```shell script
-$ python fairseq_cli/hydra_train.py task.data=/path/to/data \
---config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining --config-name wav2vec2_base_librispeech
+$ fairseq-hydra-train \
+    task.data=/path/to/data \
+    --config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining \
+    --config-name wav2vec2_base_librispeech
 ```
 
 Note: you can simulate 64 GPUs by using k GPUs and adding command line parameters (before --config-path) 
@@ -68,8 +70,10 @@ Note: you can simulate 64 GPUs by using k GPUs and adding command line parameter
 This configuration was used for the large model trained on the Libri-light dataset in the wav2vec 2.0 paper
 
 ```shell script
-$ python fairseq_cli/hydra_train.py task.data=/path/to/data \
---config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining --config-name wav2vec2_large_librivox
+$ fairseq-hydra-train \
+    task.data=/path/to/data \
+    --config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining \
+    --config-name wav2vec2_large_librivox
 ```
 
 Note: you can simulate 128 GPUs by using k GPUs and adding command line parameters (before --config-path) 
@@ -88,9 +92,12 @@ $ python libri_labels.py /path/to/tsv --output-dir /output/dir --output-name $sp
 
 Fine-tuning on 100h of Librispeech with letter targets:
 ```shell script
-python fairseq_cli/hydra_train.py distributed_training.distributed_port=$PORT task.data=/path/to/data \
-model.w2v_path=/path/to/model.pt --config-path /path/to/fairseq-py/examples/wav2vec/config/finetuning \
---config-name base_100h
+$ fairseq-hydra-train \
+    distributed_training.distributed_port=$PORT \
+    task.data=/path/to/data \
+    model.w2v_path=/path/to/model.pt \
+    --config-path /path/to/fairseq-py/examples/wav2vec/config/finetuning \
+    --config-name base_100h
 ```
 
 There are other config files in the config/finetuning directory that can be used to fine-tune on other splits.
