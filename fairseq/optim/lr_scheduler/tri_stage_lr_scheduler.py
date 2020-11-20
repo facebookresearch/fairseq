@@ -4,13 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
 from omegaconf import II
 
 from fairseq.dataclass import FairseqDataclass
-from . import FairseqLRScheduler, register_lr_scheduler
+from fairseq.optim.lr_scheduler import FairseqLRScheduler, register_lr_scheduler
 
 
 @dataclass
@@ -29,8 +28,12 @@ class TriStageLRScheduleConfig(FairseqDataclass):
     )
     phase_ratio: Optional[Tuple[float, float, float]] = field(
         default=None,
-        metadata={"help": "if set, automatically sets warmup/hold/decay steps to the ratio specified here "
-                          "from max_updates. the ratios must add up to 1.0"},
+        metadata={
+            "help": (
+                "if set, automatically sets warmup/hold/decay steps to the ratio "
+                "specified here from max_updates. the ratios must add up to 1.0"
+            )
+        },
     )
     init_lr_scale: float = field(
         default=0.01,
@@ -42,7 +45,7 @@ class TriStageLRScheduleConfig(FairseqDataclass):
     )
     max_update: float = II("optimization.max_update")
     lr: List[float] = II("optimization.lr")
-    
+
 
 @register_lr_scheduler("tri_stage", dataclass=TriStageLRScheduleConfig)
 class TriStageLRScheduleConfig(FairseqLRScheduler):
@@ -90,6 +93,7 @@ class TriStageLRScheduleConfig(FairseqLRScheduler):
                 "Cannot use a fixed learning rate schedule with tri-stage lr."
                 " Consider --lr-scheduler=fixed instead."
             )
+        assert cfg.max_update > 0
 
         # calculate LR at each point
         self.peak_lr = cfg.lr[0]
@@ -97,7 +101,7 @@ class TriStageLRScheduleConfig(FairseqLRScheduler):
         self.final_lr = cfg.final_lr_scale * cfg.lr[0]
 
         if cfg.phase_ratio is not None:
-            assert sum(cfg.phase_ratio) == 1, 'phase ratios must add up to 1'
+            assert sum(cfg.phase_ratio) == 1, "phase ratios must add up to 1"
             self.warmup_steps = int(cfg.max_update * cfg.phase_ratio[0])
             self.hold_steps = int(cfg.max_update * cfg.phase_ratio[1])
             self.decay_steps = int(cfg.max_update * cfg.phase_ratio[2])
@@ -105,8 +109,10 @@ class TriStageLRScheduleConfig(FairseqLRScheduler):
             self.warmup_steps = cfg.warmup_steps
             self.hold_steps = cfg.hold_steps
             self.decay_steps = cfg.decay_steps
-            
-        assert self.warmup_steps + self.hold_steps + self.decay_steps > 0, "please specify steps or phase_ratio"
+
+        assert (
+            self.warmup_steps + self.hold_steps + self.decay_steps > 0
+        ), "please specify steps or phase_ratio"
 
         self.warmup_rate = (
             (self.peak_lr - self.init_lr) / self.warmup_steps

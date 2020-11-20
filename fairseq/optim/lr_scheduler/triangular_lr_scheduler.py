@@ -4,51 +4,60 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from dataclasses import dataclass, field
+from typing import List
 
-from . import LegacyFairseqLRScheduler, register_lr_scheduler
+from omegaconf import II
+
+from fairseq.dataclass import FairseqDataclass
+from fairseq.optim.lr_scheduler import FairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler("triangular")
-class TriangularSchedule(LegacyFairseqLRScheduler):
+@dataclass
+class TriangularLRScheduleConfig(FairseqDataclass):
+    max_lr: float = field(
+        default="???", metadata={"help": "max learning rate, must be more than cfg.lr"}
+    )
+    lr_period_updates: float = field(
+        default=5000,
+        metadata={"help": "initial number of updates per period (cycle length)"},
+    )
+    lr_shrink: float = field(
+        default=0.1, metadata={"help": "shrink factor for annealing"}
+    )
+    shrink_min: bool = field(
+        default=False, metadata={"help": "if set, also shrinks min lr"}
+    )
+    lr: List[float] = II("optimization.lr")
+
+
+@register_lr_scheduler("triangular", dataclass=TriangularLRScheduleConfig)
+class TriangularLRSchedule(FairseqLRScheduler):
     """Assign LR based on a triangular cyclical schedule.
 
     See https://arxiv.org/pdf/1506.01186.pdf for details.
     """
 
-    def __init__(self, args, optimizer):
-        super().__init__(args, optimizer)
-        if len(args.lr) > 1:
+    def __init__(self, cfg: TriangularLRScheduleConfig, optimizer):
+        super().__init__(cfg, optimizer)
+        if len(cfg.lr) > 1:
             raise ValueError(
                 "Cannot use a fixed learning rate schedule with triangular."
                 " Consider --lr-scheduler=fixed instead."
             )
 
-        lr = args.lr[0]
+        lr = cfg.lr[0]
 
-        assert args.max_lr > lr, "max_lr must be more than lr"
+        assert cfg.max_lr > lr, "max_lr must be more than lr"
         self.min_lr = lr
-        self.max_lr = args.max_lr
-        self.stepsize = args.lr_period_updates // 2
-        self.lr_shrink = args.lr_shrink
-        self.shrink_min = args.shrink_min
+        self.max_lr = cfg.max_lr
+        self.stepsize = cfg.lr_period_updates // 2
+        self.lr_shrink = cfg.lr_shrink
+        self.shrink_min = cfg.shrink_min
 
         # initial learning rate
         self.lr = self.min_lr
         self.optimizer.set_lr(self.lr)
-
-    @staticmethod
-    def add_args(parser):
-        """Add arguments to the parser for this LR scheduler."""
-        # fmt: off
-        parser.add_argument('--max-lr', required=True, type=float, metavar='LR',
-                            help='max learning rate, must be more than args.lr')
-        parser.add_argument('--lr-period-updates', default=5000, type=float, metavar='LR',
-                            help='initial number of updates per period (cycle length)')
-        parser.add_argument('--lr-shrink', default=0.1, type=float, metavar='LS',
-                            help='shrink factor for annealing')
-        parser.add_argument('--shrink-min', action='store_true',
-                            help='if set, also shrinks min lr')
-        # fmt: on
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""
