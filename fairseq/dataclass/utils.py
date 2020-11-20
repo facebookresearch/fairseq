@@ -227,7 +227,11 @@ def _override_attr(
         if isinstance(val, tuple):
             val = list(val)
 
-        if getattr(v.type, "__origin__", None) is List:
+        if (
+            getattr(v.type, "__origin__", None) is List
+            # skip interpolation
+            and not (isinstance(val, str) and val.startswith("${"))
+        ):
             # if type is int but val is float, then we will crash later - try to convert here
             t_args = v.type.__args__
             if len(t_args) == 1:

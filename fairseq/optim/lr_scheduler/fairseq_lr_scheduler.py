@@ -6,8 +6,7 @@
 from argparse import Namespace
 
 from fairseq.dataclass.utils import gen_parser_from_dataclass
-
-from .. import FairseqOptimizer
+from fairseq.optim import FairseqOptimizer
 
 
 class FairseqLRScheduler(object):
