@@ -178,10 +178,7 @@ class Trainer(object):
     @property
     def model(self):
         if self._wrapped_model is None:
-            if (
-                self.data_parallel_world_size > 1
-                and not self.cfg.optimization.use_bmuf
-            ):
+            if self.data_parallel_world_size > 1 and not self.cfg.optimization.use_bmuf:
                 self._wrapped_model = models.DistributedFairseqModel(
                     self.cfg.distributed_training,
                     self._model,
@@ -266,6 +263,10 @@ class Trainer(object):
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         if self.is_data_parallel_master:  # only save one checkpoint
+            logger.info(
+                f"Preparing to save checkpoint to {filename} after "
+                f"{self.get_num_updates()} updates"
+            )
             extra_state["metrics"] = metrics.state_dict()
             extra_state["previous_training_time"] = self.cumulative_training_time()
             checkpoint_utils.save_state(
@@ -279,6 +280,7 @@ class Trainer(object):
                 self._optim_history,
                 extra_state,
             )
+            logger.info(f"Finished saving checkpoint to {filename}")
 
     def load_checkpoint(
         self,
