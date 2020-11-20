@@ -79,11 +79,8 @@ def get_fb_training_parser():
 
 def init_manifold(args):
     # support Manifold for checkpoints
-    # For latte_training use case, we have separate NMTManifoldPathHandler registered in
-    # https://fburl.com/wurd7t70. So if parameters need to be updated the right place
-    # is ~/fbsource/fbcode/fblearner/flow/projects/fairseq/latte_training/manifold_file_io.py
-    # Note that if manifold_file_io.py is imported before current file, the following try
-    # block will fail; the settings at manifold_file_io.py will take the priority.
+    # For latte_training use case, we use a separate NMTManifoldPathHandler
+    # registered in https://fburl.com/diffusion/djgz9bwx.
     try:
         PathManager.register_handler(
             ManifoldPathHandler(
