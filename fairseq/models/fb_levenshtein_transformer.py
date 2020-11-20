@@ -313,9 +313,9 @@ class LevenshteinTransformerModel(TransformerModel):
         output_scores = decoder_out.output_scores
         attn = decoder_out.attn
 
-        if max_ratio is not None and encoder_out.encoder_padding_mask is not None:
+        if max_ratio is not None and encoder_out["encoder_padding_mask"]:
             max_lengths = (
-                (~encoder_out.encoder_padding_mask).sum(1) * max_ratio
+                (~encoder_out["encoder_padding_mask"][0]).sum(1) * max_ratio
             ).clamp(min=10)
         else:
             max_lengths = output_tokens.new_full(output_tokens.size()[:1], 255)
@@ -525,8 +525,7 @@ class LevenshteinTransformerModel(TransformerModel):
             eos_penalty,
             max_lengths=(
                 max_lengths
-                if max_ratio is not None
-                and encoder_out.encoder_padding_mask is not None
+                if max_ratio is not None and encoder_out["encoder_padding_mask"]
                 else None
             ),
         )
@@ -582,7 +581,7 @@ class LevenshteinTransformerModel(TransformerModel):
         )
 
         initial_output_scores = torch.zeros_like(initial_output_tokens).to(
-            encoder_out.encoder_out
+            encoder_out["encoder_out"][0]
         )
 
         initial_attn = torch.empty([0])

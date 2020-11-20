@@ -18,18 +18,23 @@ def ensemble_encoder(func):
     def wrapper(self, *args, **kwargs):
         if self.ensemble_models is None or len(self.ensemble_models) == 1:
             return func(self, *args, **kwargs)
-        encoder_outs = [func(model, *args, **kwargs) for model in self.ensemble_models]
-        _encoder_out = encoder_outs[0]
+        encoder_outs = [func(model, *args, **kwargs, return_all_hiddens=True) for model in self.ensemble_models]
+        _encoder_out = encoder_outs[0].copy()
 
         def stack(key):
-            outs = [getattr(e, key) for e in encoder_outs]
-            return torch.stack(outs, -1) if outs[0] is not None else None
+            outs = [e[key][0] for e in encoder_outs]
+            return [torch.stack(outs, -1) if outs[0] is not None else None]
 
-        return _encoder_out._replace(
-            encoder_out=stack("encoder_out"),
-            encoder_embedding=stack("encoder_embedding"),
-            encoder_states=stack("encoder_states"),
-        )
+        _encoder_out["encoder_out"] = stack("encoder_out")
+        _encoder_out["encoder_embedding"] = stack("encoder_embedding")
+
+        num_layers = len(_encoder_out["encoder_states"])
+        if num_layers > 0:
+            _encoder_out["encoder_states"] = [
+                torch.stack([e["encoder_states"][i] for e in encoder_outs], -1)
+                for i in range(num_layers)
+            ]
+        return _encoder_out
 
     return wrapper
 
@@ -41,12 +46,18 @@ def ensemble_decoder(func):
                 self, normalize=normalize, encoder_out=encoder_out, *args, **kwargs
             )
 
+        def _replace(encoder_out, new_val):
+            new_encoder_out = encoder_out.copy()
+            new_encoder_out["encoder_out"] = [new_val]
+            return new_encoder_out
+
         action_outs = [
             func(
                 model,
                 normalize=normalize,
-                encoder_out=encoder_out._replace(
-                    encoder_out=encoder_out.encoder_out[:, :, :, i]
+                encoder_out=_replace(
+                    encoder_out,
+                    encoder_out["encoder_out"][0][:, :, :, i]
                 ),
                 *args,
                 **kwargs
