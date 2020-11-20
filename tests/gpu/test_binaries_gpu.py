@@ -93,17 +93,25 @@ class TestTranslationGPU(unittest.TestCase):
                     ],
                     task="translation_lev",
                 )
+                gen_config = [
+                    "--task",
+                    "translation_lev",
+                    "--iter-decode-max-iter",
+                    "9",
+                    "--iter-decode-eos-penalty",
+                    "0",
+                    "--print-step",
+                ]
+                # non-ensemble generation
+                generate_main(data_dir, gen_config)
+                # ensemble generation
                 generate_main(
                     data_dir,
-                    [
-                        "--task",
-                        "translation_lev",
-                        "--iter-decode-max-iter",
-                        "9",
-                        "--iter-decode-eos-penalty",
-                        "0",
-                        "--print-step",
-                    ],
+                    gen_config,
+                    path=os.pathsep.join([
+                        os.path.join(data_dir, "checkpoint_last.pt"),
+                        os.path.join(data_dir, "checkpoint_last.pt"),
+                    ]),
                 )
 
 
