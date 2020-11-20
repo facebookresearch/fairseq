@@ -22,14 +22,18 @@ def write_version_py():
 
     # append latest commit hash to version string
     try:
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
+        sha = (
+            subprocess.check_output(["git", "rev-parse", "HEAD"])
+            .decode("ascii")
+            .strip()
+        )
         version += "+" + sha[:7]
     except Exception:
         pass
 
     # write version info to fairseq/version.py
     with open(os.path.join("fairseq", "version.py"), "w") as f:
-        f.write("__version__ = \"{}\"\n".format(version))
+        f.write('__version__ = "{}"\n'.format(version))
     return version
 
 
@@ -194,7 +198,8 @@ def do_setup(package_data):
                 "tests",
                 "tests.*",
             ]
-        ) + extra_packages,
+        )
+        + extra_packages,
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",
@@ -202,6 +207,7 @@ def do_setup(package_data):
             "console_scripts": [
                 "fairseq-eval-lm = fairseq_cli.eval_lm:cli_main",
                 "fairseq-generate = fairseq_cli.generate:cli_main",
+                "fairseq-hydra-train = fairseq_cli.hydra_train:cli_main",
                 "fairseq-interactive = fairseq_cli.interactive:cli_main",
                 "fairseq-preprocess = fairseq_cli.preprocess:cli_main",
                 "fairseq-score = fairseq_cli.score:cli_main",
@@ -230,8 +236,11 @@ try:
     fairseq_examples = os.path.join("fairseq", "examples")
     if "build_ext" not in sys.argv[1:] and not os.path.exists(fairseq_examples):
         os.symlink(os.path.join("..", "examples"), fairseq_examples)
+
     package_data = {
-        "fairseq": get_files("fairseq/examples"),
+        "fairseq": (
+            get_files(fairseq_examples) + get_files(os.path.join("fairseq", "config"))
+        )
     }
     do_setup(package_data)
 finally:
