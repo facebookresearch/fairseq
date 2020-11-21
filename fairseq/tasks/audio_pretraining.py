@@ -106,6 +106,7 @@ class AudioPretrainingTask(FairseqTask):
         self._source_dictionary = source_dictionary
         if cfg.eval_wer:
             assert cfg.labels is not None, "eval_wer can only be set during fine-tuning"
+        self.blank_symbol = "<s>"
 
     @classmethod
     def setup_task(cls, cfg: AudioPretrainingConfig, **kwargs):
