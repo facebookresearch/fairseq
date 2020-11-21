@@ -96,6 +96,9 @@ class FairseqDataclass:
     def _get_argparse_const(self, attribute_name: str) -> Any:
         return self._get_meta(attribute_name, "argparse_const")
 
+    def _get_argparse_alias(self, attribute_name: str) -> Any:
+        return self._get_meta(attribute_name, "argparse_alias")
+
     def _get_choices(self, attribute_name: str) -> Any:
         return self._get_meta(attribute_name, "choices")
 
@@ -193,9 +196,26 @@ def gen_parser_from_dataclass(
         field_name = argparse_name(dataclass_instance._get_name(k))
         if field_name is None:
             continue
+
         kwargs = get_kwargs_from_dc(dataclass_instance, k)
-        if isinstance(kwargs["default"], str) and kwargs["default"].startswith("${"):
-            continue
-        if delete_default:
-            del kwargs["default"]
-        parser.add_argument(field_name, **kwargs)
+
+        field_args = [field_name]
+        alias = dataclass_instance._get_argparse_alias(k)
+        if alias is not None:
+            field_args.append(alias)
+
+        if "default" in kwargs:
+            if isinstance(kwargs["default"], str) and kwargs["default"].startswith(
+                "${"
+            ):
+                if kwargs["help"] is None:
+                    # this is a field with a name that will be added elsewhere
+                    continue
+                else:
+                    del kwargs["default"]
+            if delete_default:
+                del kwargs["default"]
+        try:
+            parser.add_argument(*field_args, **kwargs)
+        except ArgumentError:
+            pass
