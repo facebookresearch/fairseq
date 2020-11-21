@@ -210,10 +210,6 @@ class DistributedTrainingConfig(FairseqDataclass):
     )
     device_id: int = field(
         default=0,
-        metadata={"help": "which GPU to use (usually configured automatically)"},
-    )
-    local_rank: int = field(
-        default=0,
         metadata={
             "help": "which GPU to use (usually configured automatically)",
             "argparse_alias": "--local_rank",
