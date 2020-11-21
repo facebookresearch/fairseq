@@ -66,7 +66,7 @@ class CtcCriterionConfig(FairseqDataclass):
 class CtcCriterion(FairseqCriterion):
     def __init__(self, cfg: CtcCriterionConfig, task: FairseqTask):
         super().__init__(task)
-        self.blank_idx = task.target_dictionary.bos()
+        self.blank_idx = task.target_dictionary.index(task.blank_symbol)
         self.pad_idx = task.target_dictionary.pad()
         self.eos_idx = task.target_dictionary.eos()
         self.post_process = cfg.post_process
