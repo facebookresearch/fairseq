@@ -79,8 +79,10 @@ class CosineLRSchedule(FairseqLRScheduler):
         if cfg.warmup_init_lr < 0:
             cfg.warmup_init_lr = lr
 
-        self.min_lr = lr
-        self.max_lr = cfg.max_lr
+        # default min_lr=-1 -> cosine anneale to lr=0.0
+        # otherwise pick min_lr from config
+        self.min_lr = cfg.min_lr if cfg.min_lr > 0.0 else 0.0
+        self.max_lr = lr
         assert self.max_lr > self.min_lr, "max_lr must be more than lr"
 
         self.t_mult = cfg.t_mult
