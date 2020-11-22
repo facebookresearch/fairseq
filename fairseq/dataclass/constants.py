@@ -3,11 +3,19 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from enum import Enum
+from enum import Enum, EnumMeta
 from typing import List
 
 
-class StrEnum(Enum):
+class StrEnumMeta(EnumMeta):
+    # this is workaround for submitit pickling leading to instance checks failing in hydra for StrEnum, see
+    # https://github.com/facebookresearch/hydra/issues/1156
+    @classmethod
+    def __instancecheck__(cls, other):
+        return "enum" in str(type(other))
+
+
+class StrEnum(Enum, metaclass=StrEnumMeta):
     def __str__(self):
         return self.value
 
