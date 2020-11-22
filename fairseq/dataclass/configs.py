@@ -402,14 +402,14 @@ class DatasetConfig(FairseqDataclass):
         default=False, metadata={"help": "disable validation"}
     )
     max_tokens_valid: Optional[int] = field(
-        default=None,
+        default=II("dataset.max_tokens"),
         metadata={
             "help": "maximum number of tokens in a validation batch"
             " (defaults to --max-tokens)"
         },
     )
     batch_size_valid: Optional[int] = field(
-        default=None,
+        default=II("dataset.batch_size"),
         metadata={
             "help": "batch size of the validation batch (defaults to --batch-size)",
             "argparse_alias": "--max-sentences-valid",
