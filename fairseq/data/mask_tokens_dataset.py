@@ -39,6 +39,10 @@ class MaskTokensDataset(BaseWrapperDataset):
             over vocab indices, indicating whether it is the beginning of a
             word. We will extend any mask to encompass the whole word.
         bpe: BPE to use for whole-word masking.
+        mask_multiple_length : repeat each mask index multiple times. Default
+            value is 1.
+        mask_stdev : standard deviation of masks distribution in case of
+            multiple masking. Default value is 0.
     """
 
     @classmethod
@@ -63,11 +67,15 @@ class MaskTokensDataset(BaseWrapperDataset):
         random_token_prob: float = 0.1,
         freq_weighted_replacement: bool = False,
         mask_whole_words: torch.Tensor = None,
+        mask_multiple_length: int = 1,
+        mask_stdev: float = 0.0,
     ):
         assert 0.0 < mask_prob < 1.0
         assert 0.0 <= random_token_prob <= 1.0
         assert 0.0 <= leave_unmasked_prob <= 1.0
         assert random_token_prob + leave_unmasked_prob <= 1.0
+        assert mask_multiple_length >= 1
+        assert mask_stdev >= 0.0
 
         self.dataset = dataset
         self.vocab = vocab
@@ -79,6 +87,8 @@ class MaskTokensDataset(BaseWrapperDataset):
         self.leave_unmasked_prob = leave_unmasked_prob
         self.random_token_prob = random_token_prob
         self.mask_whole_words = mask_whole_words
+        self.mask_multiple_length = mask_multiple_length
+        self.mask_stdev = mask_stdev
 
         if random_token_prob > 0.0:
             if freq_weighted_replacement:
@@ -122,10 +132,39 @@ class MaskTokensDataset(BaseWrapperDataset):
             mask = np.full(sz, False)
             num_mask = int(
                 # add a random number for probabilistic rounding
-                self.mask_prob * sz
+                self.mask_prob * sz / float(self.mask_multiple_length)
                 + np.random.rand()
             )
-            mask[np.random.choice(sz, num_mask, replace=False)] = True
+
+            # multiple masking as described in the vq-wav2vec paper (https://arxiv.org/abs/1910.05453)
+            mask_idc = np.random.choice(sz, num_mask, replace=False)
+            if self.mask_stdev > 0.0:
+                lengths = np.random.normal(
+                    self.mask_multiple_length, self.mask_stdev, size=num_mask
+                )
+                lengths = [max(0, int(round(x))) for x in lengths]
+                mask_idc = np.asarray(
+                    [
+                        mask_idc[j] + offset
+                        for j in range(len(mask_idc))
+                        for offset in range(lengths[j])
+                    ],
+                    dtype=np.int64,
+                )
+            else:
+                mask_idc = np.concatenate(
+                    [mask_idc + i for i in range(self.mask_multiple_length)]
+                )
+            mask_idc = mask_idc[mask_idc < len(mask)]
+            try:
+                mask[mask_idc] = True
+            except:  # something wrong
+                print(
+                    "Assigning mask indexes {} to mask {} failed!".format(
+                        mask_idc, mask
+                    )
+                )
+                raise
 
             if self.return_masked_tokens:
                 # exit early if we're just returning the masked tokens
