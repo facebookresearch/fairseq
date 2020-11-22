@@ -41,7 +41,7 @@ class Wav2vecCriterion(FairseqCriterion):
         self.loss_weights = loss_weights
         self.log_keys = [] if log_keys is None else log_keys
 
-    def forward(self, model, sample, reduce=True, log_pred=False):
+    def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
@@ -125,9 +125,6 @@ class Wav2vecCriterion(FairseqCriterion):
                 logging_output["correct"] = corr
                 logging_output["count"] = count
 
-        if log_pred:
-            logging_output["logits"] = logits.cpu().numpy()
-            logging_output["target"] = target.cpu().numpy()
         return loss, sample_size, logging_output
 
     @staticmethod
@@ -175,13 +172,13 @@ class Wav2vecCriterion(FairseqCriterion):
 
         for k in logging_outputs[0]:
             if k not in builtin_keys:
-                val = sum(log.get(k, 0) for log in logging_outputs) / len(
-                    logging_outputs
-                )
+                val = sum(log.get(k, 0) for log in logging_outputs)
                 if k.startswith("loss"):
-                    metrics.log_scalar(k, val / sample_size / math.log(2), sample_size)
+                    metrics.log_scalar(
+                        k, val / sample_size / math.log(2), sample_size, round=3
+                    )
                 else:
-                    metrics.log_scalar(k, val, round=3)
+                    metrics.log_scalar(k, val / len(logging_outputs), round=3)
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
