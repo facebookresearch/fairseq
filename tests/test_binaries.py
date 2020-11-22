@@ -281,9 +281,10 @@ class TestTranslation(BinaryTestCase):
                 for j in range(len(decoder_langtok_flags)):
                     enc_ltok_flag = encoder_langtok_flags[i]
                     dec_ltok_flag = decoder_langtok_flags[j]
-                    create_dummy_data(self.data_dir)
-                    preprocess_translation_data(self.data_dir)
-                    train_translation_model(self.data_dir, arch="multilingual_transformer", extra_flags=[
+                    data_dir = self.data_dirs[f"{i}_{j}"] 
+                    create_dummy_data(data_dir)
+                    preprocess_translation_data(data_dir)
+                    train_translation_model(data_dir, arch="multilingual_transformer", extra_flags=[
                                                                                                             "--encoder-layers",
                                                                                                             "2",
                                                                                                             "--decoder-layers",
@@ -298,7 +299,7 @@ class TestTranslation(BinaryTestCase):
                                             task="multilingual_translation", run_validation=True,
                                             lang_flags=["--lang-pairs", "in-out,out-in"],
                                             extra_valid_flags=enc_ltok_flag + dec_ltok_flag)
-                    generate_main(self.data_dir, extra_flags=[
+                    generate_main(data_dir, extra_flags=[
                                                                  "--task",
                                                                  "multilingual_translation",
                                                                  "--lang-pairs",
