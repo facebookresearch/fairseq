@@ -89,6 +89,15 @@ class MaskedLMTask(LegacyFairseqTask):
             help="mask whole words; you may also want to set --bpe",
         )
         parser.add_argument(
+            "--mask-multiple-length",
+            default=1,
+            type=int,
+            help="repeat the mask indices multiple times",
+        )
+        parser.add_argument(
+            "--mask-stdev", default=0.0, type=float, help="stdev of the mask length"
+        )
+        parser.add_argument(
             "--shorten-method",
             default="none",
             choices=["none", "truncate", "random_crop"],
@@ -180,6 +189,8 @@ class MaskedLMTask(LegacyFairseqTask):
             random_token_prob=self.args.random_token_prob,
             freq_weighted_replacement=self.args.freq_weighted_replacement,
             mask_whole_words=mask_whole_words,
+            mask_multiple_length=self.args.mask_multiple_length,
+            mask_stdev=self.args.mask_stdev,
         )
 
         with data_utils.numpy_seed(self.args.seed + epoch):
