@@ -441,6 +441,7 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
 def merge_with_parent(dc: FairseqDataclass, cfg: FairseqDataclass):
     dc_instance = DictConfig(dc)
     dc_instance.__dict__["_parent"] = cfg.__dict__["_parent"]
-    cfg = OmegaConf.merge(dc_instance, cfg)
+    with open_dict(dc_instance):
+        cfg = OmegaConf.merge(dc_instance, cfg)
     OmegaConf.set_struct(cfg, True)
     return cfg
