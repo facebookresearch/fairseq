@@ -30,8 +30,6 @@ class AdditiveNoise:
 
         self.noise_files = []
         self.noise_files_len = 0
-        import soundfile as sf
-        self.sf = sf
 
         if self.noise_dir:
             for dirpath, dirnames, filenames in os.walk(self.noise_dir):
@@ -49,10 +47,11 @@ class AdditiveNoise:
         return DBFS_COEF * torch.log10(torch.dot(x[0, :], x[0, :]) / x.shape[1] + 1e-8)
 
     def sample_noise(self) -> torch.Tensor:
+        import soundfile as sf
         
         try:
             path = self.noise_files[np.random.randint(self.noise_files_len)]
-            wav, curr_sample_rate = self.sf.read(path)
+            wav, curr_sample_rate = sf.read(path)
             return torch.from_numpy(wav).float().unsqueeze(0)
         except Exception as err:
             print(err)
