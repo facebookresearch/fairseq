@@ -1,4 +1,9 @@
 # @package _group_
+
+hydra:
+  run:
+    dir: .
+
 defaults:
     - task: null
     - model: null

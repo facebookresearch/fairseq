@@ -211,7 +211,7 @@ works for migrated tasks and models.
 
 ```shell script
 $ fairseq-hydra-train \
-    --config-path /path/to/external/configs \
+    --config-dir /path/to/external/configs \
     --config-name wiki103
 ```
 
