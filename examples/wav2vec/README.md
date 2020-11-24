@@ -58,12 +58,12 @@ Note that the input is expected to be single channel, sampled at 16 kHz
 ```shell script
 $ fairseq-hydra-train \
     task.data=/path/to/data \
-    --config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining \
+    --config-dir /path/to/fairseq-py/examples/wav2vec/config/pretraining \
     --config-name wav2vec2_base_librispeech
 ```
 
-Note: you can simulate 64 GPUs by using k GPUs and adding command line parameters (before --config-path) 
-`distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 64/k 
+Note: you can simulate 64 GPUs by using k GPUs and adding command line parameters (before `--config-dir`)
+`distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 64/k
 
 ### Train a wav2vec 2.0 large model:
 
@@ -72,12 +72,12 @@ This configuration was used for the large model trained on the Libri-light datas
 ```shell script
 $ fairseq-hydra-train \
     task.data=/path/to/data \
-    --config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining \
+    --config-dir /path/to/fairseq-py/examples/wav2vec/config/pretraining \
     --config-name wav2vec2_large_librivox
 ```
 
-Note: you can simulate 128 GPUs by using k GPUs and adding command line parameters (before --config-path) 
-`distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 128/k 
+Note: you can simulate 128 GPUs by using k GPUs and adding command line parameters (before `--config-dir`)
+`distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 128/k
 
 ### Fine-tune a pre-trained model with CTC:
 
@@ -96,14 +96,14 @@ $ fairseq-hydra-train \
     distributed_training.distributed_port=$PORT \
     task.data=/path/to/data \
     model.w2v_path=/path/to/model.pt \
-    --config-path /path/to/fairseq-py/examples/wav2vec/config/finetuning \
+    --config-dir /path/to/fairseq-py/examples/wav2vec/config/finetuning \
     --config-name base_100h
 ```
 
 There are other config files in the config/finetuning directory that can be used to fine-tune on other splits.
-You can specify the right config via the --config-name parameter. 
+You can specify the right config via the `--config-name` parameter.
 
-Note: you can simulate 24 GPUs by using k GPUs and adding command line parameters (before --config-path) 
+Note: you can simulate 24 GPUs by using k GPUs and adding command line parameters (before `--config-dir`)
 `distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 24/k
 
 Decoding with a language model during training requires wav2letter [python bindings](https://github.com/facebookresearch/wav2letter/wiki/Building-Python-bindings).
