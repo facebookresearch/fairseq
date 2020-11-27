@@ -6,39 +6,92 @@
 
 import math
 from argparse import Namespace
+from dataclasses import dataclass, field
+from omegaconf import II
+from typing import Optional, Tuple
 
 import torch
 import torch.nn.functional as F
 from fairseq import metrics, utils
-from fairseq.criterions import LegacyFairseqCriterion, register_criterion
+from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.dataclass import FairseqDataclass
 from fairseq.data.data_utils import post_process
+from fairseq.tasks import FairseqTask
 from fairseq.logging.meters import safe_round
 
 
-@register_criterion("ctc")
-class CtcCriterion(LegacyFairseqCriterion):
-    def __init__(self, args, task):
-        super().__init__(args, task)
+@dataclass
+class CtcCriterionConfig(FairseqDataclass):
+    zero_infinity: bool = field(
+        default=False,
+        metadata={"help": "zero inf loss when source length <= target length"},
+    )
+    sentence_avg: bool = II("optimization.sentence_avg")
+    post_process: str = field(
+        default="letter",
+        metadata={
+            "help": "how to post process predictions into words. can be letter, "
+            "wordpiece, BPE symbols, etc. "
+            "See fairseq.data.data_utils.post_process() for full list of options"
+        },
+    )
+    wer_kenlm_model: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "if this is provided, use kenlm to compute wer (along with other wer_* args)"
+        },
+    )
+    wer_lexicon: Optional[str] = field(
+        default=None,
+        metadata={"help": "lexicon to use with wer_kenlm_model"},
+    )
+    wer_lm_weight: float = field(
+        default=2.0,
+        metadata={"help": "lm weight to use with wer_kenlm_model"},
+    )
+    wer_word_score: float = field(
+        default=-1.0,
+        metadata={"help": "lm word score to use with wer_kenlm_model"},
+    )
+
+    wer_args: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "DEPRECATED: tuple of (wer_kenlm_model, wer_lexicon, wer_lm_weight, wer_word_score)"
+        },
+    )
+
+
+@register_criterion("ctc", dataclass=CtcCriterionConfig)
+class CtcCriterion(FairseqCriterion):
+    def __init__(self, cfg: CtcCriterionConfig, task: FairseqTask):
+        super().__init__(task)
         self.blank_idx = task.target_dictionary.bos()
         self.pad_idx = task.target_dictionary.pad()
         self.eos_idx = task.target_dictionary.eos()
-        self.post_process = args.post_process if args.post_process else "letter"
+        self.post_process = cfg.post_process
 
-        if args.wer_args is not None:
+        if cfg.wer_args is not None:
+            (
+                cfg.wer_kenlm_model,
+                cfg.wer_lexicon,
+                cfg.wer_lm_weight,
+                cfg.wer_word_score,
+            ) = eval(cfg.wer_args)
+
+        if cfg.wer_kenlm_model is not None:
             from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
-
-            wer_compute_kenlm, wer_lexicon, lm_w, ws_w = eval(args.wer_args)
 
             dec_args = Namespace()
             dec_args.nbest = 1
             dec_args.criterion = "ctc"
-            dec_args.kenlm_model = wer_compute_kenlm
-            dec_args.lexicon = wer_lexicon
+            dec_args.kenlm_model = cfg.wer_kenlm_model
+            dec_args.lexicon = cfg.wer_lexicon
             dec_args.beam = 50
             dec_args.beam_size_token = min(50, len(task.target_dictionary))
             dec_args.beam_threshold = min(50, len(task.target_dictionary))
-            dec_args.lm_weight = lm_w
-            dec_args.word_score = ws_w
+            dec_args.lm_weight = cfg.wer_lm_weight
+            dec_args.word_score = cfg.wer_word_score
             dec_args.unk_weight = -math.inf
             dec_args.sil_weight = 0
 
@@ -46,31 +99,8 @@ class CtcCriterion(LegacyFairseqCriterion):
         else:
             self.w2l_decoder = None
 
-        self.zero_infinity = args.zero_infinity
-        self.sentence_avg = args.sentence_avg
-
-    @staticmethod
-    def add_args(parser):
-        """Add criterion-specific arguments to the parser."""
-        parser.add_argument(
-            "--zero-infinity", action="store_true", help="zero inf loss"
-        )
-        try:
-            parser.add_argument(
-                "--post-process",
-                "--remove-bpe",
-                default="letter",
-                help="remove BPE tokens before scoring (can be set to sentencepiece, letter, and more)",
-            )
-        except:
-            pass  # this option might have been added from eval args
-        parser.add_argument(
-            "--wer-args",
-            type=str,
-            default=None,
-            help="options for wer computation on valid set using 4 gram lm. this should be a tuple of 4 elements: path to 4-gram lm, \
-            path to lexicon, lm score, word score",
-        )
+        self.zero_infinity = cfg.zero_infinity
+        self.sentence_avg = cfg.sentence_avg
 
     def forward(self, model, sample, reduce=True):
         net_output = model(**sample["net_input"])

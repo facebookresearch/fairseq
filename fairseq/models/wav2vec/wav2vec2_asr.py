@@ -7,166 +7,145 @@ from argparse import Namespace
 import contextlib
 import copy
 import math
-
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from dataclasses import dataclass, field
+from omegaconf import MISSING, II, open_dict
+from typing import Any
+
 from fairseq import checkpoint_utils, tasks, utils
+from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+from fairseq.tasks import FairseqTask
 from fairseq.models import (
     BaseFairseqModel,
     FairseqEncoder,
     FairseqEncoderDecoderModel,
     FairseqIncrementalDecoder,
     register_model,
-    register_model_architecture,
 )
+from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 
 
-def add_common_args(parser):
-    parser.add_argument("--w2v-path", help="path to wav2vec 2.0 model")
-    parser.add_argument(
-        "--no-pretrained-weights",
-        action="store_true",
-        help="if true, does not load pretrained weights",
+@dataclass
+class Wav2Vec2AsrConfig(FairseqDataclass):
+    w2v_path: str = field(
+        default=MISSING, metadata={"help": "path to wav2vec 2.0 model"}
     )
-    parser.add_argument(
-        "--dropout-input",
-        type=float,
-        metavar="D",
-        help="dropout to apply to the input (after feat extr)",
+    no_pretrained_weights: bool = field(
+        default=False, metadata={"help": "if true, does not load pretrained weights"}
     )
-    parser.add_argument(
-        "--final-dropout",
-        type=float,
-        metavar="D",
-        help="dropout after transformer and before final projection",
-    )
-    parser.add_argument(
-        "--apply-mask", action="store_true", help="apply masking during fine-tuning"
-    )
-    parser.add_argument(
-        "--dropout",
-        type=float,
-        metavar="D",
-        help="dropout probability inside wav2vec 2.0 model",
-    )
-    parser.add_argument(
-        "--attention-dropout",
-        type=float,
-        metavar="D",
-        help="dropout probability for attention weights inside wav2vec 2.0 model",
-    )
-    parser.add_argument(
-        "--activation-dropout",
-        "--relu-dropout",
-        type=float,
-        metavar="D",
-        help="dropout probability after activation in FFN inside wav2vec 2.0 model",
-    )
-
-    parser.add_argument(
-        "--mask-length", type=int, help="repeat the mask indices multiple times"
-    )
-
-    parser.add_argument(
-        "--mask-prob", type=float, help="probability of replacing a token with mask"
-    )
-
-    parser.add_argument(
-        "--mask-selection",
-        type=str,
-        choices=["static", "uniform", "normal", "poisson"],
-        help="how to choose masks",
-    )
-
-    parser.add_argument(
-        "--mask-other",
-        type=float,
-        help="stdev of the mask length in case of 'normal' selection strategy",
-    )
-
-    parser.add_argument(
-        "--no-mask-overlap",
-        action="store_true",
-        help="whether to allow masks to overlap",
-    )
-
-    parser.add_argument(
-        "--mask-channel-length", type=int, help="repeat the mask indices multiple times"
-    )
-
-    parser.add_argument(
-        "--mask-channel-prob",
-        type=float,
-        help="probability of replacing a token with mask",
-    )
-
-    parser.add_argument(
-        "--mask-channel-selection",
-        type=str,
-        choices=["static", "uniform", "normal", "poisson"],
-        help="how to choose masks",
-    )
-
-    parser.add_argument(
-        "--mask-channel-other",
-        type=float,
-        help="stdev of the mask length in case of 'normal' selection strategy",
-    )
-
-    parser.add_argument(
-        "--no-mask-channel-overlap",
-        action="store_true",
-        help="whether to allow masks to overlap",
-    )
-
-    parser.add_argument(
-        "--freeze-finetune-updates",
-        default=0,
-        type=int,
-        help="dont finetune wav2vec for this many updates",
-    )
-
-    parser.add_argument(
-        "--feature-grad-mult",
-        default=None,
-        type=float,
-        help="reset feature grad mult in wav2vec 2.0 to this",
-    )
-
-    parser.add_argument(
-        "--layerdrop",
+    dropout_input: float = field(
         default=0.0,
-        type=float,
-        help="probability of dropping a layer in wav2vec 2.0",
+        metadata={"help": "dropout to apply to the input (after feat extr)"},
+    )
+    final_dropout: float = field(
+        default=0.0,
+        metadata={"help": "dropout after transformer and before final projection"},
+    )
+    dropout: float = field(
+        default=0.0, metadata={"help": "dropout probability inside wav2vec 2.0 model"}
+    )
+    attention_dropout: float = field(
+        default=0.0,
+        metadata={
+            "help": "dropout probability for attention weights inside wav2vec 2.0 model"
+        },
+    )
+    activation_dropout: float = field(
+        default=0.0,
+        metadata={
+            "help": "dropout probability after activation in FFN inside wav2vec 2.0 model"
+        },
     )
 
+    # masking
+    apply_mask: bool = field(
+        default=False, metadata={"help": "apply masking during fine-tuning"}
+    )
+    mask_length: int = field(
+        default=10, metadata={"help": "repeat the mask indices multiple times"}
+    )
+    mask_prob: float = field(
+        default=0.5,
+        metadata={
+            "help": "probability of replacing a token with mask (normalized by length)"
+        },
+    )
+    mask_selection: MASKING_DISTRIBUTION_CHOICES = field(
+        default="static", metadata={"help": "how to choose masks"}
+    )
+    mask_other: float = field(
+        default=0,
+        metadata={
+            "help": "secondary mask argument (used for more complex distributions), "
+            "see help in compute_mask_indices"
+        },
+    )
+    no_mask_overlap: bool = field(
+        default=False, metadata={"help": "whether to allow masks to overlap"}
+    )
 
-@register_model("wav2vec_ctc")
+    # channel masking
+    mask_channel_length: int = field(
+        default=10, metadata={"help": "length of the mask for features (channels)"}
+    )
+    mask_channel_prob: float = field(
+        default=0.0, metadata={"help": "probability of replacing a feature with 0"}
+    )
+    mask_channel_selection: MASKING_DISTRIBUTION_CHOICES = field(
+        default="static",
+        metadata={"help": "how to choose mask length for channel masking"},
+    )
+    mask_channel_other: float = field(
+        default=0,
+        metadata={
+            "help": "secondary mask argument (used for more complex distributions), "
+            "see help in compute_mask_indicesh"
+        },
+    )
+    no_mask_channel_overlap: bool = field(
+        default=False, metadata={"help": "whether to allow channel masks to overlap"}
+    )
+    freeze_finetune_updates: int = field(
+        default=0, metadata={"help": "dont finetune wav2vec for this many updates"}
+    )
+    feature_grad_mult: float = field(
+        default=0.0, metadata={"help": "reset feature grad mult in wav2vec 2.0 to this"}
+    )
+    layerdrop: float = field(
+        default=0.0, metadata={"help": "probability of dropping a layer in wav2vec 2.0"}
+    )
+    normalize: bool = II("task.normalize")
+    data: str = II("task.data")
+    # this holds the loaded wav2vec args
+    w2v_args: Any = None
+
+
+@dataclass
+class Wav2Vec2CtcConfig(Wav2Vec2AsrConfig):
+    pass
+
+
+@register_model("wav2vec_ctc", dataclass=Wav2Vec2CtcConfig)
 class Wav2VecCtc(BaseFairseqModel):
-    @staticmethod
-    def add_args(parser):
-        """Add model-specific arguments to the parser."""
-        add_common_args(parser)
-
-    def __init__(self, w2v_encoder, args):
+    def __init__(self, cfg: Wav2Vec2CtcConfig, w2v_encoder: BaseFairseqModel):
         super().__init__()
+        self.cfg = cfg
         self.w2v_encoder = w2v_encoder
-        self.args = args
 
     def upgrade_state_dict_named(self, state_dict, name):
         super().upgrade_state_dict_named(state_dict, name)
         return state_dict
 
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(cls, cfg: Wav2Vec2CtcConfig, task: FairseqTask):
         """Build a new model instance."""
-        base_architecture(args)
-        w2v_encoder = Wav2VecEncoder(args, task.target_dictionary)
-        return cls(w2v_encoder, args)
+        w2v_encoder = Wav2VecEncoder(cfg, task.target_dictionary)
+        return cls(cfg, w2v_encoder)
 
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""
@@ -181,95 +160,66 @@ class Wav2VecCtc(BaseFairseqModel):
         x = self.w2v_encoder(**kwargs)
         return x
 
-    # def max_positions(self):
-    #     return None
+
+@dataclass
+class Wav2Vec2Seq2SeqConfig(Wav2Vec2AsrConfig):
+    decoder_embed_dim: int = field(
+        default=768, metadata={"help": "decoder embedding dimension"}
+    )
+    decoder_ffn_embed_dim: int = field(
+        default=3072, metadata={"help": "decoder embedding dimension for FFN"}
+    )
+    decoder_layers: int = field(default=6, metadata={"help": "num of decoder layers"})
+    decoder_layerdrop: float = field(
+        default=0.0, metadata={"help": "decoder layerdrop chance"}
+    )
+    decoder_attention_heads: int = field(
+        default=4, metadata={"help": "num decoder attention heads"}
+    )
+    decoder_learned_pos: bool = field(
+        default=False,
+        metadata={"help": "use learned positional embeddings in the decoder"},
+    )
+    decoder_normalize_before: bool = field(
+        default=False, metadata={"help": "apply layernorm before each decoder block"}
+    )
+    no_token_positional_embeddings: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, disables positional embeddings (outside self attention)"
+        },
+    )
+    decoder_dropout: float = field(
+        default=0.0, metadata={"help": "dropout probability in the decoder"}
+    )
+    decoder_attention_dropout: float = field(
+        default=0.0,
+        metadata={
+            "help": "dropout probability for attention weights inside the decoder"
+        },
+    )
+    decoder_activation_dropout: float = field(
+        default=0.0,
+        metadata={
+            "help": "dropout probability after activation in FFN inside the decoder"
+        },
+    )
+    max_target_positions: int = field(
+        default=2048, metadata={"help": "max target positions"}
+    )
+    share_decoder_input_output_embed: bool  = field(
+        default=False, metadata={"help": "share decoder input and output embeddings"}
+    )
 
 
-@register_model("wav2vec_seq2seq")
-class TransformerModel(FairseqEncoderDecoderModel):
-    def __init__(self, args, encoder, decoder):
+@register_model("wav2vec_seq2seq", dataclass=Wav2Vec2Seq2SeqConfig)
+class Wav2Vec2Seq2SeqModel(FairseqEncoderDecoderModel):
+    def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
-    @staticmethod
-    def add_args(parser):
-        add_common_args(parser)
-
-        parser.add_argument(
-            "--decoder-embed-dim",
-            type=int,
-            metavar="N",
-            help="decoder embedding dimension",
-        )
-        parser.add_argument(
-            "--decoder-ffn-embed-dim",
-            type=int,
-            metavar="N",
-            help="decoder embedding dimension for FFN",
-        )
-        parser.add_argument(
-            "--decoder-layers", type=int, metavar="N", help="num decoder layers"
-        )
-        parser.add_argument(
-            "--decoder-layerdrop",
-            type=float,
-            metavar="D",
-            help="decoder layerdrop chance",
-        )
-        parser.add_argument(
-            "--decoder-attention-heads",
-            type=int,
-            metavar="N",
-            help="num decoder attention heads",
-        )
-        parser.add_argument(
-            "--decoder-learned-pos",
-            action="store_true",
-            help="use learned positional embeddings in the decoder",
-        )
-        parser.add_argument(
-            "--decoder-normalize-before",
-            action="store_true",
-            help="apply layernorm before each decoder block",
-        )
-        parser.add_argument(
-            "--no-token-positional-embeddings",
-            default=False,
-            action="store_true",
-            help="if set, disables positional embeddings (outside self attention)",
-        )
-
-        parser.add_argument(
-            "--decoder-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability in the decoder",
-        )
-        parser.add_argument(
-            "--decoder-attention-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability for attention weights inside the decoder",
-        )
-        parser.add_argument(
-            "--decoder-activation-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability after activation in FFN inside the decoder",
-        )
-
-        # fmt: on
-
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(cls, cfg: Wav2Vec2Seq2SeqConfig, task: FairseqTask):
         """Build a new model instance."""
-
-        # make sure all arguments are present in older models
-        base_architecture(args)
-
-        if not hasattr(args, "max_source_positions"):
-            args.max_source_positions = 2048
-        if not hasattr(args, "max_target_positions"):
-            args.max_target_positions = 2048
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
@@ -279,19 +229,20 @@ class TransformerModel(FairseqEncoderDecoderModel):
             emb = Embedding(num_embeddings, embed_dim, padding_idx)
             return emb
 
-        decoder_embed_tokens = build_embedding(tgt_dict, args.decoder_embed_dim)
+        decoder_embed_tokens = build_embedding(tgt_dict, cfg.decoder_embed_dim)
 
-        encoder = cls.build_encoder(args)
-        decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
-        return TransformerModel(args, encoder, decoder)
+        encoder = cls.build_encoder(cfg)
+        decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
 
-    @classmethod
-    def build_encoder(cls, args):
-        return Wav2VecEncoder(args)
+        return Wav2Vec2Seq2SeqModel(encoder, decoder)
 
     @classmethod
-    def build_decoder(cls, args, tgt_dict, embed_tokens):
-        return TransformerDecoder(args, tgt_dict, embed_tokens)
+    def build_encoder(cls, cfg: Wav2Vec2AsrConfig):
+        return Wav2VecEncoder(cfg)
+
+    @classmethod
+    def build_decoder(cls, cfg: Wav2Vec2Seq2SeqConfig, tgt_dict, embed_tokens):
+        return TransformerDecoder(cfg, tgt_dict, embed_tokens)
 
     def forward(self, **kwargs):
         encoder_out = self.encoder(tbc=False, **kwargs)
@@ -304,52 +255,50 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
 
 class Wav2VecEncoder(FairseqEncoder):
-    def __init__(self, args, tgt_dict=None):
-        self.apply_mask = args.apply_mask
+    def __init__(self, cfg: Wav2Vec2AsrConfig, tgt_dict=None):
+        self.apply_mask = cfg.apply_mask
 
         arg_overrides = {
-            "dropout": args.dropout,
-            "activation_dropout": args.activation_dropout,
-            "dropout_input": args.dropout_input,
-            "attention_dropout": args.attention_dropout,
-            "mask_length": args.mask_length,
-            "mask_prob": args.mask_prob,
-            "mask_selection": args.mask_selection,
-            "mask_other": args.mask_other,
-            "no_mask_overlap": args.no_mask_overlap,
-            "mask_channel_length": args.mask_channel_length,
-            "mask_channel_prob": args.mask_channel_prob,
-            "mask_channel_selection": args.mask_channel_selection,
-            "mask_channel_other": args.mask_channel_other,
-            "no_mask_channel_overlap": args.no_mask_channel_overlap,
-            "encoder_layerdrop": args.layerdrop,
-            "feature_grad_mult": args.feature_grad_mult,
+            "dropout": cfg.dropout,
+            "activation_dropout": cfg.activation_dropout,
+            "dropout_input": cfg.dropout_input,
+            "attention_dropout": cfg.attention_dropout,
+            "mask_length": cfg.mask_length,
+            "mask_prob": cfg.mask_prob,
+            "mask_selection": cfg.mask_selection,
+            "mask_other": cfg.mask_other,
+            "no_mask_overlap": cfg.no_mask_overlap,
+            "mask_channel_length": cfg.mask_channel_length,
+            "mask_channel_prob": cfg.mask_channel_prob,
+            "mask_channel_selection": cfg.mask_channel_selection,
+            "mask_channel_other": cfg.mask_channel_other,
+            "no_mask_channel_overlap": cfg.no_mask_channel_overlap,
+            "encoder_layerdrop": cfg.layerdrop,
+            "feature_grad_mult": cfg.feature_grad_mult,
         }
 
-        if getattr(args, "w2v_args", None) is None:
-            state = checkpoint_utils.load_checkpoint_to_cpu(
-                args.w2v_path, arg_overrides
-            )
+        if cfg.w2v_args is None:
+            state = checkpoint_utils.load_checkpoint_to_cpu(cfg.w2v_path, arg_overrides)
             w2v_args = state.get("cfg", None)
             if w2v_args is None:
                 w2v_args = convert_namespace_to_omegaconf(state["args"])
-            args.w2v_args = w2v_args
+            cfg.w2v_args = w2v_args
         else:
             state = None
-            w2v_args = args.w2v_args
+            w2v_args = cfg.w2v_args
             if isinstance(w2v_args, Namespace):
-                args.w2v_args = w2v_args = convert_namespace_to_omegaconf(w2v_args)
+                cfg.w2v_args = w2v_args = convert_namespace_to_omegaconf(w2v_args)
 
-        assert (
-            args.normalize == w2v_args.task.normalize
-        ), "Fine-tuning works best when data normalization is the same. " \
-           "Please check that --normalize is set or unset for both"
+        assert cfg.normalize == w2v_args.task.normalize, (
+            "Fine-tuning works best when data normalization is the same. "
+            "Please check that --normalize is set or unset for both pre-training and here"
+        )
 
-        w2v_args.task.data = args.data
+        w2v_args.task.data = cfg.data
         task = tasks.setup_task(w2v_args.task)
         model = task.build_model(w2v_args.model)
 
-        if state is not None and not args.no_pretrained_weights:
+        if state is not None and not cfg.no_pretrained_weights:
             model.load_state_dict(state["model"], strict=True)
 
         model.remove_pretraining_modules()
@@ -360,14 +309,14 @@ class Wav2VecEncoder(FairseqEncoder):
 
         self.w2v_model = model
 
-        self.final_dropout = nn.Dropout(args.final_dropout)
-        self.freeze_finetune_updates = args.freeze_finetune_updates
+        self.final_dropout = nn.Dropout(cfg.final_dropout)
+        self.freeze_finetune_updates = cfg.freeze_finetune_updates
         self.num_updates = 0
 
         if tgt_dict is not None:
             self.proj = Linear(d, len(tgt_dict))
-        elif getattr(args, "decoder_embed_dim", d) != d:
-            self.proj = Linear(d, args.decoder_embed_dim)
+        elif getattr(cfg, "decoder_embed_dim", d) != d:
+            self.proj = Linear(d, cfg.decoder_embed_dim)
         else:
             self.proj = None
 
@@ -436,21 +385,26 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             (default: False).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
+    def __init__(
+        self,
+        cfg: Wav2Vec2Seq2SeqConfig,
+        dictionary,
+        embed_tokens,
+        no_encoder_attn=False,
+    ):
         super().__init__(dictionary)
 
-        self.dropout = args.decoder_dropout
-        self.share_input_output_embed = args.share_decoder_input_output_embed
+        self.dropout = cfg.decoder_dropout
+        self.share_input_output_embed = cfg.share_decoder_input_output_embed
 
         input_embed_dim = embed_tokens.embedding_dim
-        embed_dim = args.decoder_embed_dim
-        self.output_embed_dim = args.decoder_embed_dim
-        args.encoder_embed_dim = embed_dim
+        embed_dim = cfg.decoder_embed_dim
+        self.output_embed_dim = cfg.decoder_embed_dim
 
-        self.layerdrop = args.decoder_layerdrop
+        self.layerdrop = cfg.decoder_layerdrop
 
         padding_idx = embed_tokens.padding_idx
-        self.max_target_positions = args.max_target_positions
+        self.max_target_positions = cfg.max_target_positions
 
         self.embed_tokens = embed_tokens
         self.embed_scale = math.sqrt(embed_dim)  # todo: try with input_embed_dim
@@ -463,25 +417,31 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.embed_positions = (
             PositionalEmbedding(
-                args.max_target_positions,
+                cfg.max_target_positions,
                 embed_dim,
                 padding_idx,
-                learned=args.decoder_learned_pos,
+                learned=cfg.decoder_learned_pos,
             )
-            if not args.no_token_positional_embeddings
+            if not cfg.no_token_positional_embeddings
             else None
         )
 
-        args = copy.deepcopy(args)
-        args.dropout = args.decoder_dropout
-        args.attention_dropout = args.decoder_attention_dropout
-        args.activation_dropout = args.decoder_activation_dropout
+        # TODO: update this when transformer gets converted to dataclass configs
+        transformer_cfg = copy.deepcopy(cfg)
+        with open_dict(transformer_cfg):
+            transformer_cfg.dropout = transformer_cfg.decoder_dropout
+            transformer_cfg.attention_dropout = (
+                transformer_cfg.decoder_attention_dropout
+            )
+            transformer_cfg.activation_dropout = (
+                transformer_cfg.decoder_activation_dropout
+            )
 
         self.layers = nn.ModuleList([])
         self.layers.extend(
             [
-                TransformerDecoderLayer(args, no_encoder_attn)
-                for _ in range(args.decoder_layers)
+                TransformerDecoderLayer(transformer_cfg, no_encoder_attn)
+                for _ in range(transformer_cfg.decoder_layers)
             ]
         )
 
@@ -491,9 +451,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             )
             nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
 
-        if args.decoder_normalize_before and not getattr(
-            args, "no_decoder_final_norm", False
-        ):
+        if transformer_cfg.decoder_normalize_before:
             self.layer_norm = LayerNorm(embed_dim)
         else:
             self.layer_norm = None
@@ -633,51 +591,3 @@ def Linear(in_features, out_features, bias=True):
     if bias:
         nn.init.constant_(m.bias, 0.0)
     return m
-
-
-@register_model_architecture("wav2vec_ctc", "wav2vec_ctc")
-def base_architecture(args):
-    args.no_pretrained_weights = getattr(args, "no_pretrained_weights", False)
-    args.dropout_input = getattr(args, "dropout_input", 0)
-    args.final_dropout = getattr(args, "final_dropout", 0)
-    args.apply_mask = getattr(args, "apply_mask", False)
-    args.dropout = getattr(args, "dropout", 0)
-    args.attention_dropout = getattr(args, "attention_dropout", 0)
-    args.activation_dropout = getattr(args, "activation_dropout", 0)
-
-    args.mask_length = getattr(args, "mask_length", 10)
-    args.mask_prob = getattr(args, "mask_prob", 0.5)
-    args.mask_selection = getattr(args, "mask_selection", "static")
-    args.mask_other = getattr(args, "mask_other", 0)
-    args.no_mask_overlap = getattr(args, "no_mask_overlap", False)
-    args.mask_channel_length = getattr(args, "mask_channel_length", 10)
-    args.mask_channel_prob = getattr(args, "mask_channel_prob", 0.5)
-    args.mask_channel_selection = getattr(args, "mask_channel_selection", "static")
-    args.mask_channel_other = getattr(args, "mask_channel_other", 0)
-    args.no_mask_channel_overlap = getattr(args, "no_mask_channel_overlap", False)
-
-    args.freeze_finetune_updates = getattr(args, "freeze_finetune_updates", 0)
-    args.feature_grad_mult = getattr(args, "feature_grad_mult", 0)
-    args.layerdrop = getattr(args, "layerdrop", 0.0)
-
-
-@register_model_architecture("wav2vec_seq2seq", "wav2vec_seq2seq")
-def seq2seq_architecture(args):
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 1024)
-    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 4096)
-    args.decoder_layers = getattr(args, "decoder_layers", 10)
-    args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
-    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
-    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
-    args.no_token_positional_embeddings = getattr(
-        args, "no_token_positional_embeddings", False
-    )
-    args.decoder_dropout = getattr(args, "decoder_dropout", 0)
-    args.decoder_attention_dropout = getattr(args, "decoder_attention_dropout", 0)
-    args.decoder_activation_dropout = getattr(args, "decoder_activation_dropout", 0)
-    args.share_decoder_input_output_embed = getattr(
-        args, "share_decoder_input_output_embed", False
-    )
-
-    base_architecture(args)

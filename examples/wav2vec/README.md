@@ -53,44 +53,27 @@ separately pre-processed manifest file.
 
 This configuration was used for the base model trained on the Librispeech dataset in the wav2vec 2.0 paper
 
-Note that this was tested with pytorch 1.4.0 and the input is expected to be single channel, sampled at 16 kHz
+Note that the input is expected to be single channel, sampled at 16 kHz
 
 ```shell script
-$ python train.py --distributed-world-size 64 --distributed-port $PORT /manifest/path \
---save-dir /model/path --fp16 --num-workers 6 --task audio_pretraining --criterion wav2vec --arch wav2vec2 \
---log-keys '["prob_perplexity","code_perplexity","temp"]' --quantize-targets --extractor-mode default \
---conv-feature-layers '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] * 2' --final-dim 256 --latent-vars 320 \
---latent-groups 2 --latent-temp '(2,0.5,0.999995)' --infonce --optimizer adam \
---adam-betas '(0.9,0.98)' --adam-eps 1e-06 --lr-scheduler polynomial_decay --total-num-update 400000 \
---lr 0.0005 --warmup-updates 32000 --mask-length 10 --mask-prob 0.65 --mask-selection static --mask-other 0 \
---encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
---loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
---max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
---max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d
+$ python fairseq_cli/hydra_train.py task.data=/path/to/data \
+--config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining --config-name wav2vec2_base_librispeech
 ```
 
-Note: you can simulate 64 GPUs by using k GPUs and setting --update-freq 64/k
+Note: you can simulate 64 GPUs by using k GPUs and adding command line parameters (before --config-path) 
+`distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 64/k 
 
 ### Train a wav2vec 2.0 large model:
 
 This configuration was used for the large model trained on the Libri-light dataset in the wav2vec 2.0 paper
 
 ```shell script
-$ python train.py --distributed-world-size 128 --distributed-port $PORT /manifest/path \
---save-dir /model/path --fp16 --num-workers 6 --task audio_pretraining --criterion wav2vec --arch wav2vec2 \
---log-keys '["prob_perplexity","code_perplexity","temp"]' --quantize-targets --extractor-mode default \
---conv-feature-layers '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] * 2' --final-dim 768 --latent-vars 320 \
---latent-groups 2 --latent-temp '(2.0,0.1,0.999995)' --infonce --optimizer adam \
---adam-betas '(0.9,0.98)' --adam-eps 1e-06 --lr-scheduler polynomial_decay --total-num-update 600000 \
---lr 0.0003 --warmup-updates 32000 --mask-length 10 --mask-prob 0.65 --mask-selection static --mask-other 0 \
---encoder-layerdrop 0.0 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.03 \
---loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --encoder-layers 24 --encoder-embed-dim 1024 \
---encoder-ffn-embed-dim 4096 --encoder-attention-heads 16 --num-negatives 100 --cross-sample-negatives 0 \
---max-sample-size 320000 --min-sample-size 32000 --dropout 0.0 --attention-dropout 0.1 --weight-decay 0.01 \
---max-tokens 1200000 --max-update 600000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d
+$ python fairseq_cli/hydra_train.py task.data=/path/to/data \
+--config-path /path/to/fairseq-py/examples/wav2vec/config/pretraining --config-name wav2vec2_large_librivox
 ```
 
-Note: you can simulate 128 GPUs by using k GPUs and setting --update-freq 128/k
+Note: you can simulate 128 GPUs by using k GPUs and adding command line parameters (before --config-path) 
+`distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 128/k 
 
 ### Fine-tune a pre-trained model with CTC:
 
@@ -105,28 +88,19 @@ $ python libri_labels.py /path/to/tsv --output-dir /output/dir --output-name $sp
 
 Fine-tuning on 100h of Librispeech with letter targets:
 ```shell script
-valid_subset=dev_other
-python train.py --distributed-world-size 24 --distributed-port $PORT /path/to/training_data --save-dir /model/path --fp16 \
---wer-args '("/path/to/lm/4-gram.bin","/path/to/lexicon",2,-1)' \
---post-process letter --valid-subset $valid_subset --no-epoch-checkpoints --best-checkpoint-metric wer --num-workers 4 \
---max-update 80000 --sentence-avg --task audio_pretraining --arch wav2vec_ctc --w2v-path /path/to/pretrained/model \
---labels ltr --apply-mask --mask-selection static --mask-other 0 --mask-length 10 --mask-prob 0.5 --layerdrop 0.1 \
---mask-channel-selection static --mask-channel-other 0 --mask-channel-length 64 --mask-channel-prob 0.5 --zero-infinity \
---feature-grad-mult 0.0 --freeze-finetune-updates 10000 --validate-after-updates 10000 --optimizer adam \
---adam-betas '(0.9, 0.98)' --adam-eps 1e-08 --lr 2e-05 --lr-scheduler tri_stage --warmup-steps 8000 --hold-steps 32000 \
---decay-steps 40000 --final-lr-scale 0.05 --final-dropout 0.0 --dropout 0.0 --activation-dropout 0.1 --criterion ctc \
---attention-dropout 0.0 --max-tokens 1280000 --seed 2337 --log-format json --log-interval 500 --ddp-backend no_c10d
+python fairseq_cli/hydra_train.py distributed_training.distributed_port=$PORT task.data=/path/to/data \
+model.w2v_path=/path/to/model.pt --config-path /path/to/fairseq-py/examples/wav2vec/config/finetuning \
+--config-name base_100h
 ```
 
-Note: you can simulate 24 GPUs by using k GPUs and setting --update-freq 24/k
+There are other config files in the config/finetuning directory that can be used to fine-tune on other splits.
+You can specify the right config via the --config-name parameter. 
+
+Note: you can simulate 24 GPUs by using k GPUs and adding command line parameters (before --config-path) 
+`distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 24/k
 
 Decoding with a language model during training requires wav2letter [python bindings](https://github.com/facebookresearch/wav2letter/wiki/Building-Python-bindings).
-Alternatively, simply omit the --wer-args flag.
-
-For hyper-parameters to fine-tune other Librispeech splits (10 minutes, 1 hour, etc) please refer to the table in Appendix B in the wav2vec 2.0 paper.
-The main changes to make are adjusting --max-update, and then adjusting --warmup-steps, --hold-steps, and --decay steps so that they use 0.1/0.4/0.5 of max-update respectively. You then need to adjust --mask-prob and --mask-channel-prob. This should be set to the mask-length * x where x is the number in the table and mask-length is what you use for --mask-length (10 in this example. Use --mask-channel-length value for --mask-channel-prob).
-
-For example, for 10 hours, we see in the paper that timestep mask prob should be 0.065, so we set --mask-prob to 10* 0.065 = 0.65. channel mask prob is 0.004, so we set it to 64 * 0.004 = 0.256. then we set --max-updates to 20000 and change --warmup-steps to 20000 * 0.1 = 2000, --hold-steps to 8000 and --decay-steps to 10000.
+If you want to use a language model, add `+criterion.wer_args='[/path/to/kenlm, /path/to/lexicon, 2, -1]'` to the command line.
 
 ### Evaluating a CTC model:
 

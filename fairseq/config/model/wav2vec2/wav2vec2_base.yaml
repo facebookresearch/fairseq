@@ -1,0 +1,8 @@
+# @package _group_
+
+quantize_targets: true
+final_dim: 256
+encoder_layerdrop: 0.05
+dropout_input: 0.1
+dropout_features: 0.1
+feature_grad_mult: 0.1

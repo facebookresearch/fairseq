@@ -7,8 +7,8 @@ import inspect
 from typing import Any, Dict, List
 
 from fairseq import metrics, utils
+from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
-from omegaconf import DictConfig
 from torch.nn.modules.loss import _Loss
 
 
@@ -28,7 +28,7 @@ class FairseqCriterion(_Loss):
             gen_parser_from_dataclass(parser, dc())
 
     @classmethod
-    def build_criterion(cls, cfg: DictConfig, task):
+    def build_criterion(cls, cfg: FairseqDataclass, task):
         """Construct a criterion from command-line args."""
         # arguments in the __init__.
         init_args = {}
@@ -46,6 +46,8 @@ class FairseqCriterion(_Loss):
 
             if p.name == "task":
                 init_args["task"] = task
+            elif p.name == "cfg":
+                init_args["cfg"] = cfg
             elif hasattr(cfg, p.name):
                 init_args[p.name] = getattr(cfg, p.name)
             elif p.default != p.empty:
