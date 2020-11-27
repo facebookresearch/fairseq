@@ -160,7 +160,17 @@ def collate(
         constraints = torch.zeros((len(samples), max(lens))).long()
         for i, sample in enumerate(samples):
             constraints[i, 0 : lens[i]] = samples[i].get("constraints")
+        constraints = constraints.index_select(0, sort_order)
         batch["constraints"] = constraints
+    if samples[0].get("negative_constraints", None) is not None:
+        # Collate the packed negative constraints across the samples, padding to
+        # the length of the longest sample.
+        lens = [sample.get("negative_constraints").size(0) for sample in samples]
+        negative_constraints = torch.zeros((len(samples), max(lens))).long()
+        for i, sample in enumerate(samples):
+            negative_constraints[i, 0:lens[i]] = samples[i].get("negative_constraints")
+        negative_constraints = negative_constraints.index_select(0, sort_order)
+        batch["negative_constraints"] = negative_constraints
 
     return batch
 
@@ -192,6 +202,8 @@ class LanguagePairDataset(FairseqDataset):
             containing alignments.
         constraints (Tensor, optional): 2d tensor with a concatenated, zero-
             delimited list of constraints for each sentence.
+        negative_constraints (Tensor, optional): 2d tensor with a concatenated, zero-
+            delimited list of negative constraints for each sentence.
         append_bos (bool, optional): if set, appends bos to the beginning of
             source/target sentence.
         num_buckets (int, optional): if set to a value greater than 0, then
@@ -220,6 +232,7 @@ class LanguagePairDataset(FairseqDataset):
         append_eos_to_target=False,
         align_dataset=None,
         constraints=None,
+        negative_constraints=None,
         append_bos=False,
         eos=None,
         num_buckets=0,
@@ -258,6 +271,7 @@ class LanguagePairDataset(FairseqDataset):
                 self.tgt_sizes is not None
             ), "Both source and target needed when alignments are provided"
         self.constraints = constraints
+        self.negative_constraints = negative_constraints
         self.append_bos = append_bos
         self.eos = eos if eos is not None else src_dict.eos()
         self.src_lang_id = src_lang_id
@@ -336,6 +350,8 @@ class LanguagePairDataset(FairseqDataset):
             example["alignment"] = self.align_dataset[index]
         if self.constraints is not None:
             example["constraints"] = self.constraints[index]
+        if self.negative_constraints is not None:
+            example["negative_constraints"] = self.negative_constraints[index]
         return example
 
     def __len__(self):

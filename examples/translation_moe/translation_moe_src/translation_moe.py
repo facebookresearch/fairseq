@@ -220,6 +220,7 @@ class TranslationMoETask(TranslationTask):
         prefix_tokens=None,
         expert=None,
         constraints=None,
+        negative_constraints=None,
     ):
         expert = expert or self.args.gen_expert
         with torch.no_grad():
@@ -228,6 +229,7 @@ class TranslationMoETask(TranslationTask):
                 sample,
                 prefix_tokens=prefix_tokens,
                 constraints=constraints,
+                negative_constraints=negative_constraints,
                 bos_token=self.expert_index(expert),
             )
 

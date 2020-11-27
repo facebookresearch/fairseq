@@ -287,7 +287,7 @@ class LanguageModelingTask(LegacyFairseqTask):
         )
 
     def inference_step(
-        self, generator, models, sample, prefix_tokens=None, constraints=None
+        self, generator, models, sample, prefix_tokens=None, constraints=None, negative_constraints=None
     ):
         with torch.no_grad():
             # Generation will always be conditioned on bos_token
@@ -296,7 +296,7 @@ class LanguageModelingTask(LegacyFairseqTask):
             else:
                 bos_token = self.source_dictionary.eos()
 
-            if constraints is not None:
+            if constraints is not None or negative_constraints is not None:
                 raise NotImplementedError(
                     "Constrained decoding with the language_modeling task is not supported"
                 )

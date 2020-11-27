@@ -16,7 +16,7 @@ We could have the constraints:
 
 There are two implementations:
 * OrderedConstraintState: Tracks progress through an ordered list of multitoken constraints.
-* UnorderedConstraintState: Tracks progress through an unordered list of multitoken constraints.
+* UnorderedConstraintState: Tracks progress through an unordered list of multitoken constraints. And this one is alse used for negative constraints
 
 The difference is that in the first, the constraints are assumed to be
 in order; the algorithm will permit zero or more tokens between them.
@@ -178,6 +178,12 @@ class ConstraintNode:
         """Returns the set of tokens in constraints."""
         return set(self.token_counts().keys())
 
+    def negative_tokens(self) -> Set[int]:
+        """Returns the set of negative tokens in constraints.
+        for phrase the current word is the penultimate
+        """
+        return set([_token for _token, child in self.children.items() if child.terminal])
+
     def add_sequence(self, sequence: List[int]):
         """Adds a constraint, represented as a list of integers, to
         the trie."""
@@ -294,6 +300,12 @@ class UnorderedConstraintState(ConstraintState):
             return self.root.next_tokens().union(self.node.next_tokens())
         else:
             return self.root.next_tokens()
+
+    def negative_tokens(self) -> Set[int]:
+        """Returns the negative tokens of root node and current node,
+        indicate token constraints and phrase constraints respectively.
+        """
+        return self.root.negative_tokens().union(self.node.negative_tokens())
 
     def advance(self, token: int):
         """Reads in a token and advances the state. Here's how it works.

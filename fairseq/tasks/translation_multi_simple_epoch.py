@@ -166,8 +166,8 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             **kwargs,
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
-        if constraints is not None:
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None, negative_constraints=None):
+        if constraints is not None or negative_constraints is not None:
             raise NotImplementedError(
                 "Constrained decoding with the multilingual_translation task is not supported"
             )
@@ -222,7 +222,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         return loss, sample_size, logging_output
 
     def inference_step(
-        self, generator, models, sample, prefix_tokens=None, constraints=None
+        self, generator, models, sample, prefix_tokens=None, constraints=None, negative_constraints=None
     ):
         with torch.no_grad():
             _, tgt_langtok_spec = self.args.langtoks["main"]
@@ -241,6 +241,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                     sample,
                     prefix_tokens=prefix_tokens,
                     constraints=constraints,
+                    negative_constraints=negative_constraints
                 )
             else:
                 return generator.generate(

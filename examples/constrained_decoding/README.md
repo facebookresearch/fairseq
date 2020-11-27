@@ -1,6 +1,6 @@
 # (Vectorized) Lexically constrained decoding with dynamic beam allocation
 
-This page provides instructions for how to use lexically constrained decoding in Fairseq.
+This page provides instructions for how to use lexically constrained decoding in Fairseq, including positive lexically constrained decoding and negative lexically constrained decoding. In the following and code implementation, we may eliminate the word of positive and only use 'constraints' refers to 'positive constraints' by default.
 Fairseq implements the code described in the following papers:
 
 * [Fast Lexically Constrained Decoding With Dynamic Beam Allocation](https://www.aclweb.org/anthology/N18-1119/) (Post & Vilar, 2018)
@@ -9,14 +9,13 @@ Fairseq implements the code described in the following papers:
 ## Quick start
 
 Constrained search is enabled by adding the command-line argument `--constraints` to `fairseq-interactive`.
-Constraints are appended to each line of input, separated by tabs. Each constraint (one or more tokens)
-is a separate field.
+Constraints (which mean positive constraints by default) and negative constraints are appended to each line of input, separated by '##'. When there is no '##', positive constraints is used by default. Each constraint (one or more tokens) inside either of two types is separated by tabs and is a separate field.
 
 The following command, using [Fairseq's WMT19 German--English model](https://github.com/pytorch/fairseq/blob/master/examples/wmt19/README.md),
 translates the sentence *Die maschinelle Übersetzung ist schwer zu kontrollieren.* with the constraints
-"hard" and "to influence".
+"hard" and "to influence", and the negative constraints "machine translation" and "Machine".
 
-    echo -e "Die maschinelle Übersetzung ist schwer zu kontrollieren.\thard\ttoinfluence" \
+    echo -e "Die maschinelle Übersetzung ist schwer zu kontrollieren.\thard\tto influence##machine translation\tMachine" \
     | normalize.py | tok.py \
     | fairseq-interactive /path/to/model \
       --path /path/to/model/model1.pt \
@@ -31,25 +30,30 @@ This will generate the following output:
 
     [snip]
     S-0     Die masch@@ in@@ elle Über@@ setzung ist schwer zu kontrollieren .
-    W-0     1.844   seconds
+    W-0     0.557   seconds
     C-0     hard
     C-0     influence
-    H-0     -1.5333266258239746     Mach@@ ine trans@@ lation is hard to influence .
-    D-0     -1.5333266258239746     Machine translation is hard to influence .
-    P-0     -0.5434 -0.1423 -0.1930 -0.1415 -0.2346 -1.8031 -0.1701 -11.7727 -0.1815 -0.1511
+    N-2     machine trans@@ lation
+    N-2     Mach@@ ine
+    H-0     -2.493067741394043     Autom@@ ated trans@@ lation is hard to influence .
+    D-0     -2.493067741394043     Automated translation is hard to influence .
+    P-0     -7.8405 -1.0677 -0.1665 -0.1012 -0.2115 -2.0731 -0.1585 -12.9759 -0.1859 -0.1499
 
 By default, constraints are generated in the order supplied, with any number (zero or more) of tokens generated
-between constraints. If you wish for the decoder to order the constraints, then use `--constraints unordered`.
-Note that you may want to use a larger beam.
+between constraints. If you wish for the decoder to order the constraints, then use `--constraints unordered`. Note that you may want to use a larger beam.
+
+The negative constraints are always generated in the unorder supplied.
 
 ## Implementation details
 
 The heart of the implementation is in `fairseq/search.py`, which adds a `LexicallyConstrainedBeamSearch` instance.
-This instance of beam search tracks the progress of each hypothesis in the beam through the set of constraints
+This instance of beam search tracks the progress of each hypothesis in the beam through the set of [positive] constraints
 provided for each input sentence. It does this using one of two classes, both found in `fairseq/token_generation_contstraints.py`:
 
-* OrderedConstraintState: assumes the `C` input constraints will be generated in the provided order
-* UnorderedConstraintState: tries to apply `C` (phrasal) constraints in all `C!` orders
+* OrderedConstraintState: assumes the C input constraints will be generated in the provided order
+* UnorderedConstraintState: tries to apply C (phrasal) constraints in all C! orders
+
+Negative lexically constrained decoding is implemented in the same way as mentioned above, but only use `UnorderedConstraintState` to track the progress.
 
 ## Differences from Sockeye
 

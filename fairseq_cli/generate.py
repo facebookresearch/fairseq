@@ -195,8 +195,11 @@ def _main(cfg: DictConfig, output_file):
             prefix_tokens = sample["target"][:, : cfg.generation.prefix_size]
 
         constraints = None
+        negative_constraints = None
         if "constraints" in sample:
             constraints = sample["constraints"]
+        if "negative_constraints" in sample:
+            negative_constraints = sample["negative_constraints"]
 
         gen_timer.start()
         hypos = task.inference_step(
@@ -205,6 +208,7 @@ def _main(cfg: DictConfig, output_file):
             sample,
             prefix_tokens=prefix_tokens,
             constraints=constraints,
+            negative_constraints=negative_constraints
         )
         num_generated_tokens = sum(len(h[0]["tokens"]) for h in hypos)
         gen_timer.stop(num_generated_tokens)

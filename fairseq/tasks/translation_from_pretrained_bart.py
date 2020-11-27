@@ -116,7 +116,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
                 eos=self.tgt_dict.index("[{}]".format(self.args.target_lang)),
             )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None, negative_constraints=None):
         src_lang_id = self.source_dictionary.index("[{}]".format(self.args.source_lang))
         source_tokens = []
         for s_t in src_tokens:
@@ -128,5 +128,6 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             self.source_dictionary,
             tgt_dict=self.target_dictionary,
             constraints=constraints,
+            negative_constraints=negative_constraints,
         )
         return dataset

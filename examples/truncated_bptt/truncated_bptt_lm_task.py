@@ -164,10 +164,10 @@ class TruncatedBPTTLMTask(FairseqTask):
         return Dataset()
 
     def inference_step(
-        self, generator, models, sample, prefix_tokens=None, constraints=None
+        self, generator, models, sample, prefix_tokens=None, constraints=None, negative_constraints=None
     ):
         with torch.no_grad():
-            if constraints is not None:
+            if constraints is not None or negative_constraints is not None:
                 raise NotImplementedError
 
             # SequenceGenerator doesn't use *src_tokens* directly, we need to
