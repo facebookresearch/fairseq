@@ -46,7 +46,13 @@ class Binarizer:
             # next(f) breaks f.tell(), hence readline() must be used
             line = safe_readline(f)
             while line:
-                if end > 0 and f.tell() > end:
+                # f.tell() does not always give the byte position in the file
+                # sometimes it skips to a very large number
+                # it is unlikely that through a normal read we go from
+                # end bytes to end + 2**32 bytes (4 GB) and this makes it unlikely
+                # that the procedure breaks by the undeterministic behavior of
+                # f.tell()
+                if end > 0 and f.tell() > end and f.tell() < end + 2**32:
                     break
                 if already_numberized:
                     id_strings = line.strip().split()
