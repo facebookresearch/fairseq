@@ -925,6 +925,38 @@ class TestTranslation(unittest.TestCase):
                 )
                 generate_main(data_dir)
 
+    def test_transformer_layerdrop(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer_layerdrop") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(
+                    data_dir,
+                    "transformer_iwslt_de_en",
+                    [
+                        "--encoder-layers",
+                        "3",
+                        "--decoder-layers",
+                        "3",
+                        "--encoder-embed-dim",
+                        "8",
+                        "--decoder-embed-dim",
+                        "8",
+                        "--encoder-layerdrop",
+                        "0.01",
+                        "--decoder-layerdrop",
+                        "0.01",
+                    ],
+                )
+                generate_main(data_dir)
+                generate_main(
+                    data_dir,
+                    [
+                        "--model-overrides",
+                        "{'encoder_layers_to_keep':'0,2','decoder_layers_to_keep':'1'}"
+                    ],
+                )
+
 
 class TestStories(unittest.TestCase):
     def setUp(self):
