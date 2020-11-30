@@ -29,6 +29,9 @@ class CosineLRScheduleConfig(FairseqDataclass):
     max_lr: float = field(
         default=1.0, metadata={"help": "max learning rate, must be more than cfg.lr"}
     )
+    min_lr: float = field(
+        default=0.0, metadata={"help": "min learning rate, must be less than cfg.lr"}
+    )
     t_mult: float = field(
         default=1.0, metadata={"help": "factor to grow the length of each period"}
     )
