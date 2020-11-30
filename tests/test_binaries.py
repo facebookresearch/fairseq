@@ -367,6 +367,38 @@ class TestTranslation(BinaryTestCase):
                 + dec_ltok_flag,
             )
 
+
+    def test_transformer_layerdrop(self):
+        with contextlib.redirect_stdout(StringIO()):
+            create_dummy_data(self.data_dir)
+            preprocess_translation_data(self.data_dir)
+            train_translation_model(
+                self.data_dir,
+                "transformer_iwslt_de_en",
+                [
+                    "--encoder-layers",
+                    "3",
+                    "--decoder-layers",
+                    "3",
+                    "--encoder-embed-dim",
+                    "8",
+                    "--decoder-embed-dim",
+                    "8",
+                    "--encoder-layerdrop",
+                    "0.01",
+                    "--decoder-layerdrop",
+                    "0.01",
+                ],
+            )
+            generate_main(self.data_dir)
+            generate_main(
+                self.data_dir,
+                [
+                    "--model-overrides",
+                    "{'encoder_layers_to_keep':'0,2','decoder_layers_to_keep':'1'}"
+                ],
+            )            
+            
     def test_transformer_cross_self_attention(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)

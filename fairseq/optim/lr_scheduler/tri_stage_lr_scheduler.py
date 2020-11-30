@@ -48,7 +48,7 @@ class TriStageLRScheduleConfig(FairseqDataclass):
 
 
 @register_lr_scheduler("tri_stage", dataclass=TriStageLRScheduleConfig)
-class TriStageLRScheduleConfig(FairseqLRScheduler):
+class TriStageLRSchedule(FairseqLRScheduler):
     """Tristage learning rate schedulr
 
     Implement the learning rate scheduler in https://arxiv.org/pdf/1904.08779.pdf
@@ -93,7 +93,6 @@ class TriStageLRScheduleConfig(FairseqLRScheduler):
                 "Cannot use a fixed learning rate schedule with tri-stage lr."
                 " Consider --lr-scheduler=fixed instead."
             )
-        assert cfg.max_update > 0
 
         # calculate LR at each point
         self.peak_lr = cfg.lr[0]
@@ -101,6 +100,7 @@ class TriStageLRScheduleConfig(FairseqLRScheduler):
         self.final_lr = cfg.final_lr_scale * cfg.lr[0]
 
         if cfg.phase_ratio is not None:
+            assert cfg.max_update > 0
             assert sum(cfg.phase_ratio) == 1, "phase ratios must add up to 1"
             self.warmup_steps = int(cfg.max_update * cfg.phase_ratio[0])
             self.hold_steps = int(cfg.max_update * cfg.phase_ratio[1])
