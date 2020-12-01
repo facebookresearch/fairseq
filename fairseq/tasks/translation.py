@@ -314,14 +314,13 @@ class TranslationTask(LegacyFairseqTask):
             pad_to_multiple=self.args.required_seq_len_multiple,
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None, negative_constraints=None):
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
         return LanguagePairDataset(
             src_tokens,
             src_lengths,
             self.source_dictionary,
             tgt_dict=self.target_dictionary,
             constraints=constraints,
-            negative_constraints=negative_constraints
         )
 
     def build_model(self, args):

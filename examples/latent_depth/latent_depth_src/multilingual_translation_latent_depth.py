@@ -155,7 +155,7 @@ class MultilingualTranslationTaskLatentDepth(MultilingualTranslationTask):
         return loss, sample_size, logging_output
 
     def inference_step(
-        self, generator, models, sample, prefix_tokens=None, constraints=None, negative_constraints=None
+        self, generator, models, sample, prefix_tokens=None, constraints=None
     ):
         if self.encoder_latent_layer or self.decoder_latent_layer:
             for model in models:
@@ -168,7 +168,7 @@ class MultilingualTranslationTaskLatentDepth(MultilingualTranslationTask):
                     tgt_lang_idx = self.tgt_lang_idx_dict[self.args.target_lang]
                     model.decoder.set_lang_idx(tgt_lang_idx)
         return super().inference_step(
-            generator, models, sample, prefix_tokens, constraints, negative_constraints
+            generator, models, sample, prefix_tokens, constraints
         )
 
     @property

@@ -249,8 +249,8 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             else "%s-%s" % (self.args.source_lang, self.args.target_lang),
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None, negative_constraints=None):
-        if constraints is not None or negative_constraints is not None:
+    def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
+        if constraints is not None:
             raise NotImplementedError(
                 "Constrained decoding with the multilingual_translation task is not supported"
             )
@@ -400,7 +400,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
         return agg_loss, agg_sample_size, agg_logging_output
 
     def inference_step(
-        self, generator, models, sample, prefix_tokens=None, constraints=None, negative_constraints=None
+        self, generator, models, sample, prefix_tokens=None, constraints=None
     ):
         with torch.no_grad():
             if self.args.decoder_langtok:
@@ -414,7 +414,6 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 sample,
                 prefix_tokens=prefix_tokens,
                 constraints=constraints,
-                negative_constraints=negative_constraints,
                 bos_token=bos_token,
             )
 

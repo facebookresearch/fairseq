@@ -103,14 +103,14 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
     if cfg.generation.constraints:
         constraints_tensor = pack_constraints(batch_constraints)
         negative_constraints_tensor = pack_constraints(batch_negative_constraints)
+        constraints = {"positive": constraints_tensor, "negative": negative_constraints_tensor}
     else:
-        constraints_tensor = None
-        negative_constraints_tensor = None
+        constraints = None
 
     lengths = [t.numel() for t in tokens]
     itr = task.get_batch_iterator(
         dataset=task.build_dataset_for_inference(
-            tokens, lengths, constraints=constraints_tensor, negative_constraints=negative_constraints_tensor
+            tokens, lengths, constraints=constraints
         ),
         max_tokens=cfg.dataset.max_tokens,
         max_sentences=cfg.dataset.batch_size,
@@ -247,7 +247,12 @@ def main(cfg: FairseqConfig):
                     constraints = constraints.cuda()
                 if negative_constraints is not None:
                     negative_constraints = negative_constraints.cuda()
-
+            if constraints is not None and negative_constraints is not None:
+                constraints_dict = dict()
+                constraints_dict["positive"] = constraints
+                constraints_dict["negative"] = negative_constraints
+            else:
+                constraints_dict = None
             sample = {
                 "net_input": {
                     "src_tokens": src_tokens,
@@ -256,7 +261,7 @@ def main(cfg: FairseqConfig):
             }
             translate_start_time = time.time()
             translations = task.inference_step(
-                generator, models, sample, constraints=constraints, negative_constraints=negative_constraints
+                generator, models, sample, constraints=constraints_dict
             )
             translate_time = time.time() - translate_start_time
             total_translate_time += translate_time

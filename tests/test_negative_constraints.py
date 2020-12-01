@@ -61,7 +61,7 @@ class TestNegativeConstraintBeam(unittest.TestCase):
         self.beam_size = 2
         self.cand_size = 2 * self.beam_size
         # The process is :
-        # step1. use test_constraints to init_negative_constraints
+        # step1. use test_constraints to init_constraints
         # step2. select corresponding candidates according to cand_beam_idx[:, step]
         # step3. according to step2's selection, update corresponding position of negative constraints state
         # using tokens of cand_matrix[:, step]
@@ -73,6 +73,7 @@ class TestNegativeConstraintBeam(unittest.TestCase):
         #    [101, 102, 103, 104, 101]
         #    [101, 102, 103, 104, 103]
         # ]
+        self.positive_constraints = tensorize([[-1]])
         self.negative_constraints = tensorize([[101, 102, 103], [101, 103], [101, 104], [102, 104]])
 
         self.cand_matrix = torch.tensor([[101, 102, 103, 104, 999],
@@ -98,8 +99,13 @@ class TestNegativeConstraintBeam(unittest.TestCase):
 
     def test_beam(self):
         pseudo_dict = Dictionary()
-        toy_search = search.LexicallyConstrainedBeamSearch(pseudo_dict, "anyway")
-        toy_search.init_negative_constraints(pack_constraints([self.negative_constraints]), self.cand_size)
+        toy_search = search.LexicallyConstrainedBeamSearch(pseudo_dict, "unordered")
+        toy_search.init_constraints(
+            pack_constraints([self.positive_constraints]),
+            pack_constraints([self.negative_constraints]),
+            self.beam_size,
+            self.cand_size
+        )
 
         for step in range(self.steps):
             toy_search.update_negative_constraints(torch.unsqueeze(self.cand_matrix[:, step], 0),

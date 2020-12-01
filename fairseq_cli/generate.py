@@ -200,6 +200,12 @@ def _main(cfg: DictConfig, output_file):
             constraints = sample["constraints"]
         if "negative_constraints" in sample:
             negative_constraints = sample["negative_constraints"]
+        if constraints is not None and negative_constraints is not None:
+            constraints_dict = dict()
+            constraints_dict["positive"] = constraints
+            constraints_dict["negative"] = negative_constraints
+        else:
+            constraints_dict = None
 
         gen_timer.start()
         hypos = task.inference_step(
@@ -207,8 +213,7 @@ def _main(cfg: DictConfig, output_file):
             models,
             sample,
             prefix_tokens=prefix_tokens,
-            constraints=constraints,
-            negative_constraints=negative_constraints
+            constraints=constraints_dict
         )
         num_generated_tokens = sum(len(h[0]["tokens"]) for h in hypos)
         gen_timer.stop(num_generated_tokens)

@@ -168,8 +168,9 @@ class SequenceGenerator(nn.Module):
             sample (dict): batch
             prefix_tokens (torch.LongTensor, optional): force decoder to begin
                 with these tokens
-            constraints (torch.LongTensor, optional): force decoder to include
-                the list of constraints
+            constraints ({"positive": torch.LongTensor, "negative": torch.LongTensor}):
+                force decoder to include the list of positive constraints and exclude
+                the list of negative constraints.
             bos_token (int, optional): beginning of sentence token
                 (default: self.eos)
         """
@@ -179,8 +180,7 @@ class SequenceGenerator(nn.Module):
         self,
         sample: Dict[str, Dict[str, Tensor]],
         prefix_tokens: Optional[Tensor] = None,
-        constraints: Optional[Tensor] = None,
-        negative_constraints: Optional[Tensor] = None,
+        constraints: Optional[Dict[str, Tensor]] = None,
         bos_token: Optional[int] = None,
     ):
         incremental_states = torch.jit.annotate(
@@ -213,13 +213,10 @@ class SequenceGenerator(nn.Module):
         bsz, src_len = src_tokens.size()[:2]
         beam_size = self.beam_size
 
-        if (constraints is not None or negative_constraints is not None) and not self.search.supports_constraints:
+        if constraints is not None and not self.search.supports_constraints:
             raise NotImplementedError(
                 "Target-side constraints or negative constraints were provided, but search method doesn't support them"
             )
-
-        # Initialize constraints, when active
-        self.search.init_constraints(constraints, beam_size)
 
         max_len: int = -1
         if self.match_source_len:
@@ -247,11 +244,6 @@ class SequenceGenerator(nn.Module):
         scores = (
             torch.zeros(bsz * beam_size, max_len + 1).to(src_tokens).float()
         )  # +1 for eos; pad is never chosen for scoring
-
-        # initialize negative buffers
-        # help to select none ended candidates
-        negative_active_hypos = torch.arange(beam_size).repeat(bsz, 1)
-        negative_active_hypos = negative_active_hypos.to(src_tokens.device).long()
 
         tokens = (
             torch.zeros(bsz * beam_size, max_len + 2)
@@ -285,11 +277,11 @@ class SequenceGenerator(nn.Module):
         cand_size = 2 * beam_size  # 2 x beam size in case half are EOS
 
         # Initialize constraints, when active
-        self.search.init_negative_constraints(negative_constraints, cand_size)
-        # handle <s>
-        init_cand_indices = torch.ones(bsz, cand_size)*(self.eos if bos_token is None else bos_token)
-        init_cand_beams = torch.arange(cand_size).repeat(bsz, 1).to(src_tokens.device).long()
-        self.search.update_negative_constraints(init_cand_indices, init_cand_beams)
+        if constraints is not None and self.search.supports_constraints:
+            assert (
+                constraints["positive"] is not None and constraints["negative"] is not None
+            ), "both 'positive' and 'negative' constraints should not be None under constraint supported condition"
+            self.search.init_constraints(constraints["positive"], constraints["negative"], beam_size, cand_size)
 
         # offset arrays for converting between different indexing schemes
         bbsz_offsets = (torch.arange(0, bsz) * beam_size).unsqueeze(1).type_as(tokens)
@@ -381,14 +373,6 @@ class SequenceGenerator(nn.Module):
             if self.no_repeat_ngram_size > 0:
                 lprobs = self._no_repeat_ngram(tokens, lprobs, bsz, beam_size, step)
 
-            # before step action, set the probabilities of negative constraints to -inf
-            negative_indices = self.search.get_negative_tokens(negative_active_hypos)
-            if negative_indices is not None:
-                negative_indices = torch.tensor(negative_indices, device=lprobs.device)
-                if negative_indices.numel():
-                    inf_value = torch.ones(negative_indices.shape[0], device=lprobs.device)*-math.inf
-                    lprobs.index_put_(tuple(negative_indices.t()), inf_value)
-
             # Shape: (batch, cand_size)
             cand_scores, cand_indices, cand_beams = self.search.step(
                 step,
@@ -397,8 +381,6 @@ class SequenceGenerator(nn.Module):
                 tokens[:, : step + 1],
                 original_batch_idxs,
             )
-            # update states for next step
-            self.search.update_negative_constraints(cand_indices, cand_beams)
 
             # cand_bbsz_idx contains beam indices for the top candidate
             # hypotheses, with a range of values: [0, bsz*beam_size),
@@ -462,7 +444,6 @@ class SequenceGenerator(nn.Module):
 
                 # Choose the subset of the hypothesized constraints that will continue
                 self.search.prune_sentences(batch_idxs)
-                self.search.prune_negative_sentences(batch_idxs)
 
                 eos_mask = eos_mask[batch_idxs]
                 cand_beams = cand_beams[batch_idxs]
@@ -506,7 +487,6 @@ class SequenceGenerator(nn.Module):
             new_cands_to_ignore, active_hypos = torch.topk(
                 active_mask, k=beam_size, dim=1, largest=False
             )
-            negative_active_hypos = active_hypos
             # update cands_to_ignore to ignore any finalized hypos.
             cands_to_ignore = new_cands_to_ignore.ge(cand_size)[:, :beam_size]
             # Make sure there is at least one active item for each sentence in the batch.

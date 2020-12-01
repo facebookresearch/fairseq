@@ -444,15 +444,11 @@ class FairseqTask(object):
         raise NotImplementedError
 
     def inference_step(
-        self, generator, models, sample, prefix_tokens=None, constraints=None, negative_constraints=None
+        self, generator, models, sample, prefix_tokens=None, constraints=None
     ):
         with torch.no_grad():
             return generator.generate(
-                models,
-                sample,
-                prefix_tokens=prefix_tokens,
-                constraints=constraints,
-                negative_constraints=negative_constraints
+                models, sample, prefix_tokens=prefix_tokens, constraints=constraints
             )
 
     def begin_epoch(self, epoch, model):
