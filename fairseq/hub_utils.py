@@ -157,7 +157,7 @@ class GeneratorHubInterface(nn.Module):
             )[0]
 
         # build generator using current args as well as any kwargs
-        gen_args = copy.copy(self.cfg)
+        gen_args = copy.copy(self.cfg.generation)
         with open_dict(gen_args):
             gen_args.beam = beam
             for k, v in kwargs.items():
