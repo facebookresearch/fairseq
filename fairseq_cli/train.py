@@ -205,6 +205,9 @@ def train(
         wandb_project=(
             cfg.common.wandb_project if distributed_utils.is_master(cfg.distributed_training) else None
         ),
+        azureml_logging=(
+            cfg.common.azureml_logging if distributed_utils.is_master(cfg.distributed_training) else False
+        ),
     )
 
     trainer.begin_epoch(epoch_itr.epoch)
