@@ -425,10 +425,12 @@ class AzureMLProgressBarWrapper(BaseProgressBar):
         self.wrapped_bar = wrapped_bar
         if Run is None:
             logger.warning("azureml.core not found, pip install azureml-core")
+            return
         self.run = Run.get_context()
 
     def __exit__(self, *exc):
-        self.run.complete()
+        if Run is not None:
+            self.run.complete()
         return False
 
     def __iter__(self):
