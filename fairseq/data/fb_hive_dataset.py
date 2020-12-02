@@ -102,7 +102,7 @@ class HiveDataset(FairseqDataset):
         logger.info("Loading Hive data...")
         self.data = []
         for c in dataframe.rows(num_worker_threads=KOSKI_THREADS):
-            if filter is not None and not filter_fn(c):
+            if filter_fn is not None and not filter_fn(c):
                 continue
             self.data.append(c)
         logger.info(f"Finished loading {len(self.data)} rows")
