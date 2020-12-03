@@ -631,6 +631,23 @@ def extract_hard_alignment(attn, src_sent, tgt_sent, pad, eos):
     return alignment
 
 
+def extract_soft_alignment(attn, src_sent, tgt_sent, pad, eos):
+    tgt_valid = (
+        ((tgt_sent != pad)).nonzero(as_tuple=False)
+    )
+    src_valid = (
+        ((src_sent != pad)).nonzero(as_tuple=False).squeeze(dim=-1)
+    )
+    alignment = []
+    if len(tgt_valid) != 0 and len(src_valid) != 0:
+        attn_valid = attn[tgt_valid, src_valid]
+        alignment = [
+            ["{:.6f}".format(p) for p in src_probs.tolist()]
+            for src_probs in attn_valid
+        ]
+    return alignment
+
+
 def new_arange(x, *size):
     """
     Return a Tensor of `size` filled with a range function on the device of x.

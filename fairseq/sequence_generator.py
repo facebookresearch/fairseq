@@ -903,7 +903,7 @@ class EnsembleModel(nn.Module):
 
 
 class SequenceGeneratorWithAlignment(SequenceGenerator):
-    def __init__(self, models, tgt_dict, left_pad_target=False, **kwargs):
+    def __init__(self, models, tgt_dict, left_pad_target=False, print_alignment="hard", **kwargs):
         """Generates translations of a given source sentence.
 
         Produces alignments following "Jointly Learning to Align and
@@ -916,6 +916,11 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
         """
         super().__init__(EnsembleModelWithAlignment(models), tgt_dict, **kwargs)
         self.left_pad_target = left_pad_target
+
+        if print_alignment == "hard":
+            self.extract_alignment = utils.extract_hard_alignment
+        elif print_alignment == "soft":
+            self.extract_alignment = utils.extract_soft_alignment
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):
@@ -945,7 +950,7 @@ class SequenceGeneratorWithAlignment(SequenceGenerator):
 
         # Process the attn matrix to extract hard alignments.
         for i in range(bsz * beam_size):
-            alignment = utils.extract_hard_alignment(
+            alignment = self.extract_alignment(
                 attn[i], src_tokens[i], tgt_tokens[i], self.pad, self.eos
             )
             finalized[i // beam_size][i % beam_size]["alignment"] = alignment
