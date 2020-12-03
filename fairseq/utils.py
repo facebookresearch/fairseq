@@ -106,7 +106,7 @@ def move_to_cuda(sample, device=None):
     def _move_to_cuda(tensor):
         # non_blocking is ignored if tensor is not pinned, so we can always set
         # to True (see github.com/PyTorchLightning/pytorch-lightning/issues/620)
-        return tensor.cuda(device=device, non_blocking=True)
+        return tensor.to(device=device, non_blocking=True)
 
     return apply_to_sample(_move_to_cuda, sample)
 
