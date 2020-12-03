@@ -733,10 +733,9 @@ class GenerationConfig(FairseqDataclass):
     print_alignment: Optional[str] = field(
         default=None,
         metadata={
-            "help": "if set, uses attention feedback to compute and print alignment to source tokens"
+            "help": "if set, uses attention feedback to compute and print alignment to source tokens "
             "(valid options are: hard, soft, otherwise treated as hard alignment)",
             "argparse_const": "hard",
-            "argparse_alias": "--print-alignment",
         },
     )
     print_step: bool = field(
