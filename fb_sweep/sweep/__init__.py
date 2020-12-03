@@ -70,6 +70,12 @@ def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None
         "--python", default="python", help="path to nonstandard python binary"
     )
 
+    try:
+        import torch_xla  # noqa
+        tpu = True
+    except ImportError:
+        tpu = False
+
     hostname = socket.gethostname()
     if "fair" in hostname:
         default_backend = "slurm"
@@ -77,6 +83,18 @@ def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None
             "--checkpoints-dir",
             default=os.path.join(
                 "/checkpoint", os.environ["USER"], str(datetime.date.today())
+            ),
+            help="save checkpoints and logs in <checkpoints-dir>/<prefix>.<save_dir_key>",
+        )
+    elif tpu:
+        default_backend = "tpu"
+        parser.add_argument(
+            "--checkpoints-dir",
+            default=os.path.join(
+                "/mnt/fairseq_data",
+                os.environ["USER"],
+                "checkpoints",
+                str(datetime.date.today()),
             ),
             help="save checkpoints and logs in <checkpoints-dir>/<prefix>.<save_dir_key>",
         )
@@ -100,7 +118,9 @@ def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None
         )
 
     parser.add_argument(
-        "--backend", choices=["fblearner", "chronos", "slurm"], default=default_backend
+        "--backend",
+        choices=["fblearner", "chronos", "slurm", "tpu"],
+        default=default_backend,
     )
 
     # FBLearner params
@@ -216,6 +236,10 @@ def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None
         "this can be a file with the steps, or a string. some placeholders such as "
         "{job_dir} will be replaced",
     )
+
+    # GCP params
+    parser.add_argument("--tpu", help="tpu to use")
+
     if add_extra_options_func is not None:
         add_extra_options_func(parser)
     args = parser.parse_args(input_args)
@@ -292,6 +316,8 @@ def main(
         from .chronos import main as backend_main
     elif args.backend == "slurm":
         from .slurm import main as backend_main
+    elif args.backend == "tpu":
+        from .tpu import main as backend_main
 
     get_grid = get_grid[args.grid] if args.grid is not None else get_grid
     backend_main(get_grid, postprocess_hyperparams, args)
