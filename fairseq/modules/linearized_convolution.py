@@ -38,6 +38,7 @@ class LinearizedConvolution(ConvTBC):
         if prefix + "_linearized_weight" in state_dict:
             del state_dict[prefix + "_linearized_weight"]
 
+    @torch.jit.ignore
     def forward(self, input, incremental_state=None):
         """
         Args:
