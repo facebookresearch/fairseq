@@ -22,18 +22,18 @@ class GottbertModel(RobertaModel):
         }
 
     @classmethod
-    def from_pretrained(cls, 
-                        model_name_or_path, 
-                        checkpoint_file='model.pt', 
-                        data_name_or_path='.', 
-                        bpe='hf_byte_bpe', 
-                        bpe_vocab='vocab.json', 
-                        bpe_merges='merges.txt', 
-                        bpe_add_prefix_space=False, 
+    def from_pretrained(cls,
+                        model_name_or_path,
+                        checkpoint_file='model.pt',
+                        data_name_or_path='.',
+                        bpe='hf_byte_bpe',
+                        bpe_vocab='vocab.json',
+                        bpe_merges='merges.txt',
+                        bpe_add_prefix_space=False,
                         **kwargs
-    ):
+                        ):
         from fairseq import hub_utils
-        
+
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,

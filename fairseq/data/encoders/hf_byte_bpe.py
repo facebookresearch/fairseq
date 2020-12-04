@@ -9,6 +9,7 @@ from fairseq.data.encoders import register_bpe
 from fairseq.dataclass import FairseqDataclass
 from fairseq import file_utils
 
+
 @dataclass
 class HuggingFaceByteLevelBPEConfig(FairseqDataclass):
     bpe_merges: str = field(default="???", metadata={"help": "path to merges.txt"})
@@ -28,8 +29,8 @@ class HuggingFaceByteLevelBPE(object):
                 "Please install huggingface/tokenizers with: " "pip install tokenizers"
             )
 
-        bpe_vocab=file_utils.cached_path(cfg.bpe_vocab)
-        bpe_merges=file_utils.cached_path(cfg.bpe_merges)
+        bpe_vocab = file_utils.cached_path(cfg.bpe_vocab)
+        bpe_merges = file_utils.cached_path(cfg.bpe_merges)
 
         self.bpe = ByteLevelBPETokenizer(
             bpe_vocab,
