@@ -60,6 +60,8 @@ def from_pretrained(
         "code": "bpe_codes",
         "bpecodes": "bpe_codes",
         "sentencepiece.bpe.model": "sentencepiece_model",
+        "merges.txt": "bpe_merges",
+        "vocab.json": "bpe_vocab",
     }.items():
         path = os.path.join(model_path, file)
         if os.path.exists(path):
