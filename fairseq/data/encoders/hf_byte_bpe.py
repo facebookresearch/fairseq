@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from fairseq.data.encoders import register_bpe
 from fairseq.dataclass import FairseqDataclass
-
+from fairseq import file_utils
 
 @dataclass
 class HuggingFaceByteLevelBPEConfig(FairseqDataclass):
@@ -28,9 +28,12 @@ class HuggingFaceByteLevelBPE(object):
                 "Please install huggingface/tokenizers with: " "pip install tokenizers"
             )
 
+        bpe_vocab=file_utils.cached_path(cfg.bpe_vocab)
+        bpe_merges=file_utils.cached_path(cfg.bpe_merges)
+
         self.bpe = ByteLevelBPETokenizer(
-            cfg.bpe_vocab,
-            cfg.bpe_merges,
+            bpe_vocab,
+            bpe_merges,
             add_prefix_space=cfg.bpe_add_prefix_space,
         )
 
