@@ -508,16 +508,7 @@ class Trainer(object):
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
         for i, sample in enumerate(samples):
-            sample = self._prepare_sample(sample)
-            if sample is None:
-                # when sample is None, run forward/backward on a dummy batch
-                # and ignore the resulting gradients
-                sample = self._prepare_sample(self._dummy_batch)
-                is_dummy_batch = True
-            else:
-                if self._dummy_batch == "DUMMY":
-                    self._dummy_batch = sample
-                is_dummy_batch = False
+            sample, is_dummy_batch = self._prepare_sample(sample)
 
             def maybe_no_sync():
                 """
@@ -652,15 +643,18 @@ class Trainer(object):
         except FloatingPointError:
             # re-run the forward and backward pass with hooks attached to print
             # out where it fails
+            self.zero_grad()
             with NanDetector(self.get_model()):
-                self.task.train_step(
-                    sample,
-                    self.model,
-                    self.criterion,
-                    self.optimizer,
-                    self.get_num_updates(),
-                    ignore_grad=False,
-                )
+                for _, sample in enumerate(samples):
+                    sample, _ = self._prepare_sample(sample)
+                    self.task.train_step(
+                        sample,
+                        self.model,
+                        self.criterion,
+                        self.optimizer,
+                        self.get_num_updates(),
+                        ignore_grad=False,
+                    )
             raise
         except OverflowError as e:
             overflow = True
@@ -775,14 +769,7 @@ class Trainer(object):
             self.model.eval()
             self.criterion.eval()
 
-            sample = self._prepare_sample(sample)
-            if sample is None:
-                sample = self._prepare_sample(self._dummy_batch)
-                is_dummy_batch = True
-            else:
-                if self._dummy_batch == "DUMMY":
-                    self._dummy_batch = sample
-                is_dummy_batch = False
+            sample, is_dummy_batch = self._prepare_sample(sample)
 
             try:
                 _loss, sample_size, logging_output = self.task.valid_step(
@@ -923,7 +910,7 @@ class Trainer(object):
         """Aggregate training time in seconds."""
         return time.time() - self._start_time + self._previous_training_time
 
-    def _prepare_sample(self, sample):
+    def _prepare_sample(self, sample, is_dummy=False):
         if sample == "DUMMY":
             raise Exception(
                 "Trying to use an uninitialized 'dummy' batch. This usually indicates "
@@ -932,7 +919,11 @@ class Trainer(object):
             )
 
         if sample is None or len(sample) == 0:
-            return None
+            assert (
+                self._dummy_batch is not None and len(self._dummy_batch) > 0
+            ), "Invalid dummy batch: {}".format(self._dummy_batch)
+            sample, _ = self._prepare_sample(self._dummy_batch, is_dummy=True)
+            return sample, True
 
         if self.cuda:
             if self.pipeline_model_parallel:
@@ -942,6 +933,9 @@ class Trainer(object):
                     )
             else:
                 sample = utils.move_to_cuda(sample)
+        elif self.tpu and is_dummy:
+            # the dummy batch may not be on the appropriate device
+            sample = utils.move_to_cuda(sample, device=self.device)
 
         def apply_half(t):
             if t.dtype is torch.float32:
@@ -959,7 +953,10 @@ class Trainer(object):
         if self.cfg.common.bf16:
             sample = utils.apply_to_sample(apply_bfloat16, sample)
 
-        return sample
+        if self._dummy_batch == "DUMMY":
+            self._dummy_batch = sample
+
+        return sample, False
 
     def _set_seed(self):
         # Set seed based on args.seed and the update number so that we get

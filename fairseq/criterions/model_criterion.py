@@ -10,6 +10,7 @@ from typing import Dict, List
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
+from fairseq.distributed_utils import get_data_parallel_world_size
 
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,7 @@ class ModelCriterion(FairseqCriterion):
 
         for lk in self.log_keys:
             if lk in net_output:
-                logging_output[lk] = float((net_output[lk]))
+                logging_output[lk] = float(net_output[lk])
 
         if len(scaled_losses) > 1:
             for lk, l in scaled_losses.items():
@@ -112,9 +113,9 @@ class ModelCriterion(FairseqCriterion):
             "ntokens",
             "nsentences",
             "sample_size",
-            "correct",
-            "count",
         }
+
+        world_size = get_data_parallel_world_size()
 
         for k in logging_outputs[0]:
             if k not in builtin_keys:
@@ -122,7 +123,7 @@ class ModelCriterion(FairseqCriterion):
                 if k.startswith("loss_"):
                     metrics.log_scalar(k, val / sample_size, sample_size, round=3)
                 else:
-                    metrics.log_scalar(k, val / len(logging_outputs), round=3)
+                    metrics.log_scalar(k, val / world_size, round=3)
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:

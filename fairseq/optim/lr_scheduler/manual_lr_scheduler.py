@@ -29,9 +29,10 @@ class ManualSchedule(LegacyFairseqLRScheduler):
             self.lr = self.update2lr[1]
         else:
             self.lr = args.lr[0]
+        self.optimizer.set_lr(self.lr)  # Set the beginning of the epoch.
 
     def parse_manuallr_args(self, lr_args_str):
-        lr_dict = ast.literal_eval(lr_args_str)
+        lr_dict = ast.literal_eval(lr_args_str.replace(' ', ''))
         if not isinstance(lr_dict, dict):
             raise ValueError("epoch2lr/update2lr must be abel to evaluated to a dict")
 
@@ -83,7 +84,9 @@ class ManualSchedule(LegacyFairseqLRScheduler):
         if manual_keys:
             manual_lr = self.epoch2lr[max(manual_keys)]
         else:
-            logger.warning("@@@ epoch={} does not exist in manual lr input. epoch2lr={}".format(epoch, self.epoch2lr))
+            logger.warning("@@@ epoch={} does not exist in manual lr input. epoch2lr={}...".format(
+                epoch, list(self.epoch2lr.items())[:min(10, len(self.epoch2lr.keys())-1)]
+            ))
             manual_lr = self.optimizer.get_lr()
         return manual_lr
 
@@ -99,7 +102,8 @@ class ManualSchedule(LegacyFairseqLRScheduler):
         if manual_keys:
             manual_lr = self.update2lr[max(manual_keys)]
         else:
-            logger.warning("epoch={} does not exist in manual lr input update2lr={}".format(num_updates, self.update2lr))
+            logger.warning("epoch={} does not exist in manual lr input update2lr={}...".format(
+                num_updates, list(self.update2lr.items())[:min(10, len(self.update2lr.keys())-1)]))
             manual_lr = self.optimizer.get_lr()
 
         self.optimizer.set_lr(manual_lr)

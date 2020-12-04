@@ -5,6 +5,7 @@
 
 import ast
 import collections
+import contextlib
 import logging
 import os
 import re
@@ -239,7 +240,13 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
 
 
 def load_model_ensemble(
-    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1, state=None
+    filenames,
+    arg_overrides=None,
+    task=None,
+    strict=True,
+    suffix="",
+    num_shards=1,
+    state=None,
 ):
     """Loads an ensemble of models.
 
@@ -265,7 +272,13 @@ def load_model_ensemble(
 
 
 def load_model_ensemble_and_task(
-    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1, state=None
+    filenames,
+    arg_overrides=None,
+    task=None,
+    strict=True,
+    suffix="",
+    num_shards=1,
+    state=None,
 ):
     assert state is None or len(filenames) == 1
 
@@ -563,8 +576,11 @@ def prune_state_dict(state_dict, model_cfg: Optional[DictConfig]):
 
     # Since layers are now pruned, *_layers_to_keep are no longer needed.
     # This is more of "It would make it work fix" rather than a proper fix.
-
-    with open_dict(model_cfg):
+    if isinstance(model_cfg, DictConfig):
+        context = open_dict(model_cfg)
+    else:
+        context = contextlib.ExitStack()
+    with context:
         if hasattr(model_cfg, "encoder_layers_to_keep"):
             model_cfg.encoder_layers_to_keep = None
         if hasattr(model_cfg, "decoder_layers_to_keep"):
