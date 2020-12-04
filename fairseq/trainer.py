@@ -299,12 +299,14 @@ class Trainer(object):
 
         bexists = PathManager.isfile(filename)
         if bexists:
-            if (
-                self.data_parallel_rank == 0
+            load_on_all_ranks = (
+                self.cfg.checkpoint.load_checkpoint_on_all_dp_ranks
                 # TPUs don't support broadcast yet, so load checkpoints
                 # on every worker for now
                 or self.tpu
-            ):
+            )
+
+            if load_on_all_ranks or self.data_parallel_rank == 0:
                 state = checkpoint_utils.load_checkpoint_to_cpu(filename)
                 last_optim_state = state.get("last_optimizer_state", None)
 
@@ -312,7 +314,8 @@ class Trainer(object):
                 # state. Later we will broadcast sharded states to each rank
                 # to avoid memory from exploding.
                 if (
-                    self.cfg.distributed_training.zero_sharding == "os"
+                    not load_on_all_ranks
+                    and self.cfg.distributed_training.zero_sharding == "os"
                     and "last_optimizer_state" in state
                     and self.data_parallel_world_size > 1
                 ):
@@ -321,11 +324,7 @@ class Trainer(object):
                 last_optim_state = None
                 state = None
 
-            if (
-                self.data_parallel_world_size > 1
-                # disable on TPUs until they support broadcast
-                and not self.tpu
-            ):
+            if self.data_parallel_world_size > 1 and not load_on_all_ranks:
                 state = distributed_utils.broadcast_object(
                     state,
                     src_rank=0,
@@ -368,7 +367,7 @@ class Trainer(object):
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim["lr_scheduler_state"])
 
-            if self.data_parallel_world_size > 1:
+            if not load_on_all_ranks and self.data_parallel_world_size > 1:
                 last_optim_state = self.optimizer.broadcast_global_state_dict(
                     last_optim_state
                 )
