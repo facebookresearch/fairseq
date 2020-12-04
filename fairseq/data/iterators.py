@@ -138,6 +138,10 @@ class EpochBatchIterating(object):
         """Copies the state of the iterator from the given *state_dict*."""
         raise NotImplementedError
 
+    @property
+    def first_batch(self):
+        return "DUMMY"
+
 
 class StreamingEpochBatchIterator(EpochBatchIterating):
     def __init__(
