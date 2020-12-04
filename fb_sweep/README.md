@@ -70,3 +70,64 @@ The sweep script will use `save_dir_key` to map each hyperparam configuration to
 - `--dry-run`: see what slurm commands will be executed (in simulation mode)
 - `--local`: run the command locally instead of submitting to a remote worker via slurm
 - `--num-nodes`: launch job on multiple nodes
+
+
+
+# Using Hydra
+The benefits of Hydra are discussed in detail [here](../docs/hydra_integration.md).
+
+Here is an example parameter sweep with hydra and the `submitit_slurm` launcher.
+This trains language models for 50 steps once for each comma separated parameter value.
+
+First, [install hydra-fair-plugins](https://github.com/fairinternal/hydra-fair-plugins#installation).
+Then, you can run:
+
+
+```bash
+python fairseq_cli/hydra_train.py \
+    --multirun hydra/launcher=submitit_slurm \
+    hydra.launcher.gpus_per_node=1 hydra.launcher.tasks_per_node=1 \
+    distributed_training.distributed_port=33333 \
+    distributed_training.distributed_world_size=1 \
+    hydra.launcher.partition=dev \
+    optimization.max_update=50 \
+    task=dummy_lm model=transformer_lm/transformer_lm_gpt \
+    optimizer=adam \
+    task.tokens_per_sample=512 dataset.batch_size=8 \
+    optimization.lr='[0.0001],[.0003]' \
+    common.log_format=json \
+    common.log_interval=1  common.fp16=True \
+    checkpoint.no_save_optimizer_state=True
+```
+
++ Note that you might need to prepend `PYTHONPATH=.` to the previous command.
+
+Since the only comma separated parameter value is `optimization.lr='[0.0001],[.0003]'`, two models will be trained.
+If we specified `optimizer=adam,sgd`, four models would be trained.
+
+Before submitting jobs to slurm, we can debug locally by changing `--multirun hydra/launcher=submitit_local`.
+
+
+### Monitor Training Logs
+The command above (and all multirun commands) produce a message then wait until jobs are finished.
+
+The first line of the command will show where in your `devfair` file system we will need to look:
+For example,
+```
+[2020-11-24 09:52:52,463][HYDRA] Submitit 'slurm' sweep output dir : multirun/2020-11-24/09-52-49
+```
+
+We can then run `tree -Ra multirun/2020-11-24/09-52-49/` to see all the files being generated, and
+
+```bash
+ls multirun/2020-11-24/09-52-49/.submitit/**/*.out | xargs tail -n 2
+```
+to monitor progress of each job.
+
+
+
+### Discover launcher options
+```bash
+python fairseq_cli/hydra_train.py hydra/launcher=submitit_slurm --cfg hydra -p hydra.launcher
+```
+These launcher options are similar to the command line args accepted by scripts in `fb_sweep/`.
