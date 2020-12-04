@@ -26,7 +26,7 @@ Model | en-ro | ro-en
 
 ## BPE data
 # download model
-wget https://dl.fbaipublicfiles.com/fairseq/models/mbart/mbart.CC25.tar.gz  
+wget https://dl.fbaipublicfiles.com/fairseq/models/mbart/mbart.cc25.v2.tar.gz
 tar -xzvf mbart.CC25.tar.gz
 # bpe data
 install SPM [here](https://github.com/google/sentencepiece)

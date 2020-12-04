@@ -910,7 +910,7 @@ class Trainer(object):
         """Aggregate training time in seconds."""
         return time.time() - self._start_time + self._previous_training_time
 
-    def _prepare_sample(self, sample):
+    def _prepare_sample(self, sample, is_dummy=False):
         if sample == "DUMMY":
             raise Exception(
                 "Trying to use an uninitialized 'dummy' batch. This usually indicates "
@@ -922,7 +922,7 @@ class Trainer(object):
             assert (
                 self._dummy_batch is not None and len(self._dummy_batch) > 0
             ), "Invalid dummy batch: {}".format(self._dummy_batch)
-            sample, _ = self._prepare_sample(self._dummy_batch)
+            sample, _ = self._prepare_sample(self._dummy_batch, is_dummy=True)
             return sample, True
 
         if self.cuda:
@@ -933,6 +933,9 @@ class Trainer(object):
                     )
             else:
                 sample = utils.move_to_cuda(sample)
+        elif self.tpu and is_dummy:
+            # the dummy batch may not be on the appropriate device
+            sample = utils.move_to_cuda(sample, device=self.device)
 
         def apply_half(t):
             if t.dtype is torch.float32:

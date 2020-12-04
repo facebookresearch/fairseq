@@ -14,15 +14,30 @@ from fairseq.criterions.label_smoothed_cross_entropy import (
 class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
     LabelSmoothedCrossEntropyCriterion
 ):
-    def __init__(self, args, task):
-        super().__init__(args, task)
-        self.eps = args.label_smoothing
-        self.latency_weight_avg = args.latency_weight_avg
-        self.latency_weight_avg_type = args.latency_weight_avg_type
-        self.latency_weight_var = args.latency_weight_var
-        self.latency_weight_var_type = args.latency_weight_var_type
-        self.mass_preservation = args.mass_preservation
-        self.average_method = args.average_method
+    def __init__(
+        self,
+        task,
+        sentence_avg,
+        label_smoothing,
+        ignore_prefix_size,
+        report_accuracy,
+        latency_weight_avg,
+        latency_weight_avg_type,
+        latency_weight_var,
+        latency_weight_var_type,
+        mass_preservation,
+        average_method,
+    ):
+        super().__init__(
+            task, sentence_avg, label_smoothing, ignore_prefix_size, report_accuracy
+        )
+        self.eps = label_smoothing
+        self.latency_weight_avg = latency_weight_avg
+        self.latency_weight_avg_type = latency_weight_avg_type
+        self.latency_weight_var = latency_weight_var
+        self.latency_weight_var_type = latency_weight_var_type
+        self.mass_preservation = mass_preservation
+        self.average_method = average_method
         self.latency_train = LatencyTraining(
             self.latency_weight_avg,
             self.latency_weight_var,
