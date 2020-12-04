@@ -583,6 +583,13 @@ class CheckpointConfig(FairseqDataclass):
             "the checkpoint"
         },
     )
+    load_checkpoint_on_all_dp_ranks: bool = field(
+        default=False,
+        metadata={
+            "help": "load checkpoints on all data parallel devices "
+            "(default: only load on rank 0 and broadcast to other devices)"
+        },
+    )
     model_parallel_size: int = II("common.model_parallel_size")
     distributed_rank: int = II("distributed_training.distributed_rank")
 
