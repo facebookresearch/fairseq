@@ -10,7 +10,7 @@
 ##### Load GottBERT from torch.hub (PyTorch >= 1.1):
 ```python
 import torch
-gottbert = torch.hub.load('pytorch/fairseq', 'gottbert')
+gottbert = torch.hub.load('pytorch/fairseq', 'gottbert-base')
 gottbert.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
