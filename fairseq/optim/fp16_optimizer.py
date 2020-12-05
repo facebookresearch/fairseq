@@ -65,6 +65,8 @@ class _FP16OptimizerMixin(object):
             for p in params:
                 p32 = torch.nn.Parameter(p.data.float())
                 p32.grad = torch.zeros_like(p32.data)
+                if hasattr(p, "param_group"):
+                    p32.param_group = p.param_group
                 fp32_params.append(p32)
             return fp32_params
 
@@ -198,15 +200,15 @@ class _FP16OptimizerMixin(object):
 
         return grad_norm
 
-    def step(self, closure=None):
+    def step(self, closure=None, groups=None):
         """Performs a single optimization step."""
         self._sync_fp16_grads_to_fp32()
 
         if getattr(self, "supports_step_with_scale", False):
-            self.fp32_optimizer.step(closure, scale=(1.0 / self._multiply_factor))
+            self.fp32_optimizer.step(closure, scale=(1.0 / self._multiply_factor), groups=groups)
         else:
             self._unscale_grads()
-            self.fp32_optimizer.step(closure)
+            self.fp32_optimizer.step(closure, groups=groups)
 
         if self.scaler is not None:
             self.scaler.update()
@@ -302,6 +304,10 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
     @optimizer.setter
     def optimizer(self, optimizer):
         self.fp32_optimizer.optimizer = optimizer
+
+    @property
+    def lr_scheduler(self):
+        return getattr(self.fp32_optimizer, "lr_scheduler", None)
 
     @property
     def optimizer_config(self):
@@ -416,14 +422,14 @@ class _MemoryEfficientFP16OptimizerMixin(object):
 
         return grad_norm
 
-    def step(self, closure=None):
+    def step(self, closure=None, groups=None):
         """Performs a single optimization step."""
         if getattr(self, "supports_step_with_scale", False):
             # NOTE(msb) optimizer divides by scale factor
-            self.wrapped_optimizer.step(closure, scale=(1.0 / self._multiply_factor))
+            self.wrapped_optimizer.step(closure, scale=(1.0 / self._multiply_factor), groups=groups)
         else:
             self._unscale_grads()
-            self.wrapped_optimizer.step(closure)
+            self.wrapped_optimizer.step(closure, groups=groups)
 
         if self.scaler is not None:
             self.scaler.update()
@@ -513,6 +519,10 @@ class MemoryEfficientFP16Optimizer(
     @property
     def optimizer_config(self):
         return self.wrapped_optimizer.optimizer_config
+
+    @property
+    def lr_scheduler(self):
+        return getattr(self.wrapped_optimizer, "lr_scheduler", None)
 
     def get_lr(self):
         return self.wrapped_optimizer.get_lr()

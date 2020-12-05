@@ -161,8 +161,9 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
 
     elif cfg.distributed_world_size > 1 or force_distributed:
         # fallback for single node with multiple GPUs
-        assert cfg.distributed_world_size <= torch.cuda.device_count(), \
-            f"world size is {cfg.distributed_world_size} but have {torch.cuda.device_count()} available devices"
+        assert (
+            cfg.distributed_world_size <= torch.cuda.device_count()
+        ), f"world size is {cfg.distributed_world_size} but have {torch.cuda.device_count()} available devices"
         port = random.randint(10000, 20000)
         cfg.distributed_init_method = "tcp://localhost:{port}".format(port=port)
 
@@ -376,8 +377,10 @@ def get_world_size(group):
         assert group[0] == "tpu"
         my_group = _find_my_group(group[1])
         return len(my_group)
-    else:
+    elif torch.distributed.is_initialized():
         return dist.get_world_size(group=group)
+    else:
+        return 1
 
 
 def get_global_group():
@@ -416,6 +419,7 @@ def get_data_parallel_group():
     global _USE_MEGATRON
     if _USE_MEGATRON:
         from fairseq.model_parallel.megatron import mpu
+
         return mpu.get_data_parallel_group()
     else:
         return get_global_group()
@@ -435,6 +439,7 @@ def get_model_parallel_group():
     global _USE_MEGATRON
     if _USE_MEGATRON:
         from fairseq.model_parallel.megatron import mpu
+
         return mpu.get_model_parallel_group()
     else:
         return None
