@@ -208,7 +208,7 @@ fairseq-train --task language_modeling /path/to/wikitext-103/data \
     --ddp-backend no_c10d \
     --decoder-attention-heads 8 --decoder-embed-dim 1024 --decoder-ffn-embed-dim 4096 --decoder-input-dim 1024 \
     --decoder-layers 16 --decoder-normalize-before --decoder-output-dim 1024 \
-    --lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --max-lr 1.0 --t-mult 2.0 \
+    --min-lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --lr 1.0 --t-mult 2.0 \
     --max-tokens 3072 --tokens-per-sample 3072 --momentum 0.99 --optimizer nag \
     --sample-break-mode none --update-freq 3 \
     --warmup-init-lr 1e-07 --warmup-updates 16000 \
@@ -269,7 +269,7 @@ fairseq-train --task language_modeling /path/to/wikitext-103/data \
     --ddp-backend no_c10d \
     --decoder-attention-heads 8 --decoder-embed-dim 1024 --decoder-ffn-embed-dim 4096 --decoder-input-dim 1024 --decoder-layers 16 --decoder-normalize-before --decoder-output-dim 1024 \
     --fp16 --keep-last-epochs -1 \
-    --lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --max-lr 0.05 --stop-min-lr 1e-09 \
+    --min-lr 0.0001 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 --lr 0.05 --stop-min-lr 1e-09 \
     --max-tokens 2944  --tokens-per-sample 2944\
     --momentum 0.99 --no-epoch-checkpoints --no-progress-bar --optimizer nag --required-batch-size-multiple 8 \
     --sample-break-mode none --t-mult 2.0 --skip-invalid-size-inputs-valid-test \

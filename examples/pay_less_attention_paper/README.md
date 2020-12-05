@@ -140,7 +140,7 @@ python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     --stop-min-lr 1e-09 --update-freq 16 --attention-dropout 0.1 --keep-last-epochs 10 \
     --ddp-backend=no_c10d --max-tokens 3584 \
     --lr-scheduler cosine --warmup-init-lr 1e-7 --warmup-updates 10000 \
-    --lr-shrink 1 --max-lr 0.001 --lr 1e-7 --warmup-init-lr 1e-07 \
+    --lr-shrink 1 --lr 0.001 --min-lr 1e-7 --warmup-init-lr 1e-07 \
     --t-mult 1 --lr-period-updates 20000 \
     --arch lightconv_wmt_en_de_big --save-dir $SAVE \
     --dropout 0.3 --attention-dropout 0.1 --weight-dropout 0.1 \
@@ -165,7 +165,7 @@ python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     --stop-min-lr 1e-09 --update-freq 16 --attention-dropout 0.1 --keep-last-epochs 10 \
     --ddp-backend=no_c10d --max-tokens 3584 \
     --lr-scheduler cosine --warmup-init-lr 1e-7 --warmup-updates 10000 \
-    --lr-shrink 1 --max-lr 0.001 --lr 1e-7 --warmup-init-lr 1e-07 \
+    --lr-shrink 1 --lr 0.001 --min-lr 1e-7 --warmup-init-lr 1e-07 \
     --t-mult 1 --lr-period-updates 70000 \
     --arch lightconv_wmt_en_fr_big --save-dir $SAVE \
     --dropout 0.1 --attention-dropout 0.1 --weight-dropout 0.1 \
