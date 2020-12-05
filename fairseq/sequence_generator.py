@@ -278,8 +278,8 @@ class SequenceGenerator(nn.Module):
         cand_size = 2 * beam_size  # 2 x beam size in case half are EOS
 
         # offset arrays for converting between different indexing schemes
-        bbsz_offsets = (torch.arange(0, bsz) * beam_size).unsqueeze(1).type_as(tokens)
-        cand_offsets = torch.arange(0, cand_size).type_as(tokens)
+        bbsz_offsets = (torch.arange(0, bsz) * beam_size).unsqueeze(1).type_as(tokens).to(src_tokens.device)
+        cand_offsets = torch.arange(0, cand_size).type_as(tokens).to(src_tokens.device)
 
         reorder_state: Optional[Tensor] = None
         batch_idxs: Optional[Tensor] = None
