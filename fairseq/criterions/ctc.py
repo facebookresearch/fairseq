@@ -8,7 +8,7 @@ import math
 from argparse import Namespace
 from dataclasses import dataclass, field
 from omegaconf import II
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 import torch.nn.functional as F

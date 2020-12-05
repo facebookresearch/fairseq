@@ -8,11 +8,14 @@ from torch import nn
 
 
 class SamePad(nn.Module):
-    def __init__(self, kernel_size):
+    def __init__(self, kernel_size, causal=False):
         super().__init__()
-        self.remove = kernel_size % 2 == 0
+        if causal:
+            self.remove = kernel_size - 1
+        else:
+            self.remove = 1 if kernel_size % 2 == 0 else 0
 
     def forward(self, x):
-        if self.remove:
-            x = x[:, :, :-1]
+        if self.remove > 0:
+            x = x[:, :, : -self.remove]
         return x

@@ -637,7 +637,9 @@ class Trainer(object):
 
             with torch.autograd.profiler.record_function("optimizer"):
                 # take an optimization step
-                self.optimizer.step()
+                self.task.optimizer_step(
+                    self.optimizer, model=self.model, update_num=self.get_num_updates()
+                )
 
         except FloatingPointError:
             # re-run the forward and backward pass with hooks attached to print
@@ -827,7 +829,12 @@ class Trainer(object):
     def lr_step_update(self):
         """Update the learning rate after each update."""
         new_lr = self.lr_scheduler.step_update(self.get_num_updates())
-        metrics.log_scalar("lr", new_lr, weight=0, priority=300)
+        if isinstance(new_lr, dict):
+            for k, v in new_lr.items():
+                metrics.log_scalar(f"lr_{k}", v, weight=0, priority=300)
+            new_lr = new_lr.get("default", next(iter(new_lr.values())))
+        else:
+            metrics.log_scalar("lr", new_lr, weight=0, priority=300)
         return new_lr
 
     def get_lr(self):
