@@ -465,7 +465,7 @@ class OptimizationConfig(FairseqDataclass):
             " (note: this may be interpreted differently depending on --lr-scheduler)"
         },
     )
-    min_lr: float = field(
+    stop_min_lr: float = field(
         default=-1.0,
         metadata={"help": "stop training when the learning rate reaches this minimum"},
     )
