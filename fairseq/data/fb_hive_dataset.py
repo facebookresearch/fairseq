@@ -151,6 +151,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
         where_clause: Optional[str] = None,
         date_ranges: Optional[List[Tuple[str, str]]] = None,
         shuffle=False,
+        shuffle_col: str = "thread_key",
         fresh_date_ranges: Optional[List[Tuple[str, str]]] = None,
         fresh_ratio: int = 4,
     ) -> None:
@@ -165,6 +166,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
         self.fresh_date_ranges = fresh_date_ranges
         self.fresh_ratio = fresh_ratio
         self.shuffle = shuffle
+        self.shuffle_col = shuffle_col
 
     def __len__(self):
         return self.limit
@@ -213,7 +215,7 @@ class StreamingHiveDataset(FairseqIterableDataset):
                 column_projections=self.columns,
                 where_clause=self._build_where_clause(
                     date_clause=_date_where_clause(self.date_ranges),
-                    shuffle_clause=f"abs(hash(thread_key) % {num_slices}) = {i}",
+                    shuffle_clause=f"abs(hash({self.shuffle_col}) % {num_slices}) = {i}",
                 ),
                 limit=self.limit,
             )
