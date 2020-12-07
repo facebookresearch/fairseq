@@ -109,14 +109,21 @@ class FairseqOptimizer(object):
         """Clips gradient norm."""
         return utils.clip_grad_norm_(self.params, max_norm, aggregate_norm_fn)
 
-    def step(self, closure=None, scale=1.0):
+    def step(self, closure=None, scale=1.0, groups=None):
         """Performs a single optimization step."""
         if self.supports_step_with_scale:
             self.optimizer.step(closure, scale=scale)
+            if self.supports_groups:
+                self.optimizer.step(closure, scale=scale, groups=groups)
+            else:
+                self.optimizer.step(closure, scale=scale)
         else:
             if scale != 1.0:
                 self.multiply_grads(1.0 / scale)
-            self.optimizer.step(closure)
+            if self.supports_groups:
+                self.optimizer.step(closure, groups=groups)
+            else:
+                self.optimizer.step(closure)
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
@@ -134,6 +141,12 @@ class FairseqOptimizer(object):
     def supports_step_with_scale(self):
         if hasattr(self.optimizer, "supports_step_with_scale"):
             return self.optimizer.supports_step_with_scale
+        return False
+
+    @property
+    def supports_groups(self):
+        if hasattr(self.optimizer, "supports_groups"):
+            return self.optimizer.supports_groups
         return False
 
     @property

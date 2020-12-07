@@ -438,6 +438,9 @@ class FairseqTask(object):
             loss, sample_size, logging_output = criterion(model, sample)
         return loss, sample_size, logging_output
 
+    def optimizer_step(self, optimizer, model, update_num):
+        optimizer.step()
+
     def build_dataset_for_inference(
         self, src_tokens: List[torch.Tensor], src_lengths: List[int], **kwargs
     ) -> torch.utils.data.Dataset:

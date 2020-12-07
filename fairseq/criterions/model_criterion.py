@@ -3,8 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 from fairseq import metrics, utils
@@ -79,11 +79,12 @@ class ModelCriterion(FairseqCriterion):
             "ntokens": sample_size,
             "nsentences": sample["id"].numel(),
             "sample_size": sample_size,
+            "_world_size": 1,
         }
 
         for lk in self.log_keys:
             if lk in net_output:
-                logging_output[lk] = float((net_output[lk]))
+                logging_output[lk] = float(net_output[lk])
 
         if len(scaled_losses) > 1:
             for lk, l in scaled_losses.items():
@@ -112,9 +113,12 @@ class ModelCriterion(FairseqCriterion):
             "ntokens",
             "nsentences",
             "sample_size",
-            "correct",
-            "count",
+            "_world_size",
         }
+
+        world_size = utils.item(
+            sum(log.get("_world_size", 0) for log in logging_outputs)
+        )
 
         for k in logging_outputs[0]:
             if k not in builtin_keys:
@@ -122,7 +126,7 @@ class ModelCriterion(FairseqCriterion):
                 if k.startswith("loss_"):
                     metrics.log_scalar(k, val / sample_size, sample_size, round=3)
                 else:
-                    metrics.log_scalar(k, val / len(logging_outputs), round=3)
+                    metrics.log_scalar(k, val / world_size, round=3)
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:

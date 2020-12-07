@@ -1454,7 +1454,7 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
             "0.5",
             "--lr",
             "0.0001",
-            "--min-lr",
+            "--stop-min-lr",
             "1e-09",
             # dropout, attention args
             "--dropout",

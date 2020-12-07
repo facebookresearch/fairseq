@@ -356,6 +356,8 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
                 writer.add_scalar(key, stats[key].val, step)
             elif isinstance(stats[key], Number):
                 writer.add_scalar(key, stats[key], step)
+            elif torch.is_tensor(stats[key]) and stats[key].numel() == 1:
+                writer.add_scalar(key, stats[key].item(), step)
         writer.flush()
 
 

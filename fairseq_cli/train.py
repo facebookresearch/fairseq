@@ -125,7 +125,15 @@ def main(cfg: DictConfig) -> None:
     lr = trainer.get_lr()
     train_meter = meters.StopwatchMeter()
     train_meter.start()
-    while lr > cfg.optimization.min_lr and epoch_itr.next_epoch_idx <= max_epoch:
+    while epoch_itr.next_epoch_idx <= max_epoch:
+        if lr <= cfg.optimization.stop_min_lr:
+            logger.info(
+                f"stopping training because current learning rate ({lr}) is smaller "
+                "than or equal to minimum learning rate "
+                f"(--stop-min-lr={cfg.optimization.stop_min_lr})"
+            )
+            break
+
         # train for one epoch
         valid_losses, should_stop = train(cfg, trainer, task, epoch_itr)
         if should_stop:
@@ -189,7 +197,7 @@ def train(
         else cfg.optimization.update_freq[-1]
     )
     itr = iterators.GroupedIterator(itr, update_freq)
-    if getattr(cfg.common, "tpu", False):
+    if cfg.common.tpu:
         itr = utils.tpu_data_loader(itr)
     progress = progress_bar.progress_bar(
         itr,

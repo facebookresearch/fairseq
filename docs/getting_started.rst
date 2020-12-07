@@ -90,7 +90,7 @@ well for the IWSLT 2014 dataset:
 
     > mkdir -p checkpoints/fconv
     > CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt14.tokenized.de-en \
-        --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
+        --optimizer nag --lr 0.25 --clip-norm 0.1 --dropout 0.2 --max-tokens 4000 \
         --arch fconv_iwslt_de_en --save-dir checkpoints/fconv
 
 By default, :ref:`fairseq-train` will use all available GPUs on your machine. Use the
@@ -182,9 +182,10 @@ sure to update ``--master_addr`` to the IP address of the first node:
         --arch transformer_vaswani_wmt_en_de_big --share-all-embeddings \
         --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
         --lr-scheduler inverse_sqrt --warmup-init-lr 1e-07 --warmup-updates 4000 \
-        --lr 0.0005 --min-lr 1e-09 \
+        --lr 0.0005 \
         --dropout 0.3 --weight-decay 0.0 --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
         --max-tokens 3584 \
+        --max-epoch 70 \
         --fp16
 
 On SLURM clusters, fairseq will automatically detect the number of nodes and

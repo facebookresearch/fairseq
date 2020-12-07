@@ -173,7 +173,7 @@ def main(cfg: FairseqConfig):
         model.prepare_for_inference_(cfg)
 
     # Initialize generator
-    generator = task.build_generator(models, cfg.task)
+    generator = task.build_generator(models, cfg.generation)
 
     # Handle tokenization and BPE
     tokenizer = encoders.build_tokenizer(cfg.tokenizer)

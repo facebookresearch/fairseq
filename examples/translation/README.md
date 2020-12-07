@@ -268,7 +268,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt17.de_fr.en.bpe16k/ \
     --arch multilingual_transformer_iwslt_de_en \
     --share-decoders --share-decoder-input-output-embed \
     --optimizer adam --adam-betas '(0.9, 0.98)' \
-    --lr 0.0005 --lr-scheduler inverse_sqrt --min-lr '1e-09' \
+    --lr 0.0005 --lr-scheduler inverse_sqrt \
     --warmup-updates 4000 --warmup-init-lr '1e-07' \
     --label-smoothing 0.1 --criterion label_smoothed_cross_entropy \
     --dropout 0.3 --weight-decay 0.0001 \

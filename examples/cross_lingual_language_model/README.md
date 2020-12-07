@@ -61,7 +61,7 @@ fairseq-train \
 --max-update 2400000 --save-interval 1 --no-epoch-checkpoints \
 --arch xlm_base \
 --optimizer adam --lr-scheduler reduce_lr_on_plateau \
---lr-shrink 0.5 --lr 0.0001 --min-lr 1e-09 \
+--lr-shrink 0.5 --lr 0.0001 --stop-min-lr 1e-09 \
 --dropout 0.1 \
 --criterion legacy_masked_lm_loss \
 --max-tokens 2048 --tokens-per-sample 256 --attention-dropout 0.1 \

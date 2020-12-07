@@ -75,7 +75,7 @@ class NAG(Optimizer):
             momentum = group["momentum"]
             lr = group["lr"]
             lr_old = group.get("lr_old", lr)
-            lr_correct = lr / lr_old
+            lr_correct = lr / lr_old if lr_old > 0 else lr
 
             for p in group["params"]:
                 if p.grad is None:
