@@ -11,6 +11,7 @@ from fairseq import utils
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+import deepspeed
 
 
 class TransformerSentenceEncoderLayer(nn.Module):
@@ -34,6 +35,25 @@ class TransformerSentenceEncoderLayer(nn.Module):
         init_fn: Callable = None,
     ) -> None:
         super().__init__()
+
+        # Hardcoded based on run_roberta.sh and deepspeed tests.unit.BertConfig
+        deepspeedconfig = deepspeed.ops.transformer.DeepSpeedTransformerConfig(
+                batch_size=512,
+                hidden_size = embedding_dim,
+                initializer_range=0.02,
+                heads=num_attention_heads,
+                intermediate_size=ffn_embedding_dim,
+                attn_dropout_ratio=attention_dropout,
+                hidden_dropout_ratio=0.1,  # Need to verify mapping
+                pre_layer_norm=1,
+                )
+        # Some asserts to verify assumptions
+        assert activation_fn == "gelu"
+        self.deepspeedtransformerlayer = deepspeed.ops.transformer.DeepSpeedTransformerLayer(
+                0, #layer_id seems to be for debugging only
+                deepspeedconfig,
+                )
+        return
 
         if init_fn is not None:
             init_fn()
@@ -111,6 +131,9 @@ class TransformerSentenceEncoderLayer(nn.Module):
         LayerNorm is applied either before or after the self-attention/ffn
         modules similar to the original Transformer implementation.
         """
+        result =  self.deepspeedtransformerlayer(x, self_attn_mask)
+        import pdb; pdb.set_trace()
+        return result
         residual = x
         x, attn = self.self_attn(
             query=x,
