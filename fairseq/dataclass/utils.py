@@ -237,6 +237,11 @@ def _override_attr(
             t_args = v.type.__args__
             if len(t_args) == 1:
                 val = list(map(t_args[0], val))
+        elif val is not None and (field_type is int or field_type is bool or field_type is float):
+            try:
+                val = field_type(val)
+            except:
+                pass # ignore errors here, they are often from interpolation args
 
         if val is None:
             overrides.append("{}.{}=null".format(sub_node, k))

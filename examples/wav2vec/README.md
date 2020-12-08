@@ -160,11 +160,11 @@ Wav2Vec large | [Librispeech](http://www.openslr.org/12) | [download](https://dl
 #### Example usage:
 ```python
 import torch
-from fairseq.models.wav2vec import Wav2VecModel
+import fairseq
 
 cp = torch.load('/path/to/wav2vec.pt')
-model = Wav2VecModel.build_model(cp['args'], task=None)
-model.load_state_dict(cp['model'])
+model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp])
+model = model[0]
 model.eval()
 
 wav_input_16khz = torch.randn(1,10000)
@@ -217,11 +217,11 @@ Roberta on K-means codes | [Librispeech](http://www.openslr.org/12) | [download]
 #### Example usage:
 ```python
 import torch
-from fairseq.models.wav2vec import Wav2VecModel
+import fairseq
 
 cp = torch.load('/path/to/vq-wav2vec.pt')
-model = Wav2VecModel.build_model(cp['args'], task=None)
-model.load_state_dict(cp['model'])
+model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp])
+model = model[0]
 model.eval()
 
 wav_input_16khz = torch.randn(1,10000)

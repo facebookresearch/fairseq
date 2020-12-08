@@ -480,6 +480,15 @@ def _upgrade_state_dict(state):
         if hasattr(state["args"], "min_lr"):
             state["args"].stop_min_lr = state["args"].min_lr
             del state["args"].min_lr
+        # binary_cross_entropy => wav2vec criterion
+        if hasattr(state["args"], "criterion") and state["args"].criterion == "binary_cross_entropy":
+            state["args"].criterion = "wav2vec"
+        # speech_pretraining => audio pretraining
+        if hasattr(state["args"], "task") and state["args"].task == "speech_pretraining":
+            state["args"].task = "audio_pretraining"
+        # audio_cpc => wav2vec
+        if hasattr(state["args"], "arch") and state["args"].arch == "audio_cpc":
+            state["args"].arch = "wav2vec"
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 

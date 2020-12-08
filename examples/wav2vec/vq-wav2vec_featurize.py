@@ -16,8 +16,7 @@ import pprint
 
 import soundfile as sf
 import torch
-import tqdm
-from fairseq.models.wav2vec.wav2vec import Wav2VecModel
+import fairseq
 from torch import nn
 from torch.utils.data import DataLoader
 
@@ -211,13 +210,11 @@ class DatasetWriter:
         return loader
 
     def load_model(self):
-        cp = torch.load(self.checkpoint, map_location=lambda x, _: x)
+        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([self.checkpoint])
+        model = model[0]
 
-        model = Wav2VecModel.build_model(cp["args"], None)
+        self.quantize_location = getattr(cfg.model, "vq", "encoder")
 
-        self.quantize_location = getattr(cp["args"], "vq", "encoder")
-
-        model.load_state_dict(cp["model"])
         model.eval().float()
         model.cuda()
 
