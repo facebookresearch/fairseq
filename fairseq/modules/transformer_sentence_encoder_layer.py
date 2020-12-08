@@ -45,7 +45,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 intermediate_size=ffn_embedding_dim,
                 attn_dropout_ratio=attention_dropout,
                 hidden_dropout_ratio=0.1,  # Need to verify mapping
-                pre_layer_norm=1,
+                pre_layer_norm=True,
                 )
         # Some asserts to verify assumptions
         assert activation_fn == "gelu"
@@ -131,7 +131,31 @@ class TransformerSentenceEncoderLayer(nn.Module):
         LayerNorm is applied either before or after the self-attention/ffn
         modules similar to the original Transformer implementation.
         """
-        result =  self.deepspeedtransformerlayer(x, self_attn_mask)
+        print('self_attn_mask')
+        print(self_attn_mask)
+        print('self_attn_padding_mask')
+        print(self_attn_padding_mask)
+        assert self_attn_mask is None
+        assert self_attn_padding_mask is None
+        attention_mask = torch.ones_like(x)
+
+        # We create a 3D attention mask from a 2D tensor mask.
+        # Sizes are [batch_size, 1, 1, to_seq_length]
+        # So we can broadcast to [batch_size, num_heads, from_seq_length, to_seq_length]
+        # this attention mask is more simple than the triangular masking of causal attention
+        # used in OpenAI GPT, we just need to prepare the broadcast dimension here.
+        extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+
+        # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
+        # masked positions, this operation will create a tensor which is 0.0 for
+        # positions we want to attend and -10000.0 for masked positions.
+        # Since we are adding it to the raw scores before the softmax, this is
+        # effectively the same as removing these entirely.
+        # extended_attention_mask = extended_attention_mask.to(dtyp.dtype)  # fp16 compatibility
+        extended_attention_mask = extended_attention_mask.to(x.dtype)  # fp16 compatibility
+        extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+        result =  self.deepspeedtransformerlayer(
+                x.contiguous(), extended_attention_mask.contiguous())
         import pdb; pdb.set_trace()
         return result
         residual = x
