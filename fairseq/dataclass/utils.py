@@ -4,19 +4,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import ast
-import os
+import inspect
 import logging
+import os
 import re
 from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
-import inspect
 from typing import Any, Dict, List, Tuple, Type
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import FairseqConfig
-from hydra.experimental import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
+from hydra.experimental import compose, initialize
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 logger = logging.getLogger(__name__)
@@ -218,7 +218,9 @@ def _override_attr(
             isinstance(val, str)
             and not val.startswith("${")  # not interpolation
             and field_type != str
-            and (not inspect.isclass(field_type) or not issubclass(field_type, Enum))  # not choices enum
+            and (
+                not inspect.isclass(field_type) or not issubclass(field_type, Enum)
+            )  # not choices enum
         ):
             # upgrade old models that stored complex parameters as string
             val = ast.literal_eval(val)
@@ -438,9 +440,7 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
 
 
 def merge_with_parent(dc: FairseqDataclass, cfg: FairseqDataclass):
-    dc_instance = DictConfig(dc)
-    dc_instance.__dict__["_parent"] = cfg.__dict__["_parent"]
-    with open_dict(dc_instance):
-        cfg = OmegaConf.merge(dc_instance, cfg)
-    OmegaConf.set_struct(cfg, True)
-    return cfg
+    merged_cfg = OmegaConf.merge(dc, cfg)
+    merged_cfg.__dict__["_parent"] = cfg.__dict__["_parent"]
+    OmegaConf.set_struct(merged_cfg, True)
+    return merged_cfg

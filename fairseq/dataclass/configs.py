@@ -465,7 +465,7 @@ class OptimizationConfig(FairseqDataclass):
             " (note: this may be interpreted differently depending on --lr-scheduler)"
         },
     )
-    min_lr: float = field(
+    stop_min_lr: float = field(
         default=-1.0,
         metadata={"help": "stop training when the learning rate reaches this minimum"},
     )
@@ -581,6 +581,13 @@ class CheckpointConfig(FairseqDataclass):
             "if the checkpoint is over 300GB, it is preferable "
             "to split it into shards to prevent OOM on CPU while loading "
             "the checkpoint"
+        },
+    )
+    load_checkpoint_on_all_dp_ranks: bool = field(
+        default=False,
+        metadata={
+            "help": "load checkpoints on all data parallel devices "
+            "(default: only load on rank 0 and broadcast to other devices)"
         },
     )
     model_parallel_size: int = II("common.model_parallel_size")
