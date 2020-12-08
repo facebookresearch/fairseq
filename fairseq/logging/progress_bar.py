@@ -455,7 +455,8 @@ class AzureMLProgressBarWrapper(BaseProgressBar):
         prefix = '' if tag is None else tag + '/'
 
         for key in stats.keys() - {'num_updates'}:
+            name = prefix + key
             if isinstance(stats[key], AverageMeter):
-                self.run.log_row(prefix + key, **{key: stats[key].val, step: step})
+                self.run.log_row(name=name, **{key: stats[key].val, 'step': step})
             elif isinstance(stats[key], Number):
-                self.run.log_row(prefix + key, **{key: stats[key], step: step})
+                self.run.log_row(name=name, **{key: stats[key], 'step': step})
