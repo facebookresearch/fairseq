@@ -73,6 +73,7 @@ class TransformerSentenceEncoder(nn.Module):
 
     def __init__(
         self,
+        use_ds: bool,
         padding_idx: int,
         vocab_size: int,
         num_encoder_layers: int = 6,
@@ -151,9 +152,11 @@ class TransformerSentenceEncoder(nn.Module):
             self.layers = LayerDropModuleList(p=self.layerdrop)
         else:
             self.layers = nn.ModuleList([])
+        self.use_ds = use_ds
         self.layers.extend(
             [
                 self.build_transformer_sentence_encoder_layer(
+                    use_ds=use_ds,
                     layerid=layerid,
                     embedding_dim=self.embedding_dim,
                     ffn_embedding_dim=ffn_embedding_dim,
@@ -199,6 +202,7 @@ class TransformerSentenceEncoder(nn.Module):
 
     def build_transformer_sentence_encoder_layer(
         self,
+        use_ds,
         layerid,
         embedding_dim,
         ffn_embedding_dim,
@@ -211,6 +215,19 @@ class TransformerSentenceEncoder(nn.Module):
         q_noise,
         qn_block_size,
     ):
+        if not use_ds:
+            return TransformerSentenceEncoderLayer(
+                embedding_dim=embedding_dim,
+                ffn_embedding_dim=ffn_embedding_dim,
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                attention_dropout=attention_dropout,
+                activation_dropout=activation_dropout,
+                activation_fn=activation_fn,
+                export=export,
+                q_noise=q_noise,
+                qn_block_size=qn_block_size,
+            )
         # Hardcoded based on run_roberta.sh and deepspeed tests.unit.BertConfig
         deepspeedconfig = deepspeed.ops.transformer.DeepSpeedTransformerConfig(
                 batch_size=128,
@@ -233,18 +250,6 @@ class TransformerSentenceEncoder(nn.Module):
                 layerid, #layer_id seems to be for debugging only
                 deepspeedconfig,
                 )
-        # return TransformerSentenceEncoderLayer(
-        #     embedding_dim=embedding_dim,
-        #     ffn_embedding_dim=ffn_embedding_dim,
-        #     num_attention_heads=num_attention_heads,
-        #     dropout=dropout,
-        #     attention_dropout=attention_dropout,
-        #     activation_dropout=activation_dropout,
-        #     activation_fn=activation_fn,
-        #     export=export,
-        #     q_noise=q_noise,
-        #     qn_block_size=qn_block_size,
-        # )
 
     def prepare_for_tpu_(self, **kwargs):
         self.tpu = True
@@ -293,6 +298,10 @@ class TransformerSentenceEncoder(nn.Module):
         inner_states = []
         if not last_state_only:
             inner_states.append(x)
+        
+        if not self.use_ds:
+            # B x T x C -> T x B x C
+            x = x.transpose(0, 1)
 
         attention_mask = torch.zeros_like(x)
         for layer in self.layers:
@@ -301,8 +310,9 @@ class TransformerSentenceEncoder(nn.Module):
             if not last_state_only:
                 inner_states.append(x)
 
-        # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
+        if self.use_ds:
+            # B x T x C -> T x B x C
+            x = x.transpose(0, 1)
 
         sentence_rep = x[0, :, :]
 

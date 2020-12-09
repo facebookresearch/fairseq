@@ -401,7 +401,29 @@ class RobertaEncoder(FairseqEncoder):
         if args.encoder_layers_to_keep:
             args.encoder_layers = len(args.encoder_layers_to_keep.split(","))
 
+        self.ds_sentence_encoder = TransformerSentenceEncoder(
+            True,
+            padding_idx=dictionary.pad(),
+            vocab_size=len(dictionary),
+            num_encoder_layers=args.encoder_layers,
+            embedding_dim=args.encoder_embed_dim,
+            ffn_embedding_dim=args.encoder_ffn_embed_dim,
+            num_attention_heads=args.encoder_attention_heads,
+            dropout=args.dropout,
+            attention_dropout=args.attention_dropout,
+            activation_dropout=args.activation_dropout,
+            layerdrop=args.encoder_layerdrop,
+            max_seq_len=args.max_positions,
+            num_segments=0,
+            encoder_normalize_before=True,
+            apply_bert_init=True,
+            activation_fn=args.activation_fn,
+            q_noise=args.quant_noise_pq,
+            qn_block_size=args.quant_noise_pq_block_size,
+        )
+
         self.sentence_encoder = TransformerSentenceEncoder(
+            False,
             padding_idx=dictionary.pad(),
             vocab_size=len(dictionary),
             num_encoder_layers=args.encoder_layers,
@@ -469,6 +491,12 @@ class RobertaEncoder(FairseqEncoder):
             last_state_only=not return_all_hiddens,
             token_embeddings=kwargs.get("token_embeddings", None),
         )
+        ds_inner_states, _ = self.ds_sentence_encoder(
+            src_tokens,
+            last_state_only=not return_all_hiddens,
+            token_embeddings=kwargs.get("token_embeddings", None),
+        )
+        import pdb; pdb.set_trace()
         features = inner_states[-1].transpose(0, 1)  # T x B x C -> B x T x C
         return features, {"inner_states": inner_states if return_all_hiddens else None}
 
