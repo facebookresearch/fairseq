@@ -169,6 +169,7 @@ class TransformerSentenceEncoder(nn.Module):
                 for layerid in range(num_encoder_layers)
             ]
         )
+        self.deepspeedattentionmask = None
 
         if encoder_normalize_before:
             self.emb_layer_norm = LayerNorm(self.embedding_dim, export=export)
@@ -293,9 +294,7 @@ class TransformerSentenceEncoder(nn.Module):
         if not last_state_only:
             inner_states.append(x)
 
-        attention_mask = torch.ones_like(x)
-        attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
-        attention_mask = (1.0 - attention_mask) * -10000.0
+        attention_mask = torch.zeros_like(x)
         for layer in self.layers:
             # x, _ = layer(x, self_attn_padding_mask=padding_mask)
             x = layer(x, attention_mask)
