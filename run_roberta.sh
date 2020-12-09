@@ -1,10 +1,18 @@
+# TOTAL_UPDATES=125000    # Total number of training steps
+# WARMUP_UPDATES=10000    # Warmup the learning rate over this many updates
+# PEAK_LR=0.0005          # Peak learning rate, adjust as needed
+# TOKENS_PER_SAMPLE=512   # Max sequence length
+# MAX_POSITIONS=512       # Num. positional embeddings (usually same as above)
+# MAX_SENTENCES=1         # Number of sequences per batch (batch size) (changed to 4 for this)
+# UPDATE_FREQ=1           # Increase the batch size 16x (changed to 1 for this)
+
 TOTAL_UPDATES=125000    # Total number of training steps
 WARMUP_UPDATES=10000    # Warmup the learning rate over this many updates
 PEAK_LR=0.0005          # Peak learning rate, adjust as needed
 TOKENS_PER_SAMPLE=512   # Max sequence length
 MAX_POSITIONS=512       # Num. positional embeddings (usually same as above)
-MAX_SENTENCES=4        # Number of sequences per batch (batch size) (changed to 4 for this)
-UPDATE_FREQ=1           # Increase the batch size 16x (changed to 1 for this)
+MAX_SENTENCES=16        # Number of sequences per batch (batch size)
+UPDATE_FREQ=16          # Increase the batch size 16x
 
 DATA_DIR=data-bin/wikitext-103
 

@@ -16,6 +16,7 @@ from fairseq.modules import (
     TransformerSentenceEncoderLayer,
 )
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+import deepspeed
 
 
 def init_bert_params(module):
@@ -153,6 +154,7 @@ class TransformerSentenceEncoder(nn.Module):
         self.layers.extend(
             [
                 self.build_transformer_sentence_encoder_layer(
+                    layerid=layerid,
                     embedding_dim=self.embedding_dim,
                     ffn_embedding_dim=ffn_embedding_dim,
                     num_attention_heads=num_attention_heads,
@@ -164,7 +166,7 @@ class TransformerSentenceEncoder(nn.Module):
                     q_noise=q_noise,
                     qn_block_size=qn_block_size,
                 )
-                for _ in range(num_encoder_layers)
+                for layerid in range(num_encoder_layers)
             ]
         )
 
@@ -196,6 +198,7 @@ class TransformerSentenceEncoder(nn.Module):
 
     def build_transformer_sentence_encoder_layer(
         self,
+        layerid,
         embedding_dim,
         ffn_embedding_dim,
         num_attention_heads,
@@ -207,18 +210,40 @@ class TransformerSentenceEncoder(nn.Module):
         q_noise,
         qn_block_size,
     ):
-        return TransformerSentenceEncoderLayer(
-            embedding_dim=embedding_dim,
-            ffn_embedding_dim=ffn_embedding_dim,
-            num_attention_heads=num_attention_heads,
-            dropout=dropout,
-            attention_dropout=attention_dropout,
-            activation_dropout=activation_dropout,
-            activation_fn=activation_fn,
-            export=export,
-            q_noise=q_noise,
-            qn_block_size=qn_block_size,
-        )
+        # Hardcoded based on run_roberta.sh and deepspeed tests.unit.BertConfig
+        deepspeedconfig = deepspeed.ops.transformer.DeepSpeedTransformerConfig(
+                batch_size=128,
+                max_seq_length=512,  #Guess based on TOKENS_PER_SAMPLE
+                hidden_size=embedding_dim,
+                intermediate_size=ffn_embedding_dim,
+                heads=num_attention_heads,
+                attn_dropout_ratio=attention_dropout,
+                hidden_dropout_ratio=0.1,  # Need to verify mapping
+                num_hidden_layers=12,  # Guess
+                initializer_range=0.02,
+                local_rank=0,  # Assume running only on 1 GPU
+                seed=1010, # Randomly chosen
+                fp16=False, # Disabled based on fairseq advice
+                pre_layer_norm=True,
+                )
+        # Some asserts to verify assumptions
+        assert activation_fn == "gelu"
+        return  deepspeed.ops.transformer.DeepSpeedTransformerLayer(
+                layerid, #layer_id seems to be for debugging only
+                deepspeedconfig,
+                )
+        # return TransformerSentenceEncoderLayer(
+        #     embedding_dim=embedding_dim,
+        #     ffn_embedding_dim=ffn_embedding_dim,
+        #     num_attention_heads=num_attention_heads,
+        #     dropout=dropout,
+        #     attention_dropout=attention_dropout,
+        #     activation_dropout=activation_dropout,
+        #     activation_fn=activation_fn,
+        #     export=export,
+        #     q_noise=q_noise,
+        #     qn_block_size=qn_block_size,
+        # )
 
     def prepare_for_tpu_(self, **kwargs):
         self.tpu = True
@@ -263,17 +288,20 @@ class TransformerSentenceEncoder(nn.Module):
         if padding_mask is not None:
             x = x * (1 - padding_mask.unsqueeze(-1).type_as(x))
 
-        # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
 
         inner_states = []
         if not last_state_only:
             inner_states.append(x)
 
         for layer in self.layers:
-            x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            attention_mask = torch.ones_like(x)
+            # x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            x = layer(x, attention_mask)
             if not last_state_only:
                 inner_states.append(x)
+
+        # B x T x C -> T x B x C
+        x = x.transpose(0, 1)
 
         sentence_rep = x[0, :, :]
 

@@ -36,29 +36,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
     ) -> None:
         super().__init__()
 
-        # Hardcoded based on run_roberta.sh and deepspeed tests.unit.BertConfig
-        deepspeedconfig = deepspeed.ops.transformer.DeepSpeedTransformerConfig(
-                batch_size=128,
-                max_seq_length=512,  #Guess based on TOKENS_PER_SAMPLE
-                hidden_size=embedding_dim,
-                intermediate_size=ffn_embedding_dim,
-                heads=num_attention_heads,
-                attn_dropout_ratio=attention_dropout,
-                hidden_dropout_ratio=0.1,  # Need to verify mapping
-                num_hidden_layers=12,  # Guess
-                initializer_range=0.02,
-                local_rank=0,  # Assume running only on 1 GPU
-                seed=1010, # Randomly chosen
-                fp16=False, # Disabled based on fairseq advice
-                pre_layer_norm=True,
-                )
-        # Some asserts to verify assumptions
-        assert activation_fn == "gelu"
-        self.deepspeedtransformerlayer = deepspeed.ops.transformer.DeepSpeedTransformerLayer(
-                0, #layer_id seems to be for debugging only
-                deepspeedconfig,
-                )
-        return
 
         if init_fn is not None:
             init_fn()
