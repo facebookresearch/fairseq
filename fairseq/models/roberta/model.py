@@ -403,7 +403,7 @@ class RobertaEncoder(FairseqEncoder):
             args.encoder_layers = len(args.encoder_layers_to_keep.split(","))
 
         self.sentence_encoder = TransformerSentenceEncoder(
-            bool(os.getenv("USE_DS_KERNELS", False)),
+            bool(int(os.getenv("USE_DS_KERNELS"))),
             padding_idx=dictionary.pad(),
             vocab_size=len(dictionary),
             num_encoder_layers=args.encoder_layers,
@@ -472,8 +472,6 @@ class RobertaEncoder(FairseqEncoder):
             token_embeddings=kwargs.get("token_embeddings", None),
         )
         features = inner_states[-1].transpose(0, 1)  # T x B x C -> B x T x C
-        print('features.sum().item()')
-        print(features.sum().item())
         return features, {"inner_states": inner_states if return_all_hiddens else None}
 
     def output_layer(self, features, masked_tokens=None, **unused):

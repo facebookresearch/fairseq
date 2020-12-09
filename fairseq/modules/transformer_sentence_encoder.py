@@ -158,6 +158,7 @@ class TransformerSentenceEncoder(nn.Module):
                 self.build_transformer_sentence_encoder_layer(
                     use_ds=use_ds,
                     layerid=layerid,
+                    num_encoder_layers=num_encoder_layers,
                     embedding_dim=self.embedding_dim,
                     ffn_embedding_dim=ffn_embedding_dim,
                     num_attention_heads=num_attention_heads,
@@ -204,6 +205,7 @@ class TransformerSentenceEncoder(nn.Module):
         self,
         use_ds,
         layerid,
+        num_encoder_layers,
         embedding_dim,
         ffn_embedding_dim,
         num_attention_heads,
@@ -230,19 +232,20 @@ class TransformerSentenceEncoder(nn.Module):
             )
         # Hardcoded based on run_roberta.sh and deepspeed tests.unit.BertConfig
         deepspeedconfig = deepspeed.ops.transformer.DeepSpeedTransformerConfig(
-                batch_size=128,
+                batch_size=8,
                 max_seq_length=512,  #Guess based on TOKENS_PER_SAMPLE
                 hidden_size=embedding_dim,
                 intermediate_size=ffn_embedding_dim,
                 heads=num_attention_heads,
-                attn_dropout_ratio=attention_dropout,
-                hidden_dropout_ratio=0.1,  # Need to verify mapping
-                num_hidden_layers=12,  # Guess
+                attn_dropout_ratio=0.0, # attention_dropout,
+                hidden_dropout_ratio=0.0, # dropout,  # Need to verify mapping
+                num_hidden_layers=num_encoder_layers,  # Guess
                 initializer_range=0.02,
                 local_rank=0,  # Assume running only on 1 GPU
                 seed=1010, # Randomly chosen
                 fp16=False, # Disabled based on fairseq advice
-                pre_layer_norm=True,
+                pre_layer_norm=False,
+                adjust_init_range=True,
                 )
         # Some asserts to verify assumptions
         assert activation_fn == "gelu"
@@ -290,8 +293,13 @@ class TransformerSentenceEncoder(nn.Module):
 
         x = self.dropout_module(x)
 
+        if self.use_ds:
+            ds_attention_mask = torch.ones_like(x)
+
         # account for padding while computing the representation
         if padding_mask is not None:
+            if self.use_ds:
+                ds_attention_mask = (1.0 - (ds_attention_mask * padding_mask.unsqueeze(2)))
             x = x * (1 - padding_mask.unsqueeze(-1).type_as(x))
 
 
@@ -302,11 +310,10 @@ class TransformerSentenceEncoder(nn.Module):
         if not self.use_ds:
             # B x T x C -> T x B x C
             x = x.transpose(0, 1)
-
-        attention_mask = torch.zeros_like(x)
+            
         for layer in self.layers:
             if self.use_ds:
-                x = layer(x, attention_mask)
+                x = layer(x, ds_attention_mask)
             else:
                 x, _ = layer(x, self_attn_padding_mask=padding_mask)
             if not last_state_only:
