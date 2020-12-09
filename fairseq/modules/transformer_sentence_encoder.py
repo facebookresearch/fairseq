@@ -305,8 +305,10 @@ class TransformerSentenceEncoder(nn.Module):
 
         attention_mask = torch.zeros_like(x)
         for layer in self.layers:
-            # x, _ = layer(x, self_attn_padding_mask=padding_mask)
-            x = layer(x, attention_mask)
+            if self.use_ds:
+                x = layer(x, attention_mask)
+            else:
+                x, _ = layer(x, self_attn_padding_mask=padding_mask)
             if not last_state_only:
                 inner_states.append(x)
 
