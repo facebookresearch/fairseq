@@ -302,15 +302,14 @@ class TransformerSentenceEncoder(nn.Module):
                 ds_attention_mask = (ds_attention_mask * padding_mask.unsqueeze(2)) * -10000.0
             x = x * (1 - padding_mask.unsqueeze(-1).type_as(x))
 
+        if not self.use_ds:
+            # B x T x C -> T x B x C
+            x = x.transpose(0, 1)
 
         inner_states = []
         if not last_state_only:
             inner_states.append(x)
         
-        if not self.use_ds:
-            # B x T x C -> T x B x C
-            x = x.transpose(0, 1)
-            
         for layer in self.layers:
             if self.use_ds:
                 x = layer(x, ds_attention_mask)
