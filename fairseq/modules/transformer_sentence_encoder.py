@@ -241,7 +241,7 @@ class TransformerSentenceEncoder(nn.Module):
                 hidden_dropout_ratio=dropout,  # Need to verify mapping
                 num_hidden_layers=num_encoder_layers,  # Guess
                 initializer_range=0.02,
-                local_rank=0,  # Assume running only on 1 GPU
+                local_rank=torch.distributed.get_rank(),
                 seed=1010, # Randomly chosen
                 fp16=False, # Disabled based on fairseq advice
                 pre_layer_norm=False,
