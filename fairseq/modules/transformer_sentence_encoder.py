@@ -309,7 +309,7 @@ class TransformerSentenceEncoder(nn.Module):
         inner_states = []
         if not last_state_only:
             inner_states.append(x)
-        
+
         for layer in self.layers:
             if self.use_ds:
                 x = layer(x, ds_attention_mask)
