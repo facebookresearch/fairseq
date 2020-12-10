@@ -237,8 +237,8 @@ class TransformerSentenceEncoder(nn.Module):
                 hidden_size=embedding_dim,
                 intermediate_size=ffn_embedding_dim,
                 heads=num_attention_heads,
-                attn_dropout_ratio=0.0, # attention_dropout,
-                hidden_dropout_ratio=0.0, # dropout,  # Need to verify mapping
+                attn_dropout_ratio=attention_dropout,
+                hidden_dropout_ratio=dropout,  # Need to verify mapping
                 num_hidden_layers=num_encoder_layers,  # Guess
                 initializer_range=0.02,
                 local_rank=0,  # Assume running only on 1 GPU

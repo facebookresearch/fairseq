@@ -10,7 +10,7 @@ DATA_DIR=data-bin/wikitext-103
 
 # Disabled fp16!
 # USE_DS_KERNELS=True CUDA_VISIBLE_DEVICES=0 fairseq-train $DATA_DIR \
-USE_DS_KERNELS=1 CUDA_VISIBLE_DEVICES=0 fairseq-train $DATA_DIR \
+USE_DS_KERNELS=0 CUDA_VISIBLE_DEVICES=0 fairseq-train $DATA_DIR \
     --task masked_lm --criterion masked_lm \
     --arch roberta_base --sample-break-mode complete --tokens-per-sample $TOKENS_PER_SAMPLE \
     --optimizer adam --adam-betas '(0.9,0.98)' --adam-eps 1e-6 --clip-norm 0.0 \
