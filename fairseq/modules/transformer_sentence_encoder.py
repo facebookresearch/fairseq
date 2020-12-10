@@ -299,7 +299,7 @@ class TransformerSentenceEncoder(nn.Module):
         # account for padding while computing the representation
         if padding_mask is not None:
             if self.use_ds:
-                ds_attention_mask = (1.0 - (ds_attention_mask * padding_mask.unsqueeze(2)))
+                ds_attention_mask = (ds_attention_mask * padding_mask.unsqueeze(2)) * -10000.0
             x = x * (1 - padding_mask.unsqueeze(-1).type_as(x))
 
 
