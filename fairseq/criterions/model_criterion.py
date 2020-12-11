@@ -3,14 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
-from fairseq.distributed_utils import get_data_parallel_world_size
 
 
 logger = logging.getLogger(__name__)
@@ -80,6 +79,7 @@ class ModelCriterion(FairseqCriterion):
             "ntokens": sample_size,
             "nsentences": sample["id"].numel(),
             "sample_size": sample_size,
+            "_world_size": 1,
         }
 
         for lk in self.log_keys:
@@ -113,9 +113,12 @@ class ModelCriterion(FairseqCriterion):
             "ntokens",
             "nsentences",
             "sample_size",
+            "_world_size",
         }
 
-        world_size = get_data_parallel_world_size()
+        world_size = utils.item(
+            sum(log.get("_world_size", 0) for log in logging_outputs)
+        )
 
         for k in logging_outputs[0]:
             if k not in builtin_keys:

@@ -18,7 +18,7 @@ import numpy as np
 import soundfile as sf
 import torch
 import tqdm
-from fairseq.models.wav2vec.wav2vec import Wav2VecModel
+import fairseq
 from torch import nn
 
 
@@ -35,10 +35,8 @@ class PretrainedWav2VecModel(nn.Module):
     def __init__(self, fname):
         super().__init__()
 
-        checkpoint = torch.load(fname)
-        self.args = checkpoint["args"]
-        model = Wav2VecModel.build_model(self.args, None)
-        model.load_state_dict(checkpoint["model"])
+        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([fname])
+        model = model[0]
         model.eval()
 
         self.model = model

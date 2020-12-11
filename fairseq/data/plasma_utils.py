@@ -60,7 +60,7 @@ class PlasmaArray(object):
     def client(self):
         if self._client is None:
             assert self.path is not None
-            self._client = self.plasma.connect(self.path)
+            self._client = self.plasma.connect(self.path, num_retries=200)
         return self._client
 
     def __getstate__(self):

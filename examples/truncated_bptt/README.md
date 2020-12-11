@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 fairseq-train \
     --arch transformer_xl --n-layer 16 --d-model 410 --n-head 10 \
     --d-head 41 --d-inner 2100 --dropout 0.1 --dropatt 0.0 --mem-len 150 \
     --optimizer adam --clip-norm 0.25 \
-    --lr-scheduler cosine --warmup-updates 0 --lr 0.0 --max-lr 0.00025  \
+    --lr-scheduler cosine --warmup-updates 0 --min-lr 0.0 --lr 0.00025  \
     --log-format json --log-interval 25 \
     --fp16
 ```

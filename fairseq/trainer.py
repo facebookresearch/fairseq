@@ -299,12 +299,14 @@ class Trainer(object):
 
         bexists = PathManager.isfile(filename)
         if bexists:
-            if (
-                self.data_parallel_rank == 0
+            load_on_all_ranks = (
+                self.cfg.checkpoint.load_checkpoint_on_all_dp_ranks
                 # TPUs don't support broadcast yet, so load checkpoints
                 # on every worker for now
                 or self.tpu
-            ):
+            )
+
+            if load_on_all_ranks or self.data_parallel_rank == 0:
                 state = checkpoint_utils.load_checkpoint_to_cpu(filename)
                 last_optim_state = state.get("last_optimizer_state", None)
 
@@ -312,7 +314,8 @@ class Trainer(object):
                 # state. Later we will broadcast sharded states to each rank
                 # to avoid memory from exploding.
                 if (
-                    self.cfg.distributed_training.zero_sharding == "os"
+                    not load_on_all_ranks
+                    and self.cfg.distributed_training.zero_sharding == "os"
                     and "last_optimizer_state" in state
                     and self.data_parallel_world_size > 1
                 ):
@@ -321,11 +324,7 @@ class Trainer(object):
                 last_optim_state = None
                 state = None
 
-            if (
-                self.data_parallel_world_size > 1
-                # disable on TPUs until they support broadcast
-                and not self.tpu
-            ):
+            if self.data_parallel_world_size > 1 and not load_on_all_ranks:
                 state = distributed_utils.broadcast_object(
                     state,
                     src_rank=0,
@@ -368,7 +367,7 @@ class Trainer(object):
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim["lr_scheduler_state"])
 
-            if self.data_parallel_world_size > 1:
+            if not load_on_all_ranks and self.data_parallel_world_size > 1:
                 last_optim_state = self.optimizer.broadcast_global_state_dict(
                     last_optim_state
                 )
@@ -638,7 +637,9 @@ class Trainer(object):
 
             with torch.autograd.profiler.record_function("optimizer"):
                 # take an optimization step
-                self.optimizer.step()
+                self.task.optimizer_step(
+                    self.optimizer, model=self.model, update_num=self.get_num_updates()
+                )
 
         except FloatingPointError:
             # re-run the forward and backward pass with hooks attached to print
@@ -828,7 +829,12 @@ class Trainer(object):
     def lr_step_update(self):
         """Update the learning rate after each update."""
         new_lr = self.lr_scheduler.step_update(self.get_num_updates())
-        metrics.log_scalar("lr", new_lr, weight=0, priority=300)
+        if isinstance(new_lr, dict):
+            for k, v in new_lr.items():
+                metrics.log_scalar(f"lr_{k}", v, weight=0, priority=300)
+            new_lr = new_lr.get("default", next(iter(new_lr.values())))
+        else:
+            metrics.log_scalar("lr", new_lr, weight=0, priority=300)
         return new_lr
 
     def get_lr(self):
@@ -910,7 +916,7 @@ class Trainer(object):
         """Aggregate training time in seconds."""
         return time.time() - self._start_time + self._previous_training_time
 
-    def _prepare_sample(self, sample):
+    def _prepare_sample(self, sample, is_dummy=False):
         if sample == "DUMMY":
             raise Exception(
                 "Trying to use an uninitialized 'dummy' batch. This usually indicates "
@@ -922,7 +928,7 @@ class Trainer(object):
             assert (
                 self._dummy_batch is not None and len(self._dummy_batch) > 0
             ), "Invalid dummy batch: {}".format(self._dummy_batch)
-            sample, _ = self._prepare_sample(self._dummy_batch)
+            sample, _ = self._prepare_sample(self._dummy_batch, is_dummy=True)
             return sample, True
 
         if self.cuda:
@@ -933,6 +939,9 @@ class Trainer(object):
                     )
             else:
                 sample = utils.move_to_cuda(sample)
+        elif self.tpu and is_dummy:
+            # the dummy batch may not be on the appropriate device
+            sample = utils.move_to_cuda(sample, device=self.device)
 
         def apply_half(t):
             if t.dtype is torch.float32:

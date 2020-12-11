@@ -23,7 +23,7 @@ fairseq-train \
     --optimizer adam --adam-betas '(0.9, 0.98)' \
     --lr-scheduler 'inverse_sqrt' \
     --warmup-init-lr 1e-7  --warmup-updates 4000 \
-    --lr 5e-4 --min-lr 1e-9 --clip-norm 0.0 --weight-decay 0.0001\
+    --lr 5e-4 --stop-min-lr 1e-9 --clip-norm 0.0 --weight-decay 0.0001\
     --dropout 0.3 \
     --label-smoothing 0.1\
     --max-tokens 3584
@@ -44,7 +44,7 @@ fairseq-train \
     --optimizer adam --adam-betas '(0.9, 0.98)' \
     --lr-scheduler 'inverse_sqrt' \
     --warmup-init-lr 1e-7  --warmup-updates 4000 \
-    --lr 5e-4 --min-lr 1e-9 --clip-norm 0.0 --weight-decay 0.0001\
+    --lr 5e-4 --stop-min-lr 1e-9 --clip-norm 0.0 --weight-decay 0.0001\
     --dropout 0.3 \
     --label-smoothing 0.1\
     --max-tokens 3584
@@ -65,7 +65,7 @@ fairseq-train \
     --optimizer adam --adam-betas '(0.9, 0.98)' \
     --lr-scheduler 'inverse_sqrt' \
     --warmup-init-lr 1e-7  --warmup-updates 4000 \
-    --lr 5e-4 --min-lr 1e-9 --clip-norm 0.0 --weight-decay 0.0001\
+    --lr 5e-4 --stop-min-lr 1e-9 --clip-norm 0.0 --weight-decay 0.0001\
     --dropout 0.3 \
     --label-smoothing 0.1\
     --max-tokens 3584

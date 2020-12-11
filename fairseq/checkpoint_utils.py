@@ -458,7 +458,6 @@ def _upgrade_state_dict(state):
             "iterations_in_epoch": state["extra_state"].get("batch_offset", 0),
         }
 
-    # old model checkpoints may not have separate source/target positions
     # backward compatibility, cfg updates
     if "args" in state and state["args"] is not None:
         # default to translation task
@@ -474,15 +473,29 @@ def _upgrade_state_dict(state):
             state["extra_state"]["train_iterator"]["epoch"] = max(
                 state["extra_state"]["train_iterator"].get("epoch", 1), 1
             )
-
+        # --remove-bpe ==> --postprocess
         if hasattr(state["args"], "remove_bpe"):
             state["args"].post_process = state["args"].remove_bpe
+        # --min-lr ==> --stop-min-lr
+        if hasattr(state["args"], "min_lr"):
+            state["args"].stop_min_lr = state["args"].min_lr
+            del state["args"].min_lr
+        # binary_cross_entropy => wav2vec criterion
+        if hasattr(state["args"], "criterion") and state["args"].criterion == "binary_cross_entropy":
+            state["args"].criterion = "wav2vec"
+        # speech_pretraining => audio pretraining
+        if hasattr(state["args"], "task") and state["args"].task == "speech_pretraining":
+            state["args"].task = "audio_pretraining"
+        # audio_cpc => wav2vec
+        if hasattr(state["args"], "arch") and state["args"].arch == "audio_cpc":
+            state["args"].arch = "wav2vec"
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
     if "cfg" in state and state["cfg"] is not None:
         with open_dict(state["cfg"]):
             if state["cfg"].task is not None:
+                # old model checkpoints may not have separate source/target positions
                 if hasattr(state["cfg"].task, "max_positions") and not hasattr(
                     state["cfg"].task, "max_source_positions"
                 ):
