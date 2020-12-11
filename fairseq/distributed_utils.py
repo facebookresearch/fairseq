@@ -14,7 +14,6 @@ import subprocess
 import warnings
 from argparse import Namespace
 from collections import OrderedDict
-from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional
 
 import torch
@@ -643,54 +642,19 @@ def all_reduce_dict(data: Mapping[str, Any], device, group) -> Dict[str, Any]:
     return OrderedDict([(key, get_from_stack(key)) for key in data_keys])
 
 
-def broadcast_tensors(
-    tensors: Optional[List[torch.Tensor]],
-    src_rank: int,
-    group: object,
-    dist_device: Optional[torch.device] = None,
-) -> List[torch.Tensor]:
-    """
-    Broadcasts a list of tensors without other (non-src) ranks needing to know
-    the dtypes/shapes of the tensors.
-    """
-    if dist_device is None:
-        if torch.distributed.get_backend(group) == "nccl":
-            dist_device = torch.device("cuda")
-        else:
-            dist_device = torch.device("cpu")
-
-    # share metadata first to simplify transfer
-    is_src_rank = (get_rank(group) == src_rank)
-    if is_src_rank:
-        metadata = [
-            {"size": t.size(), "dtype": t.dtype, "device": t.device} for t in tensors
-        ]
-        metadata = _broadcast_object_slow(metadata, src_rank, group, dist_device)
-    else:
-        metadata = _broadcast_object_slow(None, src_rank, group, dist_device)
-
-    out_tensors = []
-    for i, meta in enumerate(metadata):
-        if is_src_rank:
-            tensor = tensors[i]
-            broadcast(tensors[i].to(dist_device), src=src_rank, group=group)
-        else:
-            tensor = torch.zeros(
-                [meta["size"].numel()], dtype=meta["dtype"], device=dist_device
-            )
-            broadcast(tensor, src=src_rank, group=group)
-        tensor = tensor.view(meta["size"]).to(meta["device"])
-        out_tensors.append(tensor)
-    return out_tensors
-
-
+# From fairscale/optim/utils.py
 def broadcast_object(
     obj: Any,
     src_rank: int,
     group: object,
     dist_device: Optional[torch.device] = None,
+    dist_length_dtype: Optional[torch.dtype] = torch.long,
+    dist_dtype: Optional[torch.dtype] = torch.uint8,
 ) -> Any:
-    """Broadcast an arbitrary Python object to other workers."""
+    """
+    Either broadcast from master to the fleet (default),
+    or use the src setting as the original rank.
+    """
     if dist_device is None:
         if torch.distributed.get_backend(group) == "nccl":
             dist_device = torch.device("cuda")
@@ -698,72 +662,24 @@ def broadcast_object(
             dist_device = torch.device("cpu")
 
     if get_rank(group) == src_rank:
-        # split the tensors from the non-tensors so we can broadcast them
-        # directly, avoiding unnecessary serialization/deserialization
-        tensors = []
-        obj = _split_tensors_from_obj(obj, tensors)
-        obj = _broadcast_object_slow(obj, src_rank, group, dist_device)
-        tensors = broadcast_tensors(tensors, src_rank, group, dist_device)
-    else:
-        obj = _broadcast_object_slow(None, src_rank, group, dist_device)
-        tensors = broadcast_tensors(None, src_rank, group, dist_device)
-    return _put_tensors_in_obj(obj, tensors)
-
-
-def _broadcast_object_slow(
-    obj: Any, src_rank: int, group: object, dist_device: torch.device,
-) -> Any:
-    if get_rank(group) == src_rank:
         # Emit data
         buffer = io.BytesIO()
         torch.save(obj, buffer)
-        buffer = torch.ByteTensor(buffer.getbuffer()).to(dist_device)
-        length = torch.LongTensor([len(buffer)]).to(dist_device)
-        broadcast(length, src=src_rank, group=group)
-        broadcast(buffer, src=src_rank, group=group)
+        data = bytearray(buffer.getbuffer())
+        length_tensor = torch.tensor(
+            [len(data)], dtype=dist_length_dtype, device=dist_device
+        )
+        broadcast(length_tensor, src=src_rank, group=group)
+        data_send_tensor = torch.tensor(data, dtype=dist_dtype, device=dist_device)
+        broadcast(data_send_tensor, src=src_rank, group=group)
     else:
         # Fetch from the source
-        length = torch.LongTensor([0]).to(dist_device)
-        broadcast(length, src=src_rank, group=group)
-        buffer = torch.ByteTensor(int(length.item())).to(dist_device)
-        broadcast(buffer, src=src_rank, group=group)
-        buffer = io.BytesIO(buffer.cpu().numpy())
+        length_tensor = torch.tensor([0], dtype=dist_length_dtype, device=dist_device)
+        broadcast(length_tensor, src=src_rank, group=group)
+        data_recv_tensor = torch.zeros(
+            [int(length_tensor.item())], dtype=dist_dtype, device=dist_device
+        )
+        broadcast(data_recv_tensor, src=src_rank, group=group)
+        buffer = io.BytesIO(data_recv_tensor.cpu().numpy())
         obj = torch.load(buffer, map_location="cpu")
     return obj
-
-
-@dataclass(frozen=True)
-class _TensorPlaceholder:
-    index: int
-
-
-def _split_tensors_from_obj(obj: Any, tensors: List[torch.Tensor]) -> Any:
-    if torch.is_tensor(obj):
-        placeholder = _TensorPlaceholder(index=len(tensors))
-        tensors.append(obj)
-        return placeholder
-    elif isinstance(obj, dict):
-        return {k: _split_tensors_from_obj(v, tensors) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_split_tensors_from_obj(v, tensors) for v in obj]
-    elif isinstance(obj, tuple):
-        return tuple(_split_tensors_from_obj(v, tensors) for v in obj)
-    elif isinstance(obj, set):
-        return {_split_tensors_from_obj(v, tensors) for v in obj}
-    else:
-        return obj
-
-
-def _put_tensors_in_obj(obj: Any, tensors: List[torch.Tensor]) -> Any:
-    if isinstance(obj, _TensorPlaceholder):
-        return tensors[obj.index]
-    elif isinstance(obj, dict):
-        return {k: _put_tensors_in_obj(v, tensors) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_put_tensors_in_obj(v, tensors) for v in obj]
-    elif isinstance(obj, tuple):
-        return tuple(_put_tensors_in_obj(v, tensors) for v in obj)
-    elif isinstance(obj, set):
-        return {_put_tensors_in_obj(v, tensors) for v in obj}
-    else:
-        return obj
