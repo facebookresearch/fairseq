@@ -14,6 +14,8 @@ Model | Description | Download
 `transformer.wmt20.en-iu.nh` | En->Iu (Nunavut Hansard domain) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt20.en-iu.nh.single.tar.gz)
 
 ## Language models
+Model | Description | Download
+---|---|---
 `transformer_lm.wmt20.en` | En Language Model | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt20.en.tar.gz)
 `transformer_lm.wmt20.ta` | Ta Language Model | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt20.ta.tar.gz)
 `transformer_lm.wmt20.iu.news` | Iu Language Model (News domain) | [download (.tar.gz)](https://dl.fbaipublicfiles.com/fairseq/models/wmt20.iu.news.tar.gz)
