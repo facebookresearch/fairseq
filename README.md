@@ -60,6 +60,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+* December 2020: [GottBERT model and code released](examples/gottbert/README.md)
 * November 2020: Adopted the [Hydra](https://github.com/facebookresearch/hydra) configuration framework
   * [see documentation explaining how to use it for new and existing projects](docs/hydra_integration.md)
 * November 2020: [fairseq 0.10.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.10.0)
