@@ -44,3 +44,4 @@ GENERATION_DECODING_FORMAT_CHOICES = ChoiceEnum(
 )
 ZERO_SHARDING_CHOICES = ChoiceEnum(["none", "os"])
 PIPELINE_CHECKPOINT_CHOICES = ChoiceEnum(["always", "never", "except_last"])
+PRINT_ALIGNMENT_CHOICES = ChoiceEnum(["hard", "soft"])
