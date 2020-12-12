@@ -109,6 +109,12 @@ class CommonConfig(FairseqDataclass):
             "help": "Weights and Biases project name to use for logging"
         },
     )
+    azureml_logging: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Log scalars to AzureML context"
+        },
+    )
     seed: int = field(
         default=1, metadata={"help": "pseudo random number generator seed"}
     )
