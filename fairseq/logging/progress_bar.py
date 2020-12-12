@@ -34,6 +34,7 @@ def progress_bar(
     tensorboard_logdir: Optional[str] = None,
     default_log_format: str = "tqdm",
     wandb_project: Optional[str] = None,
+    wandb_run_name: Optional[str] = None,
     azureml_logging: Optional[bool] = False,
 ):
     if log_format is None:
@@ -63,7 +64,7 @@ def progress_bar(
             bar = TensorboardProgressBarWrapper(bar, tensorboard_logdir)
 
     if wandb_project:
-        bar = WandBProgressBarWrapper(bar, wandb_project)
+        bar = WandBProgressBarWrapper(bar, wandb_project, run_name=wandb_run_name)
 
     if azureml_logging:
         bar = AzureMLProgressBarWrapper(bar)
@@ -374,15 +375,15 @@ except ImportError:
 class WandBProgressBarWrapper(BaseProgressBar):
     """Log to Weights & Biases."""
 
-    def __init__(self, wrapped_bar, wandb_project):
+    def __init__(self, wrapped_bar, wandb_project, run_name=None):
         self.wrapped_bar = wrapped_bar
         if wandb is None:
-            logger.warning('wandb not found, pip install wandb')
+            logger.warning("wandb not found, pip install wandb")
             return
 
         # reinit=False to ensure if wandb.init() is called multiple times
         # within one process it still references the same run
-        wandb.init(project=wandb_project, reinit=False)
+        wandb.init(project=wandb_project, reinit=False, name=run_name)
 
     def __iter__(self):
         return iter(self.wrapped_bar)
@@ -401,11 +402,11 @@ class WandBProgressBarWrapper(BaseProgressBar):
         if wandb is None:
             return
         if step is None:
-            step = stats['num_updates']
+            step = stats["num_updates"]
 
-        prefix = '' if tag is None else tag + '/'
+        prefix = "" if tag is None else tag + "/"
 
-        for key in stats.keys() - {'num_updates'}:
+        for key in stats.keys() - {"num_updates"}:
             if isinstance(stats[key], AverageMeter):
                 wandb.log({prefix + key: stats[key].val}, step=step)
             elif isinstance(stats[key], Number):
