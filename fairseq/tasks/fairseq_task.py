@@ -376,12 +376,14 @@ class FairseqTask(object):
         else:
             search_strategy = search.BeamSearch(self.target_dictionary)
 
+        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
         if seq_gen_cls is None:
             if getattr(args, "print_alignment", False):
                 seq_gen_cls = SequenceGeneratorWithAlignment
+                extra_gen_cls_kwargs['print_alignment'] = args.print_alignment
             else:
                 seq_gen_cls = SequenceGenerator
-        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
+
         return seq_gen_cls(
             models,
             self.target_dictionary,
