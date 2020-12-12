@@ -437,7 +437,7 @@ def import_user_module(args):
     module_path = getattr(args, "user_dir", None)
     if module_path is not None:
         module_path = os.path.abspath(args.user_dir)
-        if not os.path.exists(module_path):
+        if not os.path.exists(module_path) and not os.path.isfile(os.path.dirname(module_path)):
             fairseq_rel_path = os.path.join(os.path.dirname(__file__), args.user_dir)
             if os.path.exists(fairseq_rel_path):
                 module_path = fairseq_rel_path
