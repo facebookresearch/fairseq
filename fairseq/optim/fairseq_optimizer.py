@@ -112,7 +112,6 @@ class FairseqOptimizer(object):
     def step(self, closure=None, scale=1.0, groups=None):
         """Performs a single optimization step."""
         if self.supports_step_with_scale:
-            self.optimizer.step(closure, scale=scale)
             if self.supports_groups:
                 self.optimizer.step(closure, scale=scale, groups=groups)
             else:
