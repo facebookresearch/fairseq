@@ -59,9 +59,9 @@ class MultilingualRNNModel(FairseqMultiModel):
         base_multilingual_rnn(args)
 
         if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = rnn.DEFAULT_MAX_SOURCE_POSITIONS
+            args.max_source_positions = DEFAULT_MAX_SOURCE_POSITIONS
         if not hasattr(args, 'max_target_positions'):
-            args.max_target_positions = rnn.DEFAULT_MAX_TARGET_POSITIONS
+            args.max_target_positions = DEFAULT_MAX_TARGET_POSITIONS
 
         src_langs = [lang_pair.split('-')[0] for lang_pair in task.model_lang_pairs]
         tgt_langs = [lang_pair.split('-')[1] for lang_pair in task.model_lang_pairs]
