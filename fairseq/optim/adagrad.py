@@ -37,4 +37,4 @@ class Adagrad(LegacyFairseqOptimizer):
 
     @property
     def supports_flat_params(self):
-        return True
+        return False
