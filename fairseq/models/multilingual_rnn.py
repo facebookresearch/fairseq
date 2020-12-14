@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections import OrderedDict
+from torch.nn import Embedding
 
 from fairseq import utils
 from fairseq.models import (
@@ -12,18 +13,18 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.models import lstm
-from fairseq.models.rnn import RNNEncoder, RNNDecoder, RNNModel, base_architecture
+from fairseq.models.rnn import RNNEncoder, RNNDecoder, RNNModel, base_architecture, DEFAULT_MAX_TARGET_POSITIONS, DEFAULT_MAX_SOURCE_POSITIONS
 
 
 @register_model('multilingual_rnn')
 class MultilingualRNNModel(FairseqMultiModel):
-    """Train LSTM models for multiple language pairs simultaneously.
+    """Train RNN models for multiple language pairs simultaneously.
 
     Requires `--task multilingual_translation`.
 
-    We inherit all arguments from lstm.LSTMModel and assume that all language
-    pairs use a single LSTM architecture. In addition, we provide several
-    options that are specific to the multilingual setting.
+    We inherit all arguments from rnn.RNNModel and assume that all language
+    pairs use a single RNN architecture, but the model weights will be shared 
+    across language pairs if they have the same model architecture. 
 
     Args:
         --share-encoder-embeddings: share encoder embeddings across all source languages
@@ -58,9 +59,9 @@ class MultilingualRNNModel(FairseqMultiModel):
         base_multilingual_rnn(args)
 
         if not hasattr(args, 'max_source_positions'):
-            args.max_source_positions = lstm.DEFAULT_MAX_SOURCE_POSITIONS
+            args.max_source_positions = rnn.DEFAULT_MAX_SOURCE_POSITIONS
         if not hasattr(args, 'max_target_positions'):
-            args.max_target_positions = lstm.DEFAULT_MAX_TARGET_POSITIONS
+            args.max_target_positions = rnn.DEFAULT_MAX_TARGET_POSITIONS
 
         src_langs = [lang_pair.split('-')[0] for lang_pair in task.model_lang_pairs]
         tgt_langs = [lang_pair.split('-')[1] for lang_pair in task.model_lang_pairs]
@@ -73,7 +74,7 @@ class MultilingualRNNModel(FairseqMultiModel):
         def build_embedding(dictionary, embed_dim, path=None):
             num_embeddings = len(dictionary)
             padding_idx = dictionary.pad()
-            emb = lstm.Embedding(num_embeddings, embed_dim, padding_idx)
+            emb = Embedding(num_embeddings, embed_dim, padding_idx)
             # if provided, load from preloaded dictionaries
             if path:
                 embed_dict = utils.parse_embedding(path)
