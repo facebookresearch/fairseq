@@ -230,7 +230,7 @@ def multilingual_lstm(args):
     args.rnn_type = "lstm"
     base_multilingual_rnn(args)
 
-@register_model_architecture('multilingual_rnn', 'multilingual_bilstm')
+@register_model_architecture('multilingual_rnn', 'multilingual_bigru')
 def multilingual_lstm(args):
     args.encoder_bidirectional = True
     args.rnn_type = "gru"
