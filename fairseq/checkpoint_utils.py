@@ -451,6 +451,12 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if "num_updates" not in state["optimizer_history"][-1]:
         state["optimizer_history"][-1]["num_updates"] = 0
+    # old model checkpoints may not have separate source/target positions
+    if hasattr(state["args"], "max_positions") and not hasattr(
+        state["args"], "max_source_positions"
+    ):
+        state["args"].max_source_positions = state["args"].max_positions
+        state["args"].max_target_positions = state["args"].max_positions
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
@@ -489,22 +495,16 @@ def _upgrade_state_dict(state):
         # audio_cpc => wav2vec
         if hasattr(state["args"], "arch") and state["args"].arch == "audio_cpc":
             state["args"].arch = "wav2vec"
+        # convert legacy float learning rate to List[float]
+        if hasattr(state["args"], "lr") and isinstance(state["args"].lr, float):
+            state["args"].lr = [state["args"].lr]
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
     if "cfg" in state and state["cfg"] is not None:
         with open_dict(state["cfg"]):
-            if state["cfg"].task is not None:
-                # old model checkpoints may not have separate source/target positions
-                if hasattr(state["cfg"].task, "max_positions") and not hasattr(
-                    state["cfg"].task, "max_source_positions"
-                ):
-                    state["cfg"].task.max_source_positions = state[
-                        "cfg"
-                    ].task.max_positions
-                    state["cfg"].task.max_target_positions = state[
-                        "cfg"
-                    ].task.max_positions
+            # any upgrades for Hydra-based configs
+            pass
 
     return state
 

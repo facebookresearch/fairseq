@@ -185,6 +185,7 @@ def _main(cfg: DictConfig, output_file):
     num_sentences = 0
     has_target = True
     wps_meter = TimeMeter()
+    all_probs = []
     for sample in progress:
         sample = utils.move_to_cuda(sample) if use_cuda else sample
         if "net_input" not in sample:
@@ -260,6 +261,7 @@ def _main(cfg: DictConfig, output_file):
                     print("T-{}\t{}".format(sample_id, target_str), file=output_file)
 
             # Process top predictions
+            sum_hypo_prob = 0.
             for j, hypo in enumerate(hypos[i][: cfg.generation.nbest]):
                 hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
                     hypo_tokens=hypo["tokens"].int().cpu(),
@@ -270,6 +272,7 @@ def _main(cfg: DictConfig, output_file):
                     remove_bpe=cfg.common_eval.post_process,
                     extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
+                sum_hypo_prob += hypo["positional_scores"].sum().exp()
                 detok_hypo_str = decode_fn(hypo_str)
                 if not cfg.common_eval.quiet:
                     score = hypo["score"] / math.log(2)  # convert to base 2
@@ -291,7 +294,7 @@ def _main(cfg: DictConfig, output_file):
                                     lambda x: "{:.4f}".format(x),
                                     # convert from base e to base 2
                                     hypo["positional_scores"]
-                                    .div_(math.log(2))
+                                    .div(math.log(2))
                                     .tolist(),
                                 )
                             ),
@@ -361,6 +364,7 @@ def _main(cfg: DictConfig, output_file):
                         scorer.add_string(target_str, detok_hypo_str)
                     else:
                         scorer.add(target_tokens, hypo_tokens)
+            all_probs.append(sum_hypo_prob)
 
         wps_meter.update(num_generated_tokens)
         progress.log({"wps": round(wps_meter.avg)})
@@ -368,6 +372,7 @@ def _main(cfg: DictConfig, output_file):
             sample["nsentences"] if "nsentences" in sample else sample["id"].numel()
         )
 
+    print("avg cumulative prob", sum(all_probs) / len(all_probs))
     logger.info("NOTE: hypothesis and token scores are output in base 2")
     logger.info(
         "Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)".format(
