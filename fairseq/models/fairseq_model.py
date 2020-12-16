@@ -223,21 +223,6 @@ class BaseFairseqModel(nn.Module):
 
         self.apply(apply_prepare_for_onnx_export_)
 
-    def prepare_for_tpu_(self, **kwargs):
-        """Optionally modify model for use on TPUs."""
-        seen = set()
-
-        def apply_prepare_for_tpu_(module):
-            if (
-                module != self
-                and hasattr(module, "prepare_for_tpu_")
-                and module not in seen
-            ):
-                seen.add(module)
-                module.prepare_for_tpu_(**kwargs)
-
-        self.apply(apply_prepare_for_tpu_)
-
     @classmethod
     def from_pretrained(
         cls,
