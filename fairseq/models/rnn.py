@@ -101,7 +101,7 @@ class RNNModelConfig(FairseqDataclass):
         default=512,
         metadata={"help": "decoder output embedding dimension"}
     )
-    adaptive_softmax_cutoff: Optional[str] = field(
+    adaptive_softmax_cutoff: str = field(
         default="10000,50000,200000",
         metadata={"help": "comma separated list of adaptive softmax cutoff points. "
                           "Must be used with adaptive_loss criterion"}
@@ -243,7 +243,7 @@ class RNNModel(FairseqEncoderDecoderModel):
             max_source_positions=max_source_positions,
         )
         uses_attention = getattr(cfg, 'attention_type', "none") != "none"
-        attention_type = getattr(cfg, 'attention_type', "luong-dot") if uses_attention else None
+        attention_type = getattr(cfg, 'attention_type', "none")
         decoder = RNNDecoder(
             rnn_type=cfg.rnn_type,
             dictionary=task.target_dictionary,
